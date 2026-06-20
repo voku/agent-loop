@@ -65,15 +65,29 @@ briefing:
 
 ```bash
 agent-loop session start --task ABC-123 --by lars --base-commit "$(git rev-parse HEAD)"
-agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file src/Foo.php
+# -> Started session: 2025-01-15-abc-123
+SESSION=2025-01-15-abc-123   # the id session start just printed, not the task id
+
+agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file src/Foo.php \
+  --output-dir recall/ABC-123
 
 # ...do the work...
 
-agent-loop session record ABC-123 --kind decision --title "Keep change scoped" --body "..."
-agent-loop session checkpoint ABC-123 --title "Validation" --body "PHPStan passed."
+agent-loop session record "$SESSION" --kind decision --title "Keep change scoped" --body "..."
+agent-loop session checkpoint "$SESSION" --title "Validation" --body "PHPStan passed."
 agent-loop verify
-agent-loop session close ABC-123 --status done
+agent-loop session close "$SESSION" --status done
 ```
+
+Two things that are easy to get wrong by skimming instead of running this:
+`session record`/`checkpoint`/`close` take the **session id** `session
+start` printed (date-prefixed, e.g. `2025-01-15-abc-123`), not the task
+id — passing the task id fails with `Session not found`. And `recall
+compile` defaults to writing into the current directory, not
+`recall/<task>/`; pass `--output-dir` explicitly so `agent-loop verify`'s
+recall-coverage check finds the briefing where it expects it. See
+[`examples/basic-loop`](examples/basic-loop) for this full sequence run
+against a tiny fake task with real captured output.
 
 Add the board once you have more than one task in flight, and the learning
 loop once you want findings to survive past a single session:
@@ -99,7 +113,10 @@ agent-loop session --help
 
 # board (requires a TODO.md board source under the working directory; the
 # upstream package treats `--help`/`help` as an unknown subcommand, so use
-# `agent-loop board` with no arguments to see its usage instead)
+# `agent-loop board` with no arguments to see its usage instead. Either form
+# prints a benign `PHP Warning: file_get_contents(.../todo/board.md)` to
+# stderr before the usage text if `todo/board.md` doesn't exist yet —
+# upstream `voku/agent-kanban` output, harmless, exit code unaffected)
 agent-loop board summary
 agent-loop board render --lanes=READY,BACKLOG --limit=10
 agent-loop board next-pull
@@ -224,7 +241,9 @@ composer ci    # composer validate --strict + phpunit + phpstan (level 8)
 (`SmokeLoopTest`) proving the orchestration shape: a task file exists, a
 session starts against it, recall compiles a briefing, learn validates the
 root, and `agent-loop verify` reports no drift — then fails on purpose once a
-briefing goes missing or gets edited out of band.
+briefing goes missing or gets edited out of band. [`examples/basic-loop`](examples/basic-loop)
+walks through the same shape by hand, with real command output, for reading
+or running yourself.
 
 ## License
 
