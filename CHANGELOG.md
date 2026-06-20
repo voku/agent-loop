@@ -17,12 +17,23 @@ All notable changes to this project will be documented in this file.
   running it directly from a checkout (`./bin/agent-loop`); installs via
   Composer as a dependency were unaffected, since Composer force-sets
   `+x` on `vendor/bin/` proxies regardless of the source file's mode.
-- Fixed the README's basic-workflow example: it passed the task id
-  instead of the session id to `session record`/`checkpoint`/`close`,
-  and omitted `--output-dir` on `recall compile`, so `agent-loop verify`
-  failed if the example was followed literally.
 - Added `examples/basic-loop`, a runnable walkthrough of the full loop
   against a tiny fake task, with real captured output.
+- `Dispatcher` now resolves request-time defaults instead of requiring
+  the caller to already know upstream conventions, fixing three things
+  the README previously only documented as gotchas:
+  - `session record`/`checkpoint`/`close`/`claim`/`show` accept the task
+    id you started the session with, not just the generated session id
+    (e.g. `2025-01-15-abc-123`) — `agent-loop` looks up the matching
+    session before delegating. The session id still works directly.
+  - `recall compile --task <id>` without `--output-dir` now defaults to
+    `<root>/recall/<id>` (matching what `agent-loop verify`'s
+    recall-coverage check expects), instead of the dependency's own
+    default of the current directory.
+  - `agent-loop board` no longer triggers a `PHP Warning:
+    file_get_contents(.../todo/board.md)` when that file doesn't exist
+    yet, and `agent-loop board --help`/`board help` now exit 0 with
+    usage on stdout instead of being treated as an unknown subcommand.
 
 ## 0.0.3 - 2026-06-20
 

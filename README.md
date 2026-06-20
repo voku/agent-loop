@@ -66,26 +66,27 @@ briefing:
 ```bash
 agent-loop session start --task ABC-123 --by lars --base-commit "$(git rev-parse HEAD)"
 # -> Started session: 2025-01-15-abc-123
-SESSION=2025-01-15-abc-123   # the id session start just printed, not the task id
 
-agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file src/Foo.php \
-  --output-dir recall/ABC-123
+agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file src/Foo.php
 
 # ...do the work...
 
-agent-loop session record "$SESSION" --kind decision --title "Keep change scoped" --body "..."
-agent-loop session checkpoint "$SESSION" --title "Validation" --body "PHPStan passed."
+agent-loop session record ABC-123 --kind decision --title "Keep change scoped" --body "..."
+agent-loop session checkpoint ABC-123 --title "Validation" --body "PHPStan passed."
 agent-loop verify
-agent-loop session close "$SESSION" --status done
+agent-loop session close ABC-123 --status done
 ```
 
-Two things that are easy to get wrong by skimming instead of running this:
-`session record`/`checkpoint`/`close` take the **session id** `session
-start` printed (date-prefixed, e.g. `2025-01-15-abc-123`), not the task
-id — passing the task id fails with `Session not found`. And `recall
-compile` defaults to writing into the current directory, not
-`recall/<task>/`; pass `--output-dir` explicitly so `agent-loop verify`'s
-recall-coverage check finds the briefing where it expects it. See
+`session start` prints its own generated **session id**
+(date-prefixed, e.g. `2025-01-15-abc-123`) on its first line. You don't
+need to capture it: `session record`/`checkpoint`/`close`/`claim`/`show`
+also accept the task id you started the session with — `agent-loop`
+resolves it to the matching session id before delegating. The session id
+still works directly if you have it (e.g. from a list of multiple
+sessions for the same task). Likewise, `recall compile --task ABC-123`
+without `--output-dir` writes to `recall/ABC-123/` automatically, where
+`agent-loop verify`'s recall-coverage check expects to find it; pass
+`--output-dir` explicitly only to override that default. See
 [`examples/basic-loop`](examples/basic-loop) for this full sequence run
 against a tiny fake task with real captured output.
 
@@ -103,20 +104,18 @@ agent-loop learn guidance-evaluate --root infra/doc/agent-learning
 Every command below is real and was verified against this repository's
 installed dependencies (`composer require`'d versions); none of it is
 aspirational. Run `agent-loop <namespace> help` (or `--help`) for a
-namespace's own usage — `board` is the one exception noted below.
+namespace's own usage.
 
 ```bash
 agent-loop --help                 # top-level namespaces
 agent-loop learn --help           # commands for a namespace
 agent-loop recall --help
 agent-loop session --help
+agent-loop board --help
 
-# board (requires a TODO.md board source under the working directory; the
-# upstream package treats `--help`/`help` as an unknown subcommand, so use
-# `agent-loop board` with no arguments to see its usage instead. Either form
-# prints a benign `PHP Warning: file_get_contents(.../todo/board.md)` to
-# stderr before the usage text if `todo/board.md` doesn't exist yet —
-# upstream `voku/agent-kanban` output, harmless, exit code unaffected)
+# board: reads cards from todo/jira/<PREFIX>-N.md (one file per ticket;
+# optional todo/board.md sets the project prefix and done count). Falls
+# back to a single legacy TODO.md only if todo/jira/ doesn't exist.
 agent-loop board summary
 agent-loop board render --lanes=READY,BACKLOG --limit=10
 agent-loop board next-pull

@@ -94,37 +94,37 @@ Started session: 2026-06-20-demo-1
 - working-memory files: plan.md, assumptions.md, decisions.md, validation.md, checkpoints/
 ```
 
-`session start` prints the **session id** on the first line
-(`2026-06-20-demo-1` here — yours will carry today's date). Every later
-`session` command takes that id, not the task id. Capture it:
-
-```bash
-SESSION_ID=2026-06-20-demo-1   # the id printed above, not "DEMO-1"
-```
+`session start` prints its own generated **session id** on the first
+line (`2026-06-20-demo-1` here — yours will carry today's date). You
+don't need to capture it for the steps below: `session
+record`/`checkpoint`/`close`/`claim`/`show` also accept the task id
+(`DEMO-1`) you started the session with, and `agent-loop` resolves it to
+the matching session id before delegating.
 
 ### 3. Compile a task-scoped briefing
 
 ```bash
-$AGENT_LOOP recall compile --root learning-root --task DEMO-1 --file src/Signup.php --output-dir recall/DEMO-1
+$AGENT_LOOP recall compile --root learning-root --task DEMO-1 --file src/Signup.php
 ```
 
 ```text
-Briefing compiled successfully under: recall/DEMO-1/
-- compilation ID: compilation.DEMO-1.2026-06-20-211958.5b51f59f
+Briefing compiled successfully under: .../examples/basic-loop/recall/DEMO-1/
+- compilation ID: compilation.DEMO-1.2026-06-20-215209.35c6f10a
 - system.md (selected guidance: 0, selected constraints: 0)
 - validation-plan.md
 - recall-log.draft.json
 ```
 
-`--output-dir` matters: `recall compile` defaults to writing into the
-current directory. Passing `--output-dir recall/<task-id>` is what lets
-`agent-loop verify` find the briefing it expects at
-`recall/DEMO-1/meta.json`.
+No `--output-dir` needed: with `--task DEMO-1` and no `--output-dir`,
+`agent-loop` defaults it to `recall/DEMO-1/` under the project root,
+which is exactly where `agent-loop verify`'s recall-coverage check looks
+for `recall/DEMO-1/meta.json`. Pass `--output-dir` explicitly only if you
+want the briefing written somewhere else.
 
 ### 4. Record a decision on the session
 
 ```bash
-$AGENT_LOOP session record "$SESSION_ID" --kind decision --title "Keep validation scoped" --body "Only touch Signup.php for this pass."
+$AGENT_LOOP session record DEMO-1 --kind decision --title "Keep validation scoped" --body "Only touch Signup.php for this pass."
 ```
 
 ```text
@@ -156,7 +156,7 @@ or stale briefing would actually be caught.
 ### 6. Close the session
 
 ```bash
-$AGENT_LOOP session close "$SESSION_ID" --status done
+$AGENT_LOOP session close DEMO-1 --status done
 ```
 
 ```text
