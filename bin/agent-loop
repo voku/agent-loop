@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use voku\AgentLoop\Dispatcher;
+
+$autoloadCandidates = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+    getcwd() . '/vendor/autoload.php',
+];
+
+foreach ($autoloadCandidates as $autoloadCandidate) {
+    if (is_file($autoloadCandidate)) {
+        require $autoloadCandidate;
+        break;
+    }
+}
+
+if (!class_exists(Dispatcher::class)) {
+    fwrite(STDERR, "Cannot find Composer autoload file for voku/agent-loop.\n");
+    exit(1);
+}
+
+// INFO: The bare binary wires no JiraIssueProvider; `board jira-sync` is only available
+//       when a host constructs the Dispatcher with its own provider.
+exit((new Dispatcher(getcwd()))->run($argv));

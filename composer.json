@@ -1,0 +1,58 @@
+{
+  "name": "voku/agent-loop",
+  "description": "Umbrella package and unified CLI for the governed agentic-coding loop: board (kanban), learning, and recall-compiler.",
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://github.com/voku/agent-loop",
+  "support": {
+    "issues": "https://github.com/voku/agent-loop/issues",
+    "source": "https://github.com/voku/agent-loop"
+  },
+  "authors": [
+    {
+      "name": "Lars Moelleken",
+      "homepage": "https://github.com/voku"
+    }
+  ],
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "require": {
+    "php": "^8.3",
+    "voku/agent-kanban": "0.0.*@dev",
+    "voku/agent-learning": "0.6.*@dev",
+    "voku/agent-recall-compiler": "0.4.*@dev"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^2.1",
+    "phpunit/phpunit": "^11.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "voku\\AgentLoop\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "voku\\AgentLoop\\Tests\\": "tests/"
+    }
+  },
+  "bin": [
+    "bin/agent-loop"
+  ],
+  "scripts": {
+    "test": "phpunit",
+    "phpstan": "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M",
+    "ci": [
+      "@composer validate --strict",
+      "@test",
+      "@phpstan"
+    ]
+  },
+  "config": {
+    "allow-plugins": false,
+    "sort-packages": true
+  },
+  "suggest": {
+    "voku/housekeeping": "Standalone cron runner to auto-run agent-loop maintenance tasks against a target repository."
+  }
+}
