@@ -88,6 +88,17 @@ final class DispatcherTest extends TestCase
         self::assertSame(0, $exit);
     }
 
+    public function testSessionNamespaceRoutesToSessionCli(): void
+    {
+        $dispatcher = new Dispatcher('.');
+
+        ob_start();
+        $exit = $dispatcher->run(['agent-loop', 'session', 'help']);
+        ob_end_clean();
+
+        self::assertSame(0, $exit);
+    }
+
     public function testMemoryNamespaceUsesDefaultRootFile(): void
     {
         $root = __DIR__ . '/fixtures/root-with-memory';

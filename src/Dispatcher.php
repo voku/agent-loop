@@ -9,6 +9,7 @@ use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
+use voku\AgentSession\Cli as SessionCli;
 
 /**
  * Unified entrypoint for the governed agentic-coding loop.
@@ -18,6 +19,7 @@ use voku\AgentRecallCompiler\Cli as RecallCli;
  *  - `verify` -> voku/agent-kanban (TodoBoardVerifier)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
+ *  - `session` -> voku/agent-session (Cli)
  *  - `memory` -> voku/agent-loop (MemoryPromotionAnalyzer)
  *
  * Each library CLI expects the script name at argv[0] and its own command at
@@ -48,6 +50,7 @@ final class Dispatcher
             'verify', 'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
             'recall' => (new RecallCli())->run($this->subArgv($scriptName, $rest)),
+            'session' => (new SessionCli())->run($this->subArgv($scriptName, $rest)),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
@@ -88,6 +91,8 @@ final class Dispatcher
                   Findings, proposals, and decision history (voku/agent-learning).
           recall  <compile|log-outcome>
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
+          session <start|claim|checkpoint|record|close|list|show|prune>
+                  Working memory: per-task session plans (voku/agent-session).
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
           help    Show this help.

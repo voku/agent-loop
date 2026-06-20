@@ -20,7 +20,8 @@
     "php": "^8.3",
     "voku/agent-kanban": "0.0.*@dev",
     "voku/agent-learning": "0.6.*@dev",
-    "voku/agent-recall-compiler": "0.4.*@dev"
+    "voku/agent-recall-compiler": "0.4.*@dev",
+    "voku/agent-session": "0.0.*@dev"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",
@@ -54,5 +55,10 @@
   },
   "suggest": {
     "voku/housekeeping": "Standalone cron runner to auto-run agent-loop maintenance tasks against a target repository."
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "0.0.x-dev"
+    }
   }
 }
