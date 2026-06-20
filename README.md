@@ -19,7 +19,7 @@ command vocabulary, zero shared state of its own.
 
 ## Package map
 
-```
+```text
                 ┌──────────────────────────── voku/agent-loop ───────────────────────────┐
   agent-loop →  │  board    →  voku/agent-kanban           (TODO Kanban board + Jira sync) │
                 │  verify   →  voku/agent-loop              (cross-package consistency)    │
@@ -145,7 +145,7 @@ command that looks *across* board, session, recall, and learning state at
 once and answers: **is this repo's agent workflow state internally
 consistent?**
 
-```
+```bash
 agent-loop verify
 ```
 

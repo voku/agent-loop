@@ -4,7 +4,7 @@ Minimal, boring proof that the wrapper can orchestrate the underlying
 packages without tripping over its own shoelaces. `SmokeLoopTest` copies this
 directory to a temp location, then runs the real loop against the copy:
 
-```
+```text
 task exists            tasks/task.001.md (committed)
   -> session starts    agent-loop session start --task task.001 ...
   -> recall compiles   agent-loop recall compile --task task.001 ...

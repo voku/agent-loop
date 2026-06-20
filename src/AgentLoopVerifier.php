@@ -39,7 +39,7 @@ final class AgentLoopVerifier
      */
     public function run(array $tokens): int
     {
-        if (in_array($tokens[0] ?? '', ['help', '--help', '-h'], true)) {
+        if (array_intersect($tokens, ['help', '--help', '-h']) !== []) {
             echo $this->usage();
 
             return 0;
@@ -189,13 +189,18 @@ final class AgentLoopVerifier
 
         ob_start();
         $exit = (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run();
-        ob_end_clean();
+        $boardOutput = (string) ob_get_clean();
 
-        echo $exit === 0
-            ? "[OK] board: kanban board projection verified (delegated to voku/agent-kanban)\n"
-            : "[FAIL] board: kanban board verification failed, see voku/agent-kanban error above\n";
+        if ($exit === 0) {
+            echo "[OK] board: kanban board projection verified (delegated to voku/agent-kanban)\n";
 
-        return $exit === 0;
+            return true;
+        }
+
+        echo $boardOutput;
+        echo "[FAIL] board: kanban board verification failed, see voku/agent-kanban error above\n";
+
+        return false;
     }
 
     private function checkSessionsAndRecall(string $sessionsRoot, string $recallRoot): bool
@@ -214,13 +219,14 @@ final class AgentLoopVerifier
             return false;
         }
 
+        $ok = $this->checkRecallStaleness($recallRoot);
+
         if ($sessions === []) {
             echo "[OK] sessions: 0 sessions found under {$sessionsRoot}\n";
 
-            return true;
+            return $ok;
         }
 
-        $ok = true;
         $activeCount = 0;
         foreach ($sessions as $session) {
             if ($session->status->isClosed()) {
@@ -238,8 +244,6 @@ final class AgentLoopVerifier
 
             $ok = $this->checkRecallCoverage($recallRoot, $session->id, $session->taskId) && $ok;
         }
-
-        $ok = $this->checkRecallStaleness($recallRoot) && $ok;
 
         if ($ok) {
             echo '[OK] sessions: ' . count($sessions) . ' session(s) parsed, ' . $activeCount . " active and consistent\n";
@@ -302,6 +306,9 @@ final class AgentLoopVerifier
 
             $hashes = $decoded['output_hashes'] ?? [];
             if (!is_array($hashes)) {
+                echo "[FAIL] recall: {$metaFile} has a malformed output_hashes field\n";
+                $ok = false;
+
                 continue;
             }
 
