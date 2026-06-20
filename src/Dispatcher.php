@@ -16,7 +16,8 @@ use voku\AgentSession\Cli as SessionCli;
  *
  * Routes the first CLI argument to the matching library:
  *  - `board`  -> voku/agent-kanban (TodoBoardCli)
- *  - `verify` -> voku/agent-kanban (TodoBoardVerifier)
+ *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
+ *  - `board:verify` -> voku/agent-kanban (TodoBoardVerifier; kanban board source only)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
  *  - `session` -> voku/agent-session (Cli)
@@ -47,7 +48,8 @@ final class Dispatcher
         return match ($namespace) {
             'board' => (new TodoBoardCli($this->rootPath, $this->jiraIssueProvider, $this->projectPrefix))
                 ->run($this->subArgv($scriptName, $rest)),
-            'verify', 'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
+            'verify' => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run($rest),
+            'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
             'recall' => (new RecallCli())->run($this->subArgv($scriptName, $rest)),
             'session' => (new SessionCli())->run($this->subArgv($scriptName, $rest)),
@@ -86,7 +88,10 @@ final class Dispatcher
           board   <summary|render|lane|next-pull|ticket|context|brief|jira-sync>
                   TODO Kanban board (voku/agent-kanban). `jira-sync` needs a
                   JiraIssueProvider injected via the Dispatcher constructor.
-          verify  Verify the split TODO board source (voku/agent-kanban).
+          verify  Cross-package consistency check: tasks, board, sessions,
+                  recall outputs, and the learning root (voku/agent-loop).
+                  Each check skips itself when its inputs are absent. Run
+                  `board:verify` for the narrower kanban-board-only check.
           learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-transition>
                   Findings, proposals, and decision history (voku/agent-learning).
           recall  <compile|log-outcome>
