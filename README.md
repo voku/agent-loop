@@ -20,26 +20,51 @@ command vocabulary, zero shared state of its own.
 ## Package map
 
 ```text
-                ┌──────────────────────────── voku/agent-loop ───────────────────────────┐
-  agent-loop →  │  board    →  voku/agent-kanban           (TODO Kanban board + Jira sync) │
-                │  verify   →  voku/agent-loop              (cross-package consistency)    │
-                │  board:verify → voku/agent-kanban         (TodoBoardVerifier, board only) │
-                │  session  →  voku/agent-session           (working memory per task)      │
-                │  recall   →  voku/agent-recall-compiler   (L2 meta-prompt compilation)    │
-                │  learn    →  voku/agent-learning          (findings → proposals → history)│
-                │  memory   →  voku/agent-loop               (MEMORY.md promotion review)    │
-                └─────────────────────────────────────────────────────────────────────────┘
+                ┌───────────────────────────────── voku/agent-loop ──────────────────────────────────┐
+  agent-loop →  │  board         →  voku/agent-kanban           (local Markdown board, Jira optional)│
+                │  verify        →  voku/agent-loop             (cross-package consistency)          │
+                │  board:verify  →  voku/agent-kanban           (TodoBoardVerifier, board only)      │
+                │  session       →  voku/agent-session          (working memory per task)            │
+                │  recall        →  voku/agent-recall-compiler  (L2 meta-prompt compilation)         │
+                │  learn         →  voku/agent-learning         (findings → proposals → history)     │
+                │  memory        →  voku/agent-loop             (MEMORY.md promotion review)         │
+                └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 | Namespace | Purpose | Owning package |
 | --- | --- | --- |
-| `board` | Pick work from a Markdown/Jira Kanban board | `voku/agent-kanban` |
+| `board` | Pick work from local Markdown cards (`todo/jira/*.md`); Jira sync is optional and host-wired | `voku/agent-kanban` |
 | `session` | Working memory for an in-progress task | `voku/agent-session` |
-| `recall` | Compile task-scoped context (L2 meta-prompt) | `voku/agent-recall-compiler` |
+| `recall` | Compile task-scoped context (L2 meta-prompt) as review artifacts — not auto-injected into any agent | `voku/agent-recall-compiler` |
 | `learn` | Findings → proposals → reviewed decision history | `voku/agent-learning` |
 | `verify` | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
 | `board:verify` | Narrow check of the kanban board source only | `voku/agent-kanban` |
 | `memory` | `MEMORY.md` promotion review | `voku/agent-loop` |
+
+### Board: local Markdown first, Jira sync optional
+
+`board` reads work items from local Markdown card files under
+`todo/jira/*.md` (one file per card), with `todo/board.md` holding board
+metadata (project prefix, done count). This works fully standalone — no
+Jira host, credentials, or network access required. `todo/jira/` is a
+historical directory name from when this format was specific to
+Jira-derived cards; today it just means "the local card directory",
+whether or not anything syncs to it. If that directory doesn't exist,
+`board` falls back to reading a single legacy `TODO.md` at the project
+root instead (`voku/agent-kanban`'s own fallback, not something
+`agent-loop` adds).
+
+Only `board jira-sync` talks to Jira, and only once the host application
+constructs the `Dispatcher` with its own `JiraIssueProvider` (see
+"Programmatic use" below) — the bare `bin/agent-loop` wires none. Every
+other `board` command (`summary`, `render`, `lane`, `next-pull`,
+`ticket`, `context`, `brief`) works from the local Markdown cards alone.
+
+A neutrally-named alias such as `todo/cards/*.md` is not currently
+supported by `voku/agent-kanban`; `agent-loop` does not fake one by
+adding new paths on top of the dependency, since the path is owned by
+that package, not this one. Renaming or aliasing it is a future
+`voku/agent-kanban` change, not something to hack around here.
 
 ## Requirements
 
@@ -90,6 +115,23 @@ without `--output-dir` writes to `recall/ABC-123/` automatically, where
 [`examples/basic-loop`](examples/basic-loop) for this full sequence run
 against a tiny fake task with real captured output.
 
+`recall compile` only writes files (`system.md`, `validation-plan.md`,
+`recall-log.draft.json`, `meta.json`) under `recall/<task-id>/`; it does not
+inject them into a running coding agent itself. After a successful `compile`,
+`agent-loop` prints a reminder of this:
+
+```text
+[NOTE] Recall artifacts were written for review or harness ingestion.
+[ACTION REQUIRED] Pass system.md / validation-plan.md into your agent workflow manually unless your harness consumes them automatically.
+```
+
+Whatever drives the agent (a human, an editor integration, or
+`voku/housekeeping`) is responsible for reading `system.md` and
+`validation-plan.md` and feeding them into the actual prompt/context — that
+wiring is host-specific and out of scope for this package. `agent-loop
+verify`'s recall check only confirms a briefing was compiled and is not
+stale; it cannot confirm anything actually read it.
+
 Add the board once you have more than one task in flight, and the learning
 loop once you want findings to survive past a single session:
 
@@ -114,8 +156,11 @@ agent-loop session --help
 agent-loop board --help
 
 # board: reads cards from todo/jira/<PREFIX>-N.md (one file per ticket;
-# optional todo/board.md sets the project prefix and done count). Falls
-# back to a single legacy TODO.md only if todo/jira/ doesn't exist.
+# optional todo/board.md sets the project prefix and done count). Works
+# standalone, no Jira connection needed -- "jira" here is the historical
+# directory name for local cards, not a requirement to have Jira wired
+# up. Falls back to a single legacy TODO.md only if todo/jira/ doesn't
+# exist. Only `board jira-sync` needs a host-wired JiraIssueProvider.
 agent-loop board summary
 agent-loop board render --lanes=READY,BACKLOG --limit=10
 agent-loop board next-pull
@@ -150,9 +195,10 @@ agent-loop verify
 agent-loop memory review --file MEMORY.md
 ```
 
-`agent-loop board jira-sync` needs a `JiraIssueProvider`. The bare binary
-does not wire one (Jira clients are host-specific) — see "Programmatic use"
-below.
+`agent-loop board jira-sync` needs a `JiraIssueProvider`; it is the only
+`board` command that does. The bare binary does not wire one (Jira clients
+are host-specific) — see "Programmatic use" below. Every other `board`
+command works against the local Markdown cards without it.
 
 ## `agent-loop verify`: the safety net
 
@@ -183,6 +229,28 @@ Run `agent-loop verify --help` for the override flags
 `agent-loop board:verify` remains available as the narrower, board-only
 check this command used to be.
 
+### `--strict`: turn baseline skips into failures
+
+By default, a missing input is reported as `[SKIP]` and does not fail the
+command — useful for a repo that only wires up part of the stack. Pass
+`--strict` to fail instead when `tasks/` or `session_plan/` is missing
+entirely:
+
+```bash
+agent-loop verify --strict
+```
+
+`tasks/` and `session_plan/` are the baseline this command exists to
+confirm — a task to work on, and a session tracking it. `board` (`TODO.md`)
+and the learning root stay skippable even under `--strict`: both are
+documented, opt-in additions on top of that baseline (see "Board: local
+Markdown first, Jira sync optional" above, and the learning loop in "Basic
+workflow"), not something every repo using `agent-loop` is expected to have
+set up. [`examples/basic-loop`](examples/basic-loop) fails `--strict` before
+step 2 (`session_plan/` doesn't exist yet), then passes it from step 5
+onward — the same point where its own `verify` (without `--strict`) already
+passes, since by then a session and its recall briefing both exist.
+
 ## What `agent-loop` deliberately does not do
 
 > agent-loop is not the learning engine.
@@ -202,6 +270,36 @@ If a feature needs new durable state, it belongs in one of the focused
 packages, not in `agent-loop`. The moment this wrapper starts hiding state of
 its own, it has become the second source of truth this whole stack was built
 to avoid.
+
+## Review boundaries and safety contracts
+
+`agent-loop` coordinates the loop. It does not approve code, approve
+learning, or replace human review.
+
+Concretely:
+
+- it does not auto-commit, auto-merge, or push anything — every command it
+  runs is the one you typed, with arguments resolved or defaulted as
+  documented above, nothing more
+- it does not approve code changes — that remains whatever review process
+  (human or otherwise) already gates changes outside this tool
+- it does not silently promote findings into durable memory. `learn
+  proposal-approve --by ACTOR <id>`, `proposal-reject`, and
+  `proposal-mark-applied` are `voku/agent-learning`'s own human-actor gate
+  (each requires an explicit `--by` actor) on the candidate → approved →
+  applied lifecycle; `agent-loop` delegates to that command verbatim and adds
+  no auto-approval path of its own
+- `agent-loop memory review` is read-only: it reports which `MEMORY.md` rows
+  look ready for promotion (see `src/MemoryPromotionAnalyzer.php`); it never
+  edits `MEMORY.md` itself. Promotion stays a manual edit by whoever owns
+  that file
+- `agent-loop verify` only reports `[OK]`/`[SKIP]`/`[FAIL]` on existing
+  state; it never repairs drift it finds
+
+If a workflow needs an automated approval or auto-promotion path, that is a
+deliberate, separately-reviewed change to the owning package
+(`voku/agent-learning` for proposals, the host application for
+`MEMORY.md`), not something to add to this wrapper.
 
 ## Programmatic use (host wiring)
 

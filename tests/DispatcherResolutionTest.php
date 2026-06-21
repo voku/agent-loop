@@ -142,6 +142,70 @@ final class DispatcherResolutionTest extends TestCase
         self::assertSame(1, $exit);
     }
 
+    public function testSessionRecordWithExactlyOneActiveSessionAmongMultipleResolvesIt(): void
+    {
+        $sessionsRoot = $this->root . '/session_plan';
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+
+        $sessionIds = $this->allSessionIds($sessionsRoot);
+        self::assertCount(2, $sessionIds);
+
+        // Drop the first attempt, leaving exactly one active session for DEMO-1.
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
+
+        $result = $this->dispatch([
+            'agent-loop', 'session', 'record', 'DEMO-1',
+            '--kind', 'decision', '--title', 'Resolved the active attempt',
+            '--root', $sessionsRoot,
+        ]);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString(
+            'Resolved the active attempt',
+            (string) file_get_contents($sessionsRoot . '/' . $sessionIds[1] . '/decisions.md'),
+        );
+    }
+
+    public function testSessionRecordWithMultipleActiveSessionsFailsClearly(): void
+    {
+        $sessionsRoot = $this->root . '/session_plan';
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+
+        $result = $this->dispatch([
+            'agent-loop', 'session', 'record', 'DEMO-1',
+            '--kind', 'decision', '--title', 'Should not apply',
+            '--root', $sessionsRoot,
+        ]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('Multiple sessions found for task DEMO-1', $result['output']);
+        self::assertStringContainsString('Pass the generated session id explicitly', $result['output']);
+    }
+
+    public function testSessionRecordWithMultipleNonActiveSessionsFailsClearly(): void
+    {
+        $sessionsRoot = $this->root . '/session_plan';
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+
+        $sessionIds = $this->allSessionIds($sessionsRoot);
+        self::assertCount(2, $sessionIds);
+
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'done', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[1], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
+
+        $result = $this->dispatch([
+            'agent-loop', 'session', 'record', 'DEMO-1',
+            '--kind', 'decision', '--title', 'Should not apply',
+            '--root', $sessionsRoot,
+        ]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('Multiple sessions found for task DEMO-1', $result['output']);
+    }
+
     /**
      * @param list<string> $argv
      *
@@ -164,6 +228,17 @@ final class DispatcherResolutionTest extends TestCase
         self::assertCount(1, $entries);
 
         return $entries[0];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allSessionIds(string $sessionsRoot): array
+    {
+        $entries = array_values(array_diff(scandir($sessionsRoot) ?: [], ['.', '..']));
+        sort($entries);
+
+        return $entries;
     }
 
     private function removeDirectory(string $path): void
