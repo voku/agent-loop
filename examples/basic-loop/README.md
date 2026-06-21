@@ -31,18 +31,22 @@ The fake project already contains:
 examples/basic-loop/
 ├── todo/
 │   ├── board.md          # board metadata: project prefix "DEMO"
-│   └── jira/DEMO-1.md     # one READY card
+│   └── jira/DEMO-1.md     # one local READY card (Markdown, no Jira involved)
 ├── tasks/DEMO-1.md        # the task `agent-loop verify` checks against
 └── learning-root/
     └── findings/          # empty — a valid, empty learning root
 ```
 
+`todo/jira/` is a historical directory name for the local Markdown card
+format — nothing in this example talks to Jira, and nothing has to.
 There is no `TODO.md` entrypoint file. `board summary` / `next-pull` /
 `ticket` read straight from `todo/jira/*.md`, so they don't need one —
 but `agent-loop verify`'s board check does, and will report `[SKIP]`
 here. The kanban entrypoint format is `voku/agent-kanban`'s own
 house-style contract and out of scope for this generic example (see
-`tests/fixtures/basic-loop` for the same call).
+`tests/fixtures/basic-loop` for the same call). `board jira-sync` is the
+only `board` command that needs a Jira connection (a host-wired
+`JiraIssueProvider`), and this example doesn't run it.
 
 ## Walkthrough
 
@@ -109,10 +113,13 @@ $AGENT_LOOP recall compile --root learning-root --task DEMO-1 --file src/Signup.
 
 ```text
 Briefing compiled successfully under: .../examples/basic-loop/recall/DEMO-1/
-- compilation ID: compilation.DEMO-1.2026-06-20-215209.35c6f10a
+- compilation ID: compilation.DEMO-1.2026-06-21-195347.86fd0ade
 - system.md (selected guidance: 0, selected constraints: 0)
 - validation-plan.md
 - recall-log.draft.json
+
+[NOTE] Recall artifacts were written for review or harness ingestion.
+[ACTION REQUIRED] Pass system.md / validation-plan.md into your agent workflow manually unless your harness consumes them automatically.
 ```
 
 No `--output-dir` needed: with `--task DEMO-1` and no `--output-dir`,
@@ -120,6 +127,13 @@ No `--output-dir` needed: with `--task DEMO-1` and no `--output-dir`,
 which is exactly where `agent-loop verify`'s recall-coverage check looks
 for `recall/DEMO-1/meta.json`. Pass `--output-dir` explicitly only if you
 want the briefing written somewhere else.
+
+The `[NOTE]`/`[ACTION REQUIRED]` lines are `agent-loop`'s own reminder, not
+`voku/agent-recall-compiler`'s: compiling a briefing only writes the files
+above to disk, it does not feed them into any running agent. Reading
+`system.md` and `validation-plan.md` into the actual coding session is up to
+whatever drives that session — a human, an editor integration, or a
+`voku/housekeeping`-style harness.
 
 ### 4. Record a decision on the session
 

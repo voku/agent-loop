@@ -60,8 +60,8 @@ final class Dispatcher
             'verify' => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run($rest),
             'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
-            'recall' => (new RecallCli())->run($this->subArgv($scriptName, $this->resolveRecallArgv($rest))),
-            'session' => (new SessionCli())->run($this->subArgv($scriptName, $this->resolveSessionArgv($rest))),
+            'recall' => $this->dispatchRecall($scriptName, $rest),
+            'session' => $this->dispatchSession($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
@@ -107,6 +107,46 @@ final class Dispatcher
     }
 
     /**
+     * Resolves `session record|checkpoint|close|claim|show <id>` and delegates
+     * to voku/agent-session, unless task-id resolution reports an ambiguous
+     * match (see resolveSessionArgv()), in which case the error it already
+     * printed is the only output and the namespace is never delegated.
+     *
+     * @param list<string> $rest
+     */
+    private function dispatchSession(string $scriptName, array $rest): int
+    {
+        $resolved = $this->resolveSessionArgv($rest);
+        if ($resolved === null) {
+            return 1;
+        }
+
+        return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
+    }
+
+    /**
+     * Delegates to voku/agent-recall-compiler, then -- only for a successful
+     * `recall compile` -- appends a note that the compiled artifacts are
+     * written for review or harness ingestion, not consumed automatically by
+     * anything in this stack. This never touches the dependency's own
+     * output (which it writes via fwrite(STDOUT, ...), not echo); it only
+     * appends after delegation returns.
+     *
+     * @param list<string> $rest
+     */
+    private function dispatchRecall(string $scriptName, array $rest): int
+    {
+        $exit = (new RecallCli())->run($this->subArgv($scriptName, $this->resolveRecallArgv($rest)));
+
+        if ($exit === 0 && ($rest[0] ?? null) === 'compile') {
+            echo "\n[NOTE] Recall artifacts were written for review or harness ingestion.\n";
+            echo "[ACTION REQUIRED] Pass system.md / validation-plan.md into your agent workflow manually unless your harness consumes them automatically.\n";
+        }
+
+        return $exit;
+    }
+
+    /**
      * Lets `session record|checkpoint|close|claim|show` accept the task id
      * passed to `session start --task` in place of the generated session id
      * (e.g. `2026-06-20-abc-123`), which is otherwise easy to confuse with
@@ -114,11 +154,26 @@ final class Dispatcher
      * read-only lookup against the existing session_plan/ files at request
      * time, not new state of its own.
      *
+     * A task id can match more than one session (e.g. a dropped attempt
+     * followed by a fresh one for the same task). Resolution rules, in order:
+     *  1. an explicit, already-valid session id is left unchanged.
+     *  2. zero matches: left unchanged, so the upstream "Session not found"
+     *     failure still applies.
+     *  3. exactly one match: resolved.
+     *  4. multiple matches with exactly one non-closed ("active") session:
+     *     the active one is resolved.
+     *  5. multiple matches with zero or more-than-one active session: this
+     *     is ambiguous, so resolution fails cleanly (an [ERROR] is printed
+     *     and null is returned) instead of guessing which one the caller
+     *     meant.
+     *
      * @param list<string> $rest
      *
-     * @return list<string>
+     * @return list<string>|null null when the task id matched more than one
+     *                            session and the caller must pass the
+     *                            generated session id explicitly instead
      */
-    private function resolveSessionArgv(array $rest): array
+    private function resolveSessionArgv(array $rest): ?array
     {
         $command = $rest[0] ?? null;
         if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show'], true)) {
@@ -161,21 +216,33 @@ final class Dispatcher
             return $rest;
         }
 
-        $matchingSessionIds = array_values(array_map(
-            static fn ($session): string => $session->id,
-            array_filter(
-                $store->all($sessionsRoot),
-                static fn ($session): bool => $session->taskId === $candidate,
-            ),
+        $matchingSessions = array_values(array_filter(
+            $store->all($sessionsRoot),
+            static fn ($session): bool => $session->taskId === $candidate,
         ));
 
-        if ($matchingSessionIds === []) {
+        if ($matchingSessions === []) {
             return $rest;
         }
 
-        // all() is sorted by id ascending; ids are date-prefixed, so the last
-        // match is the most recently created session for this task.
-        $tokens[$positionalIndex] = $matchingSessionIds[count($matchingSessionIds) - 1];
+        if (count($matchingSessions) === 1) {
+            $tokens[$positionalIndex] = $matchingSessions[0]->id;
+
+            return array_merge([$command], $tokens);
+        }
+
+        $activeSessions = array_values(array_filter(
+            $matchingSessions,
+            static fn ($session): bool => !$session->status->isClosed(),
+        ));
+
+        if (count($activeSessions) !== 1) {
+            echo "[ERROR] Multiple sessions found for task {$candidate}. Pass the generated session id explicitly.\n";
+
+            return null;
+        }
+
+        $tokens[$positionalIndex] = $activeSessions[0]->id;
 
         return array_merge([$command], $tokens);
     }
