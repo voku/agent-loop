@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.0.4 - 2026-06-20
+## 0.1.0 - 2026-06-22
 
 - README and `examples/basic-loop` now lead with `todo/cards/*.md`, the
   preferred local Markdown card directory added in `voku/agent-kanban`
