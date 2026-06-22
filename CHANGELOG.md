@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## 0.0.4 - 2026-06-20
 
+- README and `examples/basic-loop` now lead with `todo/cards/*.md`, the
+  preferred local Markdown card directory added in `voku/agent-kanban`
+  0.1.0 (`todo/jira/*.md` still works for boards that already use it).
+  Bumped the `voku/agent-kanban` constraint from `0.0.*@dev` to
+  `0.1.*@dev` to pick it up — this repo's own code needed no other
+  change, since the card directory is entirely owned and resolved by
+  `voku/agent-kanban`.
 - `verify` is now a cross-package consistency check (`AgentLoopVerifier`):
   tasks, board, session/recall linkage with hash-based staleness
   detection, and the learning root, each skipping itself when its inputs

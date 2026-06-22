@@ -31,22 +31,25 @@ The fake project already contains:
 examples/basic-loop/
 ├── todo/
 │   ├── board.md          # board metadata: project prefix "DEMO"
-│   └── jira/DEMO-1.md     # one local READY card (Markdown, no Jira involved)
+│   └── cards/DEMO-1.md   # one local READY card (Markdown, no Jira involved)
 ├── tasks/DEMO-1.md        # the task `agent-loop verify` checks against
 └── learning-root/
     └── findings/          # empty — a valid, empty learning root
 ```
 
-`todo/jira/` is a historical directory name for the local Markdown card
-format — nothing in this example talks to Jira, and nothing has to.
-There is no `TODO.md` entrypoint file. `board summary` / `next-pull` /
-`ticket` read straight from `todo/jira/*.md`, so they don't need one —
-but `agent-loop verify`'s board check does, and will report `[SKIP]`
-here. The kanban entrypoint format is `voku/agent-kanban`'s own
-house-style contract and out of scope for this generic example (see
-`tests/fixtures/basic-loop` for the same call). `board jira-sync` is the
-only `board` command that needs a Jira connection (a host-wired
-`JiraIssueProvider`), and this example doesn't run it.
+`todo/cards/` is the local Markdown card directory — nothing in this
+example talks to Jira, and nothing has to. `todo/jira/` also still works
+(`voku/agent-kanban` checks `todo/cards/` first, then falls back to
+`todo/jira/` for boards that already use it); this example uses the
+preferred name. There is no `TODO.md` entrypoint file. `board summary` /
+`next-pull` / `ticket` read straight from `todo/cards/*.md`, so they
+don't need one — but `agent-loop verify`'s board check does, and will
+report `[SKIP]` here. The kanban entrypoint format is
+`voku/agent-kanban`'s own house-style contract and out of scope for this
+generic example (see `tests/fixtures/basic-loop` for the same call).
+`board jira-sync` is the only `board` command that needs a Jira
+connection (a host-wired `JiraIssueProvider`), and this example doesn't
+run it.
 
 ## Walkthrough
 
@@ -93,13 +96,13 @@ $AGENT_LOOP session start --task DEMO-1 --by demo-agent --base-commit "$(git rev
 ```
 
 ```text
-Started session: 2026-06-20-demo-1
-- path: .../session_plan/2026-06-20-demo-1
+Started session: 2026-06-22-demo-1
+- path: .../session_plan/2026-06-22-demo-1
 - working-memory files: plan.md, assumptions.md, decisions.md, validation.md, checkpoints/
 ```
 
 `session start` prints its own generated **session id** on the first
-line (`2026-06-20-demo-1` here — yours will carry today's date). You
+line (`2026-06-22-demo-1` here — yours will carry today's date). You
 don't need to capture it for the steps below: `session
 record`/`checkpoint`/`close`/`claim`/`show` also accept the task id
 (`DEMO-1`) you started the session with, and `agent-loop` resolves it to
@@ -113,7 +116,7 @@ $AGENT_LOOP recall compile --root learning-root --task DEMO-1 --file src/Signup.
 
 ```text
 Briefing compiled successfully under: .../examples/basic-loop/recall/DEMO-1/
-- compilation ID: compilation.DEMO-1.2026-06-21-195347.86fd0ade
+- compilation ID: compilation.DEMO-1.2026-06-22-143325.8ea1299a
 - system.md (selected guidance: 0, selected constraints: 0)
 - validation-plan.md
 - recall-log.draft.json
@@ -142,7 +145,7 @@ $AGENT_LOOP session record DEMO-1 --kind decision --title "Keep validation scope
 ```
 
 ```text
-Recorded decision on session '2026-06-20-demo-1'.
+Recorded decision on session '2026-06-22-demo-1'.
 ```
 
 ### 5. Verify before closing
@@ -174,7 +177,7 @@ $AGENT_LOOP session close DEMO-1 --status done
 ```
 
 ```text
-Closed session '2026-06-20-demo-1' as done.
+Closed session '2026-06-22-demo-1' as done.
 ```
 
 ### 7. Validate the learning root
