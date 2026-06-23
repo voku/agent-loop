@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.2 - 2026-06-23
+
+- Bumped the `voku/agent-learning` constraint from `0.6.*@dev` to `0.7.*@dev` to
+  pick up the new `retired` `ProposalStatus` / `proposal-retire` command
+  (`agent-learning` 0.7.0). This repo's own code needed no other change: the
+  `learn` dispatch in `Dispatcher.php` already passes every `learn <command>`
+  through generically (`proposal-*` in its own help text already covers the new
+  command), and `voku/agent-recall-compiler` needed no change either, since it
+  never scans `proposals/retired/`.
+
 ## 0.1.1 - 2026-06-22
 
 - Added fallback for auto-detecting `recall-root` and enhance `recall` consistency checks in `AgentLoopVerifier`.
