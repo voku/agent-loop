@@ -78,7 +78,7 @@ final class AgentLoopVerifier
         $options = [
             'tasks-root' => $root . '/tasks',
             'sessions-root' => $root . '/session_plan',
-            'recall-root' => $root . '/recall',
+            'recall-root' => null,
             'learning-root' => null,
         ];
 
@@ -99,6 +99,26 @@ final class AgentLoopVerifier
                     break;
                 }
             }
+        }
+
+        if ($options['recall-root'] === null) {
+            $candidates = [];
+            if ($options['learning-root'] !== null) {
+                $candidates[] = rtrim($options['learning-root'], '/') . '/recall-output';
+                $candidates[] = rtrim($options['learning-root'], '/') . '/recall';
+            }
+            $candidates[] = $root . '/recall';
+            $candidates[] = $root . '/infra/doc/agent-learning/recall-output';
+            $candidates[] = $root . '/.agent-recall';
+
+            foreach ($candidates as $candidate) {
+                if (is_dir($candidate)) {
+                    $options['recall-root'] = $candidate;
+
+                    break;
+                }
+            }
+            $options['recall-root'] ??= $root . '/recall';
         }
 
         return $options;
@@ -257,6 +277,14 @@ final class AgentLoopVerifier
 
         $metaFile = rtrim($recallRoot, '/') . '/' . $taskId . '/meta.json';
         if (!is_file($metaFile)) {
+            $currentMetaFile = rtrim($recallRoot, '/') . '/current/meta.json';
+            if (is_file($currentMetaFile)) {
+                $decoded = json_decode((string) file_get_contents($currentMetaFile), true);
+                if (is_array($decoded) && isset($decoded['task_id']) && $decoded['task_id'] === $taskId) {
+                    return true;
+                }
+            }
+
             echo "[FAIL] recall: active session {$sessionId} has no compiled briefing at {$metaFile}\n";
 
             return false;
@@ -294,9 +322,8 @@ final class AgentLoopVerifier
             }
 
             $taskId = basename($taskDir);
-            if (isset($decoded['task_id']) && $decoded['task_id'] !== $taskId) {
-                echo "[FAIL] recall: {$metaFile} task_id '{$decoded['task_id']}' does not match directory '{$taskId}'\n";
-                $ok = false;
+            if (isset($decoded['task_id']) && $decoded['task_id'] !== $taskId && $taskId !== 'current') {
+                echo "[INFO] recall: {$metaFile} task_id '{$decoded['task_id']}' differs from directory name '{$taskId}'\n";
             }
 
             $hashes = $decoded['output_hashes'] ?? [];

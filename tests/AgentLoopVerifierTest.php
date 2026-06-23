@@ -69,6 +69,45 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
     }
 
+    public function testRecallRootAutoDetectionAndCurrentFallback(): void
+    {
+        // 1. Create a tasks dir and a task file so checkTasks passes
+        mkdir($this->root . '/tasks', 0o775, true);
+        file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
+
+        // 2. Create session_plan with an active session for TASK-1
+        mkdir($this->root . '/session_plan/2026-06-23-task-1', 0o775, true);
+        $sessionData = [
+            'id' => '2026-06-23-task-1',
+            'task_id' => 'TASK-1',
+            'status' => 'active',
+            'claimed_by' => 'test-agent',
+            'base_commit' => 'abcdef',
+            'created_at' => '2026-06-23T10:00:00+02:00',
+            'checkpoints' => []
+        ];
+        file_put_contents($this->root . '/session_plan/2026-06-23-task-1/session.json', json_encode($sessionData));
+
+        // 3. Create a learning-root with recall-output/current/meta.json
+        mkdir($this->root . '/infra/doc/agent-learning/recall-output/current', 0o775, true);
+        $metaData = [
+            'task_id' => 'TASK-1',
+            'compilation_id' => 'compilation.TASK-1.123456',
+            'output_hashes' => [
+                'system.md' => hash('sha256', "# System Guidance")
+            ]
+        ];
+        file_put_contents($this->root . '/infra/doc/agent-learning/recall-output/current/meta.json', json_encode($metaData));
+        file_put_contents($this->root . '/infra/doc/agent-learning/recall-output/current/system.md', "# System Guidance");
+
+        // 4. Run verify in strict mode.
+        $result = $this->verify(['--strict']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[OK] sessions: 1 session(s) parsed, 1 active and consistent', $result['output']);
+        self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
+    }
+
     /**
      * @param list<string> $tokens
      *
