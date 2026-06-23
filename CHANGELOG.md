@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.1 - 2026-06-22
+
+- Added fallback for auto-detecting `recall-root` and enhance `recall` consistency checks in `AgentLoopVerifier`.
+
 ## 0.1.0 - 2026-06-22
 
 - README and `examples/basic-loop` now lead with `todo/cards/*.md`, the
