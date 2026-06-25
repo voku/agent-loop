@@ -21,7 +21,7 @@ AGENT_LOOP=../../bin/agent-loop
 (`../../bin/agent-loop`, not `vendor/bin/agent-loop` — Composer only
 mirrors a package's `bin/` entry into `vendor/bin/` for *dependencies*.
 For the root checkout itself — which is what you have here — the
-binary stays at its own `bin/` path. If you instead `composer require
+script stays at its own `bin/` path. If you instead `composer require
 voku/agent-loop` into a separate project, `vendor/bin/agent-loop` is
 the right path there.)
 
