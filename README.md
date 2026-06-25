@@ -24,6 +24,7 @@ one stable command vocabulary, zero shared state of its own.
   agent-loop →  │  board         →  voku/agent-kanban           (local Markdown board, Jira optional)│
                 │  verify        →  voku/agent-loop             (cross-package consistency)          │
                 │  board:verify  →  voku/agent-kanban           (TodoBoardVerifier, board only)      │
+                │  workflow:verify →  voku/agent-loop  (lightweight command-wiring check)            │
                 │  session       →  voku/agent-session          (working memory per task)            │
                 │  recall        →  voku/agent-recall-compiler  (L2 meta-prompt compilation)         │
                 │  learn         →  voku/agent-learning         (findings → proposals → history)     │
@@ -39,6 +40,7 @@ one stable command vocabulary, zero shared state of its own.
 | `learn` | Findings → proposals → reviewed decision history | `voku/agent-learning` |
 | `verify` | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
 | `board:verify` | Narrow check of the kanban board source only | `voku/agent-kanban` |
+| `workflow:verify` | Workflow-level verification owned by agent-loop (board/session/recall/learn/memory command wiring only) | `voku/agent-loop` |
 | `memory` | `MEMORY.md` promotion review | `voku/agent-loop` |
 
 ### Board: local Markdown first, Jira sync optional
@@ -246,6 +248,24 @@ step 2 (`session_plan/` doesn't exist yet), then passes it from step 5
 onward — the same point where its own `verify` (without `--strict`) already
 passes, since by then a session and its recall briefing both exist.
 
+### `agent-loop workflow:verify`: command wiring only
+
+`workflow:verify` is a smaller, faster sibling of `verify` above: it only
+confirms that the `board`, `session`, `recall`, `learn`, and `memory`
+commands each resolve to an installed package class (plus a `board:verify`
+availability check and a `[WARN]` if this README doesn't mention
+`workflow:verify`). It never inspects board/session/recall/learning
+*content* — run `agent-loop verify` for that.
+
+```bash
+agent-loop workflow:verify
+```
+
+Honestly, what it does *not* do: it does not prove a compiled recall
+briefing was ever read by a model, it does not approve or promote anything
+into durable learning, and it does not replace human review of the change
+itself. It only answers "is the command surface wired?" — nothing more.
+
 ## What `agent-loop` deliberately does not do
 
 > agent-loop is not the learning engine.
@@ -290,6 +310,10 @@ Concretely:
   that file
 - `agent-loop verify` only reports `[OK]`/`[SKIP]`/`[FAIL]` on existing
   state; it never repairs drift it finds
+- `agent-loop workflow:verify` only confirms the command surface resolves to
+  an installed package class; it does not prove a recall briefing was
+  consumed by a model, does not approve or promote anything into durable
+  learning, and does not replace human review of the change itself
 
 If a workflow needs an automated approval or auto-promotion path, that is a
 deliberate, separately-reviewed change to the owning package

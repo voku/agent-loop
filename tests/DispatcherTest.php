@@ -110,4 +110,58 @@ final class DispatcherTest extends TestCase
             $root
         );
     }
+
+    public function testWorkflowVerifyNamespaceRoutesToWorkflowVerifier(): void
+    {
+        $this->assertRun(
+            ['agent-loop', 'workflow:verify'],
+            0,
+            [
+                'agent-loop workflow:verify - workflow wiring check',
+                '[OK] board: board command is wired',
+                '[OK] board: board verifier is available',
+                '[OK] session: session command is wired',
+                '[OK] recall: recall command is wired',
+                '[OK] learn: learn command is wired',
+                '[OK] memory: memory review command is wired',
+            ],
+        );
+    }
+
+    public function testVerifyNamespaceBehaviorIsUnchangedByWorkflowVerify(): void
+    {
+        // `verify` keeps delegating to AgentLoopVerifier (cross-package
+        // consistency), not WorkflowVerifier -- adding workflow:verify must
+        // not alter this namespace's existing routing or output shape.
+        $this->assertRun(
+            ['agent-loop', 'verify'],
+            0,
+            ['agent-loop verify - cross-package consistency check', '[OK] agent-loop verify: no drift detected.'],
+        );
+    }
+
+    public function testBoardVerifyNamespaceStillRoutesToTodoBoardVerifierOnly(): void
+    {
+        $dispatcher = new Dispatcher(__DIR__ . '/fixtures/basic-loop');
+
+        // tests/fixtures/basic-loop has no TODO.md, so voku/agent-kanban's
+        // TodoBoardVerifier hits an unguarded file_get_contents() and emits a
+        // PHP warning -- a pre-existing rough edge of that dependency, not
+        // something workflow:verify touches. Captured here only to keep the
+        // suite's own output clean; not asserted on.
+        set_error_handler(static fn (): bool => true, E_WARNING);
+
+        try {
+            ob_start();
+            $exit = $dispatcher->run(['agent-loop', 'board:verify']);
+            $output = (string) ob_get_clean();
+        } finally {
+            restore_error_handler();
+        }
+
+        // board:verify fails exactly as it did before workflow:verify
+        // existed -- this command's behavior is untouched by this change.
+        self::assertSame(1, $exit);
+        self::assertStringNotContainsString('workflow', $output);
+    }
 }

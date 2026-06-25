@@ -8,6 +8,7 @@ use voku\AgentKanban\JiraIssueProvider;
 use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
+use voku\AgentLoop\Verification\WorkflowVerifier;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
@@ -19,6 +20,7 @@ use voku\AgentSession\SessionStore;
  *  - `board`  -> voku/agent-kanban (TodoBoardCli)
  *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
  *  - `board:verify` -> voku/agent-kanban (TodoBoardVerifier; kanban board source only)
+ *  - `workflow:verify` -> voku/agent-loop (WorkflowVerifier; lightweight workflow wiring check)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
  *  - `session` -> voku/agent-session (Cli)
@@ -59,6 +61,7 @@ final class Dispatcher
                 ->run($this->subArgv($scriptName, $this->resolveBoardArgv($rest))),
             'verify' => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run($rest),
             'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
+            'workflow:verify' => (new WorkflowVerifier($this->rootPath))->run($rest),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
@@ -328,7 +331,12 @@ final class Dispatcher
           verify  Cross-package consistency check: tasks, board, sessions,
                   recall outputs, and the learning root (voku/agent-loop).
                   Each check skips itself when its inputs are absent. Run
-                  `board:verify` for the narrower kanban-board-only check.
+                  `board:verify` for the narrower kanban-board-only check, or
+                  `workflow:verify` for the lightweight command-wiring check.
+          workflow:verify
+                  Workflow-wiring check: confirms the board, session, recall,
+                  learn, and memory commands all resolve to an installed
+                  package (voku/agent-loop). Does not inspect their content.
           learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-transition>
                   Findings, proposals, and decision history (voku/agent-learning).
           recall  <compile|log-outcome>
