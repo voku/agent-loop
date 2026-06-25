@@ -14,8 +14,8 @@ noise. Each of those is its own focused package. Wiring them by hand means a
 different `vendor/bin/...` invocation per concern, which nobody — human or
 agent — keeps straight across a long session.
 
-`agent-loop` exists only to remove that friction: one binary, one stable
-command vocabulary, zero shared state of its own.
+`agent-loop` exists only to remove that friction: one Composer-installed PHP CLI,
+one stable command vocabulary, zero shared state of its own.
 
 ## Package map
 
