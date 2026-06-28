@@ -40,6 +40,7 @@ one stable command vocabulary, zero shared state of its own.
 | `verify` | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
 | `board:verify` | Narrow check of the kanban board source only | `voku/agent-kanban` |
 | `memory` | `MEMORY.md` promotion review | `voku/agent-loop` |
+| `review` | Deterministic blind-spot reports for task workflow artifacts | `voku/agent-loop` |
 
 ### Board: local Markdown first, Jira sync optional
 
@@ -93,6 +94,8 @@ agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file 
 
 agent-loop session record ABC-123 --kind decision --title "Keep change scoped" --body "..."
 agent-loop session checkpoint ABC-123 --title "Validation" --body "PHPStan passed."
+agent-loop review blindspots ABC-123
+agent-loop session checkpoint ABC-123 --title "Review" --body "agent-loop review blindspots ABC-123 was checked; human review remains required."
 agent-loop verify
 agent-loop session close ABC-123 --status done
 ```
@@ -188,12 +191,43 @@ agent-loop verify
 
 # memory promotion review
 agent-loop memory review --file MEMORY.md
+
+# review: deterministic blind-spot checks and L2 prompts
+agent-loop review blindspots <task-id>
+agent-loop review code <task-id>
 ```
 
 `agent-loop board jira-sync` needs a `JiraIssueProvider`; it is the only
 `board` command that does. The bare binary does not wire one (Jira clients
 are host-specific) — see "Programmatic use" below. Every other `board`
 command works against the local Markdown cards without it.
+
+## `agent-loop review blindspots`: deterministic review boundary
+
+```bash
+vendor/bin/agent-loop review blindspots <task-id>
+```
+
+Run this after implementation validation and before closing the task. It writes
+deterministic Markdown/JSON reports plus an L2 blind-spot analysis prompt under
+`.agent-loop/reviews/`, using task, board, session, and recall artifacts as
+prompt context. It warns when session notes do not show that `review blindspots`
+itself was checked. Review reports and generated prompts do not approve code.
+Review reports do not approve durable learning. The CLI does not call an LLM
+directly; the generated L2 prompt is for a human or harness to pass to a
+receiving LLM. Human review remains required.
+
+### L2 code-review prompt
+
+```bash
+vendor/bin/agent-loop review code <task-id>
+```
+
+Generates `.agent-loop/reviews/<task-id>.code.prompt.md`, an L2 code-review
+prompt focused on purpose mismatch, contracts, invariants, edge cases, security,
+and test gaps. It uses recall task files plus available workflow artifacts as
+context and is intended for a receiving LLM or harness; the CLI itself does not
+call an LLM.
 
 ## `agent-loop verify`: the safety net
 

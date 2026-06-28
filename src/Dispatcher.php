@@ -8,6 +8,7 @@ use voku\AgentKanban\JiraIssueProvider;
 use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
+use voku\AgentLoop\Review\ReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
@@ -23,6 +24,7 @@ use voku\AgentSession\SessionStore;
  *  - `recall` -> voku/agent-recall-compiler (Cli)
  *  - `session` -> voku/agent-session (Cli)
  *  - `memory` -> voku/agent-loop (MemoryPromotionAnalyzer)
+ *  - `review` -> voku/agent-loop (deterministic blind-spot reports)
  *
  * Each library CLI expects the script name at argv[0] and its own command at
  * argv[1], so the namespace token is stripped and the remaining tokens are
@@ -63,6 +65,7 @@ final class Dispatcher
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
+            'review' => (new ReviewCli($this->rootPath))->run($this->subArgv($scriptName, $rest)),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };
@@ -337,6 +340,8 @@ final class Dispatcher
                   Working memory: per-task session plans (voku/agent-session).
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
+          review  <blindspots>
+                  Deterministic review helpers for workflow blind-spot checks.
           help    Show this help.
 
         Run a namespace with `help` for its own command list, e.g.:
