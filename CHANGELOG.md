@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Added the `workflow` namespace for governed task start/status/close orchestration, including close gates and accepted-risk files.
+- Hardened workflow documentation, close-gate structure, task-id tests, and accepted-risk write error handling.
+
 ## 0.1.2 - 2026-06-23
 
 - Bumped the `voku/agent-learning` constraint from `0.6.*@dev` to `0.7.*@dev` to

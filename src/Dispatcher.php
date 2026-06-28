@@ -12,6 +12,7 @@ use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
+use voku\AgentLoop\Workflow\WorkflowCli;
 
 /**
  * Unified entrypoint for the governed agentic-coding loop.
@@ -19,6 +20,7 @@ use voku\AgentSession\SessionStore;
  * Routes the first CLI argument to the matching library:
  *  - `board`  -> voku/agent-kanban (TodoBoardCli)
  *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
+ *  - `workflow` -> voku/agent-loop (start/status/close orchestration)
  *  - `board:verify` -> voku/agent-kanban (TodoBoardVerifier; kanban board source only)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
@@ -64,6 +66,7 @@ final class Dispatcher
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
+            'workflow' => $this->dispatchWorkflow($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'review' => $this->dispatchReview($scriptName, $rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
@@ -125,6 +128,19 @@ final class Dispatcher
         }
 
         return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
+    }
+
+    /**
+     * @param list<string> $rest
+     */
+    private function dispatchWorkflow(string $scriptName, array $rest): int
+    {
+        return (new WorkflowCli(
+            $this->rootPath,
+            fn (array $sessionRest): int => $this->dispatchSession($scriptName, $sessionRest),
+            fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest)),
+            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run(array_values($verifyRest)),
+        ))->run($rest);
     }
 
     /**
@@ -379,6 +395,8 @@ final class Dispatcher
                   Working memory: per-task session plans (voku/agent-session).
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
+          workflow
+                  Gated workflow orchestration commands.
           review  <blindspots>
                   Deterministic review helpers for workflow blind-spot checks.
           help    Show this help.

@@ -13,6 +13,7 @@ use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
+use voku\AgentLoop\Workflow\WorkflowCli;
 
 /**
  * Cross-package consistency check for the agentic-coding loop.
@@ -138,6 +139,7 @@ final class AgentLoopVerifier
             'recall' => RecallCli::class,
             'review' => RecallReviewCli::class,
             'session' => SessionCli::class,
+            'workflow' => WorkflowCli::class,
         ];
 
         $missing = [];
@@ -153,7 +155,7 @@ final class AgentLoopVerifier
             return false;
         }
 
-        echo '[OK] package delegates: board, learn, recall, review, session commands all resolve to an installed package' . "\n";
+        echo '[OK] package delegates: board, learn, recall, review, session, workflow commands all resolve to an installed package' . "\n";
 
         return true;
     }
