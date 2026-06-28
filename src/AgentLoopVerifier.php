@@ -10,6 +10,7 @@ use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\LearningRepositoryValidator;
 use voku\AgentRecallCompiler\Cli as RecallCli;
+use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
 
@@ -135,6 +136,7 @@ final class AgentLoopVerifier
             'board/verify (verifier)' => TodoBoardVerifier::class,
             'learn' => LearningCli::class,
             'recall' => RecallCli::class,
+            'review' => RecallReviewCli::class,
             'session' => SessionCli::class,
         ];
 
@@ -151,7 +153,7 @@ final class AgentLoopVerifier
             return false;
         }
 
-        echo '[OK] package delegates: board, learn, recall, session commands all resolve to an installed package' . "\n";
+        echo '[OK] package delegates: board, learn, recall, review, session commands all resolve to an installed package' . "\n";
 
         return true;
     }

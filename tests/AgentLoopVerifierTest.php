@@ -42,6 +42,7 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[SKIP] tasks: no directory at', $result['output']);
         self::assertStringContainsString('[SKIP] sessions: no directory at', $result['output']);
+        self::assertStringContainsString('[OK] package delegates: board, learn, recall, review, session commands all resolve', $result['output']);
     }
 
     public function testStrictModeFailsWhenTasksAndSessionsAreMissing(): void
