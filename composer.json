@@ -1,6 +1,6 @@
 {
   "name": "voku/agent-loop",
-  "description": "Umbrella package and unified CLI for the governed agentic-coding loop: board (kanban), learning, and recall-compiler.",
+  "description": "Unified Composer CLI for the governed coding-agent loop: board, session, recall, review, learning, memory review, and verification.",
   "type": "library",
   "license": "MIT",
   "homepage": "https://github.com/voku/agent-loop",

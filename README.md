@@ -27,6 +27,7 @@ one stable command vocabulary, zero shared state of its own.
                 │  session       →  voku/agent-session          (working memory per task)            │
                 │  recall        →  voku/agent-recall-compiler  (L2 meta-prompt compilation)         │
                 │  learn         →  voku/agent-learning         (findings → proposals → history)     │
+                │  review        →  voku/agent-recall-compiler  (blind-spot reports + L2 prompts)    │
                 │  memory        →  voku/agent-loop             (MEMORY.md promotion review)         │
                 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -40,21 +41,19 @@ one stable command vocabulary, zero shared state of its own.
 | `verify` | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
 | `board:verify` | Narrow check of the kanban board source only | `voku/agent-kanban` |
 | `memory` | `MEMORY.md` promotion review | `voku/agent-loop` |
-| `review` | Deterministic blind-spot reports for task workflow artifacts | `voku/agent-loop` |
+| `review` | Deterministic blind-spot reports and L2 review prompts | `voku/agent-recall-compiler` |
 
 ### Board: local Markdown first, Jira sync optional
 
 `board` reads work items from local Markdown card files under
 `todo/cards/*.md` (one file per card), with `todo/board.md` holding board
 metadata (project prefix, done count). This works fully standalone — no
-Jira host, credentials, or network access required. `todo/jira/` (the
-original directory name, from when this format was specific to
-Jira-derived cards) is also still supported: `voku/agent-kanban` checks
-`todo/cards/` first and falls back to `todo/jira/`, so existing boards
-keep working without migration. If neither directory exists, `board`
-falls back to reading a single legacy `TODO.md` at the project root
-instead (`voku/agent-kanban`'s own fallback, not something `agent-loop`
-adds).
+Jira host, credentials, or network access required. `todo/cards/*.md` is
+the preferred local card path. `todo/jira/` and root `TODO.md` remain
+supported fallback inputs: `voku/agent-kanban` checks `todo/cards/` first,
+falls back to `todo/jira/`, and then falls back further to reading a
+single `TODO.md` at the project root (`voku/agent-kanban`'s own fallback,
+not something `agent-loop` adds).
 
 Only `board jira-sync` talks to Jira, and only once the host application
 constructs the `Dispatcher` with its own `JiraIssueProvider` (see
@@ -157,7 +156,7 @@ agent-loop board --help
 # optional todo/board.md sets the project prefix and done count). Works
 # standalone, no Jira connection needed. todo/jira/ also still works as
 # a fallback for boards that already use it. Falls back further to a
-# single legacy TODO.md only if neither directory exists. Only
+# single TODO.md fallback only if neither card directory exists. Only
 # `board jira-sync` needs a host-wired JiraIssueProvider.
 agent-loop board summary
 agent-loop board render --lanes=READY,BACKLOG --limit=10
