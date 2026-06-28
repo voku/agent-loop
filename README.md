@@ -210,9 +210,9 @@ vendor/bin/agent-loop review blindspots <task-id>
 
 Run this after implementation validation and before closing the task. It writes
 deterministic Markdown/JSON reports plus an L2 blind-spot analysis prompt under
-`.agent-loop/reviews/`, using task, board, session, and recall artifacts as
-prompt context. It warns when session notes do not show that `review blindspots`
-itself was checked. Review reports and generated prompts do not approve code.
+`.agent-recall/reviews/`, using task, session, and recall artifacts from
+`voku/agent-recall-compiler` as prompt context. It warns when session notes
+do not show that `review blindspots` itself was checked. Review reports and generated prompts do not approve code.
 Review reports do not approve durable learning. The CLI does not call an LLM
 directly; the generated L2 prompt is for a human or harness to pass to a
 receiving LLM. Human review remains required.
@@ -223,11 +223,12 @@ receiving LLM. Human review remains required.
 vendor/bin/agent-loop review code <task-id>
 ```
 
-Generates `.agent-loop/reviews/<task-id>.code.prompt.md`, an L2 code-review
+Generates `.agent-recall/reviews/<task-id>.code.prompt.md`, an L2 code-review
 prompt focused on purpose mismatch, contracts, invariants, edge cases, security,
-and test gaps. It uses recall task files plus available workflow artifacts as
-context and is intended for a receiving LLM or harness; the CLI itself does not
-call an LLM.
+and test gaps. This command is delegated to `voku/agent-recall-compiler`;
+`agent-loop` only defaults `--output-dir` to `recall/<task-id>` so it fits the
+standard workflow. The prompt is intended for a receiving LLM or harness; the
+CLI itself does not call an LLM.
 
 ## `agent-loop verify`: the safety net
 
