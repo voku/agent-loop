@@ -23,6 +23,7 @@ one stable command vocabulary, zero shared state of its own.
                 ┌───────────────────────────────── voku/agent-loop ──────────────────────────────────┐
   agent-loop →  │  board         →  voku/agent-kanban           (local Markdown board, Jira optional)│
                 │  verify        →  voku/agent-loop             (cross-package consistency)          │
+                │  workflow      →  voku/agent-loop             (start/status/close orchestration)    │
                 │  board:verify  →  voku/agent-kanban           (TodoBoardVerifier, board only)      │
                 │  session       →  voku/agent-session          (working memory per task)            │
                 │  recall        →  voku/agent-recall-compiler  (L2 meta-prompt compilation)         │
@@ -39,6 +40,7 @@ one stable command vocabulary, zero shared state of its own.
 | `recall` | Compile task-scoped context (L2 meta-prompt) as review artifacts — not auto-injected into any agent | `voku/agent-recall-compiler` |
 | `learn` | Findings → proposals → reviewed decision history | `voku/agent-learning` |
 | `verify` | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
+| `workflow` | Start, inspect, and close a governed task workflow | `voku/agent-loop` |
 | `board:verify` | Narrow check of the kanban board source only | `voku/agent-kanban` |
 | `memory` | `MEMORY.md` promotion review | `voku/agent-loop` |
 | `review` | Deterministic blind-spot reports and L2 review prompts | `voku/agent-recall-compiler` |
@@ -61,6 +63,40 @@ constructs the `Dispatcher` with its own `JiraIssueProvider` (see
 other `board` command (`summary`, `render`, `lane`, `next-pull`,
 `ticket`, `context`, `brief`) works from the local Markdown cards alone.
 
+
+## `agent-loop workflow`: start, inspect, and close a governed task
+
+```bash
+vendor/bin/agent-loop workflow start <task-id> \
+  --by <actor> \
+  --learning-root infra/doc/agent-learning \
+  --file src/Foo.php
+
+vendor/bin/agent-loop workflow status <task-id>
+
+vendor/bin/agent-loop workflow close <task-id> --status done
+```
+
+`workflow start` wraps `session start` and `recall compile`.
+
+`workflow status` prints read-only session, recall, and review state.
+
+`workflow close` is a gated wrapper around `session close`. It requires recall metadata, a blind-spot review report, and a passing `agent-loop verify` before closing a task as done.
+
+Existing `agent-loop session close` remains unchanged.
+
+Workflow commands do not approve code, do not approve durable learning, and do not call an LLM.
+
+Accepted risk is explicit and written to disk:
+
+```bash
+vendor/bin/agent-loop workflow close <task-id> \
+  --status done \
+  --accept-risk "Manual review by Lars for urgent legacy hotfix."
+```
+
+Accepted risk writes `.agent-loop/risks/<task-id>.accepted-risk.md`.
+
 ## Requirements
 
 | Requirement | Version |
@@ -81,13 +117,11 @@ exposes `vendor/bin/agent-loop`.
 ## Basic workflow
 
 Start with the smallest useful loop — one task, one session, one compiled
-briefing:
+briefing. The high-level workflow command is preferred for creating and
+closing the governed task context:
 
 ```bash
-agent-loop session start --task ABC-123 --by lars --base-commit "$(git rev-parse HEAD)"
-# -> Started session: 2025-01-15-abc-123
-
-agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file src/Foo.php
+agent-loop workflow start ABC-123 --by lars --learning-root infra/doc/agent-learning --file src/Foo.php
 
 # ...do the work...
 
@@ -96,7 +130,18 @@ agent-loop session checkpoint ABC-123 --title "Validation" --body "PHPStan passe
 agent-loop review blindspots ABC-123
 agent-loop session checkpoint ABC-123 --title "Review" --body "agent-loop review blindspots ABC-123 was checked; human review remains required."
 agent-loop verify
-agent-loop session close ABC-123 --status done
+agent-loop workflow status ABC-123
+agent-loop workflow close ABC-123 --status done
+```
+
+The lower-level equivalent of `workflow start` is still available when you
+need direct package commands:
+
+```bash
+agent-loop session start --task ABC-123 --by lars --base-commit "$(git rev-parse HEAD)"
+# -> Started session: 2025-01-15-abc-123
+
+agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file src/Foo.php
 ```
 
 `session start` prints its own generated **session id**
