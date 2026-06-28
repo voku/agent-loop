@@ -20,7 +20,7 @@
     "php": "^8.3",
     "voku/agent-kanban": "0.1.*@dev",
     "voku/agent-learning": "0.7.*@dev",
-    "voku/agent-recall-compiler": "dev-codex/integrate-code-from-pr-5-into-agent-loop-repo",
+    "voku/agent-recall-compiler": "dev-main",
     "voku/agent-session": "0.0.*@dev"
   },
   "require-dev": {
@@ -60,5 +60,10 @@
     "branch-alias": {
       "dev-main": "0.0.x-dev"
     }
-  }
+  },
+  "repositories": [{
+    "name": "agent-recall-compiler",
+    "type": "vcs",
+    "url": "https://github.com/voku/agent-recall-compiler.git"
+  }]
 }
