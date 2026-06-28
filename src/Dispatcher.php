@@ -397,8 +397,8 @@ final class Dispatcher
                   MEMORY.md promotion review (voku/agent-loop).
           workflow
                   Gated workflow orchestration commands.
-          review  <blindspots>
-                  Deterministic review helpers for workflow blind-spot checks.
+          review  <blindspots|code>
+                  Deterministic review helpers from voku/agent-recall-compiler.
           help    Show this help.
 
         Run a namespace with `help` for its own command list, e.g.:

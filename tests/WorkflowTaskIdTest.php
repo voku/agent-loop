@@ -30,9 +30,10 @@ final class WorkflowTaskIdTest extends TestCase
     {
         return [
             ['ABC-123'],
-            ['task_1'],
-            ['task.1'],
-            ['Task-1_ok.2'],
+            ['ABC_123'],
+            ['ABC.123'],
+            ['A'],
+            ['A-1_2.3'],
         ];
     }
 
@@ -41,9 +42,16 @@ final class WorkflowTaskIdTest extends TestCase
     {
         return [
             [''],
+            ['.'],
+            ['-'],
+            ['_'],
+            ['.hidden'],
             ['../ABC-123'],
+            ['../bad'],
             ['ABC/123'],
+            ['bad/path'],
             ['ABC\\123'],
+            ['bad\\path'],
             ['ABC..123'],
             ['ABC 123'],
         ];

@@ -34,7 +34,13 @@ final readonly class WorkflowStatusCommand
 
     private function printSession(string $taskId): void
     {
-        $sessions = array_values(array_filter((new SessionStore())->all(rtrim($this->rootPath, '/') . '/session_plan'), static fn ($session): bool => $session->taskId === $taskId));
+        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($sessionsRoot)) {
+            echo "[WARN] session: no session found for task {$taskId}\n";
+            return;
+        }
+
+        $sessions = array_values(array_filter((new SessionStore())->all($sessionsRoot), static fn ($session): bool => $session->taskId === $taskId));
         if ($sessions === []) {
             echo "[WARN] session: no session found for task {$taskId}\n";
             return;
