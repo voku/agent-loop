@@ -100,13 +100,37 @@ final readonly class AgentAssetSourcePaths
     private function resolvePath(string $path): string
     {
         if ($path === '') {
-            return rtrim($this->rootPath, '/');
+            return rtrim(str_replace('\\', '/', $this->rootPath), '/');
         }
 
+        if ($this->isAbsolutePath($path)) {
+            return rtrim(str_replace('\\', '/', $path), '/');
+        }
+
+        return rtrim(str_replace('\\', '/', $this->rootPath), '/') . '/' . ltrim(str_replace('\\', '/', $path), '/');
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+
+        // Unix / WSL absolute path
         if (str_starts_with($path, '/')) {
-            return rtrim($path, '/');
+            return true;
         }
 
-        return rtrim($this->rootPath, '/') . '/' . ltrim($path, '/');
+        // Windows absolute path with drive letter (e.g. C:\ or C:/)
+        if (preg_match('/^[a-zA-Z]:[\\\\\/]/', $path) === 1) {
+            return true;
+        }
+
+        // Windows UNC path (e.g. \\server\share or //server/share)
+        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) {
+            return true;
+        }
+
+        return false;
     }
 }
