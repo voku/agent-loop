@@ -21,7 +21,7 @@ AGENT_LOOP=../../bin/agent-loop
 (`../../bin/agent-loop`, not `vendor/bin/agent-loop` — Composer only
 mirrors a package's `bin/` entry into `vendor/bin/` for *dependencies*.
 For the root checkout itself — which is what you have here — the
-binary stays at its own `bin/` path. If you instead `composer require
+script stays at its own `bin/` path. If you instead `composer require
 voku/agent-loop` into a separate project, `vendor/bin/agent-loop` is
 the right path there.)
 
@@ -31,24 +31,25 @@ The fake project already contains:
 examples/basic-loop/
 ├── todo/
 │   ├── board.md          # board metadata: project prefix "DEMO"
-│   └── jira/DEMO-1.md     # one READY card
+│   └── cards/DEMO-1.md   # one local READY card (Markdown, no Jira involved)
 ├── tasks/DEMO-1.md        # the task `agent-loop verify` checks against
 └── learning-root/
     └── findings/          # empty — a valid, empty learning root
 ```
 
-There is no `TODO.md` entrypoint file. `board summary` / `next-pull` /
-`ticket` read straight from `todo/jira/*.md`, so they don't need one —
-but `agent-loop verify`'s board check does, and will report `[SKIP]`
-here. The kanban entrypoint format is `voku/agent-kanban`'s own
-house-style contract and out of scope for this generic example (see
-`tests/fixtures/basic-loop` for the same call).
-
-Despite the directory name, none of this example talks to Jira: `todo/jira/`
-is plain local Markdown and the name is historical. The only command that
-needs a real Jira connection is `board jira-sync`, which isn't run here and
-requires a host-injected `JiraIssueProvider` (see the main README's
-"Programmatic use" section) — it's intentionally not part of this example.
+`todo/cards/` is the local Markdown card directory — nothing in this
+example talks to Jira, and nothing has to. `todo/jira/` also still works
+(`voku/agent-kanban` checks `todo/cards/` first, then falls back to
+`todo/jira/` for boards that already use it); this example uses the
+preferred name. There is no `TODO.md` entrypoint file. `board summary` /
+`next-pull` / `ticket` read straight from `todo/cards/*.md`, so they
+don't need one — but `agent-loop verify`'s board check does, and will
+report `[SKIP]` here. The kanban entrypoint format is
+`voku/agent-kanban`'s own house-style contract and out of scope for this
+generic example (see `tests/fixtures/basic-loop` for the same call).
+`board jira-sync` is the only `board` command that needs a Jira
+connection (a host-wired `JiraIssueProvider`), and this example doesn't
+run it.
 
 ## Walkthrough
 
@@ -95,13 +96,13 @@ $AGENT_LOOP session start --task DEMO-1 --by demo-agent --base-commit "$(git rev
 ```
 
 ```text
-Started session: 2026-06-20-demo-1
-- path: .../session_plan/2026-06-20-demo-1
+Started session: 2026-06-22-demo-1
+- path: .../session_plan/2026-06-22-demo-1
 - working-memory files: plan.md, assumptions.md, decisions.md, validation.md, checkpoints/
 ```
 
 `session start` prints its own generated **session id** on the first
-line (`2026-06-20-demo-1` here — yours will carry today's date). You
+line (`2026-06-22-demo-1` here — yours will carry today's date). You
 don't need to capture it for the steps below: `session
 record`/`checkpoint`/`close`/`claim`/`show` also accept the task id
 (`DEMO-1`) you started the session with, and `agent-loop` resolves it to
@@ -115,15 +116,13 @@ $AGENT_LOOP recall compile --root learning-root --task DEMO-1 --file src/Signup.
 
 ```text
 Briefing compiled successfully under: .../examples/basic-loop/recall/DEMO-1/
-- compilation ID: compilation.DEMO-1.2026-06-20-215209.35c6f10a
+- compilation ID: compilation.DEMO-1.2026-06-22-143325.8ea1299a
 - system.md (selected guidance: 0, selected constraints: 0)
 - validation-plan.md
 - recall-log.draft.json
 
-These are prepared briefing artifacts, not automatically injected context:
-- a human or harness should read .../examples/basic-loop/recall/DEMO-1/system.md and validation-plan.md before relying on them
-- agent-loop does not inject this briefing into an agent session by itself
-- after the task, log whether it held up: agent-loop recall log-outcome --by <actor> --commit <sha>
+[NOTE] Recall artifacts were written for review or harness ingestion.
+[ACTION REQUIRED] Pass system.md / validation-plan.md into your agent workflow manually unless your harness consumes them automatically.
 ```
 
 No `--output-dir` needed: with `--task DEMO-1` and no `--output-dir`,
@@ -132,11 +131,12 @@ which is exactly where `agent-loop verify`'s recall-coverage check looks
 for `recall/DEMO-1/meta.json`. Pass `--output-dir` explicitly only if you
 want the briefing written somewhere else.
 
-The follow-up note above is the whole point of this step: `recall compile`
-only writes files. Nothing in `agent-loop` reads `system.md` back into an
-agent's prompt — a human or harness has to do that deliberately, and should
-log the outcome afterward with `recall log-outcome` once it's known whether
-the briefing actually held up.
+The `[NOTE]`/`[ACTION REQUIRED]` lines are `agent-loop`'s own reminder, not
+`voku/agent-recall-compiler`'s: compiling a briefing only writes the files
+above to disk, it does not feed them into any running agent. Reading
+`system.md` and `validation-plan.md` into the actual coding session is up to
+whatever drives that session — a human, an editor integration, or a
+`voku/housekeeping`-style harness.
 
 ### 4. Record a decision on the session
 
@@ -145,7 +145,7 @@ $AGENT_LOOP session record DEMO-1 --kind decision --title "Keep validation scope
 ```
 
 ```text
-Recorded decision on session '2026-06-20-demo-1'.
+Recorded decision on session '2026-06-22-demo-1'.
 ```
 
 ### 5. Verify before closing
@@ -170,31 +170,6 @@ Run `verify` while the session is still open — a closed session is no
 longer checked for recall coverage, so this is the point where a missing
 or stale briefing would actually be caught.
 
-The `[SKIP] board` line above is expected here: this example has no
-`TODO.md`, only `todo/jira/*.md` cards, and `verify`'s board check only
-covers the legacy `TODO.md` entrypoint. That's a `[SKIP]`, not a problem —
-this example just doesn't wire up that part of the stack. For a repo or CI
-run where a missing `TODO.md` (or any other skipped input) genuinely
-should fail the build, pass `--strict`:
-
-```bash
-$AGENT_LOOP verify --strict
-```
-
-```text
-agent-loop verify - cross-package consistency check
-
-Strict mode: checks that would normally [SKIP] on a missing input now [FAIL].
-
-[OK] package delegates: board, learn, recall, session commands all resolve to an installed package
-[OK] tasks: 1 task file(s) parsed: DEMO-1
-[FAIL] board: no TODO.md at .../examples/basic-loop/TODO.md (required under --strict)
-[OK] sessions: 1 session(s) parsed, 1 active and consistent
-[OK] learning root: validated .../examples/basic-loop/learning-root (0 finding(s), 0 proposal(s), outcome/decision history parsed)
-
-[FAIL] agent-loop verify: drift detected, see above.
-```
-
 ### 6. Close the session
 
 ```bash
@@ -202,7 +177,7 @@ $AGENT_LOOP session close DEMO-1 --status done
 ```
 
 ```text
-Closed session '2026-06-20-demo-1' as done.
+Closed session '2026-06-22-demo-1' as done.
 ```
 
 ### 7. Validate the learning root

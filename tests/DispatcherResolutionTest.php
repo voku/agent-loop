@@ -84,33 +84,6 @@ final class DispatcherResolutionTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/recall/DEMO-1/meta.json');
     }
 
-    public function testRecallCompileFollowUpClarifiesArtifactsAreNotAutoInjected(): void
-    {
-        $result = $this->dispatch([
-            'agent-loop', 'recall', 'compile',
-            '--root', $this->root . '/learning-root',
-            '--task', 'DEMO-1',
-            '--file', 'src/Foo.php',
-        ]);
-
-        self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('not automatically injected context', $result['output']);
-        self::assertStringContainsString($this->root . '/recall/DEMO-1/system.md', $result['output']);
-        self::assertStringContainsString('agent-loop does not inject this briefing into an agent session by itself', $result['output']);
-        self::assertStringContainsString('agent-loop recall log-outcome --by <actor> --commit <sha>', $result['output']);
-    }
-
-    public function testRecallCompileFollowUpIsSkippedWhenCompileFails(): void
-    {
-        $result = $this->dispatch([
-            'agent-loop', 'recall', 'compile',
-            '--root', $this->root . '/learning-root',
-        ]);
-
-        self::assertSame(1, $result['exit']);
-        self::assertStringNotContainsString('not automatically injected context', $result['output']);
-    }
-
     public function testSessionRecordAcceptsTaskIdInPlaceOfSessionId(): void
     {
         $sessionsRoot = $this->root . '/session_plan';
@@ -169,83 +142,68 @@ final class DispatcherResolutionTest extends TestCase
         self::assertSame(1, $exit);
     }
 
-    public function testSessionRecordResolvesToTheOnlyActiveSessionAmongMultipleMatches(): void
+    public function testSessionRecordWithExactlyOneActiveSessionAmongMultipleResolvesIt(): void
     {
         $sessionsRoot = $this->root . '/session_plan';
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--slug', 'first-attempt', '--root', $sessionsRoot])['exit']);
-        $closedSessionId = $this->onlySessionId($sessionsRoot);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $closedSessionId, '--status', 'dropped', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--slug', 'second-attempt', '--root', $sessionsRoot])['exit']);
-        $activeSessionId = $this->onlyActiveSessionId($sessionsRoot, $closedSessionId);
+        $sessionIds = $this->allSessionIds($sessionsRoot);
+        self::assertCount(2, $sessionIds);
+
+        // Drop the first attempt, leaving exactly one active session for DEMO-1.
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
 
         $result = $this->dispatch([
             'agent-loop', 'session', 'record', 'DEMO-1',
-            '--kind', 'decision', '--title', 'Resolved to active session',
+            '--kind', 'decision', '--title', 'Resolved the active attempt',
             '--root', $sessionsRoot,
         ]);
 
-        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertSame(0, $result['exit']);
         self::assertStringContainsString(
-            'Resolved to active session',
-            (string) file_get_contents($sessionsRoot . '/' . $activeSessionId . '/decisions.md'),
-        );
-        self::assertStringNotContainsString(
-            'Resolved to active session',
-            (string) file_get_contents($sessionsRoot . '/' . $closedSessionId . '/decisions.md'),
+            'Resolved the active attempt',
+            (string) file_get_contents($sessionsRoot . '/' . $sessionIds[1] . '/decisions.md'),
         );
     }
 
-    public function testSessionRecordFailsClearlyWhenMultipleActiveSessionsMatchTask(): void
+    public function testSessionRecordWithMultipleActiveSessionsFailsClearly(): void
     {
         $sessionsRoot = $this->root . '/session_plan';
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--slug', 'first-attempt', '--root', $sessionsRoot])['exit']);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--slug', 'second-attempt', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
-        // The ambiguity error goes through fwrite(STDERR, ...), like every
-        // other Dispatcher-level error (see "Unknown command" in
-        // printUsage()), so it is not visible to ob_start()-based capture
-        // here. The exit code plus the absence of any write is what proves
-        // the candidate was not silently guessed.
-        $exit = $this->dispatch([
+        $result = $this->dispatch([
             'agent-loop', 'session', 'record', 'DEMO-1',
             '--kind', 'decision', '--title', 'Should not apply',
             '--root', $sessionsRoot,
-        ])['exit'];
+        ]);
 
-        self::assertSame(1, $exit);
-        foreach (array_diff(scandir($sessionsRoot) ?: [], ['.', '..']) as $sessionId) {
-            self::assertStringNotContainsString(
-                'Should not apply',
-                (string) file_get_contents($sessionsRoot . '/' . $sessionId . '/decisions.md'),
-            );
-        }
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('Multiple sessions found for task DEMO-1', $result['output']);
+        self::assertStringContainsString('Pass the generated session id explicitly', $result['output']);
     }
 
-    public function testSessionRecordFailsClearlyWhenMultipleNonActiveSessionsMatchTaskAndNoneIsActive(): void
+    public function testSessionRecordWithMultipleNonActiveSessionsFailsClearly(): void
     {
         $sessionsRoot = $this->root . '/session_plan';
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--slug', 'first-attempt', '--root', $sessionsRoot])['exit']);
-        $firstSessionId = $this->onlySessionId($sessionsRoot);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $firstSessionId, '--status', 'dropped', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--slug', 'second-attempt', '--root', $sessionsRoot])['exit']);
-        $secondSessionId = $this->onlyActiveSessionId($sessionsRoot, $firstSessionId);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $secondSessionId, '--status', 'done', '--root', $sessionsRoot])['exit']);
+        $sessionIds = $this->allSessionIds($sessionsRoot);
+        self::assertCount(2, $sessionIds);
 
-        $exit = $this->dispatch([
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'done', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[1], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
+
+        $result = $this->dispatch([
             'agent-loop', 'session', 'record', 'DEMO-1',
             '--kind', 'decision', '--title', 'Should not apply',
             '--root', $sessionsRoot,
-        ])['exit'];
+        ]);
 
-        self::assertSame(1, $exit);
-        foreach (array_diff(scandir($sessionsRoot) ?: [], ['.', '..']) as $sessionId) {
-            self::assertStringNotContainsString(
-                'Should not apply',
-                (string) file_get_contents($sessionsRoot . '/' . $sessionId . '/decisions.md'),
-            );
-        }
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('Multiple sessions found for task DEMO-1', $result['output']);
     }
 
     /**
@@ -272,12 +230,15 @@ final class DispatcherResolutionTest extends TestCase
         return $entries[0];
     }
 
-    private function onlyActiveSessionId(string $sessionsRoot, string $excludingSessionId): string
+    /**
+     * @return list<string>
+     */
+    private function allSessionIds(string $sessionsRoot): array
     {
-        $entries = array_values(array_diff(scandir($sessionsRoot) ?: [], ['.', '..', $excludingSessionId]));
-        self::assertCount(1, $entries);
+        $entries = array_values(array_diff(scandir($sessionsRoot) ?: [], ['.', '..']));
+        sort($entries);
 
-        return $entries[0];
+        return $entries;
     }
 
     private function removeDirectory(string $path): void

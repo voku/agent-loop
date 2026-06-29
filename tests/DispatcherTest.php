@@ -32,7 +32,7 @@ final class DispatcherTest extends TestCase
 
     public function testHelpIsPrintedAndSucceeds(): void
     {
-        $this->assertRun(['agent-loop', 'help'], 0, ['agent-loop - unified CLI', 'board', 'learn', 'recall', 'memory']);
+        $this->assertRun(['agent-loop', 'help'], 0, ['agent-loop - unified CLI', 'board', 'learn', 'recall', 'memory', 'workflow', 'init']);
     }
 
     public function testNoArgumentsShowsHelp(): void
@@ -97,6 +97,16 @@ final class DispatcherTest extends TestCase
         ob_end_clean();
 
         self::assertSame(0, $exit);
+    }
+
+    public function testWorkflowNamespaceRoutesToWorkflowCli(): void
+    {
+        $this->assertRun(['agent-loop', 'workflow', 'help'], 0, ['Usage:', 'workflow start']);
+    }
+
+    public function testInitNamespaceRoutesToInitCli(): void
+    {
+        $this->assertRun(['agent-loop', 'init', 'help'], 0, ['agent-loop init doctor', 'sync-skills', 'install-plan']);
     }
 
     public function testMemoryNamespaceUsesDefaultRootFile(): void

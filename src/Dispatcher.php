@@ -8,9 +8,12 @@ use voku\AgentKanban\JiraIssueProvider;
 use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
+use voku\AgentLoop\Init\InitCli;
+use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
+use voku\AgentLoop\Workflow\WorkflowCli;
 
 /**
  * Unified entrypoint for the governed agentic-coding loop.
@@ -18,11 +21,13 @@ use voku\AgentSession\SessionStore;
  * Routes the first CLI argument to the matching library:
  *  - `board`  -> voku/agent-kanban (TodoBoardCli)
  *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
+ *  - `workflow` -> voku/agent-loop (start/status/close orchestration)
  *  - `board:verify` -> voku/agent-kanban (TodoBoardVerifier; kanban board source only)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
  *  - `session` -> voku/agent-session (Cli)
  *  - `memory` -> voku/agent-loop (MemoryPromotionAnalyzer)
+ *  - `review` -> voku/agent-recall-compiler (review reports and L2 prompts)
  *
  * Each library CLI expects the script name at argv[0] and its own command at
  * argv[1], so the namespace token is stripped and the remaining tokens are
@@ -60,77 +65,15 @@ final class Dispatcher
             'verify' => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run($rest),
             'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
-            'recall' => $this->runRecall($scriptName, $rest),
-            'session' => $this->runSession($scriptName, $rest),
+            'recall' => $this->dispatchRecall($scriptName, $rest),
+            'session' => $this->dispatchSession($scriptName, $rest),
+            'workflow' => $this->dispatchWorkflow($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
+            'review' => $this->dispatchReview($scriptName, $rest),
+            'init' => (new InitCli($this->rootPath))->run($rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };
-    }
-
-    /**
-     * @param list<string> $rest
-     */
-    private function runRecall(string $scriptName, array $rest): int
-    {
-        $argv = $this->resolveRecallArgv($rest);
-        $exit = (new RecallCli())->run($this->subArgv($scriptName, $argv));
-
-        if ($exit === 0 && ($argv[0] ?? null) === 'compile') {
-            $this->printRecallCompileFollowUp($this->extractOptionValue($argv, 'output-dir'));
-        }
-
-        return $exit;
-    }
-
-    /**
-     * Spells out, right after a successful compile, that `recall compile`
-     * only writes briefing files to disk: nothing in `agent-loop` reads
-     * system.md/validation-plan.md back into an agent's prompt. That step is
-     * left to whatever harness or human is driving the session, and is the
-     * one most likely to be silently assumed away otherwise.
-     */
-    private function printRecallCompileFollowUp(?string $outputDir): void
-    {
-        $location = $outputDir !== null && trim($outputDir) !== '' ? rtrim($outputDir, '/') . '/' : 'the output directory';
-
-        echo "\n";
-        echo "These are prepared briefing artifacts, not automatically injected context:\n";
-        echo "- a human or harness should read {$location}system.md and validation-plan.md before relying on them\n";
-        echo "- agent-loop does not inject this briefing into an agent session by itself\n";
-        echo "- after the task, log whether it held up: agent-loop recall log-outcome --by <actor> --commit <sha>\n";
-    }
-
-    /**
-     * @param list<string> $argv
-     */
-    private function extractOptionValue(array $argv, string $name): ?string
-    {
-        $count = count($argv);
-        $needle = '--' . $name;
-
-        for ($i = 0; $i < $count; ++$i) {
-            if ($argv[$i] === $needle && $i + 1 < $count) {
-                return $argv[$i + 1];
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param list<string> $rest
-     */
-    private function runSession(string $scriptName, array $rest): int
-    {
-        $resolution = $this->resolveSessionArgv($rest);
-        if ($resolution['error'] !== null) {
-            fwrite(\STDERR, $resolution['error']);
-
-            return 1;
-        }
-
-        return (new SessionCli())->run($this->subArgv($scriptName, $resolution['argv']));
     }
 
     /**
@@ -172,6 +115,98 @@ final class Dispatcher
     }
 
     /**
+     * Resolves `session record|checkpoint|close|claim|show <id>` and delegates
+     * to voku/agent-session, unless task-id resolution reports an ambiguous
+     * match (see resolveSessionArgv()), in which case the error it already
+     * printed is the only output and the namespace is never delegated.
+     *
+     * @param list<string> $rest
+     */
+    private function dispatchSession(string $scriptName, array $rest): int
+    {
+        $resolved = $this->resolveSessionArgv($rest);
+        if ($resolved === null) {
+            return 1;
+        }
+
+        return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
+    }
+
+    /**
+     * @param list<string> $rest
+     */
+    private function dispatchWorkflow(string $scriptName, array $rest): int
+    {
+        return (new WorkflowCli(
+            $this->rootPath,
+            fn (array $sessionRest): int => $this->dispatchSession($scriptName, $sessionRest),
+            fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest)),
+            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run(array_values($verifyRest)),
+        ))->run($rest);
+    }
+
+    /**
+     * Delegates review commands to voku/agent-recall-compiler, where the L2
+     * prompt/review feature lives. When the caller does not pass --output-dir,
+     * default to agent-loop's recall/<task-id> layout so the standard workflow
+     * stays: recall compile -> review blindspots/code.
+     *
+     * @param list<string> $rest
+     */
+    private function dispatchReview(string $scriptName, array $rest): int
+    {
+        return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
+    }
+
+    /**
+     * @param list<string> $rest
+     *
+     * @return list<string>
+     */
+    private function resolveReviewArgv(array $rest): array
+    {
+        $command = $rest[0] ?? null;
+        if (!in_array($command, ['blindspots', 'code'], true)) {
+            return $rest;
+        }
+
+        foreach ($rest as $token) {
+            if ($token === '--output-dir' || str_starts_with($token, '--output-dir=')) {
+                return $rest;
+            }
+        }
+
+        $taskId = $rest[1] ?? '';
+        if (!preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) || str_contains($taskId, '..')) {
+            return $rest;
+        }
+
+        return array_merge($rest, ['--output-dir', rtrim($this->rootPath, '/') . '/recall/' . $taskId]);
+    }
+
+    /**
+     * Delegates to voku/agent-recall-compiler, then -- only for a successful
+     * `recall compile` -- appends a note that the compiled artifacts are
+     * written for review or harness ingestion, not consumed automatically by
+     * anything in this stack. This never touches the dependency's own
+     * output (which it writes via fwrite(STDOUT, ...), not echo); it only
+     * appends after delegation returns.
+     *
+     * @param list<string> $rest
+     */
+    private function dispatchRecall(string $scriptName, array $rest): int
+    {
+        $exit = (new RecallCli())->run($this->subArgv($scriptName, $this->resolveRecallArgv($rest)));
+
+        if ($exit === 0 && ($rest[0] ?? null) === 'compile') {
+            echo "\n[NOTE] Recall artifacts were written for review or harness ingestion.\n";
+            echo "[ACTION REQUIRED] Pass system.md / validation-plan.md into your agent workflow manually unless your harness consumes them automatically.\n";
+        }
+
+        return $exit;
+    }
+
+    /**
      * Lets `session record|checkpoint|close|claim|show` accept the task id
      * passed to `session start --task` in place of the generated session id
      * (e.g. `2026-06-20-abc-123`), which is otherwise easy to confuse with
@@ -179,22 +214,30 @@ final class Dispatcher
      * read-only lookup against the existing session_plan/ files at request
      * time, not new state of its own.
      *
-     * Deliberately does not guess when a task id is ambiguous: it only
-     * resolves automatically when exactly one session matches, or when
-     * exactly one of several matches is still active. Anything more
-     * ambiguous than that fails with a message naming the candidates,
-     * instead of silently picking the most recently created session (which
-     * could be the wrong one for a re-opened or re-run task).
+     * A task id can match more than one session (e.g. a dropped attempt
+     * followed by a fresh one for the same task). Resolution rules, in order:
+     *  1. an explicit, already-valid session id is left unchanged.
+     *  2. zero matches: left unchanged, so the upstream "Session not found"
+     *     failure still applies.
+     *  3. exactly one match: resolved.
+     *  4. multiple matches with exactly one non-closed ("active") session:
+     *     the active one is resolved.
+     *  5. multiple matches with zero or more-than-one active session: this
+     *     is ambiguous, so resolution fails cleanly (an [ERROR] is printed
+     *     and null is returned) instead of guessing which one the caller
+     *     meant.
      *
      * @param list<string> $rest
      *
-     * @return array{argv: list<string>, error: ?string}
+     * @return list<string>|null null when the task id matched more than one
+     *                            session and the caller must pass the
+     *                            generated session id explicitly instead
      */
-    private function resolveSessionArgv(array $rest): array
+    private function resolveSessionArgv(array $rest): ?array
     {
         $command = $rest[0] ?? null;
         if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show'], true)) {
-            return ['argv' => $rest, 'error' => null];
+            return $rest;
         }
 
         $tokens = array_slice($rest, 1);
@@ -222,7 +265,7 @@ final class Dispatcher
         }
 
         if ($positionalIndex === null) {
-            return ['argv' => $rest, 'error' => null];
+            return $rest;
         }
 
         $sessionsRoot ??= rtrim($this->rootPath, '/') . '/session_plan';
@@ -230,7 +273,7 @@ final class Dispatcher
         $candidate = $tokens[$positionalIndex];
 
         if ($store->exists($sessionsRoot, $candidate)) {
-            return ['argv' => $rest, 'error' => null];
+            return $rest;
         }
 
         $matchingSessions = array_values(array_filter(
@@ -239,16 +282,13 @@ final class Dispatcher
         ));
 
         if ($matchingSessions === []) {
-            // No session matches this task id either: leave the candidate as
-            // given and let the delegated command fail with its own
-            // "Session not found" error.
-            return ['argv' => $rest, 'error' => null];
+            return $rest;
         }
 
         if (count($matchingSessions) === 1) {
             $tokens[$positionalIndex] = $matchingSessions[0]->id;
 
-            return ['argv' => array_merge([$command], $tokens), 'error' => null];
+            return array_merge([$command], $tokens);
         }
 
         $activeSessions = array_values(array_filter(
@@ -256,30 +296,15 @@ final class Dispatcher
             static fn ($session): bool => !$session->status->isClosed(),
         ));
 
-        if (count($activeSessions) === 1) {
-            $tokens[$positionalIndex] = $activeSessions[0]->id;
+        if (count($activeSessions) !== 1) {
+            echo "[ERROR] Multiple sessions found for task {$candidate}. Pass the generated session id explicitly.\n";
 
-            return ['argv' => array_merge([$command], $tokens), 'error' => null];
+            return null;
         }
 
-        $idsOf = static fn (array $sessions): string => implode(', ', array_map(
-            static fn ($session): string => $session->id,
-            $sessions,
-        ));
+        $tokens[$positionalIndex] = $activeSessions[0]->id;
 
-        if (count($activeSessions) > 1) {
-            return [
-                'argv' => $rest,
-                'error' => "Multiple active sessions match task '{$candidate}': {$idsOf($activeSessions)}. "
-                    . "Pass the session id explicitly instead of the task id.\n",
-            ];
-        }
-
-        return [
-            'argv' => $rest,
-            'error' => "Multiple sessions match task '{$candidate}' and none is active: {$idsOf($matchingSessions)}. "
-                . "Pass the session id explicitly instead of the task id.\n",
-        ];
+        return array_merge([$command], $tokens);
     }
 
     /**
@@ -372,6 +397,11 @@ final class Dispatcher
                   Working memory: per-task session plans (voku/agent-session).
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
+          workflow
+                  Gated workflow orchestration commands.
+          review  <blindspots|code>
+                  Deterministic review helpers from voku/agent-recall-compiler.
+          init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
           help    Show this help.
 
         Run a namespace with `help` for its own command list, e.g.:
