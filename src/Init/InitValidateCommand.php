@@ -51,22 +51,18 @@ final readonly class InitValidateCommand
         }
 
         if ($kind->isSubagents()) {
-            echo "subagents validation is not implemented yet\n";
-
-            return 1;
+            return $this->validateSubagents($paths);
         }
 
         if ($kind->isHooks()) {
-            echo "hooks validation is not implemented yet\n";
-
-            return 1;
+            return $this->validateHooks($paths);
         }
 
         $skillsExit = $this->validateSkills($paths);
-        echo "subagents validation is not implemented yet\n";
-        echo "hooks validation is not implemented yet\n";
+        $subagentsExit = $this->validateSubagents($paths);
+        $hooksExit = $this->validateHooks($paths);
 
-        return $skillsExit === 0 ? 1 : $skillsExit;
+        return ($skillsExit === 0 && $subagentsExit === 0 && $hooksExit === 0) ? 0 : 1;
     }
 
     private function validateSkills(AgentAssetSourcePaths $paths): int
@@ -107,6 +103,59 @@ final readonly class InitValidateCommand
         }
 
         echo '[OK] validate skills: ' . count($skillFiles) . ' skill file(s) valid' . "\n";
+
+        return 0;
+    }
+
+    private function validateSubagents(AgentAssetSourcePaths $paths): int
+    {
+        $subagentFiles = $this->findSubagentFiles($paths->absoluteSubagentsRoot());
+        if ($subagentFiles === []) {
+            echo '[WARN] validate subagents: no subagents found under ' . $paths->subagentsRoot() . '/*.md' . "\n";
+
+            return 0;
+        }
+
+        $errors = [];
+        foreach ($subagentFiles as $subagentFile) {
+            foreach (SubagentDefinition::validationErrors($subagentFile) as $error) {
+                $errors[] = '[FAIL] validate subagents: ' . basename($subagentFile) . ': ' . $error;
+            }
+        }
+
+        if ($errors !== []) {
+            foreach ($errors as $error) {
+                echo $error . "\n";
+            }
+
+            return 1;
+        }
+
+        echo '[OK] validate subagents: ' . count($subagentFiles) . ' subagent file(s) valid' . "\n";
+
+        return 0;
+    }
+
+    private function validateHooks(AgentAssetSourcePaths $paths): int
+    {
+        $hooksRoot = $paths->absoluteHooksRoot();
+        if (!is_file($hooksRoot . '/hooks.json') && !is_dir($hooksRoot . '/hooks')) {
+            echo '[WARN] validate hooks: no hooks found under ' . $paths->hooksRoot() . "\n";
+
+            return 0;
+        }
+
+        $errors = CodexHooksDefinition::validationErrors($hooksRoot);
+        if ($errors !== []) {
+            foreach ($errors as $error) {
+                echo '[FAIL] validate hooks: ' . $error . "\n";
+            }
+
+            return 1;
+        }
+
+        $definition = CodexHooksDefinition::fromRoot($hooksRoot);
+        echo '[OK] validate hooks: hooks.json and ' . count($definition->scriptNames()) . ' hook file(s) valid' . "\n";
 
         return 0;
     }
@@ -228,6 +277,32 @@ final readonly class InitValidateCommand
         }
 
         ksort($files);
+
+        return $files;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function findSubagentFiles(string $subagentsRoot): array
+    {
+        if (!is_dir($subagentsRoot)) {
+            return [];
+        }
+
+        $files = [];
+        foreach (scandir($subagentsRoot) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
+                continue;
+            }
+
+            $path = $subagentsRoot . '/' . $entry;
+            if (is_file($path)) {
+                $files[] = $path;
+            }
+        }
+
+        sort($files);
 
         return $files;
     }

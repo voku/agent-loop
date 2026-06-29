@@ -204,7 +204,7 @@ final readonly class InitDoctorCommand
     {
         $subagentsRoot = $paths->absoluteSubagentsRoot();
         if (!is_dir($subagentsRoot)) {
-            return InitCheckResult::info('Subagents: no source files found, validation reserved');
+            return InitCheckResult::info('Subagents: no source files found');
         }
 
         $files = [];
@@ -220,12 +220,12 @@ final readonly class InitDoctorCommand
         }
 
         if ($files === []) {
-            return InitCheckResult::info('Subagents: no source files found, validation reserved');
+            return InitCheckResult::info('Subagents: no source files found');
         }
 
         sort($files);
 
-        return InitCheckResult::info('Subagents: detected ' . count($files) . ' candidate file(s), validation reserved');
+        return InitCheckResult::info('Subagents: detected ' . count($files) . ' candidate file(s)');
     }
 
     private function checkHooks(AgentAssetSourcePaths $paths): InitCheckResult
@@ -248,10 +248,10 @@ final readonly class InitDoctorCommand
         }
 
         if (!$hooksJson && $hookFiles === []) {
-            return InitCheckResult::info('Codex hooks: no source files found, validation reserved');
+            return InitCheckResult::info('Codex hooks: no source files found');
         }
 
-        return InitCheckResult::info('Codex hooks: detected ' . ($hooksJson ? 'hooks.json and ' : 'no hooks.json and ') . count($hookFiles) . ' hook file(s), validation reserved');
+        return InitCheckResult::info('Codex hooks: detected ' . ($hooksJson ? 'hooks.json and ' : 'no hooks.json and ') . count($hookFiles) . ' hook file(s)');
     }
 
     private function checkTools(AgentAssetSourcePaths $paths): InitCheckResult

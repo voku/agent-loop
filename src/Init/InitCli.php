@@ -25,51 +25,12 @@ final readonly class InitCli
             'doctor' => (new InitDoctorCommand($this->rootPath))->run($rest),
             'validate' => (new InitValidateCommand($this->rootPath))->run($rest),
             'install-plan' => (new InitInstallPlanCommand())->run($rest),
-            'sync-skills' => $this->runReservedSyncSkills($rest),
-            'sync-subagents' => $this->runReservedSyncSubagents($rest),
-            'sync-hooks' => $this->runReservedSyncHooks($rest),
+            'sync-skills' => (new InitSyncSkillsCommand($this->rootPath))->run($rest),
+            'sync-subagents' => (new InitSyncSubagentsCommand($this->rootPath))->run($rest),
+            'sync-hooks' => (new InitSyncHooksCommand($this->rootPath))->run($rest),
             'scaffold' => $this->runReservedScaffold($rest),
             default => $this->printUsage(1, $command),
         };
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function runReservedSyncSkills(array $tokens): int
-    {
-        return $this->runReservedAgentCommand(
-            $tokens,
-            'sync-skills',
-            ['codex', 'claude', 'copilot', 'antigravity'],
-            true
-        );
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function runReservedSyncSubagents(array $tokens): int
-    {
-        return $this->runReservedAgentCommand(
-            $tokens,
-            'sync-subagents',
-            ['copilot', 'antigravity'],
-            true
-        );
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function runReservedSyncHooks(array $tokens): int
-    {
-        return $this->runReservedAgentCommand(
-            $tokens,
-            'sync-hooks',
-            ['codex'],
-            false
-        );
     }
 
     /**
@@ -111,47 +72,6 @@ final readonly class InitCli
         }
 
         echo "init scaffold is not implemented yet\n";
-
-        return 1;
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @param list<string> $allowedCanonicalAgents
-     */
-    private function runReservedAgentCommand(
-        array $tokens,
-        string $commandName,
-        array $allowedCanonicalAgents,
-        bool $allowAll,
-    ): int {
-        $argumentError = $this->validateOptions($tokens, ['agent'], ['dry-run', 'force']);
-        if ($argumentError !== null) {
-            fwrite(\STDERR, $argumentError . "\n");
-
-            return 1;
-        }
-
-        $agentValue = $this->readOptionValue($tokens, 'agent');
-        if ($agentValue === null) {
-            fwrite(\STDERR, "Missing required option: --agent\n");
-
-            return 1;
-        }
-
-        try {
-            $agent = InitAgent::parse($agentValue, $allowedCanonicalAgents, $allowAll);
-        } catch (InvalidArgumentException $exception) {
-            fwrite(\STDERR, $exception->getMessage() . "\n");
-
-            return 1;
-        }
-
-        foreach ($agent->messages() as $message) {
-            echo $message . "\n";
-        }
-
-        echo 'init ' . $commandName . " is not implemented yet\n";
 
         return 1;
     }
@@ -225,9 +145,9 @@ final readonly class InitCli
           agent-loop init doctor [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init sync-skills --agent=<agent|all> [--dry-run] [--force]
-          agent-loop init sync-subagents --agent=<agent|all> [--dry-run] [--force]
-          agent-loop init sync-hooks --agent=<agent> [--dry-run] [--force]
+          agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force]
+          agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force]
+          agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force]
           agent-loop init scaffold --profile=<profile> --agent=<agent> [--dry-run]
 
         Commands:
@@ -235,9 +155,9 @@ final readonly class InitCli
           doctor         Diagnose local setup and repo-managed agent asset hints.
           validate       Validate repo-managed agent asset definitions.
           install-plan   Print reviewed setup commands for Linux/WSL2 agent tooling. Does not execute them.
-          sync-skills    Reserved for syncing repo-managed skills.
-          sync-subagents Reserved for syncing repo-managed subagents.
-          sync-hooks     Reserved for syncing repo-managed hooks.
+          sync-skills    Sync repo-managed skills into a client target directory.
+          sync-subagents Sync repo-managed subagents into a client target directory.
+          sync-hooks     Sync repo-managed Codex hooks into a client target directory.
           scaffold       Reserved for repo-local scaffolding.
         TXT;
 

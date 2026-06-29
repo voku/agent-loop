@@ -125,7 +125,7 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[WARN] init config: invalid JSON', $result['output']);
     }
 
-    public function testDoctorReportsSubagentsHooksAndToolsAsReserved(): void
+    public function testDoctorReportsSubagentsHooksAndTools(): void
     {
         mkdir($this->root . '/docs/agents/subagents', 0o775, true);
         mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
@@ -136,8 +136,8 @@ final class InitDoctorCommandTest extends TestCase
 
         $result = $this->runDoctor([]);
 
-        self::assertStringContainsString('[INFO] Subagents: detected 1 candidate file(s), validation reserved', $result['output']);
-        self::assertStringContainsString('[INFO] Codex hooks: detected hooks.json and 1 hook file(s), validation reserved', $result['output']);
+        self::assertStringContainsString('[INFO] Subagents: detected 1 candidate file(s)', $result['output']);
+        self::assertStringContainsString('[INFO] Codex hooks: detected hooks.json and 1 hook file(s)', $result['output']);
         self::assertStringContainsString('[INFO] Tools: tools directory found', $result['output']);
         self::assertStringContainsString('[OK] Workflow: init diagnostics do not affect workflow close', $result['output']);
     }

@@ -23,7 +23,8 @@ For the normal governed loop:
 If the task changed repo-managed agent guidance, also run:
 
 ```bash
-vendor/bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init validate --kind=all
+vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
 php bin/agent-loop init doctor
 ```
 
@@ -38,7 +39,7 @@ This skill owns:
 
 This skill does not own:
 
-- host-repo installation or sync internals that are still reserved under `init`
+- host-repo client-specific runtime assumptions beyond the documented `init` sync targets
 - pretending recall artifacts are auto-injected into an agent
 - durable-memory approval or auto-promotion
 
@@ -79,6 +80,7 @@ Use lower-level commands only when you need direct control:
 - `verify` for the cross-package consistency gate
 - `learn` for findings and reviewed guidance work after the task
 - `memory review` for human durable-memory promotion review
+- `init sync-*` when the task changes repo-managed agent assets that must be copied into a client target
 
 ### 2. Keep the workflow boundary honest
 
@@ -110,6 +112,8 @@ automatically.
 ## Validation
 
 - `vendor/bin/agent-loop init validate --kind=skills`
+- `vendor/bin/agent-loop init validate --kind=all`
+- `vendor/bin/agent-loop init sync-skills --agent=codex --dry-run`
 - `php bin/agent-loop init doctor`
 - `vendor/bin/phpunit --filter 'Init|DispatcherTest'`
 - `vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M`

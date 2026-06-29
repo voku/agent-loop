@@ -14,7 +14,7 @@ For a normal repo-managed guidance fix:
 
 1. Edit the canonical source under `docs/agents/skills/` or `docs/agents/`.
 2. Keep the fix small and scoped to the agent-guidance surface.
-3. Validate the local source layout with `vendor/bin/agent-loop init validate --kind=skills`.
+3. Validate the local source layout with the relevant `vendor/bin/agent-loop init validate --kind=...` command.
 4. Re-run `vendor/bin/agent-loop init doctor` when path or migration guidance changed.
 5. Update README, changelog, or migration notes when the public `init` contract changed.
 6. When a host repo uses RTK, audit its `AGENTS.md`, `README.md`, and agent-facing Make targets for missing RTK guidance at Docker/Make boundaries.
@@ -28,13 +28,13 @@ This skill owns:
 - path-layout guidance for host repositories adopting `agent-loop init`
 - migration notes for legacy Makefile and wrapper-script workflows
 - RTK usage guidance at the outer shell boundary and nested Make/Docker layers
-- validation guidance for `init doctor` and `init validate`
+- validation guidance for `init doctor`, `init validate`, and `init sync-*`
 
 This skill does not own:
 
 - product implementation outside the agent-guidance surface
 - host-repo local install targets as the source of truth
-- pretending reserved `sync-*` behavior is implemented before it exists
+- pretending reserved `scaffold` behavior is implemented before it exists
 
 ## Canonical Files
 
@@ -53,7 +53,7 @@ Use this skill when the task:
 - adds or edits a repo-managed skill
 - changes default asset roots or host override behavior
 - documents how a host repo should migrate from private wrappers to `agent-loop init`
-- updates the public validation/install-plan contract
+- updates the public validation/sync/install-plan contract
 
 Do not use this skill for ordinary library feature work that is unrelated
 to agent assets or migration guidance.
@@ -77,19 +77,21 @@ or other installed copies.
 When adapting a host workflow:
 
 - preserve the real source path and wrapper shape in the migration notes
-- separate what `agent-loop init` can do now from what is still reserved
+- separate what `agent-loop init` can do now from what `scaffold` still does not
 - prefer `sync` wording for repeatable repo-managed asset updates
 - keep Google client aliases mapped through canonical `antigravity`
 - check whether the host repo's `AGENTS.md`, `README.md`, and shared skills are missing explicit RTK guidance
 - distinguish RTK-wrapped outer commands from noisy inner commands hidden behind `make`, `docker compose exec`, or wrapper scripts
 - recommend dedicated `ai-*` Make targets when host repos mainly drive validation through Make and Docker
+- keep target-manifest safety explicit so `sync-*` removes only stale managed entries
 
 ### 3. Validate after changes
 
 Run:
 
 ```bash
-vendor/bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init validate --kind=all
+vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
 php bin/agent-loop init doctor
 vendor/bin/phpunit --filter 'Init|DispatcherTest'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
@@ -106,7 +108,8 @@ When documenting a host repo:
 
 ## Validation
 
-- `vendor/bin/agent-loop init validate --kind=skills`
+- `vendor/bin/agent-loop init validate --kind=all`
+- `vendor/bin/agent-loop init sync-skills --agent=codex --dry-run`
 - `php bin/agent-loop init doctor`
 - `vendor/bin/phpunit --filter 'Init|DispatcherTest'`
 - `vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M`

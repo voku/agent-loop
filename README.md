@@ -102,13 +102,20 @@ Accepted risk writes `.agent-loop/risks/<task-id>.accepted-risk.md`.
 ```bash
 vendor/bin/agent-loop init doctor
 vendor/bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init validate --kind=subagents
+vendor/bin/agent-loop init validate --kind=hooks --agent=codex
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
+vendor/bin/agent-loop init sync-skills --agent=codex
+vendor/bin/agent-loop init sync-subagents --agent=copilot
+vendor/bin/agent-loop init sync-hooks --agent=codex
 ```
 
 `init doctor` diagnoses local setup and migration-compatible Makefile targets without installing tools or writing files.
 
-`init validate --kind=skills` validates repo-managed skill files. By default it reads:
+`init validate --kind=skills`, `--kind=subagents`, and `--kind=hooks` validate repo-managed agent assets from the resolved source roots.
+
+By default, skills read from:
 
 ```text
 docs/agents/skills/*/SKILL.md
@@ -125,9 +132,12 @@ The source paths can be overridden:
 ```bash
 vendor/bin/agent-loop init validate --kind=skills --skills-root=custom/skills
 vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json
+vendor/bin/agent-loop init sync-subagents --agent=copilot --config=.agent-loop/init.json
 ```
 
 `init install-plan --profile=wsl2 --agent=codex` and `init install-plan --profile=linux --agent=codex` print reviewed setup plans for RTK and Caveman. They do not execute commands.
+
+`init sync-skills`, `init sync-subagents`, and `init sync-hooks` copy canonical repo-managed assets into client target directories, keep a local manifest of managed entries, remove only stale managed entries, and refuse to overwrite unmanaged targets unless `--force` is given.
 
 RTK reduces noise at the outer shell boundary, but host repositories often
 wrap the real work one layer deeper through `make`, `docker compose exec`,
@@ -137,12 +147,9 @@ missing RTK guidance and low-noise `ai-*` targets.
 
 Google-side agent tooling is moving quickly. Prefer `antigravity` as the canonical Google agent target; `gemini` may be treated as a legacy alias where supported.
 
-Reserved for later:
+Still reserved for later:
 
 ```bash
-vendor/bin/agent-loop init sync-skills --agent=codex
-vendor/bin/agent-loop init sync-subagents --agent=copilot
-vendor/bin/agent-loop init sync-hooks --agent=codex
 vendor/bin/agent-loop init scaffold --profile=wsl2 --agent=codex --dry-run
 ```
 

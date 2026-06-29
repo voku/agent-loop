@@ -115,33 +115,139 @@ final class InitValidateCommandTest extends TestCase
         self::assertStringContainsString('[OK] validate skills: 1 skill file(s) valid', $result['output']);
     }
 
-    public function testValidateSubagentsIsReserved(): void
+    public function testValidateSubagentsWarnsAndSucceedsWhenNoSubagentsExist(): void
     {
         $result = $this->runValidate(['--kind=subagents']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('subagents validation is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[WARN] validate subagents: no subagents found under docs/agents/subagents/*.md', $result['output']);
     }
 
-    public function testValidateHooksIsReserved(): void
+    public function testValidateSubagentsSucceedsWhenSubagentsAreValid(): void
+    {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+
+        $result = $this->runValidate(['--kind=subagents']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] validate subagents: 1 subagent file(s) valid', $result['output']);
+    }
+
+    public function testValidateSubagentsFailsForInvalidName(): void
+    {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: nope\ndescription: Review things\n---\n\n# Reviewer\n");
+
+        $result = $this->runValidate(['--kind=subagents']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString("Subagent name 'nope' must match filename stem 'reviewer'", $result['output']);
+    }
+
+    public function testValidateHooksWarnsAndSucceedsWhenNoHooksExist(): void
     {
         $result = $this->runValidate(['--kind=hooks']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('hooks validation is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[WARN] validate hooks: no hooks found under docs/agents/codex-hooks', $result['output']);
     }
 
-    public function testValidateAllRunsSkillsThenFailsBecauseReservedChecksRemain(): void
+    public function testValidateHooksSucceedsWhenHooksAreValid(): void
+    {
+        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+            'hooks' => [
+                'SessionStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/session_context.php',
+                    ]],
+                ]],
+                'SubagentStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/subagent_context.php',
+                    ]],
+                ]],
+                'PreToolUse' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_policy.php',
+                    ]],
+                ]],
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+
+        $result = $this->runValidate(['--kind=hooks']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] validate hooks: hooks.json and 3 hook file(s) valid', $result['output']);
+    }
+
+    public function testValidateHooksFailsWhenRequiredEventIsMissing(): void
+    {
+        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+            'hooks' => [
+                'SessionStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/session_context.php',
+                    ]],
+                ]],
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+
+        $result = $this->runValidate(['--kind=hooks']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('hooks.json misses required event SubagentStart', $result['output']);
+    }
+
+    public function testValidateAllRunsAllChecksAndSucceeds(): void
     {
         mkdir($this->root . '/docs/agents/skills/demo', 0o775, true);
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
         file_put_contents($this->root . '/docs/agents/skills/demo/SKILL.md', "# Demo\n");
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+            'hooks' => [
+                'SessionStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/session_context.php',
+                    ]],
+                ]],
+                'SubagentStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/subagent_context.php',
+                    ]],
+                ]],
+                'PreToolUse' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_policy.php',
+                    ]],
+                ]],
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
 
         $result = $this->runValidate(['--kind=all']);
 
-        self::assertSame(1, $result['exit']);
+        self::assertSame(0, $result['exit']);
         self::assertStringContainsString('[OK] validate skills: 1 skill file(s) valid', $result['output']);
-        self::assertStringContainsString('subagents validation is not implemented yet', $result['output']);
-        self::assertStringContainsString('hooks validation is not implemented yet', $result['output']);
+        self::assertStringContainsString('[OK] validate subagents: 1 subagent file(s) valid', $result['output']);
+        self::assertStringContainsString('[OK] validate hooks: hooks.json and 3 hook file(s) valid', $result['output']);
     }
 
     /**

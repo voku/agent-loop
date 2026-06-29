@@ -75,55 +75,146 @@ final class InitCliTest extends TestCase
 
     public function testInitValidateSubagentsIsReserved(): void
     {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+
         $result = $this->dispatch(['agent-loop', 'init', 'validate', '--kind=subagents']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('subagents validation is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] validate subagents: 1 subagent file(s) valid', $result['output']);
     }
 
-    public function testInitValidateHooksIsReserved(): void
+    public function testInitValidateHooksSucceeds(): void
     {
+        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+            'hooks' => [
+                'SessionStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/session_context.php',
+                    ]],
+                ]],
+                'SubagentStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/subagent_context.php',
+                    ]],
+                ]],
+                'PreToolUse' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_policy.php',
+                    ]],
+                ]],
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+
         $result = $this->dispatch(['agent-loop', 'init', 'validate', '--kind=hooks']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('hooks validation is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] validate hooks: hooks.json and 3 hook file(s) valid', $result['output']);
     }
 
-    public function testInitValidateAllExitsOneAfterSkillsValidation(): void
+    public function testInitValidateAllExitsZeroWhenAllAssetKindsAreValid(): void
+    {
+        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+            'hooks' => [
+                'SessionStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/session_context.php',
+                    ]],
+                ]],
+                'SubagentStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/subagent_context.php',
+                    ]],
+                ]],
+                'PreToolUse' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_policy.php',
+                    ]],
+                ]],
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+
+        $result = $this->dispatch(['agent-loop', 'init', 'validate', '--kind=all']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] validate skills: 1 skill file(s) valid', $result['output']);
+        self::assertStringContainsString('[OK] validate subagents: 1 subagent file(s) valid', $result['output']);
+        self::assertStringContainsString('[OK] validate hooks: hooks.json and 3 hook file(s) valid', $result['output']);
+    }
+
+    public function testSyncSkillsExitsZero(): void
     {
         mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
         file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
 
-        $result = $this->dispatch(['agent-loop', 'init', 'validate', '--kind=all']);
-
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('[OK] validate skills: 1 skill file(s) valid', $result['output']);
-        self::assertStringContainsString('subagents validation is not implemented yet', $result['output']);
-        self::assertStringContainsString('hooks validation is not implemented yet', $result['output']);
-    }
-
-    public function testReservedSyncSkillsExitsOne(): void
-    {
         $result = $this->dispatch(['agent-loop', 'init', 'sync-skills', '--agent=codex']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('init sync-skills is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] sync skills: synced 1 skill file(s) for codex', $result['output']);
     }
 
-    public function testReservedSyncSubagentsExitsOne(): void
+    public function testSyncSubagentsExitsZero(): void
     {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+
         $result = $this->dispatch(['agent-loop', 'init', 'sync-subagents', '--agent=copilot']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('init sync-subagents is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] sync subagents: synced 1 subagent file(s) for copilot', $result['output']);
     }
 
-    public function testReservedSyncHooksExitsOne(): void
+    public function testSyncHooksExitsZero(): void
     {
+        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+            'hooks' => [
+                'SessionStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/session_context.php',
+                    ]],
+                ]],
+                'SubagentStart' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/subagent_context.php',
+                    ]],
+                ]],
+                'PreToolUse' => [[
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php $(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_policy.php',
+                    ]],
+                ]],
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+
         $result = $this->dispatch(['agent-loop', 'init', 'sync-hooks', '--agent=codex']);
 
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('init sync-hooks is not implemented yet', $result['output']);
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[OK] sync hooks: synced 3 hook file(s) into', $result['output']);
     }
 
     public function testReservedScaffoldExitsOne(): void

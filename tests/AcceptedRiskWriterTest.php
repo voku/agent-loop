@@ -30,15 +30,13 @@ final class AcceptedRiskWriterTest extends TestCase
         $relative = (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Manual review.');
 
         self::assertSame('.agent-loop/risks/ABC-123.accepted-risk.md', $relative);
-        self::assertSame(<<<'TXT'
-# Accepted risk for ABC-123
-
-Reason: Manual review.
-
-Bypassing workflow close gates does not approve code or durable learning.
-Human review remains required.
-
-TXT, file_get_contents($this->root . '/' . $relative));
+        self::assertSame(
+            "# Accepted risk for ABC-123\n\n"
+            . "Reason: Manual review.\n\n"
+            . "Bypassing workflow close gates does not approve code or durable learning.\n"
+            . "Human review remains required.\n",
+            file_get_contents($this->root . '/' . $relative),
+        );
     }
 
     public function testThrowsWhenAcceptedRiskPathCannotBeWritten(): void

@@ -23,17 +23,20 @@ Use the implemented `init` commands for the current portable workflow:
 
 ```bash
 php bin/agent-loop init doctor
-php bin/agent-loop init validate --kind=skills
+php bin/agent-loop init validate --kind=all
 php bin/agent-loop init install-plan --profile=wsl2 --agent=codex
+php bin/agent-loop init sync-skills --agent=codex --dry-run
 ```
 
 The same commands also work through the Composer proxy:
 
 ```bash
 vendor/bin/agent-loop init doctor
-vendor/bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
+vendor/bin/agent-loop init sync-subagents --agent=copilot --dry-run
+vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 ```
 
 ## Current Boundaries
@@ -46,11 +49,19 @@ vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
 - does not write files
 - does not install tools
 
-`init validate --kind=skills`:
+`init validate --kind=skills|subagents|hooks|all`:
 
-- validates `*/SKILL.md` presence under the resolved skills root
+- validates the resolved `skills`, `subagents`, and `codex-hooks` source roots
 - rejects unsafe skill directory names
-- rejects empty or unreadable `SKILL.md` files
+- rejects empty or unreadable canonical asset files
+
+`init sync-skills`, `init sync-subagents`, and `init sync-hooks`:
+
+- copy canonical repo-managed assets into client target directories
+- keep a local manifest of managed entries
+- remove only stale manifest-managed entries
+- refuse to overwrite unmanaged targets unless `--force` is given
+- support `--dry-run` for host-repo review before copying
 
 `init install-plan`:
 
@@ -154,21 +165,15 @@ For Codex specifically, do not rely on an invisible shell-rewrite story.
 Keep the RTK preference explicit in repository docs such as `AGENTS.md`
 and `README.md`.
 
-## Reserved Commands
+## Remaining Reserved Command
 
-These commands are intentionally reserved today and exit `1` with
+This command is still intentionally reserved today and exits `1` with
 `not implemented yet`:
 
-- `init validate --kind=subagents`
-- `init validate --kind=hooks --agent=codex`
-- `init validate --kind=all`
-- `init sync-skills --agent=...`
-- `init sync-subagents --agent=...`
-- `init sync-hooks --agent=codex`
 - `init scaffold --profile=wsl2 --agent=...`
 
-Keep host-repo migration docs honest about this boundary. Do not present
-`sync-*` as runnable until the internals exist in `agent-loop`.
+Host-repo migration docs should treat `scaffold` as backlog, while
+`validate --kind=subagents|hooks|all` and `sync-*` are now runnable.
 
 ## Host-Repo Migration Pattern
 
@@ -193,11 +198,14 @@ check in a small config file such as:
 }
 ```
 
-Then the host repo can move validation first:
+Then the host repo can move validation and sync first:
 
 ```bash
 vendor/bin/agent-loop init doctor --config=.agent-loop/init.json
 vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json
+vendor/bin/agent-loop init validate --kind=subagents --config=.agent-loop/init.json
+vendor/bin/agent-loop init validate --kind=hooks --agent=codex --config=.agent-loop/init.json
+vendor/bin/agent-loop init sync-skills --agent=codex --config=.agent-loop/init.json
 ```
 
 See:
