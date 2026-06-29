@@ -44,6 +44,12 @@ here. The kanban entrypoint format is `voku/agent-kanban`'s own
 house-style contract and out of scope for this generic example (see
 `tests/fixtures/basic-loop` for the same call).
 
+Despite the directory name, none of this example talks to Jira: `todo/jira/`
+is plain local Markdown and the name is historical. The only command that
+needs a real Jira connection is `board jira-sync`, which isn't run here and
+requires a host-injected `JiraIssueProvider` (see the main README's
+"Programmatic use" section) — it's intentionally not part of this example.
+
 ## Walkthrough
 
 ### 1. See what's on the board
@@ -113,6 +119,11 @@ Briefing compiled successfully under: .../examples/basic-loop/recall/DEMO-1/
 - system.md (selected guidance: 0, selected constraints: 0)
 - validation-plan.md
 - recall-log.draft.json
+
+These are prepared briefing artifacts, not automatically injected context:
+- a human or harness should read .../examples/basic-loop/recall/DEMO-1/system.md and validation-plan.md before relying on them
+- agent-loop does not inject this briefing into an agent session by itself
+- after the task, log whether it held up: agent-loop recall log-outcome --by <actor> --commit <sha>
 ```
 
 No `--output-dir` needed: with `--task DEMO-1` and no `--output-dir`,
@@ -120,6 +131,12 @@ No `--output-dir` needed: with `--task DEMO-1` and no `--output-dir`,
 which is exactly where `agent-loop verify`'s recall-coverage check looks
 for `recall/DEMO-1/meta.json`. Pass `--output-dir` explicitly only if you
 want the briefing written somewhere else.
+
+The follow-up note above is the whole point of this step: `recall compile`
+only writes files. Nothing in `agent-loop` reads `system.md` back into an
+agent's prompt — a human or harness has to do that deliberately, and should
+log the outcome afterward with `recall log-outcome` once it's known whether
+the briefing actually held up.
 
 ### 4. Record a decision on the session
 
@@ -152,6 +169,31 @@ agent-loop verify - cross-package consistency check
 Run `verify` while the session is still open — a closed session is no
 longer checked for recall coverage, so this is the point where a missing
 or stale briefing would actually be caught.
+
+The `[SKIP] board` line above is expected here: this example has no
+`TODO.md`, only `todo/jira/*.md` cards, and `verify`'s board check only
+covers the legacy `TODO.md` entrypoint. That's a `[SKIP]`, not a problem —
+this example just doesn't wire up that part of the stack. For a repo or CI
+run where a missing `TODO.md` (or any other skipped input) genuinely
+should fail the build, pass `--strict`:
+
+```bash
+$AGENT_LOOP verify --strict
+```
+
+```text
+agent-loop verify - cross-package consistency check
+
+Strict mode: checks that would normally [SKIP] on a missing input now [FAIL].
+
+[OK] package delegates: board, learn, recall, session commands all resolve to an installed package
+[OK] tasks: 1 task file(s) parsed: DEMO-1
+[FAIL] board: no TODO.md at .../examples/basic-loop/TODO.md (required under --strict)
+[OK] sessions: 1 session(s) parsed, 1 active and consistent
+[OK] learning root: validated .../examples/basic-loop/learning-root (0 finding(s), 0 proposal(s), outcome/decision history parsed)
+
+[FAIL] agent-loop verify: drift detected, see above.
+```
 
 ### 6. Close the session
 

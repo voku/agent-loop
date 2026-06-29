@@ -46,15 +46,19 @@ final class AgentLoopVerifier
         }
 
         $options = $this->parseOptions($tokens);
+        $strict = $options['strict'];
 
         echo "agent-loop verify - cross-package consistency check\n\n";
+        if ($strict) {
+            echo "Strict mode: checks that would normally [SKIP] on a missing input now [FAIL].\n\n";
+        }
 
         $results = [
             $this->checkPackagesWired(),
-            $this->checkTasks($options['tasks-root']),
-            $this->checkBoard(),
-            $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root']),
-            $this->checkLearningRoot($options['learning-root']),
+            $this->checkTasks($options['tasks-root'], $strict),
+            $this->checkBoard($strict),
+            $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict),
+            $this->checkLearningRoot($options['learning-root'], $strict),
         ];
 
         $passed = !in_array(false, $results, true);
@@ -69,7 +73,7 @@ final class AgentLoopVerifier
     /**
      * @param list<string> $tokens
      *
-     * @return array{tasks-root: string, sessions-root: string, recall-root: string, learning-root: ?string}
+     * @return array{tasks-root: string, sessions-root: string, recall-root: string, learning-root: ?string, strict: bool}
      */
     private function parseOptions(array $tokens): array
     {
@@ -79,6 +83,7 @@ final class AgentLoopVerifier
             'sessions-root' => $root . '/session_plan',
             'recall-root' => $root . '/recall',
             'learning-root' => null,
+            'strict' => in_array('--strict', $tokens, true),
         ];
 
         foreach ($tokens as $token) {
@@ -101,6 +106,25 @@ final class AgentLoopVerifier
         }
 
         return $options;
+    }
+
+    /**
+     * Shared SKIP/FAIL behavior for a check whose required input is simply
+     * absent: a [SKIP] by default (this check has nothing to verify), or a
+     * [FAIL] under --strict (this input is required, not optional, for this
+     * run).
+     */
+    private function skipOrFail(bool $strict, string $label, string $message): bool
+    {
+        if ($strict) {
+            echo "[FAIL] {$label}: {$message} (required under --strict)\n";
+
+            return false;
+        }
+
+        echo "[SKIP] {$label}: {$message}\n";
+
+        return true;
     }
 
     /**
@@ -135,19 +159,15 @@ final class AgentLoopVerifier
         return true;
     }
 
-    private function checkTasks(string $tasksRoot): bool
+    private function checkTasks(string $tasksRoot, bool $strict): bool
     {
         if (!is_dir($tasksRoot)) {
-            echo "[SKIP] tasks: no directory at {$tasksRoot}\n";
-
-            return true;
+            return $this->skipOrFail($strict, 'tasks', "no directory at {$tasksRoot}");
         }
 
         $files = glob($tasksRoot . '/*.md') ?: [];
         if ($files === []) {
-            echo "[SKIP] tasks: {$tasksRoot} has no *.md task files\n";
-
-            return true;
+            return $this->skipOrFail($strict, 'tasks', "{$tasksRoot} has no *.md task files");
         }
 
         sort($files);
@@ -178,13 +198,11 @@ final class AgentLoopVerifier
         return true;
     }
 
-    private function checkBoard(): bool
+    private function checkBoard(bool $strict): bool
     {
         $todoFile = rtrim($this->rootPath, '/') . '/TODO.md';
         if (!is_file($todoFile)) {
-            echo "[SKIP] board: no TODO.md at {$todoFile}\n";
-
-            return true;
+            return $this->skipOrFail($strict, 'board', "no TODO.md at {$todoFile}");
         }
 
         ob_start();
@@ -203,12 +221,10 @@ final class AgentLoopVerifier
         return false;
     }
 
-    private function checkSessionsAndRecall(string $sessionsRoot, string $recallRoot): bool
+    private function checkSessionsAndRecall(string $sessionsRoot, string $recallRoot, bool $strict): bool
     {
         if (!is_dir($sessionsRoot)) {
-            echo "[SKIP] sessions: no directory at {$sessionsRoot}\n";
-
-            return true;
+            return $this->skipOrFail($strict, 'sessions', "no directory at {$sessionsRoot}");
         }
 
         try {
@@ -336,12 +352,10 @@ final class AgentLoopVerifier
         return $ok;
     }
 
-    private function checkLearningRoot(?string $learningRoot): bool
+    private function checkLearningRoot(?string $learningRoot, bool $strict): bool
     {
         if ($learningRoot === null || !is_dir($learningRoot)) {
-            echo '[SKIP] learning root: no directory found (checked --learning-root, infra/doc/agent-learning, learning-root)' . "\n";
-
-            return true;
+            return $this->skipOrFail($strict, 'learning root', 'no directory found (checked --learning-root, infra/doc/agent-learning, learning-root)');
         }
 
         try {
@@ -366,21 +380,36 @@ final class AgentLoopVerifier
         Usage:
           agent-loop verify [options]
 
-        Checks (each skips itself when its inputs are absent):
+        Checks (each [SKIP]s itself when its inputs are absent, by default):
           - package delegates: board/learn/recall/session classes are installed
+                      (never skips; this is the command surface itself)
           - tasks:    every *.md file under tasks/ parses (non-empty, has a heading)
+                      ([SKIP] if tasks/ is absent or has no *.md files)
           - board:    TODO.md kanban board projection (delegated to voku/agent-kanban)
+                      ([SKIP] if there is no TODO.md; local-Markdown-only boards
+                      without that legacy entrypoint are expected to skip here)
           - sessions: every non-closed session under session_plan/ points to a
                       known task id and has a compiled recall briefing
+                      ([SKIP] if session_plan/ is absent)
           - recall:   every recall/<task>/meta.json output_hashes entry still
                       matches the file on disk (catches stale/edited briefings)
+                      (silently passes if recall/ is absent; folded into the
+                      sessions check above, no separate [SKIP] line)
           - learning: the learning root (findings/proposals/history) validates
+                      ([SKIP] if no learning root is found)
+
+        A [SKIP] means that check's required input is simply absent in this
+        repo, not that something is wrong — e.g. a repo with no kanban board
+        wired up will always [SKIP] board. Pass --strict to turn every [SKIP]
+        above into a [FAIL] instead, for repos/CI runs where every one of
+        those inputs is expected to exist.
 
         Options:
           --tasks-root=PATH     Default: <root>/tasks
           --sessions-root=PATH  Default: <root>/session_plan
           --recall-root=PATH    Default: <root>/recall
           --learning-root=PATH  Default: <root>/infra/doc/agent-learning or <root>/learning-root
+          --strict              Treat every [SKIP] above as a [FAIL].
 
         TXT;
     }

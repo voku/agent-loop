@@ -60,12 +60,77 @@ final class Dispatcher
             'verify' => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run($rest),
             'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
-            'recall' => (new RecallCli())->run($this->subArgv($scriptName, $this->resolveRecallArgv($rest))),
-            'session' => (new SessionCli())->run($this->subArgv($scriptName, $this->resolveSessionArgv($rest))),
+            'recall' => $this->runRecall($scriptName, $rest),
+            'session' => $this->runSession($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };
+    }
+
+    /**
+     * @param list<string> $rest
+     */
+    private function runRecall(string $scriptName, array $rest): int
+    {
+        $argv = $this->resolveRecallArgv($rest);
+        $exit = (new RecallCli())->run($this->subArgv($scriptName, $argv));
+
+        if ($exit === 0 && ($argv[0] ?? null) === 'compile') {
+            $this->printRecallCompileFollowUp($this->extractOptionValue($argv, 'output-dir'));
+        }
+
+        return $exit;
+    }
+
+    /**
+     * Spells out, right after a successful compile, that `recall compile`
+     * only writes briefing files to disk: nothing in `agent-loop` reads
+     * system.md/validation-plan.md back into an agent's prompt. That step is
+     * left to whatever harness or human is driving the session, and is the
+     * one most likely to be silently assumed away otherwise.
+     */
+    private function printRecallCompileFollowUp(?string $outputDir): void
+    {
+        $location = $outputDir !== null && trim($outputDir) !== '' ? rtrim($outputDir, '/') . '/' : 'the output directory';
+
+        echo "\n";
+        echo "These are prepared briefing artifacts, not automatically injected context:\n";
+        echo "- a human or harness should read {$location}system.md and validation-plan.md before relying on them\n";
+        echo "- agent-loop does not inject this briefing into an agent session by itself\n";
+        echo "- after the task, log whether it held up: agent-loop recall log-outcome --by <actor> --commit <sha>\n";
+    }
+
+    /**
+     * @param list<string> $argv
+     */
+    private function extractOptionValue(array $argv, string $name): ?string
+    {
+        $count = count($argv);
+        $needle = '--' . $name;
+
+        for ($i = 0; $i < $count; ++$i) {
+            if ($argv[$i] === $needle && $i + 1 < $count) {
+                return $argv[$i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $rest
+     */
+    private function runSession(string $scriptName, array $rest): int
+    {
+        $resolution = $this->resolveSessionArgv($rest);
+        if ($resolution['error'] !== null) {
+            fwrite(\STDERR, $resolution['error']);
+
+            return 1;
+        }
+
+        return (new SessionCli())->run($this->subArgv($scriptName, $resolution['argv']));
     }
 
     /**
@@ -114,15 +179,22 @@ final class Dispatcher
      * read-only lookup against the existing session_plan/ files at request
      * time, not new state of its own.
      *
+     * Deliberately does not guess when a task id is ambiguous: it only
+     * resolves automatically when exactly one session matches, or when
+     * exactly one of several matches is still active. Anything more
+     * ambiguous than that fails with a message naming the candidates,
+     * instead of silently picking the most recently created session (which
+     * could be the wrong one for a re-opened or re-run task).
+     *
      * @param list<string> $rest
      *
-     * @return list<string>
+     * @return array{argv: list<string>, error: ?string}
      */
     private function resolveSessionArgv(array $rest): array
     {
         $command = $rest[0] ?? null;
         if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show'], true)) {
-            return $rest;
+            return ['argv' => $rest, 'error' => null];
         }
 
         $tokens = array_slice($rest, 1);
@@ -150,7 +222,7 @@ final class Dispatcher
         }
 
         if ($positionalIndex === null) {
-            return $rest;
+            return ['argv' => $rest, 'error' => null];
         }
 
         $sessionsRoot ??= rtrim($this->rootPath, '/') . '/session_plan';
@@ -158,26 +230,56 @@ final class Dispatcher
         $candidate = $tokens[$positionalIndex];
 
         if ($store->exists($sessionsRoot, $candidate)) {
-            return $rest;
+            return ['argv' => $rest, 'error' => null];
         }
 
-        $matchingSessionIds = array_values(array_map(
-            static fn ($session): string => $session->id,
-            array_filter(
-                $store->all($sessionsRoot),
-                static fn ($session): bool => $session->taskId === $candidate,
-            ),
+        $matchingSessions = array_values(array_filter(
+            $store->all($sessionsRoot),
+            static fn ($session): bool => $session->taskId === $candidate,
         ));
 
-        if ($matchingSessionIds === []) {
-            return $rest;
+        if ($matchingSessions === []) {
+            // No session matches this task id either: leave the candidate as
+            // given and let the delegated command fail with its own
+            // "Session not found" error.
+            return ['argv' => $rest, 'error' => null];
         }
 
-        // all() is sorted by id ascending; ids are date-prefixed, so the last
-        // match is the most recently created session for this task.
-        $tokens[$positionalIndex] = $matchingSessionIds[count($matchingSessionIds) - 1];
+        if (count($matchingSessions) === 1) {
+            $tokens[$positionalIndex] = $matchingSessions[0]->id;
 
-        return array_merge([$command], $tokens);
+            return ['argv' => array_merge([$command], $tokens), 'error' => null];
+        }
+
+        $activeSessions = array_values(array_filter(
+            $matchingSessions,
+            static fn ($session): bool => !$session->status->isClosed(),
+        ));
+
+        if (count($activeSessions) === 1) {
+            $tokens[$positionalIndex] = $activeSessions[0]->id;
+
+            return ['argv' => array_merge([$command], $tokens), 'error' => null];
+        }
+
+        $idsOf = static fn (array $sessions): string => implode(', ', array_map(
+            static fn ($session): string => $session->id,
+            $sessions,
+        ));
+
+        if (count($activeSessions) > 1) {
+            return [
+                'argv' => $rest,
+                'error' => "Multiple active sessions match task '{$candidate}': {$idsOf($activeSessions)}. "
+                    . "Pass the session id explicitly instead of the task id.\n",
+            ];
+        }
+
+        return [
+            'argv' => $rest,
+            'error' => "Multiple sessions match task '{$candidate}' and none is active: {$idsOf($matchingSessions)}. "
+                . "Pass the session id explicitly instead of the task id.\n",
+        ];
     }
 
     /**
