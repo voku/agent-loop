@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.2 - 2026-06-29
+
+- Added support for at least Windows paths (`init install-plan --profile=windows`)
+
 ## 0.2.1 - 2026-06-29
 
 - Added a native Linux `init install-plan --profile=linux` variant alongside the WSL2 profile, reusing the same reviewed tool-install commands but with Linux-specific restart and boundary guidance.
