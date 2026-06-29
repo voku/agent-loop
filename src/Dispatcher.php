@@ -8,6 +8,7 @@ use voku\AgentKanban\JiraIssueProvider;
 use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
+use voku\AgentLoop\Init\InitCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentSession\Cli as SessionCli;
@@ -69,6 +70,7 @@ final class Dispatcher
             'workflow' => $this->dispatchWorkflow($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'review' => $this->dispatchReview($scriptName, $rest),
+            'init' => (new InitCli($this->rootPath))->run($rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };
@@ -399,6 +401,7 @@ final class Dispatcher
                   Gated workflow orchestration commands.
           review  <blindspots|code>
                   Deterministic review helpers from voku/agent-recall-compiler.
+          init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
           help    Show this help.
 
         Run a namespace with `help` for its own command list, e.g.:

@@ -97,6 +97,57 @@ vendor/bin/agent-loop workflow close <task-id> \
 
 Accepted risk writes `.agent-loop/risks/<task-id>.accepted-risk.md`.
 
+## `agent-loop init`: diagnostics, install plans, and repo-managed agent assets
+
+```bash
+vendor/bin/agent-loop init doctor
+vendor/bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
+vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
+```
+
+`init doctor` diagnoses local setup and migration-compatible Makefile targets without installing tools or writing files.
+
+`init validate --kind=skills` validates repo-managed skill files. By default it reads:
+
+```text
+docs/agents/skills/*/SKILL.md
+```
+
+This repository ships portable starter guidance under that default root:
+
+- `docs/agents/skills/agent-guidance-maintenance/`
+- `docs/agents/skills/agent-learning/`
+- `docs/agents/skills/agent-loop-workflow/`
+
+The source paths can be overridden:
+
+```bash
+vendor/bin/agent-loop init validate --kind=skills --skills-root=custom/skills
+vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json
+```
+
+`init install-plan --profile=wsl2 --agent=codex` and `init install-plan --profile=linux --agent=codex` print reviewed setup plans for RTK and Caveman. They do not execute commands.
+
+RTK reduces noise at the outer shell boundary, but host repositories often
+wrap the real work one layer deeper through `make`, `docker compose exec`,
+or wrapper scripts. Host repos adopting `agent-loop init` should also audit
+their `AGENTS.md`, `README.md`, and agent-facing Makefile targets for
+missing RTK guidance and low-noise `ai-*` targets.
+
+Google-side agent tooling is moving quickly. Prefer `antigravity` as the canonical Google agent target; `gemini` may be treated as a legacy alias where supported.
+
+Reserved for later:
+
+```bash
+vendor/bin/agent-loop init sync-skills --agent=codex
+vendor/bin/agent-loop init sync-subagents --agent=copilot
+vendor/bin/agent-loop init sync-hooks --agent=codex
+vendor/bin/agent-loop init scaffold --profile=wsl2 --agent=codex --dry-run
+```
+
+`init` does not affect workflow close, does not call an LLM, and does not install remote tools.
+
 ## Requirements
 
 | Requirement | Version |

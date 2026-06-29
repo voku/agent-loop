@@ -2,8 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.0 - 2026-06-29
 
+- Added the `init` namespace for setup diagnostics, repo-managed agent-asset validation, WSL2 install-plan output, and reserved sync/scaffold command slots.
+- Added a native Linux `init install-plan --profile=linux` variant alongside the WSL2 profile, reusing the same reviewed tool-install commands but with Linux-specific restart and boundary guidance.
+- `init` now validates repo-managed skills from a repo-neutral default source layout under `docs/agents/` (`skills`, `subagents`, `codex-hooks`, `tools`), with CLI/config path overrides for host repositories
+- Expanded the portable guidance and IT-Portal migration references to cover RTK at the shell boundary, the nested Make/Docker output problem, and the need to audit host-repo docs such as `AGENTS.md` and `README.md` for missing RTK usage guidance.
+- Added the `agent-loop-workflow` starter skill so repositories adopting `agent-loop` can load the real command sequence and learning boundary for this project's governed workflow without re-reading the full README.
 - Added the `workflow` namespace for governed task start/status/close orchestration, including close gates and accepted-risk files.
 - Hardened workflow documentation, close-gate structure, task-id tests, and accepted-risk write error handling.
 
