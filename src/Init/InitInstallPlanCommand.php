@@ -25,7 +25,7 @@ final readonly class InitInstallPlanCommand
         }
 
         $profile = $this->readOptionValue($tokens, 'profile');
-        if (!in_array($profile, ['wsl2', 'linux'], true)) {
+        if (!in_array($profile, ['wsl2', 'linux', 'windows', 'powershell'], true)) {
             fwrite(\STDERR, "Unknown profile: " . ($profile ?? '') . "\n");
 
             return 1;
@@ -69,40 +69,16 @@ final readonly class InitInstallPlanCommand
         Review the commands before running them manually.
 
         {$this->renderSetupHeading($profile)}
-        ```bash
-        set -euo pipefail
-
-        sudo apt update
-        sudo apt install -y curl git ca-certificates build-essential
-
-        if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' ; then
-          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-          sudo apt install -y nodejs
-        fi
-        ```
+        {$this->renderSetupBlock($profile)}
 
         Caveman:
-        ```bash
-        curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh
-        less /tmp/caveman-install.sh
-        bash /tmp/caveman-install.sh
-        ```
+        {$this->renderCavemanBlock($profile)}
 
         Caveman reduces agent reply verbosity/output tokens.
         It does not reduce model reasoning/thinking tokens.
 
         RTK:
-        ```bash
-        curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh
-
-        grep -qxF 'export PATH="\$HOME/.local/bin:\$PATH"' "\$HOME/.bashrc" \
-          || echo 'export PATH="\$HOME/.local/bin:\$PATH"' >> "\$HOME/.bashrc"
-
-        export PATH="\$HOME/.local/bin:\$PATH"
-
-        rtk --version
-        rtk gain
-        ```
+        {$this->renderRtkBlock($profile)}
 
         RTK reduces noisy terminal/tool output before the agent reads it.
         Verify with `rtk gain`.
@@ -115,17 +91,111 @@ final readonly class InitInstallPlanCommand
 
     private function renderSetupHeading(string $profile): string
     {
-        return $profile === 'linux' ? 'Native Linux setup:' : 'Shared WSL2 setup:';
+        return match ($profile) {
+            'linux' => 'Native Linux setup:',
+            'windows', 'powershell' => 'Windows PowerShell setup:',
+            default => 'Shared WSL2 setup:',
+        };
+    }
+
+    private function renderSetupBlock(string $profile): string
+    {
+        if (in_array($profile, ['windows', 'powershell'], true)) {
+            return <<<'TXT'
+            ```powershell
+            # Verify Node.js (v18+) is installed
+            node -v
+
+            # --- OPTION A: If you HAVE admin rights ---
+            # winget install OpenJS.NodeJS
+
+            # --- OPTION B: If you DO NOT have admin rights (portable installation) ---
+            # $portableNodeDir = "$HOME\.local\node-portable"
+            # Invoke-WebRequest -Uri "https://nodejs.org/dist/v20.11.1/node-v20.11.1-win-x64.zip" -OutFile "$env:TEMP\node.zip"
+            # Expand-Archive -Path "$env:TEMP\node.zip" -DestinationPath "$env:TEMP\node-extracted" -Force
+            # New-Item -ItemType Directory -Path "$HOME\.local" -Force
+            # Copy-Item -Path "$env:TEMP\node-extracted\node-v20.11.1-win-x64" -Destination $portableNodeDir -Recurse -Force
+            # [Environment]::SetEnvironmentVariable("PATH", "$portableNodeDir;" + [Environment]::GetEnvironmentVariable("PATH", "User"), "User")
+            ```
+            TXT;
+        }
+
+        return <<<TXT
+        ```bash
+        set -euo pipefail
+
+        sudo apt update
+        sudo apt install -y curl git ca-certificates build-essential
+
+        if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)' ; then
+          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+          sudo apt install -y nodejs
+        fi
+        ```
+        TXT;
+    }
+
+    private function renderCavemanBlock(string $profile): string
+    {
+        if (in_array($profile, ['windows', 'powershell'], true)) {
+            return <<<'TXT'
+            ```powershell
+            # Install Caveman globally via npm (works in user-space if Node is portable)
+            npm install -g @juliusbrussee/caveman
+            ```
+            TXT;
+        }
+
+        return <<<TXT
+        ```bash
+        curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh
+        less /tmp/caveman-install.sh
+        bash /tmp/caveman-install.sh
+        ```
+        TXT;
+    }
+
+    private function renderRtkBlock(string $profile): string
+    {
+        if (in_array($profile, ['windows', 'powershell'], true)) {
+            return <<<'TXT'
+            ```powershell
+            # Install RTK to user local bin directory (requires no admin rights)
+            $localBin = "$HOME\.local\bin"
+            New-Item -ItemType Directory -Path $localBin -Force
+            Invoke-WebRequest -Uri "https://github.com/rtk-ai/rtk/releases/download/v0.43.0/rtk-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\rtk.zip"
+            Expand-Archive -Path "$env:TEMP\rtk.zip" -DestinationPath "$env:TEMP\rtk-extracted" -Force
+            Copy-Item -Path "$env:TEMP\rtk-extracted\rtk.exe" -Destination "$localBin\rtk.exe" -Force
+            [Environment]::SetEnvironmentVariable("PATH", "$localBin;" + [Environment]::GetEnvironmentVariable("PATH", "User"), "User")
+            ```
+            TXT;
+        }
+
+        return <<<TXT
+        ```bash
+        curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh
+
+        grep -qxF 'export PATH="\$HOME/.local/bin:\$PATH"' "\$HOME/.bashrc" \
+          || echo 'export PATH="\$HOME/.local/bin:\$PATH"' >> "\$HOME/.bashrc"
+
+        export PATH="\$HOME/.local/bin:\$PATH"
+
+        rtk --version
+        rtk gain
+        ```
+        TXT;
     }
 
     private function renderAgentBlock(string $agent, string $profile = 'wsl2'): string
     {
-        $environmentLabel = $profile === 'linux' ? 'Linux' : 'WSL2';
+        $isWindows = in_array($profile, ['windows', 'powershell'], true);
+        $environmentLabel = $isWindows ? 'Windows' : ($profile === 'linux' ? 'Linux' : 'WSL2');
+        $codeFence = $isWindows ? '```powershell' : '```bash';
 
         return match ($agent) {
             'codex' => <<<TXT
             Codex hook setup:
-            ```bash
+            {$codeFence}
             rtk init -g --codex
             rtk init --show
             ```
@@ -137,7 +207,7 @@ final readonly class InitInstallPlanCommand
             TXT,
             'claude' => <<<TXT
             Claude hook setup:
-            ```bash
+            {$codeFence}
             rtk init -g
             rtk init --show
             ```
@@ -149,7 +219,7 @@ final readonly class InitInstallPlanCommand
             TXT,
             default => <<<TXT
             Antigravity hook setup:
-            ```bash
+            {$codeFence}
             rtk init -g --gemini
             rtk init --show
             ```
@@ -162,6 +232,26 @@ final readonly class InitInstallPlanCommand
 
     private function renderBoundaryWarning(string $profile): string
     {
+        if (in_array($profile, ['windows', 'powershell'], true)) {
+            return <<<'TXT'
+            Important Windows boundary:
+
+            Install this inside the Windows environment (PowerShell/CMD) where the coding agent executes commands.
+
+            This affects paths such as:
+
+              C:\Users\<you>\.claude
+              C:\Users\<you>\AppData\...
+
+            It does not automatically affect WSL2 paths such as:
+
+              /home/<you>/.claude
+              /home/<you>/.bashrc
+
+            If your agent runs in WSL2 but you install in Windows, the hook will not apply there.
+            TXT;
+        }
+
         if ($profile === 'linux') {
             return <<<'TXT'
             Important native Linux boundary:
@@ -197,6 +287,7 @@ final readonly class InitInstallPlanCommand
         If your agent runs in PowerShell but you install in WSL2, the hook will not apply there.
         TXT;
     }
+
 
     /**
      * @param list<string> $tokens
