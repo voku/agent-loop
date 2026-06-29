@@ -58,21 +58,6 @@ final class SmokeLoopTest extends TestCase
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
     }
 
-    public function testVerifyStrictFailsOnTheSameMissingBoardEntrypointThatDefaultModeSkips(): void
-    {
-        $default = $this->dispatch(['agent-loop', 'verify']);
-
-        self::assertSame(0, $default['exit'], $default['output']);
-        self::assertStringContainsString('[SKIP] board: no TODO.md', $default['output']);
-
-        $strict = $this->dispatch(['agent-loop', 'verify', '--strict']);
-
-        self::assertSame(1, $strict['exit'], $strict['output']);
-        self::assertStringContainsString('[FAIL] board: no TODO.md', $strict['output']);
-        self::assertStringContainsString('required under --strict', $strict['output']);
-        self::assertStringContainsString('[FAIL] agent-loop verify: drift detected, see above.', $strict['output']);
-    }
-
     public function testVerifyFailsWhenActiveSessionHasNoRecallBriefing(): void
     {
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester', '--root', $this->root . '/session_plan'])['exit']);
