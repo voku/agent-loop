@@ -23,6 +23,7 @@ final readonly class InitCli
         return match ($command) {
             'help', '--help', '-h', '' => $this->printUsage(0),
             'doctor' => (new InitDoctorCommand($this->rootPath))->run($rest),
+            'status' => (new InitStatusCommand($this->rootPath))->run($rest),
             'validate' => (new InitValidateCommand($this->rootPath))->run($rest),
             'install-plan' => (new InitInstallPlanCommand())->run($rest),
             'sync-skills' => (new InitSyncSkillsCommand($this->rootPath))->run($rest),
@@ -143,6 +144,7 @@ final readonly class InitCli
         Usage:
           agent-loop init help
           agent-loop init doctor [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
+          agent-loop init status [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force]
@@ -153,6 +155,7 @@ final readonly class InitCli
         Commands:
           help           Show init help.
           doctor         Diagnose local setup and repo-managed agent asset hints.
+          status         Show resolved init sources, aliases, and target manifests (read-only).
           validate       Validate repo-managed agent asset definitions.
           install-plan   Print reviewed setup commands for Linux/WSL2 agent tooling. Does not execute them.
           sync-skills    Sync repo-managed skills into a client target directory.

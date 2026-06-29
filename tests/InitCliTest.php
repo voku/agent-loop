@@ -66,6 +66,22 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init doctor', $result['output']);
     }
 
+    public function testInitStatusExitsZero(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'status']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('agent-loop init status', $result['output']);
+    }
+
+    public function testInitHelpListsStatus(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'help']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('init status', $result['output']);
+    }
+
     public function testInitValidateWithoutKindExitsOne(): void
     {
         $result = $this->dispatch(['agent-loop', 'init', 'validate']);
