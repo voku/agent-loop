@@ -196,12 +196,34 @@ final readonly class InitSyncSubagentsCommand
             return null;
         }
 
-        if (str_starts_with($value, '/')) {
-            return rtrim($value, '/');
+        if ($this->isAbsolutePath($value)) {
+            return rtrim(str_replace('\\', '/', $value), '/');
         }
 
-        return rtrim($this->rootPath, '/') . '/' . trim($value, '/');
+        return rtrim(str_replace('\\', '/', $this->rootPath), '/') . '/' . trim(str_replace('\\', '/', $value), '/');
     }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+
+        if (str_starts_with($path, '/')) {
+            return true;
+        }
+
+        if (preg_match('/^[a-zA-Z]:[\\\\\/]/', $path) === 1) {
+            return true;
+        }
+
+        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) {
+            return true;
+        }
+
+        return false;
+    }
+
 
     /**
      * @param list<string> $tokens
