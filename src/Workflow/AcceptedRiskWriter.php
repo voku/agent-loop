@@ -29,7 +29,12 @@ final readonly class AcceptedRiskWriter
         $content .= "Reason: {$reason}\n\n";
         $content .= "Bypassing workflow close gates does not approve code or durable learning.\n";
         $content .= "Human review remains required.\n";
-        $written = file_put_contents(rtrim($this->rootPath, '/') . '/' . $relative, $content);
+        $path = rtrim($this->rootPath, '/') . '/' . $relative;
+        if (is_dir($path)) {
+            throw new RuntimeException('Could not write accepted-risk file: ' . $relative);
+        }
+
+        $written = file_put_contents($path, $content);
         if ($written === false) {
             throw new RuntimeException('Could not write accepted-risk file: ' . $relative);
         }

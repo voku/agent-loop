@@ -59,14 +59,14 @@ final readonly class WorkflowCloseCommand
 
     private function runGates(string $taskId): bool
     {
-        $recallPassed = $this->checkRecall($taskId);
-        $reviewPassed = $this->checkReview($taskId);
-        $verifyPassed = $this->checkVerify();
+        $recallPassed = $this->checkRecallGate($taskId);
+        $reviewPassed = $this->checkReviewGate($taskId);
+        $verifyPassed = $this->checkVerifyGate();
 
         return $recallPassed && $reviewPassed && $verifyPassed;
     }
 
-    private function checkRecall(string $taskId): bool
+    private function checkRecallGate(string $taskId): bool
     {
         $relative = 'recall/' . $taskId . '/meta.json';
         if (is_file(rtrim($this->rootPath, '/') . '/' . $relative)) {
@@ -78,7 +78,7 @@ final readonly class WorkflowCloseCommand
         return false;
     }
 
-    private function checkReview(string $taskId): bool
+    private function checkReviewGate(string $taskId): bool
     {
         $reader = new WorkflowReviewReportReader($this->rootPath);
         $relative = $reader->relativePath($taskId);
@@ -104,7 +104,7 @@ final readonly class WorkflowCloseCommand
         return true;
     }
 
-    private function checkVerify(): bool
+    private function checkVerifyGate(): bool
     {
         if (($this->verifyRunner)([]) === 0) {
             echo "[OK] verify: agent-loop verify passed\n";

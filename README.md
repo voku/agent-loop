@@ -274,6 +274,16 @@ and test gaps. This command is delegated to `voku/agent-recall-compiler`;
 standard workflow. The prompt is intended for a receiving LLM or harness; the
 CLI itself does not call an LLM.
 
+## Learning boundary: findings are not durable memory
+
+The workflow/review spine can generate evidence for learning, but it does not
+promote durable memory. Findings and learning candidates remain review inputs;
+only reviewed decisions become durable guidance. Use
+`agent-loop memory review --file MEMORY.md` as the human promotion boundary for
+repositories that maintain a `MEMORY.md` queue. See
+[`docs/workflow/learning-boundary.md`](docs/workflow/learning-boundary.md) for
+the detailed boundary.
+
 ## `agent-loop verify`: the safety net
 
 Every other namespace delegates outward and stops there. `verify` is the one
