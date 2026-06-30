@@ -101,6 +101,7 @@ Accepted risk writes `.agent-loop/risks/<task-id>.accepted-risk.md`.
 
 ```bash
 vendor/bin/agent-loop init doctor
+vendor/bin/agent-loop init status
 vendor/bin/agent-loop init validate --kind=skills
 vendor/bin/agent-loop init validate --kind=subagents
 vendor/bin/agent-loop init validate --kind=hooks --agent=codex
@@ -112,6 +113,8 @@ vendor/bin/agent-loop init sync-hooks --agent=codex
 ```
 
 `init doctor` diagnoses local setup and migration-compatible Makefile targets without installing tools or writing files.
+
+`init status` is read-only and never writes files, runs shell commands, or calls an LLM. It shows the resolved init source paths and counts, the known agent aliases, and whether a `.agent-loop-manifest.json` exists for each client target root (`codex`/`claude`/`copilot`/`antigravity` skills, `copilot`/`antigravity` subagents, and `codex` hooks). When a manifest exists, it also reports any managed entries that are stale relative to the current sources. Run it before `sync-skills`, `sync-subagents`, or `sync-hooks` to see what those commands would find without changing anything.
 
 `init validate --kind=skills`, `--kind=subagents`, and `--kind=hooks` validate repo-managed agent assets from the resolved source roots.
 
