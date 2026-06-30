@@ -133,6 +133,7 @@ This repository ships portable starter guidance under that default root:
 - `docs/agents/skills/agent-loop-l2-context/`
 - `docs/agents/skills/agent-loop-task-progress/`
 - `docs/agents/skills/agent-loop-review-close/`
+- `docs/agents/skills/agent-loop-learning-boundary/`
 
 The source paths can be overridden:
 

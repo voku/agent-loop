@@ -226,14 +226,20 @@ not how to develop `agent-loop` itself.
 | `agent-loop-l2-context` | Compile and use recall/L2 meta-prompt artifacts without mistaking them for executed agent actions |
 | `agent-loop-task-progress` | Record decisions, checkpoints, validation results, scope changes, and blocked states during implementation |
 | `agent-loop-review-close` | Review, verify, and close a task safely, including accepted-risk handling |
+| `agent-loop-learning-boundary` | Handle reusable knowledge after a task closes — capture findings, move through the proposal pipeline, respect the boundary between workflow evidence and durable guidance |
 
 `agent-loop-task-progress` fills the middle of the loop — between task start
 and review/close — where agents most often lose track of decisions, forget
 scope changes, or silently accept risk without a record. Without it, the loop
 has a head and a tail but no working memory discipline during the actual work.
 
+`agent-loop-learning-boundary` closes the loop after review/close: it teaches
+agents how to carry a finding forward without self-approving it as durable
+guidance. The boundary rule — findings are not durable memory — is explicit,
+and the skill tells agents when to skip the learning step entirely.
+
 `agent-loop-workflow` remains the broad overview skill for understanding the
-full command vocabulary and workflow shape. The four operational skills above
+full command vocabulary and workflow shape. The five operational skills above
 are smaller, focused activation targets for real agent sessions — a coding
 agent picks the one that matches its current step rather than loading the full
 workflow doc at every stage.
