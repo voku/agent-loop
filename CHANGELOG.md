@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.3 - 2026-06-29
+
+- Added Skills files for the workflow of this package
+
 ## 0.2.2 - 2026-06-29
 
 - Added support for at least Windows paths (`init install-plan --profile=windows`)
