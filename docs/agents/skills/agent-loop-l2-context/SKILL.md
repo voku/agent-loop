@@ -93,7 +93,9 @@ vendor/bin/agent-loop recall log-outcome \
   --commit <sha>
 ```
 
-Do not log outcomes before the work is done.
+`recall-log.draft.json` is one of the files `recall compile` writes under
+`recall/<task-id>/`. Pass the path matching the task whose outcome you
+are logging. Do not log outcomes before the work is done.
 
 ## Validation
 

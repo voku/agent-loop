@@ -26,6 +26,9 @@ vendor/bin/agent-loop recall log-outcome \
   --commit <sha>
 ```
 
+`recall-log.draft.json` is produced by `recall compile` (or `workflow start`)
+under `recall/<task-id>/`. Use the same `<task-id>` you passed to `workflow start`.
+
 Validate the learning root to confirm no drift:
 
 ```bash
@@ -78,6 +81,10 @@ vendor/bin/agent-loop recall log-outcome \
 vendor/bin/agent-loop learn validate --root <learning-root>
 ```
 
+`recall-log.draft.json` is the file `recall compile` (or `workflow start`) writes
+under `recall/<task-id>/`. If you ran `workflow start <task-id>`, the draft
+is already at that path.
+
 If the host repo uses the proposal pipeline, validate the candidate:
 
 ```bash
@@ -93,6 +100,9 @@ vendor/bin/agent-loop learn proposal-approve \
   --root <learning-root> \
   proposal.001
 ```
+
+The proposal argument is the bare filename without path or `.json`. A file at
+`<learning-root>/proposals/candidate/proposal.001.json` has ID `proposal.001`.
 
 `--by` must name a person, not an agent. An agent recording its own approval
 is not a reviewed gate.
