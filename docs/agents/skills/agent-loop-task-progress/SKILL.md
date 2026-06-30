@@ -24,7 +24,7 @@ Record progress checkpoints:
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Validation" \
-  --body "php bin/agent-loop init validate --kind=skills passed."
+  --body "vendor/bin/agent-loop init validate --kind=skills passed."
 ```
 
 Inspect current task memory:
@@ -109,7 +109,7 @@ Good validation checkpoint:
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Validation" \
-  --body "vendor/bin/phpunit --filter Init passed; php bin/agent-loop init validate --kind=all passed."
+  --body "vendor/bin/phpunit --filter Init passed; vendor/bin/agent-loop init validate --kind=all passed."
 ```
 
 Bad validation checkpoint:
