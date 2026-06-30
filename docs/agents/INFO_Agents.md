@@ -224,10 +224,16 @@ not how to develop `agent-loop` itself.
 | --- | --- |
 | `agent-loop-task-start` | Start a governed task, open session working memory, compile initial recall context |
 | `agent-loop-l2-context` | Compile and use recall/L2 meta-prompt artifacts without mistaking them for executed agent actions |
+| `agent-loop-task-progress` | Record decisions, checkpoints, validation results, scope changes, and blocked states during implementation |
 | `agent-loop-review-close` | Review, verify, and close a task safely, including accepted-risk handling |
 
+`agent-loop-task-progress` fills the middle of the loop — between task start
+and review/close — where agents most often lose track of decisions, forget
+scope changes, or silently accept risk without a record. Without it, the loop
+has a head and a tail but no working memory discipline during the actual work.
+
 `agent-loop-workflow` remains the broad overview skill for understanding the
-full command vocabulary and workflow shape. The three operational skills above
+full command vocabulary and workflow shape. The four operational skills above
 are smaller, focused activation targets for real agent sessions — a coding
 agent picks the one that matches its current step rather than loading the full
 workflow doc at every stage.
