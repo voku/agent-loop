@@ -25,7 +25,7 @@ If the task changed repo-managed agent guidance, also run:
 ```bash
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
-php bin/agent-loop init doctor
+vendor/bin/agent-loop init doctor
 ```
 
 ## Skill Boundary
@@ -114,7 +114,7 @@ automatically.
 - `vendor/bin/agent-loop init validate --kind=skills`
 - `vendor/bin/agent-loop init validate --kind=all`
 - `vendor/bin/agent-loop init sync-skills --agent=codex --dry-run`
-- `php bin/agent-loop init doctor`
+- `vendor/bin/agent-loop init doctor`
 - `vendor/bin/phpunit --filter 'Init|DispatcherTest'`
 - `vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M`
 

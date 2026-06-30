@@ -21,9 +21,13 @@ Log the outcome against the learning root:
 ```bash
 vendor/bin/agent-loop recall log-outcome \
   --root <learning-root> \
+  --draft recall/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
 ```
+
+`recall-log.draft.json` is produced by `recall compile` (or `workflow start`)
+under `recall/<task-id>/`. Use the same `<task-id>` you passed to `workflow start`.
 
 Validate the learning root to confirm no drift:
 
@@ -35,7 +39,7 @@ If the repository maintains a `MEMORY.md` promotion queue, run the human
 review command:
 
 ```bash
-vendor/bin/agent-loop memory review --file MEMORY.md
+vendor/bin/agent-loop memory review --file=MEMORY.md
 ```
 
 The memory review command reports entries that need promotion review. It does
@@ -70,11 +74,16 @@ the root:
 ```bash
 vendor/bin/agent-loop recall log-outcome \
   --root <learning-root> \
+  --draft recall/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
 
 vendor/bin/agent-loop learn validate --root <learning-root>
 ```
+
+`recall-log.draft.json` is the file `recall compile` (or `workflow start`) writes
+under `recall/<task-id>/`. If you ran `workflow start <task-id>`, the draft
+is already at that path.
 
 If the host repo uses the proposal pipeline, validate the candidate:
 
@@ -87,8 +96,13 @@ Do not approve proposals yourself. Approval requires a named human actor:
 
 ```bash
 vendor/bin/agent-loop learn proposal-approve \
-  --by <human-actor> proposals/candidate/proposal.001.json
+  --by <human-actor> \
+  --root <learning-root> \
+  proposal.001
 ```
+
+The proposal argument is the bare filename without path or `.json`. A file at
+`<learning-root>/proposals/candidate/proposal.001.json` has ID `proposal.001`.
 
 `--by` must name a person, not an agent. An agent recording its own approval
 is not a reviewed gate.
@@ -117,7 +131,7 @@ If the lesson is already there, skip the capture step entirely.
 If the repository maintains a `MEMORY.md` queue:
 
 ```bash
-vendor/bin/agent-loop memory review --file MEMORY.md
+vendor/bin/agent-loop memory review --file=MEMORY.md
 ```
 
 This command reports rows that appear ready for promotion. It does not
