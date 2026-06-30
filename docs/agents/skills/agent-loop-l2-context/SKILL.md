@@ -88,6 +88,7 @@ Log outcomes only after actual work happened:
 ```bash
 vendor/bin/agent-loop recall log-outcome \
   --root <learning-root> \
+  --draft recall/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
 ```
