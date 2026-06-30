@@ -213,3 +213,28 @@ See:
 - `docs/agents/skills/agent-guidance-maintenance/SKILL.md`
 - `docs/agents/skills/agent-learning/SKILL.md`
 - `docs/agents/skills/agent-loop-workflow/SKILL.md`
+
+## Operational agent-loop skills
+
+These skills are shipped by `agent-loop` for coding agents working in
+**consuming repositories**. They teach the agent how to operate the loop,
+not how to develop `agent-loop` itself.
+
+| Skill | Purpose |
+| --- | --- |
+| `agent-loop-task-start` | Start a governed task, open session working memory, compile initial recall context |
+| `agent-loop-l2-context` | Compile and use recall/L2 meta-prompt artifacts without mistaking them for executed agent actions |
+| `agent-loop-review-close` | Review, verify, and close a task safely, including accepted-risk handling |
+
+`agent-loop-workflow` remains the broad overview skill for understanding the
+full command vocabulary and workflow shape. The three operational skills above
+are smaller, focused activation targets for real agent sessions — a coding
+agent picks the one that matches its current step rather than loading the full
+workflow doc at every stage.
+
+Host repositories can sync these skills into their own agent client directories
+with:
+
+```bash
+vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+```
