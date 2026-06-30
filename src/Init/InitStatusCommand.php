@@ -95,7 +95,7 @@ final readonly class InitStatusCommand
     }
 
     /**
-     * @return list<array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>}>
+     * @return list<array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null}>
      */
     private function buildManifestTargets(AgentAssetSourcePaths $paths): array
     {
@@ -113,7 +113,7 @@ final readonly class InitStatusCommand
     }
 
     /**
-     * @param array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>} $target
+     * @param array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null} $target
      *
      * @return array{0: string, 1: ?string}
      */
@@ -136,10 +136,15 @@ final readonly class InitStatusCommand
         $managedEntryCount = count($manifest->staleEntries([]));
         $manifestLine = '[OK] ' . $label . ': manifest found (' . $managedEntryCount . ' managed entrie(s))';
 
-        $staleEntries = $manifest->staleEntries($target['desiredEntries']);
-        $staleLine = $staleEntries === []
-            ? '[OK] ' . $label . ': no stale managed entries'
-            : '[WARN] ' . $label . ': stale managed entries: ' . implode(', ', $staleEntries);
+        $desiredEntries = $target['desiredEntries'];
+        if ($desiredEntries === null) {
+            $staleLine = '[INFO] ' . $label . ': stale entries not checked (source invalid)';
+        } else {
+            $staleEntries = $manifest->staleEntries($desiredEntries);
+            $staleLine = $staleEntries === []
+                ? '[OK] ' . $label . ': no stale managed entries'
+                : '[WARN] ' . $label . ': stale managed entries: ' . implode(', ', $staleEntries);
+        }
 
         return [$manifestLine, $staleLine];
     }
@@ -239,19 +244,26 @@ final readonly class InitStatusCommand
     }
 
     /**
-     * @return list<string>
+     * Returns null when hooks.json exists but is invalid (desired entries cannot be determined).
+     * Returns [] when hooks.json is absent (genuinely nothing configured).
+     *
+     * @return list<string>|null
      */
-    private function hooksDesiredEntries(AgentAssetSourcePaths $paths): array
+    private function hooksDesiredEntries(AgentAssetSourcePaths $paths): ?array
     {
         $hooksRoot = $paths->absoluteHooksRoot();
-        if (!is_file($hooksRoot . '/hooks.json') || CodexHooksDefinition::validationErrors($hooksRoot) !== []) {
+        if (!is_file($hooksRoot . '/hooks.json')) {
             return [];
+        }
+
+        if (CodexHooksDefinition::validationErrors($hooksRoot) !== []) {
+            return null;
         }
 
         try {
             $definition = CodexHooksDefinition::fromRoot($hooksRoot);
         } catch (InvalidArgumentException) {
-            return [];
+            return null;
         }
 
         $entries = ['hooks.json'];
@@ -284,16 +296,7 @@ final readonly class InitStatusCommand
 
     private function resolveHooksTargetRoot(): string
     {
-        $codexHome = getenv('CODEX_HOME');
-        if (is_string($codexHome) && trim($codexHome) !== '') {
-            if (str_starts_with($codexHome, '/')) {
-                return rtrim($codexHome, '/');
-            }
-
-            return rtrim($this->rootPath, '/') . '/' . trim($codexHome, '/');
-        }
-
-        return $this->rootPath . '/.codex';
+        return $this->resolvePathFromEnv('CODEX_HOME') ?? $this->rootPath . '/.codex';
     }
 
     private function resolvePathFromEnv(string $envName): ?string

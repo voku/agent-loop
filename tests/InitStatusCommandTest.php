@@ -226,6 +226,26 @@ final class InitStatusCommandTest extends TestCase
         self::assertStringContainsString('agent-loop init status', $result['output']);
     }
 
+    public function testStatusDoesNotFlagHooksAsStaleWhenHooksJsonIsInvalid(): void
+    {
+        mkdir($this->root . '/docs/agents/codex-hooks', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', '{invalid-json');
+
+        mkdir($this->root . '/.codex', 0o775, true);
+        file_put_contents($this->root . '/.codex/.agent-loop-manifest.json', json_encode([
+            'version' => 1,
+            'kind' => 'hooks',
+            'agent' => 'codex',
+            'entries' => ['hooks.json', 'hooks/session_context.php'],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+
+        $result = $this->runStatus([]);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringNotContainsString('[WARN] codex hooks: stale managed entries:', $result['output']);
+        self::assertStringContainsString('[INFO] codex hooks: stale entries not checked (source invalid)', $result['output']);
+    }
+
     public function testUnknownStatusOptionExitsOne(): void
     {
         $result = $this->runStatus(['--bogus=value']);
