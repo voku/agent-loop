@@ -129,6 +129,9 @@ This repository ships portable starter guidance under that default root:
 - `docs/agents/skills/agent-guidance-maintenance/`
 - `docs/agents/skills/agent-learning/`
 - `docs/agents/skills/agent-loop-workflow/`
+- `docs/agents/skills/agent-loop-task-start/`
+- `docs/agents/skills/agent-loop-l2-context/`
+- `docs/agents/skills/agent-loop-review-close/`
 
 The source paths can be overridden:
 
