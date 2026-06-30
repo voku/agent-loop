@@ -16,8 +16,9 @@ Prefer the high-level workflow command:
 ```bash
 vendor/bin/agent-loop workflow start <task-id> \
   --by <actor> \
-  --learning-root <path> \
-  --file <path>
+  --learning-root <learning-root-path> \
+  --file <path-to-file-1> \
+  --file <path-to-file-2>
 ```
 
 `workflow start` wraps `session start` and `recall compile` in one step.
@@ -47,7 +48,8 @@ Good candidates:
 - architecture or decision notes that constrain the change
 - the relevant skill or doc if guidance is part of the scope
 
-Do not pass every file in the repository.
+Pass a small set of relevant files with repeated `--file` options instead of
+trying to summarize the whole repository. Do not pass every file.
 
 ## Validation After Start
 
@@ -65,7 +67,11 @@ Use this only when you need direct control over session and recall separately:
 
 ```bash
 vendor/bin/agent-loop session start --task <task-id> --by <actor> --base-commit "$(git rev-parse HEAD)"
-vendor/bin/agent-loop recall compile --root <learning-root> --task <task-id> --file <path>
+vendor/bin/agent-loop recall compile \
+  --root <learning-root-path> \
+  --task <task-id> \
+  --file <path-to-file-1> \
+  --file <path-to-file-2>
 ```
 
 `session start` prints a date-prefixed session id on its first line.

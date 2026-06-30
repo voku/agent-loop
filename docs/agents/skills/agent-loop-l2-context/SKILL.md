@@ -14,9 +14,10 @@ Compile task-scoped context from selected files:
 
 ```bash
 vendor/bin/agent-loop recall compile \
-  --root <learning-root> \
+  --root <learning-root-path> \
   --task <task-id> \
-  --file <path>
+  --file <path-to-file-1> \
+  --file <path-to-file-2>
 ```
 
 Then inspect the state and run review:
