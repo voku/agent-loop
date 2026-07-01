@@ -98,7 +98,7 @@ vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 
 Promotion targets:
 
-- `docs/agents/skills/...` for repeatable agent workflow behavior
+- `docs/agents/skills/...` for repeatable agent workflow behavior (and, if the learning is statically-analyzable, implement a custom static analysis rule like PHPStan/phpcs and register it in the active constraints registry)
 - `docs/agents/INFO_Agents.md` for shared operational guidance
 - `docs/agents/migration/...` for host-repo migration notes
 - `README.md` for public package behavior

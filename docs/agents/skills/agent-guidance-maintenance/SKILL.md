@@ -85,6 +85,15 @@ When adapting a host workflow:
 - recommend dedicated `ai-*` Make targets when host repos mainly drive validation through Make and Docker
 - keep target-manifest safety explicit so `sync-*` removes only stale managed entries
 
+### 2a. Turn Learnings into Hard Constraints
+
+When a distilled lesson describes a pattern that can be statically verified (e.g., forbidding specific calls, enforcing parameter types, avoiding redundant casts, or blocking dangerous reflection):
+1. **Prefer Hard Constraints over Soft Memories**: Do not just write a note in a generic memory file; build a custom static analysis rule (e.g. PHPStan rule or phpcs sniff).
+2. **Register the Active Constraint**: Create a metadata JSON file under the repository's active constraints registry linking it to the source proposal.
+3. **Regenerate Autoloader / Bootstrap**: Run the host repository's autoloader or configuration generators to register the new rule class.
+4. **Baseline Legacy Violations**: If there are pre-existing violations in the codebase, create a matching baseline file and include it in the static analysis configuration so the build/CI stays green for existing files while blocking any new violations.
+5. **Verify**: Run static analysis on affected files to verify it successfully flags violations and accepts baselined/correct files.
+
 ### 3. Validate after changes
 
 Run:
