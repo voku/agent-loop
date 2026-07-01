@@ -19,6 +19,34 @@ For a normal post-task learning pass:
 4. Validate the affected command or docs path after the change.
 5. Record the migration seam in `docs/agents/migration/` when the lesson comes from a real host repository.
 
+## Loop Discipline
+
+A learning / distillation pass is **not** scoped to the current session's
+findings. It is the recurring failure mode, so guard against it explicitly:
+
+1. **Sweep the whole backlog, not just recent items.** Enumerate every
+   unconsolidated / validated finding from the registry (the guidance-evaluate
+   projection and the registry listing), not only the ones produced this
+   session. Cluster them by domain and process every cluster. "I handled the
+   latest findings" is not completion — the operator having to say "do it again
+   for *all* the learnings" means this step was skipped.
+2. **Confirm the residual is zero or named — deterministically.** Do not eyeball
+   completeness. Run the learning engine's backlog gate (`agent-learning backlog`,
+   exposed by `voku/agent-learning`), which exits non-zero while any validated
+   finding is still unconsolidated. End the pass either with that gate green, or
+   with an explicit list of which backlog items are deliberately deferred and why.
+3. **Climb the value ladder.** A finding becomes real value only when it lands
+   at the right rung: raw finding → durable memory / guidance → (when the
+   pattern is statically analyzable) a hard constraint. Leaving a memory row for
+   a rule a custom static-analysis rule could enforce stops short of the value.
+4. **Stay on the stated objective.** The deliverable of this pass is guidance:
+   memories, hard constraints, and updated skills. Do not drift into unrelated
+   product / feature commits; if product code must change, that is a separate
+   task with its own review.
+5. **Do not sleep-poll background work.** When validation or analysis runs in
+   the background, continue other loop steps and rely on the completion signal;
+   use at most one long fallback wake, never a chain of short timers.
+
 ## Skill Boundary
 
 This skill owns:
@@ -98,7 +126,7 @@ vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 
 Promotion targets:
 
-- `docs/agents/skills/...` for repeatable agent workflow behavior (and, if the learning is statically-analyzable, implement a custom static analysis rule like PHPStan/phpcs and register it in the active constraints registry)
+- `docs/agents/skills/...` for repeatable agent workflow behavior (and, if the learning is statically-analyzable, implement a custom static analysis rule like PHPStan/phpcs and register it in the active constraints registry — see Loop Discipline: do this across the full eligible backlog, not only the newest lesson)
 - `docs/agents/INFO_Agents.md` for shared operational guidance
 - `docs/agents/migration/...` for host-repo migration notes
 - `README.md` for public package behavior

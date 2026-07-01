@@ -93,6 +93,8 @@ When a distilled lesson describes a pattern that can be statically verified (e.g
 3. **Regenerate Autoloader / Bootstrap**: Run the host repository's autoloader or configuration generators to register the new rule class.
 4. **Baseline Legacy Violations**: If there are pre-existing violations in the codebase, create a matching baseline file and include it in the static analysis configuration so the build/CI stays green for existing files while blocking any new violations.
 5. **Verify**: Run static analysis on affected files to verify it successfully flags violations and accepts baselined/correct files.
+6. **Cover the whole eligible backlog**: Apply this to every statically-analyzable lesson still sitting as a memory-only row, not just the newest proposal. A memory row is not the finish line for a rule a static-analysis check could enforce.
+7. **Do not sleep-poll**: When the static-analysis / verification run is backgrounded, continue other steps and rely on its completion signal instead of chaining short wait timers.
 
 ### 3. Validate after changes
 
