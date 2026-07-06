@@ -13,12 +13,13 @@ task safely, or updating the repo-managed agent guidance around that flow.
 
 For the normal governed loop:
 
-1. Start with `agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path>`.
-2. Do the implementation work and record only the decisions or checkpoints that matter.
-3. Run `agent-loop review blindspots <task-id>` before closing.
-4. Run `agent-loop verify`.
-5. Inspect with `agent-loop workflow status <task-id>`.
-6. Close with `agent-loop workflow close <task-id> --status done`.
+1. For non-trivial or repeated work, search prior local agent history with `ctx` if it is installed.
+2. Start with `agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path>`.
+3. Do the implementation work and record only the decisions or checkpoints that matter.
+4. Run `agent-loop review blindspots <task-id>` before closing.
+5. Run `agent-loop verify`.
+6. Inspect with `agent-loop workflow status <task-id>`.
+7. Close with `agent-loop workflow close <task-id> --status done`.
 
 If the task changed repo-managed agent guidance, also run:
 
@@ -89,11 +90,28 @@ Use lower-level commands only when you need direct control:
 - `workflow close --status done` is gated by recall metadata, blind-spot review, and a passing `verify`.
 - Recall output is written to disk; it is not auto-injected into a coding agent.
 - Learning artifacts are not durable memory by default.
+- ctx hits are historical raw material, not recall output or durable memory.
 
 Read `docs/workflow/learning-boundary.md` when the task touches learning or
 memory promotion.
 
-### 3. Use RTK at the shell boundary the agent actually sees
+### 3. Use ctx only as inspected historical evidence
+
+When prior sessions may matter:
+
+```bash
+ctx status
+ctx sources
+ctx search "<task / failure / module / command>"
+ctx show event <ctx-event-id> --window 5
+```
+
+Inspect focused hits before relying on them. Do not paste raw transcripts into
+findings, reports, skills, or PR text. When ctx affects a finding, store only a
+bounded `agent_history_reference` with the ctx IDs, query, reviewed summary,
+retrieval time, and verification status.
+
+### 4. Use RTK at the shell boundary the agent actually sees
 
 When validating this repo or a host repo, prefer RTK-wrapped commands at the
 outer shell boundary:

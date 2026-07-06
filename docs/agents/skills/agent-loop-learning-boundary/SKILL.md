@@ -12,6 +12,10 @@ and will block again, or a rule that should survive past this session.
 The boundary is simple: **findings are not durable memory.** This skill exists
 to prevent an agent from crossing that boundary silently.
 
+`ctx` may provide historical evidence for a finding, but it is not another
+memory system. Treat ctx hits as raw local session material until inspected and
+checked against current repository evidence.
+
 ## Fast Path
 
 After closing a task that surfaced reusable knowledge:
@@ -106,6 +110,30 @@ The proposal argument is the bare filename without path or `.json`. A file at
 
 `--by` must name a person, not an agent. An agent recording its own approval
 is not a reviewed gate.
+
+## ctx Evidence Handoff
+
+When a ctx result materially supports, challenges, or explains a finding,
+record it as bounded `agent_history_reference` evidence when the host learning
+root supports that evidence type:
+
+```json
+{
+  "type": "agent_history_reference",
+  "source": "ctx",
+  "ctx_session_id": "ses_or_uuid",
+  "ctx_event_id": "evt_or_uuid",
+  "query": "task module error command",
+  "retrieved_at": "2026-07-05T12:00:00+02:00",
+  "summary": "Bounded reviewed summary of what the inspected event showed.",
+  "verification_status": "inspected"
+}
+```
+
+Use `verification_status=inspected` only after opening the event or session.
+Use `found`, `rejected`, or `stale` for search bookkeeping that should not
+count as validation-heavy support. Never copy raw transcripts or secret-shaped
+strings into findings.
 
 ## When Not To Capture A Finding
 

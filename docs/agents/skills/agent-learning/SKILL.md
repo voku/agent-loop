@@ -14,10 +14,11 @@ one local fix into a broad rule.
 For a normal post-task learning pass:
 
 1. Check whether the lesson is already captured in `README.md`, `CHANGELOG.md`, `docs/agents/`, or `docs/workflow/`.
-2. Keep the lesson bounded to one reusable workflow or migration seam.
-3. Prefer updating an existing skill or doc over creating a new broad rule.
-4. Validate the affected command or docs path after the change.
-5. Record the migration seam in `docs/agents/migration/` when the lesson comes from a real host repository.
+2. Search local agent history with `ctx` when prior sessions may contain relevant decisions, failed attempts, or validation context.
+3. Keep the lesson bounded to one reusable workflow or migration seam.
+4. Prefer updating an existing skill or doc over creating a new broad rule.
+5. Validate the affected command or docs path after the change.
+6. Record the migration seam in `docs/agents/migration/` when the lesson comes from a real host repository.
 
 ## Loop Discipline
 
@@ -111,7 +112,22 @@ Weak lessons:
 - generic advice with no command or file anchor
 - host-specific behavior presented as the portable default
 
-### 3. Validate the claimed behavior
+### 3. Use ctx as evidence discovery, not durable memory
+
+When prior local sessions may matter:
+
+```bash
+ctx search "<task / migration / failure / command>"
+ctx show event <ctx-event-id> --window 5
+```
+
+Inspect the focused event or session before using it. ctx can explain what
+happened before; it does not validate a rule by itself. If the host learning
+root supports `agent_history_reference`, record only ctx IDs, query, retrieval
+time, reviewed summary, and verification status. Do not paste raw transcripts
+or secret-shaped strings into guidance.
+
+### 4. Validate the claimed behavior
 
 Use the smallest proof that matches the lesson:
 
@@ -122,7 +138,7 @@ vendor/bin/phpunit --filter 'Init|DispatcherTest'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 ```
 
-### 4. Promote into the owning guidance file
+### 5. Promote into the owning guidance file
 
 Promotion targets:
 

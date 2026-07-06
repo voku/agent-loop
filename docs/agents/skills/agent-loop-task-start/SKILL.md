@@ -28,6 +28,24 @@ Inspect the result immediately:
 vendor/bin/agent-loop workflow status <task-id>
 ```
 
+## Historical Context Preflight
+
+Before opening a non-trivial, repeated, or failure-driven task, use `ctx` if it
+is installed to check whether prior local agent sessions contain relevant
+decisions, failed attempts, commands, or review context:
+
+```bash
+ctx status
+ctx sources
+ctx search "<task / module / error / command>"
+ctx show event <ctx-event-id> --window 5
+```
+
+Use ctx as historical source material only. It does not replace `workflow
+start`, recall compile, current repository inspection, or validation. If ctx
+material affects a finding, cite it as bounded `agent_history_reference`
+evidence with inspected IDs and a summary; do not paste raw transcripts.
+
 ## Task ID
 
 Use the ticket or issue id from your board (e.g. `ABC-123`, `PROJ-42`).

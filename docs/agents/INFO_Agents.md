@@ -68,6 +68,35 @@ vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 - prints a reviewed Linux or WSL2 setup plan
 - does not execute the printed commands
 
+## ctx Historical Search Preflight
+
+[ctx](https://github.com/ctxrs/ctx) is an optional local agent-history search tool. Use it before
+non-trivial workflow, migration, or guidance tasks when prior coding-agent
+sessions may contain useful decisions, failed attempts, commands, or review
+context.
+
+Typical workflow:
+
+```bash
+ctx status
+ctx sources
+ctx search "<task / module / failure / command>"
+ctx show event <ctx-event-id> --window 5
+ctx locate event <ctx-event-id>
+```
+
+Keep the package boundary clear:
+
+- `ctx` retrieves historical raw material from local sessions.
+- `agent-loop` orchestrates task workflow and recall handoffs.
+- `agent-learning` validates findings, proposals, and decisions.
+
+Do not make `agent-loop` install ctx, run ctx setup, own the ctx SQLite
+database, scrape transcripts, or treat ctx hits as durable memory. If ctx
+material changes a learning conclusion, cite only bounded
+`agent_history_reference` evidence in the learning artifact and verify it
+against the current repository.
+
 ## RTK And Nested Shell Boundaries
 
 RTK helps most at the shell boundary the agent actually executes.

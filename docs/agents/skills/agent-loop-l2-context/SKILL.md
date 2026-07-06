@@ -44,6 +44,31 @@ Check that `recall/<task-id>/meta.json` exists after compiling:
 ls recall/<task-id>/
 ```
 
+## ctx Versus Recall
+
+Use `ctx` when you need to search prior local agent sessions for historical
+raw material:
+
+```bash
+ctx search "<task / module / error / command>"
+ctx show event <ctx-event-id> --window 5
+```
+
+Use recall compile when you need approved task guidance selected from
+agent-learning artifacts. ctx hits are not durable memory and are not
+automatically trusted by recall.
+
+If the default recall output location belongs to another active task, compile
+into a task-specific output directory instead of trampling it:
+
+```bash
+vendor/bin/agent-loop recall compile \
+  --root <learning-root-path> \
+  --task <task-id> \
+  --output-dir recall/<task-id> \
+  --file <path-to-file-1>
+```
+
 ## Warning: Artifacts Are Not Auto-Injected
 
 > Recall artifacts are not injected into ChatGPT, Codex, Claude, Copilot,
