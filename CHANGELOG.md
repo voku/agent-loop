@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.5 - 2026-07-06
+
+- Updated Skills files for the workflow of this package
+
 ## 0.2.4 - 2026-07-01
 
 - Updated Skills files for the workflow of this package
