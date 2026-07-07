@@ -72,6 +72,19 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertCommonBlocks($result['output'], 'linux');
     }
 
+    public function testInstallPlanForWindowsExitsZero(): void
+    {
+        $result = $this->runInstallPlan(['--profile=windows', '--agent=codex']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('Profile: windows', $result['output']);
+        self::assertStringContainsString('Windows PowerShell setup:', $result['output']);
+        self::assertStringContainsString('winget install BurntSushi.ripgrep.MSVC', $result['output']);
+        self::assertStringContainsString('rg --version', $result['output']);
+        self::assertStringContainsString('Codex: restart the agent inside Windows after enabling the hook.', $result['output']);
+        self::assertStringContainsString('Important Windows boundary:', $result['output']);
+    }
+
     public function testInstallPlanForGeminiAliasExitsZeroWithWarning(): void
     {
         $result = $this->runInstallPlan(['--profile=wsl2', '--agent=gemini']);
@@ -125,6 +138,9 @@ final class InitInstallPlanCommandTest extends TestCase
     private static function assertCommonBlocks(string $output, string $profile): void
     {
         self::assertStringContainsString('This command prints a setup plan only.', $output);
+        self::assertStringContainsString('ripgrep (rg):', $output);
+        self::assertStringContainsString('sudo apt install -y ripgrep', $output);
+        self::assertStringContainsString('rg --version', $output);
         self::assertStringContainsString('curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh', $output);
         self::assertStringContainsString('curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh', $output);
         self::assertStringContainsString($profile === 'linux' ? 'Important native Linux boundary:' : 'Important WSL2 boundary:', $output);

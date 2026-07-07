@@ -43,6 +43,10 @@ Docker, and REMONDIS details.
 
 When migrating a host repo, do not stop at install instructions.
 
+Prompt ripgrep installation through `agent-loop init install-plan` alongside
+RTK and Caveman, then verify with `rg --version` before relying on `rg`-first
+search guidance.
+
 Also audit:
 
 - `AGENTS.md`
@@ -70,7 +74,7 @@ Current implemented mappings:
 | --- | --- |
 | `validate_agent_skills` | `vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json` |
 | `doctor`-style path/setup diagnosis | `vendor/bin/agent-loop init doctor --config=.agent-loop/init.json` |
-| reviewed Linux/WSL2 setup notes | `vendor/bin/agent-loop init install-plan --profile=<wsl2|linux> --agent=<agent>` |
+| reviewed Linux/WSL2/Windows setup notes | `vendor/bin/agent-loop init install-plan --profile=<wsl2|linux|windows> --agent=<agent>` |
 
 Current implemented sync and validation mappings:
 

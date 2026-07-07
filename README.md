@@ -107,6 +107,7 @@ vendor/bin/agent-loop init validate --kind=subagents
 vendor/bin/agent-loop init validate --kind=hooks --agent=codex
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
+vendor/bin/agent-loop init install-plan --profile=windows --agent=codex
 vendor/bin/agent-loop init sync-skills --agent=codex
 vendor/bin/agent-loop init sync-subagents --agent=copilot
 vendor/bin/agent-loop init sync-hooks --agent=codex
@@ -143,7 +144,7 @@ vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json
 vendor/bin/agent-loop init sync-subagents --agent=copilot --config=.agent-loop/init.json
 ```
 
-`init install-plan --profile=wsl2 --agent=codex` and `init install-plan --profile=linux --agent=codex` print reviewed setup plans for RTK and Caveman. They do not execute commands.
+`init install-plan --profile=wsl2 --agent=codex`, `--profile=linux`, and `--profile=windows` print reviewed setup plans for ripgrep (`rg`), RTK, and Caveman. They do not execute commands.
 
 `init sync-skills`, `init sync-subagents`, and `init sync-hooks` copy canonical repo-managed assets into client target directories, keep a local manifest of managed entries, remove only stale managed entries, and refuse to overwrite unmanaged targets unless `--force` is given.
 
@@ -152,6 +153,11 @@ wrap the real work one layer deeper through `make`, `docker compose exec`,
 or wrapper scripts. Host repos adopting `agent-loop init` should also audit
 their `AGENTS.md`, `README.md`, and agent-facing Makefile targets for
 missing RTK guidance and low-noise `ai-*` targets.
+
+ripgrep gives agents the fast search primitive expected by most coding
+workflows. Host repos should prompt agents to install it through
+`init install-plan` and verify it with `rg --version` before documenting
+`rg`-first search guidance.
 
 Google-side agent tooling is moving quickly. Prefer `antigravity` as the canonical Google agent target; `gemini` may be treated as a legacy alias where supported.
 

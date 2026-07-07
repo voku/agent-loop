@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- `init install-plan` now prompts installing and verifying ripgrep (`rg`) alongside RTK and Caveman.
+
 ## 0.2.6 - 2026-07-06
 
 - Updated agent-learning dependency to 0.8.0

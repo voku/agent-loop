@@ -33,6 +33,7 @@ final class InitCliTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('agent-loop init doctor', $result['output']);
+        self::assertStringContainsString('Print reviewed setup commands for ripgrep, RTK, and Caveman.', $result['output']);
     }
 
     public function testInitLongHelpExitsZero(): void

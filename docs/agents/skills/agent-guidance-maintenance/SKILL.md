@@ -18,6 +18,7 @@ For a normal repo-managed guidance fix:
 4. Re-run `vendor/bin/agent-loop init doctor` when path or migration guidance changed.
 5. Update README, changelog, or migration notes when the public `init` contract changed.
 6. When a host repo uses RTK, audit its `AGENTS.md`, `README.md`, and agent-facing Make targets for missing RTK guidance at Docker/Make boundaries.
+7. When setup or search guidance changed, prompt ripgrep (`rg`) installation and `rg --version` verification alongside RTK and Caveman.
 
 ## Skill Boundary
 
@@ -27,6 +28,7 @@ This skill owns:
 - shared agent docs under `docs/agents/`
 - path-layout guidance for host repositories adopting `agent-loop init`
 - migration notes for legacy Makefile and wrapper-script workflows
+- ripgrep installation prompts and `rg`-first search guidance
 - RTK usage guidance at the outer shell boundary and nested Make/Docker layers
 - validation guidance for `init doctor`, `init validate`, and `init sync-*`
 
@@ -81,6 +83,7 @@ When adapting a host workflow:
 - prefer `sync` wording for repeatable repo-managed asset updates
 - keep Google client aliases mapped through canonical `antigravity`
 - check whether the host repo's `AGENTS.md`, `README.md`, and shared skills are missing explicit RTK guidance
+- keep ripgrep installation prompts beside RTK and Caveman in `init install-plan` docs
 - distinguish RTK-wrapped outer commands from noisy inner commands hidden behind `make`, `docker compose exec`, or wrapper scripts
 - recommend dedicated `ai-*` Make targets when host repos mainly drive validation through Make and Docker
 - keep target-manifest safety explicit so `sync-*` removes only stale managed entries
@@ -115,6 +118,7 @@ When documenting a host repo:
 - keep the portable default under `docs/agents/...`
 - show the host-specific `.agent-loop/init.json` override
 - keep path precedence explicit: CLI > config > defaults
+- prompt `rg --version` verification before relying on `rg`-first search guidance
 - add RTK guidance where agents actually read it: `AGENTS.md`, `README.md`, and the agent-maintenance skill/docs
 
 ## Validation

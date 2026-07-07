@@ -113,6 +113,13 @@ retrieval time, and verification status.
 
 ### 4. Use RTK at the shell boundary the agent actually sees
 
+Before documenting or relying on `rg`-first search guidance, verify ripgrep is
+installed:
+
+```bash
+rg --version
+```
+
 When validating this repo or a host repo, prefer RTK-wrapped commands at the
 outer shell boundary:
 

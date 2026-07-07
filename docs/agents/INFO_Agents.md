@@ -35,6 +35,7 @@ vendor/bin/agent-loop init doctor
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
+vendor/bin/agent-loop init install-plan --profile=windows --agent=codex
 vendor/bin/agent-loop init sync-subagents --agent=copilot --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 ```
@@ -65,7 +66,9 @@ vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 
 `init install-plan`:
 
-- prints a reviewed Linux or WSL2 setup plan
+- prints a reviewed Linux, WSL2, or Windows setup plan
+- prompts installation and verification of ripgrep (`rg`)
+- prompts installation and verification of RTK and Caveman
 - does not execute the printed commands
 
 ## ctx Historical Search Preflight
@@ -98,6 +101,14 @@ material changes a learning conclusion, cite only bounded
 against the current repository.
 
 ## RTK And Nested Shell Boundaries
+
+Install-plan output should prompt `ripgrep` before RTK/Caveman usage, because
+`rg` is the baseline fast-search command expected by coding agents. Verify it
+with:
+
+```bash
+rg --version
+```
 
 RTK helps most at the shell boundary the agent actually executes.
 

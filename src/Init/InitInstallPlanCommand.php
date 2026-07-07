@@ -71,6 +71,12 @@ final readonly class InitInstallPlanCommand
         {$this->renderSetupHeading($profile)}
         {$this->renderSetupBlock($profile)}
 
+        ripgrep (rg):
+        {$this->renderRipgrepBlock($profile)}
+
+        ripgrep gives agents a fast repo search primitive.
+        Verify with `rg --version`.
+
         Caveman:
         {$this->renderCavemanBlock($profile)}
 
@@ -151,6 +157,26 @@ final readonly class InitInstallPlanCommand
         curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh
         less /tmp/caveman-install.sh
         bash /tmp/caveman-install.sh
+        ```
+        TXT;
+    }
+
+    private function renderRipgrepBlock(string $profile): string
+    {
+        if (in_array($profile, ['windows', 'powershell'], true)) {
+            return <<<'TXT'
+            ```powershell
+            # Install ripgrep via winget
+            winget install BurntSushi.ripgrep.MSVC
+            rg --version
+            ```
+            TXT;
+        }
+
+        return <<<TXT
+        ```bash
+        sudo apt install -y ripgrep
+        rg --version
         ```
         TXT;
     }

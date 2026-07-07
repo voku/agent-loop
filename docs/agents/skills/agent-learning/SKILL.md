@@ -105,6 +105,7 @@ Good lessons:
 - point to a real command, path, or migration seam
 - include current-state verification
 - explain whether the behavior works now or is still reserved
+- prompt ripgrep (`rg`) installation/verification when the lesson assumes `rg`-first search
 - distinguish shell-boundary RTK help from deeper nested Make/Docker noise
 
 Weak lessons:

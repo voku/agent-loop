@@ -125,6 +125,12 @@ Be specific enough that the next agent knows what was actually run.
 Keep session memory compact. If command output is large, summarize the finding
 and point to the command instead of pasting the full output.
 
+Prefer `rg` for repository search after verifying ripgrep is installed:
+
+```bash
+rg --version
+```
+
 Prefer RTK-wrapped commands in host repos when output is noisy:
 
 ```bash
