@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.7 - 2026-07-06
 
 - `init install-plan` now prompts installing and verifying ripgrep (`rg`) alongside RTK and Caveman.
 
