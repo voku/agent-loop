@@ -18,7 +18,7 @@
   "prefer-stable": true,
   "require": {
     "php": "^8.3",
-    "voku/agent-kanban": "0.1.*@dev",
+    "voku/agent-kanban": "0.2.*@dev",
     "voku/agent-learning": "0.8.*@dev",
     "voku/agent-recall-compiler": "0.6.*@dev",
     "voku/agent-session": "0.0.*@dev"

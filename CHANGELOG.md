@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.8 - 2026-07-12
+
+- Migrated onto `voku/agent-kanban` 0.2.0's typed engine: `Dispatcher`'s `board` and `board:verify`
+  namespaces now delegate to `voku\AgentKanban\Cli\CliApplication` instead of the removed
+  `TodoBoardCli`/`TodoBoardVerifier`, and `AgentLoopVerifier`'s board check now delegates to the
+  same `CliApplication::run(['agent-loop', 'verify'])` path. `board ticket`/`context`/`brief`
+  became `board card show`; `board jira-sync` became `board external-sync
+  --provider-class=<FQCN>`, so `Dispatcher` no longer takes a `JiraIssueProvider`/`projectPrefix`
+  constructor argument — a host's `ExternalIssueProvider` implementation is now passed per
+  invocation via `--provider-class`. Bumped the `voku/agent-kanban` constraint to `0.2.*@dev`.
+
 ## 0.2.7 - 2026-07-06
 
 - `init install-plan` now prompts installing and verifying ripgrep (`rg`) alongside RTK and Caveman.

@@ -38,18 +38,19 @@ examples/basic-loop/
 ```
 
 `todo/cards/` is the local Markdown card directory — nothing in this
-example talks to Jira, and nothing has to. `todo/jira/` also still works
-(`voku/agent-kanban` checks `todo/cards/` first, then falls back to
-`todo/jira/` for boards that already use it); this example uses the
-preferred name. There is no `TODO.md` entrypoint file. `board summary` /
-`next-pull` / `ticket` read straight from `todo/cards/*.md`, so they
-don't need one — but `agent-loop verify`'s board check does, and will
-report `[SKIP]` here. The kanban entrypoint format is
-`voku/agent-kanban`'s own house-style contract and out of scope for this
-generic example (see `tests/fixtures/basic-loop` for the same call).
-`board jira-sync` is the only `board` command that needs a Jira
-connection (a host-wired `JiraIssueProvider`), and this example doesn't
-run it.
+example talks to an external tracker, and nothing has to. `todo/jira/`
+also still works (`voku/agent-kanban` checks `todo/cards/` first, then
+falls back to `todo/jira/` for boards that already use it); this example
+uses the preferred name. There is no `TODO.md` entrypoint file. `board
+summary` / `next-pull` / `card show` read straight from
+`todo/cards/*.md`, so they don't need one — but `agent-loop verify`'s
+board check does, and will report `[SKIP]` here. The kanban entrypoint
+format is `voku/agent-kanban`'s own house-style contract and out of scope
+for this generic example (see `tests/fixtures/basic-loop` for the same
+call). `board external-sync` is the only `board` command that needs an
+external tracker connection (a host-supplied
+`--provider-class=<FQCN>` implementing `ExternalIssueProvider`), and this
+example doesn't run it.
 
 ## Walkthrough
 
@@ -60,33 +61,20 @@ $AGENT_LOOP board summary
 ```
 
 ```text
-TODO board summary
-==================
+## Summary
 
-Lane counts
------------
-READY:   1
-DOING:   0
-VERIFY:  0
-BLOCKED: 0
-BACKLOG: 0
+| Lane | Count |
+| --- | ---: |
+| BACKLOG | 0 |
+| READY | 1 |
+| DOING | 0 |
+| VERIFY | 0 |
+| BLOCKED | 0 |
 
-WIP health
-----------
-Active non-done cards:             1
-Selected + planning + progress + test: 1
-Blocked / waiting:                 0
-Backlog candidates:                0
+_Total: 1 active card(s); 0 done/archived. Format version: 1._
+## WIP Health
 
-Board snapshot
---------------
-Backlog:                           0
-Selected for Development:          1
-In Planung:                        0
-in Progress:                       0
-in Test:                           0
-Warten:                            0
-Fertig:                            0
+_No WIP limits configured._
 ```
 
 ### 2. Start a session for the task
