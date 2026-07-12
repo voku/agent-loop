@@ -208,8 +208,11 @@ final class AgentLoopVerifier
         }
 
         ob_start();
-        $exit = (new CliApplication($this->rootPath))->run(['agent-loop', 'verify']);
-        $boardOutput = (string) ob_get_clean();
+        try {
+            $exit = (new CliApplication($this->rootPath))->run(['agent-loop', 'verify']);
+        } finally {
+            $boardOutput = (string) ob_get_clean();
+        }
 
         if ($exit === 0) {
             echo "[OK] board: kanban board projection verified (delegated to voku/agent-kanban)\n";
