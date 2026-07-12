@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop;
 
 use RuntimeException;
-use voku\AgentKanban\TodoBoardCli;
-use voku\AgentKanban\TodoBoardVerifier;
+use voku\AgentKanban\Cli\CliApplication;
+use voku\AgentKanban\Verification\BoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\LearningRepositoryValidator;
 use voku\AgentRecallCompiler\Cli as RecallCli;
@@ -27,7 +27,6 @@ final class AgentLoopVerifier
 {
     public function __construct(
         private readonly string $rootPath,
-        private readonly ?string $projectPrefix = null,
     ) {
     }
 
@@ -133,8 +132,8 @@ final class AgentLoopVerifier
     private function checkPackagesWired(): bool
     {
         $delegates = [
-            'board/verify' => TodoBoardCli::class,
-            'board/verify (verifier)' => TodoBoardVerifier::class,
+            'board' => CliApplication::class,
+            'board (verifier)' => BoardVerifier::class,
             'learn' => LearningCli::class,
             'recall' => RecallCli::class,
             'review' => RecallReviewCli::class,
@@ -209,8 +208,11 @@ final class AgentLoopVerifier
         }
 
         ob_start();
-        $exit = (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run();
-        $boardOutput = (string) ob_get_clean();
+        try {
+            $exit = (new CliApplication($this->rootPath))->run(['agent-loop', 'verify']);
+        } finally {
+            $boardOutput = (string) ob_get_clean();
+        }
 
         if ($exit === 0) {
             echo "[OK] board: kanban board projection verified (delegated to voku/agent-kanban)\n";

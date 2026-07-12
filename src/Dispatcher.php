@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
-use voku\AgentKanban\JiraIssueProvider;
-use voku\AgentKanban\TodoBoardCli;
-use voku\AgentKanban\TodoBoardVerifier;
+use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLoop\Init\InitCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
@@ -19,10 +17,10 @@ use voku\AgentLoop\Workflow\WorkflowCli;
  * Unified entrypoint for the governed agentic-coding loop.
  *
  * Routes the first CLI argument to the matching library:
- *  - `board`  -> voku/agent-kanban (TodoBoardCli)
+ *  - `board`  -> voku/agent-kanban (CliApplication)
  *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
  *  - `workflow` -> voku/agent-loop (start/status/close orchestration)
- *  - `board:verify` -> voku/agent-kanban (TodoBoardVerifier; kanban board source only)
+ *  - `board:verify` -> voku/agent-kanban (CliApplication `verify`; kanban board source only)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
  *  - `session` -> voku/agent-session (Cli)
@@ -35,18 +33,8 @@ use voku\AgentLoop\Workflow\WorkflowCli;
  */
 final class Dispatcher
 {
-    /**
-     * voku/agent-kanban's own fallback project prefix when none is configured
-     * and no todo/board.md exists. Mirrored here so the missing-file case can
-     * be resolved before delegating, instead of letting TodoBoardSource hit
-     * an unguarded file_get_contents() and emit a PHP warning.
-     */
-    private const string FALLBACK_PROJECT_PREFIX = 'ITPNG';
-
     public function __construct(
         private readonly string $rootPath,
-        private readonly ?JiraIssueProvider $jiraIssueProvider = null,
-        private readonly ?string $projectPrefix = null,
     ) {
     }
 
@@ -60,10 +48,9 @@ final class Dispatcher
         $rest = array_slice($argv, 2);
 
         return match ($namespace) {
-            'board' => (new TodoBoardCli($this->rootPath, $this->jiraIssueProvider, $this->resolveProjectPrefix()))
-                ->run($this->subArgv($scriptName, $this->resolveBoardArgv($rest))),
-            'verify' => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run($rest),
-            'board:verify' => (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run(),
+            'board' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, $rest)),
+            'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
+            'board:verify' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, ['verify'])),
             'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
@@ -74,44 +61,6 @@ final class Dispatcher
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };
-    }
-
-    /**
-     * Resolves the project prefix for the `board` namespace without ever
-     * letting voku/agent-kanban's TodoBoardSource::readBoardMetadata() run
-     * file_get_contents() against a todo/board.md that doesn't exist (which
-     * emits a PHP warning instead of failing cleanly). When no explicit
-     * prefix is configured and the metadata file is absent, the same
-     * fallback the dependency itself would have used is supplied directly,
-     * short-circuiting its lazy lookup.
-     */
-    private function resolveProjectPrefix(): ?string
-    {
-        if ($this->projectPrefix !== null) {
-            return $this->projectPrefix;
-        }
-
-        $boardMetadataFile = rtrim($this->rootPath, '/') . '/todo/board.md';
-
-        return is_file($boardMetadataFile) ? null : self::FALLBACK_PROJECT_PREFIX;
-    }
-
-    /**
-     * voku/agent-kanban's TodoBoardCli has no `help`/`--help` case in its own
-     * command match, so those tokens fall through to "unknown subcommand"
-     * (exit 1, usage on stderr) instead of the usage-on-stdout, exit-0 path
-     * that calling `board` with no arguments takes. Normalizing the help
-     * tokens to "no arguments" here gives `board --help`/`board help` the
-     * same clean exit as the documented `board` workaround, without touching
-     * the dependency's own dispatch.
-     *
-     * @param list<string> $rest
-     *
-     * @return list<string>
-     */
-    private function resolveBoardArgv(array $rest): array
-    {
-        return in_array($rest[0] ?? null, ['help', '--help', '-h'], true) ? [] : $rest;
     }
 
     /**
@@ -141,7 +90,7 @@ final class Dispatcher
             $this->rootPath,
             fn (array $sessionRest): int => $this->dispatchSession($scriptName, $sessionRest),
             fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest)),
-            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run(array_values($verifyRest)),
+            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath))->run(array_values($verifyRest)),
         ))->run($rest);
     }
 
@@ -382,9 +331,11 @@ final class Dispatcher
           agent-loop <namespace> <command> [options]
 
         Namespaces:
-          board   <summary|render|lane|next-pull|ticket|context|brief|jira-sync>
-                  TODO Kanban board (voku/agent-kanban). `jira-sync` needs a
-                  JiraIssueProvider injected via the Dispatcher constructor.
+          board   <summary|render|lane|next-pull|card|external-sync>
+                  TODO Kanban board (voku/agent-kanban). `card show|create|
+                  update|move|claim|release|archive|restore` operate on a
+                  single card; `external-sync` needs
+                  --provider-class=<FQCN> implementing ExternalIssueProvider.
           verify  Cross-package consistency check: tasks, board, sessions,
                   recall outputs, and the learning root (voku/agent-loop).
                   Each check skips itself when its inputs are absent. Run

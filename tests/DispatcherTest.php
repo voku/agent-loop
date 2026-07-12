@@ -53,11 +53,11 @@ final class DispatcherTest extends TestCase
 
     public function testBoardNamespaceRoutesToKanban(): void
     {
-        // No subcommand -> TodoBoardCli prints its own usage and exits 0,
-        // proving the `board` namespace reached voku/agent-kanban. An explicit
-        // projectPrefix is injected so the usage path does not read a board file
-        // from the test working directory.
-        $dispatcher = new Dispatcher('.', null, 'TEST');
+        // No subcommand -> CliApplication prints its own usage and exits 0,
+        // proving the `board` namespace reached voku/agent-kanban. The help
+        // path is resolved before any board configuration is read, so it
+        // never touches the test working directory's filesystem.
+        $dispatcher = new Dispatcher('.');
 
         ob_start();
         $exit = $dispatcher->run(['agent-loop', 'board']);

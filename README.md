@@ -92,7 +92,7 @@ everything in one large tool.
 ```text
 ┌────────────────────────────────── voku/agent-loop ──────────────────────────────────┐
 │                                                                                       │
-│  agent-loop board         → voku/agent-kanban           (board + optional Jira sync) │
+│  agent-loop board         → voku/agent-kanban       (board + optional external sync) │
 │  agent-loop board:verify  → voku/agent-kanban            (board-source-only check)   │
 │  agent-loop session       → voku/agent-session           (per-task working memory)   │
 │  agent-loop recall        → voku/agent-recall-compiler   (L2 meta-prompt compiling)  │
@@ -110,7 +110,7 @@ Each dependency package has one job:
 
 | Package | Responsibility |
 | --- | --- |
-| `voku/agent-kanban` | Markdown/Jira-style task board and board-source verification |
+| `voku/agent-kanban` | Markdown task board, verification, and optional external-issue-tracker sync |
 | `voku/agent-session` | Per-task working memory and session plans |
 | `voku/agent-recall-compiler` | Task-specific recall/L2 meta-prompt compilation, plus blind-spot and code-review prompts |
 | `voku/agent-learning` | Findings, proposals, decision history and guidance evaluation |
@@ -127,7 +127,7 @@ Pick the work:
 ```bash
 vendor/bin/agent-loop board summary
 vendor/bin/agent-loop board render --lanes=READY,BACKLOG --limit=10
-vendor/bin/agent-loop board ticket ABC-123
+vendor/bin/agent-loop board card show ABC-123
 ```
 
 Start the governed task context — this wraps `session start` and
@@ -255,7 +255,7 @@ vendor/bin/agent-loop help
 Available namespaces:
 
 ```text
-board        Local Markdown/Jira-style task board (voku/agent-kanban)
+board        Local Markdown task board (voku/agent-kanban)
 board:verify Board-source-only check (voku/agent-kanban)
 session      Per-task working memory (voku/agent-session)
 recall       Recall / L2 meta-prompt compilation (voku/agent-recall-compiler)
@@ -275,19 +275,20 @@ command list.
 ```bash
 vendor/bin/agent-loop board summary
 vendor/bin/agent-loop board render --lanes=READY,BACKLOG --limit=10
-vendor/bin/agent-loop board ticket ABC-123
+vendor/bin/agent-loop board card show ABC-123
 ```
 
 Reads work items from local Markdown card files under `todo/cards/*.md`
 (one file per card), with `todo/board.md` holding board metadata (project
-prefix, done count). This works fully standalone — no Jira host,
+prefix, done count). This works fully standalone — no tracker host,
 credentials, or network access required. `todo/jira/` and a root
 `TODO.md` remain supported fallback inputs.
 
-Only `board jira-sync` talks to Jira, and only once the host application
-constructs the `Dispatcher` with its own `JiraIssueProvider` (see
-"Programmatic usage" below) — the bare `bin/agent-loop` wires none. Every
-other `board` command works from the local Markdown cards alone.
+Only `board external-sync` talks to an external issue tracker, and only
+when the invocation passes `--provider-class=<FQCN>` pointing at your own
+`voku\AgentKanban\ExternalIssue\ExternalIssueProvider` implementation (see
+"Programmatic usage" below) — nothing is wired in by default. Every other
+`board` command works from the local Markdown cards alone.
 
 ### Session
 
@@ -412,38 +413,48 @@ and exposes `vendor/bin/agent-loop`.
 
 ## Programmatic usage
 
-Hosts that need custom integrations, for example Jira, can wire the
-dispatcher manually.
+Hosts that need custom integrations, for example Jira, implement
+`voku\AgentKanban\ExternalIssue\ExternalIssueProvider` in their own
+autoloaded codebase and point `board external-sync` at it — the
+`Dispatcher` itself takes no provider argument.
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-use voku\AgentKanban\JiraIssueProvider;
-use voku\AgentLoop\Dispatcher;
+namespace YourApp;
 
-$provider = new class implements JiraIssueProvider {
-    public function projectKey(): string
+use voku\AgentKanban\ExternalIssue\ExternalIssueProvider;
+use voku\AgentKanban\ExternalIssue\ExternalIssueRecord;
+
+final class JiraExternalIssueProvider implements ExternalIssueProvider
+{
+    public function systemName(): string
     {
-        return 'ABC';
+        return 'jira';
     }
 
-    public function searchIssues(string $jql): array
+    /** @return list<ExternalIssueRecord> */
+    public function fetchActiveIssues(string $query): array
     {
-        // Connect to your own Jira client here.
+        // $query is whatever you pass via --query (e.g. a JQL string);
+        // connect to your own Jira client here, never to agent-kanban.
         return [];
     }
-};
-
-$rootPath = getcwd() ?: '.';
-
-exit((new Dispatcher(
-    rootPath: $rootPath,
-    jiraIssueProvider: $provider,
-    projectPrefix: 'ABC',
-))->run($argv));
+}
 ```
+
+```bash
+vendor/bin/agent-loop board external-sync \
+  --provider-class="YourApp\\JiraExternalIssueProvider" \
+  --query="project = ABC AND statusCategory != Done"
+```
+
+`voku\AgentKanban\Cli\CliApplication` instantiates `--provider-class` with
+a no-argument constructor, so your adapter should read its own
+configuration (base URL, token, project key) from environment variables
+or your own config file inside its own constructor.
 
 The default binary does not ship a Jira client because Jira clients are
 host-specific.
