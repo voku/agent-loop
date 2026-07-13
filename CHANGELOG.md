@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.2.8 - 2026-07-12
+## 0.2.8 - 2026-07-13
 
 - Migrated onto `voku/agent-kanban` 0.2.0's typed engine: `Dispatcher`'s `board` and `board:verify`
   namespaces now delegate to `voku\AgentKanban\Cli\CliApplication` instead of the removed
