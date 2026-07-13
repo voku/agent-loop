@@ -300,6 +300,17 @@ final class AgentLoopVerifier
                 }
             }
 
+            // `workflow plan`/`context`/`status`/`report`/`close` always
+            // write/read the compiled briefing at <rootPath>/recall/<taskId>,
+            // independent of --learning-root. When the resolved recall-root
+            // candidate above (e.g. an existing <learning-root>/recall-output
+            // from unrelated tasks) shadows that, fall back to the workflow
+            // subsystem's own convention before reporting drift.
+            $workflowMetaFile = rtrim($this->rootPath, '/') . '/recall/' . $taskId . '/meta.json';
+            if ($workflowMetaFile !== $metaFile && is_file($workflowMetaFile)) {
+                return true;
+            }
+
             echo "[FAIL] recall: active session {$sessionId} has no compiled briefing at {$metaFile}\n";
 
             return false;
