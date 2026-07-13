@@ -268,15 +268,20 @@ final class Dispatcher
     private function resolveSessionArgv(array $rest): ?array
     {
         $command = $rest[0] ?? null;
-        if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show', 'brief'], true)) {
+        if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show', 'brief', 'validation', 'learning'], true)) {
             return $rest;
         }
 
         $tokens = array_slice($rest, 1);
         $firstPositionalIndex = 0;
-        if ($command === 'brief') {
+        if (in_array($command, ['brief', 'validation', 'learning'], true)) {
             $action = $tokens[0] ?? null;
-            if (!in_array($action, ['create', 'revise', 'approve', 'show'], true)) {
+            $actions = match ($command) {
+                'brief' => ['create', 'revise', 'approve', 'show'],
+                'validation' => ['record'],
+                'learning' => ['decide'],
+            };
+            if (!in_array($action, $actions, true)) {
                 return $rest;
             }
             $firstPositionalIndex = 1;
@@ -436,7 +441,7 @@ final class Dispatcher
                   Findings, proposals, and decision history (voku/agent-learning).
           recall  <compile|log-outcome>
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
-          session <start|claim|checkpoint|record|close|list|show|brief|prune>
+          session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
                   Working memory: per-task session plans (voku/agent-session).
           map     <build|query|file|stale|summary|changed|related|stats>
                   Compact PHP repository symbol map (voku/agent-map).

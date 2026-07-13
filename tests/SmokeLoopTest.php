@@ -90,6 +90,43 @@ final class SmokeLoopTest extends TestCase
         self::assertStringContainsString('is stale (hash no longer matches meta.json)', $result['output']);
     }
 
+    public function testGovernedCompletionFlowUsesOnlyRecordedArtifacts(): void
+    {
+        self::assertSame(0, $this->dispatch([
+            'agent-loop', 'workflow', 'plan', 'task.001', '--by', 'tester',
+            '--learning-root', $this->root . '/learning-root', '--file', 'src/Signup.php',
+            '--goal', 'Keep completion evidence auditable.',
+            '--validation', 'vendor/bin/phpunit tests/SignupTest.php',
+        ])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester'])['exit']);
+        self::assertSame(0, $this->dispatch([
+            'agent-loop', 'session', 'validation', 'record', 'task.001',
+            '--brief-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
+            '--status', 'passed', '--exit-code', '0', '--duration-ms', '12', '--by', 'tester', '--root', $this->root . '/session_plan',
+        ])['exit']);
+        self::assertSame(0, $this->dispatch([
+            'agent-loop', 'session', 'learning', 'decide', 'task.001',
+            '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan',
+        ])['exit']);
+        mkdir($this->root . '/.agent-recall/reviews', 0o775, true);
+        file_put_contents($this->root . '/.agent-recall/reviews/task.001.blindspots.json', json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR));
+
+        $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
+        self::assertSame(0, $context['exit']);
+        self::assertStringContainsString('Keep completion evidence auditable.', $context['output']);
+        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php', $context['output']);
+
+        $report = $this->dispatch(['agent-loop', 'workflow', 'report', 'task.001']);
+        self::assertSame(0, $report['exit']);
+        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php', $report['output']);
+        self::assertStringContainsString('decision no_durable_learning', $report['output']);
+
+        $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'task.001', '--status', 'done']);
+        self::assertSame(0, $close['exit'], $close['output']);
+        self::assertStringContainsString('[OK] validation:', $close['output']);
+        self::assertStringContainsString('[OK] learning decision:', $close['output']);
+    }
+
     /**
      * @param list<string> $argv
      *

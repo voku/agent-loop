@@ -60,6 +60,7 @@ final class WorkflowCliTest extends TestCase
     {
         self::assertSame(1, $this->runCli(['plan'])['exit']);
         self::assertSame(1, $this->runCli(['approve'])['exit']);
+        self::assertSame(1, $this->runCli(['context'])['exit']);
         self::assertSame(1, $this->runCli(['report'])['exit']);
     }
 

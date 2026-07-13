@@ -11,6 +11,8 @@ use Throwable;
 use voku\AgentLearning\LearningRepositoryValidator;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\ValidationEvidence;
+use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\WorkBrief;
 use voku\AgentSession\WorkBriefStore;
 
@@ -33,7 +35,7 @@ final readonly class WorkflowReportCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
-            $report = $this->report($taskId->value, $options['learningRoot'], $options['changedFiles']);
+            $report = $this->buildReport($taskId->value, $options['learningRoot'], $options['changedFiles']);
             if ($options['format'] === 'json') {
                 echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 
@@ -103,7 +105,7 @@ final readonly class WorkflowReportCommand
      *
      * @return array<string, mixed>
      */
-    private function report(string $taskId, ?string $learningRoot, array $changedFiles): array
+    public function buildReport(string $taskId, ?string $learningRoot = null, array $changedFiles = []): array
     {
         $sessions = $this->sessionsFor($taskId);
         $activeSessions = array_values(array_filter($sessions, static fn (Session $session): bool => !$session->status->isClosed()));
@@ -126,7 +128,7 @@ final readonly class WorkflowReportCommand
             'validation' => $this->validationReport($brief, $session['session']),
             'recall' => $this->recallReport($taskId, $learningRoot),
             'review' => $this->reviewReport($taskId),
-            'learning' => $this->learningReport($taskId, $learningRoot),
+            'learning' => $this->learningReport($taskId, $learningRoot, $session['session']),
             'accepted_risk' => $this->acceptedRiskReport($taskId),
         ];
     }
@@ -229,7 +231,7 @@ final readonly class WorkflowReportCommand
     }
 
     /**
-     * @return list<array{command: string, status: 'passed_evidence'|'mentioned_without_result'|'missing'}>
+     * @return list<array{command: string, work_brief_revision: int, status: 'passed'|'failed'|'stale'|'missing', exit_code: int|null, duration_ms: int|null, executed_at: string|null}>
      */
     private function validationReport(?WorkBrief $brief, ?Session $session): array
     {
@@ -237,32 +239,23 @@ final readonly class WorkflowReportCommand
             return [];
         }
 
-        $path = $session->path . '/validation.md';
-        $content = is_file($path) ? (string) file_get_contents($path) : '';
+        $evidence = (new ValidationEvidenceStore())->all($session);
         $result = [];
         foreach ($brief->validation as $command) {
+            $exact = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $brief->revision && $item->command === $command));
+            $historical = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->command === $command));
+            $latest = $exact === [] ? null : $exact[count($exact) - 1];
             $result[] = [
                 'command' => $command,
-                'status' => $this->validationStatus($content, $command),
+                'work_brief_revision' => $brief->revision,
+                'status' => $latest === null ? ($historical === [] ? 'missing' : 'stale') : $latest->status->value,
+                'exit_code' => $latest?->exitCode,
+                'duration_ms' => $latest?->durationMs,
+                'executed_at' => $latest?->executedAt,
             ];
         }
 
         return $result;
-    }
-
-    /** @return 'passed_evidence'|'mentioned_without_result'|'missing' */
-    private function validationStatus(string $content, string $command): string
-    {
-        if (!str_contains($content, $command)) {
-            return 'missing';
-        }
-
-        $quotedCommand = preg_quote($command, '/');
-        if (preg_match('/' . $quotedCommand . '.{0,160}(?:\\[OK\\]|\\bpass(?:ed)?\\b|\\bsuccess(?:ful|fully)?\\b|\\bexit(?: code)?\\s*0\\b)/i', $content) === 1) {
-            return 'passed_evidence';
-        }
-
-        return 'mentioned_without_result';
     }
 
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
@@ -303,12 +296,13 @@ final readonly class WorkflowReportCommand
         return [...$reader->read($taskId), 'path' => $reader->relativePath($taskId)];
     }
 
-    /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int} */
-    private function learningReport(string $taskId, ?string $learningRoot): array
+    /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int, decision: string|null} */
+    private function learningReport(string $taskId, ?string $learningRoot, ?Session $session): array
     {
+        $decision = $session === null ? null : (new \voku\AgentSession\LearningDecisionStore())->find($session)?->decision->value;
         $root = $this->resolveLearningRoot($learningRoot);
         if ($root === null) {
-            return ['status' => 'unavailable', 'root' => null, 'findings' => 0, 'proposals' => 0, 'outcomes' => 0];
+            return ['status' => 'unavailable', 'root' => null, 'findings' => 0, 'proposals' => 0, 'outcomes' => 0, 'decision' => $decision];
         }
 
         try {
@@ -330,9 +324,10 @@ final readonly class WorkflowReportCommand
                 'findings' => count($findings),
                 'proposals' => count($proposals),
                 'outcomes' => count($outcomes),
+                'decision' => $decision,
             ];
         } catch (RuntimeException) {
-            return ['status' => 'invalid', 'root' => $this->relativePath($root), 'findings' => 0, 'proposals' => 0, 'outcomes' => 0];
+            return ['status' => 'invalid', 'root' => $this->relativePath($root), 'findings' => 0, 'proposals' => 0, 'outcomes' => 0, 'decision' => $decision];
         }
     }
 
@@ -434,7 +429,11 @@ final readonly class WorkflowReportCommand
             echo "  - no work brief or validation commands\n";
         }
         foreach ($report['validation'] as $validation) {
-            echo '  - [' . $validation['status'] . '] ' . $validation['command'] . "\n";
+            echo '  - [' . $validation['status'] . '] ' . $validation['command'];
+            if ($validation['executed_at'] !== null) {
+                echo ' (exit ' . $validation['exit_code'] . ', executed ' . $validation['executed_at'] . ')';
+            }
+            echo "\n";
         }
 
         $recall = $report['recall'];
@@ -442,7 +441,7 @@ final readonly class WorkflowReportCommand
         $review = $report['review'];
         echo 'Review: ' . ($review['exists'] ? ($review['invalid'] ? 'invalid' : $review['status']) : 'missing') . "\n";
         $learning = $report['learning'];
-        echo sprintf("Learning: %s, %d finding(s), %d proposal(s), %d outcome(s)\n", $learning['status'], $learning['findings'], $learning['proposals'], $learning['outcomes']);
+        echo sprintf("Learning: %s, %d finding(s), %d proposal(s), %d outcome(s), decision %s\n", $learning['status'], $learning['findings'], $learning['proposals'], $learning['outcomes'], $learning['decision'] ?? 'missing');
         $risk = $report['accepted_risk'];
         echo 'Accepted risk: ' . ($risk['recorded'] ? 'recorded at ' . $risk['path'] : 'none') . "\n";
     }

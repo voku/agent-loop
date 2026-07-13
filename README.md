@@ -355,6 +355,7 @@ project ever had.
 vendor/bin/agent-loop workflow plan <task-id> --by <actor> --learning-root infra/doc/agent-learning --file src/Foo.php --goal "Implement the approved task." --validation "vendor/bin/phpunit tests/FooTest.php"
 vendor/bin/agent-loop workflow approve <task-id> --by <actor>
 vendor/bin/agent-loop workflow status <task-id>
+vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 
 vendor/bin/agent-loop workflow report <task-id> \
   --changed-file src/Foo.php \
@@ -374,15 +375,35 @@ level session-plus-recall step without work-brief orchestration.
 
 `workflow status` prints read-only session, recall, and review state.
 
+`workflow context` is the bounded working view for an agent: it reads the
+approved brief, session decision/checkpoint titles, selected recall guidance,
+required validation, and compact source locations from `.agent-map/` when an
+index exists. It never recompiles recall or a map, embeds no source body, and
+prints `[SKIP]` plus explicit omission counts when an input or budget is absent.
+
 `workflow report` is the bounded handoff view: it reports the current work
 brief and approval, supplied changed files that fall outside approved scope,
-validation evidence, recall outcome state, review state, task-associated
+revision-bound validation evidence, recall outcome state, review state, task-associated
 learning counts, and any accepted risk. It is read-only and never runs `git`;
 pass each observed path with `--changed-file` (or use `--format json` for CI).
 
 `workflow close` is a gated wrapper around `session close`. It requires an
-approved current work brief, recall metadata, a blind-spot review report, and a
-passing `agent-loop verify` before closing a task as done.
+approved current work brief, passing validation evidence for its exact revision,
+recall metadata and explicit outcomes for selected guidance, a blind-spot review
+report, an explicit session learning decision, and a passing `agent-loop verify`
+before closing a task as done.
+
+Record completion evidence through the session owner; it remains auditable but
+does not become durable guidance by itself:
+
+```bash
+vendor/bin/agent-loop session validation record <task-id> \
+  --brief-revision 2 --command "vendor/bin/phpunit tests/FooTest.php" \
+  --status passed --exit-code 0 --duration-ms 1840 --by lars
+
+vendor/bin/agent-loop session learning decide <task-id> \
+  --status no_durable_learning --by lars
+```
 
 Existing `agent-loop session close` remains unchanged.
 

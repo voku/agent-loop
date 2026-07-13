@@ -9,6 +9,8 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Workflow\WorkflowReportCommand;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\ValidationEvidenceStore;
+use voku\AgentSession\ValidationStatus;
 use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowReportCommandTest extends TestCase
@@ -30,7 +32,7 @@ final class WorkflowReportCommandTest extends TestCase
     public function testTextReportProjectsCurrentTaskArtifacts(): void
     {
         $this->writeApprovedBrief();
-        file_put_contents($this->sessionPath . '/validation.md', "# Validation\n\nvendor/bin/phpunit tests/FooTest.php [OK]\n");
+        $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
         $this->write('recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
         $this->write('recall/ABC-123/recall-log.draft.json', '{}');
         $this->write('.agent-recall/reviews/ABC-123.blindspots.json', json_encode(['status' => 'warn'], JSON_THROW_ON_ERROR));
@@ -42,16 +44,16 @@ final class WorkflowReportCommandTest extends TestCase
         self::assertStringContainsString('Workflow report: ABC-123', $result['output']);
         self::assertStringContainsString('Work brief: approved revision 1 (approved by lars)', $result['output']);
         self::assertStringContainsString('Changed files outside approved scope: docs/Outside.md', $result['output']);
-        self::assertStringContainsString('[passed_evidence] vendor/bin/phpunit tests/FooTest.php', $result['output']);
+        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/FooTest.php (exit 0', $result['output']);
         self::assertStringContainsString('Recall: present, outcome draft present', $result['output']);
         self::assertStringContainsString('Review: warn', $result['output']);
         self::assertStringContainsString('Accepted risk: recorded at .agent-loop/risks/ABC-123.accepted-risk.md', $result['output']);
     }
 
-    public function testJsonReportSeparatesMissingEvidenceFromMentionedCommands(): void
+    public function testJsonReportSeparatesMissingAndStaleEvidence(): void
     {
         $this->writeApprovedBrief();
-        file_put_contents($this->sessionPath . '/validation.md', "# Validation\n\nvendor/bin/phpunit tests/FooTest.php\n");
+        $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
 
         $result = $this->runReport(['ABC-123', '--format', 'json']);
 
@@ -59,11 +61,25 @@ final class WorkflowReportCommandTest extends TestCase
         $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('ABC-123', $report['task_id']);
         self::assertSame('approved', $report['work_brief']['status']);
-        self::assertSame('mentioned_without_result', $report['validation'][0]['status']);
+        self::assertSame('passed', $report['validation'][0]['status']);
         self::assertSame('missing', $report['validation'][1]['status']);
         self::assertFalse($report['scope']['changed_files_supplied']);
         self::assertSame('missing', $report['recall']['status']);
         self::assertSame('unavailable', $report['learning']['status']);
+    }
+
+    public function testJsonReportMarksEvidenceForSupersededBriefAsStale(): void
+    {
+        $this->writeApprovedBrief();
+        $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
+        $session = (new SessionStore())->load($this->root . '/session_plan', basename($this->sessionPath));
+        (new WorkBriefStore())->revise($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit tests/FooTest.php', 'vendor/bin/phpstan analyse src/Foo.php']);
+
+        $result = $this->runReport(['ABC-123', '--format', 'json']);
+        $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame('stale', $report['validation'][0]['status']);
+        self::assertSame(2, $report['validation'][0]['work_brief_revision']);
     }
 
     public function testInvalidInputDoesNotWriteArtifacts(): void
@@ -112,6 +128,12 @@ final class WorkflowReportCommandTest extends TestCase
             mkdir(dirname($path), 0o775, true);
         }
         file_put_contents($path, $content);
+    }
+
+    private function writeValidation(int $revision, string $command, ValidationStatus $status, int $exitCode): void
+    {
+        $session = (new SessionStore())->load($this->root . '/session_plan', basename($this->sessionPath));
+        (new ValidationEvidenceStore())->record($session, $revision, $command, $status, $exitCode, 10, 'lars');
     }
 
     /** @return list<string> */

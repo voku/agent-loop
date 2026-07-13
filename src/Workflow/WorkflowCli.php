@@ -27,6 +27,7 @@ final readonly class WorkflowCli
             'approve' => (new WorkflowApproveCommand($this->sessionRunner))->run($rest),
             'start' => (new WorkflowStartCommand($this->sessionRunner, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
+            'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath, $this->sessionRunner, $this->verifyRunner))->run($rest),
             default => $this->unknown($command),
@@ -42,6 +43,7 @@ Usage:
   agent-loop workflow approve <task-id> --by <actor>
   agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id>
+  agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason>]
 
@@ -51,6 +53,7 @@ Commands:
   approve   Approve the current candidate work brief for a task.
   start     Start a task workflow by creating a session and compiling recall artifacts.
   status    Show read-only workflow status for a task.
+  context   Render a bounded, read-only task context from existing artifacts.
   report    Show a read-only, auditable completion report for a task.
   close     Close a task through workflow safety gates.
 

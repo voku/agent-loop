@@ -114,6 +114,19 @@ final class DispatcherResolutionTest extends TestCase
         self::assertSame('done', $metadata['status']);
     }
 
+    public function testSessionCompletionCommandsAcceptTaskIdInPlaceOfSessionId(): void
+    {
+        $sessionsRoot = $this->root . '/session_plan';
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'validation', 'record', 'DEMO-1', '--brief-revision', '1', '--command', 'vendor/bin/phpunit', '--status', 'passed', '--exit-code', '0', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'learning', 'decide', 'DEMO-1', '--status', 'no_durable_learning', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+
+        $id = $this->onlySessionId($sessionsRoot);
+        self::assertFileExists($sessionsRoot . '/' . $id . '/validation-evidence.jsonl');
+        self::assertFileExists($sessionsRoot . '/' . $id . '/learning-decision.json');
+    }
+
     public function testSessionRecordWithRealSessionIdStillWorksUnchanged(): void
     {
         $sessionsRoot = $this->root . '/session_plan';

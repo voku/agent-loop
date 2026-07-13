@@ -7,6 +7,10 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\LearningDecisionStore;
+use voku\AgentSession\ValidationEvidence;
+use voku\AgentSession\ValidationEvidenceStore;
+use voku\AgentSession\ValidationStatus;
 use voku\AgentSession\WorkBriefStatus;
 use voku\AgentSession\WorkBriefStore;
 
@@ -65,9 +69,12 @@ final readonly class WorkflowCloseCommand
         $recallPassed = $this->checkRecallGate($taskId);
         $reviewPassed = $this->checkReviewGate($taskId);
         $workBriefPassed = $this->checkWorkBriefGate($taskId);
+        $validationPassed = $this->checkValidationGate($taskId);
+        $outcomesPassed = $this->checkRecallOutcomeGate($taskId);
+        $learningPassed = $this->checkLearningDecisionGate($taskId);
         $verifyPassed = $this->checkVerifyGate();
 
-        return $recallPassed && $reviewPassed && $workBriefPassed && $verifyPassed;
+        return $recallPassed && $reviewPassed && $workBriefPassed && $validationPassed && $outcomesPassed && $learningPassed && $verifyPassed;
     }
 
     private function checkRecallGate(string $taskId): bool
@@ -156,6 +163,140 @@ final readonly class WorkflowCloseCommand
         echo "[OK] work brief: revision {$brief->revision} approved by {$approval->approvedBy}\n";
 
         return true;
+    }
+
+    private function checkValidationGate(string $taskId): bool
+    {
+        $session = $this->activeSession($taskId);
+        if ($session === null) {
+            echo "[FAIL] validation: no single active session found for task {$taskId}\n";
+
+            return false;
+        }
+        $brief = (new WorkBriefStore())->find($session);
+        if ($brief === null) {
+            echo "[FAIL] validation: work brief is missing for task {$taskId}\n";
+
+            return false;
+        }
+        $evidence = (new ValidationEvidenceStore())->all($session);
+        $passed = true;
+        foreach ($brief->validation as $command) {
+            $matching = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $brief->revision && $item->command === $command));
+            $latest = $matching === [] ? null : $matching[count($matching) - 1];
+            if ($latest?->status !== ValidationStatus::PASSED) {
+                echo '[FAIL] validation: ' . ($latest === null ? 'missing' : $latest->status->value) . " evidence for {$command} (work brief revision {$brief->revision})\n";
+                $passed = false;
+                continue;
+            }
+            echo "[OK] validation: {$command} (exit {$latest->exitCode}, revision {$brief->revision})\n";
+        }
+
+        return $passed;
+    }
+
+    private function checkRecallOutcomeGate(string $taskId): bool
+    {
+        $path = rtrim($this->rootPath, '/') . '/recall/' . $taskId . '/meta.json';
+        if (!is_file($path)) {
+            return false;
+        }
+        try {
+            $meta = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo "[FAIL] recall outcomes: invalid recall metadata\n";
+
+            return false;
+        }
+        if (!is_array($meta)) {
+            echo "[FAIL] recall outcomes: invalid recall metadata\n";
+
+            return false;
+        }
+        $selected = array_values(array_filter($meta['selected_guidance'] ?? [], static fn (mixed $id): bool => is_string($id) && trim($id) !== ''));
+        foreach ($meta['selected_constraints'] ?? [] as $constraint) {
+            if (is_array($constraint) && is_string($constraint['id'] ?? null) && trim($constraint['id']) !== '') {
+                $selected[] = $constraint['id'];
+            }
+        }
+        if ($selected === []) {
+            echo "[OK] recall outcomes: no selected guidance requires evaluation\n";
+
+            return true;
+        }
+        $compilationId = $meta['compilation_id'] ?? null;
+        if (!is_string($compilationId) || trim($compilationId) === '') {
+            echo "[FAIL] recall outcomes: selected guidance has no compilation id\n";
+
+            return false;
+        }
+        $root = $this->learningRoot();
+        $outcomesPath = $root === null ? null : $root . '/history/outcomes.jsonl';
+        if ($outcomesPath === null || !is_file($outcomesPath)) {
+            echo "[FAIL] recall outcomes: missing outcomes.jsonl for selected guidance\n";
+
+            return false;
+        }
+        $recorded = [];
+        foreach (file($outcomesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            try {
+                $outcome = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                continue;
+            }
+            if (is_array($outcome) && ($outcome['task_id'] ?? null) === $taskId && ($outcome['compilation_id'] ?? null) === $compilationId && is_string($outcome['guidance_id'] ?? null)) {
+                $recorded[$outcome['guidance_id']] = true;
+            }
+        }
+        $missing = array_values(array_filter(array_unique($selected), static fn (string $id): bool => !isset($recorded[$id])));
+        if ($missing !== []) {
+            echo '[FAIL] recall outcomes: missing explicit outcome for ' . implode(', ', $missing) . "\n";
+
+            return false;
+        }
+        echo '[OK] recall outcomes: explicit outcomes recorded for ' . count($selected) . " selected guidance item(s)\n";
+
+        return true;
+    }
+
+    private function checkLearningDecisionGate(string $taskId): bool
+    {
+        $session = $this->activeSession($taskId);
+        if ($session === null) {
+            return false;
+        }
+        $decision = (new LearningDecisionStore())->find($session);
+        if ($decision === null) {
+            echo "[FAIL] learning decision: missing (record findings_recorded, no_durable_learning, or follow_up_required)\n";
+
+            return false;
+        }
+        echo "[OK] learning decision: {$decision->decision->value} by {$decision->decidedBy}\n";
+
+        return true;
+    }
+
+    private function activeSession(string $taskId): ?\voku\AgentSession\Session
+    {
+        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($root)) {
+            return null;
+        }
+        $sessions = array_values(array_filter((new SessionStore())->all($root), static fn ($session): bool => $session->taskId === $taskId && !$session->status->isClosed()));
+
+        return count($sessions) === 1 ? $sessions[0] : null;
+    }
+
+    private function learningRoot(): ?string
+    {
+        foreach (['infra/doc/agent-learning', 'learning-root'] as $relative) {
+            $candidate = rtrim($this->rootPath, '/') . '/' . $relative;
+            if (is_dir($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

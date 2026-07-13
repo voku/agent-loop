@@ -9,6 +9,10 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\LearningDecision;
+use voku\AgentSession\LearningDecisionStore;
+use voku\AgentSession\ValidationEvidenceStore;
+use voku\AgentSession\ValidationStatus;
 use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowCloseCommandTest extends TestCase
@@ -79,6 +83,21 @@ final class WorkflowCloseCommandTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('verify failed', $result['output']);
+    }
+
+    public function testCloseRequiresOutcomeForEverySelectedGuidanceItem(): void
+    {
+        $this->writeRecallMeta([
+            'task_id' => 'ABC-123',
+            'compilation_id' => 'compilation.abc.001',
+            'selected_guidance' => ['G-001'],
+        ]);
+        $this->writeReviewReport(['status' => 'ok']);
+
+        $result = $this->runClose(verifyExit: 0);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('missing outcomes.jsonl for selected guidance', $result['output']);
     }
 
     public function testCloseFailsWhenActiveSessionHasNoApprovedWorkBrief(): void
@@ -201,10 +220,11 @@ final class WorkflowCloseCommandTest extends TestCase
         return ['exit' => $exit, 'output' => $output];
     }
 
-    private function writeRecallMeta(): void
+    /** @param array<string, mixed> $meta */
+    private function writeRecallMeta(array $meta = []): void
     {
         mkdir($this->root . '/recall/ABC-123', 0o775, true);
-        file_put_contents($this->root . '/recall/ABC-123/meta.json', '{}');
+        file_put_contents($this->root . '/recall/ABC-123/meta.json', json_encode($meta, JSON_THROW_ON_ERROR));
     }
 
     private function writeApprovedWorkBrief(): void
@@ -214,6 +234,8 @@ final class WorkflowCloseCommandTest extends TestCase
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
         $briefs->approve($session, 'lars');
+        (new ValidationEvidenceStore())->record($session, 1, 'vendor/bin/phpunit', ValidationStatus::PASSED, 0, 10, 'lars');
+        (new LearningDecisionStore())->decide($session, LearningDecision::NO_DURABLE_LEARNING, 'lars');
     }
 
     /** @param array<string, string> $data */
