@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop;
 
 use RuntimeException;
-use voku\AgentKanban\TodoBoardCli;
-use voku\AgentKanban\TodoBoardVerifier;
+use voku\AgentKanban\Cli\CliApplication;
+use voku\AgentKanban\Verification\BoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\LearningRepositoryValidator;
 use voku\AgentMap\Cli\AgentMapApplication;
@@ -31,7 +31,6 @@ final class AgentLoopVerifier
 {
     public function __construct(
         private readonly string $rootPath,
-        private readonly ?string $projectPrefix = null,
     ) {
     }
 
@@ -137,8 +136,8 @@ final class AgentLoopVerifier
     private function checkPackagesWired(): bool
     {
         $delegates = [
-            'board/verify' => TodoBoardCli::class,
-            'board/verify (verifier)' => TodoBoardVerifier::class,
+            'board' => CliApplication::class,
+            'board (verifier)' => BoardVerifier::class,
             'learn' => LearningCli::class,
             'map' => AgentMapApplication::class,
             'recall' => RecallCli::class,
@@ -206,16 +205,22 @@ final class AgentLoopVerifier
 
     private function checkBoard(): bool
     {
-        $todoFile = rtrim($this->rootPath, '/') . '/TODO.md';
-        if (!is_file($todoFile)) {
-            echo "[SKIP] board: no TODO.md at {$todoFile}\n";
+        $root = rtrim($this->rootPath, '/');
+        $metadata = $root . '/todo/board.md';
+        $config = $root . '/todo/kanban.config.json';
+        $cards = array_merge(glob($root . '/todo/cards/*.md') ?: [], glob($root . '/todo/jira/*.md') ?: []);
+        if (!is_file($metadata) && !is_file($config) && $cards === []) {
+            echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, todo/cards/, or todo/jira/\n";
 
             return true;
         }
 
         ob_start();
-        $exit = (new TodoBoardVerifier($this->rootPath, $this->projectPrefix))->run();
-        $boardOutput = (string) ob_get_clean();
+        try {
+            $exit = (new CliApplication($this->rootPath))->run(['agent-loop', 'verify']);
+        } finally {
+            $boardOutput = (string) ob_get_clean();
+        }
 
         if ($exit === 0) {
             echo "[OK] board: kanban board projection verified (delegated to voku/agent-kanban)\n";
@@ -410,7 +415,7 @@ final class AgentLoopVerifier
      * Only checkTasks() and checkSessionsAndRecall() call this: a missing
      * tasks/ or session_plan/ directory means the baseline premise this
      * command exists to confirm (a task exists, a session is tracking it)
-     * doesn't hold. checkBoard()'s TODO.md and checkLearningRoot()'s
+     * doesn't hold. checkBoard()'s optional typed board source and checkLearningRoot()'s
      * learning root stay unconditionally skippable even under --strict,
      * since both are documented, opt-in additions on top of that baseline
      * loop (see README.md), not something every repo using `agent-loop` is
@@ -462,7 +467,7 @@ final class AgentLoopVerifier
         Checks (each skips itself when its inputs are absent):
           - package delegates: board/learn/map/recall/session classes are installed
           - tasks:    every *.md file under tasks/ parses (non-empty, has a heading)
-          - board:    TODO.md kanban board projection (delegated to voku/agent-kanban)
+          - board:    typed kanban board verification (delegated to voku/agent-kanban)
           - sessions: every non-closed session under session_plan/ points to a
                       known task id and has a compiled recall briefing
           - work brief: any session-local brief has coherent task, revision,
@@ -477,8 +482,8 @@ final class AgentLoopVerifier
           --recall-root=PATH    Default: <root>/recall
           --learning-root=PATH  Default: <root>/infra/doc/agent-learning or <root>/learning-root
           --strict              Fail (instead of [SKIP]) when tasks/ or
-                                 session_plan/ is missing entirely. board
-                                 (TODO.md) and the learning root stay
+                                 session_plan/ is missing entirely. board and
+                                 the learning root stay
                                  skippable even in strict mode -- both are
                                  documented opt-in additions, not part of
                                  the baseline task/session loop.

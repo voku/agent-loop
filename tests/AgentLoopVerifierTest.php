@@ -14,7 +14,7 @@ use voku\AgentSession\WorkBriefStore;
 /**
  * Covers `--strict`: tasks/ and session_plan/ are the baseline inputs
  * `agent-loop verify` exists to confirm, so a missing directory becomes a
- * [FAIL] under --strict instead of the default [SKIP]. board (TODO.md) and
+ * [FAIL] under --strict instead of the default [SKIP]. An optional board and
  * the learning root stay skippable even in strict mode -- both are
  * documented, opt-in additions on top of that baseline loop (see
  * README.md), not something every repo using `agent-loop` is expected to
@@ -67,7 +67,7 @@ final class AgentLoopVerifierTest extends TestCase
         $result = $this->verify(['--strict']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('[SKIP] board: no TODO.md', $result['output']);
+        self::assertStringContainsString('[SKIP] board: no typed board source', $result['output']);
         self::assertStringContainsString('[SKIP] learning root:', $result['output']);
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
     }
@@ -109,6 +109,17 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[OK] sessions: 1 session(s) parsed, 1 active and consistent', $result['output']);
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
+    }
+
+    public function testVerifyRecognizesTypedBoardMetadata(): void
+    {
+        mkdir($this->root . '/todo/cards', 0o775, true);
+        file_put_contents($this->root . '/todo/board.md', "# Board Metadata\n\n- **Project prefix:** `ABC`\n- **Done count:** 0\n");
+
+        $result = $this->verify([]);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[OK] board: kanban board projection verified', $result['output']);
     }
 
     public function testVerifyFailsForApprovedBriefWithoutMatchingApprovalMetadata(): void

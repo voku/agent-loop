@@ -52,7 +52,7 @@ final class SmokeLoopTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[OK] tasks: 1 task file(s) parsed: task.001', $result['output']);
-        self::assertStringContainsString('[SKIP] board: no TODO.md', $result['output']);
+        self::assertStringContainsString('[SKIP] board: no typed board source', $result['output']);
         self::assertStringContainsString('[OK] sessions: 1 session(s) parsed, 1 active and consistent', $result['output']);
         self::assertStringContainsString('[OK] learning root: validated', $result['output']);
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);

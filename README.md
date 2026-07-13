@@ -1,93 +1,359 @@
-# Agent Loop (`voku/agent-loop`)
+# Agent Loop
 
-`agent-loop` is one boring CLI for coding-agent DX. It does not think, decide,
-or remember anything itself — it routes a stable set of commands to the
-packages that do.
+A governed coding-agent workflow for PHP repositories.
 
-## The problem it solves
+`voku/agent-loop` is the umbrella package for a local, auditable
+agentic-coding loop. It combines task selection, working sessions, recall
+compilation, gated workflow orchestration, verification, deterministic
+review, learning capture, memory promotion, and repo setup/diagnostics
+behind one CLI:
 
-A realistic coding-agent workflow needs a board to pick work from, a session
-to hold working memory while a task is in progress, a compiler that selects
-relevant context instead of dumping everything into the prompt, and a
-learning loop that turns findings into durable rules without overreacting to
-noise. Each of those is its own focused package. Wiring them by hand means a
-different `vendor/bin/...` invocation per concern, which nobody — human or
-agent — keeps straight across a long session.
+```bash
+vendor/bin/agent-loop
+```
 
-`agent-loop` exists only to remove that friction: one Composer-installed PHP CLI,
-one stable command vocabulary, zero shared state of its own.
+The goal is not to make a coding agent "remember everything".
 
-## Package map
+The goal is to make it work in a controlled loop where useful context is
+selected, work is verified, findings are reviewed, and only approved
+knowledge becomes durable guidance.
 
 ```text
-                ┌───────────────────────────────── voku/agent-loop ──────────────────────────────────┐
-  agent-loop →  │  board         →  voku/agent-kanban           (local Markdown board, Jira optional)│
-                │  verify        →  voku/agent-loop             (cross-package consistency)          │
-                │  workflow      →  voku/agent-loop             (plan/approve/start/status/close)     │
-                │  board:verify  →  voku/agent-kanban           (TodoBoardVerifier, board only)      │
-                │  session       →  voku/agent-session          (working memory per task)            │
-                │  map           →  voku/agent-map              (compact PHP repo symbol map)        │
-                │  recall        →  voku/agent-recall-compiler  (L2 meta-prompt compilation)         │
-                │  learn         →  voku/agent-learning         (findings → proposals → history)     │
-                │  review        →  voku/agent-recall-compiler  (blind-spot reports + L2 prompts)    │
-                │  memory        →  voku/agent-loop             (MEMORY.md promotion review)         │
-                └────────────────────────────────────────────────────────────────────────────────────┘
+agent-loop
+  board     → pick and inspect work
+  session   → track active task context
+  map       → navigate compact PHP symbols
+  recall    → compile relevant approved guidance
+  workflow  → plan / approve / start / status / report / close
+  verify    → check board/task/session/recall/learning consistency
+  review    → deterministic blind-spot and code-review prompts
+  learn     → capture findings, proposals and decision history
+  memory    → review what should become durable project memory
+  init      → diagnostics, install plans, repo-managed agent assets
 ```
+
+## Why this exists
+
+Coding agents are useful, but they are also very good at three bad habits:
+
+1. forgetting project-specific rules,
+2. repeating old mistakes,
+3. stuffing too much irrelevant context into the prompt.
+
+`agent-loop` gives them a process.
+
+Instead of asking an agent to "just fix this", you run a loop:
+
+```text
+pick work
+  → load only relevant guidance
+  → make the change
+  → verify
+  → review for blind spots
+  → capture what was learned
+  → decide what survives
+```
+
+That last part matters.
+
+Not every observation should become memory. Some findings are temporary,
+accidental, stale, or just wrong. A useful agent workflow needs both
+learning and forgetting.
+
+## What agent-loop is
+
+`agent-loop` is:
+
+- a unified CLI for several focused agent packages,
+- a workflow boundary around coding-agent sessions, with a gated
+  plan/approve/start/status/report/close orchestration layer on top,
+- a way to make project knowledge auditable,
+- a human-in-the-loop process for promoting durable guidance,
+- a local-first toolchain for agentic coding work, including its own
+  setup diagnostics (`init`).
+
+## What agent-loop is not
+
+`agent-loop` is not:
+
+- an autonomous coding platform,
+- an LLM provider,
+- a vector database,
+- a hidden memory system,
+- a replacement for tests or static analysis,
+- a place to dump every transcript forever.
+
+If everything becomes memory, memory becomes landfill.
+
+## Package architecture
+
+`agent-loop` delegates to specialized packages instead of rebuilding
+everything in one large tool.
+
+```text
+┌────────────────────────────────── voku/agent-loop ──────────────────────────────────┐
+│                                                                                       │
+│  agent-loop board         → voku/agent-kanban       (board + optional external sync) │
+│  agent-loop board:verify  → voku/agent-kanban            (board-source-only check)   │
+│  agent-loop session       → voku/agent-session           (per-task working memory)   │
+│  agent-loop map           → voku/agent-map               (compact PHP symbol map)    │
+│  agent-loop recall        → voku/agent-recall-compiler   (L2 meta-prompt compiling)  │
+│  agent-loop review        → voku/agent-recall-compiler   (blind-spot / code prompts) │
+│  agent-loop learn         → voku/agent-learning          (findings/proposals/history)│
+│  agent-loop workflow      → voku/agent-loop              (governed lifecycle gate)   │
+│  agent-loop verify        → voku/agent-loop              (cross-package consistency) │
+│  agent-loop memory        → voku/agent-loop              (MEMORY.md promotion review)│
+│  agent-loop init          → voku/agent-loop              (setup diagnostics/sync)    │
+│                                                                                       │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Each dependency package has one job:
+
+| Package | Responsibility |
+| --- | --- |
+| `voku/agent-kanban` | Markdown task board, verification, and optional external-issue-tracker sync |
+| `voku/agent-session` | Per-task working memory and session plans |
+| `voku/agent-map` | Compact PHP symbol maps for bounded source navigation |
+| `voku/agent-recall-compiler` | Task-specific recall/L2 meta-prompt compilation, plus blind-spot and code-review prompts |
+| `voku/agent-learning` | Findings, proposals, decision history and guidance evaluation |
+| `voku/agent-loop` | Unified CLI, gated workflow orchestration, cross-package verification, memory promotion review, and setup diagnostics |
 
 | Namespace | Status | Purpose | Owning package |
 | --- | --- | --- | --- |
-| `board` | Stable | Pick work from local Markdown cards (`todo/cards/*.md`); Jira sync is optional and host-wired | `voku/agent-kanban` |
+| `board` | Stable | Pick work from local Markdown cards; external sync is optional and host-provided | `voku/agent-kanban` |
 | `session` | Stable | Working memory for an in-progress task | `voku/agent-session` |
 | `map` | Stable | Build and query a compact PHP symbol map before reading broad files | `voku/agent-map` |
-| `recall` | Stable | Compile task-scoped context (L2 meta-prompt) as review artifacts — not auto-injected into any agent | `voku/agent-recall-compiler` |
-| `learn` | Stable | Findings → proposals → reviewed decision history | `voku/agent-learning` |
-| `verify` | Stable | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
-| `workflow` | Stable | Plan, approve, start, inspect, and close a governed task workflow | `voku/agent-loop` |
+| `recall` | Stable | Compile task-scoped context as review artifacts | `voku/agent-recall-compiler` |
+| `learn` | Stable | Findings, proposals, and reviewed decision history | `voku/agent-learning` |
+| `verify` | Stable | Cross-package consistency check | `voku/agent-loop` |
+| `workflow` | Stable | Plan, approve, start, inspect, report, and close governed work | `voku/agent-loop` |
 | `board:verify` | Stable | Narrow check of the kanban board source only | `voku/agent-kanban` |
 | `memory` | Stable | `MEMORY.md` promotion review | `voku/agent-loop` |
 | `review` | Stable | Deterministic blind-spot reports and L2 review prompts | `voku/agent-recall-compiler` |
+| `init` | Stable | Setup diagnostics and repo-managed agent assets | `voku/agent-loop` |
 
-The table is the current executable surface. No experimental namespace is
-advertised. `init scaffold` is a **planned/reserved command**: it deliberately
-returns a clear non-zero `not implemented yet` result and is not a stable
-workflow step.
+The table is the current executable surface. `init scaffold` is a **planned/reserved command**: it deliberately returns a clear non-zero `not implemented yet` result and is not a stable workflow step.
 
-### Board: local Markdown first, Jira sync optional
+## The loop
 
-`board` reads work items from local Markdown card files under
-`todo/cards/*.md` (one file per card), with `todo/board.md` holding board
-metadata (project prefix, done count). This works fully standalone — no
-Jira host, credentials, or network access required. `todo/cards/*.md` is
-the preferred local card path. `todo/jira/` and root `TODO.md` remain
-supported fallback inputs: `voku/agent-kanban` checks `todo/cards/` first,
-falls back to `todo/jira/`, and then falls back further to reading a
-single `TODO.md` at the project root (`voku/agent-kanban`'s own fallback,
-not something `agent-loop` adds).
+A typical workflow looks like this. The gated `workflow` commands are the
+preferred entry and exit points; the lower-level package commands they wrap
+stay available directly when you need finer control.
 
-Only `board jira-sync` talks to Jira, and only once the host application
-constructs the `Dispatcher` with its own `JiraIssueProvider` (see
-"Programmatic use" below) — the bare `bin/agent-loop` wires none. Every
-other `board` command (`summary`, `render`, `lane`, `next-pull`,
-`ticket`, `context`, `brief`) works from the local Markdown cards alone.
-
-
-## `agent-loop workflow`: plan, approve, start, inspect, and close a governed task
+Pick the work:
 
 ```bash
-vendor/bin/agent-loop workflow plan <task-id> \
-  --by <actor> \
+vendor/bin/agent-loop board summary
+vendor/bin/agent-loop board render --lanes=READY,BACKLOG --limit=10
+vendor/bin/agent-loop board card show ABC-123
+```
+
+Plan and approve the governed task context. Planning wraps `session start`
+and `recall compile`, then records a candidate work brief:
+
+```bash
+vendor/bin/agent-loop workflow plan ABC-123 \
+  --by lars \
   --learning-root infra/doc/agent-learning \
   --file src/Foo.php \
   --goal "Implement the approved task." \
   --validation "vendor/bin/phpunit tests/FooTest.php"
 
-vendor/bin/agent-loop workflow approve <task-id> --by <actor>
+vendor/bin/agent-loop workflow approve ABC-123 --by lars
+```
 
-vendor/bin/agent-loop workflow start <task-id> \
-  --by <actor> \
-  --learning-root infra/doc/agent-learning \
+Do the actual coding work with your preferred agent, feeding it the
+compiled recall artifacts (`system.md`, `validation-plan.md`) yourself —
+`agent-loop` writes them for review or harness ingestion, it does not
+inject them into a running agent.
+
+Run the deterministic blind-spot review before closing:
+
+```bash
+vendor/bin/agent-loop review blindspots ABC-123
+```
+
+Verify cross-package consistency, then close the task — `workflow close`
+requires an approved current work brief, recall metadata, a blind-spot review
+report, and a passing `agent-loop verify` before it will let a task go to
+`done`:
+
+```bash
+vendor/bin/agent-loop verify
+
+vendor/bin/agent-loop workflow close ABC-123 --status done
+```
+
+Capture what the session discovered:
+
+```bash
+vendor/bin/agent-loop learn validate --root infra/doc/agent-learning
+vendor/bin/agent-loop learn guidance-evaluate --root infra/doc/agent-learning
+```
+
+Finally, review durable memory candidates:
+
+```bash
+vendor/bin/agent-loop memory review --file MEMORY.md
+```
+
+## Human-in-the-loop by design
+
+`agent-loop` deliberately keeps humans in the loop.
+
+A coding agent may collect findings, suggest rules, and propose new
+guidance. But it should not silently rewrite the project's long-term
+memory, and it should not close its own task as done without evidence.
+
+Durable guidance should be reviewed because project rules have
+consequences:
+
+```text
+Finding:
+  "This failed because the service locator was used inside a validator."
+
+Proposal:
+  "Validators must receive dependencies explicitly."
+
+Possible durable constraint:
+  "Do not call ServiceLocator::get() from Validator classes."
+```
+
+That final step needs a human decision.
+
+The agent can notice the pattern. `workflow close` can require the
+evidence exists. The project owner decides whether it becomes a rule.
+
+## Learning vs constraints
+
+There are different kinds of knowledge:
+
+| Type | Meaning |
+| --- | --- |
+| Finding | Something observed during a session |
+| Proposal | A suggested rule, skill, or memory update |
+| Learning note | Useful context, but not necessarily a hard rule |
+| Skill | Repeatable procedural guidance |
+| Constraint | A hard project rule the agent must follow |
+| Rejected guidance | Something considered and intentionally not adopted |
+
+The most important output is often not "more memory".
+
+It is a sharper constraint:
+
+```text
+Do not use direct Smarty rendering in new module code.
+Always run the focused PHPUnit test after changing EvidenceValidator.
+Do not promote ctx search results unless the referenced event was inspected.
+```
+
+Hard constraints prevent repeated mistakes.
+
+Soft notes merely hope the agent behaves. Hope is not a strategy, despite
+its popularity.
+
+## Forgetting is part of the system
+
+A good agent workflow needs explicit rejection.
+
+Some observations should not survive:
+
+- one-off workarounds,
+- stale debugging notes,
+- accidental implementation details,
+- failed ideas,
+- project-specific exceptions that should not become general rules.
+
+`agent-loop` treats this as part of governance.
+
+Forgetting bad or irrelevant context is often more valuable than learning
+another vague rule.
+
+## CLI overview
+
+```bash
+vendor/bin/agent-loop help
+```
+
+Available namespaces:
+
+```text
+board        Local Markdown task board (voku/agent-kanban)
+board:verify Board-source-only check (voku/agent-kanban)
+session      Per-task working memory (voku/agent-session)
+map          Compact PHP symbol map (voku/agent-map)
+recall       Recall / L2 meta-prompt compilation (voku/agent-recall-compiler)
+review       Deterministic blind-spot and code-review L2 prompts (voku/agent-recall-compiler)
+learn        Findings, proposals and learning history (voku/agent-learning)
+workflow     Gated plan/approve/start/status/report/close orchestration (voku/agent-loop)
+verify       Cross-package consistency check (voku/agent-loop)
+memory       MEMORY.md promotion review (voku/agent-loop)
+init         Setup diagnostics, install plans, agent-asset syncing (voku/agent-loop)
+```
+
+Run `agent-loop <namespace> help` (or `--help`) for a namespace's own
+command list.
+
+### Board
+
+```bash
+vendor/bin/agent-loop board summary
+vendor/bin/agent-loop board render --lanes=READY,BACKLOG --limit=10
+vendor/bin/agent-loop board card show ABC-123
+```
+
+Reads work items from local Markdown card files under `todo/cards/*.md`
+(one file per card), with `todo/board.md` holding board metadata (project
+prefix, done count). This works fully standalone — no tracker host,
+credentials, or network access required. `todo/jira/` and a root
+`TODO.md` remains an optional rendered board projection when present.
+
+Only `board external-sync` talks to an external issue tracker, and only
+when the invocation passes `--provider-class=<FQCN>` pointing at your own
+`voku\AgentKanban\ExternalIssue\ExternalIssueProvider` implementation (see
+"Programmatic usage" below) — nothing is wired in by default. Every other
+`board` command works from the local Markdown cards alone.
+
+### Map
+
+```bash
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map query EvidenceValidator
+vendor/bin/agent-loop map related EvidenceValidator
+```
+
+Builds a compact generated symbol index under `.agent-map/` by default.
+Use it to choose the smallest useful source read; it is optional and never
+becomes another durable memory store.
+
+### Session
+
+```bash
+vendor/bin/agent-loop session help
+```
+
+Tracks per-task working memory and session plans. Use this for active
+work state, not durable project memory.
+
+### Recall
+
+```bash
+vendor/bin/agent-loop recall compile \
+  --root infra/doc/agent-learning \
+  --task ABC-123 \
   --file src/Foo.php
+```
 
+Compiles a scoped briefing for the current task. The recall compiler
+should select relevant approved guidance, not dump every note the
+project ever had.
+
+### Workflow
+
+```bash
+vendor/bin/agent-loop workflow plan <task-id> --by <actor> --learning-root infra/doc/agent-learning --file src/Foo.php --goal "Implement the approved task." --validation "vendor/bin/phpunit tests/FooTest.php"
+vendor/bin/agent-loop workflow approve <task-id> --by <actor>
 vendor/bin/agent-loop workflow status <task-id>
 
 vendor/bin/agent-loop workflow report <task-id> \
@@ -130,86 +396,66 @@ vendor/bin/agent-loop workflow close <task-id> \
   --accept-risk "Manual review by Lars for urgent legacy hotfix."
 ```
 
-Accepted risk writes `.agent-loop/risks/<task-id>.accepted-risk.md`.
+### Verify
 
-## `agent-loop init`: diagnostics, install plans, and repo-managed agent assets
+```bash
+vendor/bin/agent-loop verify
+```
+
+The one command that looks across board, session, recall, and learning
+state at once. Checks each print `[OK]`, `[SKIP]`, or `[FAIL]` and skip
+themselves when their inputs are absent, so the command stays meaningful
+for a repo that only wires up part of the stack. Pass `--strict` to fail
+instead of skip when the `tasks/` or `session_plan/` baseline is missing
+entirely.
+
+### Review
+
+```bash
+vendor/bin/agent-loop review blindspots <task-id>
+vendor/bin/agent-loop review code <task-id>
+```
+
+Writes deterministic Markdown/JSON blind-spot reports plus an L2 review
+prompt under `.agent-recall/reviews/`, using task, session, and recall
+artifacts as prompt context. `review code` generates a focused L2
+code-review prompt (purpose mismatch, contracts, invariants, edge cases,
+security, test gaps). Neither command approves code or calls an LLM
+itself — the generated prompt is for a human or harness to pass to a
+receiving LLM.
+
+### Learn
+
+```bash
+vendor/bin/agent-loop learn validate --root infra/doc/agent-learning
+vendor/bin/agent-loop learn guidance-evaluate --root infra/doc/agent-learning
+```
+
+Captures and evaluates findings, proposals, and learning history.
+
+### Memory
+
+```bash
+vendor/bin/agent-loop memory review --file MEMORY.md
+```
+
+Reports which `MEMORY.md` rows look ready for promotion; it never edits
+`MEMORY.md` itself. Promotion stays a manual edit by whoever owns that
+file.
+
+### Init
 
 ```bash
 vendor/bin/agent-loop init doctor
 vendor/bin/agent-loop init status
-vendor/bin/agent-loop init validate --kind=skills
-vendor/bin/agent-loop init validate --kind=subagents
-vendor/bin/agent-loop init validate --kind=hooks --agent=codex
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
-vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
-vendor/bin/agent-loop init install-plan --profile=windows --agent=codex
 vendor/bin/agent-loop init sync-skills --agent=codex
-vendor/bin/agent-loop init sync-subagents --agent=copilot
-vendor/bin/agent-loop init sync-hooks --agent=codex
 ```
 
-`init doctor` diagnoses local setup and migration-compatible Makefile targets without installing tools or writing files.
-
-`init status` is read-only and never writes files, runs shell commands, or calls an LLM. It shows the resolved init source paths and counts, the known agent aliases, and whether a `.agent-loop-manifest.json` exists for each client target root (`codex`/`claude`/`copilot`/`antigravity` skills, `copilot`/`antigravity` subagents, and `codex` hooks). When a manifest exists, it also reports any managed entries that are stale relative to the current sources. Run it before `sync-skills`, `sync-subagents`, or `sync-hooks` to see what those commands would find without changing anything.
-
-`init validate --kind=skills`, `--kind=subagents`, and `--kind=hooks` validate repo-managed agent assets from the resolved source roots.
-
-By default, skills read from:
-
-```text
-docs/agents/skills/*/SKILL.md
-```
-
-This repository ships portable starter guidance under that default root:
-
-- `docs/agents/skills/agent-guidance-maintenance/`
-- `docs/agents/skills/agent-learning/`
-- `docs/agents/skills/agent-loop-workflow/`
-- `docs/agents/skills/agent-loop-task-start/`
-- `docs/agents/skills/agent-loop-l2-context/`
-- `docs/agents/skills/agent-loop-task-progress/`
-- `docs/agents/skills/agent-loop-review-close/`
-- `docs/agents/skills/agent-loop-learning-boundary/`
-
-The source paths can be overridden:
-
-```bash
-vendor/bin/agent-loop init validate --kind=skills --skills-root=custom/skills
-vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json
-vendor/bin/agent-loop init sync-subagents --agent=copilot --config=.agent-loop/init.json
-```
-
-`init install-plan --profile=wsl2 --agent=codex`, `--profile=linux`, and `--profile=windows` print reviewed setup plans for ripgrep (`rg`), RTK, and Caveman. They do not execute commands.
-
-`init sync-skills`, `init sync-subagents`, and `init sync-hooks` copy canonical repo-managed assets into client target directories, keep a local manifest of managed entries, remove only stale managed entries, and refuse to overwrite unmanaged targets unless `--force` is given.
-
-RTK reduces noise at the outer shell boundary, but host repositories often
-wrap the real work one layer deeper through `make`, `docker compose exec`,
-or wrapper scripts. Host repos adopting `agent-loop init` should also audit
-their `AGENTS.md`, `README.md`, and agent-facing Makefile targets for
-missing RTK guidance and low-noise `ai-*` targets.
-
-ripgrep gives agents the fast search primitive expected by most coding
-workflows. Host repos should prompt agents to install it through
-`init install-plan` and verify it with `rg --version` before documenting
-`rg`-first search guidance.
-
-Google-side agent tooling is moving quickly. Prefer `antigravity` as the canonical Google agent target; `gemini` may be treated as a legacy alias where supported.
-
-Still reserved for later:
-
-```bash
-vendor/bin/agent-loop init scaffold --profile=wsl2 --agent=codex --dry-run
-```
-
-`init` does not affect workflow close, does not call an LLM, and does not install remote tools.
-
-## Requirements
-
-| Requirement | Version |
-| --- | --- |
-| PHP | 8.3 or newer |
-| Composer | required |
+Diagnoses local setup, prints reviewed install plans (ripgrep, RTK,
+Caveman), and syncs repo-managed skills/subagents/hooks into client
+target directories. It does not affect workflow close, does not call an
+LLM, and does not install remote tools.
 
 ## Installation
 
@@ -217,11 +463,16 @@ vendor/bin/agent-loop init scaffold --profile=wsl2 --agent=codex --dry-run
 composer require voku/agent-loop
 ```
 
-This installs `voku/agent-kanban`, `voku/agent-session`, `voku/agent-map`,
-`voku/agent-recall-compiler`, and `voku/agent-learning` as dependencies and
-exposes `vendor/bin/agent-loop`.
+| Requirement | Version |
+| --- | --- |
+| PHP | 8.3 or newer |
+| Composer | required |
 
-## Basic workflow
+This installs `voku/agent-kanban`, `voku/agent-session`, `voku/agent-map`,
+`voku/agent-recall-compiler`, and `voku/agent-learning` as dependencies
+and exposes `vendor/bin/agent-loop`.
+
+## Programmatic usage
 
 Start with the smallest useful loop — one task, one session, one compiled
 briefing. The high-level workflow command is preferred for creating and
@@ -309,15 +560,12 @@ agent-loop board --help
 agent-loop map --help
 
 # board: reads cards from todo/cards/<PREFIX>-N.md (one file per ticket;
-# optional todo/board.md sets the project prefix and done count). Works
-# standalone, no Jira connection needed. todo/jira/ also still works as
-# a fallback for boards that already use it. Falls back further to a
-# single TODO.md fallback only if neither card directory exists. Only
-# `board jira-sync` needs a host-wired JiraIssueProvider.
+# optional todo/board.md sets board metadata). Works standalone; only
+# external-sync needs a caller-provided ExternalIssueProvider class.
 agent-loop board summary
 agent-loop board render --lanes=READY,BACKLOG --limit=10
 agent-loop board next-pull
-agent-loop board ticket ABC-123
+agent-loop board card show ABC-123
 
 # session: working memory for one task
 agent-loop session start --task ABC-123 [--by ACTOR] [--base-commit SHA] [--slug S]
@@ -391,10 +639,10 @@ vendor/bin/agent-loop map build --exclude='~Generated.*\.php$~'
 Use `map` output to choose the smallest useful next read. Do not dump
 `.agent-map/php-symbols.json` into prompts.
 
-`agent-loop board jira-sync` needs a `JiraIssueProvider`; it is the only
-`board` command that does. The bare binary does not wire one (Jira clients
-are host-specific) — see "Programmatic use" below. Every other `board`
-command works against the local Markdown cards without it.
+`agent-loop board external-sync` is the only `board` command that needs a
+caller-provided `ExternalIssueProvider` implementation. The bare binary
+does not ship one because tracker clients are host-specific; every other
+`board` command works against local Markdown cards without it.
 
 ## `agent-loop review blindspots`: deterministic review boundary
 
@@ -451,7 +699,7 @@ only wires up part of the stack):
 
 - **package delegates** — board/learn/map/recall/session classes are installed and resolve
 - **tasks** — every `*.md` file under `tasks/` parses (non-empty, has a heading)
-- **board** — `TODO.md` kanban board projection (delegated to `voku/agent-kanban`)
+- **board** — typed kanban board verification (delegated to `voku/agent-kanban`)
 - **sessions** — every non-closed session under `session_plan/` points to a known task id
 - **recall** — every active session has a compiled briefing, and every
   `recall/<task>/meta.json` output hash still matches the file on disk
@@ -475,12 +723,10 @@ agent-loop verify --strict
 ```
 
 `tasks/` and `session_plan/` are the baseline this command exists to
-confirm — a task to work on, and a session tracking it. `board` (`TODO.md`)
-and the learning root stay skippable even under `--strict`: both are
-documented, opt-in additions on top of that baseline (see "Board: local
-Markdown first, Jira sync optional" above, and the learning loop in "Basic
-workflow"), not something every repo using `agent-loop` is expected to have
-set up. [`examples/basic-loop`](examples/basic-loop) fails `--strict` before
+confirm — a task to work on, and a session tracking it. The board and learning
+root stay skippable even under `--strict`: both are documented, opt-in
+additions on top of that baseline, not something every repo using
+`agent-loop` is expected to have set up. [`examples/basic-loop`](examples/basic-loop) fails `--strict` before
 step 2 (`session_plan/` doesn't exist yet), then passes it from step 5
 onward — the same point where its own `verify` (without `--strict`) already
 passes, since by then a session and its recall briefing both exist.
@@ -539,45 +785,206 @@ deliberate, separately-reviewed change to the owning package
 
 ## Programmatic use (host wiring)
 
-Hosts that already have a Jira client wire it once and reuse the whole CLI:
+Hosts that need custom integrations, for example Jira, implement their own
+`ExternalIssueProvider` and pass its class to `board external-sync`:
 
 ```php
-use voku\AgentKanban\JiraIssueProvider;
-use voku\AgentLoop\Dispatcher;
+<?php
 
-$provider = new class implements JiraIssueProvider {
-    public function projectKey(): string { /* ... */ }
-    public function searchIssues(string $jql): array { /* ... */ }
-};
+declare(strict_types=1);
 
-exit((new Dispatcher($rootPath, $provider))->run($argv));
+namespace YourApp;
+
+use voku\AgentKanban\ExternalIssue\ExternalIssueProvider;
+use voku\AgentKanban\ExternalIssue\ExternalIssueRecord;
+
+final class JiraExternalIssueProvider implements ExternalIssueProvider
+{
+    public function systemName(): string
+    {
+        return 'jira';
+    }
+
+    /** @return list<ExternalIssueRecord> */
+    public function fetchActiveIssues(string $query): array
+    {
+        // $query is whatever you pass via --query (e.g. a JQL string);
+        // connect to your own Jira client here, never to agent-kanban.
+        return [];
+    }
+}
 ```
 
-That single wrapper replaces per-library glue scripts: every
-`board`/`verify`/`session`/`recall`/`learn`/`memory` command flows through it.
+```bash
+vendor/bin/agent-loop board external-sync \
+  --provider-class="YourApp\\JiraExternalIssueProvider" \
+  --query="project = ABC AND statusCategory != Done"
+```
 
-## Auto-running it on a schedule
+`voku\AgentKanban\Cli\CliApplication` instantiates `--provider-class` with
+a no-argument constructor, so your adapter should read its own
+configuration (base URL, token, project key) from environment variables
+or your own config file inside its own constructor.
 
-`voku/agent-loop` is the *loop*; [`voku/housekeeping`](https://github.com/voku/housekeeping)
-is the *runner*. Install Housekeeping in its own checkout, point it at your
-target repository, and let it invoke `agent-loop` commands (board refinement,
-verification, recall, …) from cron in safe patch mode.
+The default binary does not ship a Jira client because Jira clients are
+host-specific.
+
+That is intentional. The package should not pretend your company's Jira
+setup is universal. Software has enough lies already.
+
+## Scheduled execution
+
+`agent-loop` is the workflow CLI.
+
+If you want scheduled maintenance, use a runner such as
+[`voku/housekeeping`](https://github.com/voku/housekeeping) to call
+selected `agent-loop` commands from cron or another scheduler.
+
+Example scheduled jobs could include:
+
+```text
+board refinement
+board verification
+recall validation
+memory review
+learning consistency checks
+```
+
+Keep scheduled jobs conservative.
+
+Agents may suggest. Humans approve.
+
+## Suggested repository layout
+
+A repository using `agent-loop` may keep agent workflow files under
+`infra/doc/agent-learning`:
+
+```text
+infra/
+  doc/
+    agent-learning/
+      findings/
+      proposals/
+      decisions/
+      skills/
+      constraints/
+      rejected/
+```
+
+Example workflow files:
+
+```text
+MEMORY.md
+AGENTS.md
+session_plan/
+```
+
+The exact structure depends on the consuming packages and project
+conventions.
+
+## Token hygiene
+
+`agent-loop` is part of a broader token-hygiene strategy.
+
+It reduces prompt waste by making context selective:
+
+```text
+session
+  current task state
+
+recall
+  relevant approved guidance
+
+learn
+  structured findings and proposals
+
+memory
+  reviewed durable knowledge
+```
+
+The point is not to compress everything.
+
+The point is to avoid loading irrelevant things in the first place.
+
+## Example: from finding to constraint
+
+A session discovers this:
+
+```text
+Finding:
+  A previous agent changed validation logic but did not run the focused validator test.
+```
+
+A proposal is created:
+
+```text
+Proposal:
+  When changing EvidenceValidator, always run EvidenceValidatorTest before finalizing.
+```
+
+A human reviews it.
+
+If accepted, it may become durable guidance:
+
+```text
+Constraint:
+  Changes to EvidenceValidator require running tests/EvidenceValidatorTest.php.
+```
+
+If rejected, it is recorded as rejected guidance instead of being
+silently forgotten or accidentally rediscovered next week like a cursed
+treasure.
 
 ## Development
 
+Install dependencies:
+
 ```bash
 composer install
-composer ci    # composer validate --strict + phpunit + phpstan (level 8)
 ```
 
-`tests/fixtures/basic-loop` is a minimal end-to-end fixture
-(`SmokeLoopTest`) proving the orchestration shape: a task file exists, a
-session starts against it, recall compiles a briefing, learn validates the
-root, and `agent-loop verify` reports no drift — then fails on purpose once a
-briefing goes missing or gets edited out of band. [`examples/basic-loop`](examples/basic-loop)
-walks through the same shape by hand, with real command output, for reading
-or running yourself.
+Run the test suite:
+
+```bash
+composer test
+```
+
+Run PHPStan:
+
+```bash
+composer phpstan
+```
+
+Run all CI checks:
+
+```bash
+composer ci
+```
+
+`composer ci` runs:
+
+```bash
+composer validate --strict
+phpunit
+phpstan
+```
+
+## Design principles
+
+`agent-loop` follows a few boring but useful rules:
+
+- keep packages focused,
+- keep generated context reviewable,
+- prefer explicit files over hidden state,
+- treat durable memory as a reviewed artifact,
+- reject bad learnings instead of accumulating noise,
+- keep humans in control of project rules,
+- make agent work verifiable.
+
+Boring is good here.
+
+Boring tools fail less dramatically.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

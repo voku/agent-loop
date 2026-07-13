@@ -27,6 +27,7 @@ final class CliSurfaceContractTest extends TestCase
         'board:verify',
         'memory',
         'review',
+        'init',
     ];
 
     public function testReadmeStableNamespacesMatchExecutableHelp(): void
@@ -64,7 +65,7 @@ final class CliSurfaceContractTest extends TestCase
         $start = strpos($readme, '| Namespace | Status | Purpose | Owning package |');
         self::assertNotFalse($start);
 
-        $end = strpos($readme, "\n### Board:", $start);
+        $end = strpos($readme, "\n## The loop", $start);
         self::assertNotFalse($end);
 
         return substr($readme, $start, $end - $start);
