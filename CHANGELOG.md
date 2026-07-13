@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Require the released `voku/agent-learning` 0.8 and
+  `voku/agent-recall-compiler` 0.6 lines. The package no longer opts into
+  Composer's global development stability.
+
 ## 0.2.8 - 2026-07-13
 
 - Migrated onto `voku/agent-kanban` 0.2.0's typed engine: `Dispatcher`'s `board` and `board:verify`
