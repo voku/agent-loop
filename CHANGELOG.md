@@ -2,13 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.10 - 2026-07-13
+
+- Require `voku/agent-session` 0.2 for revision-bound validation evidence and
+  explicit learning decisions.
+
 ## 0.2.9 - 2026-07-13
 
 - Require the released `voku/agent-learning` 0.8 and
   `voku/agent-recall-compiler` 0.6 lines. The package no longer opts into
   Composer's global development stability.
-- Require `voku/agent-session` 0.2 for revision-bound validation evidence and
-  explicit learning decisions.
 - Added `workflow context`, a read-only budgeted view of the work brief,
   session state, recall selections, validation, and optional agent-map symbols.
 - `workflow report` now distinguishes passed, failed, stale, and missing
