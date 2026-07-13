@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.9 - 2026-07-13
 
 - Require the released `voku/agent-learning` 0.8 and
   `voku/agent-recall-compiler` 0.6 lines. The package no longer opts into
