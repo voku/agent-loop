@@ -20,13 +20,16 @@ vendor/bin/agent-loop recall compile \
   --file <path-to-file-2>
 ```
 
-Then inspect the state and run review:
+Then inspect the bounded working view:
 
 ```bash
+vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 vendor/bin/agent-loop workflow status <task-id>
-vendor/bin/agent-loop review blindspots <task-id>
-vendor/bin/agent-loop review code <task-id>
 ```
+
+`workflow context` reads existing brief, session, recall, validation, and map
+artifacts. It is read-only: it never recompiles recall, refreshes a map, or
+embeds source bodies.
 
 ## What Recall Compile Does
 
@@ -86,6 +89,21 @@ You must explicitly read or pass `system.md` and `validation-plan.md` into
 your active workflow. They are review inputs or harness inputs, not
 automatically executed agent actions.
 
+## Compact Map Locations
+
+When compact source locations would help the briefing, build the map explicitly
+before rendering context:
+
+```bash
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map stale
+vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
+```
+
+The default `.agent-map/php-symbols.json` is generated navigation state and
+must be ignored by the host repository. The context command reports a missing,
+invalid, or budget-omitted map section instead of silently rebuilding it.
+
 ## When To Recompile
 
 Recompile when important files changed since the last compile. Stale context
@@ -120,7 +138,8 @@ vendor/bin/agent-loop recall log-outcome \
 
 `recall-log.draft.json` is one of the files `recall compile` writes under
 `recall/<task-id>/`. Pass the path matching the task whose outcome you
-are logging. Do not log outcomes before the work is done.
+are logging. Do not log outcomes before the work is done. For a governed
+`done` close, every selected guidance item needs an explicit truthful outcome.
 
 ## Validation
 

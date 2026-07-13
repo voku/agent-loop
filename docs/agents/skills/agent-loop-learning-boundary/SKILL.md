@@ -5,7 +5,9 @@ description: Handle reusable knowledge that surfaces during a task — capture f
 
 # Agent Loop Learning Boundary
 
-Use this skill after closing a task when the work surfaced something reusable:
+Use this skill after implementation and before a governed close when the work
+surfaced something reusable, or after close when a reviewed proposal needs
+follow-up:
 a pattern that should not be rediscovered, a constraint that blocked progress
 and will block again, or a rule that should survive past this session.
 
@@ -18,7 +20,8 @@ checked against current repository evidence.
 
 ## Fast Path
 
-After closing a task that surfaced reusable knowledge:
+Before `workflow close --status done`, log only truthful recall outcomes and
+record an explicit session learning decision:
 
 Log the outcome against the learning root:
 
@@ -28,10 +31,16 @@ vendor/bin/agent-loop recall log-outcome \
   --draft recall/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
+
+vendor/bin/agent-loop session learning decide <task-id> \
+  --status findings_recorded|no_durable_learning|follow_up_required \
+  --by <actor> \
+  --reason "<bounded reason>"
 ```
 
-`recall-log.draft.json` is produced by `recall compile` (or `workflow start`)
-under `recall/<task-id>/`. Use the same `<task-id>` you passed to `workflow start`.
+`recall-log.draft.json` is produced by `recall compile` (or `workflow plan`)
+under `recall/<task-id>/`. Use the same `<task-id>` you planned. These commands
+record task outcomes; neither approves durable guidance.
 
 Validate the learning root to confirm no drift:
 
@@ -66,7 +75,8 @@ Each arrow is a gate:
 - Nothing in the `agent-loop` CLI auto-promotes findings or proposals to
   durable guidance.
 
-Closing a task with `workflow close --status done` does not promote anything.
+Closing a task with `workflow close --status done` requires a learning decision
+but does not promote anything.
 Running `review blindspots` does not promote anything. Recording session
 checkpoints does not promote anything.
 
@@ -85,9 +95,9 @@ vendor/bin/agent-loop recall log-outcome \
 vendor/bin/agent-loop learn validate --root <learning-root>
 ```
 
-`recall-log.draft.json` is the file `recall compile` (or `workflow start`) writes
-under `recall/<task-id>/`. If you ran `workflow start <task-id>`, the draft
-is already at that path.
+`recall-log.draft.json` is the file `recall compile` (or `workflow plan`) writes
+under `recall/<task-id>/`. If you ran `workflow plan <task-id>`, the draft is
+already at that path.
 
 If the host repo uses the proposal pipeline, validate the candidate:
 
@@ -193,7 +203,7 @@ change durable guidance.
 
 This skill owns:
 
-- the step after `agent-loop-review-close` when reusable knowledge surfaces
+- the outcome and learning-decision step before `agent-loop-review-close` when reusable knowledge surfaces
 - the rule that findings are not durable memory
 - the `recall log-outcome` → `learn validate` → optional proposal pipeline
 - the human promotion gate for `MEMORY.md`

@@ -10,16 +10,20 @@ be reviewed, verified, and closed in a governed way.
 
 ## Fast Path
 
-Run blind-spot review, then verify, then inspect status, then close:
+Record execution evidence, review, outcomes, and the learning decision before
+verify/report/close:
 
 ```bash
+vendor/bin/agent-loop session validation record <task-id> --brief-revision <n> --command "<brief command>" --status passed --exit-code 0 --by <actor>
 vendor/bin/agent-loop review blindspots <task-id>
+vendor/bin/agent-loop recall log-outcome --root <learning-root> --draft recall/<task-id>/recall-log.draft.json --by <actor> --commit <sha>
+vendor/bin/agent-loop session learning decide <task-id> --status no_durable_learning --by <actor>
 vendor/bin/agent-loop verify
-vendor/bin/agent-loop workflow status <task-id>
+vendor/bin/agent-loop workflow report <task-id> --changed-file <path>
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-All four steps are required. Do not skip steps or reorder them.
+Do not skip required evidence or reorder the close gates.
 
 ## Blind-Spot Review
 
@@ -61,9 +65,15 @@ of the stack.
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-`workflow close` is gated: it requires recall metadata, a blind-spot review
-report, and a passing `verify` before accepting `--status done`. If the gate
-is not satisfied, the command exits with an error describing what is missing.
+`workflow close` is gated: it requires an approved current work brief, passing
+evidence for every required command in that exact brief revision, recall
+metadata and explicit outcomes for selected guidance, a blind-spot review,
+an explicit learning decision, and a passing `verify` before accepting
+`--status done`. If the gate is not satisfied, the command exits with an error
+describing what is missing.
+
+`workflow report` is the read-only handoff view. Pass each observed changed
+path with `--changed-file`; it deliberately does not run Git or infer scope.
 
 ## Accepted Risk
 
@@ -85,8 +95,8 @@ If verification fails and the root cause is not understood, fix it first.
 ## When Verification Fails
 
 1. Read the `[FAIL]` output to understand what is missing.
-2. Fix the underlying issue (recompile recall, run the missing review step,
-   resolve the session state).
+2. Fix the underlying issue (re-plan/approve scope, run the missing command,
+   record exact validation evidence, log outcomes, or resolve session state).
 3. Record a checkpoint explaining the resolution:
    ```bash
    vendor/bin/agent-loop session checkpoint <task-id> --title "Verify fix" --body "..."
@@ -104,8 +114,11 @@ become durable guidance. See `docs/workflow/learning-boundary.md`.
 ## Validation
 
 - Blind-spot review report exists under `.agent-recall/reviews/`
+- required validation evidence is passed and matches the current work-brief revision
+- selected guidance has explicit, truthful recall outcomes
+- an explicit session learning decision exists
 - `vendor/bin/agent-loop verify` passes (or accepted risk is explicit and named)
-- `vendor/bin/agent-loop workflow status <task-id>` shows a closeable state
+- `vendor/bin/agent-loop workflow report <task-id>` shows no unaccepted scope or evidence gap
 - `vendor/bin/agent-loop workflow close <task-id> --status done` succeeds
 
 ## Skill Boundary

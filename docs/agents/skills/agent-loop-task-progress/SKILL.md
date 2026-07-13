@@ -120,6 +120,23 @@ tests ok
 
 Be specific enough that the next agent knows what was actually run.
 
+## Structured Completion Evidence
+
+A validation checkpoint explains progress but does not satisfy a governed
+`done` close. After each required command in the current work-brief revision
+has actually run, record the result separately:
+
+```bash
+vendor/bin/agent-loop session validation record <task-id> \
+  --brief-revision <current-revision> \
+  --command "vendor/bin/phpunit tests/FocusedTest.php" \
+  --status passed --exit-code 0 --by <actor>
+```
+
+Use the exact command string from the brief. Add `--duration-ms` only when it
+was measured. A re-plan creates a new revision, so prior evidence remains
+auditable but cannot satisfy the revised validation requirement.
+
 ## Noise Control
 
 Keep session memory compact. If command output is large, summarize the finding
@@ -158,6 +175,16 @@ vendor/bin/agent-loop review blindspots <task-id>
 vendor/bin/agent-loop verify
 vendor/bin/agent-loop workflow status <task-id>
 ```
+
+Record the explicit session learning decision before the governed close:
+
+```bash
+vendor/bin/agent-loop session learning decide <task-id> \
+  --status no_durable_learning --by <actor> \
+  --reason "No reusable finding from this bounded task."
+```
+
+This records an outcome; it does not create or approve durable guidance.
 
 ## Skill Boundary
 

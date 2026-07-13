@@ -14,12 +14,14 @@ task safely, or updating the repo-managed agent guidance around that flow.
 For the normal governed loop:
 
 1. For non-trivial or repeated work, search prior local agent history with `ctx` if it is installed.
-2. Start with `agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path>`.
-3. Do the implementation work and record only the decisions or checkpoints that matter.
-4. Run `agent-loop review blindspots <task-id>` before closing.
-5. Run `agent-loop verify`.
-6. Inspect with `agent-loop workflow status <task-id>`.
-7. Close with `agent-loop workflow close <task-id> --status done`.
+2. Use `agent-loop workflow plan` with an explicit goal, scope, non-goals, and validation commands.
+3. Present the candidate brief to a named human, then run `agent-loop workflow approve`.
+4. Build a map first when compact source locations matter, then inspect `agent-loop workflow context`.
+5. Do the implementation work and record only the decisions or checkpoints that matter.
+6. Record passed validation evidence against the current brief revision.
+7. Run `agent-loop review blindspots <task-id>`, record truthful recall outcomes, and make a learning decision.
+8. Run `agent-loop verify` and `agent-loop workflow report <task-id>`.
+9. Close with `agent-loop workflow close <task-id> --status done` only when every gate passes.
 
 If the task changed repo-managed agent guidance, also run:
 
@@ -33,7 +35,7 @@ vendor/bin/agent-loop init doctor
 
 This skill owns:
 
-- how to use `workflow start`, `workflow status`, and `workflow close`
+- how to use `workflow plan`, `workflow approve`, `workflow context`, `workflow status`, `workflow report`, and `workflow close`
 - when lower-level `session`, `recall`, `review`, `verify`, `learn`, and `memory` commands are the right seam
 - the boundary between workflow evidence and durable guidance
 - the current repo-managed guidance validation loop under `docs/agents/skills/`
@@ -70,12 +72,22 @@ Do not use this skill for unrelated library implementation work.
 Default entrypoint:
 
 ```bash
-agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path>
+agent-loop workflow plan <task-id> \
+  --by <actor> \
+  --learning-root <path> \
+  --file <path> \
+  --goal "Implement the approved task." \
+  --validation "vendor/bin/phpunit tests/FocusedTest.php"
+
+agent-loop workflow approve <task-id> --by <human-actor>
+agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
 
 Use lower-level commands only when you need direct control:
 
 - `session` for working-memory records and checkpoints
+- `session validation record` for revision-bound execution evidence
+- `session learning decide` for the explicit outcome required before a `done` close
 - `recall compile` when debugging briefing inputs or output layout
 - `review blindspots` for the required review artifact before close
 - `verify` for the cross-package consistency gate
@@ -85,9 +97,13 @@ Use lower-level commands only when you need direct control:
 
 ### 2. Keep the workflow boundary honest
 
-- `workflow start` wraps session start plus recall compile.
+- `workflow plan` wraps session start plus recall compile and records a candidate work brief.
+- `workflow approve` records a named human's approval of that exact revision; a re-plan invalidates it.
+- `workflow context` is read-only and budgeted. It never rebuilds recall or a map.
+- `workflow start` remains the lower-level session-plus-recall entrypoint for hosts that deliberately do not use work briefs.
 - `workflow status` is read-only.
-- `workflow close --status done` is gated by recall metadata, blind-spot review, and a passing `verify`.
+- `workflow report` is read-only; pass observed changed paths explicitly because it does not run Git.
+- `workflow close --status done` requires an approved current brief, passed evidence for its exact validation commands, recall metadata and outcomes for selected guidance, a blind-spot review, an explicit learning decision, and a passing `verify`.
 - Recall output is written to disk; it is not auto-injected into a coding agent.
 - Learning artifacts are not durable memory by default.
 - ctx hits are historical raw material, not recall output or durable memory.
@@ -111,7 +127,22 @@ findings, reports, skills, or PR text. When ctx affects a finding, store only a
 bounded `agent_history_reference` with the ctx IDs, query, reviewed summary,
 retrieval time, and verification status.
 
-### 4. Use RTK at the shell boundary the agent actually sees
+### 4. Treat generated map output as disposable navigation state
+
+When the task needs compact symbol locations, build the index before rendering
+workflow context:
+
+```bash
+agent-loop map build --paths=src,tests
+agent-loop map stale
+agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
+```
+
+The default index is `.agent-map/php-symbols.json`. Ensure `.agent-map/` is
+ignored before building it. The index guides file/range selection; it is not
+source, durable memory, or an artifact to paste into a prompt.
+
+### 5. Use RTK at the shell boundary the agent actually sees
 
 Before documenting or relying on `rg`-first search guidance, verify ripgrep is
 installed:

@@ -11,20 +11,26 @@ memory, and compile a recall briefing from relevant files before editing code.
 
 ## Fast Path
 
-Prefer the high-level workflow command:
+Prefer the governed work-brief path:
 
 ```bash
-vendor/bin/agent-loop workflow start <task-id> \
+vendor/bin/agent-loop workflow plan <task-id> \
   --by <actor> \
   --learning-root <learning-root-path> \
   --file <path-to-file-1> \
-  --file <path-to-file-2>
+  --file <path-to-file-2> \
+  --goal "Implement the approved task." \
+  --non-goal "Do not widen the task without a revised brief." \
+  --validation "vendor/bin/phpunit tests/FocusedTest.php"
 ```
 
-`workflow start` wraps `session start` and `recall compile` in one step.
-Inspect the result immediately:
+`workflow plan` wraps `session start` and `recall compile`, then creates a
+candidate work brief. A named human must approve the exact revision before
+implementation. Inspect the result immediately:
 
 ```bash
+vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
+vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 vendor/bin/agent-loop workflow status <task-id>
 ```
 
@@ -69,6 +75,24 @@ Good candidates:
 Pass a small set of relevant files with repeated `--file` options instead of
 trying to summarize the whole repository. Do not pass every file.
 
+The initial `--file` values become the approved scope unless explicit
+`--scope` values replace them. A later plan revision clears approval, so obtain
+a new approval before working outside the current scope.
+
+## Optional Map Preflight
+
+When source navigation would otherwise require broad reads, build the compact
+map before rendering workflow context:
+
+```bash
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map stale
+```
+
+The default `.agent-map/` output is generated navigation state. Confirm it is
+ignored; never force-add the index. `workflow context` reads an existing index
+but never builds one itself.
+
 ## Validation After Start
 
 ```bash
@@ -76,7 +100,7 @@ vendor/bin/agent-loop workflow status <task-id>
 vendor/bin/agent-loop verify
 ```
 
-`workflow status` confirms the session and recall state opened correctly.
+`workflow status` confirms the session, recall, brief, and approval state.
 `verify` confirms cross-package consistency from the start.
 
 ## Lower-Level Fallback
@@ -109,8 +133,9 @@ After compiling, read or pass them into your workflow manually.
 This skill owns:
 
 - the opening step of a governed agent-loop task in a consuming repository
-- choosing a task id, actor, learning root, and file scope for recall
-- understanding that `workflow start` wraps session start plus recall compile
+- choosing a task id, actor, learning root, file scope, non-goals, and validation commands
+- understanding that `workflow plan` wraps session start plus recall compile and creates a candidate brief
+- obtaining human approval before implementation and inspecting the bounded context
 - inspecting initial state with `workflow status` and `verify`
 
 This skill does not own:
