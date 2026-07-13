@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.2.11 - 2026-07-13
+
+- Enhance recall logic to prioritize workflow metadata file.
+
 ## 0.2.10 - 2026-07-13
 
 - Require `voku/agent-session` 0.2 for revision-bound validation evidence and
