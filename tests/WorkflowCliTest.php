@@ -15,6 +15,7 @@ final class WorkflowCliTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('agent-loop workflow start', $result['output']);
+        self::assertStringContainsString('agent-loop workflow plan', $result['output']);
     }
 
     public function testLongHelpExitsZero(): void
@@ -53,6 +54,21 @@ final class WorkflowCliTest extends TestCase
     public function testCloseWithoutTaskIdExitsOne(): void
     {
         self::assertSame(1, $this->runCli(['close'])['exit']);
+    }
+
+    public function testPlanAndApproveWithoutTaskIdExitOne(): void
+    {
+        self::assertSame(1, $this->runCli(['plan'])['exit']);
+        self::assertSame(1, $this->runCli(['approve'])['exit']);
+        self::assertSame(1, $this->runCli(['report'])['exit']);
+    }
+
+    public function testReportIsRoutedThroughWorkflowCli(): void
+    {
+        $result = $this->runCli(['report', 'ABC-123', '--format', 'json']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertSame('ABC-123', json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR)['task_id']);
     }
 
     public function testInvalidTaskIdExitsOne(): void

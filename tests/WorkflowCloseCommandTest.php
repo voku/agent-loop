@@ -8,15 +8,19 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
+use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowCloseCommandTest extends TestCase
 {
     private string $root;
+    private string $sessionPath;
 
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-close-' . bin2hex(random_bytes(4));
         mkdir($this->root);
+        $this->writeApprovedWorkBrief();
     }
 
     protected function tearDown(): void
@@ -75,6 +79,18 @@ final class WorkflowCloseCommandTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('verify failed', $result['output']);
+    }
+
+    public function testCloseFailsWhenActiveSessionHasNoApprovedWorkBrief(): void
+    {
+        unlink($this->sessionPath . '/approval.json');
+        $this->writeRecallMeta();
+        $this->writeReviewReport(['status' => 'ok']);
+
+        $result = $this->runClose(verifyExit: 0);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('[FAIL] work brief: revision 1 is not approved', $result['output']);
     }
 
     public function testCloseSucceedsWithOkReviewStatusAndVerifyPass(): void
@@ -189,6 +205,15 @@ final class WorkflowCloseCommandTest extends TestCase
     {
         mkdir($this->root . '/recall/ABC-123', 0o775, true);
         file_put_contents($this->root . '/recall/ABC-123/meta.json', '{}');
+    }
+
+    private function writeApprovedWorkBrief(): void
+    {
+        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123');
+        $this->sessionPath = $session->path;
+        $briefs = new WorkBriefStore();
+        $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        $briefs->approve($session, 'lars');
     }
 
     /** @param array<string, string> $data */

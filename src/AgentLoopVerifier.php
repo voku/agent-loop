@@ -9,10 +9,14 @@ use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
+use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStatus;
+use voku\AgentSession\WorkBriefStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
 
 /**
@@ -136,6 +140,7 @@ final class AgentLoopVerifier
             'board/verify' => TodoBoardCli::class,
             'board/verify (verifier)' => TodoBoardVerifier::class,
             'learn' => LearningCli::class,
+            'map' => AgentMapApplication::class,
             'recall' => RecallCli::class,
             'review' => RecallReviewCli::class,
             'session' => SessionCli::class,
@@ -155,7 +160,7 @@ final class AgentLoopVerifier
             return false;
         }
 
-        echo '[OK] package delegates: board, learn, recall, review, session, workflow commands all resolve to an installed package' . "\n";
+        echo '[OK] package delegates: board, learn, map, recall, review, session, workflow commands all resolve to an installed package' . "\n";
 
         return true;
     }
@@ -262,6 +267,7 @@ final class AgentLoopVerifier
             }
 
             $ok = $this->checkRecallCoverage($recallRoot, $session->id, $session->taskId) && $ok;
+            $ok = $this->checkWorkBrief($session) && $ok;
         }
 
         if ($ok) {
@@ -293,6 +299,42 @@ final class AgentLoopVerifier
 
             return false;
         }
+
+        return true;
+    }
+
+    /**
+     * Work briefs are additive for existing sessions. Once a session has one,
+     * however, its task id, revision, and current approval must be coherent.
+     * A candidate is valid while work is in progress; workflow close adds the
+     * stricter requirement that the current revision is approved.
+     */
+    private function checkWorkBrief(Session $session): bool
+    {
+        $briefs = new WorkBriefStore();
+        $brief = $briefs->find($session);
+        if ($brief === null) {
+            return true;
+        }
+
+        $approval = $briefs->approval($session);
+        if ($brief->status === WorkBriefStatus::APPROVED && ($approval === null || $approval->workBriefRevision !== $brief->revision)) {
+            echo "[FAIL] work brief: session {$session->id} has approved revision {$brief->revision} without matching approval metadata\n";
+
+            return false;
+        }
+        if ($brief->status === WorkBriefStatus::CANDIDATE && $approval !== null) {
+            echo "[FAIL] work brief: session {$session->id} has candidate revision {$brief->revision} with stale approval metadata\n";
+
+            return false;
+        }
+        if ($brief->status === WorkBriefStatus::SUPERSEDED) {
+            echo "[FAIL] work brief: session {$session->id} exposes superseded revision {$brief->revision} as current\n";
+
+            return false;
+        }
+
+        echo "[OK] work brief: session {$session->id} revision {$brief->revision} is {$brief->status->value}\n";
 
         return true;
     }
@@ -418,11 +460,13 @@ final class AgentLoopVerifier
           agent-loop verify [options]
 
         Checks (each skips itself when its inputs are absent):
-          - package delegates: board/learn/recall/session classes are installed
+          - package delegates: board/learn/map/recall/session classes are installed
           - tasks:    every *.md file under tasks/ parses (non-empty, has a heading)
           - board:    TODO.md kanban board projection (delegated to voku/agent-kanban)
           - sessions: every non-closed session under session_plan/ points to a
                       known task id and has a compiled recall briefing
+          - work brief: any session-local brief has coherent task, revision,
+                        status, and approval metadata
           - recall:   every recall/<task>/meta.json output_hashes entry still
                       matches the file on disk (catches stale/edited briefings)
           - learning: the learning root (findings/proposals/history) validates

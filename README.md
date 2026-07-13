@@ -23,9 +23,10 @@ one stable command vocabulary, zero shared state of its own.
                 ┌───────────────────────────────── voku/agent-loop ──────────────────────────────────┐
   agent-loop →  │  board         →  voku/agent-kanban           (local Markdown board, Jira optional)│
                 │  verify        →  voku/agent-loop             (cross-package consistency)          │
-                │  workflow      →  voku/agent-loop             (start/status/close orchestration)    │
+                │  workflow      →  voku/agent-loop             (plan/approve/start/status/close)     │
                 │  board:verify  →  voku/agent-kanban           (TodoBoardVerifier, board only)      │
                 │  session       →  voku/agent-session          (working memory per task)            │
+                │  map           →  voku/agent-map              (compact PHP repo symbol map)        │
                 │  recall        →  voku/agent-recall-compiler  (L2 meta-prompt compilation)         │
                 │  learn         →  voku/agent-learning         (findings → proposals → history)     │
                 │  review        →  voku/agent-recall-compiler  (blind-spot reports + L2 prompts)    │
@@ -33,17 +34,23 @@ one stable command vocabulary, zero shared state of its own.
                 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Namespace | Purpose | Owning package |
-| --- | --- | --- |
-| `board` | Pick work from local Markdown cards (`todo/cards/*.md`); Jira sync is optional and host-wired | `voku/agent-kanban` |
-| `session` | Working memory for an in-progress task | `voku/agent-session` |
-| `recall` | Compile task-scoped context (L2 meta-prompt) as review artifacts — not auto-injected into any agent | `voku/agent-recall-compiler` |
-| `learn` | Findings → proposals → reviewed decision history | `voku/agent-learning` |
-| `verify` | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
-| `workflow` | Start, inspect, and close a governed task workflow | `voku/agent-loop` |
-| `board:verify` | Narrow check of the kanban board source only | `voku/agent-kanban` |
-| `memory` | `MEMORY.md` promotion review | `voku/agent-loop` |
-| `review` | Deterministic blind-spot reports and L2 review prompts | `voku/agent-recall-compiler` |
+| Namespace | Status | Purpose | Owning package |
+| --- | --- | --- | --- |
+| `board` | Stable | Pick work from local Markdown cards (`todo/cards/*.md`); Jira sync is optional and host-wired | `voku/agent-kanban` |
+| `session` | Stable | Working memory for an in-progress task | `voku/agent-session` |
+| `map` | Stable | Build and query a compact PHP symbol map before reading broad files | `voku/agent-map` |
+| `recall` | Stable | Compile task-scoped context (L2 meta-prompt) as review artifacts — not auto-injected into any agent | `voku/agent-recall-compiler` |
+| `learn` | Stable | Findings → proposals → reviewed decision history | `voku/agent-learning` |
+| `verify` | Stable | Cross-package consistency check (the only thing that looks at all of the above at once) | `voku/agent-loop` |
+| `workflow` | Stable | Plan, approve, start, inspect, and close a governed task workflow | `voku/agent-loop` |
+| `board:verify` | Stable | Narrow check of the kanban board source only | `voku/agent-kanban` |
+| `memory` | Stable | `MEMORY.md` promotion review | `voku/agent-loop` |
+| `review` | Stable | Deterministic blind-spot reports and L2 review prompts | `voku/agent-recall-compiler` |
+
+The table is the current executable surface. No experimental namespace is
+advertised. `init scaffold` is a **planned/reserved command**: it deliberately
+returns a clear non-zero `not implemented yet` result and is not a stable
+workflow step.
 
 ### Board: local Markdown first, Jira sync optional
 
@@ -64,9 +71,18 @@ other `board` command (`summary`, `render`, `lane`, `next-pull`,
 `ticket`, `context`, `brief`) works from the local Markdown cards alone.
 
 
-## `agent-loop workflow`: start, inspect, and close a governed task
+## `agent-loop workflow`: plan, approve, start, inspect, and close a governed task
 
 ```bash
+vendor/bin/agent-loop workflow plan <task-id> \
+  --by <actor> \
+  --learning-root infra/doc/agent-learning \
+  --file src/Foo.php \
+  --goal "Implement the approved task." \
+  --validation "vendor/bin/phpunit tests/FooTest.php"
+
+vendor/bin/agent-loop workflow approve <task-id> --by <actor>
+
 vendor/bin/agent-loop workflow start <task-id> \
   --by <actor> \
   --learning-root infra/doc/agent-learning \
@@ -74,14 +90,33 @@ vendor/bin/agent-loop workflow start <task-id> \
 
 vendor/bin/agent-loop workflow status <task-id>
 
+vendor/bin/agent-loop workflow report <task-id> \
+  --changed-file src/Foo.php \
+  --format text
+
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-`workflow start` wraps `session start` and `recall compile`.
+`workflow plan` wraps `session start` and `recall compile`, then writes a
+candidate work brief. Its `--file` values become the initial approved scope
+unless one or more explicit `--scope` values are supplied. `workflow approve`
+records the actor and revision that approved that candidate. A later plan
+revision must be approved again.
+
+`workflow start` remains available when a host deliberately needs the lower
+level session-plus-recall step without work-brief orchestration.
 
 `workflow status` prints read-only session, recall, and review state.
 
-`workflow close` is a gated wrapper around `session close`. It requires recall metadata, a blind-spot review report, and a passing `agent-loop verify` before closing a task as done.
+`workflow report` is the bounded handoff view: it reports the current work
+brief and approval, supplied changed files that fall outside approved scope,
+validation evidence, recall outcome state, review state, task-associated
+learning counts, and any accepted risk. It is read-only and never runs `git`;
+pass each observed path with `--changed-file` (or use `--format json` for CI).
+
+`workflow close` is a gated wrapper around `session close`. It requires an
+approved current work brief, recall metadata, a blind-spot review report, and a
+passing `agent-loop verify` before closing a task as done.
 
 Existing `agent-loop session close` remains unchanged.
 
@@ -182,7 +217,7 @@ vendor/bin/agent-loop init scaffold --profile=wsl2 --agent=codex --dry-run
 composer require voku/agent-loop
 ```
 
-This installs `voku/agent-kanban`, `voku/agent-session`,
+This installs `voku/agent-kanban`, `voku/agent-session`, `voku/agent-map`,
 `voku/agent-recall-compiler`, and `voku/agent-learning` as dependencies and
 exposes `vendor/bin/agent-loop`.
 
@@ -193,7 +228,9 @@ briefing. The high-level workflow command is preferred for creating and
 closing the governed task context:
 
 ```bash
-agent-loop workflow start ABC-123 --by lars --learning-root infra/doc/agent-learning --file src/Foo.php
+# Preferred governed path: plan writes the candidate scope contract, then approval is explicit.
+agent-loop workflow plan ABC-123 --by lars --learning-root infra/doc/agent-learning --file src/Foo.php --goal "Implement the approved task." --validation "vendor/bin/phpunit tests/FooTest.php"
+agent-loop workflow approve ABC-123 --by lars
 
 # ...do the work...
 
@@ -218,7 +255,7 @@ agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file 
 
 `session start` prints its own generated **session id**
 (date-prefixed, e.g. `2025-01-15-abc-123`) on its first line. You don't
-need to capture it: `session record`/`checkpoint`/`close`/`claim`/`show`
+need to capture it: `session record`/`checkpoint`/`close`/`claim`/`show`/`brief`
 also accept the task id you started the session with — `agent-loop`
 resolves it to the matching session id before delegating. The session id
 still works directly if you have it (e.g. from a list of multiple
@@ -251,6 +288,7 @@ loop once you want findings to survive past a single session:
 
 ```bash
 agent-loop board next-pull
+agent-loop map related Foo
 agent-loop learn validate --root infra/doc/agent-learning
 agent-loop learn guidance-evaluate --root infra/doc/agent-learning
 ```
@@ -268,6 +306,7 @@ agent-loop learn --help           # commands for a namespace
 agent-loop recall --help
 agent-loop session --help
 agent-loop board --help
+agent-loop map --help
 
 # board: reads cards from todo/cards/<PREFIX>-N.md (one file per ticket;
 # optional todo/board.md sets the project prefix and done count). Works
@@ -289,6 +328,16 @@ agent-loop session close <id> --status done|dropped
 agent-loop session list [--status STATUS]
 agent-loop session show <id>
 agent-loop session prune [--keep-days N] [--status done,dropped] [--dry-run]
+
+# map: compact PHP symbol map for token hygiene
+agent-loop map build --paths=src,tests
+agent-loop map summary
+agent-loop map query EvidenceValidator
+agent-loop map related EvidenceValidator
+agent-loop map file src/EvidenceValidator.php
+agent-loop map changed --base=main
+agent-loop map stale
+agent-loop map stats
 
 # recall: compile a task-scoped briefing
 agent-loop recall compile --root infra/doc/agent-learning --task ABC-123 --file lib/foo.php
@@ -312,6 +361,35 @@ agent-loop memory review --file MEMORY.md
 agent-loop review blindspots <task-id>
 agent-loop review code <task-id>
 ```
+
+## `agent-loop map`: PHP symbol maps for smaller reads
+
+```bash
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map related EvidenceValidator
+vendor/bin/agent-loop map file src/EvidenceValidator.php
+vendor/bin/agent-loop map changed --base=main
+vendor/bin/agent-loop map stale
+```
+
+`map` delegates to `voku/agent-map`. It builds and queries a compact PHP
+symbol index so agents can find the right files/classes/methods before reading
+large file ranges. It does not store source code, call an LLM, own durable
+learning, or replace PHPStan.
+
+When called through `agent-loop`, `map build` defaults `--root` and `--out` to
+the dispatcher root (`<root>/.agent-map/php-symbols.json`) unless the caller
+passes explicit values. Read commands default `--index` to that same root-local
+index. All normal `agent-map` options still work:
+
+```bash
+vendor/bin/agent-loop map query Service --limit=10 --symbol-limit=5 --method-limit=5
+vendor/bin/agent-loop map related EvidenceValidator --format=toon
+vendor/bin/agent-loop map build --exclude='~Generated.*\.php$~'
+```
+
+Use `map` output to choose the smallest useful next read. Do not dump
+`.agent-map/php-symbols.json` into prompts.
 
 `agent-loop board jira-sync` needs a `JiraIssueProvider`; it is the only
 `board` command that does. The bare binary does not wire one (Jira clients
@@ -371,7 +449,7 @@ Checks, each of which prints `[OK]`, `[SKIP]`, or `[FAIL]` and skips itself
 when its inputs are absent (so the command stays meaningful for a repo that
 only wires up part of the stack):
 
-- **package delegates** — board/learn/recall/session classes are installed and resolve
+- **package delegates** — board/learn/map/recall/session classes are installed and resolve
 - **tasks** — every `*.md` file under `tasks/` parses (non-empty, has a heading)
 - **board** — `TODO.md` kanban board projection (delegated to `voku/agent-kanban`)
 - **sessions** — every non-closed session under `session_plan/` points to a known task id
@@ -419,6 +497,8 @@ Concretely, `agent-loop`:
 - holds no working memory of its own — sessions live in `voku/agent-session`'s files, not in this package
 - makes no decisions about what counts as a durable lesson — that judgment lives in `voku/agent-learning`
 - selects no context for a prompt — selection logic lives in `voku/agent-recall-compiler`
+- owns no repository symbol map — map state lives in the generated
+  `.agent-map/php-symbols.json` owned by `voku/agent-map`
 - owns no board data — board state lives in whatever Markdown/Jira source `voku/agent-kanban` reads
 - adds no scheduler, hidden state machine, or plugin lifecycle — `voku/housekeeping` is the runner; this is just the loop
 

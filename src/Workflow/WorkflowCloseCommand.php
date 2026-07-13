@@ -6,6 +6,9 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
+use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStatus;
+use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowCloseCommand
 {
@@ -61,9 +64,10 @@ final readonly class WorkflowCloseCommand
     {
         $recallPassed = $this->checkRecallGate($taskId);
         $reviewPassed = $this->checkReviewGate($taskId);
+        $workBriefPassed = $this->checkWorkBriefGate($taskId);
         $verifyPassed = $this->checkVerifyGate();
 
-        return $recallPassed && $reviewPassed && $verifyPassed;
+        return $recallPassed && $reviewPassed && $workBriefPassed && $verifyPassed;
     }
 
     private function checkRecallGate(string $taskId): bool
@@ -113,6 +117,45 @@ final readonly class WorkflowCloseCommand
 
         echo "[FAIL] verify: agent-loop verify failed\n";
         return false;
+    }
+
+    private function checkWorkBriefGate(string $taskId): bool
+    {
+        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($sessionsRoot)) {
+            echo "[FAIL] work brief: no active session found for task {$taskId}\n";
+
+            return false;
+        }
+
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($sessionsRoot),
+            static fn ($session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+        ));
+        if (count($sessions) !== 1) {
+            echo "[FAIL] work brief: expected one active session for task {$taskId}, found " . count($sessions) . "\n";
+
+            return false;
+        }
+
+        $briefs = new WorkBriefStore();
+        $brief = $briefs->find($sessions[0]);
+        if ($brief === null) {
+            echo "[FAIL] work brief: missing for task {$taskId}\n";
+
+            return false;
+        }
+
+        $approval = $briefs->approval($sessions[0]);
+        if ($brief->status !== WorkBriefStatus::APPROVED || $approval === null || $approval->workBriefRevision !== $brief->revision) {
+            echo "[FAIL] work brief: revision {$brief->revision} is not approved for task {$taskId}\n";
+
+            return false;
+        }
+
+        echo "[OK] work brief: revision {$brief->revision} approved by {$approval->approvedBy}\n";
+
+        return true;
     }
 
     /**

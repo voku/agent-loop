@@ -7,6 +7,8 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStatus;
+use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowStatusCommand
 {
@@ -20,6 +22,7 @@ final readonly class WorkflowStatusCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $this->printSession($taskId->value);
+            $this->printWorkBrief($taskId->value);
             $this->printRecall($taskId->value);
             $this->printReview($taskId->value);
             return 0;
@@ -53,6 +56,43 @@ final readonly class WorkflowStatusCommand
     {
         $relative = 'recall/' . $taskId . '/meta.json';
         echo (is_file(rtrim($this->rootPath, '/') . '/' . $relative) ? '[OK] recall: found ' : '[PENDING] recall: missing ') . $relative . "\n";
+    }
+
+    private function printWorkBrief(string $taskId): void
+    {
+        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($sessionsRoot)) {
+            echo "[PENDING] work brief: no active session for task {$taskId}\n";
+
+            return;
+        }
+
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($sessionsRoot),
+            static fn ($session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+        ));
+        if (count($sessions) !== 1) {
+            echo "[PENDING] work brief: expected one active session for task {$taskId}, found " . count($sessions) . "\n";
+
+            return;
+        }
+
+        $briefs = new WorkBriefStore();
+        $brief = $briefs->find($sessions[0]);
+        if ($brief === null) {
+            echo "[PENDING] work brief: missing for task {$taskId}\n";
+
+            return;
+        }
+
+        $approval = $briefs->approval($sessions[0]);
+        if ($brief->status === WorkBriefStatus::APPROVED && $approval !== null && $approval->workBriefRevision === $brief->revision) {
+            echo "[OK] work brief: revision {$brief->revision} approved by {$approval->approvedBy}\n";
+
+            return;
+        }
+
+        echo "[PENDING] work brief: revision {$brief->revision} is {$brief->status->value} and needs approval\n";
     }
 
     private function printReview(string $taskId): void

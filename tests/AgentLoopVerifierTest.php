@@ -8,6 +8,8 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\AgentLoopVerifier;
+use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStore;
 
 /**
  * Covers `--strict`: tasks/ and session_plan/ are the baseline inputs
@@ -42,7 +44,7 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[SKIP] tasks: no directory at', $result['output']);
         self::assertStringContainsString('[SKIP] sessions: no directory at', $result['output']);
-        self::assertStringContainsString('[OK] package delegates: board, learn, recall, review, session, workflow commands all resolve', $result['output']);
+        self::assertStringContainsString('[OK] package delegates: board, learn, map, recall, review, session, workflow commands all resolve', $result['output']);
     }
 
     public function testStrictModeFailsWhenTasksAndSessionsAreMissing(): void
@@ -107,6 +109,25 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[OK] sessions: 1 session(s) parsed, 1 active and consistent', $result['output']);
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
+    }
+
+    public function testVerifyFailsForApprovedBriefWithoutMatchingApprovalMetadata(): void
+    {
+        mkdir($this->root . '/tasks', 0o775, true);
+        file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1\n");
+        $session = (new SessionStore())->create($this->root . '/session_plan', 'TASK-1');
+        $briefs = new WorkBriefStore();
+        $briefs->create($session, 'Keep the scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        $briefs->approve($session, 'lars');
+        unlink($session->path . '/approval.json');
+
+        mkdir($this->root . '/recall/TASK-1', 0o775, true);
+        file_put_contents($this->root . '/recall/TASK-1/meta.json', '{}');
+
+        $result = $this->verify(['--strict']);
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString('[FAIL] work brief: session ' . $session->id . ' has approved revision 1 without matching approval metadata', $result['output']);
     }
 
     /**

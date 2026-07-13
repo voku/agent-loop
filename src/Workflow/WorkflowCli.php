@@ -23,8 +23,11 @@ final readonly class WorkflowCli
 
         return match ($command) {
             'help', '--help', '-h', '' => $this->printHelp(),
+            'plan' => (new WorkflowPlanCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
+            'approve' => (new WorkflowApproveCommand($this->sessionRunner))->run($rest),
             'start' => (new WorkflowStartCommand($this->sessionRunner, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
+            'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath, $this->sessionRunner, $this->verifyRunner))->run($rest),
             default => $this->unknown($command),
         };
@@ -35,14 +38,20 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
+  agent-loop workflow plan <task-id> --by <actor> --learning-root <path> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--base-commit <sha>]
+  agent-loop workflow approve <task-id> --by <actor>
   agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id>
+  agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason>]
 
 Commands:
   help      Show workflow help.
+  plan      Start a session, compile recall, and create a candidate work brief.
+  approve   Approve the current candidate work brief for a task.
   start     Start a task workflow by creating a session and compiling recall artifacts.
   status    Show read-only workflow status for a task.
+  report    Show a read-only, auditable completion report for a task.
   close     Close a task through workflow safety gates.
 
 TXT;

@@ -8,6 +8,7 @@ use voku\AgentKanban\JiraIssueProvider;
 use voku\AgentKanban\TodoBoardCli;
 use voku\AgentKanban\TodoBoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
+use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentLoop\Init\InitCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
@@ -22,6 +23,7 @@ use voku\AgentLoop\Workflow\WorkflowCli;
  *  - `board`  -> voku/agent-kanban (TodoBoardCli)
  *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
  *  - `workflow` -> voku/agent-loop (start/status/close orchestration)
+ *  - `map` -> voku/agent-map (PHP repository symbol map)
  *  - `board:verify` -> voku/agent-kanban (TodoBoardVerifier; kanban board source only)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
@@ -68,6 +70,7 @@ final class Dispatcher
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
             'workflow' => $this->dispatchWorkflow($scriptName, $rest),
+            'map' => $this->dispatchMap($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'review' => $this->dispatchReview($scriptName, $rest),
             'init' => (new InitCli($this->rootPath))->run($rest),
@@ -115,7 +118,8 @@ final class Dispatcher
     }
 
     /**
-     * Resolves `session record|checkpoint|close|claim|show <id>` and delegates
+     * Resolves `session record|checkpoint|close|claim|show <id>` and
+     * `session brief <action> <id>`, then delegates
      * to voku/agent-session, unless task-id resolution reports an ambiguous
      * match (see resolveSessionArgv()), in which case the error it already
      * printed is the only output and the namespace is never delegated.
@@ -139,10 +143,27 @@ final class Dispatcher
     {
         return (new WorkflowCli(
             $this->rootPath,
-            fn (array $sessionRest): int => $this->dispatchSession($scriptName, $sessionRest),
+            fn (array $sessionRest): int => $this->dispatchSession($scriptName, $this->resolveWorkflowSessionRoot($sessionRest)),
             fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest)),
             fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath, $this->projectPrefix))->run(array_values($verifyRest)),
         ))->run($rest);
+    }
+
+    /**
+     * Workflow orchestration is rooted in this Dispatcher even when a host
+     * calls it from another current working directory. Direct `session`
+     * commands retain the package's normal current-directory default.
+     *
+     * @param list<string> $rest
+     * @return list<string>
+     */
+    private function resolveWorkflowSessionRoot(array $rest): array
+    {
+        if ($this->hasOption($rest, 'root')) {
+            return $rest;
+        }
+
+        return array_merge($rest, ['--root', rtrim($this->rootPath, '/') . '/session_plan']);
     }
 
     /**
@@ -156,6 +177,68 @@ final class Dispatcher
     private function dispatchReview(string $scriptName, array $rest): int
     {
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
+    }
+
+    /**
+     * Delegates repository symbol-map commands to voku/agent-map while
+     * preserving agent-loop's root path for programmatic hosts. Callers can
+     * still override every default with normal agent-map options.
+     *
+     * @param list<string> $rest
+     */
+    private function dispatchMap(string $scriptName, array $rest): int
+    {
+        return (new AgentMapApplication())->run($this->subArgv($scriptName, $this->resolveMapArgv($rest)));
+    }
+
+    /**
+     * @param list<string> $rest
+     *
+     * @return list<string>
+     */
+    private function resolveMapArgv(array $rest): array
+    {
+        $command = $rest[0] ?? 'help';
+        if (in_array($command, ['help', '--help', '-h', ''], true)) {
+            return $rest;
+        }
+
+        if ($command === 'build') {
+            if (!$this->hasOption($rest, 'root')) {
+                $rest[] = '--root=' . rtrim($this->rootPath, '/');
+            }
+
+            if (!$this->hasOption($rest, 'out')) {
+                $rest[] = '--out=' . $this->defaultMapIndex();
+            }
+
+            return $rest;
+        }
+
+        if (!$this->hasOption($rest, 'index')) {
+            $rest[] = '--index=' . $this->defaultMapIndex();
+        }
+
+        return $rest;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function hasOption(array $tokens, string $name): bool
+    {
+        foreach ($tokens as $token) {
+            if ($token === '--' . $name || str_starts_with($token, '--' . $name . '=')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function defaultMapIndex(): string
+    {
+        return rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
     }
 
     /**
@@ -236,16 +319,25 @@ final class Dispatcher
     private function resolveSessionArgv(array $rest): ?array
     {
         $command = $rest[0] ?? null;
-        if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show'], true)) {
+        if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show', 'brief'], true)) {
             return $rest;
         }
 
         $tokens = array_slice($rest, 1);
+        $firstPositionalIndex = 0;
+        if ($command === 'brief') {
+            $action = $tokens[0] ?? null;
+            if (!in_array($action, ['create', 'revise', 'approve', 'show'], true)) {
+                return $rest;
+            }
+            $firstPositionalIndex = 1;
+        }
+
         $sessionsRoot = null;
         $positionalIndex = null;
         $count = count($tokens);
 
-        for ($i = 0; $i < $count; ++$i) {
+        for ($i = $firstPositionalIndex; $i < $count; ++$i) {
             $token = $tokens[$i];
             if (str_starts_with($token, '--')) {
                 $hasValue = $i + 1 < $count && !str_starts_with($tokens[$i + 1], '--');
@@ -393,8 +485,10 @@ final class Dispatcher
                   Findings, proposals, and decision history (voku/agent-learning).
           recall  <compile|log-outcome>
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
-          session <start|claim|checkpoint|record|close|list|show|prune>
+          session <start|claim|checkpoint|record|close|list|show|brief|prune>
                   Working memory: per-task session plans (voku/agent-session).
+          map     <build|query|file|stale|summary|changed|related|stats>
+                  Compact PHP repository symbol map (voku/agent-map).
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
           workflow
