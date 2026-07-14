@@ -227,7 +227,8 @@ check in a small config file such as:
     "skills_root": "infra/doc/agents/skills",
     "subagents_root": "infra/doc/agents/subagents",
     "codex_hooks_root": "infra/doc/agents/codex-hooks",
-    "tools_root": "infra/doc/agents/tools"
+    "tools_root": "infra/doc/agents/tools",
+    "recall_root": "infra/doc/agent-learning/recall-output"
   },
   "agents": {
     "gemini": {

@@ -354,12 +354,12 @@ final class Dispatcher
     }
 
     /**
-     * Defaults `recall compile --task <id>` to `--output-dir <root>/recall/<id>`
+     * Defaults `recall compile --task <id>` to `--output-dir <recall-root>/<id>`
      * when the caller didn't pass one (the dependency itself defaults to the
-     * current directory), matching the layout `agent-loop verify`'s
-     * recall-coverage check expects: `<recall-root>/<task-id>/meta.json` with
-     * `<recall-root>` defaulting to `<root>/recall`. Anything the caller
-     * already passed for `--output-dir` is left alone.
+     * current directory). `<recall-root>` is `RecallOutputRoot::resolve()`:
+     * `paths.recall_root` from `.agent-loop/init.json` when the host project
+     * configures one, else `<root>/recall`. Anything the caller already
+     * passed for `--output-dir` is left alone.
      *
      * @param list<string> $rest
      *
@@ -399,7 +399,7 @@ final class Dispatcher
             return $rest;
         }
 
-        return array_merge($rest, ['--output-dir', rtrim($this->rootPath, '/') . '/recall/' . $taskId]);
+        return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
     /**

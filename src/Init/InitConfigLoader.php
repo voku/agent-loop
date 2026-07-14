@@ -50,7 +50,7 @@ final readonly class InitConfigLoader
 
         $paths = $decoded['paths'] ?? null;
         if (is_array($paths)) {
-            foreach (['skills_root', 'subagents_root', 'codex_hooks_root', 'tools_root'] as $key) {
+            foreach (['skills_root', 'subagents_root', 'codex_hooks_root', 'tools_root', 'recall_root'] as $key) {
                 $value = $paths[$key] ?? null;
                 if (is_string($value) && $value !== '') {
                     $result['paths'][$key] = $value;

@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStatus;
 use voku\AgentSession\WorkBriefStore;
@@ -54,8 +55,9 @@ final readonly class WorkflowStatusCommand
 
     private function printRecall(string $taskId): void
     {
-        $relative = 'recall/' . $taskId . '/meta.json';
-        echo (is_file(rtrim($this->rootPath, '/') . '/' . $relative) ? '[OK] recall: found ' : '[PENDING] recall: missing ') . $relative . "\n";
+        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
+        $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
+        echo (is_file($path) ? '[OK] recall: found ' : '[PENDING] recall: missing ') . $relative . "\n";
     }
 
     private function printWorkBrief(string $taskId): void

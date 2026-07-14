@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use JsonException;
 use Throwable;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
 use voku\AgentSession\Session;
@@ -174,31 +175,32 @@ final readonly class WorkflowContextCommand
 
     private function addRecall(WorkflowContextBudget $budget, string $taskId): void
     {
-        $path = rtrim($this->rootPath, '/') . '/recall/' . $taskId . '/meta.json';
+        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
+        $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
         if (!is_file($path)) {
-            $budget->skip('recall: missing recall/' . $taskId . '/meta.json');
+            $budget->skip('recall: missing ' . $relative);
 
             return;
         }
         try {
             $meta = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            $budget->skip('recall: invalid recall/' . $taskId . '/meta.json');
+            $budget->skip('recall: invalid ' . $relative);
 
             return;
         }
         if (!is_array($meta)) {
-            $budget->skip('recall: invalid recall/' . $taskId . '/meta.json');
+            $budget->skip('recall: invalid ' . $relative);
 
             return;
         }
         $budget->section('Selected guidance');
         foreach ($this->strings($meta['selected_guidance'] ?? []) as $id) {
-            $budget->add('guidance', '  ' . $id . ' (recall/' . $taskId . '/meta.json)');
+            $budget->add('guidance', '  ' . $id . ' (' . $relative . ')');
         }
         foreach ($meta['selected_constraints'] ?? [] as $constraint) {
             if (is_array($constraint) && is_string($constraint['id'] ?? null)) {
-                $budget->add('guidance', '  ' . $constraint['id'] . ' (recall/' . $taskId . '/meta.json)');
+                $budget->add('guidance', '  ' . $constraint['id'] . ' (' . $relative . ')');
             }
         }
     }

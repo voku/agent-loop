@@ -9,6 +9,7 @@ use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidence;
@@ -261,8 +262,8 @@ final readonly class WorkflowReportCommand
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
     private function recallReport(string $taskId, ?string $learningRoot): array
     {
-        $relative = 'recall/' . $taskId . '/meta.json';
-        $path = rtrim($this->rootPath, '/') . '/' . $relative;
+        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
+        $relative = $this->relativePath($path);
         $taskFiles = [];
         $status = 'missing';
         if (is_file($path)) {
@@ -393,9 +394,7 @@ final readonly class WorkflowReportCommand
 
     private function relativePath(string $path): string
     {
-        $root = rtrim($this->rootPath, '/') . '/';
-
-        return str_starts_with($path, $root) ? substr($path, strlen($root)) : $path;
+        return RecallOutputRoot::relativeTo($this->rootPath, $path);
     }
 
     /** @param array<string, mixed> $report */

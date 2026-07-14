@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\ValidationEvidence;
@@ -79,8 +80,9 @@ final readonly class WorkflowCloseCommand
 
     private function checkRecallGate(string $taskId): bool
     {
-        $relative = 'recall/' . $taskId . '/meta.json';
-        if (is_file(rtrim($this->rootPath, '/') . '/' . $relative)) {
+        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
+        $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
+        if (is_file($path)) {
             echo "[OK] recall: found {$relative}\n";
             return true;
         }
@@ -197,7 +199,7 @@ final readonly class WorkflowCloseCommand
 
     private function checkRecallOutcomeGate(string $taskId): bool
     {
-        $path = rtrim($this->rootPath, '/') . '/recall/' . $taskId . '/meta.json';
+        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
         if (!is_file($path)) {
             return false;
         }

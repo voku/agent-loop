@@ -106,25 +106,7 @@ final class AgentLoopVerifier
             }
         }
 
-        if ($options['recall-root'] === null) {
-            $candidates = [];
-            if ($options['learning-root'] !== null) {
-                $candidates[] = rtrim($options['learning-root'], '/') . '/recall-output';
-                $candidates[] = rtrim($options['learning-root'], '/') . '/recall';
-            }
-            $candidates[] = $root . '/recall';
-            $candidates[] = $root . '/infra/doc/agent-learning/recall-output';
-            $candidates[] = $root . '/.agent-recall';
-
-            foreach ($candidates as $candidate) {
-                if (is_dir($candidate)) {
-                    $options['recall-root'] = $candidate;
-
-                    break;
-                }
-            }
-            $options['recall-root'] ??= $root . '/recall';
-        }
+        $options['recall-root'] ??= RecallOutputRoot::resolve($this->rootPath);
 
         return $options;
     }
@@ -298,17 +280,6 @@ final class AgentLoopVerifier
                 if (is_array($decoded) && isset($decoded['task_id']) && $decoded['task_id'] === $taskId) {
                     return true;
                 }
-            }
-
-            // `workflow plan`/`context`/`status`/`report`/`close` always
-            // write/read the compiled briefing at <rootPath>/recall/<taskId>,
-            // independent of --learning-root. When the resolved recall-root
-            // candidate above (e.g. an existing <learning-root>/recall-output
-            // from unrelated tasks) shadows that, fall back to the workflow
-            // subsystem's own convention before reporting drift.
-            $workflowMetaFile = rtrim($this->rootPath, '/') . '/recall/' . $taskId . '/meta.json';
-            if ($workflowMetaFile !== $metaFile && is_file($workflowMetaFile)) {
-                return true;
             }
 
             echo "[FAIL] recall: active session {$sessionId} has no compiled briefing at {$metaFile}\n";
