@@ -532,14 +532,18 @@ also accept the task id you started the session with — `agent-loop`
 resolves it to the matching session id before delegating. The session id
 still works directly if you have it (e.g. from a list of multiple
 sessions for the same task). Likewise, `recall compile --task ABC-123`
-without `--output-dir` writes to `recall/ABC-123/` automatically, where
-`agent-loop verify`'s recall-coverage check expects to find it; pass
-`--output-dir` explicitly only to override that default. See
+without `--output-dir` writes to `<recall-root>/ABC-123/` automatically
+(`RecallOutputRoot::resolve()`: `paths.recall_root` from `.agent-loop/init.json`
+if configured, else `infra/doc/agent-learning/recall-output` when that
+directory exists, else `recall/`), where `agent-loop verify`'s recall-coverage
+check expects to find it; pass `--output-dir` explicitly only to override that
+default. See
 [`examples/basic-loop`](examples/basic-loop) for this full sequence run
 against a tiny fake task with real captured output.
 
 `recall compile` only writes files (`system.md`, `validation-plan.md`,
-`recall-log.draft.json`, `meta.json`) under `recall/<task-id>/`; it does not
+`recall-log.draft.json`, `meta.json`) under `<recall-root>/<task-id>/`
+(see `RecallOutputRoot::resolve()` above); it does not
 inject them into a running coding agent itself. After a successful `compile`,
 `agent-loop` prints a reminder of this:
 
@@ -689,8 +693,9 @@ vendor/bin/agent-loop review code <task-id>
 Generates `.agent-recall/reviews/<task-id>.code.prompt.md`, an L2 code-review
 prompt focused on purpose mismatch, contracts, invariants, edge cases, security,
 and test gaps. This command is delegated to `voku/agent-recall-compiler`;
-`agent-loop` only defaults `--output-dir` to `recall/<task-id>` so it fits the
-standard workflow. The prompt is intended for a receiving LLM or harness; the
+`agent-loop` only defaults `--output-dir` to `RecallOutputRoot::resolve()`'s
+recall root so it fits the standard workflow. The prompt is intended for a
+receiving LLM or harness; the
 CLI itself does not call an LLM.
 
 ## Learning boundary: findings are not durable memory
@@ -723,8 +728,11 @@ only wires up part of the stack):
 - **board** — typed kanban board verification (delegated to `voku/agent-kanban`)
 - **sessions** — every non-closed session under `session_plan/` points to a known task id
 - **recall** — every active session has a compiled briefing, and every
-  `recall/<task>/meta.json` output hash still matches the file on disk
-  (catches a briefing edited or regenerated out of band)
+  compiled `meta.json`'s recorded `system.md`/`validation-plan.md` hashes
+  still match the files on disk (catches those two edited or regenerated out
+  of band; `recall-log.draft.json` and `feedback-assessment.draft.json` are
+  excluded from this check since they're meant to be hand-edited after
+  compile)
 - **learning root** — findings, proposals, and decision/outcome history validate
 
 Run `agent-loop verify --help` for the override flags

@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.0 - 2026-07-14
+
+- Added `RecallOutputRoot::resolve()`, a single config-driven source of truth
+  for where a task's compiled recall briefing lives, replacing the hardcoded
+  `<root>/recall/<taskId>` default and the ad hoc fallback added in 0.2.11.
+  Configure `paths.recall_root` in `.agent-loop/init.json`; with no config it
+  defaults to `<root>/infra/doc/agent-learning/recall-output` when that
+  directory exists, else `<root>/recall`. Wired into `Dispatcher`,
+  `AgentLoopVerifier`, and all four `Workflow*Command` classes so `workflow
+  plan/context/status/report/close` and `agent-loop verify` always resolve
+  the same path.
+- Fixed `AgentLoopVerifier::checkRecallCoverage()` and
+  `checkRecallStaleness()` resolving two different recall roots in the same
+  `verify` run (the documented `--recall-root` flag was silently ignored by
+  coverage checking); both now share one resolution.
+- Restored the `current/meta.json` task_id-matching fallback in
+  `checkRecallCoverage()` that 0.2.11's rework had dropped, fixing a real
+  regression against `testRecallRootAutoDetectionAndCurrentFallback`.
+- Added `PathResolver`, a shared absolute/relative path helper (extracted
+  from `Init\AgentAssetSourcePaths`, which now delegates to it) with correct
+  Windows drive-letter and UNC path detection; used by `RecallOutputRoot` and
+  by all four `Workflow*Command` classes for their briefing-path display
+  logic, replacing four independent, less robust copies of the same
+  `str_replace`-based snippet.
+
 ## 0.2.11 - 2026-07-13
 
 - Enhance recall logic to prioritize workflow metadata file.
