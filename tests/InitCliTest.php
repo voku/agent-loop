@@ -285,7 +285,15 @@ final class InitCliTest extends TestCase
 
         $review = $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1']);
         self::assertSame(0, $review['exit'], $review['output']);
-        self::assertStringContainsString('Review blindspots for DEMO-1: ok', $review['output']);
+        $reportJson = file_get_contents($this->root . '/.agent-recall/reviews/DEMO-1.blindspots.json');
+        self::assertNotFalse($reportJson);
+        $report = json_decode($reportJson, true, 512, JSON_THROW_ON_ERROR);
+        $findingIds = array_column($report['findings'], 'id');
+        self::assertNotContains(
+            'missing_review_checkpoint',
+            $findingIds,
+            'Expected the recorded checkpoint to satisfy the review-checkpoint marker. Findings: ' . $reportJson,
+        );
 
         $learning = $this->dispatch(['agent-loop', 'session', 'learning', 'decide', 'DEMO-1', '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan']);
         self::assertSame(0, $learning['exit'], $learning['output']);
