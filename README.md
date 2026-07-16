@@ -12,6 +12,50 @@ behind one CLI:
 vendor/bin/agent-loop
 ```
 
+## Quick start
+
+Install the package in an existing PHP project:
+
+```bash
+composer require --dev voku/agent-loop
+```
+
+Create the minimal local workflow structure and a clearly marked example
+task:
+
+```bash
+vendor/bin/agent-loop init scaffold
+```
+
+Inspect the generated card:
+
+```bash
+vendor/bin/agent-loop board card show DEMO-1
+```
+
+Plan and approve it. This example uses `composer.json`, which is already in a
+Composer project; replace it with the real file you intend to change.
+
+```bash
+vendor/bin/agent-loop workflow plan DEMO-1 \
+  --by "$(git config user.name)" \
+  --file composer.json \
+  --goal "Add a small validated change." \
+  --validation "composer test"
+
+vendor/bin/agent-loop workflow approve DEMO-1 \
+  --by "$(git config user.name)"
+```
+
+Generate the bounded context for your coding agent:
+
+```bash
+vendor/bin/agent-loop workflow context DEMO-1
+```
+
+After making the change, record its validation and continue through review and
+closure. See [Your first governed task](docs/quick-start.md).
+
 The goal is not to make a coding agent "remember everything".
 
 The goal is to make it work in a controlled loop where useful context is
@@ -29,7 +73,7 @@ agent-loop
   review    → deterministic blind-spot and code-review prompts
   learn     → capture findings, proposals and decision history
   memory    → review what should become durable project memory
-  init      → diagnostics, install plans, repo-managed agent assets
+  init      → diagnostics, minimal workflow scaffolding, repo-managed agent assets
 ```
 
 ## Why this exists
@@ -103,7 +147,7 @@ everything in one large tool.
 │  agent-loop workflow      → voku/agent-loop              (governed lifecycle gate)   │
 │  agent-loop verify        → voku/agent-loop              (cross-package consistency) │
 │  agent-loop memory        → voku/agent-loop              (MEMORY.md promotion review)│
-│  agent-loop init          → voku/agent-loop              (setup diagnostics/sync)    │
+│  agent-loop init          → voku/agent-loop              (setup/scaffold/sync)       │
 │                                                                                       │
 └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -131,9 +175,11 @@ Each dependency package has one job:
 | `board:verify` | Stable | Narrow check of the kanban board source only | `voku/agent-kanban` |
 | `memory` | Stable | `MEMORY.md` promotion review | `voku/agent-loop` |
 | `review` | Stable | Deterministic blind-spot reports and L2 review prompts | `voku/agent-recall-compiler` |
-| `init` | Stable | Setup diagnostics and repo-managed agent assets | `voku/agent-loop` |
+| `init` | Stable | Setup diagnostics, repo-managed assets, and minimal workflow scaffolding | `voku/agent-loop` |
 
-The table is the current executable surface. `init scaffold` is a **planned/reserved command**: it deliberately returns a clear non-zero `not implemented yet` result and is not a stable workflow step.
+The table is the current executable surface. `init scaffold` creates only the
+local workflow directories, a small `.agent-loop/init.json`, and a `DEMO-1`
+board card/task; it never writes over an existing file.
 
 ## The loop
 
@@ -155,7 +201,6 @@ and `recall compile`, then records a candidate work brief:
 ```bash
 vendor/bin/agent-loop workflow plan ABC-123 \
   --by lars \
-  --learning-root infra/doc/agent-learning \
   --file src/Foo.php \
   --goal "Implement the approved task." \
   --validation "vendor/bin/phpunit tests/FooTest.php"
@@ -352,7 +397,7 @@ project ever had.
 ### Workflow
 
 ```bash
-vendor/bin/agent-loop workflow plan <task-id> --by <actor> --learning-root infra/doc/agent-learning --file src/Foo.php --goal "Implement the approved task." --validation "vendor/bin/phpunit tests/FooTest.php"
+vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file src/Foo.php --goal "Implement the approved task." --validation "vendor/bin/phpunit tests/FooTest.php"
 vendor/bin/agent-loop workflow approve <task-id> --by <actor>
 vendor/bin/agent-loop workflow status <task-id>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
@@ -365,7 +410,9 @@ vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
 `workflow plan` wraps `session start` and `recall compile`, then writes a
-candidate work brief. Its `--file` values become the initial approved scope
+candidate work brief. It automatically uses `infra/doc/agent-learning` (or
+the legacy `learning-root`) when one exists; pass `--learning-root` only for a
+different location. Its `--file` values become the initial approved scope
 unless one or more explicit `--scope` values are supplied. `workflow approve`
 records the actor and revision that approved that candidate. A later plan
 revision must be approved again.
@@ -481,7 +528,7 @@ LLM, and does not install remote tools.
 ## Installation
 
 ```bash
-composer require voku/agent-loop
+composer require --dev voku/agent-loop
 ```
 
 | Requirement | Version |

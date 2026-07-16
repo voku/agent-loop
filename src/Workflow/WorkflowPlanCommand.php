@@ -38,7 +38,7 @@ final readonly class WorkflowPlanCommand
         try {
             $activeSession = $this->activeSession($taskId->value);
             if ($activeSession === null) {
-                $exit = (new WorkflowStartCommand($this->sessionRunner, $this->recallRunner))->run($this->startArgs($taskId->value, $options));
+                $exit = (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($this->startArgs($taskId->value, $options));
                 if ($exit !== 0) {
                     return $exit;
                 }
@@ -178,9 +178,6 @@ final readonly class WorkflowPlanCommand
         if ($by === null) {
             throw new InvalidArgumentException('--by is required.');
         }
-        if ($learningRoot === null) {
-            throw new InvalidArgumentException('--learning-root is required.');
-        }
         if ($files === []) {
             throw new InvalidArgumentException('--file is required.');
         }
@@ -193,7 +190,7 @@ final readonly class WorkflowPlanCommand
 
         return [
             'by' => $by,
-            'learningRoot' => $learningRoot,
+            'learningRoot' => WorkflowLearningRoot::resolve($this->rootPath, $learningRoot),
             'files' => $files,
             'goal' => $goal,
             'scope' => $scope === [] ? $files : $scope,

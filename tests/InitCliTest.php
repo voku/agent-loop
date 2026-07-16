@@ -234,12 +234,92 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('[OK] sync hooks: synced 3 hook file(s) into', $result['output']);
     }
 
-    public function testReservedScaffoldExitsOne(): void
+    public function testScaffoldCreatesAFirstTaskThatCanBePlannedAndInspected(): void
     {
-        $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--profile=wsl2', '--agent=codex', '--dry-run']);
+        file_put_contents($this->root . '/composer.json', "{\"name\": \"demo/project\"}\n");
+
+        $result = $this->dispatch(['agent-loop', 'init', 'scaffold']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.agent-loop/init.json');
+        self::assertFileExists($this->root . '/todo/board.md');
+        self::assertFileExists($this->root . '/todo/cards/DEMO-1.md');
+        self::assertFileExists($this->root . '/tasks/DEMO-1.md');
+        self::assertDirectoryExists($this->root . '/session_plan');
+        self::assertDirectoryExists($this->root . '/infra/doc/agent-learning/findings');
+        self::assertStringContainsString('board card show DEMO-1', $result['output']);
+
+        $show = $this->dispatch(['agent-loop', 'board', 'card', 'show', 'DEMO-1']);
+        self::assertSame(0, $show['exit'], $show['output']);
+        self::assertStringContainsString('DEMO-1: Add a small validated change', $show['output']);
+
+        $plan = $this->dispatch([
+            'agent-loop', 'workflow', 'plan', 'DEMO-1', '--by', 'tester',
+            '--file', 'composer.json', '--goal', 'Add a small validated change.', '--validation', 'composer test',
+        ]);
+        self::assertSame(0, $plan['exit'], $plan['output']);
+
+        $approve = $this->dispatch(['agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'tester']);
+        self::assertSame(0, $approve['exit'], $approve['output']);
+
+        $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'DEMO-1']);
+        self::assertSame(0, $context['exit'], $context['output']);
+        self::assertStringContainsString('Add a small validated change.', $context['output']);
+
+        $verify = $this->dispatch(['agent-loop', 'verify']);
+        self::assertSame(0, $verify['exit'], $verify['output']);
+
+        $validation = $this->dispatch([
+            'agent-loop', 'session', 'validation', 'record', 'DEMO-1', '--brief-revision', '1',
+            '--command', 'composer test', '--status', 'passed', '--exit-code', '0', '--duration-ms', '0', '--by', 'tester',
+            '--root', $this->root . '/session_plan',
+        ]);
+        self::assertSame(0, $validation['exit'], $validation['output']);
+
+        $review = $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1']);
+        self::assertSame(0, $review['exit'], $review['output']);
+        self::assertFileExists($this->root . '/.agent-recall/reviews/DEMO-1.blindspots.json');
+
+        $checkpoint = $this->dispatch(['agent-loop', 'session', 'checkpoint', 'DEMO-1', '--title', 'Review', '--body', 'review blindspots DEMO-1 was checked.', '--root', $this->root . '/session_plan']);
+        self::assertSame(0, $checkpoint['exit'], $checkpoint['output']);
+
+        $review = $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1']);
+        self::assertSame(0, $review['exit'], $review['output']);
+        self::assertStringContainsString('Review blindspots for DEMO-1: ok', $review['output']);
+
+        $learning = $this->dispatch(['agent-loop', 'session', 'learning', 'decide', 'DEMO-1', '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan']);
+        self::assertSame(0, $learning['exit'], $learning['output']);
+
+        $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'DEMO-1', '--status', 'done']);
+        self::assertSame(0, $close['exit'], $close['output']);
+    }
+
+    public function testScaffoldDryRunDoesNotWrite(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--dry-run']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[DRY-RUN] would create .agent-loop/', $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+    }
+
+    public function testScaffoldDoesNotOverwriteExistingFiles(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', "{\"version\": 99}\n");
+
+        $result = $this->dispatch(['agent-loop', 'init', 'scaffold']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertSame("{\"version\": 99}\n", file_get_contents($this->root . '/.agent-loop/init.json'));
+        self::assertStringContainsString('[SKIP] .agent-loop/init.json already exists', $result['output']);
+    }
+
+    public function testScaffoldRejectsUnsupportedOptions(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--profile=wsl2']);
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('init scaffold is not implemented yet', $result['output']);
     }
 
     public function testUnknownAgentExitsOne(): void

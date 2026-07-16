@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.4.0 - 2026-07-16
+
+- Implemented `init scaffold`, replacing the reserved
+  `--profile=wsl2 --agent=<agent>` stub that always exited `1` with `not
+  implemented yet`. It now takes only an optional `--dry-run`, creates the
+  minimum local workflow structure (`.agent-loop/init.json`, `todo/board.md`,
+  `session_plan/`, `infra/doc/agent-learning/findings/`) plus a `DEMO-1`
+  example task and board card, never overwrites an existing file, and prints
+  the next `board card show` / `workflow plan` commands to run.
+- `workflow plan` and `workflow start` no longer require `--learning-root`.
+  Added `WorkflowLearningRoot::resolve()`, which uses the explicit flag when
+  given, else auto-detects `infra/doc/agent-learning` or the legacy
+  `learning-root` directory under the project root, else fails with a message
+  pointing at `init scaffold`.
+- `Dispatcher`'s review `--output-dir` default now calls
+  `RecallOutputRoot::resolve()` instead of a hardcoded `<root>/recall/`
+  path, so `review blindspots`/`review code` pick up
+  `infra/doc/agent-learning/recall-output` the same way `recall compile`
+  does.
+- Added `docs/quick-start.md` ("Your first governed task") and a README
+  "Quick start" section walking `init scaffold` through plan, approve, and
+  context in one path; `docs/agents/INFO_Agents.md` and the package/command
+  tables no longer describe `scaffold` as reserved/planned.
+- `composer require voku/agent-loop` install instructions now say
+  `--dev`, matching how the package is actually consumed.
+
 ## 0.3.0 - 2026-07-14
 
 - Added `RecallOutputRoot::resolve()`, a single config-driven source of truth

@@ -52,12 +52,13 @@ final class CliSurfaceContractTest extends TestCase
         }
     }
 
-    public function testReadmeLabelsReservedScaffoldAsPlanned(): void
+    public function testReadmeDocumentsRunnableScaffoldQuickStart(): void
     {
         $readme = file_get_contents(dirname(__DIR__) . '/README.md');
         self::assertNotFalse($readme);
-        self::assertStringContainsString('`init scaffold` is a **planned/reserved command**', $readme);
-        self::assertStringContainsString('`not implemented yet`', $readme);
+        self::assertStringContainsString('## Quick start', $readme);
+        self::assertStringContainsString('vendor/bin/agent-loop init scaffold', $readme);
+        self::assertStringContainsString('docs/quick-start.md', $readme);
     }
 
     private function packageMapTable(string $readme): string

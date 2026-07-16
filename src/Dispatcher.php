@@ -118,8 +118,8 @@ final class Dispatcher
     /**
      * Delegates review commands to voku/agent-recall-compiler, where the L2
      * prompt/review feature lives. When the caller does not pass --output-dir,
-     * default to agent-loop's recall/<task-id> layout so the standard workflow
-     * stays: recall compile -> review blindspots/code.
+     * use the same resolved recall root as `recall compile` so the standard
+     * workflow stays: recall compile -> review blindspots/code.
      *
      * @param list<string> $rest
      */
@@ -213,7 +213,7 @@ final class Dispatcher
             return $rest;
         }
 
-        return array_merge($rest, ['--output-dir', rtrim($this->rootPath, '/') . '/recall/' . $taskId]);
+        return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
     /**
@@ -358,8 +358,9 @@ final class Dispatcher
      * when the caller didn't pass one (the dependency itself defaults to the
      * current directory). `<recall-root>` is `RecallOutputRoot::resolve()`:
      * `paths.recall_root` from `.agent-loop/init.json` when the host project
-     * configures one, else `<root>/recall`. Anything the caller already
-     * passed for `--output-dir` is left alone.
+     * configures one, else `<root>/infra/doc/agent-learning/recall-output`
+     * when that learning root exists, else `<root>/recall`. Anything the
+     * caller already passed for `--output-dir` is left alone.
      *
      * @param list<string> $rest
      *

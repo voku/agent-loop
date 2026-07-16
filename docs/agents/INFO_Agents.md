@@ -205,15 +205,13 @@ For Codex specifically, do not rely on an invisible shell-rewrite story.
 Keep the RTK preference explicit in repository docs such as `AGENTS.md`
 and `README.md`.
 
-## Remaining Reserved Command
+## Minimal Workflow Scaffold
 
-This command is still intentionally reserved today and exits `1` with
-`not implemented yet`:
-
-- `init scaffold --profile=wsl2 --agent=...`
-
-Host-repo migration docs should treat `scaffold` as backlog, while
-`validate --kind=subagents|hooks|all` and `sync-*` are now runnable.
+`init scaffold` is now the first-run path for a local governed workflow. It
+creates the minimum board, task, session, and learning-root structure plus a
+`DEMO-1` example, preserves existing files, and accepts `--dry-run` for a
+non-mutating preview. `validate --kind=subagents|hooks|all` and `sync-*`
+remain the separate repo-managed asset commands.
 
 ## Host-Repo Migration Pattern
 

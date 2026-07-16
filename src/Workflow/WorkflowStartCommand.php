@@ -9,7 +9,7 @@ use InvalidArgumentException;
 final readonly class WorkflowStartCommand
 {
     /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner */
-    public function __construct(private mixed $sessionRunner, private mixed $recallRunner)
+    public function __construct(private string $rootPath, private mixed $sessionRunner, private mixed $recallRunner)
     {
     }
 
@@ -81,8 +81,8 @@ final readonly class WorkflowStartCommand
             else { $base = $value; }
         }
         if ($by === null || trim($by) === '') { throw new InvalidArgumentException('--by is required.'); }
-        if ($root === null || trim($root) === '') { throw new InvalidArgumentException('--learning-root is required.'); }
+        if ($root !== null && trim($root) === '') { throw new InvalidArgumentException('--learning-root requires a non-empty value.'); }
         if ($files === []) { throw new InvalidArgumentException('--file is required.'); }
-        return ['by' => $by, 'learningRoot' => $root, 'files' => $files, 'baseCommit' => $base];
+        return ['by' => $by, 'learningRoot' => WorkflowLearningRoot::resolve($this->rootPath, $root), 'files' => $files, 'baseCommit' => $base];
     }
 }

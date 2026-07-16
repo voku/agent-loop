@@ -25,7 +25,7 @@ final readonly class WorkflowCli
             'help', '--help', '-h', '' => $this->printHelp(),
             'plan' => (new WorkflowPlanCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->sessionRunner))->run($rest),
-            'start' => (new WorkflowStartCommand($this->sessionRunner, $this->recallRunner))->run($rest),
+            'start' => (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
@@ -39,9 +39,9 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> --learning-root <path> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--base-commit <sha>]
+  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--base-commit <sha>]
   agent-loop workflow approve <task-id> --by <actor>
-  agent-loop workflow start <task-id> --by <actor> --learning-root <path> --file <path> [--file <path> ...] [--base-commit <sha>]
+  agent-loop workflow start <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id>
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
