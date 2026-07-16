@@ -35,9 +35,9 @@ final class ReviewDispatcherIntegrationTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('Review blindspots for ABC-123: ok', $result['output']);
-        self::assertFileExists($this->root . '/.agent-recall/reviews/ABC-123.blindspots.md');
-        self::assertFileExists($this->root . '/.agent-recall/reviews/ABC-123.blindspots.json');
-        self::assertFileExists($this->root . '/.agent-recall/reviews/ABC-123.blindspots.prompt.md');
+        self::assertFileExists($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.md');
+        self::assertFileExists($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json');
+        self::assertFileExists($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.prompt.md');
     }
 
     public function testReviewBlindspotsUsesTheLearningRootRecallOutputWhenPresent(): void
@@ -51,7 +51,7 @@ final class ReviewDispatcherIntegrationTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('Review blindspots for ABC-123: ok', $result['output']);
-        self::assertFileExists($this->root . '/.agent-recall/reviews/ABC-123.blindspots.json');
+        self::assertFileExists($this->root . '/infra/doc/agent-learning/recall-output/ABC-123/reviews/ABC-123.blindspots.json');
     }
 
     public function testReviewCodeDefaultsToAgentLoopRecallLayout(): void
@@ -64,7 +64,7 @@ final class ReviewDispatcherIntegrationTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('Review code prompt for ABC-123', $result['output']);
-        $prompt = (string) file_get_contents($this->root . '/.agent-recall/reviews/ABC-123.code.prompt.md');
+        $prompt = (string) file_get_contents($this->root . '/recall/ABC-123/reviews/ABC-123.code.prompt.md');
         self::assertStringContainsString('src/Foo.php', $prompt);
         self::assertStringContainsString('L2 code review prompt for ABC-123', $prompt);
     }

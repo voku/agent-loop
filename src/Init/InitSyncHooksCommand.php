@@ -51,11 +51,12 @@ final readonly class InitSyncHooksCommand
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
         $dryRun = $this->hasFlag($tokens, 'dry-run');
         $force = $this->hasFlag($tokens, 'force');
+        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
-        return $this->syncHooks($paths, $dryRun, $force);
+        return $this->syncHooks($paths, $dryRun, $force, $adoptExisting);
     }
 
-    private function syncHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force): int
+    private function syncHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
     {
         $errors = CodexHooksDefinition::validationErrors($paths->absoluteHooksRoot());
         if ($errors === [] && !is_file($paths->absoluteHooksRoot() . '/hooks.json') && !is_dir($paths->absoluteHooksRoot() . '/hooks')) {
@@ -95,10 +96,17 @@ final readonly class InitSyncHooksCommand
         }
         sort($desiredEntries);
 
+        $adopted = [];
         foreach ($desiredEntries as $entry) {
             $targetPath = $targetRoot . '/' . $entry;
             if ($this->pathExists($targetPath) && !$manifest->isManaged($entry) && !$force) {
-                echo '[FAIL] sync hooks: unmanaged target already exists ' . $targetPath . ' (use --force to overwrite)' . "\n";
+                if ($adoptExisting) {
+                    $adopted[$entry] = true;
+
+                    continue;
+                }
+
+                echo '[FAIL] sync hooks: unmanaged target already exists ' . $targetPath . ' (use --force to overwrite, or --adopt-existing to record it as managed without touching its content)' . "\n";
 
                 return 1;
             }
@@ -117,17 +125,30 @@ final readonly class InitSyncHooksCommand
         }
 
         if ($dryRun) {
-            echo '[DRY-RUN] sync hooks: install hooks.json -> ' . $targetRoot . '/hooks.json' . "\n";
+            echo '[DRY-RUN] sync hooks: ' . (isset($adopted['hooks.json']) ? 'adopt' : 'install') . ' hooks.json -> ' . $targetRoot . '/hooks.json' . "\n";
             foreach ($definition->scriptNames() as $scriptName) {
-                echo '[DRY-RUN] sync hooks: install ' . $scriptName . ' -> ' . $targetRoot . '/hooks/' . $scriptName . "\n";
+                $verb = isset($adopted['hooks/' . $scriptName]) ? 'adopt' : 'install';
+                echo '[DRY-RUN] sync hooks: ' . $verb . ' ' . $scriptName . ' -> ' . $targetRoot . '/hooks/' . $scriptName . "\n";
             }
         } else {
-            $this->writeFile($targetRoot . '/hooks.json', $definition->hooksJsonContent());
-            echo '[OK] sync hooks: installed hooks.json -> ' . $targetRoot . '/hooks.json' . "\n";
+            if (isset($adopted['hooks.json'])) {
+                echo '[OK] sync hooks: adopted existing ' . $targetRoot . '/hooks.json into the manifest (content left untouched)' . "\n";
+            } else {
+                $this->writeFile($targetRoot . '/hooks.json', $definition->hooksJsonContent());
+                echo '[OK] sync hooks: installed hooks.json -> ' . $targetRoot . '/hooks.json' . "\n";
+            }
 
             foreach ($definition->scriptNames() as $scriptName) {
+                $entry = 'hooks/' . $scriptName;
+                $targetFile = $targetRoot . '/' . $entry;
+
+                if (isset($adopted[$entry])) {
+                    echo '[OK] sync hooks: adopted existing ' . $targetFile . ' into the manifest (content left untouched)' . "\n";
+
+                    continue;
+                }
+
                 $sourceFile = $paths->absoluteHooksRoot() . '/hooks/' . $scriptName;
-                $targetFile = $targetRoot . '/hooks/' . $scriptName;
                 $content = file_get_contents($sourceFile);
                 if (!is_string($content)) {
                     fwrite(\STDERR, 'Unable to read hook script: ' . $sourceFile . "\n");
@@ -228,7 +249,7 @@ final readonly class InitSyncHooksCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'config', 'hooks-root'];
-        $flagOptions = ['dry-run', 'force'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];

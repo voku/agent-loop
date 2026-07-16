@@ -226,7 +226,24 @@ final readonly class WorkflowContextCommand
             $file = $index->file($path);
             if ($file instanceof FileEntry) {
                 $this->addFileSymbols($budget, $file);
+
+                continue;
             }
+
+            // A directory-shaped scope entry never matches file()'s exact
+            // path lookup; expand it to every indexed file under it instead
+            // of silently rendering an empty "Relevant symbols" section.
+            $prefix = rtrim($path, '/') . '/';
+            $matches = array_filter($index->files, static fn (FileEntry $entry): bool => str_starts_with($entry->path, $prefix));
+            if ($matches !== []) {
+                foreach ($matches as $match) {
+                    $this->addFileSymbols($budget, $match);
+                }
+
+                continue;
+            }
+
+            $budget->skip("agent-map: scope entry '{$path}' matched no file in the index (check the path, or that .agent-map/php-symbols.json is up to date)");
         }
     }
 

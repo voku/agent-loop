@@ -45,9 +45,9 @@ final readonly class InitCli
           agent-loop init status [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force]
-          agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force]
-          agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force]
+          agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--dry-run]
 
         Commands:

@@ -53,10 +53,11 @@ final readonly class InitSyncSkillsCommand
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
         $dryRun = $this->hasFlag($tokens, 'dry-run');
         $force = $this->hasFlag($tokens, 'force');
+        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
         $agents = $agent->isAll() ? ['codex', 'claude', 'copilot', 'antigravity'] : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
-            $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force);
+            $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
                 return $exit;
             }
@@ -65,7 +66,7 @@ final readonly class InitSyncSkillsCommand
         return 0;
     }
 
-    private function syncAgent(string $agent, AgentAssetSourcePaths $paths, bool $dryRun, bool $force): int
+    private function syncAgent(string $agent, AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
     {
         $skillFiles = $this->findSkillFiles($paths->absoluteSkillsRoot());
         if ($skillFiles === []) {
@@ -114,10 +115,17 @@ final readonly class InitSyncSkillsCommand
         $desiredEntries = array_keys($skillFiles);
         sort($desiredEntries);
 
+        $adopted = [];
         foreach ($desiredEntries as $entry) {
             $targetPath = $targetRoot . '/' . $entry;
             if (($this->pathExists($targetPath)) && !$manifest->isManaged($entry) && !$force) {
-                echo '[FAIL] sync skills: unmanaged target already exists ' . $targetPath . ' (use --force to overwrite)' . "\n";
+                if ($adoptExisting) {
+                    $adopted[$entry] = true;
+
+                    continue;
+                }
+
+                echo '[FAIL] sync skills: unmanaged target already exists ' . $targetPath . ' (use --force to overwrite, or --adopt-existing to record it as managed without touching its content)' . "\n";
 
                 return 1;
             }
@@ -138,6 +146,12 @@ final readonly class InitSyncSkillsCommand
         foreach ($skillFiles as $entry => $skillFile) {
             $sourceDir = dirname($skillFile);
             $targetDir = $targetRoot . '/' . $entry;
+
+            if (isset($adopted[$entry])) {
+                echo ($dryRun ? '[DRY-RUN] sync skills: would adopt' : '[OK] sync skills: adopted') . ' existing ' . $targetDir . ' into the manifest (content left untouched)' . "\n";
+
+                continue;
+            }
 
             if ($dryRun) {
                 echo '[DRY-RUN] sync skills: install ' . $entry . ' -> ' . $targetDir . "\n";
@@ -330,7 +344,7 @@ final readonly class InitSyncSkillsCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'config', 'skills-root'];
-        $flagOptions = ['dry-run', 'force'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];

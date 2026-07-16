@@ -4,20 +4,29 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use voku\AgentLoop\RecallOutputRoot;
+
 final readonly class WorkflowReviewReportReader
 {
     public function __construct(private string $rootPath)
     {
     }
 
-    public function relativePath(string $taskId): string
-    {
-        return '.agent-recall/reviews/' . $taskId . '.blindspots.json';
-    }
-
+    /**
+     * `agent-recall-compiler review` writes its report as a `reviews/`
+     * subfolder of the same `--output-dir` it read its compiled recall
+     * inputs from; `Dispatcher::resolveReviewArgv()` defaults that
+     * `--output-dir` to `<recall-root>/<task-id>`, so the report lands at
+     * `<recall-root>/<task-id>/reviews/<task-id>.blindspots.json`.
+     */
     public function absolutePath(string $taskId): string
     {
-        return rtrim($this->rootPath, '/') . '/' . $this->relativePath($taskId);
+        return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/reviews/' . $taskId . '.blindspots.json';
+    }
+
+    public function relativePath(string $taskId): string
+    {
+        return RecallOutputRoot::relativeTo($this->rootPath, $this->absolutePath($taskId));
     }
 
     /**

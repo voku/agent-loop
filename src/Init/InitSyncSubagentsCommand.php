@@ -51,10 +51,11 @@ final readonly class InitSyncSubagentsCommand
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
         $dryRun = $this->hasFlag($tokens, 'dry-run');
         $force = $this->hasFlag($tokens, 'force');
+        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
         $agents = $agent->isAll() ? ['copilot', 'antigravity'] : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
-            $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force);
+            $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
                 return $exit;
             }
@@ -63,7 +64,7 @@ final readonly class InitSyncSubagentsCommand
         return 0;
     }
 
-    private function syncAgent(string $agent, AgentAssetSourcePaths $paths, bool $dryRun, bool $force): int
+    private function syncAgent(string $agent, AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
     {
         $sourceFiles = $this->findSubagentFiles($paths->absoluteSubagentsRoot());
         if ($sourceFiles === []) {
@@ -102,10 +103,17 @@ final readonly class InitSyncSubagentsCommand
         }
         sort($desiredEntries);
 
+        $adopted = [];
         foreach ($desiredEntries as $entry) {
             $targetPath = $targetRoot . '/' . $entry;
             if (($this->pathExists($targetPath)) && !$manifest->isManaged($entry) && !$force) {
-                echo '[FAIL] sync subagents: unmanaged target already exists ' . $targetPath . ' (use --force to overwrite)' . "\n";
+                if ($adoptExisting) {
+                    $adopted[$entry] = true;
+
+                    continue;
+                }
+
+                echo '[FAIL] sync subagents: unmanaged target already exists ' . $targetPath . ' (use --force to overwrite, or --adopt-existing to record it as managed without touching its content)' . "\n";
 
                 return 1;
             }
@@ -124,7 +132,15 @@ final readonly class InitSyncSubagentsCommand
         }
 
         foreach ($definitions as $sourceFile => $definition) {
-            $targetFile = $targetRoot . '/' . basename($sourceFile, '.md') . $targetSuffix;
+            $entry = basename($sourceFile, '.md') . $targetSuffix;
+            $targetFile = $targetRoot . '/' . $entry;
+
+            if (isset($adopted[$entry])) {
+                echo ($dryRun ? '[DRY-RUN] sync subagents: would adopt' : '[OK] sync subagents: adopted') . ' existing ' . $targetFile . ' into the manifest (content left untouched)' . "\n";
+
+                continue;
+            }
+
             if ($dryRun) {
                 echo '[DRY-RUN] sync subagents: install ' . basename($targetFile) . ' -> ' . $targetFile . "\n";
 
@@ -250,7 +266,7 @@ final readonly class InitSyncSubagentsCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'config', 'subagents-root'];
-        $flagOptions = ['dry-run', 'force'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];

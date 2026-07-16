@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.0 - 2026-07-16
+
+- Added `agent-loop verify --task-id=<id>`, scoping the tasks/sessions/recall
+  checks to one task so an unrelated task's stale recall draft or broken
+  task file no longer fails the run. `workflow close` now passes its own
+  task id through automatically, so an unrelated task's drift can no longer
+  block a close that is otherwise clean. package delegates, board, and the
+  learning root stay repo-wide checks either way.
+- `workflow context`'s map-symbol section no longer silently renders an
+  empty "Relevant symbols" section for a directory-shaped `--scope` entry
+  (the map index only matches exact file paths). A directory entry now
+  expands to every indexed file under it; a scope entry that still matches
+  nothing gets an explicit `[SKIP]` instead of no signal at all.
+- Added `--adopt-existing` to `init sync-skills/sync-subagents/sync-hooks`,
+  alongside `--force`. The existing unmanaged-target guard blocks overwrite
+  unless one of these is passed; `--force` overwrites unconditionally,
+  while `--adopt-existing` records an existing unmanaged target as managed
+  *without* touching its content, so a first sync in an environment where
+  the manifest file itself doesn't durably persist (e.g. a gitignored
+  per-client target directory) doesn't have to keep using `--force`
+  indefinitely -- the next sync, now that the target is managed, converges
+  it normally.
+- Requires `voku/agent-recall-compiler` 0.6.2+. `review blindspots`/`review
+  code` now write their report/prompt files under a `reviews/` subfolder of
+  the same `--output-dir` they read compiled recall inputs from (see that
+  package's 0.6.2 changelog), instead of a hardcoded
+  `.agent-recall/reviews/` that ignored a configured recall root entirely.
+  `WorkflowReviewReportReader` (used by `workflow status/report/close`) now
+  reads the report from `<recall-root>/<task-id>/reviews/<task-id>.blindspots.json`
+  to match.
+
 ## 0.4.0 - 2026-07-16
 
 - Implemented `init scaffold`, replacing the reserved

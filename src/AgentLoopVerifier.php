@@ -52,14 +52,18 @@ final class AgentLoopVerifier
 
         $options = $this->parseOptions($tokens);
         $strict = in_array('--strict', $tokens, true);
+        $taskId = $options['task-id'];
 
         echo "agent-loop verify - cross-package consistency check\n\n";
+        if ($taskId !== null) {
+            echo "Scoped to task {$taskId}: unrelated tasks' drift will not fail this run.\n\n";
+        }
 
         $results = [
             $this->checkPackagesWired(),
-            $this->checkTasks($options['tasks-root'], $strict),
+            $this->checkTasks($options['tasks-root'], $strict, $taskId),
             $this->checkBoard(),
-            $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict),
+            $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict, $taskId),
             $this->checkLearningRoot($options['learning-root']),
         ];
 
@@ -75,7 +79,7 @@ final class AgentLoopVerifier
     /**
      * @param list<string> $tokens
      *
-     * @return array{tasks-root: string, sessions-root: string, recall-root: string, learning-root: ?string}
+     * @return array{tasks-root: string, sessions-root: string, recall-root: string, learning-root: ?string, task-id: ?string}
      */
     private function parseOptions(array $tokens): array
     {
@@ -85,10 +89,11 @@ final class AgentLoopVerifier
             'sessions-root' => $root . '/session_plan',
             'recall-root' => null,
             'learning-root' => null,
+            'task-id' => null,
         ];
 
         foreach ($tokens as $token) {
-            foreach (['tasks-root', 'sessions-root', 'recall-root', 'learning-root'] as $key) {
+            foreach (['tasks-root', 'sessions-root', 'recall-root', 'learning-root', 'task-id'] as $key) {
                 $prefix = '--' . $key . '=';
                 if (str_starts_with($token, $prefix)) {
                     $options[$key] = substr($token, strlen($prefix));
@@ -146,7 +151,7 @@ final class AgentLoopVerifier
         return true;
     }
 
-    private function checkTasks(string $tasksRoot, bool $strict): bool
+    private function checkTasks(string $tasksRoot, bool $strict, ?string $taskId): bool
     {
         if (!is_dir($tasksRoot)) {
             return $this->skipOrFail('tasks', "no directory at {$tasksRoot}", $strict);
@@ -164,7 +169,11 @@ final class AgentLoopVerifier
             $content = (string) file_get_contents($file);
             $id = basename($file, '.md');
             if (trim($content) === '' || !preg_match('/^#\s+\S/m', $content)) {
-                $broken[] = $file;
+                // Scoped runs only fail on the target task's own file; an
+                // unrelated broken task file is someone else's drift.
+                if ($taskId === null || $id === $taskId) {
+                    $broken[] = $file;
+                }
 
                 continue;
             }
@@ -180,7 +189,7 @@ final class AgentLoopVerifier
             return false;
         }
 
-        echo '[OK] tasks: ' . count($ids) . ' task file(s) parsed: ' . implode(', ', $ids) . "\n";
+        echo '[OK] tasks: ' . count($ids) . ' task file(s) parsed' . ($taskId !== null ? " (scoped to {$taskId})" : ': ' . implode(', ', $ids)) . "\n";
 
         return true;
     }
@@ -216,7 +225,7 @@ final class AgentLoopVerifier
         return false;
     }
 
-    private function checkSessionsAndRecall(string $sessionsRoot, string $recallRoot, bool $strict): bool
+    private function checkSessionsAndRecall(string $sessionsRoot, string $recallRoot, bool $strict, ?string $taskId): bool
     {
         if (!is_dir($sessionsRoot)) {
             return $this->skipOrFail('sessions', "no directory at {$sessionsRoot}", $strict);
@@ -230,10 +239,14 @@ final class AgentLoopVerifier
             return false;
         }
 
-        $ok = $this->checkRecallStaleness($recallRoot);
+        $ok = $this->checkRecallStaleness($recallRoot, $taskId);
+
+        if ($taskId !== null) {
+            $sessions = array_values(array_filter($sessions, static fn (Session $session): bool => $session->taskId === $taskId));
+        }
 
         if ($sessions === []) {
-            echo "[OK] sessions: 0 sessions found under {$sessionsRoot}\n";
+            echo "[OK] sessions: 0 sessions found under {$sessionsRoot}" . ($taskId !== null ? " for task {$taskId}" : '') . "\n";
 
             return $ok;
         }
@@ -246,7 +259,7 @@ final class AgentLoopVerifier
 
             ++$activeCount;
 
-            if ($this->taskIds !== [] && !in_array($session->taskId, $this->taskIds, true)) {
+            if ($taskId === null && $this->taskIds !== [] && !in_array($session->taskId, $this->taskIds, true)) {
                 echo "[FAIL] sessions: session {$session->id} points to unknown task '{$session->taskId}'\n";
                 $ok = false;
 
@@ -331,13 +344,25 @@ final class AgentLoopVerifier
      * output files and flags any output that was edited or regenerated out of
      * band since.
      */
-    private function checkRecallStaleness(string $recallRoot): bool
+    private function checkRecallStaleness(string $recallRoot, ?string $taskId): bool
     {
         if (!is_dir($recallRoot)) {
             return true;
         }
 
-        $taskDirs = glob($recallRoot . '/*', GLOB_ONLYDIR) ?: [];
+        if ($taskId !== null) {
+            $taskDirs = array_filter([rtrim($recallRoot, '/') . '/' . $taskId], 'is_dir');
+            $currentDir = rtrim($recallRoot, '/') . '/current';
+            $currentMeta = $currentDir . '/meta.json';
+            if ($taskDirs === [] && is_file($currentMeta)) {
+                $decoded = json_decode((string) file_get_contents($currentMeta), true);
+                if (is_array($decoded) && ($decoded['task_id'] ?? null) === $taskId) {
+                    $taskDirs = [$currentDir];
+                }
+            }
+        } else {
+            $taskDirs = glob($recallRoot . '/*', GLOB_ONLYDIR) ?: [];
+        }
         $ok = true;
 
         foreach ($taskDirs as $taskDir) {
@@ -469,6 +494,13 @@ final class AgentLoopVerifier
                                  skippable even in strict mode -- both are
                                  documented opt-in additions, not part of
                                  the baseline task/session loop.
+          --task-id=ID           Scope the tasks/sessions/recall checks to
+                                 one task, so an unrelated task's stale
+                                 recall draft or broken task file doesn't
+                                 fail this run (e.g. inside `workflow
+                                 close`). package delegates, board, and the
+                                 learning root stay repo-wide checks either
+                                 way.
 
         TXT;
     }

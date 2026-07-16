@@ -249,10 +249,10 @@ final class WorkflowCloseCommandTest extends TestCase
 
     private function writeRawReviewReport(string $json): void
     {
-        if (!is_dir($this->root . '/.agent-recall/reviews')) {
-            mkdir($this->root . '/.agent-recall/reviews', 0o775, true);
+        if (!is_dir($this->root . '/recall/ABC-123/reviews')) {
+            mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
         }
-        file_put_contents($this->root . '/.agent-recall/reviews/ABC-123.blindspots.json', $json);
+        file_put_contents($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json', $json);
     }
 
     private function removeDirectory(string $dir): void

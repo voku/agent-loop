@@ -35,7 +35,7 @@ final class WorkflowReportCommandTest extends TestCase
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
         $this->write('recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
         $this->write('recall/ABC-123/recall-log.draft.json', '{}');
-        $this->write('.agent-recall/reviews/ABC-123.blindspots.json', json_encode(['status' => 'warn'], JSON_THROW_ON_ERROR));
+        $this->write('recall/ABC-123/reviews/ABC-123.blindspots.json', json_encode(['status' => 'warn'], JSON_THROW_ON_ERROR));
         $this->write('.agent-loop/risks/ABC-123.accepted-risk.md', "# Accepted risk\n");
 
         $result = $this->runReport(['ABC-123', '--changed-file', 'src/Foo.php', '--changed-file', 'docs/Outside.md']);

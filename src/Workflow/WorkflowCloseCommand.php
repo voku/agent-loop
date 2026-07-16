@@ -73,7 +73,7 @@ final readonly class WorkflowCloseCommand
         $validationPassed = $this->checkValidationGate($taskId);
         $outcomesPassed = $this->checkRecallOutcomeGate($taskId);
         $learningPassed = $this->checkLearningDecisionGate($taskId);
-        $verifyPassed = $this->checkVerifyGate();
+        $verifyPassed = $this->checkVerifyGate($taskId);
 
         return $recallPassed && $reviewPassed && $workBriefPassed && $validationPassed && $outcomesPassed && $learningPassed && $verifyPassed;
     }
@@ -117,9 +117,14 @@ final readonly class WorkflowCloseCommand
         return true;
     }
 
-    private function checkVerifyGate(): bool
+    /**
+     * Scoped to this task so an unrelated task's stale recall draft or
+     * broken task file can't block this close; package delegates, board,
+     * and the learning root still verify repo-wide either way.
+     */
+    private function checkVerifyGate(string $taskId): bool
     {
-        if (($this->verifyRunner)([]) === 0) {
+        if (($this->verifyRunner)(['--task-id=' . $taskId]) === 0) {
             echo "[OK] verify: agent-loop verify passed\n";
             return true;
         }

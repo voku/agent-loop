@@ -108,8 +108,8 @@ final class SmokeLoopTest extends TestCase
             'agent-loop', 'session', 'learning', 'decide', 'task.001',
             '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan',
         ])['exit']);
-        mkdir($this->root . '/.agent-recall/reviews', 0o775, true);
-        file_put_contents($this->root . '/.agent-recall/reviews/task.001.blindspots.json', json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR));
+        mkdir($this->root . '/recall/task.001/reviews', 0o775, true);
+        file_put_contents($this->root . '/recall/task.001/reviews/task.001.blindspots.json', json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR));
 
         $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
         self::assertSame(0, $context['exit']);
