@@ -16,11 +16,11 @@
   ],
   "require": {
     "php": "^8.3",
-    "voku/agent-kanban": "^0.2",
-    "voku/agent-learning": "^0.8",
-    "voku/agent-map": "^0.1",
-    "voku/agent-recall-compiler": "^0.6",
-    "voku/agent-session": "^0.2"
+    "voku/agent-kanban": "0.2.*",
+    "voku/agent-learning": "0.8.*",
+    "voku/agent-map": "0.1.*",
+    "voku/agent-recall-compiler": "0.6.*",
+    "voku/agent-session": "0.2.*"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",
