@@ -91,17 +91,27 @@ automatically executed agent actions.
 
 ## Compact Map Locations
 
-When compact source locations would help the briefing, build the map explicitly
-before rendering context:
+`map` is a plain lookup tool, not something gated behind `workflow
+plan/approve` -- reach for it any time a task needs "where is this
+class/method defined" or "what else references it" across more than one or
+two files, the same way you'd reach for `rg`. Use it as a local query index
+rather than a broad prompt dump or a multi-file `grep` sweep:
 
 ```bash
+vendor/bin/agent-loop init tools
 vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map query SomeClass
+vendor/bin/agent-loop map related SomeClass
 vendor/bin/agent-loop map stale
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
 
-The default `.agent-map/php-symbols.json` is generated navigation state and
-must be ignored by the host repository. The context command reports a missing,
+Run `init tools` first (it caches its result, so this is cheap even when run
+at the start of most sessions): it reports whether `rg` is available and
+whether an `agent-map` index already exists, so you are not guessing or
+re-discovering that from scratch every time. The default
+`.agent-map/php-symbols.json` is generated navigation state and must be
+ignored by the host repository. The context command reports a missing,
 invalid, or budget-omitted map section instead of silently rebuilding it.
 
 ## When To Recompile

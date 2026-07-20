@@ -516,6 +516,7 @@ file.
 ```bash
 vendor/bin/agent-loop init doctor
 vendor/bin/agent-loop init status
+vendor/bin/agent-loop init tools
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init sync-skills --agent=codex
 ```
@@ -524,6 +525,14 @@ Diagnoses local setup, prints reviewed install plans (ripgrep, RTK,
 Caveman), and syncs repo-managed skills/subagents/hooks into client
 target directories. It does not affect workflow close, does not call an
 LLM, and does not install remote tools.
+
+`init doctor`/`init status` are read-only and never write files. `init tools`
+is the one exception: it probes whether `rg`, `git`, `php`, `composer`, and
+`docker` are reachable in `PATH` and whether an `agent-map` index exists,
+then caches the result to `.agent-loop/tool-inventory.json` (gitignore this
+path) so an agent does not have to re-probe availability at the start of
+every session. Re-probes automatically once the cache passes `--max-age`
+(default 3600s), or immediately with `--refresh`.
 
 ## Installation
 

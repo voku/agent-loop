@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.0 - 2026-06-20
+
+- Added `agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]`,
+  which probes whether `rg`, `git`, `php`, `composer`, and `docker` are
+  reachable in `PATH` and whether an `agent-map` index exists, then caches
+  the result (default `.agent-loop/tool-inventory.json`, gitignore this path)
+  so agents don't have to re-probe availability at the start of every
+  session. Unlike `init doctor`/`init status`, which stay read-only, this
+  command's whole purpose is to write that cache file; it re-probes once the
+  cache exceeds `--max-age` (default 3600s) or immediately with `--refresh`.
+- `docs/agents/skills/agent-loop-l2-context/SKILL.md` (this package's own
+  self-hosted skill, used when developing agent-loop itself) now points at
+  `init tools` and stops gating `map` behind `workflow plan/approve`:
+  querying the map is a plain lookup (like `rg`), useful any time a task
+  touches more than one or two files. Note this is not a distribution
+  mechanism -- `skills_root` always resolves against the *consuming*
+  project's own root (`AgentAssetSourcePaths::fromSources()`), and `init
+  scaffold` does not seed skill content, so other projects do not inherit
+  this automatically; the README/CHANGELOG entries above are the actual
+  discovery path for anyone hand-adapting a skill from this package.
+
 ## 0.5.0 - 2026-07-16
 
 - Added `agent-loop verify --task-id=<id>`, scoping the tasks/sessions/recall

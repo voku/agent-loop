@@ -4,5 +4,6 @@
 /.idea/
 /coverage/
 /.agent-map/
+/.agent-loop/
 .DS_Store
 composer.lock
