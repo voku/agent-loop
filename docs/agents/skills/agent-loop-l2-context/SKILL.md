@@ -31,6 +31,11 @@ vendor/bin/agent-loop workflow status <task-id>
 artifacts. It is read-only: it never recompiles recall, refreshes a map, or
 embeds source bodies.
 
+For governed starts, put an intentionally small, Git-tracked
+`recall-documents.json` beside the learning root. `workflow approve` forwards
+it to recall automatically; use explicit scopes and excerpt limits instead of
+making every skill or ADR global context.
+
 ## What Recall Compile Does
 
 `recall compile` selects task-scoped context from the files you pass and writes
@@ -38,6 +43,9 @@ artifacts under `recall/<task-id>/` (the default when `--output-dir` is not set)
 
 - `system.md` — compiled briefing for an agent or harness
 - `validation-plan.md` — validation steps derived from the task scope
+- `recall.bundle.json` — canonical task snapshot with source digests and resolved facts
+- `facts.json` — compact structured task, board, map, and document facts
+- `selection-report.json` — deterministic learning/constraint selection explanation
 - `recall-log.draft.json` — structured log of what was compiled
 - `meta.json` — metadata and output hash used by `agent-loop verify`
 

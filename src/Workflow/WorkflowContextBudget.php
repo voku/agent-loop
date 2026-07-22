@@ -40,8 +40,9 @@ final class WorkflowContextBudget
 
     public function skip(string $message): void
     {
-        $this->skipped[] = $message;
-        $this->add('skip', '[SKIP] ' . $message);
+        if (!in_array($message, $this->skipped, true)) {
+            $this->skipped[] = $message;
+        }
     }
 
     public function finish(): void

@@ -2,7 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.6.0 - 2026-06-20
+## 0.6.1 - 2026-07-22
+
+### Added
+
+- `workflow approve` now forwards an opt-in, Git-tracked
+  `<learning-root>/recall-documents.json` manifest to the recall compiler. The
+  manifest is the project policy for scoped Skill/ADR facts; workflow never
+  scans all Markdown files.
+- When a typed board card exists, approval writes a small revision-pinned
+  Kanban context projection beside the approved session brief. `workflow
+  context` renders its title, lane/status, and next action from compiled facts
+  without reparsing board Markdown.
+
+### Changed
+
+- `workflow plan` creates or revises a candidate work brief only. `workflow
+  approve` compiles recall from the approved revision, preventing unapproved
+  file lists from becoming a task briefing.
+- Existing `.agent-map` indices now pass the host project root into recall, so
+  an index built in Docker can be freshness-checked on the host instead of
+  treating `/var/www/html` as the host checkout.
+- Requires `voku/agent-recall-compiler` `^0.6.5`, which provides canonical
+  recall bundles, scoped document facts, board projections, and map-root
+  validation.
+
+## 0.6.0 - 2026-07-20
 
 - Added `agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]`,
   which probes whether `rg`, `git`, `php`, `composer`, and `docker` are

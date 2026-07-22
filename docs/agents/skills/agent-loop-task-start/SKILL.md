@@ -1,13 +1,14 @@
 ---
 name: agent-loop-task-start
-description: Start a governed agent-loop task in the current repository, create session working memory, and compile initial recall/L2 context from selected files.
+description: Start a governed agent-loop task in the current repository, create session working memory, approve a sealed work brief, and compile deterministic recall/L2 context.
 ---
 
 # Agent Loop Task Start
 
 Use this skill when beginning a task in a repository that has `agent-loop`
 installed and you need to open a governed workflow, create session working
-memory, and compile a recall briefing from relevant files before editing code.
+memory, approve a scoped work brief, and compile a recall briefing from that
+sealed input before editing code.
 
 ## Fast Path
 
@@ -24,8 +25,9 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --validation "vendor/bin/phpunit tests/FocusedTest.php"
 ```
 
-`workflow plan` wraps `session start` and `recall compile`, then creates a
-candidate work brief. A named human must approve the exact revision before
+`workflow plan` starts session working memory and creates a candidate work
+brief. It intentionally does **not** compile recall yet. A named human must
+approve the exact revision before
 implementation. Inspect the result immediately:
 
 ```bash
@@ -134,7 +136,7 @@ This skill owns:
 
 - the opening step of a governed agent-loop task in a consuming repository
 - choosing a task id, actor, learning root, file scope, non-goals, and validation commands
-- understanding that `workflow plan` wraps session start plus recall compile and creates a candidate brief
+- understanding that `workflow plan` creates a candidate brief and `workflow approve` compiles recall from its approved revision
 - obtaining human approval before implementation and inspecting the bounded context
 - inspecting initial state with `workflow status` and `verify`
 

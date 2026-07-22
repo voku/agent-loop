@@ -97,7 +97,7 @@ Use lower-level commands only when you need direct control:
 
 ### 2. Keep the workflow boundary honest
 
-- `workflow plan` wraps session start plus recall compile and records a candidate work brief.
+- `workflow plan` starts/reuses session memory and records a candidate work brief; `workflow approve` seals that revision and compiles recall from it.
 - `workflow approve` records a named human's approval of that exact revision; a re-plan invalidates it.
 - `workflow context` is read-only and budgeted. It never rebuilds recall or a map.
 - `workflow start` remains the lower-level session-plus-recall entrypoint for hosts that deliberately do not use work briefs.

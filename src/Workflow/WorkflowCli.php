@@ -23,8 +23,8 @@ final readonly class WorkflowCli
 
         return match ($command) {
             'help', '--help', '-h', '' => $this->printHelp(),
-            'plan' => (new WorkflowPlanCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
-            'approve' => (new WorkflowApproveCommand($this->sessionRunner))->run($rest),
+            'plan' => (new WorkflowPlanCommand($this->rootPath, $this->sessionRunner))->run($rest),
+            'approve' => (new WorkflowApproveCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
             'start' => (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
@@ -40,7 +40,7 @@ final readonly class WorkflowCli
 Usage:
   agent-loop workflow help
   agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--base-commit <sha>]
-  agent-loop workflow approve <task-id> --by <actor>
+  agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
   agent-loop workflow start <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id>
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
@@ -49,8 +49,8 @@ Usage:
 
 Commands:
   help      Show workflow help.
-  plan      Start a session, compile recall, and create a candidate work brief.
-  approve   Approve the current candidate work brief for a task.
+  plan      Start a session and create a candidate work brief.
+  approve   Approve the brief, then compile recall from that sealed context.
   start     Start a task workflow by creating a session and compiling recall artifacts.
   status    Show read-only workflow status for a task.
   context   Render a bounded, read-only task context from existing artifacts.

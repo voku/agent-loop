@@ -67,7 +67,69 @@ final class WorkflowContextCommandTest extends TestCase
 
         self::assertNotEmpty($context['omitted']);
         self::assertContains('agent-map: index missing (.agent-map/php-symbols.json)', $context['skipped']);
-        self::assertStringContainsString('[SKIP] agent-map: index missing', implode("\n", $context['lines']));
+        $rendered = implode("\n", $context['lines']);
+        self::assertStringContainsString('[SKIP] agent-map: index missing', $rendered);
+        self::assertSame(1, substr_count($rendered, '[SKIP] agent-map: index missing'));
+    }
+
+    public function testContextUsesNavigationFactsFromRecallBundleBeforeLegacyMap(): void
+    {
+        file_put_contents($this->root . '/recall/ABC-123/facts.json', json_encode([
+            'schema_version' => '1.0',
+            'bundle_sha256' => 'bundle-test',
+            'facts' => [[
+                'id' => 'map.file.src/Foo.php',
+                'type' => 'navigation',
+                'authority' => 'derived_navigation',
+                'source_ref' => '.agent-map/php-symbols.json',
+                'scope' => ['src/Foo.php'],
+                'payload' => [
+                    'path' => 'src/Foo.php',
+                    'symbols' => [[
+                        'fqn' => 'Demo\\BundleFoo',
+                        'kind' => 'class',
+                        'line_start' => 7,
+                        'line_end' => 9,
+                    ]],
+                ],
+                'conflict_key' => null,
+            ]],
+        ], JSON_THROW_ON_ERROR));
+        unlink($this->root . '/.agent-map/php-symbols.json');
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', null, 120, 12000);
+
+        self::assertStringContainsString('Demo\\BundleFoo — src/Foo.php:7', implode("\n", $context['lines']));
+        self::assertNotContains('agent-map: index missing (.agent-map/php-symbols.json)', $context['skipped']);
+    }
+
+    public function testContextRendersSmallKanbanFactWithoutReadingBoardAgain(): void
+    {
+        file_put_contents($this->root . '/recall/ABC-123/facts.json', json_encode([
+            'schema_version' => '1.0',
+            'bundle_sha256' => 'bundle-test',
+            'facts' => [[
+                'id' => 'kanban.ABC-123',
+                'type' => 'kanban',
+                'authority' => 'kanban_board',
+                'source_ref' => 'todo/cards/ABC-123.md',
+                'scope' => ['src/Foo.php'],
+                'payload' => [
+                    'card' => [
+                        'title' => 'Keep the context bounded',
+                        'lane' => 'READY',
+                        'status' => 'Selected',
+                        'next_action' => 'Inspect the sealed facts.',
+                    ],
+                ],
+                'conflict_key' => 'kanban:ABC-123',
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', null, 120, 12000);
+
+        self::assertStringContainsString('Keep the context bounded (READY / Selected)', implode("\n", $context['lines']));
+        self::assertStringContainsString('Next: Inspect the sealed facts.', implode("\n", $context['lines']));
     }
 
     private function removeDirectory(string $path): void

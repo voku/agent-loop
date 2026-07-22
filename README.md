@@ -195,8 +195,9 @@ vendor/bin/agent-loop board render --lanes=READY,BACKLOG --limit=10
 vendor/bin/agent-loop board card show ABC-123
 ```
 
-Plan and approve the governed task context. Planning wraps `session start`
-and `recall compile`, then records a candidate work brief:
+Plan and approve the governed task context. Planning starts session working
+memory and records a candidate work brief. Approval seals that exact revision
+and compiles recall from it:
 
 ```bash
 vendor/bin/agent-loop workflow plan ABC-123 \
@@ -409,8 +410,13 @@ vendor/bin/agent-loop workflow report <task-id> \
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-`workflow plan` wraps `session start` and `recall compile`, then writes a
-candidate work brief. It automatically uses `infra/doc/agent-learning` (or
+`workflow plan` starts or reuses a session and writes a candidate work brief;
+it deliberately does not compile recall from unapproved scope. `workflow
+approve` records the actor and revision, then compiles recall from that sealed
+brief. When a typed board card and/or map index exist, it passes their stable
+fact projections too. When `<learning-root>/recall-documents.json` exists, it
+also passes that explicit, Git-tracked Skill/ADR manifest; it never scans all
+project Markdown files. It automatically uses `infra/doc/agent-learning` (or
 the legacy `learning-root`) when one exists; pass `--learning-root` only for a
 different location. Its `--file` values become the initial approved scope
 unless one or more explicit `--scope` values are supplied. `workflow approve`
@@ -424,8 +430,8 @@ level session-plus-recall step without work-brief orchestration.
 
 `workflow context` is the bounded working view for an agent: it reads the
 approved brief, session decision/checkpoint titles, selected recall guidance,
-required validation, and compact source locations from `.agent-map/` when an
-index exists. It never recompiles recall or a map, embeds no source body, and
+required validation, and navigation facts from the recall bundle (falling back
+to `.agent-map/` only for legacy outputs). It never recompiles recall or a map, embeds no source body, and
 prints `[SKIP]` plus explicit omission counts when an input or budget is absent.
 
 `workflow report` is the bounded handoff view: it reports the current work

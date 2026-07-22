@@ -12,14 +12,15 @@ use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStore;
 
 /**
- * Creates the initial governed task state without duplicating session or
- * recall implementation details. The supplied file scope is reused for the
- * work brief unless a broader/narrower explicit --scope is supplied.
+ * Creates the initial governed task state without compiling a prompt against
+ * provisional input. Recall is compiled after the work brief is approved, so
+ * its task context is an explicit, revisioned contract rather than a parallel
+ * list of manual --file arguments.
  */
 final readonly class WorkflowPlanCommand
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner */
-    public function __construct(private string $rootPath, private mixed $sessionRunner, private mixed $recallRunner)
+    /** @param callable(list<string>): int $sessionRunner */
+    public function __construct(private string $rootPath, private mixed $sessionRunner)
     {
     }
 
@@ -38,16 +39,17 @@ final readonly class WorkflowPlanCommand
         try {
             $activeSession = $this->activeSession($taskId->value);
             if ($activeSession === null) {
-                $exit = (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($this->startArgs($taskId->value, $options));
+                $sessionArgs = ['start', '--task', $taskId->value, '--by', $options['by']];
+                if ($options['baseCommit'] !== null) {
+                    $sessionArgs[] = '--base-commit';
+                    $sessionArgs[] = $options['baseCommit'];
+                }
+                $exit = ($this->sessionRunner)($sessionArgs);
                 if ($exit !== 0) {
                     return $exit;
                 }
                 $briefAction = 'create';
             } else {
-                $exit = ($this->recallRunner)($this->recallArgs($taskId->value, $options));
-                if ($exit !== 0) {
-                    return $exit;
-                }
                 $briefAction = (new WorkBriefStore())->find($activeSession) === null ? 'create' : 'revise';
             }
         } catch (Throwable $e) {
@@ -80,40 +82,6 @@ final readonly class WorkflowPlanCommand
         echo "  agent-loop workflow approve {$taskId->value} --by {$options['by']}\n";
 
         return 0;
-    }
-
-    /**
-     * @param array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, baseCommit: string|null} $options
-     * @return list<string>
-     */
-    private function startArgs(string $taskId, array $options): array
-    {
-        $args = [$taskId, '--by', $options['by'], '--learning-root', $options['learningRoot']];
-        foreach ($options['files'] as $file) {
-            $args[] = '--file';
-            $args[] = $file;
-        }
-        if ($options['baseCommit'] !== null) {
-            $args[] = '--base-commit';
-            $args[] = $options['baseCommit'];
-        }
-
-        return $args;
-    }
-
-    /**
-     * @param array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, baseCommit: string|null} $options
-     * @return list<string>
-     */
-    private function recallArgs(string $taskId, array $options): array
-    {
-        $args = ['compile', '--root', $options['learningRoot'], '--task', $taskId];
-        foreach ($options['files'] as $file) {
-            $args[] = '--file';
-            $args[] = $file;
-        }
-
-        return $args;
     }
 
     private function activeSession(string $taskId): ?Session
