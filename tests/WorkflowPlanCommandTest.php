@@ -45,6 +45,34 @@ final class WorkflowPlanCommandTest extends TestCase
         self::assertStringContainsString('candidate work brief created', $output);
     }
 
+    public function testPlanForwardsRelevanceTagsToTheBrief(): void
+    {
+        /** @var list<list<string>> $sessionCalls */
+        $sessionCalls = [];
+        $command = new WorkflowPlanCommand(
+            sys_get_temp_dir() . '/agent-loop-plan-command-tags',
+            static function (array $argv) use (&$sessionCalls): int {
+                $sessionCalls[] = $argv;
+
+                return 0;
+            },
+        );
+
+        ob_start();
+        $exit = $command->run([
+            'ABC-123', '--by', 'lars', '--learning-root', 'infra/doc/agent-learning',
+            '--file', 'modules/employee/Sync.php', '--goal', 'Sync employees from the directory.',
+            '--validation', 'vendor/bin/phpunit', '--tag', 'identity', '--tag', 'ldap',
+        ]);
+        ob_end_clean();
+
+        self::assertSame(0, $exit);
+        self::assertSame([
+            ['start', '--task', 'ABC-123', '--by', 'lars'],
+            ['brief', 'create', 'ABC-123', '--goal', 'Sync employees from the directory.', '--scope', 'modules/employee/Sync.php', '--validation', 'vendor/bin/phpunit', '--tag', 'identity', '--tag', 'ldap'],
+        ], $sessionCalls);
+    }
+
     public function testPlanUsesRecallFilesAsDefaultScope(): void
     {
         /** @var list<list<string>> $sessionCalls */

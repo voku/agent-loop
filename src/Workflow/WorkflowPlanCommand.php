@@ -71,6 +71,10 @@ final readonly class WorkflowPlanCommand
             $briefArgs[] = '--validation';
             $briefArgs[] = $validation;
         }
+        foreach ($options['tags'] as $tag) {
+            $briefArgs[] = '--tag';
+            $briefArgs[] = $tag;
+        }
 
         $exit = ($this->sessionRunner)($briefArgs);
         if ($exit !== 0) {
@@ -104,7 +108,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, baseCommit: string|null}
+     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, baseCommit: string|null}
      */
     private function parse(array $tokens): array
     {
@@ -115,11 +119,12 @@ final readonly class WorkflowPlanCommand
         $scope = [];
         $nonGoals = [];
         $validation = [];
+        $tags = [];
         $baseCommit = null;
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -139,6 +144,7 @@ final readonly class WorkflowPlanCommand
                 '--scope' => $scope[] = $value,
                 '--non-goal' => $nonGoals[] = $value,
                 '--validation' => $validation[] = $value,
+                '--tag' => $tags[] = $value,
                 '--base-commit' => $baseCommit = $value,
             };
         }
@@ -164,6 +170,7 @@ final readonly class WorkflowPlanCommand
             'scope' => $scope === [] ? $files : $scope,
             'nonGoals' => $nonGoals,
             'validation' => $validation,
+            'tags' => $tags,
             'baseCommit' => $baseCommit,
         ];
     }

@@ -423,6 +423,13 @@ unless one or more explicit `--scope` values are supplied. `workflow approve`
 records the actor and revision that approved that candidate. A later plan
 revision must be approved again.
 
+`--tag LABEL` on `workflow plan` (repeatable) records optional relevance
+labels on the work brief, independent of `--scope` paths. Recall then selects
+a fact when its path scope overlaps the task's files **or** it shares a tag
+with the task, so cross-cutting learnings/documents (e.g. `identity`, `ldap`)
+can be found for a task whose files live under an unrelated directory,
+regardless of how a given project lays out its codebase.
+
 `workflow start` remains available when a host deliberately needs the lower
 level session-plus-recall step without work-brief orchestration.
 

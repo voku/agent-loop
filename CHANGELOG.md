@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### 0.6.2 - 2026-07-23
+
+- `workflow plan` accepts optional, repeatable `--tag LABEL`, forwarded to
+  `agent-session brief create`/`revise`. Tags flow through the approved work
+  brief into recall compilation unchanged, so a task can be tied to
+  cross-cutting learnings/documents (e.g. `identity`, `ldap`) that live under
+  a directory unrelated to the changed files. Requires
+  `voku/agent-recall-compiler` `^0.6.6` for tag-aware fact selection.
+
 ## 0.6.1 - 2026-07-22
 
 ### Added
