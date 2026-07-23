@@ -2,9 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## 0.6.3 - 2026-07-23
 
-### 0.6.2 - 2026-07-23
+- Documented `--tag` on `workflow plan` and tag-based document-manifest
+  matching in this package's own `agent-loop-workflow` and
+  `agent-loop-l2-context` skills, so a project syncing these skill files
+  (`init sync-skills`) gets the same guidance that was already in the
+  README.
+
+## 0.6.2 - 2026-07-23
 
 - `workflow plan` accepts optional, repeatable `--tag LABEL`, forwarded to
   `agent-session brief create`/`revise`. Tags flow through the approved work

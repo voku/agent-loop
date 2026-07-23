@@ -14,7 +14,7 @@ task safely, or updating the repo-managed agent guidance around that flow.
 For the normal governed loop:
 
 1. For non-trivial or repeated work, search prior local agent history with `ctx` if it is installed.
-2. Use `agent-loop workflow plan` with an explicit goal, scope, non-goals, and validation commands.
+2. Use `agent-loop workflow plan` with an explicit goal, scope, non-goals, and validation commands. Add `--tag <label>` (repeatable) when the task is a cross-cutting concern that no path prefix describes well, so `recall-documents.json` entries or learnings registered under an unrelated directory can still be selected by shared tag instead of scope overlap.
 3. Present the candidate brief to a named human, then run `agent-loop workflow approve`.
 4. Build a map first when compact source locations matter, then inspect `agent-loop workflow context`.
 5. Do the implementation work and record only the decisions or checkpoints that matter.

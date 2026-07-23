@@ -34,7 +34,10 @@ embeds source bodies.
 For governed starts, put an intentionally small, Git-tracked
 `recall-documents.json` beside the learning root. `workflow approve` forwards
 it to recall automatically; use explicit scopes and excerpt limits instead of
-making every skill or ADR global context.
+making every skill or ADR global context. A manifest entry may also declare
+`tags`; it is then selected when its path scope overlaps the task's files
+**or** when it shares a tag with `--tag` values passed to `workflow plan`,
+independent of directory layout.
 
 ## What Recall Compile Does
 
