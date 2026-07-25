@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Docs-only sync pass: fixed the review-report path documented in
+  `README.md` and `agent-loop-review-close/SKILL.md`, which still said
+  `.agent-recall/reviews/` after 0.5.0 moved blind-spot/code-review output to
+  `<recall-root>/<task-id>/reviews/`. Documented the `agent-loop verify
+  --task-id=ID` flag (added in 0.5.0), which had no README coverage. Added the
+  `workflow` and `init` namespaces to the README's "Exact available commands"
+  reference block, which previously listed every other namespace but those
+  two despite claiming to be the complete, verified command surface. Listed
+  `init validate`, `init sync-subagents`, `init sync-hooks`, and `init
+  scaffold` in the README's "Init" section command list, which only showed
+  `doctor`/`status`/`tools`/`install-plan`/`sync-skills`.
+
 ## 0.6.3 - 2026-07-23
 
 - Documented `--tag` on `workflow plan` and tag-based document-manifest
