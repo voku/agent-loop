@@ -488,7 +488,11 @@ state at once. Checks each print `[OK]`, `[SKIP]`, or `[FAIL]` and skip
 themselves when their inputs are absent, so the command stays meaningful
 for a repo that only wires up part of the stack. Pass `--strict` to fail
 instead of skip when the `tasks/` or `session_plan/` baseline is missing
-entirely.
+entirely. Pass `--task-id=ID` to scope the tasks/sessions/recall checks to
+one task, so an unrelated task's stale recall draft or broken task file
+doesn't fail the run — `workflow close` passes its own task id this way
+automatically. Package delegates, board, and the learning root stay
+repo-wide checks either way.
 
 ### Review
 
@@ -498,8 +502,8 @@ vendor/bin/agent-loop review code <task-id>
 ```
 
 Writes deterministic Markdown/JSON blind-spot reports plus an L2 review
-prompt under `.agent-recall/reviews/`, using task, session, and recall
-artifacts as prompt context. `review code` generates a focused L2
+prompt under `<recall-root>/<task-id>/reviews/`, using task, session, and
+recall artifacts as prompt context. `review code` generates a focused L2
 code-review prompt (purpose mismatch, contracts, invariants, edge cases,
 security, test gaps). Neither command approves code or calls an LLM
 itself — the generated prompt is for a human or harness to pass to a
@@ -530,14 +534,18 @@ file.
 vendor/bin/agent-loop init doctor
 vendor/bin/agent-loop init status
 vendor/bin/agent-loop init tools
+vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init sync-skills --agent=codex
+vendor/bin/agent-loop init sync-subagents --agent=codex
+vendor/bin/agent-loop init sync-hooks --agent=codex
+vendor/bin/agent-loop init scaffold
 ```
 
 Diagnoses local setup, prints reviewed install plans (ripgrep, RTK,
-Caveman), and syncs repo-managed skills/subagents/hooks into client
-target directories. It does not affect workflow close, does not call an
-LLM, and does not install remote tools.
+Caveman), validates repo-managed asset definitions, and syncs repo-managed
+skills/subagents/hooks into client target directories. It does not affect
+workflow close, does not call an LLM, and does not install remote tools.
 
 `init doctor`/`init status` are read-only and never write files. `init tools`
 is the one exception: it probes whether `rg`, `git`, `php`, `composer`, and
@@ -652,6 +660,8 @@ agent-loop recall --help
 agent-loop session --help
 agent-loop board --help
 agent-loop map --help
+agent-loop workflow --help
+agent-loop init --help
 
 # board: reads cards from todo/cards/<PREFIX>-N.md (one file per ticket;
 # optional todo/board.md sets board metadata). Works standalone; only
@@ -660,6 +670,15 @@ agent-loop board summary
 agent-loop board render --lanes=READY,BACKLOG --limit=10
 agent-loop board next-pull
 agent-loop board card show ABC-123
+
+# workflow: gated plan/approve/start/status/report/close orchestration
+agent-loop workflow plan <task-id> --by ACTOR --file src/Foo.php --goal "..." --validation "vendor/bin/phpunit tests/FooTest.php"
+agent-loop workflow approve <task-id> --by ACTOR
+agent-loop workflow start --task <task-id> --by ACTOR
+agent-loop workflow status <task-id>
+agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
+agent-loop workflow report <task-id> --changed-file src/Foo.php
+agent-loop workflow close <task-id> --status done
 
 # session: working memory for one task
 agent-loop session start --task ABC-123 [--by ACTOR] [--base-commit SHA] [--slug S]
@@ -695,6 +714,8 @@ agent-loop learn proposal-approve --by lars proposals/candidate/proposal.001.jso
 
 # verify: the safety net — see below
 agent-loop verify
+agent-loop verify --strict
+agent-loop verify --task-id=ABC-123   # scope to one task, e.g. inside `workflow close`
 
 # memory promotion review
 agent-loop memory review --file MEMORY.md
@@ -702,6 +723,17 @@ agent-loop memory review --file MEMORY.md
 # review: deterministic blind-spot checks and L2 prompts
 agent-loop review blindspots <task-id>
 agent-loop review code <task-id>
+
+# init: setup diagnostics, repo-managed agent asset syncing, minimal scaffolding
+agent-loop init doctor
+agent-loop init status
+agent-loop init tools [--refresh] [--max-age=SECONDS]
+agent-loop init validate --kind=skills|subagents|hooks|all
+agent-loop init install-plan --profile=wsl2|linux|windows --agent=codex
+agent-loop init sync-skills --agent=codex|all [--dry-run] [--force] [--adopt-existing]
+agent-loop init sync-subagents --agent=copilot|all [--dry-run] [--force] [--adopt-existing]
+agent-loop init sync-hooks --agent=codex [--dry-run] [--force] [--adopt-existing]
+agent-loop init scaffold [--dry-run]
 ```
 
 ## `agent-loop map`: PHP symbol maps for smaller reads
@@ -746,7 +778,7 @@ vendor/bin/agent-loop review blindspots <task-id>
 
 Run this after implementation validation and before closing the task. It writes
 deterministic Markdown/JSON reports plus an L2 blind-spot analysis prompt under
-`.agent-recall/reviews/`, using task, session, and recall artifacts from
+`<recall-root>/<task-id>/reviews/`, using task, session, and recall artifacts from
 `voku/agent-recall-compiler` as prompt context. It warns when session notes
 do not show that `review blindspots` itself was checked. Review reports and generated prompts do not approve code.
 Review reports do not approve durable learning. The CLI does not call an LLM
@@ -759,7 +791,7 @@ receiving LLM. Human review remains required.
 vendor/bin/agent-loop review code <task-id>
 ```
 
-Generates `.agent-recall/reviews/<task-id>.code.prompt.md`, an L2 code-review
+Generates `<recall-root>/<task-id>/reviews/<task-id>.code.prompt.md`, an L2 code-review
 prompt focused on purpose mismatch, contracts, invariants, edge cases, security,
 and test gaps. This command is delegated to `voku/agent-recall-compiler`;
 `agent-loop` only defaults `--output-dir` to `RecallOutputRoot::resolve()`'s

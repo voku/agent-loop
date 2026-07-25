@@ -32,7 +32,7 @@ vendor/bin/agent-loop review blindspots <task-id>
 ```
 
 This is a deterministic check, not an LLM call. It writes Markdown/JSON
-reports under `.agent-recall/reviews/` using task, session, and recall
+reports under `<recall-root>/<task-id>/reviews/` using task, session, and recall
 artifacts as context. It warns when session notes do not show that
 `review blindspots` itself was checked.
 
@@ -113,7 +113,7 @@ become durable guidance. See `docs/workflow/learning-boundary.md`.
 
 ## Validation
 
-- Blind-spot review report exists under `.agent-recall/reviews/`
+- Blind-spot review report exists under `<recall-root>/<task-id>/reviews/`
 - required validation evidence is passed and matches the current work-brief revision
 - selected guidance has explicit, truthful recall outcomes
 - an explicit session learning decision exists
