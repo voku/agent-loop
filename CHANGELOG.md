@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.6.4 - 2026-07-28
 
 - Docs-only sync pass: fixed the review-report path documented in
   `README.md` and `agent-loop-review-close/SKILL.md`, which still said
