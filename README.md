@@ -104,6 +104,24 @@ Not every observation should become memory. Some findings are temporary,
 accidental, stale, or just wrong. A useful agent workflow needs both
 learning and forgetting.
 
+## Review accumulated guidance
+
+Run the deterministic maintenance cycle through the unified CLI; it delegates
+knowledge evaluation to `voku/agent-learning` and keeps operator output under
+the ignored `.agent-loop/` work area instead of project documentation:
+
+```bash
+vendor/bin/agent-loop learn dream \
+  --root infra/doc/agent-learning \
+  --report .agent-loop/dream/latest.json \
+  --dry-run
+```
+
+The command validates immutable learning evidence, reports coverage gaps and a
+small review queue, and exits successfully when candidates need human review.
+Use `--write-candidates` only to create reviewable proposal records; it never
+approves, applies, retires, or rewrites durable guidance.
+
 ## What agent-loop is
 
 `agent-loop` is:
@@ -160,7 +178,7 @@ Each dependency package has one job:
 | `voku/agent-session` | Per-task working memory and session plans |
 | `voku/agent-map` | Compact PHP symbol maps for bounded source navigation |
 | `voku/agent-recall-compiler` | Task-specific recall/L2 meta-prompt compilation, plus blind-spot and code-review prompts |
-| `voku/agent-learning` | Findings, proposals, decision history and guidance evaluation |
+| `voku/agent-learning` | Findings, proposals, decision history, guidance evaluation, and deterministic dream maintenance reports |
 | `voku/agent-loop` | Unified CLI, gated workflow orchestration, cross-package verification, memory promotion review, and setup diagnostics |
 
 | Namespace | Status | Purpose | Owning package |
