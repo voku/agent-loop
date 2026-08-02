@@ -52,6 +52,7 @@ vendor/bin/agent-loop workflow plan DEMO-1 \
   --by "$(git config user.name)" \
   --file composer.json \
   --goal "Add a small validated change." \
+  --behavior-anchor "composer configuration -> Composer validation result" \
   --validation "composer test"
 
 vendor/bin/agent-loop workflow approve DEMO-1 \
@@ -67,6 +68,13 @@ elsewhere.
 `workflow context` is read-only. It gives the coding agent a bounded view of
 the approved goal and scope, session state, selected recall guidance, and
 required validation; it does not regenerate recall or a symbol map.
+
+For a behavioral change, add one or more `--behavior-anchor` values that name
+the request, runtime, consumer, data, or integration boundary that owns the
+behavior. Skip it deliberately for documentation-only or static-only work.
+The compiled briefing labels material claims as `VERIFIED`, `INFERRED`,
+`ASSUMED`, `BLOCKED`, or `CONTRADICTED`; use those labels in the task handoff
+instead of converting confidence or peer feedback into fact.
 
 ## 3. Make and validate the change
 

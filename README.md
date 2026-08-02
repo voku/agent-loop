@@ -41,6 +41,7 @@ vendor/bin/agent-loop workflow plan DEMO-1 \
   --by "$(git config user.name)" \
   --file composer.json \
   --goal "Add a small validated change." \
+  --behavior-anchor "composer configuration -> Composer validation result" \
   --validation "composer test"
 
 vendor/bin/agent-loop workflow approve DEMO-1 \
@@ -90,7 +91,7 @@ Instead of asking an agent to "just fix this", you run a loop:
 
 ```text
 pick work
-  → load only relevant guidance
+  → load only relevant guidance and name the real behavior anchor
   → make the change
   → verify
   → review for blind spots
@@ -222,6 +223,7 @@ vendor/bin/agent-loop workflow plan ABC-123 \
   --by lars \
   --file src/Foo.php \
   --goal "Implement the approved task." \
+  --behavior-anchor "request -> Foo service -> persisted state" \
   --validation "vendor/bin/phpunit tests/FooTest.php"
 
 vendor/bin/agent-loop workflow approve ABC-123 --by lars
@@ -231,6 +233,14 @@ Do the actual coding work with your preferred agent, feeding it the
 compiled recall artifacts (`system.md`, `validation-plan.md`) yourself —
 `agent-loop` writes them for review or harness ingestion, it does not
 inject them into a running agent.
+
+For behavioral work, the optional repeatable `--behavior-anchor` records the
+real request, runtime, consumer, data, or integration seam that needs evidence.
+It is intentionally optional for documentation-only or static-only tasks. The
+compiled L2 briefing also distinguishes **VERIFIED**, **INFERRED**, **ASSUMED**,
+**BLOCKED**, and **CONTRADICTED** claims; agent confidence and peer feedback do
+not become evidence without a current repository, history, or safe-runtime
+check.
 
 Run the deterministic blind-spot review before closing:
 

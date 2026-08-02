@@ -75,6 +75,10 @@ final readonly class WorkflowPlanCommand
             $briefArgs[] = '--tag';
             $briefArgs[] = $tag;
         }
+        foreach ($options['behaviorAnchors'] as $behaviorAnchor) {
+            $briefArgs[] = '--behavior-anchor';
+            $briefArgs[] = $behaviorAnchor;
+        }
 
         $exit = ($this->sessionRunner)($briefArgs);
         if ($exit !== 0) {
@@ -108,7 +112,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, baseCommit: string|null}
+     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, baseCommit: string|null}
      */
     private function parse(array $tokens): array
     {
@@ -120,11 +124,12 @@ final readonly class WorkflowPlanCommand
         $nonGoals = [];
         $validation = [];
         $tags = [];
+        $behaviorAnchors = [];
         $baseCommit = null;
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--behavior-anchor', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -145,6 +150,7 @@ final readonly class WorkflowPlanCommand
                 '--non-goal' => $nonGoals[] = $value,
                 '--validation' => $validation[] = $value,
                 '--tag' => $tags[] = $value,
+                '--behavior-anchor' => $behaviorAnchors[] = $value,
                 '--base-commit' => $baseCommit = $value,
             };
         }
@@ -171,6 +177,7 @@ final readonly class WorkflowPlanCommand
             'nonGoals' => $nonGoals,
             'validation' => $validation,
             'tags' => $tags,
+            'behaviorAnchors' => $behaviorAnchors,
             'baseCommit' => $baseCommit,
         ];
     }

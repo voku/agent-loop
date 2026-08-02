@@ -43,6 +43,7 @@ final class WorkflowReportCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Workflow report: ABC-123', $result['output']);
         self::assertStringContainsString('Work brief: approved revision 1 (approved by lars)', $result['output']);
+        self::assertStringContainsString('Behavior anchors: request -> FooService -> persisted state', $result['output']);
         self::assertStringContainsString('Changed files outside approved scope: docs/Outside.md', $result['output']);
         self::assertStringContainsString('[passed] vendor/bin/phpunit tests/FooTest.php (exit 0', $result['output']);
         self::assertStringContainsString('Recall: present, outcome draft present', $result['output']);
@@ -61,6 +62,7 @@ final class WorkflowReportCommandTest extends TestCase
         $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('ABC-123', $report['task_id']);
         self::assertSame('approved', $report['work_brief']['status']);
+        self::assertSame(['request -> FooService -> persisted state'], $report['work_brief']['behavior_anchors']);
         self::assertSame('passed', $report['validation'][0]['status']);
         self::assertSame('missing', $report['validation'][1]['status']);
         self::assertFalse($report['scope']['changed_files_supplied']);
@@ -117,6 +119,8 @@ final class WorkflowReportCommandTest extends TestCase
             ['src/Foo.php'],
             ['Do not add a memory layer.'],
             ['vendor/bin/phpunit tests/FooTest.php', 'vendor/bin/phpstan analyse src/Foo.php'],
+            [],
+            ['request -> FooService -> persisted state'],
         );
         $briefs->approve($session, 'lars');
     }

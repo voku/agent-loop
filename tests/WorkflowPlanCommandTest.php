@@ -32,14 +32,14 @@ final class WorkflowPlanCommandTest extends TestCase
             'ABC-123', '--by', 'lars', '--learning-root', 'infra/doc/agent-learning',
             '--file', 'src/Foo.php', '--goal', 'Keep scope reviewable.',
             '--scope', 'src/Foo.php', '--non-goal', 'No new memory layer.',
-            '--validation', 'vendor/bin/phpunit tests/FooTest.php', '--base-commit', 'abc123',
+            '--validation', 'vendor/bin/phpunit tests/FooTest.php', '--behavior-anchor', 'POST request -> FooAction -> persisted state', '--base-commit', 'abc123',
         ]);
         $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit);
         self::assertSame([
             ['start', '--task', 'ABC-123', '--by', 'lars', '--base-commit', 'abc123'],
-            ['brief', 'create', 'ABC-123', '--goal', 'Keep scope reviewable.', '--scope', 'src/Foo.php', '--non-goal', 'No new memory layer.', '--validation', 'vendor/bin/phpunit tests/FooTest.php'],
+            ['brief', 'create', 'ABC-123', '--goal', 'Keep scope reviewable.', '--scope', 'src/Foo.php', '--non-goal', 'No new memory layer.', '--validation', 'vendor/bin/phpunit tests/FooTest.php', '--behavior-anchor', 'POST request -> FooAction -> persisted state'],
         ], $sessionCalls);
         self::assertSame([], $recallCalls);
         self::assertStringContainsString('candidate work brief created', $output);

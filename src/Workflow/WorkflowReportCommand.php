@@ -172,7 +172,7 @@ final readonly class WorkflowReportCommand
     }
 
     /**
-     * @return array{status: string, revision: int|null, goal: string|null, scope: list<string>, non_goals: list<string>, approval: array{revision: int|null, by: string|null, at: string|null}}
+     * @return array{status: string, revision: int|null, goal: string|null, behavior_anchors: list<string>, scope: list<string>, non_goals: list<string>, approval: array{revision: int|null, by: string|null, at: string|null}}
      */
     private function workBriefReport(?WorkBrief $brief, ?int $approvedRevision, ?string $approvedBy, ?string $approvedAt): array
     {
@@ -181,6 +181,7 @@ final readonly class WorkflowReportCommand
                 'status' => 'missing',
                 'revision' => null,
                 'goal' => null,
+                'behavior_anchors' => [],
                 'scope' => [],
                 'non_goals' => [],
                 'approval' => ['revision' => null, 'by' => null, 'at' => null],
@@ -191,6 +192,7 @@ final readonly class WorkflowReportCommand
             'status' => $brief->status->value,
             'revision' => $brief->revision,
             'goal' => $brief->goal,
+            'behavior_anchors' => $brief->behaviorAnchors,
             'scope' => $brief->scope,
             'non_goals' => $brief->nonGoals,
             'approval' => ['revision' => $approvedRevision, 'by' => $approvedBy, 'at' => $approvedAt],
@@ -411,6 +413,9 @@ final readonly class WorkflowReportCommand
         } else {
             $approval = $brief['approval']['by'] === null ? 'not approved' : 'approved by ' . $brief['approval']['by'];
             echo sprintf("Work brief: %s revision %d (%s)\n", $brief['status'], $brief['revision'], $approval);
+            if ($brief['behavior_anchors'] !== []) {
+                echo 'Behavior anchors: ' . implode('; ', $brief['behavior_anchors']) . "\n";
+            }
             echo 'Approved scope: ' . implode(', ', $brief['scope']) . "\n";
         }
 

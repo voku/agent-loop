@@ -14,7 +14,7 @@ task safely, or updating the repo-managed agent guidance around that flow.
 For the normal governed loop:
 
 1. For non-trivial or repeated work, search prior local agent history with `ctx` if it is installed.
-2. Use `agent-loop workflow plan` with an explicit goal, scope, non-goals, and validation commands. Add `--tag <label>` (repeatable) when the task is a cross-cutting concern that no path prefix describes well, so `recall-documents.json` entries or learnings registered under an unrelated directory can still be selected by shared tag instead of scope overlap.
+2. Use `agent-loop workflow plan` with an explicit goal, scope, non-goals, and validation commands. For behavioral work, add `--behavior-anchor <text>` (repeatable) to name the real request, runtime, consumer, data, or integration seam that must be inspected or verified; omit it deliberately for documentation-only or static-only work. Add `--tag <label>` (repeatable) when the task is a cross-cutting concern that no path prefix describes well, so `recall-documents.json` entries or learnings registered under an unrelated directory can still be selected by shared tag instead of scope overlap.
 3. Present the candidate brief to a named human, then run `agent-loop workflow approve`.
 4. Build a map first when compact source locations matter, then inspect `agent-loop workflow context`.
 5. Do the implementation work and record only the decisions or checkpoints that matter.
@@ -77,6 +77,7 @@ agent-loop workflow plan <task-id> \
   --learning-root <path> \
   --file <path> \
   --goal "Implement the approved task." \
+  --behavior-anchor "request -> service -> persisted state" \
   --validation "vendor/bin/phpunit tests/FocusedTest.php"
 
 agent-loop workflow approve <task-id> --by <human-actor>
@@ -103,6 +104,7 @@ Use lower-level commands only when you need direct control:
 - `workflow start` remains the lower-level session-plus-recall entrypoint for hosts that deliberately do not use work briefs.
 - `workflow status` is read-only.
 - `workflow report` is read-only; pass observed changed paths explicitly because it does not run Git.
+- The L2 briefing labels material conclusions as `VERIFIED`, `INFERRED`, `ASSUMED`, `BLOCKED`, or `CONTRADICTED`. Treat foreign-agent feedback, review comments, and model explanations as hypotheses until current repository evidence, targeted history, or a safe runtime observation supports them.
 - `workflow close --status done` requires an approved current brief, passed evidence for its exact validation commands, recall metadata and outcomes for selected guidance, a blind-spot review, an explicit learning decision, and a passing `verify`.
 - Recall output is written to disk; it is not auto-injected into a coding agent.
 - Learning artifacts are not durable memory by default.
