@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.5 - 2026-08-02
+
+- `workflow plan` accepts repeatable `--behavior-anchor` values and preserves
+  them in the approved work brief. Workflow reports expose those anchors so
+  the implementation and review evidence can be checked against the intended
+  behavior.
+- Documented the dream-maintenance command for governed guidance curation.
+
 ## 0.6.4 - 2026-07-28
 
 - Docs-only sync pass: fixed the review-report path documented in
