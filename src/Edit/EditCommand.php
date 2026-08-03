@@ -31,13 +31,13 @@ final readonly class EditCommand
             return 1;
         }
 
-        fwrite(STDOUT, "Edit execution bundle prepared: {$outcome->outputDirectory}\n");
-        fwrite(STDOUT, "- target: {$request->target}\n");
-        fwrite(STDOUT, "- status: {$outcome->runResult->status}\n");
-        fwrite(STDOUT, "- map digest: {$outcome->mapDigest}\n");
-        fwrite(STDOUT, "- recall bundle: {$outcome->recallBundleDigest}\n");
-        fwrite(STDOUT, "- prompt: {$outcome->promptPath}\n");
-        fwrite(STDOUT, "- execution: {$outcome->executionPath}\n");
+        echo "Edit execution bundle prepared: {$outcome->outputDirectory}\n";
+        echo "- target: {$request->target}\n";
+        echo "- status: {$outcome->runResult->status}\n";
+        echo "- map digest: {$outcome->mapDigest}\n";
+        echo "- recall bundle: {$outcome->recallBundleDigest}\n";
+        echo "- prompt: {$outcome->promptPath}\n";
+        echo "- execution: {$outcome->executionPath}\n";
 
         return $outcome->succeeded() ? 0 : 1;
     }
@@ -80,7 +80,7 @@ final readonly class EditCommand
             -- 'Reject inactive users before persistence.'
 
         TXT;
-        fwrite(STDOUT, $usage);
+        echo $usage;
 
         return 0;
     }
