@@ -38,6 +38,7 @@ final class CommandEditRunnerTest extends TestCase
         $prompt = $this->root . '/prompt.md';
         file_put_contents($prompt, 'deterministic prompt');
         $request = $this->request([
+            '-n',
             '-r',
             '$input = stream_get_contents(STDIN); fwrite(STDOUT, "seen:" . $input);',
         ]);
@@ -55,6 +56,7 @@ final class CommandEditRunnerTest extends TestCase
         $prompt = $this->root . '/prompt.md';
         file_put_contents($prompt, 'prompt');
         $request = $this->request([
+            '-n',
             '-r',
             'fwrite(STDERR, "runner failed"); exit(7);',
         ]);
@@ -66,8 +68,27 @@ final class CommandEditRunnerTest extends TestCase
         self::assertSame('runner failed', $result->stderr);
     }
 
+    public function testTerminatesAStillRunningCommandAfterTimeout(): void
+    {
+        $prompt = $this->root . '/prompt.md';
+        file_put_contents($prompt, 'prompt');
+        $request = $this->request([
+            '-n',
+            '-r',
+            'sleep(5);',
+        ], 1);
+
+        $startedAt = microtime(true);
+        $result = (new CommandEditRunner())->run(new EditExecution($request, $prompt));
+
+        self::assertSame('runner_failed', $result->status);
+        self::assertSame(124, $result->exitCode);
+        self::assertStringContainsString('Runner timed out after 1 seconds.', $result->stderr);
+        self::assertLessThan(4.0, microtime(true) - $startedAt);
+    }
+
     /** @param list<string> $arguments */
-    private function request(array $arguments): EditRequest
+    private function request(array $arguments, int $timeoutSeconds = 10): EditRequest
     {
         return new EditRequest(
             taskId: 'TASK-1',
@@ -81,7 +102,7 @@ final class CommandEditRunnerTest extends TestCase
             runner: 'command',
             runnerCommand: PHP_BINARY,
             runnerArguments: $arguments,
-            runnerTimeoutSeconds: 10,
+            runnerTimeoutSeconds: $timeoutSeconds,
         );
     }
 }
