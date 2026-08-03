@@ -26,6 +26,27 @@ jobs:
           sed -n "/python <<'PY'/,/^          PY$/p" .github/workflows/apply-target-aware-edit.yml \
             | sed '1d;$d;s/^          //' > /tmp/apply-target-aware-edit.py
           python /tmp/apply-target-aware-edit.py
+          python <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              content = file.read_text()
+              if old not in content:
+                  raise SystemExit(f'missing expected fix block in {path}: {old!r}')
+              file.write_text(content.replace(old, new, 1))
+
+          replace(
+              'tests/CliSurfaceContractTest.php',
+              "    private const STABLE_NAMESPACES = [\n        'board',",
+              "    private const STABLE_NAMESPACES = [\n        'edit',\n        'board',",
+          )
+          replace(
+              'tests/DispatcherTest.php',
+              "                ['Wrote 1 file(s) to ' . $root . '/.agent-map/php-symbols.json'],",
+              "                ['Wrote 1 file(s),', $root . '/.agent-map/php-symbols.json'],",
+          )
+          PY
       - name: Install dependencies
         run: |
           if git ls-files --error-unmatch composer.lock >/dev/null 2>&1; then
