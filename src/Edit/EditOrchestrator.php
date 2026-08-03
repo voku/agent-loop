@@ -129,14 +129,12 @@ final readonly class EditOrchestrator
     private function json(array $data): string
     {
         try {
-            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            return json_encode(
+                $data,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ) . "\n";
         } catch (JsonException $exception) {
             throw new RuntimeException('Unable to encode edit artifact JSON: ' . $exception->getMessage(), 0, $exception);
         }
-        if (!is_string($json)) {
-            throw new RuntimeException('Unable to encode edit artifact JSON.');
-        }
-
-        return $json . "\n";
     }
 }
