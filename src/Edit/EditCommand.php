@@ -73,6 +73,11 @@ final readonly class EditCommand
           --runner-timeout SECONDS  Command timeout. Default: 900.
           --print-prompt            Print prompt.md when using the stdout runner.
 
+        Audit warning:
+          Runner commands and arguments are persisted verbatim in request.json
+          and execution.json. Pass secrets through the runner environment, never
+          through --runner-command or --runner-arg values.
+
         Examples:
           agent-loop edit 'App\Service\UserService::save' -- \
             'Reject inactive users before persistence and adapt affected callers.'
