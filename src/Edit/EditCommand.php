@@ -62,14 +62,18 @@ final readonly class EditCommand
           --map-root PATH           Runtime source root for map freshness checks. Default: project root.
           --map-paths PATHS         Comma-separated map build paths. Default: .
           --map-exclude REGEX       Additional agent-map exclude regex. Repeatable.
+          --focus TEXT              Narrow target source context around this literal. Repeatable.
           --phpstan-config PATH     Explicit PHPStan configuration used while rebuilding the map.
+          --phpstan-memory-limit N  Positive PHPStan memory limit, e.g. 512M or 2G.
           --output-dir PATH         Execution bundle directory. Default: .agent-loop/edit/<task-id>
           --rebuild-map             Rebuild even when the current map is fresh.
           --no-rebuild-map          Fail instead of building a missing or stale map.
           --dry-run                 Prepare the bundle without invoking the selected runner.
-          --runner NAME             stdout (default) or command.
+          --runner NAME             stdout (default), auto, command, or mechanical.
           --runner-command PATH     Executable for --runner=command. No shell is used.
           --runner-arg VALUE        Command argument. Repeatable; use --runner-arg=--flag for flags.
+          --replace-old TEXT        Exact target-method literal for --runner=mechanical.
+          --replace-new TEXT        Replacement literal for --runner=mechanical.
           --runner-timeout SECONDS  Command timeout. Default: 900.
           --print-prompt            Print prompt.md when using the stdout runner.
 
@@ -86,6 +90,14 @@ final readonly class EditCommand
             --runner=command --runner-command=codex \
             --runner-arg=exec --runner-arg=- \
             -- 'Reject inactive users before persistence.'
+
+          agent-loop edit 'App\Service\UserService::save' --runner=mechanical \
+            --replace-old='$legacyUser->regionId' --replace-new='$legacyUser->getCurrentRegionId()' \
+            -- 'Replace the deprecated region property.'
+
+          agent-loop edit 'App\Service\UserService::save' --runner=auto \
+            --replace-old='$legacyUser->regionId' --replace-new='$legacyUser->getCurrentRegionId()' \
+            -- 'Replace the deprecated region property without a model runner.'
 
         TXT;
         echo $usage;

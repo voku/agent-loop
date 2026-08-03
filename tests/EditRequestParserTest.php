@@ -30,6 +30,8 @@ final class EditRequestParserTest extends TestCase
             'App\\Service\\UserService::save',
             '--map-paths=src,tests',
             '--map-exclude=~(^|/)fixtures(/|$)~',
+            '--focus=$legacyUser->regionId',
+            '--phpstan-memory-limit=512m',
             '--runner=command',
             '--runner-command=' . PHP_BINARY,
             '--runner-arg=-r',
@@ -47,12 +49,44 @@ final class EditRequestParserTest extends TestCase
         self::assertSame('App\\Service\\UserService::save', $first->target);
         self::assertSame(['src', 'tests'], $first->mapPaths);
         self::assertSame(['~(^|/)fixtures(/|$)~'], $first->mapExcludes);
+        self::assertSame(['$legacyUser->regionId'], $first->focusTerms);
+        self::assertSame('512M', $first->phpStanMemoryLimit);
         self::assertSame('command', $first->runner);
         self::assertSame(PHP_BINARY, $first->runnerCommand);
         self::assertSame(['-r', 'echo stream_get_contents(STDIN);'], $first->runnerArguments);
         self::assertSame(30, $first->runnerTimeoutSeconds);
         self::assertSame($this->root . '/.agent-map/php-symbols.json', $first->mapIndex);
         self::assertStringStartsWith($this->root . '/.agent-loop/edit/', $first->outputDirectory);
+    }
+
+    public function testParsesMechanicalReplacementRunner(): void
+    {
+        $request = (new EditRequestParser())->parse($this->root, [
+            'Demo\\Service::run',
+            '--runner=mechanical',
+            '--replace-old=$legacyUser->regionId',
+            '--replace-new=$legacyUser->getCurrentRegionId()',
+            '--',
+            'Replace the deprecated property.',
+        ]);
+
+        self::assertSame('mechanical', $request->runner);
+        self::assertSame('$legacyUser->regionId', $request->replacementOld);
+        self::assertSame('$legacyUser->getCurrentRegionId()', $request->replacementNew);
+    }
+
+    public function testParsesAutoRunnerWithoutReplacementProof(): void
+    {
+        $request = (new EditRequestParser())->parse($this->root, [
+            'Demo\\Service::run',
+            '--runner=auto',
+            '--',
+            'Assess the implementation before changing it.',
+        ]);
+
+        self::assertSame('auto', $request->runner);
+        self::assertNull($request->replacementOld);
+        self::assertNull($request->replacementNew);
     }
 
     public function testRejectsInstructionWithoutSeparator(): void
@@ -115,6 +149,10 @@ final class EditRequestParserTest extends TestCase
         yield 'timeout below range' => [
             ['Demo\\Service::run', '--runner-timeout=0', '--', 'Change it.'],
             'Invalid runner-timeout',
+        ];
+        yield 'invalid PHPStan memory limit' => [
+            ['Demo\\Service::run', '--phpstan-memory-limit=-1', '--', 'Change it.'],
+            'Invalid phpstan-memory-limit',
         ];
         yield 'command runner without command' => [
             ['Demo\\Service::run', '--runner=command', '--', 'Change it.'],

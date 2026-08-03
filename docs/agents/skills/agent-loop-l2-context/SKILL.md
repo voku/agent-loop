@@ -125,6 +125,27 @@ re-discovering that from scratch every time. The default
 ignored by the host repository. The context command reports a missing,
 invalid, or budget-omitted map section instead of silently rebuilding it.
 
+## Direct Edit Routing
+
+For a one-for-one literal replacement inside one exact PHP method, do not
+spend model tokens on source rediscovery. Prefer the token-safe `auto` route:
+
+```bash
+vendor/bin/agent-loop edit 'App\Service\UserService::save' \
+  --runner=auto \
+  --replace-old='$legacyUser->regionId' \
+  --replace-new='$legacyUser->getCurrentRegionId()' -- \
+  'Replace the deprecated region property exactly once.'
+```
+
+With both replacement literals, `auto` selects the scoped mechanical runner:
+it requires one in-method match, checks the map hash before writing, runs PHP
+lint, reverts a lint failure, and records zero model tokens/tool calls. Without
+that proof, `auto` records `escalation_required` and does not invoke a model.
+Use `edit --focus=... --runner=command` only when the replacement needs PHP
+judgment beyond a literal substitution; it supplies a narrow source window and
+keeps callers/dependencies out unless you intentionally omit the focus.
+
 ## When To Recompile
 
 Recompile when important files changed since the last compile. Stale context

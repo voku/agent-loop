@@ -29,11 +29,48 @@ vendor/bin/agent-loop edit 'App\Service\UserService::save' -- \
   'Reject inactive users before persistence and adapt affected callers.'
 ```
 
+When the project's PHPStan semantic export needs more than its PHP default,
+pass an explicit bounded value such as `--phpstan-memory-limit=512M` to
+`edit`; the value is forwarded only to the map-building child process and
+recorded in the execution request.
+
+For a surgical replacement, add repeatable `--focus` literals. `edit` records
+them and asks the local map/recall stack for short source windows around each
+match, so the external runner receives the evidence it needs without first
+spending tool calls rediscovering a large target method. Focus mode omits
+optional caller/dependency/test slices; use it only when the requested change
+is local to the matched expression. If a literal is not found, the complete
+target method is retained rather than silently omitting context.
+
+```bash
+vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
+  --focus='$loggedInMitarbeiter->rv_id' -- \
+  'Replace the deprecated region property with the established accessor.'
+```
+
 The default `stdout` runner does not execute another agent. It writes
 `request.json`, `prompt.md`, `execution.json`, the recall artifacts, and any
 runner evidence under `.agent-loop/edit/<task-id>/`. Use `--runner=command`
 with an explicit executable and repeated `--runner-arg` values for a harness
 that consumes the compiled prompt on stdin. No shell command is constructed.
+
+For an exact one-for-one literal replacement inside a resolved PHP method,
+prefer `--runner=auto` with both replacement literals. It selects the scoped
+`mechanical` runner, which requires exactly one match inside that method,
+verifies the map hash immediately before writing, runs `php -l`, reverts on
+lint failure, and records `0` model input tokens and tool calls in
+`execution.json`. Identical literals in another method are left unchanged,
+unlike a file-wide `sed` replacement. `auto` without replacement proof writes
+an `escalation_required` bundle and never launches a model; choose
+`--runner=command` explicitly only when PHP judgment is required.
+
+```bash
+vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
+  --runner=auto \
+  --replace-old='$legacyUser->regionId' \
+  --replace-new='$legacyUser->getCurrentRegionId()' -- \
+  'Replace the deprecated region property exactly once.'
+```
 
 Create the minimal local workflow structure and a clearly marked example
 task:
@@ -425,6 +462,35 @@ publishes an execution bundle. Missing or stale maps are rebuilt once unless
 non-executing; `--print-prompt` prints the compiled prompt, while
 `--runner=command --runner-command=... --runner-arg=...` invokes one executable
 without a shell and stores stdout, stderr, and the exit code as evidence.
+Use `--phpstan-memory-limit=512M` (or a project-appropriate positive value)
+when rebuilding the semantic map needs more memory than the PHP default.
+Use repeatable `--focus=TEXT` for narrow, literal replacements; it keeps a
+small local source window around each match for the runner and falls back to
+the complete target method if no match is found.
+For a one-for-one literal replacement with no judgment call, prefer
+`--runner=auto --replace-old=... --replace-new=...`; it selects mechanical
+execution, performs no model invocation, and leaves auditable lint evidence.
+Without both literals, `auto` writes `escalation_required` rather than
+silently invoking a model; select `--runner=command` explicitly for that
+escalation.
+
+RTK is an optional outer-shell output filter, not an edit runner. It can reduce
+the output an agent has to read without changing the deterministic edit route:
+
+```bash
+rtk summary vendor/bin/agent-loop edit 'App\Service\UserService::save' --runner=auto \
+  --replace-old='$legacyUser->regionId' --replace-new='$legacyUser->getCurrentRegionId()' -- \
+  'Replace the deprecated region property.'
+```
+
+`agent-loop init tools --refresh` records whether `rtk` is reachable in PATH.
+When an agent runs PHP inside a container, invoke RTK outside the container
+(`rtk docker compose exec …`); do not assume a nested `rtk test docker compose
+exec …` preserves the container working directory.
+The package-owned historical replay test copies a public `agent-loop` parent
+blob to a temporary root, replays a one-line fix through `auto`, and compares
+the result with both the committed blob and a guarded Linux replacement
+baseline.
 
 ### Map
 

@@ -11,6 +11,7 @@ final readonly class EditRequest
     /**
      * @param list<string> $mapPaths
      * @param list<string> $mapExcludes
+     * @param list<string> $focusTerms
      * @param list<string> $runnerArguments
      */
     public function __construct(
@@ -24,7 +25,9 @@ final readonly class EditRequest
         public string $outputDirectory,
         public array $mapPaths = ['.'],
         public array $mapExcludes = [],
+        public array $focusTerms = [],
         public ?string $phpStanConfiguration = null,
+        public ?string $phpStanMemoryLimit = null,
         public bool $forceMapRebuild = false,
         public bool $allowMapRebuild = true,
         public bool $dryRun = false,
@@ -33,6 +36,8 @@ final readonly class EditRequest
         public array $runnerArguments = [],
         public int $runnerTimeoutSeconds = 900,
         public bool $printPrompt = false,
+        public ?string $replacementOld = null,
+        public ?string $replacementNew = null,
     ) {
         foreach ([
             'task ID' => $taskId,
@@ -62,7 +67,7 @@ final readonly class EditRequest
             throw new InvalidArgumentException('Edit target must use Class::method syntax: ' . $target);
         }
 
-        if (!in_array($runner, ['stdout', 'command'], true)) {
+        if (!in_array($runner, ['stdout', 'command', 'mechanical', 'auto'], true)) {
             throw new InvalidArgumentException('Unknown edit runner: ' . $runner);
         }
         if ($runner === 'command' && ($runnerCommand === null || trim($runnerCommand) === '')) {
@@ -70,6 +75,15 @@ final readonly class EditRequest
         }
         if ($runnerTimeoutSeconds < 1 || $runnerTimeoutSeconds > 86400) {
             throw new InvalidArgumentException('Runner timeout must be between 1 and 86400 seconds.');
+        }
+        if (in_array($runner, ['mechanical', 'auto'], true) && (($replacementOld === null) !== ($replacementNew === null))) {
+            throw new InvalidArgumentException('--replace-old and --replace-new must be supplied together.');
+        }
+        if ($runner === 'mechanical' && (trim((string) $replacementOld) === '' || trim((string) $replacementNew) === '')) {
+            throw new InvalidArgumentException('The mechanical runner requires --replace-old and --replace-new.');
+        }
+        if (!in_array($runner, ['mechanical', 'auto'], true) && ($replacementOld !== null || $replacementNew !== null)) {
+            throw new InvalidArgumentException('--replace-old and --replace-new require --runner=mechanical or --runner=auto.');
         }
         if ($mapPaths === []) {
             throw new InvalidArgumentException('At least one map path is required.');
@@ -90,7 +104,9 @@ final readonly class EditRequest
             'map_root' => $this->mapRoot,
             'map_paths' => $this->mapPaths,
             'map_excludes' => $this->mapExcludes,
+            'focus_terms' => $this->focusTerms,
             'phpstan_configuration' => $this->phpStanConfiguration,
+            'phpstan_memory_limit' => $this->phpStanMemoryLimit,
             'force_map_rebuild' => $this->forceMapRebuild,
             'allow_map_rebuild' => $this->allowMapRebuild,
             'dry_run' => $this->dryRun,
@@ -100,6 +116,8 @@ final readonly class EditRequest
                 'arguments' => $this->runnerArguments,
                 'timeout_seconds' => $this->runnerTimeoutSeconds,
                 'print_prompt' => $this->printPrompt,
+                'replacement_old' => $this->replacementOld,
+                'replacement_new' => $this->replacementNew,
             ],
         ];
     }

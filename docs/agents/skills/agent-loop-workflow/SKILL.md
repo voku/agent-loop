@@ -159,7 +159,7 @@ outer shell boundary:
 ```bash
 rtk git status
 rtk test vendor/bin/phpunit --filter Init
-rtk test vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+rtk err vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 ```
 
 If a host workflow hides noisy work behind `make`, `docker compose exec`, or a

@@ -57,6 +57,7 @@ final readonly class EditMapPreparer implements EditMapProvider
             paths: $request->mapPaths,
             excludes: $request->mapExcludes,
             phpStanConfiguration: $request->phpStanConfiguration,
+            phpStanMemoryLimit: $request->phpStanMemoryLimit,
         );
         $this->writer->write($map, $request->mapIndex);
 

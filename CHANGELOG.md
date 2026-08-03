@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.7 - 2026-08-03
+
+- Added `edit --phpstan-memory-limit`, forwarding an explicit positive limit to
+  `agent-map` while rebuilding the PHPStan semantic map.
+- Added repeatable `edit --focus=TEXT`, recorded in the execution request and
+  compiled into bounded primary-source windows for literal, surgical changes;
+  this mode omits optional relation slices.
+- Added `edit --runner=mechanical` for an exact scoped literal replacement.
+  It requires one match inside the resolved method, verifies the map hash,
+  lints and reverts on failure, and records zero model tokens/tool calls.
+- Added `edit --runner=auto` as the token-safe edit router. Exact replacement
+  proof selects the mechanical PHP runner; otherwise it records
+  `escalation_required` without launching a model. External model execution
+  remains an explicit `--runner=command` decision.
+- Requires `agent-map` 0.2.1, `agent-recall-compiler` 0.7.1, and
+  `agent-session` 0.2.2 or newer for the focused edit and workflow behavior.
+- Added package-owned historical replay coverage for a public one-line PHP fix.
+  It compares `edit --runner=auto` against the committed result and a guarded
+  Linux file-wide replacement baseline without invoking a coding agent.
+- `init tools` now inventories optional RTK availability so agents can use it
+  at the outer shell boundary for compact command output.
+
 ## 0.6.6 - 2026-08-03
 
 - Added `agent-loop edit CLASS::METHOD -- INSTRUCTION`. The command builds or
@@ -247,7 +269,9 @@ All notable changes to this project will be documented in this file.
 
 - Added the `init` namespace for setup diagnostics, repo-managed agent-asset validation, WSL2 install-plan output, and reserved sync/scaffold command slots.
 - `init` now validates repo-managed skills from a repo-neutral default source layout under `docs/agents/` (`skills`, `subagents`, `codex-hooks`, `tools`), with CLI/config path overrides for host repositories
-- Expanded the portable guidance and IT-Portal migration references to cover RTK at the shell boundary, the nested Make/Docker output problem, and the need to audit host-repo docs such as `AGENTS.md` and `README.md` for missing RTK usage guidance.
+- Expanded portable guidance to cover RTK at the shell boundary, nested
+  Make/Docker output, and host-repository documentation audits for missing RTK
+  usage guidance.
 - Added the `agent-loop-workflow` starter skill so repositories adopting `agent-loop` can load the real command sequence and learning boundary for this project's governed workflow without re-reading the full README.
 - Added the `workflow` namespace for governed task start/status/close orchestration, including close gates and accepted-risk files.
 - Hardened workflow documentation, close-gate structure, task-id tests, and accepted-risk write error handling.

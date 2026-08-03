@@ -30,6 +30,7 @@ final readonly class RecallEditBriefingCompiler implements EditBriefingCompiler
             $request->mapIndex,
             '--map-root',
             $request->mapRoot,
+            ...$this->focusOptions($request->focusTerms),
             '--output-dir',
             $outputDirectory,
             '--compilation-id',
@@ -58,6 +59,20 @@ final readonly class RecallEditBriefingCompiler implements EditBriefingCompiler
             bundleDigest: $this->normalizeSha256Digest($bundleDigest, 'bundle_sha256'),
             meta: $meta,
         );
+    }
+
+    /** @param list<string> $focusTerms
+     * @return list<string>
+     */
+    private function focusOptions(array $focusTerms): array
+    {
+        $options = [];
+        foreach ($focusTerms as $focusTerm) {
+            $options[] = '--edit-focus';
+            $options[] = $focusTerm;
+        }
+
+        return $options;
     }
 
     private function read(string $path): string

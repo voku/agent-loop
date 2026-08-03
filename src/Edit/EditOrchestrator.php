@@ -14,6 +14,7 @@ final readonly class EditOrchestrator
         private EditBriefingCompiler $briefingCompiler = new RecallEditBriefingCompiler(),
         private StdoutEditRunner $stdoutRunner = new StdoutEditRunner(),
         private CommandEditRunner $commandRunner = new CommandEditRunner(),
+        private MechanicalEditRunner $mechanicalRunner = new MechanicalEditRunner(),
     ) {
     }
 
@@ -23,7 +24,7 @@ final readonly class EditOrchestrator
         $this->ensureDirectory($request->outputDirectory);
 
         $briefing = $this->briefingCompiler->compile($request);
-        $prompt = $briefing->prompt($request->instruction);
+        $prompt = $briefing->prompt($request->instruction, $request->focusTerms);
         $requestPath = $request->outputDirectory . '/request.json';
         $promptPath = $request->outputDirectory . '/prompt.md';
         $executionPath = $request->outputDirectory . '/execution.json';
@@ -31,10 +32,17 @@ final readonly class EditOrchestrator
         $this->write($requestPath, $this->json($request->toArray()));
         $this->write($promptPath, $prompt);
 
-        $execution = new EditExecution($request, $promptPath);
+        $execution = new EditExecution($request, $promptPath, $map->resolveMethod($request->target));
+        $routing = $this->route($request);
         $runResult = $request->dryRun
             ? new EditRunResult('prepared')
-            : $this->runner($request->runner)->run($execution);
+            : ($routing->selectedRunner === null
+                ? new EditRunResult(
+                    status: 'escalation_required',
+                    exitCode: 2,
+                    stdout: 'No external model runner was invoked. Provide an exact replacement for mechanical execution or explicitly select --runner=command.',
+                )
+                : $this->runner($routing->selectedRunner)->run($execution));
 
         $evidence = $this->writeRunnerEvidence($request->outputDirectory, $runResult);
         $mapIndexDigest = hash_file('sha256', $request->mapIndex);
@@ -52,12 +60,23 @@ final readonly class EditOrchestrator
             'recall_bundle_sha256' => $briefing->bundleDigest,
             'prompt_sha256' => 'sha256:' . hash('sha256', $prompt),
             'runner' => [
-                'name' => $request->runner,
-                'command' => $request->runnerCommand,
-                'arguments' => $request->runnerArguments,
+                'name' => $routing->selectedRunner ?? 'none',
+                'command' => $routing->selectedRunner === 'command' ? $request->runnerCommand : null,
+                'arguments' => $routing->selectedRunner === 'command' ? $request->runnerArguments : [],
                 'exit_code' => $runResult->exitCode,
                 'dry_run' => $request->dryRun,
                 'timeout_seconds' => $request->runnerTimeoutSeconds,
+                'replacement' => $routing->selectedRunner === 'mechanical'
+                    ? ['old' => $request->replacementOld, 'new' => $request->replacementNew]
+                    : null,
+                'model_input_tokens' => $routing->invokesExternalModel() && !$request->dryRun ? null : 0,
+                'model_tool_calls' => $routing->invokesExternalModel() && !$request->dryRun ? null : 0,
+            ],
+            'routing' => [
+                'requested_runner' => $request->runner,
+                'selected_runner' => $routing->selectedRunner ?? 'none',
+                'reason' => $routing->reason,
+                'external_model_invoked' => $routing->invokesExternalModel() && !$request->dryRun,
             ],
             'artifacts' => [
                 'request' => $requestPath,
@@ -84,8 +103,21 @@ final readonly class EditOrchestrator
         return match ($name) {
             'stdout' => $this->stdoutRunner,
             'command' => $this->commandRunner,
+            'mechanical' => $this->mechanicalRunner,
             default => throw new RuntimeException('Unknown edit runner: ' . $name),
         };
+    }
+
+    private function route(EditRequest $request): EditRoutingDecision
+    {
+        if ($request->runner !== 'auto') {
+            return new EditRoutingDecision($request->runner, 'Explicit runner selected by caller.');
+        }
+        if ($request->replacementOld !== null && $request->replacementNew !== null) {
+            return new EditRoutingDecision('mechanical', 'Exact replacement supplied; selected scoped mechanical execution.');
+        }
+
+        return new EditRoutingDecision(null, 'No exact replacement proof was supplied; external model execution requires an explicit --runner=command.');
     }
 
     /** @return array{stdout: ?string, stderr: ?string} */

@@ -26,4 +26,18 @@ final class EditBriefingTest extends TestCase
         self::assertStringContainsString('## Requested Change', $prompt);
         self::assertStringContainsString('## Required Validation', $prompt);
     }
+
+    public function testPromptTellsTheRunnerToUseFocusedContextBeforeMoreDiscovery(): void
+    {
+        $prompt = (new EditBriefing(
+            outputDirectory: '/tmp/recall',
+            systemMarkdown: '### Primary',
+            validationMarkdown: '- Run PHPUnit.',
+            bundleDigest: 'sha256:bundle',
+            meta: [],
+        ))->prompt('Change the implementation.', ['$legacyUser->regionId']);
+
+        self::assertStringContainsString('## Focused Execution', $prompt);
+        self::assertStringContainsString('do not re-read the broader target', $prompt);
+    }
 }

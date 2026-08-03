@@ -30,8 +30,9 @@ final readonly class EditRequestParser
 
         /** @var array<string, string> $values */
         $values = [];
-        /** @var array{map-exclude: list<string>, runner-arg: list<string>} $repeated */
+        /** @var array{focus: list<string>, map-exclude: list<string>, runner-arg: list<string>} $repeated */
         $repeated = [
+            'focus' => [],
             'map-exclude' => [],
             'runner-arg' => [],
         ];
@@ -75,10 +76,13 @@ final readonly class EditRequestParser
                 'map-root',
                 'map-paths',
                 'phpstan-config',
+                'phpstan-memory-limit',
                 'output-dir',
                 'runner',
                 'runner-command',
                 'runner-timeout',
+                'replace-old',
+                'replace-new',
             ], true)) {
                 throw new InvalidArgumentException('Unknown edit option: --' . $name);
             }
@@ -116,6 +120,9 @@ final readonly class EditRequestParser
         $phpStanConfiguration = isset($values['phpstan-config']) && trim($values['phpstan-config']) !== ''
             ? trim($values['phpstan-config'])
             : null;
+        $phpStanMemoryLimit = isset($values['phpstan-memory-limit'])
+            ? $this->memoryLimit($values['phpstan-memory-limit'])
+            : null;
         $runner = trim($values['runner'] ?? 'stdout');
         $runnerCommand = isset($values['runner-command']) ? trim($values['runner-command']) : null;
         $timeout = $this->positiveInt('runner-timeout', $values['runner-timeout'] ?? '900');
@@ -131,7 +138,9 @@ final readonly class EditRequestParser
             outputDirectory: $outputDirectory,
             mapPaths: $mapPaths,
             mapExcludes: array_values(array_filter(array_map('trim', $repeated['map-exclude']), static fn (string $value): bool => $value !== '')),
+            focusTerms: array_values(array_filter(array_map('trim', $repeated['focus']), static fn (string $value): bool => $value !== '')),
             phpStanConfiguration: $phpStanConfiguration,
+            phpStanMemoryLimit: $phpStanMemoryLimit,
             forceMapRebuild: $flags['rebuild-map'],
             allowMapRebuild: !$flags['no-rebuild-map'],
             dryRun: $flags['dry-run'],
@@ -140,6 +149,8 @@ final readonly class EditRequestParser
             runnerArguments: $repeated['runner-arg'],
             runnerTimeoutSeconds: $timeout,
             printPrompt: $flags['print-prompt'],
+            replacementOld: $values['replace-old'] ?? null,
+            replacementNew: $values['replace-new'] ?? null,
         );
     }
 
@@ -238,6 +249,15 @@ final readonly class EditRequestParser
         }
 
         return $integer;
+    }
+
+    private function memoryLimit(string $value): string
+    {
+        if (preg_match('/\A[1-9][0-9]*(?:[KMG])?\z/i', $value) !== 1) {
+            throw new InvalidArgumentException('Invalid phpstan-memory-limit: ' . $value);
+        }
+
+        return strtoupper($value);
     }
 
     private function isAbsolutePath(string $path): bool

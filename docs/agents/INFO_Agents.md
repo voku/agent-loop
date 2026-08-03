@@ -159,8 +159,8 @@ Prefer:
 rtk docker compose ps
 rtk docker compose logs --tail=200 db
 rtk docker compose logs --tail=200 php
-rtk test docker compose exec -T php vendor/bin/phpunit --filter Init
-rtk err docker compose exec -T php php scripts/private/check.php
+rtk docker compose exec -T php vendor/bin/phpunit --filter Init
+rtk docker compose exec -T php php scripts/private/check.php
 ```
 
 Use raw passthrough only when the filtered output is hiding something you
@@ -186,11 +186,11 @@ ai-status:
 
 .PHONY: ai-phpstan
 ai-phpstan:
-	rtk test docker compose exec -T php vendor/bin/phpstan analyse --memory-limit=1G
+	rtk docker compose exec -T php vendor/bin/phpstan analyse --memory-limit=1G
 
 .PHONY: ai-tests
 ai-tests:
-	rtk test docker compose exec -T php vendor/bin/phpunit
+	rtk docker compose exec -T php vendor/bin/phpunit
 
 .PHONY: ai-php-logs
 ai-php-logs:
