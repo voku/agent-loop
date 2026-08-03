@@ -1,0 +1,200 @@
+name: Apply target-aware edit orchestration
+
+on:
+  push:
+    branches:
+      - feat/target-aware-edit
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/target-aware-edit
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Wire edit command and documentation
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              content = file.read_text()
+              if old not in content:
+                  raise SystemExit(f'missing expected block in {path}: {old[:80]!r}')
+              file.write_text(content.replace(old, new, 1))
+
+          replace(
+              'src/Dispatcher.php',
+              'use voku\\AgentMap\\Cli\\AgentMapApplication;\nuse voku\\AgentLoop\\Init\\InitCli;',
+              'use voku\\AgentMap\\Cli\\AgentMapApplication;\nuse voku\\AgentLoop\\Edit\\EditCommand;\nuse voku\\AgentLoop\\Init\\InitCli;',
+          )
+          replace(
+              'src/Dispatcher.php',
+              ' *  - `map` -> voku/agent-map (PHP repository symbol map)\n',
+              ' *  - `map` -> voku/agent-map (PHP repository symbol map)\n *  - `edit` -> voku/agent-loop (target-aware map + recall + runner orchestration)\n',
+          )
+          replace(
+              'src/Dispatcher.php',
+              "        return match ($namespace) {\n            'board' =>",
+              "        return match ($namespace) {\n            'edit' => (new EditCommand($this->rootPath))->run($rest),\n            'board' =>",
+          )
+          replace(
+              'src/Dispatcher.php',
+              '        Usage:\n          agent-loop <namespace> <command> [options]\n\n        Namespaces:\n          board',
+              '        Usage:\n          agent-loop edit CLASS::METHOD [options] -- INSTRUCTION\n          agent-loop <namespace> <command> [options]\n\n        Namespaces:\n          edit    CLASS::METHOD [options] -- INSTRUCTION\n                  Build or refresh the semantic map, compile target-aware recall,\n                  and prepare or run one auditable edit execution bundle.\n          board',
+          )
+          replace(
+              'src/Dispatcher.php',
+              '          map     <build|query|file|stale|summary|changed|related|stats>\n',
+              '          map     <build|query|file|stale|summary|changed|related|stats|scope|callers|callees|context>\n',
+          )
+          replace(
+              'src/Dispatcher.php',
+              '          agent-loop learn help\n          agent-loop recall help\n',
+              '          agent-loop edit help\n          agent-loop learn help\n          agent-loop recall help\n',
+          )
+
+          replace(
+              'tests/DispatcherTest.php',
+              "['agent-loop - unified CLI', 'board', 'learn', 'map', 'recall', 'memory', 'workflow', 'init']",
+              "['agent-loop - unified CLI', 'edit', 'board', 'learn', 'map', 'recall', 'memory', 'workflow', 'init']",
+          )
+          replace(
+              'tests/DispatcherTest.php',
+              "    public function testMapNamespaceRoutesToAgentMapCli(): void\n    {\n        $this->assertRun(['agent-loop', 'map', 'help'], 0, ['agent-map - compact PHP symbol maps', 'agent-map query']);\n    }\n",
+              "    public function testEditNamespaceRoutesToEditCommand(): void\n    {\n        $this->assertRun(['agent-loop', 'edit', 'help'], 0, ['agent-loop edit CLASS::METHOD', '--runner-command']);\n    }\n\n    public function testMapNamespaceRoutesToAgentMapCli(): void\n    {\n        $this->assertRun(['agent-loop', 'map', 'help'], 0, ['agent-map - compact PHP symbol maps', 'agent-map query']);\n    }\n",
+          )
+
+          replace(
+              'README.md',
+              'agentic-coding loop. It combines task selection, working sessions, recall\ncompilation, gated workflow orchestration, verification, deterministic\n',
+              'agentic-coding loop. It combines target-aware edit orchestration, task\nselection, working sessions, recall compilation, gated workflow orchestration,\nverification, deterministic\n',
+          )
+          replace(
+              'README.md',
+              '```bash\ncomposer require --dev voku/agent-loop\n```\n\nCreate the minimal local workflow structure',
+              '''```bash
+composer require --dev voku/agent-loop
+```
+
+For an exact method-scoped change, build the semantic map, compile bounded
+source-backed recall, and prepare one execution bundle directly:
+
+```bash
+vendor/bin/agent-loop edit 'App\\Service\\UserService::save' -- \\
+  'Reject inactive users before persistence and adapt affected callers.'
+```
+
+The default `stdout` runner does not execute another agent. It writes
+`request.json`, `prompt.md`, `execution.json`, the recall artifacts, and any
+runner evidence under `.agent-loop/edit/<task-id>/`. Use `--runner=command`
+with an explicit executable and repeated `--runner-arg` values for a harness
+that consumes the compiled prompt on stdin. No shell command is constructed.
+
+Create the minimal local workflow structure''',
+          )
+          replace(
+              'README.md',
+              'agent-loop\n  board     → pick and inspect work\n',
+              'agent-loop\n  edit      → map an exact target and compile/run one bounded edit bundle\n  board     → pick and inspect work\n',
+          )
+          replace(
+              'README.md',
+              '│  agent-loop board         → voku/agent-kanban',
+              '│  agent-loop edit          → voku/agent-loop              (map + recall + runner bundle) │\n│  agent-loop board         → voku/agent-kanban',
+          )
+          replace(
+              'README.md',
+              '| `board` | Stable | Pick work from local Markdown cards; external sync is optional and host-provided | `voku/agent-kanban` |\n',
+              '| `edit` | Stable | Resolve an exact method target, compile bounded recall, and prepare or run an auditable execution bundle | `voku/agent-loop` |\n| `board` | Stable | Pick work from local Markdown cards; external sync is optional and host-provided | `voku/agent-kanban` |\n',
+          )
+          replace(
+              'README.md',
+              'Do the actual coding work with your preferred agent, feeding it the\ncompiled recall artifacts (`system.md`, `validation-plan.md`) yourself —\n`agent-loop` writes them for review or harness ingestion, it does not\ninject them into a running agent.\n',
+              '''For exact method-scoped work, `agent-loop edit` now connects the semantic
+map and target-aware recall compiler directly. Its safe default prepares the
+execution bundle without launching an external agent; the generic `command`
+runner can pass `prompt.md` through stdin to an explicitly configured harness.
+
+The broader governed `workflow` remains the preferred lifecycle for approved
+board work, session state, review, verification, and closure. Direct `recall
+compile` still writes artifacts for manual or harness ingestion.
+''',
+          )
+          replace(
+              'README.md',
+              'Available namespaces:\n\n```text\nboard',
+              'Available namespaces:\n\n```text\nedit         Exact target → semantic map → bounded recall → execution bundle (voku/agent-loop)\nboard',
+          )
+          replace(
+              'README.md',
+              '### Map\n\n```bash\n',
+              '''### Edit
+
+```bash
+vendor/bin/agent-loop edit 'App\\Service\\UserService::save' --dry-run -- \\
+  'Reject inactive users before persistence.'
+```
+
+`edit` rejects missing, ambiguous, conflicted, or stale targets before it
+publishes an execution bundle. Missing or stale maps are rebuilt once unless
+`--no-rebuild-map` is supplied. The default runner is deliberately
+non-executing; `--print-prompt` prints the compiled prompt, while
+`--runner=command --runner-command=... --runner-arg=...` invokes one executable
+without a shell and stores stdout, stderr, and the exit code as evidence.
+
+### Map
+
+```bash
+''',
+          )
+
+          replace(
+              'CHANGELOG.md',
+              'All notable changes to this project will be documented in this file.\n\n',
+              '''All notable changes to this project will be documented in this file.
+
+## Unreleased
+
+- Added `agent-loop edit CLASS::METHOD -- INSTRUCTION`. The command builds or
+  refreshes the PHPStan-backed `agent-map`, rejects missing, ambiguous,
+  conflicted, or stale targets, compiles target-aware recall through
+  `agent-recall-compiler` 0.7, and writes one auditable execution bundle.
+- Added a safe non-executing `stdout` runner and an explicit shell-free
+  `command` runner that receives `prompt.md` on stdin and records stdout,
+  stderr, exit code, map digest, recall digest, and artifact hashes.
+- Requires `voku/agent-map ^0.2` and `voku/agent-recall-compiler ^0.7`.
+
+''',
+          )
+          PY
+      - name: Install dependencies
+        run: |
+          if git ls-files --error-unmatch composer.lock >/dev/null 2>&1; then
+            echo tracked > /tmp/composer-lock-state
+          else
+            echo untracked > /tmp/composer-lock-state
+          fi
+          composer update --no-interaction --prefer-dist --no-progress
+      - name: Validate implementation
+        run: composer ci
+      - name: Publish integration
+        run: |
+          if [ "$(cat /tmp/composer-lock-state)" = "untracked" ]; then
+            rm -f composer.lock
+          fi
+          rm -f .github/workflows/apply-target-aware-edit.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: wire target-aware edit orchestration'
+          git push origin HEAD:feat/target-aware-edit
