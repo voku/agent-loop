@@ -18,7 +18,10 @@ final readonly class EditCommand
     /** @param list<string> $tokens */
     public function run(array $tokens): int
     {
-        if ($tokens === [] || in_array($tokens[0] ?? '', ['help', '--help', '-h'], true)) {
+        if ($tokens === []) {
+            return $this->help();
+        }
+        if (in_array($tokens[0], ['help', '--help', '-h'], true)) {
             return $this->help();
         }
 
