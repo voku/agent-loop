@@ -7,6 +7,7 @@ namespace voku\AgentLoop;
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentMap\Cli\AgentMapApplication;
+use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Init\InitCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
@@ -22,6 +23,7 @@ use voku\AgentLoop\Workflow\WorkflowCli;
  *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
  *  - `workflow` -> voku/agent-loop (plan/approve/start/status/report/close orchestration)
  *  - `map` -> voku/agent-map (PHP repository symbol map)
+ *  - `edit` -> voku/agent-loop (target-aware map + recall + runner orchestration)
  *  - `board:verify` -> voku/agent-kanban (CliApplication `verify`; kanban board source only)
  *  - `learn`  -> voku/agent-learning (Cli)
  *  - `recall` -> voku/agent-recall-compiler (Cli)
@@ -50,6 +52,7 @@ final class Dispatcher
         $rest = array_slice($argv, 2);
 
         return match ($namespace) {
+            'edit' => (new EditCommand($this->rootPath))->run($rest),
             'board' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, $rest)),
             'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
             'board:verify' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, ['verify'])),
@@ -426,9 +429,13 @@ final class Dispatcher
         agent-loop - unified CLI for the governed agentic-coding loop.
 
         Usage:
+          agent-loop edit CLASS::METHOD [options] -- INSTRUCTION
           agent-loop <namespace> <command> [options]
 
         Namespaces:
+          edit    CLASS::METHOD [options] -- INSTRUCTION
+                  Build or refresh the semantic map, compile target-aware recall,
+                  and prepare or run one auditable edit execution bundle.
           board   <summary|render|lane|next-pull|card|external-sync>
                   TODO Kanban board (voku/agent-kanban). `card show|create|
                   update|move|claim|release|archive|restore` operate on a
@@ -444,7 +451,7 @@ final class Dispatcher
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
                   Working memory: per-task session plans (voku/agent-session).
-          map     <build|query|file|stale|summary|changed|related|stats>
+          map     <build|query|file|stale|summary|changed|related|stats|scope|callers|callees|context>
                   Compact PHP repository symbol map (voku/agent-map).
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
@@ -456,6 +463,7 @@ final class Dispatcher
           help    Show this help.
 
         Run a namespace with `help` for its own command list, e.g.:
+          agent-loop edit help
           agent-loop learn help
           agent-loop recall help
 

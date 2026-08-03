@@ -34,7 +34,7 @@ final class DispatcherTest extends TestCase
 
     public function testHelpIsPrintedAndSucceeds(): void
     {
-        $this->assertRun(['agent-loop', 'help'], 0, ['agent-loop - unified CLI', 'board', 'learn', 'map', 'recall', 'memory', 'workflow', 'init']);
+        $this->assertRun(['agent-loop', 'help'], 0, ['agent-loop - unified CLI', 'edit', 'board', 'learn', 'map', 'recall', 'memory', 'workflow', 'init']);
     }
 
     public function testNoArgumentsShowsHelp(): void
@@ -111,6 +111,11 @@ final class DispatcherTest extends TestCase
         $this->assertRun(['agent-loop', 'init', 'help'], 0, ['agent-loop init doctor', 'sync-skills', 'install-plan']);
     }
 
+    public function testEditNamespaceRoutesToEditCommand(): void
+    {
+        $this->assertRun(['agent-loop', 'edit', 'help'], 0, ['agent-loop edit CLASS::METHOD', '--runner-command']);
+    }
+
     public function testMapNamespaceRoutesToAgentMapCli(): void
     {
         $this->assertRun(['agent-loop', 'map', 'help'], 0, ['agent-map - compact PHP symbol maps', 'agent-map query']);
@@ -139,7 +144,7 @@ final class DispatcherTest extends TestCase
             $this->assertRun(
                 ['agent-loop', 'map', 'build', '--paths=src'],
                 0,
-                ['Wrote 1 file(s) to ' . $root . '/.agent-map/php-symbols.json'],
+                ['Wrote 1 file(s),', $root . '/.agent-map/php-symbols.json'],
                 $root
             );
 
