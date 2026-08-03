@@ -108,7 +108,7 @@ final readonly class EditRequestParser
 
         $mapRoot = $this->resolveExistingDirectory($realProjectRoot, $values['map-root'] ?? $realProjectRoot, 'map root');
         $recallRoot = isset($values['recall-root'])
-            ? $this->resolvePath($realProjectRoot, $values['recall-root'])
+            ? $this->resolveExistingDirectory($realProjectRoot, $values['recall-root'], 'recall root')
             : $this->discoverRecallRoot($realProjectRoot);
         $mapIndex = $this->resolvePath($realProjectRoot, $values['map-index'] ?? '.agent-map/php-symbols.json');
         $outputDirectory = $this->resolvePath($realProjectRoot, $values['output-dir'] ?? '.agent-loop/edit/' . $taskId);
