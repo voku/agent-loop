@@ -1,0 +1,50 @@
+name: Apply target-aware edit orchestration on PR
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'feat/target-aware-edit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/target-aware-edit
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Apply queued integration patch
+        run: |
+          sed -n "/python <<'PY'/,/^          PY$/p" .github/workflows/apply-target-aware-edit.yml \
+            | sed '1d;$d;s/^          //' > /tmp/apply-target-aware-edit.py
+          python /tmp/apply-target-aware-edit.py
+      - name: Install dependencies
+        run: |
+          if git ls-files --error-unmatch composer.lock >/dev/null 2>&1; then
+            echo tracked > /tmp/composer-lock-state
+          else
+            echo untracked > /tmp/composer-lock-state
+          fi
+          composer update --no-interaction --prefer-dist --no-progress
+      - name: Validate implementation
+        run: composer ci
+      - name: Publish integration
+        run: |
+          if [ "$(cat /tmp/composer-lock-state)" = "untracked" ]; then
+            rm -f composer.lock
+          fi
+          rm -f .github/workflows/apply-target-aware-edit.yml
+          rm -f .github/workflows/apply-target-aware-edit-pr.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: wire target-aware edit orchestration'
+          git push origin HEAD:feat/target-aware-edit
