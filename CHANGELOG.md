@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.6.6 - 2026-08-03
 
 - Added `agent-loop edit CLASS::METHOD -- INSTRUCTION`. The command builds or
   refreshes the PHPStan-backed `agent-map`, rejects missing, ambiguous,
