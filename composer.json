@@ -1,6 +1,6 @@
 {
   "name": "voku/agent-loop",
-  "description": "Unified Composer CLI for the governed coding-agent loop: board, session, recall, review, learning, memory review, and verification.",
+  "description": "Unified Composer CLI for the governed coding-agent loop: edit orchestration, board, session, recall, review, learning, memory review, and verification.",
   "type": "library",
   "license": "MIT",
   "homepage": "https://github.com/voku/agent-loop",
@@ -18,8 +18,8 @@
     "php": "^8.3",
     "voku/agent-kanban": "0.2.*",
     "voku/agent-learning": "0.8.*",
-    "voku/agent-map": "0.1.*",
-    "voku/agent-recall-compiler": "^0.6.6",
+    "voku/agent-map": "^0.2",
+    "voku/agent-recall-compiler": "^0.7",
     "voku/agent-session": "0.2.*"
   },
   "require-dev": {
