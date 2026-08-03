@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Edit\EditRequestParser;
 
@@ -74,5 +75,54 @@ final class EditRequestParserTest extends TestCase
             '--',
             'Change it.',
         ]);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    #[DataProvider('invalidRequestProvider')]
+    public function testRejectsInvalidRequestSurfaces(array $tokens, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        (new EditRequestParser())->parse($this->root, $tokens);
+    }
+
+    /** @return iterable<string, array{0: list<string>, 1: string}> */
+    public static function invalidRequestProvider(): iterable
+    {
+        yield 'unknown option' => [
+            ['Demo\\Service::run', '--unknown=value', '--', 'Change it.'],
+            'Unknown edit option: --unknown',
+        ];
+        yield 'duplicate option' => [
+            ['Demo\\Service::run', '--task=TASK-1', '--task=TASK-2', '--', 'Change it.'],
+            'may only be supplied once',
+        ];
+        yield 'missing target' => [
+            ['--', 'Change it.'],
+            'requires an exact Class::method target',
+        ];
+        yield 'malformed target' => [
+            ['::run', '--', 'Change it.'],
+            'must use Class::method syntax',
+        ];
+        yield 'invalid task ID' => [
+            ['Demo\\Service::run', '--task=../TASK', '--', 'Change it.'],
+            'Invalid edit task ID',
+        ];
+        yield 'timeout below range' => [
+            ['Demo\\Service::run', '--runner-timeout=0', '--', 'Change it.'],
+            'Invalid runner-timeout',
+        ];
+        yield 'command runner without command' => [
+            ['Demo\\Service::run', '--runner=command', '--', 'Change it.'],
+            'requires --runner-command',
+        ];
+        yield 'missing explicit recall root' => [
+            ['Demo\\Service::run', '--recall-root=does-not-exist', '--', 'Change it.'],
+            'Edit recall root not found',
+        ];
     }
 }
