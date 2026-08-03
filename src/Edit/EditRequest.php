@@ -49,6 +49,19 @@ final readonly class EditRequest
             }
         }
 
+        $separator = strrpos($target, '::');
+        $className = $separator === false ? '' : substr($target, 0, $separator);
+        $methodName = $separator === false ? '' : substr($target, $separator + 2);
+        if (
+            $className === ''
+            || $methodName === ''
+            || str_contains($className, '::')
+            || str_contains($methodName, '::')
+            || preg_match('/\s/', $className . $methodName) === 1
+        ) {
+            throw new InvalidArgumentException('Edit target must use Class::method syntax: ' . $target);
+        }
+
         if (!in_array($runner, ['stdout', 'command'], true)) {
             throw new InvalidArgumentException('Unknown edit runner: ' . $runner);
         }
