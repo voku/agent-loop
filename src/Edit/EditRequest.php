@@ -9,7 +9,7 @@ use InvalidArgumentException;
 final readonly class EditRequest
 {
     /**
-     * @param non-empty-list<string> $mapPaths
+     * @param list<string> $mapPaths
      * @param list<string> $mapExcludes
      * @param list<string> $runnerArguments
      */
