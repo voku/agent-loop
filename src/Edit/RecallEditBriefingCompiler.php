@@ -55,7 +55,7 @@ final readonly class RecallEditBriefingCompiler implements EditBriefingCompiler
             outputDirectory: $outputDirectory,
             systemMarkdown: $systemMarkdown,
             validationMarkdown: $validationMarkdown,
-            bundleDigest: $bundleDigest,
+            bundleDigest: $this->normalizeSha256Digest($bundleDigest, 'bundle_sha256'),
             meta: $meta,
         );
     }
@@ -89,9 +89,26 @@ final readonly class RecallEditBriefingCompiler implements EditBriefingCompiler
     private function verifyOutputHash(array $meta, string $name, string $content): void
     {
         $hashes = $meta['output_hashes'] ?? null;
-        $expected = is_array($hashes) ? ($hashes[$name] ?? null) : null;
-        if (!is_string($expected) || !hash_equals($expected, hash('sha256', $content))) {
+        if (!is_array($hashes) || !array_key_exists($name, $hashes)) {
+            throw new RuntimeException('Recall metadata is missing an output hash for: ' . $name);
+        }
+
+        $expected = $hashes[$name];
+        if (!is_string($expected) || preg_match('/\A[a-f0-9]{64}\z/i', $expected) !== 1) {
+            throw new RuntimeException('Recall metadata contains an invalid output hash for: ' . $name);
+        }
+        if (!hash_equals(strtolower($expected), hash('sha256', $content))) {
             throw new RuntimeException('Recall artifact hash mismatch: ' . $name);
         }
+    }
+
+    private function normalizeSha256Digest(string $digest, string $name): string
+    {
+        $value = str_starts_with($digest, 'sha256:') ? substr($digest, 7) : $digest;
+        if (preg_match('/\A[a-f0-9]{64}\z/i', $value) !== 1) {
+            throw new RuntimeException('Recall metadata contains an invalid ' . $name . '.');
+        }
+
+        return 'sha256:' . strtolower($value);
     }
 }
