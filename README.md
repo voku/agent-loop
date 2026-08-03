@@ -3,8 +3,9 @@
 A governed coding-agent workflow for PHP repositories.
 
 `voku/agent-loop` is the umbrella package for a local, auditable
-agentic-coding loop. It combines task selection, working sessions, recall
-compilation, gated workflow orchestration, verification, deterministic
+agentic-coding loop. It combines target-aware edit orchestration, task
+selection, working sessions, recall compilation, gated workflow orchestration,
+verification, deterministic
 review, learning capture, memory promotion, and repo setup/diagnostics
 behind one CLI:
 
@@ -19,6 +20,20 @@ Install the package in an existing PHP project:
 ```bash
 composer require --dev voku/agent-loop
 ```
+
+For an exact method-scoped change, build the semantic map, compile bounded
+source-backed recall, and prepare one execution bundle directly:
+
+```bash
+vendor/bin/agent-loop edit 'App\Service\UserService::save' -- \
+  'Reject inactive users before persistence and adapt affected callers.'
+```
+
+The default `stdout` runner does not execute another agent. It writes
+`request.json`, `prompt.md`, `execution.json`, the recall artifacts, and any
+runner evidence under `.agent-loop/edit/<task-id>/`. Use `--runner=command`
+with an explicit executable and repeated `--runner-arg` values for a harness
+that consumes the compiled prompt on stdin. No shell command is constructed.
 
 Create the minimal local workflow structure and a clearly marked example
 task:
@@ -65,6 +80,7 @@ knowledge becomes durable guidance.
 
 ```text
 agent-loop
+  edit      → map an exact target and compile/run one bounded edit bundle
   board     → pick and inspect work
   session   → track active task context
   map       → navigate compact PHP symbols
@@ -156,6 +172,7 @@ everything in one large tool.
 ```text
 ┌────────────────────────────────── voku/agent-loop ──────────────────────────────────┐
 │                                                                                       │
+│  agent-loop edit          → voku/agent-loop              (map + recall + runner bundle) │
 │  agent-loop board         → voku/agent-kanban       (board + optional external sync) │
 │  agent-loop board:verify  → voku/agent-kanban            (board-source-only check)   │
 │  agent-loop session       → voku/agent-session           (per-task working memory)   │
@@ -184,6 +201,7 @@ Each dependency package has one job:
 
 | Namespace | Status | Purpose | Owning package |
 | --- | --- | --- | --- |
+| `edit` | Stable | Resolve an exact method target, compile bounded recall, and prepare or run an auditable execution bundle | `voku/agent-loop` |
 | `board` | Stable | Pick work from local Markdown cards; external sync is optional and host-provided | `voku/agent-kanban` |
 | `session` | Stable | Working memory for an in-progress task | `voku/agent-session` |
 | `map` | Stable | Build and query a compact PHP symbol map before reading broad files | `voku/agent-map` |
@@ -229,10 +247,14 @@ vendor/bin/agent-loop workflow plan ABC-123 \
 vendor/bin/agent-loop workflow approve ABC-123 --by lars
 ```
 
-Do the actual coding work with your preferred agent, feeding it the
-compiled recall artifacts (`system.md`, `validation-plan.md`) yourself —
-`agent-loop` writes them for review or harness ingestion, it does not
-inject them into a running agent.
+For exact method-scoped work, `agent-loop edit` now connects the semantic
+map and target-aware recall compiler directly. Its safe default prepares the
+execution bundle without launching an external agent; the generic `command`
+runner can pass `prompt.md` through stdin to an explicitly configured harness.
+
+The broader governed `workflow` remains the preferred lifecycle for approved
+board work, session state, review, verification, and closure. Direct `recall
+compile` still writes artifacts for manual or harness ingestion.
 
 For behavioral work, the optional repeatable `--behavior-anchor` records the
 real request, runtime, consumer, data, or integration seam that needs evidence.
@@ -353,6 +375,7 @@ vendor/bin/agent-loop help
 Available namespaces:
 
 ```text
+edit         Exact target → semantic map → bounded recall → execution bundle (voku/agent-loop)
 board        Local Markdown task board (voku/agent-kanban)
 board:verify Board-source-only check (voku/agent-kanban)
 session      Per-task working memory (voku/agent-session)
@@ -388,6 +411,20 @@ when the invocation passes `--provider-class=<FQCN>` pointing at your own
 `voku\AgentKanban\ExternalIssue\ExternalIssueProvider` implementation (see
 "Programmatic usage" below) — nothing is wired in by default. Every other
 `board` command works from the local Markdown cards alone.
+
+### Edit
+
+```bash
+vendor/bin/agent-loop edit 'App\Service\UserService::save' --dry-run -- \
+  'Reject inactive users before persistence.'
+```
+
+`edit` rejects missing, ambiguous, conflicted, or stale targets before it
+publishes an execution bundle. Missing or stale maps are rebuilt once unless
+`--no-rebuild-map` is supplied. The default runner is deliberately
+non-executing; `--print-prompt` prints the compiled prompt, while
+`--runner=command --runner-command=... --runner-arg=...` invokes one executable
+without a shell and stores stdout, stderr, and the exit code as evidence.
 
 ### Map
 

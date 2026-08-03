@@ -17,6 +17,7 @@ final class CliSurfaceContractTest extends TestCase
 {
     /** @var list<string> */
     private const STABLE_NAMESPACES = [
+        'edit',
         'board',
         'session',
         'map',

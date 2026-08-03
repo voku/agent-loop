@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Added `agent-loop edit CLASS::METHOD -- INSTRUCTION`. The command builds or
+  refreshes the PHPStan-backed `agent-map`, rejects missing, ambiguous,
+  conflicted, or stale targets, compiles target-aware recall through
+  `agent-recall-compiler` 0.7, and writes one auditable execution bundle.
+- Added a safe non-executing `stdout` runner and an explicit shell-free
+  `command` runner that receives `prompt.md` on stdin and records stdout,
+  stderr, exit code, map digest, recall digest, and artifact hashes.
+- Requires `voku/agent-map ^0.2` and `voku/agent-recall-compiler ^0.7`.
+
 ## 0.6.5 - 2026-08-02
 
 - `workflow plan` accepts repeatable `--behavior-anchor` values and preserves
