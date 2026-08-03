@@ -55,7 +55,7 @@ final readonly class CommandEditRunner implements EditRunner
         while (true) {
             $status = proc_get_status($process);
             $running = $status['running'];
-            if (!$running && $observedExitCode === null && is_int($status['exitcode']) && $status['exitcode'] >= 0) {
+            if (!$running && $observedExitCode === null && $status['exitcode'] >= 0) {
                 $observedExitCode = $status['exitcode'];
             }
 
