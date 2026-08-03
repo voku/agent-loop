@@ -99,7 +99,9 @@ final class EditCommandIntegrationTest extends TestCase
         self::assertIsArray($execution);
         self::assertSame('prepared', $execution['status']);
         self::assertSame('Demo\\UserService::save', $execution['target']);
-        self::assertIsString($execution['map_digest']);
-        self::assertIsString($execution['recall_bundle_sha256']);
+        foreach (['map_digest', 'map_index_sha256', 'recall_bundle_sha256', 'prompt_sha256'] as $digestField) {
+            self::assertIsString($execution[$digestField]);
+            self::assertMatchesRegularExpression('/\Asha256:[a-f0-9]{64}\z/', $execution[$digestField]);
+        }
     }
 }
