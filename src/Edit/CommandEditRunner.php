@@ -49,46 +49,70 @@ final readonly class CommandEditRunner implements EditRunner
         $buffers = [1 => '', 2 => ''];
         $deadline = microtime(true) + $execution->request->runnerTimeoutSeconds;
         $timedOut = false;
+        $terminationStartedAt = null;
+        $observedExitCode = null;
 
-        while ($openPipes !== []) {
-            if (!$timedOut && microtime(true) >= $deadline) {
+        while (true) {
+            $status = proc_get_status($process);
+            $running = $status['running'];
+            if (!$running && $observedExitCode === null && is_int($status['exitcode']) && $status['exitcode'] >= 0) {
+                $observedExitCode = $status['exitcode'];
+            }
+
+            $now = microtime(true);
+            if (!$timedOut && $running && $now >= $deadline) {
                 $timedOut = true;
+                $terminationStartedAt = $now;
                 proc_terminate($process);
-            }
-
-            $read = array_values($openPipes);
-            $write = null;
-            $except = null;
-            $selected = stream_select($read, $write, $except, 0, 200000);
-            if ($selected === false) {
-                $this->closePipes($openPipes);
-                proc_terminate($process);
-                proc_close($process);
-                throw new RuntimeException('Unable to read edit runner output.');
-            }
-
-            foreach ($read as $stream) {
-                $index = array_search($stream, $openPipes, true);
-                if (!is_int($index)) {
-                    continue;
-                }
-                $chunk = fread($stream, 8192);
-                if (is_string($chunk) && $chunk !== '') {
-                    $buffers[$index] .= $chunk;
-                }
-                if (($chunk === false || $chunk === '') && feof($stream)) {
-                    fclose($stream);
-                    unset($openPipes[$index]);
-                }
-            }
-
-            if ($timedOut && microtime(true) >= $deadline + 2.0) {
+            } elseif (
+                $timedOut
+                && $running
+                && $terminationStartedAt !== null
+                && $now >= $terminationStartedAt + 2.0
+            ) {
                 proc_terminate($process, 9);
                 $this->closePipes($openPipes);
             }
+
+            if ($openPipes !== []) {
+                $read = array_values($openPipes);
+                $write = null;
+                $except = null;
+                $selected = stream_select($read, $write, $except, 0, 200000);
+                if ($selected === false) {
+                    $this->closePipes($openPipes);
+                    if ($running) {
+                        proc_terminate($process);
+                    }
+                    proc_close($process);
+                    throw new RuntimeException('Unable to read edit runner output.');
+                }
+
+                foreach ($read as $stream) {
+                    $index = array_search($stream, $openPipes, true);
+                    if (!is_int($index)) {
+                        continue;
+                    }
+                    $chunk = fread($stream, 8192);
+                    if (is_string($chunk) && $chunk !== '') {
+                        $buffers[$index] .= $chunk;
+                    }
+                    if (($chunk === false || $chunk === '') && feof($stream)) {
+                        fclose($stream);
+                        unset($openPipes[$index]);
+                    }
+                }
+            } elseif ($running) {
+                usleep(200000);
+            }
+
+            if (!$running && $openPipes === []) {
+                break;
+            }
         }
 
-        $exitCode = proc_close($process);
+        $closeExitCode = proc_close($process);
+        $exitCode = $closeExitCode >= 0 ? $closeExitCode : ($observedExitCode ?? $closeExitCode);
         if ($timedOut) {
             $exitCode = 124;
             $buffers[2] .= ($buffers[2] === '' ? '' : "\n") . 'Runner timed out after ' . $execution->request->runnerTimeoutSeconds . ' seconds.';
