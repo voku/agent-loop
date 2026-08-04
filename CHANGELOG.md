@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.8 - 2026-08-04
+
+- Requires `voku/agent-map` `^0.3.0` and `voku/agent-recall-compiler` `^0.7.2`.
+- Added `agent-loop map refresh`, which re-analyses only changed or new files
+  and patches them into the existing index instead of rebuilding the whole
+  scope. Like `map build` it defaults `--root` and `--out` to the dispatcher
+  root; previously only `build` did, so a `refresh` reached through the
+  dispatcher would have resolved both against the current working directory and
+  written the refreshed index somewhere other than where it read it from.
+- Documented that `--paths` should stay on directories: PHPStan disables its
+  result cache as soon as it is handed individual files, which makes every
+  rebuild a cold rebuild.
+
 ## 0.6.7 - 2026-08-03
 
 - Added `edit --phpstan-memory-limit`, forwarding an explicit positive limit to

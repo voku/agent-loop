@@ -110,7 +110,7 @@ rather than a broad prompt dump or a multi-file `grep` sweep:
 
 ```bash
 vendor/bin/agent-loop init tools
-vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map build --paths=src,tests   # once; then: map refresh
 vendor/bin/agent-loop map query SomeClass
 vendor/bin/agent-loop map related SomeClass
 vendor/bin/agent-loop map stale

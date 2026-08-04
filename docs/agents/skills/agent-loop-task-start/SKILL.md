@@ -88,8 +88,15 @@ map before rendering workflow context:
 
 ```bash
 vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map refresh
 vendor/bin/agent-loop map stale
 ```
+
+Build the whole scope once and keep it current with `map refresh`, which
+re-analyses only changed or new files: a full rebuild of a large repository
+costs minutes, a refresh after a normal branch switch costs seconds. Keep
+`--paths` on directories - PHPStan disables its result cache when it is handed
+individual files, so a file-list scope pays the full cost every single time.
 
 The default `.agent-map/` output is generated navigation state. Confirm it is
 ignored; never force-add the index. `workflow context` reads an existing index

@@ -136,6 +136,7 @@ workflow context:
 
 ```bash
 agent-loop map build --paths=src,tests
+agent-loop map refresh
 agent-loop map stale
 agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```

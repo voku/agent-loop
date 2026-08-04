@@ -496,13 +496,15 @@ baseline.
 
 ```bash
 vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map refresh
 vendor/bin/agent-loop map query EvidenceValidator
 vendor/bin/agent-loop map related EvidenceValidator
 ```
 
 Builds a compact generated symbol index under `.agent-map/` by default.
 Use it to choose the smallest useful source read; it is optional and never
-becomes another durable memory store.
+becomes another durable memory store. Build once, then keep it current with
+`map refresh`, which re-analyses only changed or new files.
 
 ### Session
 
@@ -823,6 +825,7 @@ agent-loop session prune [--keep-days N] [--status done,dropped] [--dry-run]
 
 # map: compact PHP symbol map for token hygiene
 agent-loop map build --paths=src,tests
+agent-loop map refresh
 agent-loop map summary
 agent-loop map query EvidenceValidator
 agent-loop map related EvidenceValidator
@@ -871,6 +874,7 @@ agent-loop init scaffold [--dry-run]
 
 ```bash
 vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map refresh
 vendor/bin/agent-loop map related EvidenceValidator
 vendor/bin/agent-loop map file src/EvidenceValidator.php
 vendor/bin/agent-loop map changed --base=main
@@ -882,10 +886,15 @@ symbol index so agents can find the right files/classes/methods before reading
 large file ranges. It does not store source code, call an LLM, own durable
 learning, or replace PHPStan.
 
-When called through `agent-loop`, `map build` defaults `--root` and `--out` to
-the dispatcher root (`<root>/.agent-map/php-symbols.json`) unless the caller
-passes explicit values. Read commands default `--index` to that same root-local
-index. All normal `agent-map` options still work:
+When called through `agent-loop`, `map build` and `map refresh` default `--root`
+and `--out` to the dispatcher root (`<root>/.agent-map/php-symbols.json`) unless
+the caller passes explicit values. Every command except `build` defaults
+`--index` to that same root-local index. All normal `agent-map` options still
+work:
+
+Prefer directory scopes for `--paths`: PHPStan disables its result cache when it
+is handed individual files, which turns every rebuild into a cold rebuild. With
+directories, `map refresh` after an ordinary branch switch costs seconds.
 
 ```bash
 vendor/bin/agent-loop map query Service --limit=10 --symbol-limit=5 --method-limit=5

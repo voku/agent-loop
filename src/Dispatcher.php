@@ -155,7 +155,10 @@ final class Dispatcher
             return $rest;
         }
 
-        if ($command === 'build') {
+        // `refresh` both reads and writes the map, so unlike the read-only commands it needs the
+        // root and the output target as well - otherwise it would resolve them against the current
+        // working directory and write the refreshed index somewhere else than it read it from.
+        if ($command === 'build' || $command === 'refresh') {
             if (!$this->hasOption($rest, 'root')) {
                 $rest[] = '--root=' . rtrim($this->rootPath, '/');
             }
@@ -163,11 +166,9 @@ final class Dispatcher
             if (!$this->hasOption($rest, 'out')) {
                 $rest[] = '--out=' . $this->defaultMapIndex();
             }
-
-            return $rest;
         }
 
-        if (!$this->hasOption($rest, 'index')) {
+        if ($command !== 'build' && !$this->hasOption($rest, 'index')) {
             $rest[] = '--index=' . $this->defaultMapIndex();
         }
 
@@ -451,8 +452,11 @@ final class Dispatcher
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
                   Working memory: per-task session plans (voku/agent-session).
-          map     <build|query|file|stale|summary|changed|related|stats|scope|callers|callees|context>
-                  Compact PHP repository symbol map (voku/agent-map).
+          map     <build|refresh|query|file|stale|summary|changed|related|stats|scope|callers|
+                  callees|context>
+                  Compact PHP repository symbol map (voku/agent-map). `build`
+                  writes the whole scope; `refresh` re-analyses only changed or
+                  new files and patches them into the existing index.
           memory  <review>
                   MEMORY.md promotion review (voku/agent-loop).
           workflow

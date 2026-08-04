@@ -159,6 +159,50 @@ final class DispatcherTest extends TestCase
         }
     }
 
+    public function testMapRefreshWritesBackToTheDispatcherRootIndex(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-map-refresh-' . bin2hex(random_bytes(6));
+        mkdir($root . '/src', 0o775, true);
+        file_put_contents($root . '/src/LoopMapService.php', $this->mapFixture('LoopMapService'));
+
+        try {
+            $this->assertRun(['agent-loop', 'map', 'build', '--paths=src'], 0, ['Wrote 1 file(s),'], $root);
+
+            file_put_contents($root . '/src/LoopMapSecond.php', $this->mapFixture('LoopMapSecond'));
+
+            // refresh both reads and writes: without the dispatcher's root/out defaults it would
+            // resolve them against the current working directory instead of the index it just read.
+            $this->assertRun(['agent-loop', 'map', 'refresh'], 0, ['Refreshed 1 changed'], $root);
+            $this->assertRun(['agent-loop', 'map', 'stale'], 0, ['OK'], $root);
+            $this->assertRun(['agent-loop', 'map', 'query', 'LoopMapSecond'], 0, ['src/LoopMapSecond.php'], $root);
+
+            self::assertStringContainsString(
+                'src/LoopMapSecond.php',
+                (string) file_get_contents($root . '/.agent-map/php-symbols.json'),
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    private function mapFixture(string $class): string
+    {
+        return <<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Demo\Loop;
+
+        final class {$class}
+        {
+            public function run(): void
+            {
+            }
+        }
+        PHP;
+    }
+
     public function testMemoryNamespaceUsesDefaultRootFile(): void
     {
         $root = __DIR__ . '/fixtures/root-with-memory';
