@@ -151,7 +151,7 @@ final class WorkflowCloseCommandTest extends TestCase
     {
         $calls = [];
         $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
+            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
             verifyExit: 1,
             sessionExit: 0,
             calls: $calls,
@@ -166,13 +166,91 @@ final class WorkflowCloseCommandTest extends TestCase
     public function testAcceptRiskReportsSessionCloseFailureAfterBypass(): void
     {
         $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
+            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
             verifyExit: 1,
             sessionExit: 9,
         );
 
         self::assertSame(9, $result['exit']);
         self::assertStringContainsString('session close failed after accepted-risk bypass', $result['output']);
+    }
+
+    public function testAnEditBundleWithoutAVerificationResultBlocksClose(): void
+    {
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+
+        $result = $this->runClose(verifyExit: 0);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('[FAIL] edit verification: missing verification-result.json', $result['output']);
+        self::assertStringContainsString('agent-loop edit verify --bundle=', $result['output']);
+    }
+
+    public function testAFailedEditVerificationBlocksCloseAndNamesTheGates(): void
+    {
+        $this->writeEditVerificationResult([
+            'status' => 'failed',
+            'gates' => ['runner_exit' => 'passed', 'php_lint_changed_files' => 'failed', 'target_resolvable' => 'not_run'],
+        ]);
+
+        $result = $this->runClose(verifyExit: 0);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('[FAIL] edit verification: status failed', $result['output']);
+        self::assertStringContainsString('php_lint_changed_files', $result['output']);
+        self::assertStringContainsString('target_resolvable', $result['output']);
+    }
+
+    public function testAPassingEditVerificationSatisfiesTheGate(): void
+    {
+        $this->writeEditVerificationResult(['status' => 'passed', 'gates' => ['runner_exit' => 'passed']]);
+
+        $result = $this->runClose(verifyExit: 0);
+
+        self::assertStringContainsString('[OK] edit verification: passed', $result['output']);
+    }
+
+    public function testATaskWithoutAnEditBundleIsNotAskedForOne(): void
+    {
+        $result = $this->runClose(verifyExit: 0);
+
+        self::assertStringContainsString('[OK] edit verification: no edit bundle for ABC-123', $result['output']);
+    }
+
+    /** @param array<string, mixed> $result */
+    private function writeEditVerificationResult(array $result): void
+    {
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/edit/ABC-123/verification-result.json',
+            json_encode($result, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function testAcceptRiskWithoutANamedOwnerIsRefused(): void
+    {
+        $result = $this->runClose(
+            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
+            verifyExit: 1,
+        );
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('--accept-risk-by', $result['output']);
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
+    }
+
+    public function testAcceptedRiskRecordNamesTheFailedGates(): void
+    {
+        $this->runClose(
+            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
+            verifyExit: 1,
+            sessionExit: 0,
+        );
+
+        $record = (string) file_get_contents($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
+        self::assertStringContainsString('Accepted by: lars', $record);
+        self::assertStringContainsString('## Gates that failed', $record);
+        self::assertStringContainsString('`verify`: agent-loop verify failed', $record);
     }
 
     public function testAcceptRiskWithEmptyReasonFails(): void

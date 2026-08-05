@@ -638,8 +638,15 @@ Accepted risk is explicit and written to disk:
 ```bash
 vendor/bin/agent-loop workflow close <task-id> \
   --status done \
-  --accept-risk "Manual review by Lars for urgent legacy hotfix."
+  --accept-risk "Manual review by Lars for urgent legacy hotfix." \
+  --accept-risk-by "lars"
 ```
+
+Both are required: an override without a named owner is an anonymous decision,
+which is the thing the record exists to prevent. The record names who overrode
+it, why, and every gate that was failing at that moment - including which
+validation evidence was missing - in `.agent-loop/risks/<task-id>.accepted-risk.md`
+and a machine-readable `.json` beside it.
 
 ### Verify
 

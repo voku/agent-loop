@@ -27,16 +27,35 @@ final class AcceptedRiskWriterTest extends TestCase
 
     public function testWritesDeterministicAcceptedRiskFile(): void
     {
-        $relative = (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Manual review.');
+        $relative = (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Manual review.', 'lars', [
+            ['gate' => 'validation', 'detail' => 'validation evidence missing or not passed for: make test (no evidence)'],
+        ]);
 
         self::assertSame('.agent-loop/risks/ABC-123.accepted-risk.md', $relative);
         self::assertSame(
             "# Accepted risk for ABC-123\n\n"
+            . "Accepted by: lars\n"
             . "Reason: Manual review.\n\n"
-            . "Bypassing workflow close gates does not approve code or durable learning.\n"
+            . "## Gates that failed\n\n"
+            . "- `validation`: validation evidence missing or not passed for: make test (no evidence)\n"
+            . "\nBypassing workflow close gates does not approve code or durable learning.\n"
             . "Human review remains required.\n",
             file_get_contents($this->root . '/' . $relative),
         );
+    }
+
+    public function testAlsoWritesAMachineReadableRecordOfWhoOverrodeWhatAndWhy(): void
+    {
+        (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Urgent hotfix.', 'lars', [
+            ['gate' => 'edit_verification', 'detail' => 'missing verification-result.json for edit bundle ABC-123'],
+        ]);
+
+        $decoded = json_decode((string) file_get_contents($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame('lars', $decoded['accepted_by']);
+        self::assertSame('Urgent hotfix.', $decoded['reason']);
+        self::assertSame('edit_verification', $decoded['failed_gates'][0]['gate']);
+        self::assertStringContainsString('missing verification-result.json', $decoded['failed_gates'][0]['detail']);
     }
 
     public function testThrowsWhenAcceptedRiskPathCannotBeWritten(): void
@@ -47,7 +66,7 @@ final class AcceptedRiskWriterTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Could not write accepted-risk file: .agent-loop/risks/ABC-123.accepted-risk.md');
 
-        (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Manual review.');
+        (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Manual review.', 'lars');
     }
 
     private function removeDirectory(string $dir): void

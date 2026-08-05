@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.9.0 - 2026-08-05
+
+- `workflow close` now gates on edit verification: when
+  `.agent-loop/edit/<task-id>/` exists it must contain a
+  `verification-result.json` with status `passed`. A task that never ran
+  `agent-loop edit` has no bundle and is not asked for one - demanding one would
+  only encourage faking it - but a bundle that exists and was never verified
+  blocks the close, which is the case the gate is for.
+- The accepted-risk override now records who overrode it, why, and every gate
+  that was failing at that moment, including which validation evidence was
+  missing, in `.agent-loop/risks/<task-id>.accepted-risk.md` and a
+  machine-readable `.json` beside it.
+- **Breaking:** `--accept-risk` now also requires `--accept-risk-by <name>`. An
+  override without a named owner is an anonymous decision, which is exactly what
+  the record exists to prevent.
+- Gates report why they failed instead of only that they failed, and every gate
+  still runs after the first failure: a human deciding whether to override needs
+  the whole picture, not the first problem in the list.
+
 ## 0.8.0 - 2026-08-05
 
 - Added `agent-loop edit verify --bundle=.agent-loop/edit/<task-id>`, which

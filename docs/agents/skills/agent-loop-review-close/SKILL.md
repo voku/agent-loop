@@ -83,10 +83,20 @@ accepted risk is explicit and written to disk:
 ```bash
 vendor/bin/agent-loop workflow close <task-id> \
   --status done \
-  --accept-risk "Manual review by Lars for urgent legacy hotfix."
+  --accept-risk "Manual review by Lars for urgent legacy hotfix." \
+  --accept-risk-by "lars"
 ```
 
-`--accept-risk` writes `.agent-loop/risks/<task-id>.accepted-risk.md`.
+Both are required: an override without a named owner is an anonymous decision,
+which is the thing the record exists to prevent. The record names who overrode
+it, why, and every gate that was failing at that moment - including which
+validation evidence was missing - in `.agent-loop/risks/<task-id>.accepted-risk.md`
+and a machine-readable `.json` beside it.
+
+`workflow close` also gates on the edit bundle: if `.agent-loop/edit/<task-id>/`
+exists, it must contain a `verification-result.json` with status `passed` from
+`agent-loop edit verify`. A task that never ran `edit` has no bundle and is not
+asked for one; a bundle that exists but was never verified blocks the close.
 
 Never use `--accept-risk` as a lazy bypass. It is for situations where
 the risk is real, understood, and explicitly owned by a named actor.
