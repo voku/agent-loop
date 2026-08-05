@@ -15,6 +15,8 @@ final readonly class EditOrchestrator
         private StdoutEditRunner $stdoutRunner = new StdoutEditRunner(),
         private CommandEditRunner $commandRunner = new CommandEditRunner(),
         private MechanicalEditRunner $mechanicalRunner = new MechanicalEditRunner(),
+        private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
+        private AgentResultWriter $resultWriter = new AgentResultWriter(),
     ) {
     }
 
@@ -34,6 +36,9 @@ final readonly class EditOrchestrator
 
         $execution = new EditExecution($request, $promptPath, $map->resolveMethod($request->target));
         $routing = $this->route($request);
+        // Taken before the runner can touch anything: `changed_files` has to be something the
+        // orchestrator observed, not something the runner reports about itself.
+        $baseline = $this->snapshotter->capture($request->projectRoot);
         $runResult = $request->dryRun
             ? new EditRunResult('prepared')
             : ($routing->selectedRunner === null
@@ -84,9 +89,20 @@ final readonly class EditOrchestrator
                 'recall' => $briefing->outputDirectory,
                 'runner_stdout' => $evidence['stdout'],
                 'runner_stderr' => $evidence['stderr'],
+                'agent_result' => $request->outputDirectory . '/' . AgentResultWriter::FILE_NAME,
             ],
         ];
         $this->write($executionPath, $this->json($executionData));
+
+        $this->resultWriter->write(
+            $request->outputDirectory,
+            $request,
+            $runResult,
+            VerificationPlanBinding::fromRecallDirectory($briefing->outputDirectory),
+            $baseline,
+            $this->snapshotter->capture($request->projectRoot),
+            $this->executedCommands($routing, $request, $runResult),
+        );
 
         return new EditOutcome(
             outputDirectory: $request->outputDirectory,
@@ -96,6 +112,25 @@ final readonly class EditOrchestrator
             recallBundleDigest: $briefing->bundleDigest,
             runResult: $runResult,
         );
+    }
+
+    /**
+     * Only what this process actually invoked. A runner that shells out further is responsible for
+     * reporting that itself; guessing on its behalf would put unverified claims into the evidence.
+     *
+     * @return list<array{id: string, exit_code: int|null, stdout_sha256: string|null}>
+     */
+    private function executedCommands(EditRoutingDecision $routing, EditRequest $request, EditRunResult $result): array
+    {
+        if ($routing->selectedRunner === null || $request->dryRun) {
+            return [];
+        }
+
+        return [[
+            'id' => 'runner:' . $routing->selectedRunner,
+            'exit_code' => $result->exitCode,
+            'stdout_sha256' => $result->stdout === '' ? null : 'sha256:' . hash('sha256', $result->stdout),
+        ]];
     }
 
     private function runner(string $name): EditRunner

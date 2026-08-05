@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.7.0 - 2026-08-05
+
+- Requires `voku/agent-recall-compiler` `^0.8.0`, which emits
+  `verification-plan.json` and the verifier-owned `verification-key.json`.
+- `agent-loop edit` now writes `agent-result.json` into the edit bundle: the
+  structured answer sheet a verifier grades against the private key. It records
+  the plan the edit is bound to (`verification_plan_sha256`), the
+  `changed_files` observed by diffing a working-tree snapshot taken before the
+  runner against one taken after, the commands this process actually invoked
+  with their exit codes and stdout hashes, and the runner outcome; and it seeds
+  one empty slot per knowledge probe and checklist item so an unanswered probe
+  is visibly unanswered instead of silently absent.
+- The result file carries no expected answers, scores, verdicts or generated
+  learnings by design, and `changed_files_source` separates an empty diff from
+  an unreadable repository. `execution.json` gained an `artifacts.agent_result`
+  pointer.
+- A repository without Git, or a Git invocation that fails, yields an
+  unavailable snapshot rather than a failed edit.
+
 ## 0.6.8 - 2026-08-04
 
 - Requires `voku/agent-map` `^0.3.0` and `voku/agent-recall-compiler` `^0.7.2`.

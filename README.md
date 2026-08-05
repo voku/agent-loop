@@ -49,8 +49,22 @@ vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
 ```
 
 The default `stdout` runner does not execute another agent. It writes
-`request.json`, `prompt.md`, `execution.json`, the recall artifacts, and any
-runner evidence under `.agent-loop/edit/<task-id>/`. Use `--runner=command`
+`request.json`, `prompt.md`, `execution.json`, `agent-result.json`, the recall
+artifacts, and any runner evidence under `.agent-loop/edit/<task-id>/`.
+
+`agent-result.json` is the answer sheet a verifier grades. The orchestrator
+fills in what it observed itself - the `verification_plan_sha256` the edit is
+bound to, the `changed_files` diffed from a working-tree snapshot taken before
+the runner ran, and the commands it actually invoked with their exit codes -
+and seeds one empty slot per probe and checklist item from
+`verification-plan.json`, so an unanswered probe is visibly unanswered rather
+than missing. The agent fills those slots; it does not write the rest.
+
+It deliberately carries no expected answers, scores, verdicts or generated
+learnings. Those belong to the verifier: a result file that can grade itself is
+not evidence. `changed_files_source` distinguishes a genuinely empty diff
+(`git_status_diff`) from a repository the snapshot could not read
+(`unavailable`). Use `--runner=command`
 with an explicit executable and repeated `--runner-arg` values for a harness
 that consumes the compiled prompt on stdin. No shell command is constructed.
 

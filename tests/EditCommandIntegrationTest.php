@@ -118,6 +118,35 @@ final class EditCommandIntegrationTest extends TestCase
             self::assertIsString($execution[$digestField]);
             self::assertMatchesRegularExpression('/\Asha256:[a-f0-9]{64}\z/', $execution[$digestField]);
         }
+
+        // The answer sheet is part of the bundle, seeded from the plan the compiler just emitted.
+        $resultJson = file_get_contents($this->root . '/.agent-loop/edit/EDIT-1/agent-result.json');
+        self::assertIsString($resultJson);
+        $result = json_decode($resultJson, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($result);
+        self::assertSame('1.0', $result['schema_version']);
+        self::assertSame('EDIT-1', $result['task_id']);
+        self::assertSame('Demo\\UserService::save', $result['target']);
+        self::assertSame([], $result['commands'], 'a dry run executes nothing');
+        self::assertIsArray($result['probe_answers']);
+        self::assertIsArray($result['checklist_evidence']);
+        self::assertStringEndsWith('/agent-result.json', (string) $execution['artifacts']['agent_result']);
+
+        $recallDirectory = (string) $execution['artifacts']['recall'];
+        if (is_file($recallDirectory . '/verification-plan.json')) {
+            $planRaw = (string) file_get_contents($recallDirectory . '/verification-plan.json');
+            self::assertSame('sha256:' . hash('sha256', $planRaw), $result['verification_plan_sha256']);
+
+            $plan = json_decode($planRaw, true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($plan);
+            $probeIds = array_map(static fn (array $probe): string => (string) $probe['id'], $plan['knowledge_probes']);
+            self::assertSame($probeIds, array_keys($result['probe_answers']), 'every probe gets a slot to answer in');
+            foreach ($result['probe_answers'] as $answers) {
+                self::assertSame([], $answers, 'slots are seeded empty; the agent fills them');
+            }
+        } else {
+            self::assertNull($result['verification_plan_sha256']);
+        }
     }
 
     public function testMechanicalRunnerReplacesOneTargetMethodLiteralAndLintsIt(): void
