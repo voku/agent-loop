@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.10.0 - 2026-08-05
+
+- `workflow approve` now passes `--map-search-index .agent-map/search.sqlite` to
+  the recall compiler when that file exists, so a brief that names no exact
+  target still gets ranked candidates. A repository that never ran
+  `agent-map search-index build` produces exactly the same briefing as before -
+  the derived index is a cache, and its absence is not an error.
+- Requires `voku/agent-recall-compiler` `^0.9.0` for the flag.
+
 ## 0.9.2 - 2026-08-05
 
 - Requires `voku/agent-map` `^0.4.0` and `voku/agent-recall-compiler` `^0.8.1`.

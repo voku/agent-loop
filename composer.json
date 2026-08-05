@@ -19,7 +19,7 @@
     "voku/agent-kanban": "0.2.*",
     "voku/agent-learning": "0.8.*",
     "voku/agent-map": "^0.4.0",
-    "voku/agent-recall-compiler": "^0.8.1",
+    "voku/agent-recall-compiler": "^0.9.0",
     "voku/agent-session": "0.2.*"
   },
   "require-dev": {

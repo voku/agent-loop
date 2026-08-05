@@ -252,6 +252,43 @@ CARD
         }
     }
 
+    public function testApprovePassesTheDerivedSearchIndexWhenItWasBuilt(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-approve-search-' . bin2hex(random_bytes(6));
+        mkdir($root . '/session_plan', 0o775, true);
+        mkdir($root . '/.agent-map', 0o775, true);
+        file_put_contents($root . '/.agent-map/php-symbols.json', '{}');
+        file_put_contents($root . '/.agent-map/search.sqlite', '');
+        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
+        (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        $recallCalls = [];
+        $command = new WorkflowApproveCommand(
+            $root,
+            static function (array $argv) use ($session): int {
+                (new WorkBriefStore())->approve($session, 'lars');
+
+                return 0;
+            },
+            static function (array $argv) use (&$recallCalls): int {
+                $recallCalls[] = $argv;
+
+                return 0;
+            },
+        );
+
+        try {
+            ob_start();
+            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn']));
+            ob_end_clean();
+
+            self::assertSame([
+                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json', '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root, '--map-search-index', $root . '/.agent-map/search.sqlite'],
+            ], $recallCalls);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testApprovePassesExplicitLearningRootDocumentManifest(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-approve-documents-' . bin2hex(random_bytes(6));

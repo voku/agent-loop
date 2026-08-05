@@ -61,6 +61,15 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = $mapIndex;
                 $recallArgs[] = '--map-root';
                 $recallArgs[] = $this->rootPath;
+
+                // The derived search index is a cache: a repository that never built one gets the
+                // same briefing as before, and one that did gets ranked candidates for a brief that
+                // names no exact target yet.
+                $mapSearchIndex = rtrim($this->rootPath, '/') . '/.agent-map/search.sqlite';
+                if (is_file($mapSearchIndex)) {
+                    $recallArgs[] = '--map-search-index';
+                    $recallArgs[] = $mapSearchIndex;
+                }
             }
             $exit = ($this->recallRunner)($recallArgs);
         } catch (RuntimeException $exception) {
