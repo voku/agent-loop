@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.9.1 - 2026-08-05
+
+- `workflow help` advertised `--accept-risk <reason>` on its own, which 0.9.0
+  refuses. The usage line now shows the required `--accept-risk-by <name>` as
+  well; a CLI that documents a flag combination it rejects is worse than one
+  that documents nothing.
+
 ## 0.9.0 - 2026-08-05
 
 - `workflow close` now gates on edit verification: when

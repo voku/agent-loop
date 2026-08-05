@@ -45,7 +45,7 @@ Usage:
   agent-loop workflow status <task-id>
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
-  agent-loop workflow close <task-id> --status done [--accept-risk <reason>]
+  agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
 
 Commands:
   help      Show workflow help.
