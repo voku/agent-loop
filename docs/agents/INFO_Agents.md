@@ -170,6 +170,49 @@ actually need:
 rtk proxy docker compose logs php
 ```
 
+### Hook-equipped clients rewrite commands for you
+
+Claude Code can carry a `PreToolUse` hook (`rtk hook claude`) that rewrites
+ordinary commands before they run, including `docker ...` and `grep ...`. Where
+that hook exists, write commands normally; hand-prefixing adds nothing. Clients
+without such a hook require the explicit `rtk` prefix shown above.
+
+### Coverage reports measure transcripts, not executions
+
+`rtk discover` and `rtk learn` read session transcripts, and a transcript stores
+the command as the model emitted it - before the hook rewrote it. A rewritten
+command is therefore counted as "not using RTK", so a low coverage percentage or
+a large "missed savings" number is not on its own evidence of anything. Verify
+both ends before turning such a report into guidance:
+
+```bash
+echo '{"tool_name":"Bash","tool_input":{"command":"grep -n foo bar.php"}}' | rtk hook claude
+rtk gain
+```
+
+The probe shows whether the command is rewritten; `rtk gain` shows what actually
+executed through RTK. Observed on one machine: discover reported 1.9% coverage
+while `rtk gain` had 60,192 RTK-executed commands recorded. Spend the effort on
+the commands discover lists as unhandled, and on clients that have no hook.
+
+### A bind-mounted repository needs no `docker cp`
+
+When compose maps the project directory into the container, a file written into
+the repo tree from the host is already reachable inside it under the same
+repo-relative path. Copying it in is an avoidable round trip, and `docker cp` is
+among the commands RTK does not filter. Write files a container command has to
+read to a git-ignored scratch path in the repository:
+
+```bash
+mkdir -p .agent-loop/tmp
+printf '%s' "$payload" > .agent-loop/tmp/input.json
+docker compose exec -T php php scripts/consume.php .agent-loop/tmp/input.json
+```
+
+Add `/.agent-loop/tmp/` to `.gitignore` so this cannot pollute a working tree
+that several agent sessions share. A copy remains correct for a container that
+does not mount the repository.
+
 ### Prefer AI-oriented Make targets in host repos
 
 If the real workflow is mostly `make` and `docker`, host repos should add

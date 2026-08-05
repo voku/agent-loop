@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.10.1 - 2026-08-05
+
+- RTK guidance in `agent-loop-workflow` and `docs/agents/INFO_Agents.md` now
+  distinguishes clients that carry the `rtk hook claude` PreToolUse hook, which
+  rewrite commands on their own, from clients that need an explicit `rtk` prefix.
+  Hand-prefixing in a hook-equipped client adds nothing.
+- Both documents now state that `rtk discover` / `rtk learn` derive coverage from
+  session transcripts, which store the pre-hook command text: a rewritten command
+  is counted as "not using RTK", so a low coverage number is not evidence on its
+  own. The guidance names the two checks that settle it - a `rtk hook claude`
+  probe for the rewrite, `rtk gain` for what actually executed.
+- Added the rule that a bind-mounted repository needs no `docker cp`: files a
+  container command has to read belong in a git-ignored scratch path
+  (`.agent-loop/tmp/`), which is also one of the commands RTK does not filter.
+
 ## 0.10.0 - 2026-08-05
 
 - `workflow approve` now passes `--map-search-index .agent-map/search.sqlite` to

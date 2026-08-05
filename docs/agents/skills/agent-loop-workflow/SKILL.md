@@ -154,14 +154,39 @@ installed:
 rg --version
 ```
 
-When validating this repo or a host repo, prefer RTK-wrapped commands at the
-outer shell boundary:
+First establish whether the client rewrites commands for you. A client with a
+`PreToolUse` hook (`rtk hook claude` in Claude Code's `settings.json`) rewrites
+ordinary commands already, so write them normally - hand-prefixing there adds
+nothing. A client without such a hook does not, so prefix by hand:
 
 ```bash
 rtk git status
 rtk test vendor/bin/phpunit --filter Init
 rtk err vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 ```
+
+Read RTK's own usage reports with that difference in mind. `rtk discover` and
+`rtk learn` derive coverage from session transcripts, and a transcript records
+the command as the model emitted it - before any hook rewrote it. A rewritten
+command therefore looks unproxied, so a low coverage number is not by itself
+evidence of missed savings. Check both sides before acting on one:
+
+```bash
+echo '{"tool_name":"Bash","tool_input":{"command":"grep -n foo bar.php"}}' | rtk hook claude
+rtk gain
+```
+
+The first shows whether the command is rewritten at all, the second what really
+executed through RTK. The remaining opportunities are the commands discover
+lists as unhandled, and clients that have no hook.
+
+Do not copy generated files into a container that already bind-mounts the
+repository. When compose maps the project directory into the container, a file
+written into the repo tree from the host is reachable inside it under the same
+repo-relative path, so `docker cp` is an avoidable round trip - and it is one of
+the commands RTK does not filter. Write such files to a git-ignored scratch path
+in the repository (`.agent-loop/tmp/`) and pass that path to the container
+command. A copy stays correct for a container without the repository mount.
 
 If a host workflow hides noisy work behind `make`, `docker compose exec`, or a
 wrapper script, keep RTK guidance explicit in `AGENTS.md`, `README.md`, and
