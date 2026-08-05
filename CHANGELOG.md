@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.9.2 - 2026-08-05
+
+- Requires `voku/agent-map` `^0.4.0` and `voku/agent-recall-compiler` `^0.8.1`.
+  The edit orchestration and map-refresh paths are unchanged; the bump is what
+  unblocks the 0.4.x agent-map line for the whole tree, including the derived
+  hybrid-search index and the parallel chunk extraction added there.
+
 ## 0.9.1 - 2026-08-05
 
 - `workflow help` advertised `--accept-risk <reason>` on its own, which 0.9.0
