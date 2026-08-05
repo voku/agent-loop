@@ -78,11 +78,14 @@ final class AgentResultContractTest extends TestCase
             new WorkingTreeSnapshot(true, 'abc', ['src/UserService.php' => ' M:old']),
             new WorkingTreeSnapshot(true, 'abc', ['src/UserService.php' => ' M:new', 'src/New.php' => '??:hash']),
             [['id' => 'runner:mechanical', 'exit_code' => 0, 'stdout_sha256' => 'sha256:' . str_repeat('a', 64)]],
+            'method:Demo\\UserService::save',
         );
 
         self::assertSame(['src/New.php', 'src/UserService.php'], $payload['changed_files']);
         self::assertSame('git_status_diff', $payload['changed_files_source']);
         self::assertSame('EDIT-RESULT', $payload['task_id']);
+        self::assertSame('method:Demo\\UserService::save', $payload['target'], 'the plan and key are keyed on the canonical id');
+        self::assertSame('Demo\\UserService::save', $payload['requested_target']);
         self::assertSame(['probe:incoming-call:001' => [], 'probe:type-definition:002' => []], $payload['probe_answers']);
 
         $written = file_get_contents($this->root . '/' . AgentResultWriter::FILE_NAME);
@@ -109,6 +112,7 @@ final class AgentResultContractTest extends TestCase
             WorkingTreeSnapshot::unavailable(),
             WorkingTreeSnapshot::unavailable(),
             [],
+            'method:Demo\\UserService::save',
         );
 
         self::assertSame([], $payload['changed_files']);

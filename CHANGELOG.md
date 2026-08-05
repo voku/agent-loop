@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.8.0 - 2026-08-05
+
+- Added `agent-loop edit verify --bundle=.agent-loop/edit/<task-id>`, which
+  verifies one concrete edit execution and writes `verification-result.json`
+  into the bundle. It is not `agent-loop verify`, which checks cross-package
+  consistency and drift; those stay separate commands.
+- The command loads `verification-plan.json`, `verification-key.json`,
+  `agent-result.json` and `execution.json`, and refuses to grade anything whose
+  bindings do not line up: the key must be cut from the plan, the answer sheet
+  must answer that same plan, and task and target must match across all of
+  them. A mismatch exits 2 and writes no result, because a graded number from
+  mismatched artifacts looks exactly like evidence.
+- Grading: canonical probe answers against the private key (set equality, so
+  order and duplication never decide a grade), checklist evidence resolved
+  against real artifacts, and the declared objective gates - runner exit, PHP
+  lint of the changed files, post-edit map freshness, target resolvability.
+- Gates that shell out (`approved_validation_command`, `agent_loop_verify`)
+  report `not_run` unless `--run-commands` is passed, and a required gate that
+  did not run fails the verification. Refusing to run a command that arrived in
+  a JSON file is allowed; recording it as passed is not.
+- The post-edit map is refreshed into a bundle-local `post-edit-map.json` copy,
+  never the shared index, so verification observes the repository instead of
+  mutating it.
+- `agent-result.json` now records the canonical symbol id in `target`, with the
+  string the caller typed kept as `requested_target`. The plan and key are keyed
+  on the canonical id, and the previous mismatch made every bundle unverifiable.
+- Exit codes: 0 verified, 1 verification failed, 2 the bundle could not be read.
+
 ## 0.7.0 - 2026-08-05
 
 - Requires `voku/agent-recall-compiler` `^0.8.0`, which emits

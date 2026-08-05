@@ -60,6 +60,23 @@ and seeds one empty slot per probe and checklist item from
 `verification-plan.json`, so an unanswered probe is visibly unanswered rather
 than missing. The agent fills those slots; it does not write the rest.
 
+Verify it with:
+
+```bash
+vendor/bin/agent-loop edit verify --bundle=.agent-loop/edit/<task-id>
+```
+
+That loads the plan, the verifier-owned key, the answer sheet and
+`execution.json`, refuses to grade artifacts whose bindings do not line up
+(exit 2), grades the probe answers against the key, resolves the checklist
+evidence, runs the declared objective gates, and writes
+`verification-result.json`. Gates that shell out report `not_run` unless
+`--run-commands` is passed, and a required gate that did not run fails the
+verification rather than passing it. The post-edit map is refreshed into a
+bundle-local copy, never the shared index. Exit codes: 0 verified, 1 failed,
+2 unreadable bundle. This is not `agent-loop verify`, which checks
+cross-package consistency and drift.
+
 It deliberately carries no expected answers, scores, verdicts or generated
 learnings. Those belong to the verifier: a result file that can grade itself is
 not evidence. `changed_files_source` distinguishes a genuinely empty diff

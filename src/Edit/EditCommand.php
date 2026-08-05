@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit;
 
 use Throwable;
+use voku\AgentLoop\Edit\Verify\EditVerifyCommand;
 
 final readonly class EditCommand
 {
@@ -23,6 +24,11 @@ final readonly class EditCommand
         }
         if (in_array($tokens[0], ['help', '--help', '-h'], true)) {
             return $this->help();
+        }
+        // `verify` grades a bundle this command produced earlier; it takes no target and shares no
+        // options with an edit run, so it is routed before the request parser sees the tokens.
+        if ($tokens[0] === 'verify') {
+            return (new EditVerifyCommand($this->projectRoot))->run(array_slice($tokens, 1));
         }
 
         try {

@@ -34,7 +34,8 @@ final readonly class EditOrchestrator
         $this->write($requestPath, $this->json($request->toArray()));
         $this->write($promptPath, $prompt);
 
-        $execution = new EditExecution($request, $promptPath, $map->resolveMethod($request->target));
+        $resolvedTarget = $map->resolveMethod($request->target);
+        $execution = new EditExecution($request, $promptPath, $resolvedTarget);
         $routing = $this->route($request);
         // Taken before the runner can touch anything: `changed_files` has to be something the
         // orchestrator observed, not something the runner reports about itself.
@@ -102,6 +103,7 @@ final readonly class EditOrchestrator
             $baseline,
             $this->snapshotter->capture($request->projectRoot),
             $this->executedCommands($routing, $request, $runResult),
+            $resolvedTarget->id,
         );
 
         return new EditOutcome(

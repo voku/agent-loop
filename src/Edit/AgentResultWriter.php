@@ -25,6 +25,7 @@ final readonly class AgentResultWriter
 
     /**
      * @param list<array{id: string, exit_code: int|null, stdout_sha256: string|null}> $commands
+     * @param string $canonicalTarget resolved symbol id, e.g. `method:App\\Service\\UserService::save`
      *
      * @return array<string, mixed> the payload as written
      */
@@ -36,11 +37,15 @@ final readonly class AgentResultWriter
         WorkingTreeSnapshot $before,
         WorkingTreeSnapshot $after,
         array $commands,
+        string $canonicalTarget,
     ): array {
         $payload = [
             'schema_version' => '1.0',
             'task_id' => $request->taskId,
-            'target' => $request->target,
+            // The canonical symbol id, because that is what the plan and the key are keyed on. The
+            // string the caller typed is kept beside it so the bundle stays readable by a human.
+            'target' => $canonicalTarget,
+            'requested_target' => $request->target,
             'verification_plan_sha256' => $binding->planSha256,
             'probe_answers' => $binding->emptyProbeAnswers(),
             'checklist_evidence' => $binding->emptyChecklistEvidence(),

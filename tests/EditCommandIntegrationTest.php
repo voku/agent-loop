@@ -126,7 +126,8 @@ final class EditCommandIntegrationTest extends TestCase
         self::assertIsArray($result);
         self::assertSame('1.0', $result['schema_version']);
         self::assertSame('EDIT-1', $result['task_id']);
-        self::assertSame('Demo\\UserService::save', $result['target']);
+        self::assertSame('method:Demo\\UserService::save', $result['target']);
+        self::assertSame('Demo\\UserService::save', $result['requested_target']);
         self::assertSame([], $result['commands'], 'a dry run executes nothing');
         self::assertIsArray($result['probe_answers']);
         self::assertIsArray($result['checklist_evidence']);
