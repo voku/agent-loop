@@ -5,9 +5,14 @@ declare(strict_types=1);
 
 use voku\AgentLoop\Dispatcher;
 
+// The outer autoloader comes first on purpose. When this package is installed as a dependency its
+// own vendor/ directory is normally absent, but a path repository, a mirrored checkout or a stale
+// local install can leave one behind - and preferring it silently loads that copy's dependencies
+// instead of the project's. The failure mode is a method or property that "does not exist" while the
+// installed version plainly has it.
 $autoloadCandidates = [
-    __DIR__ . '/../vendor/autoload.php',
     __DIR__ . '/../../../autoload.php',
+    __DIR__ . '/../vendor/autoload.php',
     getcwd() . '/vendor/autoload.php',
 ];
 

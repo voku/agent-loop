@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
   have clamped a deliberately raised limit down to 512M - breaking exactly the
   heavy commands the floor exists for. Unlimited (`-1`) and unparseable values
   are left untouched.
+- The binary resolved its autoloader by preferring the package's own `vendor/`
+  directory. When one is present next to an installed copy - a path repository, a
+  mirrored checkout, a stale local install - that autoloader wins and silently
+  loads *its* dependencies instead of the project's. Found by a release-set smoke
+  test that reported `Undefined property Session::$ephemeral` against an
+  installed version that plainly had it. The outer autoloader is now tried first.
 - Requires `voku/agent-session` `0.3.*`.
 
 ## 0.10.1 - 2026-08-05
