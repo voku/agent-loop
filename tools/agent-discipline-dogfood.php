@@ -115,6 +115,15 @@ function runPreToolCase(string $workspace, array $basePreTool, string $command, 
 }
 
 /** @param array<string, mixed> $output */
+function assertPassThrough(array $output, string $case): void
+{
+    assertTrue(($output['continue'] ?? null) === true, $case . ' stopped hook processing.');
+    assertTrue(!array_key_exists('permissionDecision', $output['hookSpecificOutput']), $case . ' added a permission decision.');
+    assertTrue(!array_key_exists('updatedInput', $output['hookSpecificOutput']), $case . ' rewrote the command.');
+    assertTrue(($output['suppressOutput'] ?? false) === false, $case . ' used unsupported suppressOutput:true.');
+}
+
+/** @param array<string, mixed> $output */
 function assertDeniedBootstrap(array $output, string $case): void
 {
     assertTrue(($output['continue'] ?? null) === true, $case . ' stopped hook processing instead of denying one tool call.');
@@ -229,12 +238,18 @@ try {
         'turn_id' => 'dogfood-turn',
     ];
 
-    $allowed = runPreToolCase($workspace, $basePreTool, 'git diff --no-ext-diff', 'raw diff allow');
-    assertTrue(($allowed['continue'] ?? null) === true, 'Raw diff allow stopped hook processing.');
-    assertTrue(!array_key_exists('permissionDecision', $allowed['hookSpecificOutput']), 'Raw diff allow used unsupported permissionDecision:allow without updatedInput.');
-    assertTrue(!array_key_exists('updatedInput', $allowed['hookSpecificOutput']), 'Allowed command was rewritten.');
-    assertTrue(($allowed['suppressOutput'] ?? false) === false, 'PreToolUse allow used unsupported suppressOutput:true.');
+    $rawDiff = runPreToolCase($workspace, $basePreTool, 'git diff --no-ext-diff', 'raw diff allow');
+    assertPassThrough($rawDiff, 'Raw diff');
     $checks[] = ['id' => 'raw-diff-preserved', 'result' => 'passed'];
+
+    $research = runPreToolCase(
+        $workspace,
+        $basePreTool,
+        "rg 'JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk' docs CHANGELOG.md",
+        'external add-on research allow',
+    );
+    assertPassThrough($research, 'External add-on research');
+    $checks[] = ['id' => 'external-research-preserved', 'result' => 'passed'];
 
     $mapDump = runPreToolCase($workspace, $basePreTool, 'cat .agent-map/php-symbols.json', 'map dump deny');
     assertTrue(($mapDump['continue'] ?? null) === true, 'Map denial stopped hook processing instead of denying one tool call.');
