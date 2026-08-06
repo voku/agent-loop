@@ -73,8 +73,8 @@ final readonly class AgentDisciplineHook
         $command = $this->extractCommand($payload);
         if ($this->isExternalAddonBootstrap($command)) {
             return $this->deny(
-                'External Caveman/Ponytail bootstrap is disabled for this repository.',
-                'Use repository-owned assets: agent-loop init install-assets --agent=<agent>.',
+                'External agent add-on bootstrap is disabled for this repository.',
+                'Use package-owned assets: agent-loop init install-assets --agent=<agent>.',
             );
         }
 
@@ -168,7 +168,7 @@ final readonly class AgentDisciplineHook
     private function isExternalAddonBootstrap(string $command): bool
     {
         return preg_match(
-            '~(?:JuliusBrussee/caveman|DietrichGebert/ponytail|@juliusbrussee/caveman|ponytail@ponytail|caveman-install\.(?:sh|ps1))~i',
+            '~(?:JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk|@juliusbrussee/caveman|ponytail@ponytail|caveman-install\.(?:sh|ps1)|(?:^|[;&|]\s*)rtk\s+init(?:\s|$))~i',
             $command,
         ) === 1;
     }
