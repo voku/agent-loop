@@ -89,9 +89,7 @@ final readonly class WorkflowStatusCommand
         echo "\nNext:\n  " . $manifest->nextAction . "\n";
     }
 
-    /**
-     * @return array<string, array<string, mixed>>
-     */
+    /** @return array<string, array<string, mixed>> */
     private function orderedReferences(RunManifest $manifest): array
     {
         $ordered = [];
@@ -133,51 +131,69 @@ final readonly class WorkflowStatusCommand
         return match ($name) {
             'board' => $this->boardDetail($reference),
             'session' => $this->value($reference, 'session_id', 'agent-session'),
-            'work_brief' => isset($reference['revision'])
-                ? 'revision ' . (string) $reference['revision'] . $this->sourceSuffix($reference)
-                : $this->pathOrOwner($reference),
-            'approval' => isset($reference['approved_by'])
-                ? 'revision ' . (string) ($reference['work_brief_revision'] ?? '?') . ' by ' . (string) $reference['approved_by']
-                : $this->pathOrOwner($reference),
+            'work_brief' => $this->revisionDetail($reference),
+            'approval' => $this->approvalDetail($reference),
             'recall' => $this->value($reference, 'compilation_id', $this->pathOrOwner($reference)),
-            'learning' => isset($reference['decided_by'])
-                ? 'recorded by ' . (string) $reference['decided_by']
-                : $this->pathOrOwner($reference),
+            'learning' => $this->value($reference, 'decided_by', $this->pathOrOwner($reference), 'recorded by '),
             default => $this->pathOrOwner($reference),
         };
     }
 
     /** @param array<string, mixed> $reference */
-    private function boardDetail(array $reference): string
+    private function revisionDetail(array $reference): string
     {
-        if (isset($reference['card_id'])) {
-            $parts = [(string) $reference['card_id']];
-            if (isset($reference['lane'])) {
-                $parts[] = (string) $reference['lane'];
-            }
-            if (isset($reference['status'])) {
-                $parts[] = (string) $reference['status'];
-            }
-
-            return implode(' / ', $parts);
+        $revision = $reference['revision'] ?? null;
+        if (!is_int($revision) && !is_string($revision)) {
+            return $this->pathOrOwner($reference);
         }
 
-        return $this->pathOrOwner($reference);
+        return 'revision ' . $revision . $this->sourceSuffix($reference);
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function approvalDetail(array $reference): string
+    {
+        $actor = $reference['approved_by'] ?? null;
+        $revision = $reference['work_brief_revision'] ?? null;
+        if (!is_string($actor) || (!is_int($revision) && !is_string($revision))) {
+            return $this->pathOrOwner($reference);
+        }
+
+        return 'revision ' . $revision . ' by ' . $actor;
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function boardDetail(array $reference): string
+    {
+        $cardId = $reference['card_id'] ?? null;
+        if (!is_string($cardId)) {
+            return $this->pathOrOwner($reference);
+        }
+
+        $parts = [$cardId];
+        if (is_string($reference['lane'] ?? null)) {
+            $parts[] = $reference['lane'];
+        }
+        if (is_string($reference['status'] ?? null)) {
+            $parts[] = $reference['status'];
+        }
+
+        return implode(' / ', $parts);
     }
 
     /** @param array<string, mixed> $reference */
     private function sourceSuffix(array $reference): string
     {
-        $path = $reference['source']['path'] ?? null;
+        $path = $this->sourcePath($reference);
 
-        return is_string($path) ? ' (' . $path . ')' : '';
+        return $path === null ? '' : ' (' . $path . ')';
     }
 
     /** @param array<string, mixed> $reference */
     private function pathOrOwner(array $reference): string
     {
-        $sourcePath = $reference['source']['path'] ?? null;
-        if (is_string($sourcePath)) {
+        $sourcePath = $this->sourcePath($reference);
+        if ($sourcePath !== null) {
             return $sourcePath;
         }
         if (is_string($reference['path'] ?? null)) {
@@ -191,11 +207,23 @@ final readonly class WorkflowStatusCommand
     }
 
     /** @param array<string, mixed> $reference */
-    private function value(array $reference, string $key, string $fallback): string
+    private function sourcePath(array $reference): ?string
     {
-        return is_string($reference[$key] ?? null) && $reference[$key] !== ''
-            ? $reference[$key]
-            : $fallback;
+        $source = $reference['source'] ?? null;
+        if (!is_array($source)) {
+            return null;
+        }
+        $path = $source['path'] ?? null;
+
+        return is_string($path) ? $path : null;
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function value(array $reference, string $key, string $fallback, string $prefix = ''): string
+    {
+        $value = $reference[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $prefix . $value : $fallback;
     }
 
     /**
