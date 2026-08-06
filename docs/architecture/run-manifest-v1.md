@@ -89,9 +89,9 @@ The first implementation still reads some map/search paths directly and reports
 them as legacy path references. These are deliberate compatibility seams until
 the focused-package inspection contracts tracked by the roadmap are available.
 
-## Disagreements
+## Disagreements and blocking review results
 
-Examples include:
+Examples of artifact disagreement include:
 
 - more than one active session for one task;
 - approval bound to a superseded brief revision;
@@ -101,6 +101,11 @@ Examples include:
 Any disagreement makes the overall projection `blocked`. The command exits `2`
 and JSON output contains the exact owner, code and evidence message. Missing
 normal progress artifacts remain `incomplete`, not contradictory.
+
+A syntactically valid blind-spot review may itself report `fail`. That is not an
+artifact disagreement, but it is a blocking workflow result: the projection is
+`blocked` and never recommends or reports a successful close until the review is
+rerun after the underlying problem is addressed.
 
 ## Write semantics
 
@@ -112,7 +117,9 @@ Manifest writes are:
 - read back only when the supported schema is understood.
 
 `RunManifestStore::status()` compares the persisted canonical bytes with a fresh
-projection and reports `missing`, `current`, or `stale`.
+projection and reports `missing`, `current`, or `stale`. A persisted manifest
+with an unsupported `schema_version` is not downgraded to one of those states:
+`read()` refuses it, the command emits the schema error and exits with code `1`.
 
 ## Current boundary
 
