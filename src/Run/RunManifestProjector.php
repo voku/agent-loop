@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
+use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentKanban\Config\BoardConfig;
@@ -12,6 +13,7 @@ use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
+use voku\AgentSession\Approval;
 use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -119,13 +121,20 @@ final readonly class RunManifestProjector
 
         usort(
             $matches,
-            static fn (Session $left, Session $right): int => [$left->updatedAt, $left->id] <=> [$right->updatedAt, $right->id],
+            static function (Session $left, Session $right): int {
+                $updatedAt = strcmp($left->updatedAt, $right->updatedAt);
+
+                return $updatedAt !== 0 ? $updatedAt : strcmp($left->id, $right->id);
+            },
         );
 
-        return $matches[array_key_last($matches)];
+        return $matches[count($matches) - 1];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return array<string, mixed>
+     */
     private function boardReference(string $taskId, array &$disagreements): array
     {
         $configPath = rtrim($this->rootPath, '/') . '/todo/kanban.config.json';
@@ -243,7 +252,7 @@ final readonly class RunManifestProjector
     }
 
     /** @return array<string, mixed> */
-    private function approvalReference(?Session $session, ?WorkBrief $brief, mixed $approval): array
+    private function approvalReference(?Session $session, ?WorkBrief $brief, ?Approval $approval): array
     {
         if ($session === null || $brief === null) {
             return [
@@ -271,7 +280,10 @@ final readonly class RunManifestProjector
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return array<string, mixed>
+     */
     private function recallReference(string $taskId, array &$disagreements): array
     {
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
@@ -349,12 +361,15 @@ final readonly class RunManifestProjector
             'owner' => 'agent-loop',
             'state' => 'present',
             'observation_mode' => 'checked',
-            'path' => $this->relativePath($directory),
+            'path' => RelativePath::fromRoot($this->rootPath, $directory),
             'artifacts' => $artifacts,
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return array<string, mixed>
+     */
     private function verificationReference(string $taskId, array &$disagreements): array
     {
         $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
@@ -372,7 +387,7 @@ final readonly class RunManifestProjector
                 'owner' => 'agent-loop',
                 'state' => 'missing',
                 'observation_mode' => 'checked',
-                'path' => $this->relativePath($path),
+                'path' => RelativePath::fromRoot($this->rootPath, $path),
             ];
         }
 
@@ -411,7 +426,10 @@ final readonly class RunManifestProjector
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return array<string, mixed>
+     */
     private function reviewReference(string $taskId, array &$disagreements): array
     {
         $reader = new WorkflowReviewReportReader($this->rootPath);
@@ -525,6 +543,9 @@ final readonly class RunManifestProjector
         if (in_array($references['verification']['state'] ?? null, ['failed', 'invalid'], true)) {
             return 'blocked';
         }
+        if (($references['review']['state'] ?? null) === 'fail') {
+            return 'blocked';
+        }
         if (in_array($references['review']['state'] ?? null, ['missing', 'invalid'], true)) {
             return 'incomplete';
         }
@@ -559,10 +580,10 @@ final readonly class RunManifestProjector
         if (($references['recall']['state'] ?? null) !== 'compiled') {
             return 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>';
         }
-        if (($references['verification']['state'] ?? null) === 'missing') {
+        if (in_array($references['verification']['state'] ?? null, ['missing', 'failed', 'invalid'], true)) {
             return 'agent-loop edit verify --bundle=.agent-loop/edit/' . $taskId;
         }
-        if (in_array($references['review']['state'] ?? null, ['missing', 'invalid'], true)) {
+        if (in_array($references['review']['state'] ?? null, ['missing', 'invalid', 'fail'], true)) {
             return 'agent-loop review blindspots ' . $taskId;
         }
         if (($references['learning']['state'] ?? null) === 'missing') {
@@ -587,7 +608,7 @@ final readonly class RunManifestProjector
         }
 
         return [
-            'path' => $this->relativePath($path),
+            'path' => RelativePath::fromRoot($this->rootPath, $path),
             'sha256' => 'sha256:' . $sha,
         ];
     }
@@ -599,22 +620,16 @@ final readonly class RunManifestProjector
         if ($contents === false) {
             throw new RuntimeException('Unable to read JSON artifact: ' . $path);
         }
-        $decoded = json_decode($contents, true);
+
+        try {
+            $decoded = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Invalid JSON artifact ' . $path . ': ' . $exception->getMessage(), 0, $exception);
+        }
         if (!is_array($decoded)) {
             throw new RuntimeException('Invalid JSON artifact: ' . $path);
         }
 
         return $decoded;
-    }
-
-    private function relativePath(string $path): string
-    {
-        $root = rtrim(str_replace('\\', '/', $this->rootPath), '/');
-        $normalized = str_replace('\\', '/', $path);
-        if ($root !== '' && str_starts_with($normalized, $root . '/')) {
-            return substr($normalized, strlen($root) + 1);
-        }
-
-        return $normalized;
     }
 }
