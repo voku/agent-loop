@@ -39,7 +39,7 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--base-commit <sha>]
+  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--base-commit <sha>] [--ephemeral]
   agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
   agent-loop workflow start <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id>

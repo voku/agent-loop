@@ -259,6 +259,16 @@ final class AgentLoopVerifier
 
             ++$activeCount;
 
+            // An experiment never claimed to be governed work: it has no approved brief and no
+            // briefing on purpose. Failing the repository-wide gate for it punishes every other
+            // session for someone trying a command out, which is how a correct gate becomes one
+            // people route around.
+            if ($session->ephemeral) {
+                echo "[SKIP] sessions: {$session->id} is ephemeral; repository gates do not apply\n";
+
+                continue;
+            }
+
             if ($taskId === null && $this->taskIds !== [] && !in_array($session->taskId, $this->taskIds, true)) {
                 echo "[FAIL] sessions: session {$session->id} points to unknown task '{$session->taskId}'\n";
                 $ok = false;

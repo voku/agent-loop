@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.11.0 - 2026-08-06
+
+- `workflow status` is now one joined lifecycle view instead of six independent
+  green lights. It names every stage - session, work brief, recall, edit bundle,
+  review, learning - and ends with the single next command for wherever the task
+  actually stands. Six packages each reporting their own status left the reader
+  to join six state machines by hand, which is where the surprises lived.
+- `workflow plan --ephemeral` (and `session start --ephemeral`, from
+  `voku/agent-session` 0.3.0) declares a session an experiment. `agent-loop
+  verify` skips ephemeral sessions instead of failing the repository-wide gate
+  for a throwaway, and `workflow status` shows it as an experiment and asks for
+  it to be closed.
+- Added `docs/agents/LIFECYCLE.md`: the cross-package contract for DISCOVER →
+  PLAN → APPROVE → PREPARE → EXECUTE → VERIFY → REVIEW → LEARN → CLOSE, with the
+  owning package, inputs, outputs, failure state and recovery command for each
+  transition - written from real runs, including the parts that are still
+  uneven.
+- Requires `voku/agent-session` `0.3.*`.
+
 ## 0.10.1 - 2026-08-05
 
 - RTK guidance in `agent-loop-workflow` and `docs/agents/INFO_Agents.md` now

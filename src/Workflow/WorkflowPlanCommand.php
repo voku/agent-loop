@@ -44,6 +44,12 @@ final readonly class WorkflowPlanCommand
                     $sessionArgs[] = '--base-commit';
                     $sessionArgs[] = $options['baseCommit'];
                 }
+                // An experiment is declared when it starts, not repaired afterwards: a session that
+                // only ever existed to try a command out must never have been able to fail the
+                // repository-wide gate in the first place.
+                if ($options['ephemeral'] === true) {
+                    $sessionArgs[] = '--ephemeral';
+                }
                 $exit = ($this->sessionRunner)($sessionArgs);
                 if ($exit !== 0) {
                     return $exit;
@@ -112,7 +118,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, baseCommit: string|null}
+     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, baseCommit: string|null, ephemeral: bool}
      */
     private function parse(array $tokens): array
     {
@@ -127,8 +133,15 @@ final readonly class WorkflowPlanCommand
         $behaviorAnchors = [];
         $baseCommit = null;
 
+        $ephemeral = false;
+
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
+            if ($token === '--ephemeral') {
+                $ephemeral = true;
+
+                continue;
+            }
             if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--behavior-anchor', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
@@ -179,6 +192,7 @@ final readonly class WorkflowPlanCommand
             'tags' => $tags,
             'behaviorAnchors' => $behaviorAnchors,
             'baseCommit' => $baseCommit,
+            'ephemeral' => $ephemeral,
         ];
     }
 }
