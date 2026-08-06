@@ -64,11 +64,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertStringContainsString('run manifest refreshed', $output);
-        $manifest = (new RunManifestStore($this->root))->read('ABC-123');
-        self::assertNotNull($manifest);
-        self::assertSame('governed', $manifest['mode']);
-        self::assertSame('candidate', $manifest['references']['work_brief']['state']);
-        self::assertSame('missing', $manifest['references']['approval']['state']);
+        $manifest = $this->manifest();
+        self::assertSame('governed', $this->stringField($manifest, 'mode'));
+        self::assertSame('candidate', $this->referenceState($manifest, 'work_brief'));
+        self::assertSame('missing', $this->referenceState($manifest, 'approval'));
     }
 
     public function testApproveCanResumeCompilationAfterTheBriefWasAlreadyApproved(): void
@@ -101,11 +100,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame(1, $recallCalls);
         self::assertStringContainsString('already approved; resuming recall compilation', $output);
 
-        $manifest = (new RunManifestStore($this->root))->read('ABC-123');
-        self::assertNotNull($manifest);
-        self::assertSame('session:' . $session->id, $manifest['run_id']);
-        self::assertSame('current', $manifest['references']['approval']['state']);
-        self::assertSame('compiled', $manifest['references']['recall']['state']);
+        $manifest = $this->manifest();
+        self::assertSame('session:' . $session->id, $this->stringField($manifest, 'run_id'));
+        self::assertSame('current', $this->referenceState($manifest, 'approval'));
+        self::assertSame('compiled', $this->referenceState($manifest, 'recall'));
     }
 
     public function testFailedCompilationLeavesAnApprovedManifestThatTheSameCommandCanResume(): void
@@ -132,10 +130,9 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame(7, $firstExit);
         self::assertSame(1, $approvalCalls);
         self::assertStringContainsString('remains approved', $firstOutput);
-        $afterFailure = (new RunManifestStore($this->root))->read('ABC-123');
-        self::assertNotNull($afterFailure);
-        self::assertSame('current', $afterFailure['references']['approval']['state']);
-        self::assertSame('missing', $afterFailure['references']['recall']['state']);
+        $afterFailure = $this->manifest();
+        self::assertSame('current', $this->referenceState($afterFailure, 'approval'));
+        self::assertSame('missing', $this->referenceState($afterFailure, 'recall'));
 
         $second = new WorkflowApproveCommand(
             $this->root,
@@ -155,9 +152,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         self::assertSame(0, $secondExit);
         self::assertSame(1, $approvalCalls);
-        $afterResume = (new RunManifestStore($this->root))->read('ABC-123');
-        self::assertNotNull($afterResume);
-        self::assertSame('compiled', $afterResume['references']['recall']['state']);
+        self::assertSame('compiled', $this->referenceState($this->manifest(), 'recall'));
     }
 
     public function testSuccessfulCliClosePersistsTheFinalProjection(): void
@@ -199,11 +194,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertStringContainsString('final run manifest refreshed', $output);
-        $manifest = (new RunManifestStore($this->root))->read('ABC-123');
-        self::assertNotNull($manifest);
-        self::assertSame('complete', $manifest['state']);
-        self::assertSame('done', $manifest['references']['session']['state']);
-        self::assertSame('none', $manifest['next_action']);
+        $manifest = $this->manifest();
+        self::assertSame('complete', $this->stringField($manifest, 'state'));
+        self::assertSame('done', $this->referenceState($manifest, 'session'));
+        self::assertSame('none', $this->stringField($manifest, 'next_action'));
     }
 
     private function createApprovedSession(): Session
@@ -231,6 +225,37 @@ final class WorkflowRunManifestTransitionTest extends TestCase
                 'selected_constraints' => [],
             ], JSON_THROW_ON_ERROR),
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function manifest(): array
+    {
+        $manifest = (new RunManifestStore($this->root))->read('ABC-123');
+        self::assertNotNull($manifest);
+
+        return $manifest;
+    }
+
+    /** @param array<string, mixed> $manifest */
+    private function stringField(array $manifest, string $key): string
+    {
+        $value = $manifest[$key] ?? null;
+        self::assertIsString($value);
+
+        return $value;
+    }
+
+    /** @param array<string, mixed> $manifest */
+    private function referenceState(array $manifest, string $referenceName): string
+    {
+        $references = $manifest['references'] ?? null;
+        self::assertIsArray($references);
+        $reference = $references[$referenceName] ?? null;
+        self::assertIsArray($reference);
+        $state = $reference['state'] ?? null;
+        self::assertIsString($state);
+
+        return $state;
     }
 
     private function rm(string $dir): void
