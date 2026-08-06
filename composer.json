@@ -33,6 +33,7 @@
   },
   "autoload-dev": {
     "psr-4": {
+      "Fixture\\": "tests/fixtures/release-set-consumer/src/",
       "voku\\AgentLoop\\Tests\\": "tests/"
     }
   },
@@ -42,6 +43,7 @@
   "scripts": {
     "test": "phpunit",
     "phpstan": "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M",
+    "release-set-dogfood": "php tools/release-set-dogfood.php --keep",
     "ci": [
       "@composer validate --strict",
       "@test",
