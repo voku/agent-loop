@@ -1,174 +1,135 @@
 ---
 name: agent-loop-task-progress
-description: Record useful working memory during an agent-loop task, including decisions, checkpoints, validation results, scope changes, and blocked states.
+description: Record useful working memory during an agent-loop task, including decisions, checkpoints, validation evidence, scope changes, and blocked states without copying or rewriting raw evidence.
 ---
 
 # Agent Loop Task Progress
 
-Use this skill while implementing a task after it has been started with
-`agent-loop-task-start` and before it is closed with `agent-loop-review-close`.
+Use this skill while implementing a started task and before review or closure.
+Record only information another agent or human would otherwise have to
+rediscover.
+
+For PHP implementation work, also use `agent-loop-php-discipline`.
 
 ## Fast Path
 
-Record important decisions:
+Record an implementation decision:
 
 ```bash
 vendor/bin/agent-loop session record <task-id> \
   --kind decision \
   --title "Keep change scoped" \
-  --body "Only update the dispatcher routing; do not change recall compiler behavior."
+  --body "Only update dispatcher routing; recall compiler behavior is unchanged."
 ```
 
-Record progress checkpoints:
+Record a checkpoint:
 
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Validation" \
-  --body "vendor/bin/agent-loop init validate --kind=skills passed."
+  --body "vendor/bin/phpunit --filter Init passed with exit code 0."
 ```
 
-Inspect current task memory:
+Inspect current state:
 
 ```bash
 vendor/bin/agent-loop session show <task-id>
 vendor/bin/agent-loop workflow status <task-id>
 ```
 
-## What To Record
+## Record
 
-Record:
-
-- decisions that affect implementation direction
-- assumptions that future agents must not rediscover
-- validation results
-- scope changes
-- blockers and their cause
-- explicit tradeoffs
-- commands that materially changed confidence
-- why a risky shortcut was not taken
-- why a risky shortcut was taken, if it later becomes accepted risk
+- decisions that affect implementation direction;
+- assumptions that future work must verify or preserve;
+- validation commands and observed results;
+- scope changes;
+- blockers and their cause;
+- explicit trade-offs;
+- risky shortcuts accepted or rejected, with reason;
+- handoff information.
 
 Do not record:
 
-- raw unbounded logs
-- giant diffs
-- copied stack traces unless the exact line matters
-- noisy command output
-- vague notes like "fixed stuff"
-- private secrets, tokens, cookies, credentials, or production data
+- unbounded logs;
+- giant diffs;
+- complete transcripts;
+- copied stack traces when one exact line and an artifact path suffice;
+- vague notes such as "fixed stuff";
+- secrets, credentials, production data, or secret-shaped values.
 
-## Record Kinds
+## Checkpoint Timing
 
-Use `--kind decision` when the note changes or explains the direction of the work.
+Checkpoint after:
 
-Use checkpoints for:
-
-- validation
-- implementation milestones
-- review-readiness
-- blocked state
-- handoff to another agent or human
-
-If the exact supported `--kind` values differ in a host repo version, prefer
-the existing command help and keep the note type conservative.
-
-## When To Checkpoint
-
-Checkpoint:
-
-1. after selecting the implementation approach
-2. after touching risky code
-3. after each meaningful validation run
-4. before switching files or scope
-5. before review/close
-6. when blocked
+1. selecting the implementation approach;
+2. touching risky code or a public contract;
+3. each meaningful validation run;
+4. changing scope;
+5. reaching review readiness;
+6. becoming blocked.
 
 ## Scope Changes
 
-If the task changes scope, record it immediately:
+Record scope drift immediately:
 
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Scope change" \
-  --body "The task expanded from docs-only to docs plus init validate examples because the existing README list was stale."
+  --body "Task expanded from docs-only to docs plus init help because the executable contract was stale."
 ```
 
-Then run:
+Then inspect status. Re-plan when the approved brief no longer describes the
+work. A re-plan creates a new revision and invalidates old validation evidence
+for closure.
 
-```bash
-vendor/bin/agent-loop workflow status <task-id>
-```
+## Structured Validation Evidence
 
-If the scope changed enough that recall context is stale, use
-`agent-loop-l2-context` and recompile recall.
-
-## Validation Notes
-
-Good validation checkpoint:
-
-```bash
-vendor/bin/agent-loop session checkpoint <task-id> \
-  --title "Validation" \
-  --body "vendor/bin/phpunit --filter Init passed; vendor/bin/agent-loop init validate --kind=all passed."
-```
-
-Bad validation checkpoint:
-
-```
-tests ok
-```
-
-Be specific enough that the next agent knows what was actually run.
-
-## Structured Completion Evidence
-
-A validation checkpoint explains progress but does not satisfy a governed
-`done` close. After each required command in the current work-brief revision
-has actually run, record the result separately:
+A prose checkpoint explains progress but does not satisfy a governed `done`
+close. Record every exact command from the current brief after it runs:
 
 ```bash
 vendor/bin/agent-loop session validation record <task-id> \
   --brief-revision <current-revision> \
   --command "vendor/bin/phpunit tests/FocusedTest.php" \
-  --status passed --exit-code 0 --by <actor>
+  --status passed \
+  --exit-code 0 \
+  --by <actor>
 ```
 
-Use the exact command string from the brief. Add `--duration-ms` only when it
-was measured. A re-plan creates a new revision, so prior evidence remains
-auditable but cannot satisfy the revised validation requirement.
+Use the exact command string from the brief. Add duration only when measured.
+Never claim a pass from an agent summary, missing output, or a previous
+revision.
 
-## Noise Control
+## Noise Control And Evidence Integrity
 
-Keep session memory compact. If command output is large, summarize the finding
-and point to the command instead of pasting the full output.
+Keep session memory compact, but do not make raw evidence compact by rewriting
+it.
 
-Prefer `rg` for repository search after verifying ripgrep is installed:
+- Summarize the finding and reference the exact command or artifact path.
+- Preserve source, full diffs, test output, static-analysis output, and generated
+  verification files unchanged.
+- When a harness stores large output in a file, reference and read that raw file.
+- Add a hash, size, or line count when completeness matters.
+- A summary supports human navigation. It is not a substitute for code review or
+  diagnostic evidence.
+
+Prefer `rg` for repository search after confirming it exists:
 
 ```bash
 rg --version
 ```
 
-Prefer RTK-wrapped commands in host repos when output is noisy:
-
-```bash
-rtk test vendor/bin/phpunit --filter Init
-rtk err vendor/bin/phpstan analyse --memory-limit=1G
-```
-
-Do not assume RTK compresses nested Make or Docker output unless the host repo
-documents that boundary.
-
 ## Before Review And Close
 
-Before using `agent-loop-review-close`, record a final checkpoint:
+Record a final checkpoint:
 
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Ready for review" \
-  --body "Implementation complete; recall was recompiled after docs changes; validation passed."
+  --body "Implementation complete; full diff reviewed; required validation passed."
 ```
 
-Then continue with:
+Then run:
 
 ```bash
 vendor/bin/agent-loop review blindspots <task-id>
@@ -176,11 +137,12 @@ vendor/bin/agent-loop verify
 vendor/bin/agent-loop workflow status <task-id>
 ```
 
-Record the explicit session learning decision before the governed close:
+Record the explicit learning outcome:
 
 ```bash
 vendor/bin/agent-loop session learning decide <task-id> \
-  --status no_durable_learning --by <actor> \
+  --status no_durable_learning \
+  --by <actor> \
   --reason "No reusable finding from this bounded task."
 ```
 
@@ -188,34 +150,16 @@ This records an outcome; it does not create or approve durable guidance.
 
 ## Skill Boundary
 
-This skill owns:
+This skill owns compact working-memory records, checkpoints, validation notes,
+scope changes, blockers, and handoffs.
 
-- useful session records during implementation
-- compact checkpoints
-- validation notes
-- scope-change notes
-- blocked-state notes
-- handoff notes
-
-This skill does not own:
-
-- starting the task (see `agent-loop-task-start`)
-- compiling L2 context (see `agent-loop-l2-context`)
-- review/verify/close (see `agent-loop-review-close`)
-- durable learning promotion
-- developing `agent-loop` itself
+It does not own task planning, L2 context compilation, final review and closure,
+durable-memory promotion, or lossy transformation of evidence.
 
 ## Validation
 
-- `vendor/bin/agent-loop session show <task-id>` shows useful notes
-- `vendor/bin/agent-loop workflow status <task-id>` still resolves the task
-- final checkpoint exists before review/close
-- no secrets or giant logs were stored
-
-## Example Triggers
-
-- "Record this decision in the agent-loop session."
-- "Checkpoint the validation result."
-- "We changed scope; update the task memory."
-- "Show the current session notes."
-- "Prepare this task for review."
+- `session show` contains useful, bounded notes;
+- `workflow status` resolves the current task and brief revision;
+- exact required validation evidence is recorded;
+- a final review-ready checkpoint exists;
+- no secrets or raw unbounded output were stored.
