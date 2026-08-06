@@ -57,8 +57,9 @@ vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <path> \
   --goal "..." --validation "..." [--tag <label>] [--behavior-anchor <text>] [--ephemeral]
 ```
 
-- **Produces:** `session_plan/<session-id>/` (working memory) and work brief
-  revision 1 in state `candidate`.
+- **Produces:** `session_plan/<session-id>/` (working memory), work brief
+  revision 1 in state `candidate`, and a refreshed run projection under
+  `.agent-loop/runs/<task-id>/manifest.json`.
 - **State:** task-local and mutable. Sessions are working memory, not evidence.
 - **Failure:** a missing `--file`, `--goal` or `--validation` is refused; a
   second active session for the same task is refused.
@@ -74,19 +75,26 @@ vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <path> \
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 ```
 
-- **Preconditions:** a candidate brief revision exists.
+- **Preconditions:** a candidate brief revision exists, or the exact current
+  revision is already approved and recall compilation needs to be resumed.
 - **Produces:** an approval bound to that exact revision, then a compiled
   briefing under the recall output root: `system.md`, `validation-plan.md`,
   `recall.bundle.json`, `facts.json`, `selection-report.json`,
   `recall-log.draft.json`, and - when a map target resolves -
   `verification-plan.json` plus the verifier-owned `verification-key.json`.
+- **Projection:** the approved state is persisted before compilation and the
+  compiled state after success.
+- **Superseding:** approving a new revision archives any previous canonical
+  recall directory instead of letting old metadata or reviews masquerade as
+  evidence for the new brief.
 - **Automatic context:** when `.agent-map/php-symbols.json` exists it is passed
   as `--map-index`, and `.agent-map/search.sqlite` as `--map-search-index`, so
   the briefing carries map facts and ranked candidates without the host
   orchestrating anything.
-- **Failure:** approving a revision that has since been revised is refused; the
-  approval names a revision, not a session.
-- **Recovery:** revise, then approve the new revision.
+- **Failure:** approving a revision that has since been revised is refused. If
+  compilation fails after approval, the approval remains valid and the same
+  command resumes compilation without approving identical scope twice.
+- **Recovery:** fix the compiler input and rerun `workflow approve`.
 
 ### PREPARE — `agent-map` + `agent-recall-compiler`
 
@@ -171,6 +179,7 @@ Gates, all enforced:
 5. a learning decision is recorded;
 6. every selected guidance rule has an explicit recall outcome.
 
+- **Produces:** a closed session and a final refreshed run projection.
 - **Recovery:** the failure names the missing artifact and the command that
   produces it. `agent-loop workflow status <task-id>` projects board, session,
   brief, approval, map/search, recall, edit, verification, review and learning
@@ -196,11 +205,16 @@ task/card id
 ```
 
 `agent-loop workflow manifest <task-id>` builds this relationship as a read-only
-projection. `--write` atomically persists it at
+projection. `--write` atomically persists or repairs it at
 `.agent-loop/runs/<task-id>/manifest.json`; normal status reads remain read-only.
 The projection stores references and digests, not duplicate mutable domain state.
 A run created before manifest support remains inspectable as `legacy_inferred`
 and missing links are not fabricated.
+
+PLAN, APPROVE and CLOSE refresh the stored projection after their owning
+artifacts change. If a projection write fails, the command reports that domain
+state may already have changed and names the explicit manifest/status recovery
+path rather than pretending the transition was rolled back.
 
 `workflow status` consumes the same projector. It also reports whether a stored
 manifest is `missing`, `current`, or `stale`, so the human and agent paths no
@@ -216,8 +230,9 @@ Recorded from real runs, so that the gaps are visible rather than rediscovered:
 - **Focused inspection contracts.** The projection still reads some package
   paths directly. Board, session, map, recall and learning need small versioned
   reference APIs so `agent-loop` does not learn their private file layouts.
-- **Transition refresh.** Manifest persistence is explicit. Successful PLAN,
-  APPROVE and CLOSE transitions do not yet refresh the stored projection.
+- **Direct mutations.** Package commands invoked outside the governed workflow
+  can still make a stored projection stale. Status detects that drift; not every
+  focused package mutation is expected to update the umbrella projection.
 - **Durable outcome lineage.** The projection marks it `contract_pending`
   instead of guessing across immutable histories.
 - **Consumer glue.** Hosts still add Make targets for sequencing and shell

@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStore;
@@ -91,7 +92,21 @@ final readonly class WorkflowPlanCommand
             return $exit;
         }
 
+        try {
+            $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+        } catch (Throwable $exception) {
+            fwrite(
+                STDERR,
+                '[FAIL] workflow plan: candidate brief was written, but run-manifest refresh failed: '
+                . $exception->getMessage()
+                . "\n[ACTION REQUIRED] Run agent-loop workflow manifest {$taskId->value} --write after repairing the projection error.\n",
+            );
+
+            return 1;
+        }
+
         echo "[OK] workflow plan: candidate work brief {$briefAction}d for {$taskId->value}\n";
+        echo "[OK] workflow plan: run manifest refreshed at {$manifestPath}\n";
         echo "Next:\n";
         echo "  agent-loop workflow approve {$taskId->value} --by {$options['by']}\n";
 
