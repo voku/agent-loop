@@ -80,14 +80,18 @@ final readonly class InitInstallPlanCommand
         Caveman:
         {$this->renderCavemanBlock($profile)}
 
-        Caveman reduces agent reply verbosity/output tokens.
-        It does not reduce model reasoning/thinking tokens.
+        Caveman keeps agent replies short enough for humans to review.
+        Output-token savings are secondary; it does not reduce reasoning tokens.
 
-        RTK:
-        {$this->renderRtkBlock($profile)}
+        Ponytail:
+        {$this->renderPonytailBlock($agent)}
 
-        RTK reduces noisy terminal/tool output before the agent reads it.
-        Verify with `rtk gain`.
+        Ponytail pushes coding agents toward YAGNI, existing-code reuse, PHP/platform primitives,
+        installed dependencies, and the shortest correct diff. It must not remove validation,
+        security controls, error handling, accessibility, or explicit requirements.
+
+        These tools shape agent behavior only. They must not rewrite shell commands, source files,
+        diffs, test output, or harness-managed evidence artifacts.
 
         {$this->renderAgentBlock($agent, $profile)}
 
@@ -126,7 +130,7 @@ final readonly class InitInstallPlanCommand
             TXT;
         }
 
-        return <<<TXT
+        return <<<'TXT'
         ```bash
         set -euo pipefail
 
@@ -146,13 +150,15 @@ final readonly class InitInstallPlanCommand
         if (in_array($profile, ['windows', 'powershell'], true)) {
             return <<<'TXT'
             ```powershell
-            # Install Caveman globally via npm (works in user-space if Node is portable)
-            npm install -g @juliusbrussee/caveman
+            $cavemanInstaller = "$env:TEMP\caveman-install.ps1"
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.ps1" -OutFile $cavemanInstaller
+            Get-Content $cavemanInstaller
+            & $cavemanInstaller
             ```
             TXT;
         }
 
-        return <<<TXT
+        return <<<'TXT'
         ```bash
         curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh
         less /tmp/caveman-install.sh
@@ -173,7 +179,7 @@ final readonly class InitInstallPlanCommand
             TXT;
         }
 
-        return <<<TXT
+        return <<<'TXT'
         ```bash
         sudo apt install -y ripgrep
         rg --version
@@ -181,77 +187,61 @@ final readonly class InitInstallPlanCommand
         TXT;
     }
 
-    private function renderRtkBlock(string $profile): string
+    private function renderPonytailBlock(string $agent): string
     {
-        if (in_array($profile, ['windows', 'powershell'], true)) {
-            return <<<'TXT'
-            ```powershell
-            # Install RTK to user local bin directory (requires no admin rights)
-            $localBin = "$HOME\.local\bin"
-            New-Item -ItemType Directory -Path $localBin -Force
-            Invoke-WebRequest -Uri "https://github.com/rtk-ai/rtk/releases/download/v0.43.0/rtk-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\rtk.zip"
-            Expand-Archive -Path "$env:TEMP\rtk.zip" -DestinationPath "$env:TEMP\rtk-extracted" -Force
-            Copy-Item -Path "$env:TEMP\rtk-extracted\rtk.exe" -Destination "$localBin\rtk.exe" -Force
-            [Environment]::SetEnvironmentVariable("PATH", "$localBin;" + [Environment]::GetEnvironmentVariable("PATH", "User"), "User")
+        return match ($agent) {
+            'codex' => <<<'TXT'
+            ```text
+            codex plugin marketplace add DietrichGebert/ponytail
+            codex plugin add ponytail@ponytail
             ```
-            TXT;
-        }
+            TXT,
+            'claude' => <<<'TXT'
+            Run these as two separate commands inside Claude Code:
 
-        return <<<TXT
-        ```bash
-        curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh
+            ```text
+            /plugin marketplace add DietrichGebert/ponytail
+            /plugin install ponytail@ponytail
+            ```
+            TXT,
+            default => <<<'TXT'
+            ```text
+            agy plugin install https://github.com/DietrichGebert/ponytail
+            ```
 
-        grep -qxF 'export PATH="\$HOME/.local/bin:\$PATH"' "\$HOME/.bashrc" \
-          || echo 'export PATH="\$HOME/.local/bin:\$PATH"' >> "\$HOME/.bashrc"
+            Legacy Gemini CLI compatibility:
 
-        export PATH="\$HOME/.local/bin:\$PATH"
-
-        rtk --version
-        rtk gain
-        ```
-        TXT;
+            ```text
+            gemini extensions install https://github.com/DietrichGebert/ponytail
+            ```
+            TXT,
+        };
     }
 
     private function renderAgentBlock(string $agent, string $profile = 'wsl2'): string
     {
         $isWindows = in_array($profile, ['windows', 'powershell'], true);
         $environmentLabel = $isWindows ? 'Windows' : ($profile === 'linux' ? 'Linux' : 'WSL2');
-        $codeFence = $isWindows ? '```powershell' : '```bash';
 
         return match ($agent) {
             'codex' => <<<TXT
-            Codex hook setup:
-            {$codeFence}
-            rtk init -g --codex
-            rtk init --show
-            ```
+            Codex activation:
 
-            Codex: restart the agent inside {$environmentLabel} after enabling the hook.
-            If Caveman is installed for Codex through skills, start each session with:
-
-            /caveman full
+            Restart Codex inside {$environmentLabel} after installation.
+            Open `/hooks`, review the Ponytail lifecycle hooks, and trust them only after inspection.
+            Use `/caveman full` for concise replies and `/ponytail full` for minimal implementations.
             TXT,
             'claude' => <<<TXT
-            Claude hook setup:
-            {$codeFence}
-            rtk init -g
-            rtk init --show
-            ```
+            Claude Code activation:
 
-            Claude Code: restart Claude inside {$environmentLabel} after enabling the hook.
-            Use Caveman with:
-
-            /caveman full
+            Restart Claude Code inside {$environmentLabel} after plugin installation.
+            Use `/caveman full` for concise replies and `/ponytail full` for minimal implementations.
             TXT,
             default => <<<TXT
-            Antigravity hook setup:
-            {$codeFence}
-            rtk init -g --gemini
-            rtk init --show
-            ```
+            Antigravity activation:
 
-            Antigravity / Google agent tooling: restart the agent inside {$environmentLabel} after enabling the hook.
-            If this repository still uses Gemini CLI compatibility, verify the exact hook command against the current Google docs before running it.
+            Restart the Google coding-agent tooling inside {$environmentLabel} after installation.
+            Use `/caveman full` for concise replies and `/ponytail full` for minimal implementations when those commands are exposed by the installed extensions.
             TXT,
         };
     }
@@ -274,7 +264,7 @@ final readonly class InitInstallPlanCommand
               /home/<you>/.claude
               /home/<you>/.bashrc
 
-            If your agent runs in WSL2 but you install in Windows, the hook will not apply there.
+            If your agent runs in WSL2 but you install in Windows, the plugins and skills will not apply there.
             TXT;
         }
 
@@ -290,7 +280,7 @@ final readonly class InitInstallPlanCommand
               /home/<you>/.bashrc
               /home/<you>/.claude
 
-            If the agent runs under a different Linux user, shell profile, container, or remote host than the one where you install these tools, the hook will not apply there automatically.
+            If the agent runs under a different Linux user, shell profile, container, or remote host than the one where you install these tools, the plugins and skills will not apply there automatically.
             TXT;
         }
 
@@ -310,10 +300,9 @@ final readonly class InitInstallPlanCommand
           C:\Users\<you>\.claude
           C:\Users\<you>\AppData\...
 
-        If your agent runs in PowerShell but you install in WSL2, the hook will not apply there.
+        If your agent runs in PowerShell but you install in WSL2, the plugins and skills will not apply there.
         TXT;
     }
-
 
     /**
      * @param list<string> $tokens
