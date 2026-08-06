@@ -56,9 +56,9 @@ final readonly class InitCli
           help           Show init help.
           doctor         Diagnose local setup and repo-managed agent asset hints.
           status         Show resolved init sources, aliases, and target manifests (read-only).
-          tools          Probe and cache CLI tool availability (rg, rtk, git, php, composer, docker, agent-map index).
+          tools          Probe and cache CLI tool availability (rg, git, php, composer, docker, agent-map index).
           validate       Validate repo-managed agent asset definitions.
-          install-plan   Print reviewed setup commands for ripgrep, RTK, and Caveman. Does not execute them.
+          install-plan   Print reviewed setup commands for ripgrep, Caveman, and Ponytail. Does not execute them.
           sync-skills    Sync repo-managed skills into a client target directory.
           sync-subagents Sync repo-managed subagents into a client target directory.
           sync-hooks     Sync repo-managed Codex hooks into a client target directory.
