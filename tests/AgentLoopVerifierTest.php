@@ -72,6 +72,48 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertStringContainsString('[OK] agent-loop verify: no drift detected.', $result['output']);
     }
 
+    /**
+     * The escape hatch must be exactly one session wide. A flag that also silenced governed work
+     * would not be a lifecycle distinction, it would be a way to switch the gate off.
+     */
+    public function testAnEphemeralSessionIsSkippedWhileGovernedWorkStillFailsTheSameGate(): void
+    {
+        mkdir($this->root . '/tasks', 0o775, true);
+        file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
+        file_put_contents($this->root . '/tasks/TASK-2.md', "# TASK-2: Test Task\n\nBody.\n");
+
+        $this->writeSession('2026-08-06-experiment', 'TASK-1', ephemeral: true);
+        $result = $this->verify([]);
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[SKIP] sessions: 2026-08-06-experiment is ephemeral', $result['output']);
+
+        // Same shape, same missing briefing, but it claims to be governed work.
+        $this->writeSession('2026-08-06-governed', 'TASK-2', ephemeral: false);
+        $result = $this->verify([]);
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString('[FAIL] recall: active session 2026-08-06-governed', $result['output']);
+        self::assertStringNotContainsString('2026-08-06-governed is ephemeral', $result['output']);
+    }
+
+    private function writeSession(string $id, string $taskId, bool $ephemeral): void
+    {
+        mkdir($this->root . '/session_plan/' . $id, 0o775, true);
+        file_put_contents(
+            $this->root . '/session_plan/' . $id . '/session.json',
+            json_encode([
+                'schema_version' => '1.0',
+                'id' => $id,
+                'task_id' => $taskId,
+                'status' => 'active',
+                'claimed_by' => 'test-agent',
+                'base_commit' => 'abcdef',
+                'created_at' => '2026-08-06T10:00:00+02:00',
+                'checkpoints' => [],
+                'ephemeral' => $ephemeral,
+            ], JSON_THROW_ON_ERROR),
+        );
+    }
+
     public function testRecallRootAutoDetectionAndCurrentFallback(): void
     {
         // 1. Create a tasks dir and a task file so checkTasks passes
