@@ -135,6 +135,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertSame(0, $currentExit);
         self::assertIsArray($current);
         self::assertIsArray($current['storage'] ?? null);
+        self::assertIsArray($current['manifest'] ?? null);
         self::assertSame('current', $current['storage']['state']);
         self::assertSame('legacy_inferred', $current['manifest']['mode']);
 
@@ -144,11 +145,15 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertSame(0, $staleExit);
         self::assertIsArray($stale);
         self::assertIsArray($stale['storage'] ?? null);
+        self::assertIsArray($stale['manifest'] ?? null);
         self::assertSame('stale', $stale['storage']['state']);
         self::assertSame('governed', $stale['manifest']['mode']);
     }
 
-    /** @param list<string> $options */
+    /**
+     * @param list<string> $options
+     * @return array{0: int, 1: string}
+     */
     private function statusOf(string $taskId, array $options = []): array
     {
         ob_start();
