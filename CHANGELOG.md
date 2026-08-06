@@ -19,6 +19,13 @@ All notable changes to this project will be documented in this file.
   owning package, inputs, outputs, failure state and recovery command for each
   transition - written from real runs, including the parts that are still
   uneven.
+- The dispatcher raises a too-small `memory_limit` to 512M, because several
+  commands read a large map index and die on a default 128M process. It is a
+  floor and never a ceiling: `MemoryLimit` interprets PHP's shorthand, so
+  `-d memory_limit=4G` stays 4G. A plain `(int)` cast reads `2G` as `2` and would
+  have clamped a deliberately raised limit down to 512M - breaking exactly the
+  heavy commands the floor exists for. Unlimited (`-1`) and unparseable values
+  are left untouched.
 - Requires `voku/agent-session` `0.3.*`.
 
 ## 0.10.1 - 2026-08-05

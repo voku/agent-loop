@@ -47,6 +47,13 @@ final class Dispatcher
      */
     public function run(array $argv): int
     {
+        // A floor, never a ceiling: several commands read a large map index, and a default 128M
+        // process dies on one. MemoryLimit understands PHP's shorthand, so `-d memory_limit=4G`
+        // stays 4G instead of being read as "4" and clamped down.
+        if (MemoryLimit::shouldRaise((string) ini_get('memory_limit'))) {
+            ini_set('memory_limit', MemoryLimit::MINIMUM);
+        }
+
         $scriptName = $argv[0] ?? 'agent-loop';
         $namespace = $argv[1] ?? 'help';
         $rest = array_slice($argv, 2);
