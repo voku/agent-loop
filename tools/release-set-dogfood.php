@@ -246,12 +246,20 @@ final class ReleaseSetDogfood
     {
         $result = $this->mustRun([
             'vendor/bin/agent-map',
-            'query',
+            'scope',
             'Fixture\\RetryPolicy::delayMilliseconds',
             '--index=.agent-map/php-symbols.json',
             '--format=json',
         ]);
-        $this->assertContains($result->stdout, 'Fixture\\RetryPolicy::delayMilliseconds', 'exact canonical target');
+        $decoded = $this->json($result->stdout, 'exact method scope');
+        $target = $decoded['target'] ?? null;
+        if (
+            !is_array($target)
+            || ($target['kind'] ?? null) !== 'method'
+            || ($target['label'] ?? null) !== 'Fixture\\RetryPolicy::delayMilliseconds'
+        ) {
+            throw new DogfoodFailure('regression', 'Exact method scope did not resolve Fixture\\RetryPolicy::delayMilliseconds.');
+        }
     }
 
     private function discoverEnglish(): void
@@ -738,7 +746,7 @@ final class ReleaseSetDogfood
         $this->writeJson($this->consumerRoot . '/composer.json', $composer);
         file_put_contents(
             $this->consumerRoot . '/.gitignore',
-            "/vendor/\n/.agent-map/\n/.agent-loop/\n/session_plan/\n/recall/\n/infra/doc/agent-learning/history/\n",
+            "/vendor/\n/.agent-map/\n/.agent-loop/\nsession_plan/\n/recall/\n/infra/doc/agent-learning/history/\n",
         );
         file_put_contents($this->consumerRoot . '/tools/autoload-probe.php', $this->autoloadProbe());
     }
