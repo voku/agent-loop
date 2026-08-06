@@ -27,6 +27,7 @@ final readonly class WorkflowCli
             'approve' => (new WorkflowApproveCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
             'start' => (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
+            'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath, $this->sessionRunner, $this->verifyRunner))->run($rest),
@@ -43,6 +44,7 @@ Usage:
   agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
   agent-loop workflow start <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id>
+  agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
@@ -53,6 +55,7 @@ Commands:
   approve   Approve the brief, then compile recall from that sealed context.
   start     Start a task workflow by creating a session and compiling recall artifacts.
   status    Show read-only workflow status for a task.
+  manifest  Inspect or atomically persist the cross-package run projection.
   context   Render a bounded, read-only task context from existing artifacts.
   report    Show a read-only, auditable completion report for a task.
   close     Close a task through workflow safety gates.
