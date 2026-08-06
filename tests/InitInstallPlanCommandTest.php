@@ -34,7 +34,9 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Profile: wsl2', $result['output']);
         self::assertStringContainsString('Agent: codex', $result['output']);
-        self::assertStringContainsString('rtk init -g --codex', $result['output']);
+        self::assertStringContainsString('codex plugin marketplace add DietrichGebert/ponytail', $result['output']);
+        self::assertStringContainsString('codex plugin add ponytail@ponytail', $result['output']);
+        self::assertStringContainsString('Open `/hooks`, review the Ponytail lifecycle hooks', $result['output']);
         self::assertCommonBlocks($result['output'], 'wsl2');
     }
 
@@ -44,7 +46,9 @@ final class InitInstallPlanCommandTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Agent: claude', $result['output']);
-        self::assertStringContainsString("rtk init -g\nrtk init --show", $result['output']);
+        self::assertStringContainsString('/plugin marketplace add DietrichGebert/ponytail', $result['output']);
+        self::assertStringContainsString('/plugin install ponytail@ponytail', $result['output']);
+        self::assertStringContainsString('Run these as two separate commands inside Claude Code:', $result['output']);
         self::assertCommonBlocks($result['output'], 'wsl2');
     }
 
@@ -54,8 +58,8 @@ final class InitInstallPlanCommandTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Agent: antigravity', $result['output']);
-        self::assertStringContainsString('rtk init -g --gemini', $result['output']);
-        self::assertStringContainsString('verify the exact hook command against the current Google docs before running it', $result['output']);
+        self::assertStringContainsString('agy plugin install https://github.com/DietrichGebert/ponytail', $result['output']);
+        self::assertStringContainsString('gemini extensions install https://github.com/DietrichGebert/ponytail', $result['output']);
         self::assertCommonBlocks($result['output'], 'wsl2');
     }
 
@@ -66,7 +70,7 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Profile: linux', $result['output']);
         self::assertStringContainsString('Native Linux setup:', $result['output']);
-        self::assertStringContainsString('Codex: restart the agent inside Linux after enabling the hook.', $result['output']);
+        self::assertStringContainsString('Restart Codex inside Linux after installation.', $result['output']);
         self::assertStringContainsString('Important native Linux boundary:', $result['output']);
         self::assertStringNotContainsString('C:\Users\<you>\.claude', $result['output']);
         self::assertCommonBlocks($result['output'], 'linux');
@@ -80,9 +84,11 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertStringContainsString('Profile: windows', $result['output']);
         self::assertStringContainsString('Windows PowerShell setup:', $result['output']);
         self::assertStringContainsString('winget install BurntSushi.ripgrep.MSVC', $result['output']);
+        self::assertStringContainsString('caveman-install.ps1', $result['output']);
         self::assertStringContainsString('rg --version', $result['output']);
-        self::assertStringContainsString('Codex: restart the agent inside Windows after enabling the hook.', $result['output']);
+        self::assertStringContainsString('Restart Codex inside Windows after installation.', $result['output']);
         self::assertStringContainsString('Important Windows boundary:', $result['output']);
+        self::assertStringNotContainsString('rtk', strtolower($result['output']));
     }
 
     public function testInstallPlanForGeminiAliasExitsZeroWithWarning(): void
@@ -142,7 +148,11 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertStringContainsString('sudo apt install -y ripgrep', $output);
         self::assertStringContainsString('rg --version', $output);
         self::assertStringContainsString('curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh', $output);
-        self::assertStringContainsString('curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh', $output);
+        self::assertStringContainsString('Ponytail:', $output);
+        self::assertStringContainsString('/caveman full', $output);
+        self::assertStringContainsString('/ponytail full', $output);
+        self::assertStringContainsString('must not rewrite shell commands, source files,', $output);
+        self::assertStringNotContainsString('rtk', strtolower($output));
         self::assertStringContainsString($profile === 'linux' ? 'Important native Linux boundary:' : 'Important WSL2 boundary:', $output);
     }
 
