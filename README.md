@@ -505,19 +505,22 @@ Without both literals, `auto` writes `escalation_required` rather than
 silently invoking a model; select `--runner=command` explicitly for that
 escalation.
 
-RTK is an optional outer-shell output filter, not an edit runner. It can reduce
-the output an agent has to read without changing the deterministic edit route:
+#### Agent behavior and evidence integrity
 
-```bash
-rtk summary vendor/bin/agent-loop edit 'App\Service\UserService::save' --runner=auto \
-  --replace-old='$legacyUser->regionId' --replace-new='$legacyUser->getCurrentRegionId()' -- \
-  'Replace the deprecated region property.'
-```
+Caveman and Ponytail address different failure modes:
 
-`agent-loop init tools --refresh` records whether `rtk` is reachable in PATH.
-When an agent runs PHP inside a container, invoke RTK outside the container
-(`rtk docker compose exec …`); do not assume a nested `rtk test docker compose
-exec …` preserves the container working directory.
+- Caveman removes filler from human-facing agent replies so review takes less
+  time.
+- Ponytail discourages speculative abstractions and unrequested implementation.
+- The repo-managed `agent-loop-php-discipline` skill adapts both ideas to strict
+  PHP and the `agent-*` package boundaries.
+
+They shape agent behavior only. They must not rewrite shell commands, source
+files, full diffs, test output, or harness-managed evidence artifacts. A summary
+may point to raw evidence; it must not replace it. When a harness redirects or
+truncates output into a file, read that stored file as the source of truth and
+verify its size, line count, or hash when completeness matters.
+
 The package-owned historical replay test copies a public `agent-loop` parent
 blob to a temporary root, replays a one-line fix through `auto`, and compares
 the result with both the committed blob and a guarded Linux replacement
@@ -713,8 +716,8 @@ vendor/bin/agent-loop init sync-hooks --agent=codex
 vendor/bin/agent-loop init scaffold
 ```
 
-Diagnoses local setup, prints reviewed install plans (ripgrep, RTK,
-Caveman), validates repo-managed asset definitions, and syncs repo-managed
+Diagnoses local setup, prints reviewed install plans for ripgrep, Caveman, and
+Ponytail, validates repo-managed asset definitions, and syncs repo-managed
 skills/subagents/hooks into client target directories. It does not affect
 workflow close, does not call an LLM, and does not install remote tools.
 
