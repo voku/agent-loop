@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestStore;
 
@@ -65,7 +66,10 @@ final class RunManifestStoreTest extends TestCase
         self::assertFileExists($path);
         self::assertSame('current', $store->status($manifest)['state']);
         self::assertSame('stale', $store->status($this->manifest('second'))['state']);
-        self::assertSame($manifest->toArray(), $store->read('ABC-123'));
+
+        $read = $store->read('ABC-123');
+        self::assertNotNull($read);
+        self::assertSame($manifest->toJson(), CanonicalJson::pretty($read));
         self::assertSame([], glob($path . '.tmp-*') ?: []);
     }
 
