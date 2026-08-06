@@ -1,136 +1,108 @@
 ---
 name: agent-guidance-maintenance
-description: Maintain repo-managed agent skills, shared agent docs, metadata roots, and migration-safe validation workflows around agent-loop init.
+description: Maintain repo-managed agent skills, shared docs, metadata roots, and migration-safe validation while keeping concise behavior guidance separate from raw tool evidence.
 ---
 
 # Agent Guidance Maintenance
 
-Use this skill for the repository-managed agent guidance itself: skills,
-asset docs, validation flow, and host-repo migration notes.
+Use this skill for repository-managed agent guidance: skills, shared docs,
+validation flow, client sync targets, and host-repository migration notes.
 
 ## Fast Path
 
-For a normal repo-managed guidance fix:
-
 1. Edit the canonical source under `docs/agents/skills/` or `docs/agents/`.
-2. Keep the fix small and scoped to the agent-guidance surface.
-3. Validate the local source layout with the relevant `vendor/bin/agent-loop init validate --kind=...` command.
-4. Re-run `vendor/bin/agent-loop init doctor` when path or migration guidance changed.
-5. Update README, changelog, or migration notes when the public `init` contract changed.
-6. When a host repo uses RTK, audit its `AGENTS.md`, `README.md`, and agent-facing Make targets for missing RTK guidance at Docker/Make boundaries.
-7. When setup or search guidance changed, prompt ripgrep (`rg`) installation and `rg --version` verification alongside RTK and Caveman.
+2. Keep the change scoped to the guidance contract.
+3. Update executable help and tests when public `init` behavior changes.
+4. Validate the source layout and dry-run client synchronization.
+5. Run `init doctor` when path, migration, or setup guidance changes.
+6. Update README, changelog, or migration notes when the public contract changes.
+7. Audit the resulting guidance for contradictory instructions and lossy evidence
+   handling.
 
-## Skill Boundary
-
-This skill owns:
-
-- repo-managed skills under `docs/agents/skills/`
-- shared agent docs under `docs/agents/`
-- path-layout guidance for host repositories adopting `agent-loop init`
-- migration notes for legacy Makefile and wrapper-script workflows
-- ripgrep installation prompts and `rg`-first search guidance
-- RTK usage guidance at the outer shell boundary and nested Make/Docker layers
-- validation guidance for `init doctor`, `init validate`, and `init sync-*`
-
-This skill does not own:
-
-- product implementation outside the agent-guidance surface
-- host-repo local install targets as the source of truth
-- pretending reserved `scaffold` behavior is implemented before it exists
+Use `agent-loop-php-discipline` for PHP changes. Caveman-style brevity may shape
+human-facing replies. Ponytail-style minimalism may shape implementation. Neither
+may rewrite shell commands, source files, diffs, test output, or verification
+artifacts.
 
 ## Canonical Files
 
-- `docs/agents/skills/`
-- `docs/agents/INFO_Agents.md`
-- `docs/agents/migration/`
-- `README.md`
-- `CHANGELOG.md`
-- `src/Init/`
-- `tests/Init*`
+- `docs/agents/skills/`;
+- `docs/agents/INFO_Agents.md`;
+- `docs/agents/migration/`;
+- `README.md`;
+- `CHANGELOG.md`;
+- `src/Init/`;
+- `tests/Init*`.
 
-## When To Use
+Do not begin by editing generated client copies such as `.codex/`,
+`.github/skills/`, or another installed target. Change the canonical source,
+validate it, then sync it.
 
-Use this skill when the task:
+## Guidance Rules
 
-- adds or edits a repo-managed skill
-- changes default asset roots or host override behavior
-- documents how a host repo should migrate from private wrappers to `agent-loop init`
-- updates the public validation/sync/install-plan contract
+- Describe behavior that exists now. Mark reserved or planned behavior clearly.
+- Keep CLI precedence explicit: command-line option, repository config, then
+  portable default.
+- Keep Google client aliases mapped through canonical `antigravity` behavior.
+- Prompt `rg` installation and `rg --version` verification before relying on
+  `rg`-first search.
+- Treat source, diffs, command output, and generated verification files as raw
+  evidence.
+- Summaries may help humans navigate evidence; they must not replace it.
+- Reject command-rewriting or output-compression guidance that can hide changed
+  lines, alter redirected file contents, or corrupt harness-managed artifacts.
+- Keep concise communication guidance separate from implementation-minimization
+  guidance. They solve different problems.
+- Keep target-manifest safety explicit so `sync-*` removes only stale managed
+  entries.
 
-Do not use this skill for ordinary library feature work that is unrelated
-to agent assets or migration guidance.
-
-## Workflow
-
-### 1. Update the canonical source first
-
-Edit:
-
-- the owning skill under `docs/agents/skills/`
-- `docs/agents/INFO_Agents.md` when the shared workflow changes
-- `docs/agents/migration/...` when importing real host-repo practices
-- README and changelog when the public command surface changes
-
-Do not start by editing a host repo's local `.codex/`, `.github/skills/`,
-or other installed copies.
-
-### 2. Keep migration notes honest
+## Migration Notes
 
 When adapting a host workflow:
 
-- preserve the real source path and wrapper shape in the migration notes
-- separate what `agent-loop init` can do now from what `scaffold` still does not
-- prefer `sync` wording for repeatable repo-managed asset updates
-- keep Google client aliases mapped through canonical `antigravity`
-- check whether the host repo's `AGENTS.md`, `README.md`, and shared skills are missing explicit RTK guidance
-- keep ripgrep installation prompts beside RTK and Caveman in `init install-plan` docs
-- distinguish RTK-wrapped outer commands from noisy inner commands hidden behind `make`, `docker compose exec`, or wrapper scripts
-- recommend dedicated `ai-*` Make targets when host repos mainly drive validation through Make and Docker
-- keep target-manifest safety explicit so `sync-*` removes only stale managed entries
+- preserve the real source path and wrapper shape in the migration note;
+- separate current `agent-loop init` capabilities from future work;
+- prefer repeatable `sync` wording over one-off copying;
+- inspect whether generated or redirected output is expected to remain byte
+  complete;
+- document Docker, Make, shell, and bind-mount boundaries without inserting a
+  lossy proxy between the agent and the underlying evidence;
+- use dedicated agent-facing targets only when they expose a real repeated
+  workflow, not merely to manufacture another abstraction.
 
-### 2a. Turn Learnings into Hard Constraints
+## Hard Constraints
 
-When a distilled lesson describes a pattern that can be statically verified (e.g., forbidding specific calls, enforcing parameter types, avoiding redundant casts, or blocking dangerous reflection):
-1. **Prefer Hard Constraints over Soft Memories**: Do not just write a note in a generic memory file; build a custom static analysis rule (e.g. PHPStan rule or phpcs sniff).
-2. **Register the Active Constraint**: Create a metadata JSON file under the repository's active constraints registry linking it to the source proposal.
-3. **Regenerate Autoloader / Bootstrap**: Run the host repository's autoloader or configuration generators to register the new rule class.
-4. **Baseline Legacy Violations**: If there are pre-existing violations in the codebase, create a matching baseline file and include it in the static analysis configuration so the build/CI stays green for existing files while blocking any new violations.
-5. **Verify**: Run static analysis on affected files to verify it successfully flags violations and accepts baselined/correct files.
-6. **Cover the whole eligible backlog**: Apply this to every statically-analyzable lesson still sitting as a memory-only row, not just the newest proposal. A memory row is not the finish line for a rule a static-analysis check could enforce.
-7. **Do not sleep-poll**: When the static-analysis / verification run is backgrounded, continue other steps and rely on its completion signal instead of chaining short wait timers.
+When a reviewed learning is statically verifiable, prefer an executable
+constraint over a memory-only sentence:
 
-### 3. Validate after changes
+1. implement the smallest PHPStan rule or coding-standard check that proves the
+   requirement;
+2. register it in the active constraints metadata;
+3. regenerate required bootstrap or autoload files;
+4. baseline only verified legacy violations while preventing new ones;
+5. test both a failing and accepted example;
+6. sweep the full eligible backlog rather than enforcing only the newest item.
 
-Run:
+Do not turn subjective style preferences into noisy static-analysis rules. A
+hard constraint must protect a real property.
+
+## Validation
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
-php bin/agent-loop init doctor
+vendor/bin/agent-loop init doctor
 vendor/bin/phpunit --filter 'Init|DispatcherTest'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 ```
 
-### 4. Use host overrides instead of hardcoding one repo
+Run the repository formatter or `composer ci` when defined. Never report a
+command as passed unless it ran and its exit code was observed.
 
-When documenting a host repo:
+## Skill Boundary
 
-- keep the portable default under `docs/agents/...`
-- show the host-specific `.agent-loop/init.json` override
-- keep path precedence explicit: CLI > config > defaults
-- prompt `rg --version` verification before relying on `rg`-first search guidance
-- add RTK guidance where agents actually read it: `AGENTS.md`, `README.md`, and the agent-maintenance skill/docs
+This skill owns canonical agent guidance, init-facing setup and sync contracts,
+migration notes, and validation of repo-managed assets.
 
-## Validation
-
-- `vendor/bin/agent-loop init validate --kind=all`
-- `vendor/bin/agent-loop init sync-skills --agent=codex --dry-run`
-- `php bin/agent-loop init doctor`
-- `vendor/bin/phpunit --filter 'Init|DispatcherTest'`
-- `vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M`
-
-## Example Triggers
-
-- "Update the related skill so future repos migrate this correctly."
-- "Document how the legacy Makefile targets map to agent-loop init."
-- "Bring the host repo's agent docs into portable starter guidance."
+It does not own unrelated product code, generated client copies as the source of
+truth, speculative abstractions, or transformation of raw evidence.
