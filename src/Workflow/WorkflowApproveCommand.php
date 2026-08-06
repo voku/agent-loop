@@ -6,8 +6,12 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
+use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStatus;
+use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowApproveCommand
 {
@@ -28,13 +32,32 @@ final readonly class WorkflowApproveCommand
             return 1;
         }
 
-        $exit = ($this->sessionRunner)(['brief', 'approve', $taskId->value, '--by', $options['by']]);
-        if ($exit !== 0) {
-            return $exit;
-        }
-
         try {
             $session = $this->activeSession($taskId->value);
+            $briefs = new WorkBriefStore();
+            $brief = $briefs->find($session);
+            if ($brief === null) {
+                throw new RuntimeException('Active session has no work brief: ' . $session->id);
+            }
+            $approval = $briefs->approval($session);
+            $alreadyApproved = $brief->status === WorkBriefStatus::APPROVED
+                && $approval !== null
+                && $approval->workBriefRevision === $brief->revision;
+
+            if (!$alreadyApproved) {
+                $exit = ($this->sessionRunner)(['brief', 'approve', $taskId->value, '--by', $options['by']]);
+                if ($exit !== 0) {
+                    return $exit;
+                }
+                $session = $this->activeSession($taskId->value);
+                echo "[OK] workflow approve: work brief revision approved for {$taskId->value}\n";
+            } else {
+                echo "[OK] workflow approve: current work brief revision was already approved; resuming recall compilation\n";
+            }
+
+            $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+            echo "[OK] workflow approve: approved-state manifest refreshed at {$manifestPath}\n";
+
             $briefPath = $session->path . '/work-brief.json';
             if (!is_file($briefPath)) {
                 throw new RuntimeException('Approved session has no work-brief.json: ' . $session->id);
@@ -72,16 +95,34 @@ final readonly class WorkflowApproveCommand
                 }
             }
             $exit = ($this->recallRunner)($recallArgs);
+            if ($exit !== 0) {
+                fwrite(
+                    STDERR,
+                    "[FAIL] workflow approve: work brief remains approved, but recall compilation failed. Rerun the same workflow approve command after fixing the compiler input.\n",
+                );
+
+                return $exit;
+            }
+
+            $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+            echo "[OK] workflow approve: work brief approved and recall compiled for {$taskId->value}\n";
+            echo "[OK] workflow approve: compiled-state manifest refreshed at {$manifestPath}\n";
+
+            return 0;
         } catch (RuntimeException $exception) {
             fwrite(\STDERR, '[FAIL] workflow approve: ' . $exception->getMessage() . "\n");
 
             return 1;
-        }
-        if ($exit === 0) {
-            echo "[OK] workflow approve: work brief approved and recall compiled for {$taskId->value}\n";
-        }
+        } catch (Throwable $exception) {
+            fwrite(
+                STDERR,
+                '[FAIL] workflow approve: state may have changed, but run-manifest refresh or preparation failed: '
+                . $exception->getMessage()
+                . "\n[ACTION REQUIRED] Inspect agent-loop workflow status {$taskId->value} --format=json and rerun workflow approve after repair.\n",
+            );
 
-        return $exit;
+            return 1;
+        }
     }
 
     /**
@@ -122,7 +163,7 @@ final readonly class WorkflowApproveCommand
             static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
         )) : [];
         if (count($sessions) !== 1) {
-            throw new RuntimeException("Expected exactly one active session for {$taskId} after approval.");
+            throw new RuntimeException("Expected exactly one active session for {$taskId}.");
         }
 
         return $sessions[0];
