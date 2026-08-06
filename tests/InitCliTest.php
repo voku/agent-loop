@@ -33,7 +33,8 @@ final class InitCliTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('agent-loop init doctor', $result['output']);
-        self::assertStringContainsString('Print reviewed setup commands for ripgrep, Caveman, and Ponytail.', $result['output']);
+        self::assertStringContainsString('Print an offline setup plan for package-owned assets.', $result['output']);
+        self::assertStringContainsString('agent-loop init install-assets', $result['output']);
         self::assertStringContainsString('rg, git, php, composer, docker, agent-map index', $result['output']);
         self::assertStringNotContainsString('rtk', strtolower($result['output']));
     }
@@ -44,6 +45,7 @@ final class InitCliTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('agent-loop init install-plan', $result['output']);
+        self::assertStringContainsString('agent-loop init install-assets', $result['output']);
     }
 
     public function testInitShortHelpExitsZero(): void
