@@ -167,10 +167,14 @@ final readonly class AgentDisciplineHook
 
     private function isExternalAddonBootstrap(string $command): bool
     {
-        return preg_match(
-            '~(?:JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk|@juliusbrussee/caveman|ponytail@ponytail|caveman-install\.(?:sh|ps1)|(?:^|[;&|]\s*)rtk\s+init(?:\s|$))~i',
-            $command,
-        ) === 1;
+        $externalSource = '(?:JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk)';
+
+        return preg_match('~\b(?:curl|wget|Invoke-WebRequest|iwr)\b[^\r\n]*' . $externalSource . '~i', $command) === 1
+            || preg_match('~\b(?:npm|pnpm|yarn)\b[^\r\n]*(?:@juliusbrussee/caveman|\bponytail\b)~i', $command) === 1
+            || preg_match('~\b(?:codex\s+plugin|agy\s+plugin|gemini\s+extensions)\b[^\r\n]*(?:DietrichGebert/ponytail|ponytail@ponytail)~i', $command) === 1
+            || preg_match('~(?:^|[;&|]\s*)/?plugin\s+(?:marketplace\s+add|install)\b[^\r\n]*(?:DietrichGebert/ponytail|ponytail@ponytail)~i', $command) === 1
+            || preg_match('~\b(?:bash|sh|pwsh|powershell)\b[^\r\n]*caveman-install\.(?:sh|ps1)~i', $command) === 1
+            || preg_match('~(?:^|[;&|]\s*)rtk\s+init(?:\s|$)~i', $command) === 1;
     }
 
     private function isUnboundedMapDump(string $command): bool
