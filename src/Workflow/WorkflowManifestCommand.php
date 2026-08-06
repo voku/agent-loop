@@ -89,19 +89,31 @@ final readonly class WorkflowManifestCommand
 
                 continue;
             }
+            if (str_starts_with($token, '--format=')) {
+                $format = $this->format(substr($token, strlen('--format=')));
+
+                continue;
+            }
             if ($token !== '--format') {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$index + 1])) {
                 throw new InvalidArgumentException('--format requires text or json.');
             }
-            $candidate = strtolower(trim($tokens[++$index]));
-            if (!in_array($candidate, ['text', 'json'], true)) {
-                throw new InvalidArgumentException('--format must be text or json.');
-            }
-            $format = $candidate;
+            $format = $this->format($tokens[++$index]);
         }
 
         return ['format' => $format, 'write' => $write];
+    }
+
+    /** @return 'text'|'json' */
+    private function format(string $value): string
+    {
+        $format = strtolower(trim($value));
+        if (!in_array($format, ['text', 'json'], true)) {
+            throw new InvalidArgumentException('--format must be text or json.');
+        }
+
+        return $format;
     }
 }
