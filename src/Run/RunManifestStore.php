@@ -76,7 +76,7 @@ final readonly class RunManifestStore
         if ($stored === null) {
             return [
                 'state' => 'missing',
-                'path' => $this->relativePath($this->path($manifest->taskId)),
+                'path' => RelativePath::fromRoot($this->rootPath, $this->path($manifest->taskId)),
                 'current_sha256' => 'sha256:' . $currentSha,
                 'stored_sha256' => null,
             ];
@@ -87,20 +87,9 @@ final readonly class RunManifestStore
 
         return [
             'state' => hash_equals($storedSha, $currentSha) ? 'current' : 'stale',
-            'path' => $this->relativePath($this->path($manifest->taskId)),
+            'path' => RelativePath::fromRoot($this->rootPath, $this->path($manifest->taskId)),
             'current_sha256' => 'sha256:' . $currentSha,
             'stored_sha256' => 'sha256:' . $storedSha,
         ];
-    }
-
-    private function relativePath(string $path): string
-    {
-        $root = rtrim(str_replace('\\', '/', $this->rootPath), '/');
-        $normalized = str_replace('\\', '/', $path);
-        if ($root !== '' && str_starts_with($normalized, $root . '/')) {
-            return substr($normalized, strlen($root) + 1);
-        }
-
-        return $normalized;
     }
 }
