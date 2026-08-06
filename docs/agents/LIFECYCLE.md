@@ -172,24 +172,39 @@ Gates, all enforced:
 6. every selected guidance rule has an explicit recall outcome.
 
 - **Recovery:** the failure names the missing artifact and the command that
-  produces it. `agent-loop workflow status <task-id>` prints the same joined
-  state plus the single next command.
+  produces it. `agent-loop workflow status <task-id>` projects board, session,
+  brief, approval, map/search, recall, edit, verification, review and learning
+  state and prints one next command. `--format=json` exposes the same projection
+  for coding agents. A contradictory or blocking state exits `2` instead of
+  returning an ornamental green status.
 - **Accepted risk:** `--accept-risk "<reason>" --accept-risk-by "<name>"`
   records who overrode which gates, in Markdown and JSON.
 
-## Run identity
+## Run identity and projection
 
-A governed run is currently identified by the tuple
+A governed run is identified by the relationship between:
 
 ```text
-task id  +  session id  +  brief revision  +  map snapshot
+task/card id
++ session id
++ work-brief revision and approval
++ map/search snapshot
++ recall compilation
++ edit and verification artifacts
++ review
++ learning decision and outcome lineage
 ```
 
-Those four values already appear in the artifacts - the approval names the
-revision, the briefing records the map snapshot and its own digests, and the
-recall log binds outcomes to the compilation id. They are not yet collected in a
-single manifest file, so a consumer joins them through paths and conventions.
-Making that binding explicit is the next integration step, not a solved problem.
+`agent-loop workflow manifest <task-id>` builds this relationship as a read-only
+projection. `--write` atomically persists it at
+`.agent-loop/runs/<task-id>/manifest.json`; normal status reads remain read-only.
+The projection stores references and digests, not duplicate mutable domain state.
+A run created before manifest support remains inspectable as `legacy_inferred`
+and missing links are not fabricated.
+
+`workflow status` consumes the same projector. It also reports whether a stored
+manifest is `missing`, `current`, or `stale`, so the human and agent paths no
+longer maintain separate lifecycle interpretations.
 
 ## Where the model is still uneven
 
@@ -198,6 +213,12 @@ Recorded from real runs, so that the gaps are visible rather than rediscovered:
 - **Guidance versioning.** Nothing verifies that installed skills match the
   installed runtime. A consumer can hold guidance describing a command its
   vendored package no longer accepts.
-- **One manifest.** See above; the binding exists but is implicit.
+- **Focused inspection contracts.** The projection still reads some package
+  paths directly. Board, session, map, recall and learning need small versioned
+  reference APIs so `agent-loop` does not learn their private file layouts.
+- **Transition refresh.** Manifest persistence is explicit. Successful PLAN,
+  APPROVE and CLOSE transitions do not yet refresh the stored projection.
+- **Durable outcome lineage.** The projection marks it `contract_pending`
+  instead of guessing across immutable histories.
 - **Consumer glue.** Hosts still add Make targets for sequencing and shell
   quoting. Every one of those is a candidate for upstream behaviour.

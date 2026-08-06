@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use InvalidArgumentException;
 use Throwable;
-use voku\AgentLoop\RecallOutputRoot;
-use voku\AgentSession\LearningDecisionStore;
-use voku\AgentSession\Session;
-use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStatus;
-use voku\AgentSession\WorkBriefStore;
+use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Run\RunManifest;
+use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunManifestStore;
 
 /**
- * One joined view of where a task stands across every package that owns part of its lifecycle.
+ * The paved, read-only lifecycle view for humans and coding agents.
  *
- * The stages are printed in lifecycle order and the command ends with the single next command,
- * because six packages reporting their own green light leaves the reader to join six state machines
- * in their head - which is exactly where the surprises live.
+ * The status command consumes the same run projection as `workflow manifest`.
+ * That keeps board, session, repository, recall, execution, verification,
+ * review and learning states in one model instead of politely disagreeing in
+ * six independently green status commands.
  */
 final readonly class WorkflowStatusCommand
 {
@@ -30,161 +30,236 @@ final readonly class WorkflowStatusCommand
     {
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
+            $format = $this->parseFormat(array_slice($args, 1));
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+            $storage = (new RunManifestStore($this->rootPath))->status($manifest);
 
-            $session = $this->activeSession($taskId->value);
-            $stages = [
-                'Session' => $this->sessionStage($taskId->value, $session),
-                'Work brief' => $this->workBriefStage($session),
-                'Recall' => $this->recallStage($taskId->value),
-                'Edit bundle' => $this->editStage($taskId->value),
-                'Review' => $this->reviewStage($taskId->value),
-                'Learning' => $this->learningStage($session),
-            ];
+            if ($format === 'json') {
+                echo CanonicalJson::pretty([
+                    'manifest' => $manifest->toArray(),
+                    'storage' => $storage,
+                ]);
 
-            echo 'Task ' . $taskId->value . "\n";
-            foreach ($stages as $label => [$state, $detail]) {
-                printf("  %-13s %-9s %s\n", $label . ':', $state, $detail);
+                return $manifest->state === 'blocked' ? 2 : 0;
             }
 
-            echo "\nNext:\n  " . $this->nextCommand($taskId->value, $stages) . "\n";
+            $this->renderText($manifest, $storage);
 
-            return 0;
-        } catch (Throwable $e) {
-            fwrite(\STDERR, '[FAIL] workflow status: ' . $e->getMessage() . "\n");
+            return $manifest->state === 'blocked' ? 2 : 0;
+        } catch (Throwable $exception) {
+            fwrite(\STDERR, '[FAIL] workflow status: ' . $exception->getMessage() . "\n");
 
             return 1;
         }
     }
 
-    private function activeSession(string $taskId): ?Session
+    /**
+     * @param array{state: 'missing'|'current'|'stale', path: string, current_sha256: string, stored_sha256: string|null} $storage
+     */
+    private function renderText(RunManifest $manifest, array $storage): void
     {
-        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
-        if (!is_dir($sessionsRoot)) {
+        echo 'Task ' . $manifest->taskId . "\n";
+        printf("  %-17s %-22s %s\n", 'Run:', $manifest->runId, $manifest->mode);
+        printf("  %-17s %-22s %s\n", 'Overall:', $manifest->state, 'derived from owning artifacts');
+        printf("  %-17s %-22s %s\n", 'Manifest:', $storage['state'], $storage['path']);
+
+        echo "\nLifecycle:\n";
+        foreach ($this->orderedReferences($manifest) as $name => $reference) {
+            $state = is_string($reference['state'] ?? null) ? $reference['state'] : 'unknown';
+            printf(
+                "  %-17s %-22s %s\n",
+                $this->label($name) . ':',
+                $state,
+                $this->detail($name, $reference),
+            );
+        }
+
+        if ($manifest->disagreements !== []) {
+            echo "\nDisagreements:\n";
+            foreach ($manifest->disagreements as $disagreement) {
+                echo sprintf(
+                    "  - %s [%s]: %s\n",
+                    $disagreement['code'],
+                    $disagreement['owner'],
+                    $disagreement['message'],
+                );
+            }
+        }
+
+        echo "\nNext:\n  " . $manifest->nextAction . "\n";
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private function orderedReferences(RunManifest $manifest): array
+    {
+        $ordered = [];
+        foreach ([
+            'board',
+            'session',
+            'work_brief',
+            'approval',
+            'map',
+            'search_index',
+            'recall',
+            'edit',
+            'verification',
+            'review',
+            'learning',
+            'outcome_lineage',
+        ] as $name) {
+            if (isset($manifest->references[$name])) {
+                $ordered[$name] = $manifest->references[$name];
+            }
+        }
+
+        return $ordered;
+    }
+
+    private function label(string $name): string
+    {
+        return match ($name) {
+            'work_brief' => 'Work brief',
+            'search_index' => 'Search index',
+            'outcome_lineage' => 'Outcome lineage',
+            default => ucfirst($name),
+        };
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function detail(string $name, array $reference): string
+    {
+        return match ($name) {
+            'board' => $this->boardDetail($reference),
+            'session' => $this->value($reference, 'session_id', 'agent-session'),
+            'work_brief' => $this->revisionDetail($reference),
+            'approval' => $this->approvalDetail($reference),
+            'recall' => $this->value($reference, 'compilation_id', $this->pathOrOwner($reference)),
+            'learning' => $this->value($reference, 'decided_by', $this->pathOrOwner($reference), 'recorded by '),
+            default => $this->pathOrOwner($reference),
+        };
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function revisionDetail(array $reference): string
+    {
+        $revision = $reference['revision'] ?? null;
+        if (!is_int($revision) && !is_string($revision)) {
+            return $this->pathOrOwner($reference);
+        }
+
+        return 'revision ' . $revision . $this->sourceSuffix($reference);
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function approvalDetail(array $reference): string
+    {
+        $actor = $reference['approved_by'] ?? null;
+        $revision = $reference['work_brief_revision'] ?? null;
+        if (!is_string($actor) || (!is_int($revision) && !is_string($revision))) {
+            return $this->pathOrOwner($reference);
+        }
+
+        return 'revision ' . $revision . ' by ' . $actor;
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function boardDetail(array $reference): string
+    {
+        $cardId = $reference['card_id'] ?? null;
+        if (!is_string($cardId)) {
+            return $this->pathOrOwner($reference);
+        }
+
+        $parts = [$cardId];
+        if (is_string($reference['lane'] ?? null)) {
+            $parts[] = $reference['lane'];
+        }
+        if (is_string($reference['status'] ?? null)) {
+            $parts[] = $reference['status'];
+        }
+
+        return implode(' / ', $parts);
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function sourceSuffix(array $reference): string
+    {
+        $path = $this->sourcePath($reference);
+
+        return $path === null ? '' : ' (' . $path . ')';
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function pathOrOwner(array $reference): string
+    {
+        $sourcePath = $this->sourcePath($reference);
+        if ($sourcePath !== null) {
+            return $sourcePath;
+        }
+        if (is_string($reference['path'] ?? null)) {
+            return $reference['path'];
+        }
+        if (is_string($reference['reason'] ?? null)) {
+            return $reference['reason'];
+        }
+
+        return is_string($reference['owner'] ?? null) ? $reference['owner'] : 'no detail';
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function sourcePath(array $reference): ?string
+    {
+        $source = $reference['source'] ?? null;
+        if (!is_array($source)) {
             return null;
         }
+        $path = $source['path'] ?? null;
 
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($sessionsRoot),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-
-        return count($sessions) === 1 ? $sessions[0] : null;
+        return is_string($path) ? $path : null;
     }
 
-    /** @return array{0: string, 1: string} */
-    private function sessionStage(string $taskId, ?Session $session): array
+    /** @param array<string, mixed> $reference */
+    private function value(array $reference, string $key, string $fallback, string $prefix = ''): string
     {
-        if ($session === null) {
-            return ['missing', 'no single active session for ' . $taskId];
-        }
+        $value = $reference[$key] ?? null;
 
-        return [
-            $session->ephemeral ? 'ephemeral' : $session->status->value,
-            $session->id . ($session->ephemeral ? ' (an experiment; repository gates ignore it)' : ''),
-        ];
-    }
-
-    /** @return array{0: string, 1: string} */
-    private function workBriefStage(?Session $session): array
-    {
-        if ($session === null) {
-            return ['missing', 'needs a session first'];
-        }
-
-        $briefs = new WorkBriefStore();
-        $brief = $briefs->find($session);
-        if ($brief === null) {
-            return ['missing', 'no work brief on this session'];
-        }
-
-        $approval = $briefs->approval($session);
-        if ($brief->status === WorkBriefStatus::APPROVED && $approval !== null && $approval->workBriefRevision === $brief->revision) {
-            return ['approved', 'revision ' . $brief->revision . ' by ' . $approval->approvedBy];
-        }
-
-        return [$brief->status->value, 'revision ' . $brief->revision . ' awaits approval'];
-    }
-
-    /** @return array{0: string, 1: string} */
-    private function recallStage(string $taskId): array
-    {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
-        $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
-
-        return is_file($path) ? ['compiled', $relative] : ['missing', 'no briefing at ' . $relative];
+        return is_string($value) && $value !== '' ? $prefix . $value : $fallback;
     }
 
     /**
-     * An edit bundle is optional - plenty of tasks never run `edit` - but once one exists, close
-     * demands a passing verification, so the two are reported as one stage.
-     *
-     * @return array{0: string, 1: string}
+     * @param list<string> $tokens
+     * @return 'text'|'json'
      */
-    private function editStage(string $taskId): array
+    private function parseFormat(array $tokens): string
     {
-        $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
-        if (!is_dir($bundle)) {
-            return ['none', 'no edit bundle; nothing to verify'];
+        $format = 'text';
+        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
+            $token = $tokens[$index];
+            if (str_starts_with($token, '--format=')) {
+                $format = $this->format(substr($token, strlen('--format=')));
+
+                continue;
+            }
+            if ($token !== '--format') {
+                throw new InvalidArgumentException('Unknown option: ' . $token);
+            }
+            if (!isset($tokens[$index + 1])) {
+                throw new InvalidArgumentException('--format requires text or json.');
+            }
+            $format = $this->format($tokens[++$index]);
         }
 
-        $resultFile = $bundle . '/verification-result.json';
-        if (!is_file($resultFile)) {
-            return ['unverified', '.agent-loop/edit/' . $taskId . ' has no verification-result.json'];
-        }
-
-        $decoded = json_decode((string) file_get_contents($resultFile), true);
-        $status = is_array($decoded) && is_string($decoded['status'] ?? null) ? $decoded['status'] : null;
-        if ($status === null) {
-            return ['unreadable', 'verification-result.json has no status'];
-        }
-
-        return [$status === 'passed' ? 'verified' : $status, '.agent-loop/edit/' . $taskId];
+        return $format;
     }
 
-    /** @return array{0: string, 1: string} */
-    private function reviewStage(string $taskId): array
+    /** @return 'text'|'json' */
+    private function format(string $value): string
     {
-        $reader = new WorkflowReviewReportReader($this->rootPath);
-        $report = $reader->read($taskId);
-        $relative = $reader->relativePath($taskId);
-        if (!$report['exists']) {
-            return ['missing', 'no report at ' . $relative];
-        }
-        if ($report['invalid']) {
-            return ['invalid', $relative . ' is not valid JSON'];
+        $format = strtolower(trim($value));
+        if (!in_array($format, ['text', 'json'], true)) {
+            throw new InvalidArgumentException('--format must be text or json.');
         }
 
-        return [is_string($report['status']) ? $report['status'] : 'unknown', $relative];
-    }
-
-    /** @return array{0: string, 1: string} */
-    private function learningStage(?Session $session): array
-    {
-        if ($session === null) {
-            return ['missing', 'needs a session first'];
-        }
-
-        $decision = (new LearningDecisionStore())->find($session);
-
-        return $decision === null
-            ? ['missing', 'no learning decision recorded']
-            : [$decision->decision->value, 'recorded by ' . $decision->decidedBy];
-    }
-
-    /**
-     * @param array<string, array{0: string, 1: string}> $stages
-     */
-    private function nextCommand(string $taskId, array $stages): string
-    {
-        return match (true) {
-            $stages['Session'][0] === 'missing' => 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..."',
-            $stages['Session'][0] === 'ephemeral' => 'agent-loop session close <session-id> --status dropped',
-            $stages['Work brief'][0] !== 'approved' => 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>',
-            $stages['Recall'][0] === 'missing' => 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>',
-            $stages['Edit bundle'][0] === 'unverified' => 'agent-loop edit verify --bundle=.agent-loop/edit/' . $taskId,
-            $stages['Review'][0] === 'missing' => 'agent-loop review blindspots ' . $taskId,
-            $stages['Learning'][0] === 'missing' => 'agent-loop session learning decide <session-id> --by <actor> --status findings_recorded',
-            default => 'agent-loop workflow close ' . $taskId . ' --status done',
-        };
+        return $format;
     }
 }
