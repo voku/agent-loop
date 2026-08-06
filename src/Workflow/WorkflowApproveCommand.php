@@ -51,6 +51,11 @@ final readonly class WorkflowApproveCommand
                 }
                 $session = $this->activeSession($taskId->value);
                 echo "[OK] workflow approve: work brief revision approved for {$taskId->value}\n";
+
+                $archive = (new WorkflowRecallOutputSuperseder($this->rootPath))->archiveIfPresent($taskId->value);
+                if ($archive !== null) {
+                    echo "[OK] workflow approve: superseded recall output archived at {$archive}\n";
+                }
             } else {
                 echo "[OK] workflow approve: current work brief revision was already approved; resuming recall compilation\n";
             }
@@ -110,7 +115,11 @@ final readonly class WorkflowApproveCommand
 
             return 0;
         } catch (RuntimeException $exception) {
-            fwrite(\STDERR, '[FAIL] workflow approve: ' . $exception->getMessage() . "\n");
+            fwrite(
+                STDERR,
+                '[FAIL] workflow approve: ' . $exception->getMessage()
+                . "\n[ACTION REQUIRED] Inspect agent-loop workflow status {$taskId->value} --format=json and rerun workflow approve after repair.\n",
+            );
 
             return 1;
         } catch (Throwable $exception) {
