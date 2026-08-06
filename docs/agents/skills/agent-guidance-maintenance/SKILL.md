@@ -1,108 +1,118 @@
 ---
 name: agent-guidance-maintenance
-description: Maintain repo-managed agent skills, shared docs, metadata roots, and migration-safe validation while keeping concise behavior guidance separate from raw tool evidence.
+description: Maintain package-owned and host-owned agent skills, hooks, docs, sync targets, dogfood evidence, and migration-safe validation.
 ---
 
 # Agent Guidance Maintenance
 
-Use this skill for repository-managed agent guidance: skills, shared docs,
-validation flow, client sync targets, and host-repository migration notes.
+Use this skill for repository-managed agent guidance: skills, hooks, shared docs,
+validation, client synchronization, installation, and host migration notes.
+Apply `agent-loop-discipline` to implementation work and
+`agent-loop-dogfood` when behavior or hook semantics change.
 
 ## Fast Path
 
-1. Edit the canonical source under `docs/agents/skills/` or `docs/agents/`.
+1. Edit the canonical source under `docs/agents/` or typed runtime under `src/`.
 2. Keep the change scoped to the guidance contract.
-3. Update executable help and tests when public `init` behavior changes.
-4. Validate the source layout and dry-run client synchronization.
-5. Run `init doctor` when path, migration, or setup guidance changes.
-6. Update README, changelog, or migration notes when the public contract changes.
-7. Audit the resulting guidance for contradictory instructions and lossy evidence
-   handling.
-
-Use `agent-loop-php-discipline` for PHP changes. Caveman-style brevity may shape
-human-facing replies. Ponytail-style minimalism may shape implementation. Neither
-may rewrite shell commands, source files, diffs, test output, or verification
-artifacts.
+3. Update executable help and focused tests when public `init` behavior changes.
+4. Run the local dogfood case before broad validation.
+5. Validate canonical assets and dry-run package installation.
+6. Test a clean installed Composer consumer when package-owned assets change.
+7. Update README, changelog, notices, and dogfood notes when the public contract
+   or provenance changes.
+8. Audit for contradictory instructions, duplicate skills, remote bootstraps,
+   lossy evidence handling, and unverified claims.
 
 ## Canonical Files
 
 - `docs/agents/skills/`;
+- `docs/agents/codex-hooks/`;
 - `docs/agents/INFO_Agents.md`;
-- `docs/agents/migration/`;
-- `README.md`;
-- `CHANGELOG.md`;
+- `docs/agents/dogfood/`;
+- `docs/agents/THIRD_PARTY_NOTICES.md`;
+- `src/AgentGuidance/`;
 - `src/Init/`;
-- `tests/Init*`.
+- `tools/agent-discipline-dogfood.php`;
+- `tests/AgentDisciplineHookTest.php`;
+- `tests/InitInstallAssetsCommandTest.php`;
+- `README.md`, `CHANGELOG.md`, and `.github/workflows/ci.yml`.
 
-Do not begin by editing generated client copies such as `.codex/`,
-`.github/skills/`, or another installed target. Change the canonical source,
-validate it, then sync it.
+Do not begin with generated copies under `.codex/`, `.claude/`, `.github/`, or
+`.agents/`. Update the canonical package or host source, validate it, then use
+`install-assets` or `sync-*`.
+
+## Package-owned Versus Host-owned
+
+- `init install-assets` always reads the assets shipped inside the installed
+  `voku/agent-loop` package.
+- `init sync-skills`, `sync-subagents`, and `sync-hooks` read the host's resolved
+  canonical roots and support config/CLI overrides.
+- Both paths use target manifests and refuse unmanaged overwrites unless the
+  caller explicitly chooses `--force` or `--adopt-existing`.
+
+Do not make `install-assets` honor a host override for its source. That would
+turn an immutable package-install command into another ambiguous sync command.
 
 ## Guidance Rules
 
-- Describe behavior that exists now. Mark reserved or planned behavior clearly.
-- Keep CLI precedence explicit: command-line option, repository config, then
-  portable default.
-- Keep Google client aliases mapped through canonical `antigravity` behavior.
-- Prompt `rg` installation and `rg --version` verification before relying on
-  `rg`-first search.
-- Treat source, diffs, command output, and generated verification files as raw
-  evidence.
-- Summaries may help humans navigate evidence; they must not replace it.
-- Reject command-rewriting or output-compression guidance that can hide changed
-  lines, alter redirected file contents, or corrupt harness-managed artifacts.
-- Keep concise communication guidance separate from implementation-minimization
-  guidance. They solve different problems.
-- Keep target-manifest safety explicit so `sync-*` removes only stale managed
-  entries.
+- Describe behavior that exists now; label future work explicitly.
+- Keep human attention, implementation complexity, context size, and raw
+  evidence as separate concerns.
+- Use `agent-map` for bounded navigation; never dump generated indexes into a
+  prompt.
+- Preserve source, full diffs, command output, tests, and verification artifacts.
+- Reject command rewriting or output compression that can hide lines or alter
+  redirected files.
+- Keep package ownership explicit across the focused `agent-*` repositories.
+- Use concise grammatical prose; do not replace clarity with fragments.
+- Keep installation offline and package-owned. No remote script, repository
+  clone, marketplace, or runtime dependency may enter the init path silently.
+- Keep target-manifest safety explicit.
 
-## Migration Notes
+## Hook Changes
 
-When adapting a host workflow:
+Codex hook output must be checked against both the current schema and parser
+semantics. In particular, `PreToolUse` pass-through returns no artificial
+permission decision and no rewritten input; a denial uses a non-empty reason and
+continues hook processing.
 
-- preserve the real source path and wrapper shape in the migration note;
-- separate current `agent-loop init` capabilities from future work;
-- prefer repeatable `sync` wording over one-off copying;
-- inspect whether generated or redirected output is expected to remain byte
-  complete;
-- document Docker, Make, shell, and bind-mount boundaries without inserting a
-  lossy proxy between the agent and the underlying evidence;
-- use dedicated agent-facing targets only when they expose a real repeated
-  workflow, not merely to manufacture another abstraction.
+Keep hook entrypoints thin. Put behavior in typed PHP under `src/` so PHPUnit and
+PHPStan can test the same logic the hook executes.
+
+## Dogfood
+
+For every behavior change:
+
+1. choose a real bounded task or hook case;
+2. keep baseline and candidate inputs equivalent;
+3. change one mechanism at a time;
+4. measure observable artifacts;
+5. rerun the same case after every fix;
+6. record failures, not only the final green result.
+
+Do not claim saved reasoning tokens or counterfactual code size without actual
+telemetry and a valid baseline.
 
 ## Hard Constraints
 
-When a reviewed learning is statically verifiable, prefer an executable
-constraint over a memory-only sentence:
-
-1. implement the smallest PHPStan rule or coding-standard check that proves the
-   requirement;
-2. register it in the active constraints metadata;
-3. regenerate required bootstrap or autoload files;
-4. baseline only verified legacy violations while preventing new ones;
-5. test both a failing and accepted example;
-6. sweep the full eligible backlog rather than enforcing only the newest item.
-
-Do not turn subjective style preferences into noisy static-analysis rules. A
-hard constraint must protect a real property.
+When a reviewed lesson is statically verifiable, prefer the smallest executable
+constraint that protects a real property. Register it, test failing and accepted
+examples, and baseline only verified legacy violations. Do not convert
+subjective style preferences into noisy PHPStan rules.
 
 ## Validation
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
+vendor/bin/agent-loop init install-assets --agent=codex --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
 vendor/bin/agent-loop init doctor
-vendor/bin/phpunit --filter 'Init|DispatcherTest'
+composer dogfood:discipline
+vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|DispatcherTest'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+composer ci
 ```
 
-Run the repository formatter or `composer ci` when defined. Never report a
-command as passed unless it ran and its exit code was observed.
-
-## Skill Boundary
-
-This skill owns canonical agent guidance, init-facing setup and sync contracts,
-migration notes, and validation of repo-managed assets.
-
-It does not own unrelated product code, generated client copies as the source of
-truth, speculative abstractions, or transformation of raw evidence.
+The clean installed-consumer CI scenario is required when package assets or
+`install-assets` change. Never report a command as passed unless its exit code
+was observed.
