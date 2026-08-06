@@ -28,7 +28,7 @@ final class WorkflowManifestCommandTest extends TestCase
     {
         $before = $this->files();
 
-        [$exit, $output] = $this->run(['ABC-123']);
+        [$exit, $output] = $this->invoke(['ABC-123']);
 
         self::assertSame(0, $exit);
         self::assertStringContainsString('task:ABC-123:legacy', $output);
@@ -36,28 +36,30 @@ final class WorkflowManifestCommandTest extends TestCase
         self::assertSame($before, $this->files());
     }
 
-    public function testWritePersistsTheCurrentProjectionAndJsonExposesStorageState(): void
+    public function testWritePersistsTheCurrentProjectionAndBothJsonFormsExposeStorageState(): void
     {
-        [$writeExit, $writeOutput] = $this->run(['ABC-123', '--write']);
+        [$writeExit, $writeOutput] = $this->invoke(['ABC-123', '--write']);
 
         self::assertSame(0, $writeExit);
         self::assertStringContainsString('Manifest:  current', $writeOutput);
         self::assertFileExists($this->root . '/.agent-loop/runs/ABC-123/manifest.json');
 
-        [$jsonExit, $jsonOutput] = $this->run(['ABC-123', '--format', 'json']);
-        $decoded = json_decode($jsonOutput, true, 512, JSON_THROW_ON_ERROR);
+        foreach ([['--format', 'json'], ['--format=json']] as $formatArgs) {
+            [$jsonExit, $jsonOutput] = $this->invoke(['ABC-123', ...$formatArgs]);
+            $decoded = json_decode($jsonOutput, true, 512, JSON_THROW_ON_ERROR);
 
-        self::assertSame(0, $jsonExit);
-        self::assertSame('current', $decoded['storage']['state']);
-        self::assertSame('legacy_inferred', $decoded['manifest']['mode']);
-        self::assertSame('ABC-123', $decoded['manifest']['task_id']);
+            self::assertSame(0, $jsonExit);
+            self::assertSame('current', $decoded['storage']['state']);
+            self::assertSame('legacy_inferred', $decoded['manifest']['mode']);
+            self::assertSame('ABC-123', $decoded['manifest']['task_id']);
+        }
     }
 
     /**
      * @param list<string> $args
      * @return array{0: int, 1: string}
      */
-    private function run(array $args): array
+    private function invoke(array $args): array
     {
         ob_start();
         $exit = (new WorkflowManifestCommand($this->root))->run($args);
