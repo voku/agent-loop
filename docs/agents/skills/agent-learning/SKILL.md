@@ -1,163 +1,134 @@
 ---
 name: agent-learning
-description: Capture reusable lessons about agent-loop workflow, validation, and migration boundaries before promoting them into durable agent guidance.
+description: Capture reusable lessons about agent-loop workflow, validation, migration, evidence integrity, and PHP implementation discipline before promoting them into durable guidance.
 ---
 
 # Agent Learning
 
-Use this skill to turn a completed implementation or migration pass into
-reviewable guidance updates for `agent-loop` itself, without over-promoting
-one local fix into a broad rule.
+Use this skill after implementation or migration work exposes a reusable lesson
+for `agent-loop` or another `agent-*` package. Keep the lesson evidence-backed,
+bounded, and placed in the guidance surface that owns it.
 
 ## Fast Path
 
-For a normal post-task learning pass:
+1. Check whether the lesson already exists in README, changelog,
+   `docs/agents/`, or `docs/workflow/`.
+2. Search local history with `ctx` only when prior decisions or failed attempts
+   materially affect the conclusion.
+3. Sweep the complete validated backlog, not only findings from the current
+   session.
+4. Cluster findings by owning workflow or package boundary.
+5. Promote each lesson to the lowest durable mechanism that solves the verified
+   problem: existing doc, existing skill, new focused skill, or executable
+   constraint.
+6. Validate the affected behavior and name any deliberate residual backlog.
 
-1. Check whether the lesson is already captured in `README.md`, `CHANGELOG.md`, `docs/agents/`, or `docs/workflow/`.
-2. Search local agent history with `ctx` when prior sessions may contain relevant decisions, failed attempts, or validation context.
-3. Keep the lesson bounded to one reusable workflow or migration seam.
-4. Prefer updating an existing skill or doc over creating a new broad rule.
-5. Validate the affected command or docs path after the change.
-6. Record the migration seam in `docs/agents/migration/` when the lesson comes from a real host repository.
+## Learning Discipline
 
-## Loop Discipline
+### Sweep the whole backlog
 
-A learning / distillation pass is **not** scoped to the current session's
-findings. It is the recurring failure mode, so guard against it explicitly:
+Use the learning registry and backlog gate to enumerate every validated,
+unconsolidated item. Completion means the residual is zero or every deferred
+item is named with a reason. Handling only the latest findings is not a pass; it
+is merely recency bias wearing a checklist.
 
-1. **Sweep the whole backlog, not just recent items.** Enumerate every
-   unconsolidated / validated finding from the registry (the guidance-evaluate
-   projection and the registry listing), not only the ones produced this
-   session. Cluster them by domain and process every cluster. "I handled the
-   latest findings" is not completion — the operator having to say "do it again
-   for *all* the learnings" means this step was skipped.
-2. **Confirm the residual is zero or named — deterministically.** Do not eyeball
-   completeness. Run the learning engine's backlog gate (`agent-learning backlog`,
-   exposed by `voku/agent-learning`), which exits non-zero while any validated
-   finding is still unconsolidated. End the pass either with that gate green, or
-   with an explicit list of which backlog items are deliberately deferred and why.
-3. **Climb the value ladder.** A finding becomes real value only when it lands
-   at the right rung: raw finding → durable memory / guidance → (when the
-   pattern is statically analyzable) a hard constraint. Leaving a memory row for
-   a rule a custom static-analysis rule could enforce stops short of the value.
-4. **Stay on the stated objective.** The deliverable of this pass is guidance:
-   memories, hard constraints, and updated skills. Do not drift into unrelated
-   product / feature commits; if product code must change, that is a separate
-   task with its own review.
-5. **Do not sleep-poll background work.** When validation or analysis runs in
-   the background, continue other loop steps and rely on the completion signal;
-   use at most one long fallback wake, never a chain of short timers.
+### Climb the value ladder
 
-## Skill Boundary
+A finding may become:
 
-This skill owns:
+```text
+raw finding
+  -> reviewed guidance or durable memory
+  -> executable constraint when the property is statically verifiable
+```
 
-- learning from `agent-loop` workflow and `init` dogfooding
-- learning from host-repo migration seams that should become portable guidance
-- deciding whether a lesson belongs in `docs/agents/`, `docs/workflow/`, README, or changelog
+Do not stop at a memory row when a small PHPStan rule can reliably prevent the
+same defect. Do not create a static-analysis rule for subjective advice that
+cannot be checked without noise.
 
-This skill does not own:
+### Preserve evidence
 
-- changing host-repo product logic
-- inventing durable rules without current repo evidence
-- treating reserved `sync-*` commands as already solved
+Source files, diffs, command output, test output, and generated verification
+artifacts are evidence. Do not compress or rewrite them before evaluation.
 
-## Canonical Files
+A human-facing summary may be concise, but it must point to complete evidence.
+When a harness redirects or truncates output into a file, read the stored file as
+the source of truth and verify size, line count, or hash when completeness
+matters.
 
-- `docs/agents/skills/agent-guidance-maintenance/SKILL.md`
-- `docs/agents/INFO_Agents.md`
-- `docs/agents/migration/`
-- `docs/workflow/learning-boundary.md`
-- `README.md`
-- `CHANGELOG.md`
-- `src/Init/`
-- `tests/Init*`
+The reusable lesson is not "make every tool output shorter." The useful split
+is:
 
-## When To Use
+- reduce filler in agent communication so humans can review it;
+- reduce unrequested implementation through YAGNI and existing-code reuse;
+- keep machine and repository evidence exact.
 
-Use this skill when the task:
+### Stay on the objective
 
-- exposed a reusable `init` validation or migration lesson
-- showed a gap between current behavior and the docs
-- imported real host-repo practices that should shape future `agent-loop` features
+A learning pass produces guidance, memory decisions, and executable constraints.
+Do not drift into unrelated product features. Product changes require their own
+brief, evidence, and review.
 
-Do not use this skill when the change is routine and teaches nothing beyond
-one narrow local edit.
-
-## Workflow
-
-### 1. Check existing guidance first
+## Existing Guidance First
 
 Inspect:
 
-- `docs/agents/INFO_Agents.md`
-- the relevant skill under `docs/agents/skills/`
-- `docs/agents/migration/...`
-- `README.md`
+- `docs/agents/INFO_Agents.md`;
+- the relevant skill under `docs/agents/skills/`;
+- `docs/agents/migration/`;
+- `docs/workflow/learning-boundary.md`;
+- `README.md`;
+- `CHANGELOG.md`.
 
-If the rule already exists, refine the existing home instead of creating a
-duplicate note.
+Refine the existing home instead of creating duplicate rules with slightly
+different wording, humanity's traditional route to documentation entropy.
 
-### 2. Keep the lesson specific
-
-Good lessons:
-
-- point to a real command, path, or migration seam
-- include current-state verification
-- explain whether the behavior works now or is still reserved
-- prompt ripgrep (`rg`) installation/verification when the lesson assumes `rg`-first search
-- distinguish shell-boundary RTK help from deeper nested Make/Docker noise
-
-Weak lessons:
-
-- generic advice with no command or file anchor
-- host-specific behavior presented as the portable default
-
-### 3. Use ctx as evidence discovery, not durable memory
-
-When prior local sessions may matter:
+## Historical Context
 
 ```bash
 ctx search "<task / migration / failure / command>"
 ctx show event <ctx-event-id> --window 5
 ```
 
-Inspect the focused event or session before using it. ctx can explain what
-happened before; it does not validate a rule by itself. If the host learning
-root supports `agent_history_reference`, record only ctx IDs, query, retrieval
-time, reviewed summary, and verification status. Do not paste raw transcripts
-or secret-shaped strings into guidance.
+History helps explain what happened. It does not prove current behavior. Record
+only bounded references: event IDs, query, retrieval time, reviewed summary,
+and verification status. Never paste raw transcripts or secrets into durable
+guidance.
 
-### 4. Validate the claimed behavior
+## Promotion Targets
 
-Use the smallest proof that matches the lesson:
+- `docs/agents/skills/...` for repeatable agent behavior;
+- `agent-loop-php-discipline` for concise communication, minimal PHP changes,
+  package ownership, and raw evidence integrity;
+- `docs/agents/INFO_Agents.md` for shared operational guidance;
+- `docs/agents/migration/...` for host-specific migration seams;
+- `docs/workflow/...` for lifecycle and learning boundaries;
+- README for public behavior;
+- changelog for released or unreleased changes;
+- PHPStan or coding-standard rules for precise executable constraints.
+
+Keep lessons specific. Good guidance names a command, path, consumer, or
+failure boundary and states how it was verified. Generic slogans without a
+proof seam are decoration.
+
+## Validation
+
+Use the smallest check that proves the claimed behavior, then repository gates:
 
 ```bash
-php bin/agent-loop init doctor
-php bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init doctor
+vendor/bin/agent-loop init validate --kind=skills
 vendor/bin/phpunit --filter 'Init|DispatcherTest'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 ```
 
-### 5. Promote into the owning guidance file
+Use `composer ci` and the repository formatter when defined. Do not claim a pass
+without observing the command and exit code.
 
-Promotion targets:
+## Skill Boundary
 
-- `docs/agents/skills/...` for repeatable agent workflow behavior (and, if the learning is statically-analyzable, implement a custom static analysis rule like PHPStan/phpcs and register it in the active constraints registry — see Loop Discipline: do this across the full eligible backlog, not only the newest lesson)
-- `docs/agents/INFO_Agents.md` for shared operational guidance
-- `docs/agents/migration/...` for host-repo migration notes
-- `README.md` for public package behavior
-- `CHANGELOG.md` for released or unreleased package changes
+This skill owns reusable learning from agent-loop workflow, init dogfooding,
+agent-package boundaries, validation, evidence handling, and host migrations.
 
-## Validation
-
-- `php bin/agent-loop init doctor`
-- `php bin/agent-loop init validate --kind=skills`
-- `vendor/bin/phpunit --filter 'Init|DispatcherTest'`
-- `vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M`
-
-## Example Triggers
-
-- "This workaround should become portable guidance."
-- "Capture what we learned from migrating private agent wrappers to init."
-- "Make sure the docs match what init actually does today."
+It does not own unrelated product logic, invented durable rules, automatic
+memory promotion, or lossy transformation of evidence.
