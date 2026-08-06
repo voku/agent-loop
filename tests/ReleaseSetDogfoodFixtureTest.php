@@ -53,9 +53,10 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         mkdir($this->temporaryRoot . '/.agent-loop', 0o775, true);
         copy($fixture, $this->temporaryRoot . '/.agent-loop/init.json');
 
-        $config = (new InitConfigLoader())->load($this->temporaryRoot);
+        $config = (new InitConfigLoader($this->temporaryRoot))->load('.agent-loop/init.json');
 
-        self::assertSame('recall', $config->recallRoot);
+        self::assertSame([], $config['warnings']);
+        self::assertSame('recall', $config['paths']['recall_root'] ?? null);
     }
 
     public function testFixtureEditIsExactAndDeterministic(): void
