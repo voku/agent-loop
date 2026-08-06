@@ -28,7 +28,10 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
     public function testRunnerAndFixturePhpFilesPassPhpLint(): void
     {
         $repositoryRoot = dirname(__DIR__);
-        $files = [$repositoryRoot . '/tools/release-set-dogfood.php'];
+        $files = [
+            $repositoryRoot . '/tools/agent-discipline-dogfood.php',
+            $repositoryRoot . '/tools/release-set-dogfood.php',
+        ];
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(
                 $repositoryRoot . '/tests/fixtures/release-set-consumer',
