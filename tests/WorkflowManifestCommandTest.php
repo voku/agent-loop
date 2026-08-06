@@ -49,6 +49,7 @@ final class WorkflowManifestCommandTest extends TestCase
             $decoded = json_decode($jsonOutput, true, 512, JSON_THROW_ON_ERROR);
 
             self::assertSame(0, $jsonExit);
+            self::assertIsArray($decoded);
             self::assertSame('current', $decoded['storage']['state']);
             self::assertSame('legacy_inferred', $decoded['manifest']['mode']);
             self::assertSame('ABC-123', $decoded['manifest']['task_id']);
