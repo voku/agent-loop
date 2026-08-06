@@ -19,3 +19,33 @@ jobs:
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
       - run: composer ci
+
+  release-set-dogfood:
+    name: Installed release-set dogfood
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Lint dogfood runner
+        run: php -l tools/release-set-dogfood.php
+      - name: Run clean consumer lifecycle
+        run: >-
+          php tools/release-set-dogfood.php
+          --workspace=${{ runner.temp }}/agent-loop-release-set
+          --report=${{ github.workspace }}/build/release-set-report.json
+          --keep
+      - name: Upload release-set evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-set-dogfood-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/release-set-report.json
+            ${{ runner.temp }}/agent-loop-release-set/artifacts
