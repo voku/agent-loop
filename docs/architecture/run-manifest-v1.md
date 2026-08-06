@@ -1,6 +1,6 @@
 # Run manifest v1
 
-Status: first executable slice for [agent-loop#19](https://github.com/voku/agent-loop/issues/19)
+Status: executable integration contract for [agent-loop#19](https://github.com/voku/agent-loop/issues/19)
 
 ## Purpose
 
@@ -28,12 +28,20 @@ vendor/bin/agent-loop workflow manifest ABC-123
 # Stable machine output.
 vendor/bin/agent-loop workflow manifest ABC-123 --format=json
 
-# Atomically persist the current projection.
+# Explicit repair or migration write.
 vendor/bin/agent-loop workflow manifest ABC-123 --write
 ```
 
-Persistence is explicit. Status and diagnostic reads do not quietly modify the
-repository they are meant to observe.
+Status and diagnostic reads do not quietly modify the repository they are meant
+to observe. Successful workflow-owned transitions refresh the projection after
+the owning artifacts change:
+
+- PLAN writes the candidate brief projection;
+- APPROVE writes the approved projection before recall compilation and the
+  compiled projection after success;
+- CLOSE writes the final projection after the session closes.
+
+The explicit `--write` path remains the recovery and legacy-migration command.
 
 ## Location
 
@@ -78,6 +86,26 @@ observations authoritative.
 A later projection is rebuilt from those owners. Persisted manifest state is not
 silently pushed back into them.
 
+## Approval recovery
+
+Approval and recall compilation are separate state changes. The brief may be
+successfully approved while compilation fails because an input, provider or
+repository snapshot is invalid.
+
+`workflow approve` is therefore resumable:
+
+1. when the current brief revision is still a candidate, approve it;
+2. persist the approved-state projection;
+3. compile recall;
+4. persist the compiled-state projection;
+5. when step 3 fails, keep the approval and rerun the same command after repair;
+6. when the exact current revision is already approved, skip duplicate approval
+   and resume compilation.
+
+The command never invents a new brief revision merely to recover from a failed
+compiler invocation. Requiring a human to approve identical scope twice would
+produce more ceremony, not more governance.
+
 ## Legacy behavior
 
 A task without a manifest remains inspectable. The projector derives only the
@@ -107,7 +135,7 @@ artifact disagreement, but it is a blocking workflow result: the projection is
 `blocked` and never recommends or reports a successful close until the review is
 rerun after the underlying problem is addressed.
 
-## Write semantics
+## Write and failure semantics
 
 Manifest writes are:
 
@@ -121,12 +149,18 @@ projection and reports `missing`, `current`, or `stale`. A persisted manifest
 with an unsupported `schema_version` is not downgraded to one of those states:
 `read()` refuses it, the command emits the schema error and exits with code `1`.
 
+A transition writes domain state first because the focused package is the
+authority. If the following projection write fails, the command reports that the
+state already changed and names `workflow manifest <task-id> --write` or
+`workflow status <task-id> --format=json` as recovery. It never rolls domain
+state back from a failed derived-cache write.
+
 ## Current boundary
 
 This slice intentionally does not:
 
-- update the manifest automatically during every workflow transition;
-- make the manifest a close gate;
+- refresh the manifest after every non-workflow package mutation;
+- make the manifest itself a close gate;
 - parse durable learning history before `agent-learning` exposes its run-linked inspection contract;
 - replace package-owned readiness/reference APIs planned in the focused repositories;
 - hide missing, stale or unsupported state behind a best-effort green result.
