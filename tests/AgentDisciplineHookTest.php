@@ -37,13 +37,12 @@ final class AgentDisciplineHookTest extends TestCase
 
     public function testRawDiffIsAllowedWithoutInputRewrite(): void
     {
-        $output = $this->preTool('git diff --no-ext-diff');
+        $this->assertPassThrough('git diff --no-ext-diff');
+    }
 
-        self::assertTrue($output['continue']);
-        self::assertSame('PreToolUse', $output['hookSpecificOutput']['hookEventName']);
-        self::assertArrayNotHasKey('permissionDecision', $output['hookSpecificOutput']);
-        self::assertArrayNotHasKey('updatedInput', $output['hookSpecificOutput']);
-        self::assertArrayNotHasKey('suppressOutput', $output);
+    public function testResearchAboutReplacedAddonsIsAllowed(): void
+    {
+        $this->assertPassThrough("rg 'JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk' docs CHANGELOG.md");
     }
 
     public function testUnboundedMapDumpIsDeniedWithBoundedAlternatives(): void
@@ -92,6 +91,17 @@ final class AgentDisciplineHookTest extends TestCase
         $this->expectExceptionMessage('not valid JSON');
 
         $this->hook()->preToolUseOutput('{broken');
+    }
+
+    private function assertPassThrough(string $command): void
+    {
+        $output = $this->preTool($command);
+
+        self::assertTrue($output['continue']);
+        self::assertSame('PreToolUse', $output['hookSpecificOutput']['hookEventName']);
+        self::assertArrayNotHasKey('permissionDecision', $output['hookSpecificOutput']);
+        self::assertArrayNotHasKey('updatedInput', $output['hookSpecificOutput']);
+        self::assertArrayNotHasKey('suppressOutput', $output);
     }
 
     /**
