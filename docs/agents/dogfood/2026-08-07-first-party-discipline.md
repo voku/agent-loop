@@ -17,27 +17,26 @@ agent behavior that:
 ## Source review
 
 Direct `git clone` was attempted first and failed because the execution
-container had no DNS/network access. The relevant upstream repository files were
-then reviewed through the connected GitHub API at fixed commits:
+container had no DNS/network access. Relevant upstream files were then reviewed
+through the connected GitHub API at fixed commits:
 
 - Caveman: `ec83e5bace4c20484d704dea21e12fc4eb94e9aa`
 - Ponytail: `16f29800fd2681bdf24f3eb4ccffe38be3baec6b`
 
-Reviewed surfaces included their primary skills, configuration and activation
-hooks, mode parsers, subagent propagation, statistics, simplify-review/audit
-skills, debt ledger, tests, and published benchmark notes.
+Reviewed surfaces included primary skills, configuration and activation hooks,
+mode parsers, subagent propagation, statistics, simplify-review/audit skills,
+debt handling, tests, and published benchmark notes.
 
 ## Kept
 
 - persistent guidance at session and subagent start;
-- concise communication while preserving negation, exact terms, paths, numbers,
+- concise communication that preserves negation, exact terms, paths, numbers,
   commands, and errors;
 - a minimal implementation ladder applied after tracing the real code path;
 - root-cause changes after caller inspection;
 - a focused simplify-review separate from correctness and security review;
-- explicit boundaries where brevity or minimalism must yield to clarity and
-  safety;
-- measurement from observable artifacts rather than invented savings.
+- explicit points where brevity or minimalism must yield to clarity and safety;
+- observable artifact metrics instead of invented savings.
 
 ## Rejected
 
@@ -45,7 +44,7 @@ skills, debt ledger, tests, and published benchmark notes.
 - Node.js runtime code;
 - mode parsers, status lines, flag files, transcript scanning, and savings
   estimates;
-- client-specific adapters beyond the existing `agent-loop init` targets;
+- client-specific adapters beyond existing `agent-loop init` targets;
 - rewriting commands or tool output;
 - replacing full diffs with summaries;
 - claiming token or line savings without a real baseline.
@@ -79,52 +78,76 @@ its JSON schema. This exposed three invalid combinations in the prototype:
 - `suppressOutput:true` in `PreToolUse`;
 - `permissionDecision:allow` without `updatedInput`.
 
-The hook now leaves ordinary commands undecided and unchanged, and uses only
-`permissionDecision:deny` with a non-empty reason for the two guarded cases.
-The complete dogfood suite passed again.
+The hook now leaves ordinary commands undecided and unchanged. A denial uses
+only `permissionDecision:deny` with a non-empty reason and keeps hook processing
+alive.
 
-## Executed cases
+### Candidate 4
 
-`php tools/agent-discipline-dogfood.php` currently verifies:
+The first external-bootstrap matcher denied any command that merely mentioned an
+upstream repository. That would have blocked legitimate work such as:
+
+```bash
+rg 'JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk' docs CHANGELOG.md
+```
+
+The matcher was narrowed to actual download, package-install, plugin-install,
+script-execution, and `rtk init` forms. Research now passes unchanged while the
+replaced bootstraps remain denied.
+
+## Current repository gate
+
+`php tools/agent-discipline-dogfood.php` verifies ten checks:
 
 1. all three first-party skills and the hook definition exist;
 2. hook commands contain no remote URL;
 3. `SessionStart` injects the discipline context;
 4. `SubagentStart` receives the same map-first guidance;
 5. `git diff --no-ext-diff` remains allowed and receives no rewritten input;
-6. an unbounded dump of `.agent-map/php-symbols.json` is denied with bounded
+6. research about the replaced projects remains allowed and unchanged;
+7. an unbounded dump of `.agent-map/php-symbols.json` is denied with bounded
    `agent-loop map` alternatives;
-7. a Caveman/Ponytail remote bootstrap command is denied and points to
-   `agent-loop init install-assets`.
+8. a Caveman bootstrap is denied and points to `init install-assets`;
+9. a Ponytail bootstrap is denied and points to `init install-assets`;
+10. an RTK bootstrap is denied and points to `init install-assets`.
 
-Latest local result:
+## Latest executed local evidence
+
+The current `AgentDisciplineHook` source was materialized into an isolated local
+workspace and executed with PHP 8.4 after Candidate 4. PHP lint passed and eight
+current policy/context cases passed:
 
 ```json
 {
   "result": "passed",
-  "checks": 7,
-  "skill_lines": 99,
-  "skill_bytes": 3799,
-  "runtime_dependencies": 0,
-  "remote_installers": 0
+  "cases": 8
 }
 ```
 
-The local environment had PHP 8.4 but no Composer and no outbound network.
-Therefore the hook/runtime dogfood was executed locally, while the clean
-Composer-consumer installation is an explicit GitHub Actions scenario.
+Those cases covered session context, raw diff pass-through, upstream research
+pass-through, unbounded map denial, and Caveman, Ponytail, RTK-download, and
+`rtk init` denial.
+
+The earlier full runtime dogfood also validated the unchanged PHP hook
+entrypoints. The current repository gate is wired into `composer ci`; the clean
+non-symlinked Composer-consumer installation is wired into GitHub Actions.
+Neither Composer nor an Actions runner was available in the connector-only
+local environment, so those broader gates remain unclaimed until their exit
+codes are observed.
 
 ## Behavioral effect on this change
 
 The discipline changed the implementation path itself:
 
-- existing `sync-skills` and `sync-hooks` are reused instead of creating a new
+- existing `sync-skills` and `sync-hooks` are reused instead of adding another
   copy engine;
-- only one thin `install-assets` orchestrator is added;
-- the full external runtimes were rejected after inspection rather than ported;
+- only one thin `install-assets` orchestrator was added;
+- full external runtimes were rejected after inspection rather than ported;
 - the first skill draft was shortened after measuring its own size;
 - a schema-looking hook response was rejected after checking Codex's parser;
-- `agent-map` is treated as a navigation index, never as prompt material to dump.
+- an overbroad security matcher was narrowed after dogfood exposed a false
+  positive;
+- `agent-map` is treated as navigation state, never prompt material to dump.
 
-This is the intended loop: guidance changes the work, the work exposes a defect
-in the guidance, and the same case is rerun until the contract survives.
+This is the intended loop: guidance changes the work, the work exposes defects
+in the guidance, and the same cases are rerun until the contract survives.
