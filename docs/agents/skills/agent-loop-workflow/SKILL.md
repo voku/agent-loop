@@ -1,29 +1,35 @@
 ---
 name: agent-loop-workflow
-description: Use the governed agent-loop workflow for this repository, including when to prefer workflow start/status/close, when to drop to session or recall commands, and how init validation fits repo-managed agent guidance changes.
+description: Use the governed agent-loop workflow for this repository, including planning, approval, bounded context, validation evidence, review, learning decisions, and safe closure.
 ---
 
 # Agent Loop Workflow
 
-Use this skill when the task is about how to operate `agent-loop` itself:
-starting work, compiling recall context, running review and verify, closing a
-task safely, or updating the repo-managed agent guidance around that flow.
+Use this skill when operating or changing `agent-loop` itself: planning work,
+compiling recall, preparing bounded context, recording evidence, reviewing blind
+spots, closing a task, or changing repo-managed guidance.
+
+For PHP implementation work, apply `agent-loop-php-discipline` as well. It keeps
+the implementation minimal and the conversation concise without modifying raw
+source, diffs, command output, or verification artifacts.
 
 ## Fast Path
 
-For the normal governed loop:
+1. Search prior local agent history with `ctx` only when earlier decisions may
+   materially affect the task.
+2. Plan with an explicit goal, scope, non-goals, changed files, behavior anchors,
+   and exact validation commands.
+3. Present the candidate brief to a named human and approve that revision.
+4. Build a semantic map when compact source navigation matters.
+5. Render bounded workflow context.
+6. Implement the smallest correct change in the owning package.
+7. Record passed validation evidence against the current brief revision.
+8. Run blind-spot review, record recall outcomes, and make an explicit learning
+   decision.
+9. Run cross-package verification and inspect the workflow report.
+10. Close as `done` only when every gate passes.
 
-1. For non-trivial or repeated work, search prior local agent history with `ctx` if it is installed.
-2. Use `agent-loop workflow plan` with an explicit goal, scope, non-goals, and validation commands. For behavioral work, add `--behavior-anchor <text>` (repeatable) to name the real request, runtime, consumer, data, or integration seam that must be inspected or verified; omit it deliberately for documentation-only or static-only work. Add `--tag <label>` (repeatable) when the task is a cross-cutting concern that no path prefix describes well, so `recall-documents.json` entries or learnings registered under an unrelated directory can still be selected by shared tag instead of scope overlap.
-3. Present the candidate brief to a named human, then run `agent-loop workflow approve`.
-4. Build a map first when compact source locations matter, then inspect `agent-loop workflow context`.
-5. Do the implementation work and record only the decisions or checkpoints that matter.
-6. Record passed validation evidence against the current brief revision.
-7. Run `agent-loop review blindspots <task-id>`, record truthful recall outcomes, and make a learning decision.
-8. Run `agent-loop verify` and `agent-loop workflow report <task-id>`.
-9. Close with `agent-loop workflow close <task-id> --status done` only when every gate passes.
-
-If the task changed repo-managed agent guidance, also run:
+If repo-managed agent guidance changed, also run:
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
@@ -31,48 +37,10 @@ vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
 vendor/bin/agent-loop init doctor
 ```
 
-## Skill Boundary
-
-This skill owns:
-
-- how to use `workflow plan`, `workflow approve`, `workflow context`, `workflow status`, `workflow report`, and `workflow close`
-- when lower-level `session`, `recall`, `review`, `verify`, `learn`, and `memory` commands are the right seam
-- the boundary between workflow evidence and durable guidance
-- the current repo-managed guidance validation loop under `docs/agents/skills/`
-
-This skill does not own:
-
-- host-repo client-specific runtime assumptions beyond the documented `init` sync targets
-- pretending recall artifacts are auto-injected into an agent
-- durable-memory approval or auto-promotion
-
-## Canonical Files
-
-- `README.md`
-- `docs/workflow/learning-boundary.md`
-- `docs/agents/INFO_Agents.md`
-- `docs/agents/skills/agent-guidance-maintenance/SKILL.md`
-- `docs/agents/skills/agent-learning/SKILL.md`
-
-## When To Use
-
-Use this skill when the task:
-
-- asks how this repository's workflow is meant to be used
-- needs the correct command sequence for a governed task
-- changes workflow-facing docs or repo-managed skills
-- needs the boundary between workflow, review, learning, and memory stated clearly
-
-Do not use this skill for unrelated library implementation work.
-
-## Workflow
-
-### 1. Prefer the high-level workflow command first
-
-Default entrypoint:
+## Canonical Flow
 
 ```bash
-agent-loop workflow plan <task-id> \
+vendor/bin/agent-loop workflow plan <task-id> \
   --by <actor> \
   --learning-root <path> \
   --file <path> \
@@ -80,42 +48,55 @@ agent-loop workflow plan <task-id> \
   --behavior-anchor "request -> service -> persisted state" \
   --validation "vendor/bin/phpunit tests/FocusedTest.php"
 
-agent-loop workflow approve <task-id> --by <human-actor>
-agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
+vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
+
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop workflow context <task-id> \
+  --max-lines 120 \
+  --max-bytes 12000
 ```
 
-Use lower-level commands only when you need direct control:
+Use lower-level commands only when direct control is required:
 
-- `session` for working-memory records and checkpoints
-- `session validation record` for revision-bound execution evidence
-- `session learning decide` for the explicit outcome required before a `done` close
-- `recall compile` when debugging briefing inputs or output layout
-- `review blindspots` for the required review artifact before close
-- `verify` for the cross-package consistency gate
-- `learn` for findings and reviewed guidance work after the task
-- `memory review` for human durable-memory promotion review
-- `init sync-*` when the task changes repo-managed agent assets that must be copied into a client target
+- `session` for decisions and compact checkpoints;
+- `session validation record` for revision-bound execution evidence;
+- `session learning decide` for the explicit learning outcome required before a
+  successful close;
+- `recall compile` for debugging briefing inputs or output layout;
+- `review blindspots` for the required review artifact;
+- `verify` for cross-package consistency;
+- `learn` for findings and reviewed guidance proposals;
+- `memory review` for human promotion into durable memory;
+- `init sync-*` for copying canonical repo-managed assets into client targets.
 
-### 2. Keep the workflow boundary honest
+## Workflow Boundary
 
-- `workflow plan` starts/reuses session memory and records a candidate work brief; `workflow approve` seals that revision and compiles recall from it.
-- `workflow approve` records a named human's approval of that exact revision; a re-plan invalidates it.
-- `workflow context` is read-only and budgeted. It never rebuilds recall or a map.
-- `workflow start` remains the lower-level session-plus-recall entrypoint for hosts that deliberately do not use work briefs.
-- `workflow status` is read-only.
-- `workflow report` is read-only; pass observed changed paths explicitly because it does not run Git.
-- The L2 briefing labels material conclusions as `VERIFIED`, `INFERRED`, `ASSUMED`, `BLOCKED`, or `CONTRADICTED`. Treat foreign-agent feedback, review comments, and model explanations as hypotheses until current repository evidence, targeted history, or a safe runtime observation supports them.
-- `workflow close --status done` requires an approved current brief, passed evidence for its exact validation commands, recall metadata and outcomes for selected guidance, a blind-spot review, an explicit learning decision, and a passing `verify`.
-- Recall output is written to disk; it is not auto-injected into a coding agent.
-- Learning artifacts are not durable memory by default.
-- ctx hits are historical raw material, not recall output or durable memory.
+- `workflow plan` starts or reuses session memory and records a candidate brief.
+- `workflow approve` seals that exact revision and compiles recall from it.
+- Re-planning invalidates approval and validation evidence for the old revision.
+- `workflow context` is read-only and budgeted. It does not rebuild recall or a
+  semantic map.
+- `workflow status` and `workflow report` are read-only.
+- Pass observed changed paths explicitly to `workflow report`; it does not run
+  Git for you.
+- `workflow close --status done` requires a current approved brief, evidence for
+  its exact validation commands, recall outcomes, blind-spot review, an explicit
+  learning decision, and passing verification.
+- Recall artifacts are written to disk. They are not silently injected into a
+  coding agent.
+- Learning artifacts are not durable memory until reviewed and promoted.
+
+The L2 briefing labels claims as `VERIFIED`, `INFERRED`, `ASSUMED`, `BLOCKED`,
+or `CONTRADICTED`. Treat model explanations, review comments, and foreign-agent
+feedback as hypotheses until current repository evidence, focused history, or a
+safe runtime observation supports them.
 
 Read `docs/workflow/learning-boundary.md` when the task touches learning or
 memory promotion.
 
-### 3. Use ctx only as inspected historical evidence
+## Historical Evidence
 
-When prior sessions may matter:
+Use `ctx` as inspected historical evidence, never as automatic truth:
 
 ```bash
 ctx status
@@ -125,85 +106,106 @@ ctx show event <ctx-event-id> --window 5
 ```
 
 Inspect focused hits before relying on them. Do not paste raw transcripts into
-findings, reports, skills, or PR text. When ctx affects a finding, store only a
-bounded `agent_history_reference` with the ctx IDs, query, reviewed summary,
-retrieval time, and verification status.
+findings, skills, reports, or PR text. When history affects a finding, store only
+bounded references: IDs, query, reviewed summary, retrieval time, and
+verification status.
 
-### 4. Treat generated map output as disposable navigation state
+## Semantic Map
 
-When the task needs compact symbol locations, build the index before rendering
-workflow context:
-
-```bash
-agent-loop map build --paths=src,tests
-agent-loop map refresh
-agent-loop map stale
-agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
-```
-
-The default index is `.agent-map/php-symbols.json`. Ensure `.agent-map/` is
-ignored before building it. The index guides file/range selection; it is not
-source, durable memory, or an artifact to paste into a prompt.
-
-### 5. Use RTK at the shell boundary the agent actually sees
-
-Before documenting or relying on `rg`-first search guidance, verify ripgrep is
-installed:
+Generated map output is disposable navigation state:
 
 ```bash
-rg --version
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map refresh
+vendor/bin/agent-loop map stale
 ```
 
-First establish whether the client rewrites commands for you. A client with a
-`PreToolUse` hook (`rtk hook claude` in Claude Code's `settings.json`) rewrites
-ordinary commands already, so write them normally - hand-prefixing there adds
-nothing. A client without such a hook does not, so prefix by hand:
+The default index is `.agent-map/php-symbols.json`. Keep `.agent-map/` ignored.
+Use the index to select source ranges; do not treat it as source code, durable
+memory, or prompt material to copy wholesale.
+
+## Evidence Integrity And Human Attention
+
+Run repository commands normally. Do not place a lossy command or output
+rewriter between the agent and the evidence it must inspect.
+
+Keep these artifacts complete:
+
+- source files;
+- `git diff` and per-file patches;
+- test and static-analysis output;
+- generated verification files;
+- files written by a harness when it truncates or redirects large tool output.
+
+Concise summaries belong around evidence, not instead of it. A summary may tell
+the human what matters, but code review still reads the full diff and debugging
+still uses the exact decisive output.
+
+When a harness says large output was stored in a file, read that stored artifact
+as the source of truth. Do not transform it before reading. If completeness is
+material, compare the producing command's expected size, line count, or hash.
+
+For generated files in a bind-mounted repository, use a git-ignored repo-local
+scratch path such as `.agent-loop/tmp/` rather than copying the same file into
+the container. A real copy remains appropriate when the repository is not
+mounted.
+
+## Validation Evidence
+
+After each required command actually runs, record the exact result:
 
 ```bash
-rtk git status
-rtk test vendor/bin/phpunit --filter Init
-rtk err vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+vendor/bin/agent-loop session validation record <task-id> \
+  --brief-revision <current-revision> \
+  --command "vendor/bin/phpunit tests/FocusedTest.php" \
+  --status passed \
+  --exit-code 0 \
+  --by <actor>
 ```
 
-Read RTK's own usage reports with that difference in mind. `rtk discover` and
-`rtk learn` derive coverage from session transcripts, and a transcript records
-the command as the model emitted it - before any hook rewrote it. A rewritten
-command therefore looks unproxied, so a low coverage number is not by itself
-evidence of missed savings. Check both sides before acting on one:
+Never infer a pass from missing output, an agent summary, or an earlier brief
+revision.
+
+## Review And Close
 
 ```bash
-echo '{"tool_name":"Bash","tool_input":{"command":"grep -n foo bar.php"}}' | rtk hook claude
-rtk gain
+vendor/bin/agent-loop review blindspots <task-id>
+vendor/bin/agent-loop verify
+vendor/bin/agent-loop workflow report <task-id>
+
+vendor/bin/agent-loop session learning decide <task-id> \
+  --status no_durable_learning \
+  --by <actor> \
+  --reason "No reusable finding from this bounded task."
+
+vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-The first shows whether the command is rewritten at all, the second what really
-executed through RTK. The remaining opportunities are the commands discover
-lists as unhandled, and clients that have no hook.
+A learning decision records an outcome. It does not approve durable guidance.
 
-Do not copy generated files into a container that already bind-mounts the
-repository. When compose maps the project directory into the container, a file
-written into the repo tree from the host is reachable inside it under the same
-repo-relative path, so `docker cp` is an avoidable round trip - and it is one of
-the commands RTK does not filter. Write such files to a git-ignored scratch path
-in the repository (`.agent-loop/tmp/`) and pass that path to the container
-command. A copy stays correct for a container without the repository mount.
+## Skill Boundary
 
-If a host workflow hides noisy work behind `make`, `docker compose exec`, or a
-wrapper script, keep RTK guidance explicit in `AGENTS.md`, `README.md`, and
-agent-facing Make targets instead of assuming nested output will be compressed
-automatically.
+This skill owns:
+
+- the governed plan/approve/context/status/report/close flow;
+- the boundary between workflow evidence and durable guidance;
+- correct use of session, recall, review, verify, learning, and memory commands;
+- evidence-preserving operation of repo-managed guidance changes.
+
+It does not own:
+
+- client-specific runtime assumptions beyond documented `init` targets;
+- pretending recall or history is automatically injected;
+- approving durable memory;
+- rewriting tool output to make it shorter.
 
 ## Validation
 
-- `vendor/bin/agent-loop init validate --kind=skills`
-- `vendor/bin/agent-loop init validate --kind=all`
-- `vendor/bin/agent-loop init sync-skills --agent=codex --dry-run`
-- `vendor/bin/agent-loop init doctor`
-- `vendor/bin/phpunit --filter 'Init|DispatcherTest'`
-- `vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M`
-
-## Example Triggers
-
-- "How do I use the workflow of this project?"
-- "Which command sequence should I run before workflow close?"
-- "Document the right loop for session, recall, review, and verify."
+```bash
+vendor/bin/agent-loop init validate --kind=skills
+vendor/bin/agent-loop init validate --kind=all
+vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init doctor
+vendor/bin/phpunit --filter 'Init|DispatcherTest'
+vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+```
