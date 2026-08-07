@@ -50,7 +50,7 @@ final readonly class InitInstallAssetsCommand
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $hooksRoot = $packageRoot . '/docs/agents/codex-hooks';
         $installsSubagents = $agent->isAll()
-            || in_array($agent->canonicalName(), ['copilot', 'antigravity'], true);
+            || in_array($agent->canonicalName(), ['codex', 'copilot', 'antigravity'], true);
         $installsHooks = $agent->isAll() || $agent->canonicalName() === 'codex';
 
         if (!is_dir($skillsRoot)) {
