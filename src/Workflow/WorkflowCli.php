@@ -28,7 +28,7 @@ final readonly class WorkflowCli
             'help', '--help', '-h', '' => $this->printHelp(),
             'plan' => (new WorkflowPlanCommand($this->rootPath, $this->sessionRunner))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
-            'start' => (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
+            'start' => (new WorkflowStartCommand($this->rootPath, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
