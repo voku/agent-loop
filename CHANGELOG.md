@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.12.0 - 2026-08-07
+
+- `workflow manifest <task-id>` projects the run manifest v1 contract: the one
+  place that names the kanban card, session, work brief revision and approval,
+  map and search-index state, recall compilation and output hashes, edit bundle,
+  verification, review, and learning decision as a single related run. It is
+  read-only by default; `--write` persists the projection atomically, and
+  `--format=json` is the stable machine surface. Consumers previously had to
+  reconstruct that relationship from directory names and per-package
+  conventions. The manifest describes the owning artifacts, it does not replace
+  any of them. See `docs/architecture/run-manifest-v1.md`.
+- `workflow plan`, `workflow approve`, and `workflow close` refresh the manifest
+  at their transitions, so the projection is current without a separate command.
+  A refresh failure is reported as its own `[FAIL]` with the state that did
+  change and the `workflow manifest <task-id> --write` recovery step, rather
+  than being folded into the command's normal exit code.
+- `workflow status` is now rendered from that same projection and accepts
+  `--format text|json`. The joined view and the manifest can no longer disagree,
+  because there is only one projection left to disagree with.
+- `workflow approve` is safe to rerun. It detects that the current brief
+  revision is already approved and resumes at recall compilation instead of
+  approving twice, which previously turned a failed compile into a state that
+  could only be fixed by hand. Before a newly approved revision is compiled, the
+  superseded recall output is archived rather than overwritten, so a failed
+  recompile leaves the previous revision's evidence intact instead of a half-
+  written canonical directory.
+- The package now ships its own reviewed agent behavior and no longer points
+  agents at RTK. Installed skills: `agent-loop-discipline` (concise human-facing
+  communication, smallest correct change, bounded context, and the rule that raw
+  evidence is never compressed or rewritten), `agent-loop-investigate`,
+  `agent-loop-surgical-edit`, `agent-loop-code-review`,
+  `agent-loop-simplify-review`, `agent-loop-simplify-audit`, and
+  `agent-loop-dogfood`, plus three bounded roles - investigator, surgical
+  builder, code reviewer - for clients that expose a repository-local role
+  format. The mechanisms adapted from the MIT-licensed Caveman and Ponytail
+  projects, reviewed at fixed commits, are credited and mapped one by one in
+  `docs/agents/THIRD_PARTY_NOTICES.md`; the reasoning and the rejected
+  alternatives are in `docs/agents/dogfood/2026-08-07-first-party-discipline.md`.
+- `agent-loop init install-assets --agent=<agent|all>` installs those assets
+  from the Composer package with `--dry-run`, `--force`, and `--adopt-existing`.
+  Nothing is downloaded and nothing is configurable: the assets are immutable
+  and package-owned, which is what makes "the agent read the guidance we
+  shipped" a checkable claim. `init install-plan` is correspondingly now an
+  offline plan for those assets instead of a set of third-party installer
+  commands, and `init tools` no longer probes for `rtk`.
+- Codex gets native support rather than a translated approximation: roles are
+  rendered as Codex role TOML with the `name`, `description`, and
+  `developer_instructions` its config layer requires, and the bundled PHP hooks
+  supply discipline context on `SessionStart` and `SubagentStart` and a
+  `PreToolUse` policy on `Bash`. `init status`, `init validate`, and `init
+  sync-subagents` report and check those manifests.
+- Codex hook command validation rejected nothing after the hook path. A command
+  that matched `php .codex/hooks/context.php` was accepted with arbitrary
+  trailing shell content still attached. Only the exact
+  `--event=SessionStart|SubagentStart` suffix is accepted now.
+- Added the installed release-set gate (`tools/release-set-dogfood.php`), which
+  installs the `agent-*` packages as a clean Composer consumer and runs the
+  lifecycle against that installation - catching an installed package that loads
+  a sibling checkout or a nested `vendor/` tree, which package-local tests
+  structurally cannot see. `composer ci` also runs the new
+  `composer dogfood:discipline` behavioral gate. Documented in
+  `docs/testing/installed-release-set-gate.md` and
+  `docs/architecture/supported-release-set.md`.
+- Dependency constraints are unchanged.
+
 ## 0.11.0 - 2026-08-06
 
 - `workflow status` is now one joined lifecycle view instead of six independent

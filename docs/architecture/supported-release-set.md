@@ -2,7 +2,8 @@
 
 Status: initial compatibility baseline for
 [agent-loop#20](https://github.com/voku/agent-loop/issues/20)  
-Recorded: 2026-08-06
+Recorded: 2026-08-06  
+Updated: 2026-08-07 (root package baseline raised to `0.12.0` for run manifest v1)
 
 ## Purpose
 
@@ -16,7 +17,7 @@ gate must install and exercise.
 
 | Package | Baseline release | `agent-loop` constraint | Required baseline capability |
 | --- | ---: | --- | --- |
-| `voku/agent-loop` | `0.11.0` | root package | joined workflow status, ephemeral experiments, current lifecycle contract |
+| `voku/agent-loop` | `0.12.0` | root package | joined workflow status, run manifest v1 projection, ephemeral experiments, package-owned agent assets, current lifecycle contract |
 | `voku/agent-kanban` | `0.2.1` | `0.2.*` | typed board API, safe card mutations, deterministic verification/JSON |
 | `voku/agent-session` | `0.3.0` | `0.3.*` | revisioned briefs/approvals, validation evidence, explicit ephemeral sessions |
 | `voku/agent-map` | `0.4.1` | `^0.4.0` | semantic map, incremental refresh, hybrid search and Unicode-safe query planning |
