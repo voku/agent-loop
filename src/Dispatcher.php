@@ -97,8 +97,8 @@ final class Dispatcher
     {
         return (new WorkflowCli(
             $this->rootPath,
-            fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest)),
-            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath))->run(array_values($verifyRest)),
+            fn (array $recallRest): int => $this->dispatchRecall($scriptName, $recallRest),
+            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath))->run($verifyRest),
         ))->run($rest);
     }
 
