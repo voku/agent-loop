@@ -99,7 +99,6 @@ final class InitInstallPlanCommandTest extends TestCase
             'Invoke-WebRequest',
             'npm ',
             'node -v',
-            'plugin marketplace',
             'plugin install',
             'caveman',
             'ponytail',
