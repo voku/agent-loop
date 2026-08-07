@@ -6,20 +6,21 @@ The repository therefore keeps a first-party self-shaping scenario that runs the
 
 ## Evidence chain
 
-The durable source findings live under `infra/doc/agent-learning/findings/`:
+The validated source findings live under `infra/doc/agent-learning/findings/validated/`:
 
 - `finding.2026-08-07.001`: internal workflow orchestration through focused-package CLIs duplicated argv, path, default, and failure knowledge that typed package APIs already owned;
 - `finding.2026-08-07.002`: repository-under-development and installed-consumer execution have different binary entrypoints and must be tested separately;
 - `finding.2026-08-07.003`: final blind-spot acceptance requires complete close-out evidence and machine-readable status `ok`; process exit success alone may still represent `warn`;
-- `finding.2026-08-07.004`: candidate finding that CI should invoke a local self-shape runner and let that runner derive changed-file scope from Git;
-- `finding.2026-08-07.005`: project-specific PHPStan rules must be tested in an isolated PHPStan process because loading `PHPStan\\Testing\\RuleTestCase` into normal PHPUnit polluted the runtime used by agent-map's Composer-based PHPStan discovery.
+- `finding.2026-08-07.004`: GitHub Actions executes the local self-shape runner; the runner owns the lifecycle and derives the changed-file scope from Git so PLAN and REPORT share one source of truth;
+- `finding.2026-08-07.005`: project-specific PHPStan rules must be tested in an isolated PHPStan process because loading `PHPStan\\Testing\\RuleTestCase` into normal PHPUnit polluted the runtime used by agent-map's Composer-based PHPStan discovery;
+- `finding.2026-08-07.006`: the self-shape learning decision must agree with durable evidence in the real PR diff, using `findings_recorded` when findings or `MEMORY.md` are changed and `no_durable_learning` otherwise.
 
 `MEMORY.md` contains only the reviewed durable rules. Objective recurrence prevention is pushed lower where possible:
 
 - `phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php` prevents `voku\\AgentLoop\\Workflow` from instantiating focused-package CLIs;
 - `tools/project-phpstan-rules.sh` proves that rule in a separate PHPStan process without contaminating PHPUnit;
 - workflow PHPUnit tests assert persisted session, brief, approval, verification, and close behavior instead of adapter argv;
-- `tools/self-shape-dogfood.sh` owns the repeatable repository lifecycle;
+- `tools/self-shape-dogfood.sh` owns the repeatable repository lifecycle and derives its changed-file scope and learning decision from repository evidence;
 - `.github/workflows/ci.yml` invokes that runner and uploads its evidence rather than defining the lifecycle itself;
 - `tools/release-set-dogfood.php` remains the separate installed-consumer contract.
 
@@ -28,18 +29,19 @@ The durable source findings live under `infra/doc/agent-learning/findings/`:
 The runner performs this sequence against the real diff from the merge-base to `HEAD`:
 
 1. validate the repository-owned `agent-learning` root;
-2. PLAN the actual changed files with explicit goal, non-goal, base commit, validation contract, and behavior anchor;
-3. APPROVE and compile recall;
-4. render bounded context;
-5. run `composer ci` and record structured validation evidence;
-6. run an exploratory deterministic blind-spot review;
-7. run `recall log-outcome`;
-8. record a checkpoint explicitly evidencing both `log-outcome` and `review blindspots` close-out;
-9. record the learning decision;
-10. run the final blind-spot review and require its JSON report status to be exactly `ok`;
-11. review `MEMORY.md` promotion state;
-12. persist the manifest, run `agent-loop verify`, and render the completion report;
-13. CLOSE through the normal workflow gates and persist final status.
+2. derive the actual changed files and the matching learning decision from Git;
+3. PLAN the actual changed files with explicit goal, non-goal, base commit, validation contract, and behavior anchor;
+4. APPROVE and compile recall;
+5. render bounded context;
+6. run `composer ci` and record structured validation evidence;
+7. run an exploratory deterministic blind-spot review;
+8. run `recall log-outcome`;
+9. record a checkpoint explicitly evidencing both `log-outcome` and `review blindspots` close-out;
+10. record `findings_recorded` or `no_durable_learning` according to the durable evidence in the diff;
+11. run the final blind-spot review and require its JSON report status to be exactly `ok`;
+12. review `MEMORY.md` promotion state;
+13. persist the manifest, run `agent-loop verify`, and render the completion report;
+14. CLOSE through the normal workflow gates and persist final status.
 
 The initial review may warn while the lifecycle is incomplete. The final review may not. The CLI exit code is not the semantic gate because `warn` can still be a successfully executed review command; the runner reads `SELF-SHAPE.blindspots.json` and accepts only `status=ok`.
 
