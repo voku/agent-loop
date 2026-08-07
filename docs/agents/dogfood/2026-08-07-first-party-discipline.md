@@ -1,218 +1,310 @@
-# First-party agent discipline dogfood
+# First-party Caveman + Ponytail adaptation dogfood
 
 Date: 2026-08-07 (Europe/Berlin)
 
 ## Goal
 
-Replace external RTK, Caveman, and Ponytail runtime guidance with package-owned
-agent behavior that:
+The goal is not merely to remove RTK or copy two prompt ideas.
 
-- keeps progress and final replies concise for humans;
-- prevents speculative or unrequested implementation;
-- uses `agent-map` to avoid broad PHP reads when navigation is needed;
-- preserves raw source, diffs, tests, and verification evidence;
-- installs without cloning repositories, plugin marketplaces, remote scripts,
-  Node.js, or third-party runtime dependencies.
+Review Caveman and Ponytail as actual add-on codebases, including their skills,
+hooks, scripts, agent roles, installation mechanics, audit/debt/measurement
+features, and tests. Keep the useful mechanisms, combine overlapping ideas, and
+adapt them into package-owned `agent-*` behavior for PHP and `agent-map` without
+adding third-party runtime dependencies.
 
-The merge gate is behavioral as well as mechanical. A green installer is not
-enough if the resulting agent still reads broadly or invents work.
+The resulting behavior should:
+
+- remove filler from human-facing agent communication so review takes less time;
+- discourage speculative abstractions and unrequested implementation;
+- locate code with bounded `agent-map` navigation before broad PHP reads;
+- use small investigator/builder/reviewer roles where that reduces main-thread
+  context and review effort;
+- preserve raw source, diffs, tests, and verification evidence;
+- record deliberate simplification debt in the existing workflow state instead
+  of creating another persistence system;
+- install entirely from the Composer package.
 
 ## Source review
 
-Direct `git clone` was attempted first and failed because the execution container
-had no DNS/network access. Relevant upstream files were reviewed through the
-connected GitHub API at fixed commits:
+A direct `git clone` was attempted first and failed because the execution
+container had no DNS/network access. The upstream repositories were therefore
+reviewed through the connected GitHub API at fixed commits:
 
 - Caveman: `ec83e5bace4c20484d704dea21e12fc4eb94e9aa`
 - Ponytail: `16f29800fd2681bdf24f3eb4ccffe38be3baec6b`
 
-Reviewed surfaces included primary skills, activation/hooks, mode handling,
-subagent propagation, statistics, simplify/audit skills, debt handling, tests,
-and published benchmark notes.
+The review covered skills, dedicated agents, activation and mode hooks, subagent
+propagation, model overrides, compression code, stats/gain behavior, install
+helpers, rule-copy drift checks, debt/audit flows, tests, and benchmark guidance.
 
-## Kept
+## Mechanism inventory and adaptation
 
-- concise human-facing communication that preserves exact paths, symbols,
-  commands, numbers, negation, constraints, and errors;
-- a minimal implementation ladder after locating the real owner and callers;
-- root-cause changes instead of symptom patches;
-- a separate simplify-review that reads the complete raw diff;
-- `agent-map` as bounded navigation before broad PHP reads;
-- explicit evidence integrity and safety floors;
-- observable artifact metrics instead of invented token savings;
-- session/subagent context hooks as optional behavioral guardrails.
+### Caveman core communication
 
-## Rejected
+**Upstream mechanism:** terse human-facing prose while preserving code, paths,
+commands, errors, technical terms, and negation; automatically expand when
+security, irreversible actions, ordering, or ambiguity make fragments unsafe.
 
-- remote installers, repositories, and plugin marketplaces;
-- Node.js runtime code;
-- mode parsers, status lines, flag files, transcript scanning, and savings
-  estimates;
-- command or tool-output rewriting;
-- replacing full diffs with summaries;
-- hook blacklists that pretend to be a security sandbox;
-- host configuration for the immutable `install-assets` source;
-- mandatory map ceremony for trivial documentation or already-localized edits;
-- token or counterfactual code savings without direct telemetry.
+**Adaptation:** `agent-loop-discipline` keeps the attention rule but uses normal
+grammatical sentences. Persisted docs/PRs/commits remain normal prose and raw
+evidence is never rewritten.
 
-## Iterations that changed the design
+### Caveman review
 
-### 1. External recommendation was the wrong ownership model
+**Upstream mechanism:** findings-only review with exact path/line, problem, and
+fix; no praise, hedging, or review diary.
 
-The first PR version removed RTK but still recommended installing Caveman and
-Ponytail. That did not satisfy the supply-chain or ownership goal. Their useful
-ideas were therefore distilled into package-owned skills and PHP code instead.
+**Adaptation:** `agent-loop-code-review` and the
+`agent-loop-code-reviewer` subagent. Correctness review remains separate from the
+Ponytail-derived complexity pass.
 
-### 2. The first discipline was too large
+### Cavecrew investigator / builder / reviewer
 
-The initial combined skill was 116 lines / 4,670 bytes. A rule intended to save
-human attention should not become another wall of instructions, so it was
-reduced to 99 lines while preserving the implementation ladder, map boundary,
-evidence integrity, safety floor, and validation contract.
+**Upstream mechanism:** three narrow agent roles with hard output contracts so a
+subagent returns a small useful result instead of several paragraphs of
+exploration narration.
 
-### 3. The real Codex parser rejected schema-looking hook output
+**Adaptation:** three portable skills plus canonical subagent definitions:
 
-Testing against Codex's parser exposed invalid prototype combinations that a
-superficial JSON check missed:
+1. `agent-loop-investigate` / `agent-loop-investigator`:
+   `agent-map query|related|file|changed` -> bounded real-source read -> terse
+   `path:line — symbol — role` evidence;
+2. `agent-loop-surgical-edit` / `agent-loop-surgical-builder`: already-localized
+   1-2 file work, deterministic `agent-loop edit --runner=auto` when possible,
+   explicit scope escalation instead of silent widening;
+3. `agent-loop-code-review` / `agent-loop-code-reviewer`: complete raw diff,
+   caller lookup when required, actionable correctness findings only.
 
-- `continue:false` in `PreToolUse`;
-- `suppressOutput:true` in `PreToolUse`;
-- synthetic `permissionDecision:allow` without `updatedInput`.
+The current feature itself is deliberately too broad for the surgical-builder
+role. It spans installation, skills, subagents, tests, CI, and docs, so forcing it
+through a 1-2 file builder would violate the role contract. The role is useful
+because it says **no** to the wrong task shape.
 
-Pass-through now leaves commands undecided and unchanged. Map denials keep hook
-processing alive and provide a bounded replacement.
+### Caveman model overrides
 
-### 4. The hook blacklist was itself speculative implementation
+**Upstream mechanism:** mutate installed agent frontmatter from environment
+variables so investigator/builder/reviewer can use different models.
 
-An earlier hook attempted to deny known Caveman, Ponytail, and RTK installation
-commands. Dogfood first narrowed false positives, then the pre-merge simplify
-pass asked the more important question: why is this repository trying to become
-a shell security sandbox at all?
+**Decision:** not ported. Model choice is host/client policy. Encoding model names
+or provider economics in `agent-loop` would weaken the portable asset boundary.
 
-The user requirement is that `agent-loop init` never downloads third-party agent
-code. That is guaranteed by the package-owned `install-assets` path. Hook
-dispatch is host-dependent and cannot be a security boundary, so the external
-installation blacklist was deleted. A regression case now proves such a command
-passes through the hook unchanged.
+### Caveman init tool
 
-### 5. `install-assets --config` was unnecessary flexibility
+**Upstream mechanism:** idempotently copy/append the canonical rule into multiple
+client locations with dry-run and force behavior.
 
-An earlier version accepted `--config` while deliberately refusing configured
-skill/hook source roots. That produced an ambiguous half-contract and a review
-suggestion to propagate configuration into the delegated sync commands.
+**Adaptation:** reuse the existing stronger `agent-loop init` machinery:
+canonical package roots, client rendering, managed-entry manifests,
+`--dry-run`, `--force`, and `--adopt-existing`. No second copy engine was added.
 
-The simpler boundary won: `install-assets` is configuration-free and reads only
-assets shipped in the installed Composer package. Host-owned custom assets use
-`sync-*`, where config and path overrides already belong.
+`init install-assets --agent=all` now installs:
 
-## Pre-merge behavioral replay
+- portable skills for Codex, Claude, Copilot, and Antigravity;
+- the three dedicated role definitions for the existing Copilot and Antigravity
+  subagent target formats;
+- Codex PHP hooks.
 
-A clean same-model A/B runner is not available in the connector-only execution
-environment. The behavioral comparison therefore uses already-observed baseline
-work from this PR and labels that limitation instead of pretending model runs
-were identical.
+### Caveman compress
 
-### Case A: investigate `install-assets --config`
+**Upstream mechanism:** model-assisted rewriting of natural-language memory
+files, with sensitive-path refusal, verbatim frontmatter preservation,
+out-of-tree backup, atomic writes, structural validation, repair retries, and
+restore on failure.
 
-The baseline review used three broad repository shell probes with recorded output
-sizes of 8,119, 7,666, and 28,542 characters: **44,327 characters total**. It
-concluded that `--config` should be propagated further.
+**Decision:** the destructive rewrite runtime is not ported. It sends source text
+through a model/API and replaces durable files, which conflicts with this
+project's evidence and memory boundaries.
 
-The disciplined replay inspected the three owning surfaces directly:
+**Adapted idea:** reduce context *before* loading it. `agent-map` selects source;
+recall selects approved guidance. Durable memory remains the reviewed source of
+truth instead of being lossy-compressed in place.
 
-1. `src/Init/InitInstallAssetsCommand.php`;
-2. `tests/InitInstallAssetsCommandTest.php`;
-3. `src/Init/InitAgent.php`.
+### Caveman stats
 
-The result was not another propagation path. It removed `--config` from
-`install-assets` and kept host customization in the existing `sync-*` commands.
+**Upstream mechanism:** read real session telemetry, account for rule overhead,
+and admit when the feature is net-negative.
 
-| Metric | Observed baseline | Disciplined replay |
+**Adaptation:** `agent-loop-dogfood` permits only observable run artifacts and
+explicit baselines. No local token-savings number is emitted without actual
+telemetry.
+
+### Caveman commit helper
+
+**Decision:** not ported. Commit-message convenience is useful but not an
+`agent-loop` workflow responsibility. The umbrella package should not absorb
+every feature present in an upstream add-on.
+
+### Ponytail core
+
+**Upstream mechanism:** understand the real flow first, then stop at the first
+working rung: no change -> existing code -> stdlib -> native platform ->
+installed dependency -> root-cause shared fix -> smallest new code. No
+one-implementation interfaces, speculative factories/config, or future-only
+scaffolding. Safety and the smallest meaningful check remain mandatory.
+
+**Adaptation:** this is the minimal implementation ladder and safety floor in
+`agent-loop-discipline`.
+
+### Ponytail review
+
+**Upstream mechanism:** diff-only review for deletion, stdlib/native reuse,
+speculative abstraction, and smaller equivalent logic.
+
+**Adaptation:** `agent-loop-simplify-review`, extended with repository reuse and
+wrong-package-boundary findings.
+
+### Ponytail audit
+
+**Upstream mechanism:** apply the simplify review repo-wide and rank the biggest
+maintenance cuts first.
+
+**Adaptation:** `agent-loop-simplify-audit`. It starts with `agent-map`/bounded
+navigation and verifies every candidate against real source/callers instead of
+reading the entire repository indiscriminately.
+
+### Ponytail debt
+
+**Upstream mechanism:** `ponytail:` comments name the ceiling of a deliberate
+shortcut and the trigger for upgrading it; a one-shot command harvests them into
+a ledger.
+
+**Adaptation:** no tool-specific product-code comments and no new ledger.
+`agent-loop-task-progress` records a deliberate simplification as an
+`agent-session` decision with:
+
+- current choice;
+- known ceiling;
+- observable revisit trigger.
+
+A reusable conclusion moves through the existing `agent-learning` review
+boundary. "Later" and "if needed" are not valid triggers.
+
+### Ponytail gain
+
+**Upstream mechanism:** benchmark scoreboard plus an explicit honesty rule that
+benchmark medians are not per-repository savings.
+
+**Adaptation:** same honesty boundary in `agent-loop-dogfood`; no unbuilt
+counterfactual is treated as evidence.
+
+### Ponytail rule-copy drift script
+
+**Upstream mechanism:** compare checked-in client rule copies with a canonical
+source and pin load-bearing invariants that cannot be byte-compared.
+
+**Adaptation:** `FirstPartyAgentAssetContractTest` validates every canonical
+subagent definition and pins role invariants across each portable skill/subagent
+pair. This protects the intentional duplication needed for client-specific role
+surfaces without pretending the two files must be byte-identical.
+
+### Ponytail mode/runtime/subagent hooks
+
+**Upstream mechanism:** hidden mode file, UserPromptSubmit switching, client
+specific JSON shapes, and SubagentStart re-injection.
+
+**Adaptation:** no modes or hidden state. The default discipline is stable.
+Codex's typed PHP `SessionStart`/`SubagentStart` hook propagates that discipline;
+portable skills and rendered subagent definitions cover the supported client
+surfaces.
+
+## Behavioral iterations that changed the implementation
+
+### External recommendation -> package ownership
+
+The first PR version still recommended third-party add-ons. That failed the
+actual goal. The behavior was moved into reviewed package assets instead.
+
+### Oversized rule -> smaller discipline
+
+The first combined discipline was 116 lines / 4,670 bytes. It was reduced to 99
+lines without losing the minimal implementation ladder, map boundary, evidence
+integrity, safety floor, or validation contract.
+
+### Hook schema -> real parser behavior
+
+Real Codex parser behavior rejected prototype `PreToolUse` combinations that
+looked plausible as JSON. Pass-through now leaves commands unchanged and no
+synthetic allow decision is generated.
+
+### Fake security -> immutable installer
+
+An early hook blacklist tried to block Caveman/Ponytail/RTK install commands.
+Dogfood showed that this was the wrong boundary. It was deleted. The actual
+security property is that `init install-assets` only reads the installed
+Composer package and has no remote bootstrap path.
+
+### Config propagation -> delete the config surface
+
+A prior review used three broad repository probes with recorded output sizes of
+8,119, 7,666, and 28,542 characters: **44,327 characters total**, then proposed
+propagating `--config` further.
+
+The disciplined replay inspected the owning installer/test/agent parsing
+surfaces directly and reached the smaller result: package-owned installation
+should not be configurable; host custom assets already belong to `sync-*`.
+
+### Cavecrew adaptation -> use existing subagent sync
+
+Once the upstream role mechanism was reviewed explicitly, the previous
+skills+hooks-only installer was visibly incomplete. Rather than invent a new
+role installer, `install-assets` now delegates to the existing
+`InitSyncSubagentsCommand` for its supported targets.
+
+### Rule duplication -> executable drift contract
+
+Adding portable role skills and dedicated subagent definitions created an
+intentional duplication seam. Ponytail's rule-copy script made that risk
+obvious, so the port includes a PHP contract test instead of hoping both copies
+stay aligned.
+
+## Observable behavioral replay
+
+A clean identical-model A/B runner is not available in the connector-only
+execution environment, so no hidden-reasoning or token-savings claim is made.
+The comparison uses observed work from this PR.
+
+| Metric | Earlier broad review | Disciplined replay |
 | --- | ---: | ---: |
 | Broad repository probes | 3 | 0 |
 | Recorded broad-probe output | 44,327 chars | 0 chars |
-| Focused owning files inspected | not isolated | 3 |
-| New config surface | proposed | 0 |
-| New dependency | 0 | 0 |
-| Result | propagate flexibility | delete unnecessary flexibility |
+| Focused owning files | not isolated | 3 |
+| Additional config mechanism | proposed | removed |
 | Raw evidence retained | yes | yes |
 
-This is the context/review-time improvement the project is aiming for: locate the
-owner, read the bounded evidence, and stop rather than searching wider until an
-additional mechanism looks justified.
+The change in behavior matters more than the output count: the replay found the
+owner, removed an unnecessary mechanism, and stopped.
 
-### Case B: run the new minimalism rule against this PR
+The role split also changed the current work. The upstream inventory was handled
+as investigation first; the resulting feature was recognized as broader than a
+surgical role and kept in the main workflow; correctness and simplification are
+separate final passes instead of one giant "review everything" prompt.
 
-The last fully green pre-merge baseline was
-`c25dc91b72c9ea3510d8a404b5e554214dfd89dc`. Applying the new discipline and
-simplify-review to the PR itself changed ten files by **+118 / -181 lines**, a
-net reduction of **63 lines** at the measured checkpoint.
+## Runtime and installed-package gates
 
-The deleted surface included:
+`composer ci` runs PHPUnit, PHPStan, and the hook dogfood gate.
 
-- the external add-on installation blacklist in `AgentDisciplineHook`;
-- five bootstrap-denial regression cases;
-- `install-assets --config` parsing/loading;
-- the custom-config source test;
-- obsolete bootstrap-denial dogfood machinery.
-
-No replacement dependency, factory, interface, generic manager, config switch,
-or second asset-copy engine was introduced.
-
-### Case C: trivial work must stay trivial
-
-The discipline now explicitly skips map ceremony for documentation-only or
-already-localized edits. The documentation changes in this pre-merge pass were
-performed directly against their known files; no map build/query was required.
-This protects the opposite failure mode: a process for reducing context should
-not make a one-file text edit require a workflow pageant.
-
-## Current runtime gate
-
-`php tools/agent-discipline-dogfood.php` executes the configured hook commands in
-an isolated workspace without requiring a Git repository and verifies:
-
-1. all first-party skills and hook definitions are present;
-2. configured hook commands contain no remote URL or Git-root dependency;
-3. `SessionStart` injects the discipline;
-4. `SubagentStart` receives the same discipline;
-5. `git diff --no-ext-diff` passes through without command rewriting;
-6. an external installer command also passes through, proving the hook is not a
-   security sandbox;
-7. unbounded JSON/SQLite map dumps are denied with bounded `agent-loop map`
-   alternatives.
-
-The gate reports zero runtime dependencies and zero remote installers for the
-package-owned discipline.
-
-## Installed consumer evidence
-
-GitHub Actions CI #325 on
-`c25dc91b72c9ea3510d8a404b5e554214dfd89dc` passed:
+GitHub Actions CI #386 on functional wiring head
+`dceb7774a5d6a13eeeb375369904b0698548900b` passed:
 
 - `composer ci` on PHP 8.3, 8.4, and 8.5;
-- the clean non-symlinked Composer consumer lifecycle;
-- `init install-assets` from the installed `vendor/voku/agent-loop` package;
-- the installed first-party asset dogfood script.
+- clean non-symlinked Composer consumer lifecycle;
+- `init install-assets --agent=all` from the installed
+  `vendor/voku/agent-loop` package;
+- installed portable role skills;
+- installed Copilot and Antigravity investigator/builder/reviewer definitions;
+- installed Codex hooks;
+- installed-package hook dogfood.
 
-That run predates the final simplification in this report. The current head must
-pass the same gates before merge; this document does not claim that result until
-the new Actions exit codes are observed.
+That run proves the complete first-party mechanism set can be installed from the
+Composer package without fetching the upstream add-ons. Later documentation-only
+commits must still pass the same repository CI before the PR leaves draft.
 
-## Acceptance decision
+## Acceptance boundary
 
-The candidate meets the behavioral goal when the current CI is green because:
+This adaptation is ready only when the final head is green and the full diff
+review finds no concrete correctness or simplify finding.
 
-- third-party agent add-ons are no longer runtime or init dependencies;
-- the immutable installer cannot be redirected by host config;
-- the hook is explicitly a behavior aid rather than fake security isolation;
-- raw source, diffs, tests, and verification artifacts remain untouched;
-- a real review replay replaced three broad probes / 44,327 characters of tool
-  output with three bounded owner reads;
-- applying the minimalism rule to its own implementation removed net code and
-  two unrequested mechanisms instead of adding another abstraction;
-- trivial localized work is exempt from mandatory map ceremony.
-
-This is the intended loop: guidance changes the work, the work exposes defects
-in the guidance, and defects are removed until both behavior and validation
-support the reason the guidance exists.
+The goal is reached when Caveman/Ponytail are no longer merely named influences:
+the useful mechanisms have explicit first-party implementations or explicit
+architecture-based rejection reasons, and the resulting package changes how the
+agent works without becoming another giant plugin runtime.
