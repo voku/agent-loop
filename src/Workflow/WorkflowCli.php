@@ -9,12 +9,10 @@ use voku\AgentLoop\Run\RunManifestTransitionWriter;
 
 final readonly class WorkflowCli
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner @param callable(list<string>): int $verifyRunner */
+    /** @param callable(list<string>): int $recallRunner */
     public function __construct(
         private string $rootPath,
-        private mixed $sessionRunner,
         private mixed $recallRunner,
-        private mixed $verifyRunner,
     ) {
     }
 
@@ -26,9 +24,9 @@ final readonly class WorkflowCli
 
         return match ($command) {
             'help', '--help', '-h', '' => $this->printHelp(),
-            'plan' => (new WorkflowPlanCommand($this->rootPath, $this->sessionRunner))->run($rest),
-            'approve' => (new WorkflowApproveCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
-            'start' => (new WorkflowStartCommand($this->rootPath, $this->sessionRunner, $this->recallRunner))->run($rest),
+            'plan' => (new WorkflowPlanCommand($this->rootPath))->run($rest),
+            'approve' => (new WorkflowApproveCommand($this->rootPath, $this->recallRunner))->run($rest),
+            'start' => (new WorkflowStartCommand($this->rootPath, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
@@ -41,7 +39,7 @@ final readonly class WorkflowCli
     /** @param list<string> $args */
     private function runClose(array $args): int
     {
-        $exit = (new WorkflowCloseCommand($this->rootPath, $this->sessionRunner, $this->verifyRunner))->run($args);
+        $exit = (new WorkflowCloseCommand($this->rootPath))->run($args);
         if ($exit !== 0) {
             return $exit;
         }
@@ -97,6 +95,7 @@ TXT;
     {
         fwrite(\STDERR, "Unknown workflow command: {$command}\n\n");
         $this->printHelp();
+
         return 1;
     }
 }

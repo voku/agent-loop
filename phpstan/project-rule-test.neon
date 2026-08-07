@@ -1,12 +1,7 @@
 parameters:
   level: 8
   paths:
-    - src
-    - tests
-    - phpstan
-  excludePaths:
-    analyse:
-      - tests/PHPStan/data/*
+    - ../tests/PHPStan/data/focused-package-cli-in-workflow.php
   checkMissingOverrideMethodAttribute: false
 
 services:

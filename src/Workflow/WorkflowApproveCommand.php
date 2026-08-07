@@ -15,8 +15,8 @@ use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowApproveCommand
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner */
-    public function __construct(private string $rootPath, private mixed $sessionRunner, private mixed $recallRunner)
+    /** @param callable(list<string>): int $recallRunner */
+    public function __construct(private string $rootPath, private mixed $recallRunner)
     {
     }
 
@@ -45,11 +45,7 @@ final readonly class WorkflowApproveCommand
                 && $approval->workBriefRevision === $brief->revision;
 
             if (!$alreadyApproved) {
-                $exit = ($this->sessionRunner)(['brief', 'approve', $taskId->value, '--by', $options['by']]);
-                if ($exit !== 0) {
-                    return $exit;
-                }
-                $session = $this->activeSession($taskId->value);
+                $briefs->approve($session, $options['by']);
                 echo "[OK] workflow approve: work brief revision approved for {$taskId->value}\n";
 
                 $archive = (new WorkflowRecallOutputSuperseder($this->rootPath))->archiveIfPresent($taskId->value);

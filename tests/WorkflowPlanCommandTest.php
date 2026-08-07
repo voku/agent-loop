@@ -8,132 +8,142 @@ use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\WorkBriefStatus;
 use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowPlanCommandTest extends TestCase
 {
-    public function testPlanStartsWorkflowAndCreatesCandidateBrief(): void
+    public function testPlanPersistsSessionAndCandidateBrief(): void
     {
-        /** @var list<list<string>> $sessionCalls */
-        $sessionCalls = [];
-        /** @var list<list<string>> $recallCalls */
-        $recallCalls = [];
-        $command = new WorkflowPlanCommand(
-            sys_get_temp_dir() . '/agent-loop-plan-command-empty',
-            static function (array $argv) use (&$sessionCalls): int {
-                $sessionCalls[] = $argv;
+        $root = $this->root('plan');
 
-                return 0;
-            },
-        );
+        try {
+            $command = new WorkflowPlanCommand($root);
 
-        ob_start();
-        $exit = $command->run([
-            'ABC-123', '--by', 'lars', '--learning-root', 'infra/doc/agent-learning',
-            '--file', 'src/Foo.php', '--goal', 'Keep scope reviewable.',
-            '--scope', 'src/Foo.php', '--non-goal', 'No new memory layer.',
-            '--validation', 'vendor/bin/phpunit tests/FooTest.php', '--behavior-anchor', 'POST request -> FooAction -> persisted state', '--base-commit', 'abc123',
-        ]);
-        $output = (string) ob_get_clean();
+            ob_start();
+            $exit = $command->run([
+                'ABC-123',
+                '--by', 'lars',
+                '--learning-root', 'learn',
+                '--file', 'src/Foo.php',
+                '--goal', 'Keep scope reviewable.',
+                '--scope', 'src/Foo.php',
+                '--non-goal', 'No new memory layer.',
+                '--validation', 'vendor/bin/phpunit tests/FooTest.php',
+                '--tag', 'identity',
+                '--behavior-anchor', 'POST request -> FooAction -> persisted state',
+                '--base-commit', 'abc123',
+            ]);
+            $output = (string) ob_get_clean();
 
-        self::assertSame(0, $exit);
-        self::assertSame([
-            ['start', '--task', 'ABC-123', '--by', 'lars', '--base-commit', 'abc123'],
-            ['brief', 'create', 'ABC-123', '--goal', 'Keep scope reviewable.', '--scope', 'src/Foo.php', '--non-goal', 'No new memory layer.', '--validation', 'vendor/bin/phpunit tests/FooTest.php', '--behavior-anchor', 'POST request -> FooAction -> persisted state'],
-        ], $sessionCalls);
-        self::assertSame([], $recallCalls);
-        self::assertStringContainsString('candidate work brief created', $output);
+            self::assertSame(0, $exit);
+            $sessions = (new SessionStore())->all($root . '/session_plan');
+            self::assertCount(1, $sessions);
+            self::assertSame('ABC-123', $sessions[0]->taskId);
+            self::assertSame('lars', $sessions[0]->claimedBy);
+            self::assertSame('abc123', $sessions[0]->baseCommit);
+
+            $brief = (new WorkBriefStore())->load($sessions[0]);
+            self::assertSame(WorkBriefStatus::CANDIDATE, $brief->status);
+            self::assertSame('Keep scope reviewable.', $brief->goal);
+            self::assertSame(['src/Foo.php'], $brief->scope);
+            self::assertSame(['No new memory layer.'], $brief->nonGoals);
+            self::assertSame(['vendor/bin/phpunit tests/FooTest.php'], $brief->validation);
+            self::assertSame(['identity'], $brief->tags);
+            self::assertSame(['POST request -> FooAction -> persisted state'], $brief->behaviorAnchors);
+            self::assertStringContainsString('candidate work brief created', $output);
+        } finally {
+            $this->removeDirectory($root);
+        }
     }
 
-    public function testPlanForwardsRelevanceTagsToTheBrief(): void
+    public function testPlanUsesFilesAsDefaultScopeAndPreservesEphemeralMode(): void
     {
-        /** @var list<list<string>> $sessionCalls */
-        $sessionCalls = [];
-        $command = new WorkflowPlanCommand(
-            sys_get_temp_dir() . '/agent-loop-plan-command-tags',
-            static function (array $argv) use (&$sessionCalls): int {
-                $sessionCalls[] = $argv;
+        $root = $this->root('scope');
 
-                return 0;
-            },
-        );
+        try {
+            $command = new WorkflowPlanCommand($root);
+            ob_start();
+            $exit = $command->run([
+                'ABC-123', '--by', 'lars', '--root', 'learn',
+                '--file', 'src/Foo.php', '--file', 'tests/FooTest.php',
+                '--goal', 'Keep scope reviewable.', '--validation', 'vendor/bin/phpunit', '--ephemeral',
+            ]);
+            ob_end_clean();
 
-        ob_start();
-        $exit = $command->run([
-            'ABC-123', '--by', 'lars', '--learning-root', 'infra/doc/agent-learning',
-            '--file', 'modules/employee/Sync.php', '--goal', 'Sync employees from the directory.',
-            '--validation', 'vendor/bin/phpunit', '--tag', 'identity', '--tag', 'ldap',
-        ]);
-        ob_end_clean();
-
-        self::assertSame(0, $exit);
-        self::assertSame([
-            ['start', '--task', 'ABC-123', '--by', 'lars'],
-            ['brief', 'create', 'ABC-123', '--goal', 'Sync employees from the directory.', '--scope', 'modules/employee/Sync.php', '--validation', 'vendor/bin/phpunit', '--tag', 'identity', '--tag', 'ldap'],
-        ], $sessionCalls);
+            self::assertSame(0, $exit);
+            $sessions = (new SessionStore())->all($root . '/session_plan');
+            self::assertCount(1, $sessions);
+            self::assertTrue($sessions[0]->ephemeral);
+            self::assertSame(
+                ['src/Foo.php', 'tests/FooTest.php'],
+                (new WorkBriefStore())->load($sessions[0])->scope,
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
     }
 
-    public function testPlanUsesRecallFilesAsDefaultScope(): void
+    public function testPlanValidatesRequiredInputsBeforeWriting(): void
     {
-        /** @var list<list<string>> $sessionCalls */
-        $sessionCalls = [];
-        $command = new WorkflowPlanCommand(
-            sys_get_temp_dir() . '/agent-loop-plan-command-empty',
-            static function (array $argv) use (&$sessionCalls): int {
-                $sessionCalls[] = $argv;
+        $root = $this->root('invalid');
 
-                return 0;
-            },
-        );
+        try {
+            $command = new WorkflowPlanCommand($root);
+            ob_start();
+            $exit = $command->run([
+                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+                '--file', 'src/Foo.php', '--goal', 'Goal',
+            ]);
+            ob_end_clean();
 
-        ob_start();
-        $exit = $command->run(['ABC-123', '--by', 'lars', '--root', 'learn', '--file', 'src/Foo.php', '--file', 'tests/FooTest.php', '--goal', 'Keep scope reviewable.', '--validation', 'vendor/bin/phpunit']);
-        ob_end_clean();
-
-        self::assertSame(0, $exit);
-        self::assertSame([
-            'brief', 'create', 'ABC-123', '--goal', 'Keep scope reviewable.',
-            '--scope', 'src/Foo.php', '--scope', 'tests/FooTest.php',
-            '--validation', 'vendor/bin/phpunit',
-        ], $sessionCalls[1]);
+            self::assertSame(1, $exit);
+            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+        } finally {
+            $this->removeDirectory($root);
+        }
     }
 
-    public function testPlanValidatesRequiredInputsBeforeItWrites(): void
+    public function testPlanRevisesExistingBriefWithoutStartingAnotherSession(): void
     {
-        $calls = 0;
-        $command = new WorkflowPlanCommand(
-            sys_get_temp_dir() . '/agent-loop-plan-command-empty',
-            static function (array $argv) use (&$calls): int {
-                ++$calls;
-
-                return 0;
-            },
-        );
-
-        ob_start();
-        $exit = $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn', '--file', 'src/Foo.php', '--goal', 'Goal']);
-        ob_end_clean();
-
-        self::assertSame(1, $exit);
-        self::assertSame(0, $calls);
-    }
-
-    public function testApproveDelegatesApprovedWorkBriefToRecall(): void
-    {
-        $root = sys_get_temp_dir() . '/agent-loop-approve-' . bin2hex(random_bytes(6));
-        mkdir($root . '/session_plan', 0o775, true);
+        $root = $this->root('revise');
         $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
-        (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $sessionCalls = [];
+        $briefs = new WorkBriefStore();
+        $briefs->create($session, 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        $briefs->approve($session, 'lars');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+                '--file', 'src/Foo.php', '--file', 'tests/FooTest.php',
+                '--goal', 'Expanded scope.', '--validation', 'vendor/bin/phpunit tests/FooTest.php',
+            ]);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(0, $exit);
+            self::assertCount(1, (new SessionStore())->all($root . '/session_plan'));
+            $brief = $briefs->load($session);
+            self::assertSame(2, $brief->revision);
+            self::assertSame(WorkBriefStatus::CANDIDATE, $brief->status);
+            self::assertSame(['src/Foo.php', 'tests/FooTest.php'], $brief->scope);
+            self::assertNull($briefs->approval($session));
+            self::assertStringContainsString('candidate work brief revised', $output);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testApprovePersistsApprovalAndDelegatesRecall(): void
+    {
+        $root = $this->root('approve');
+        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
+        $briefs = new WorkBriefStore();
+        $briefs->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        /** @var list<list<string>> $recallCalls */
         $recallCalls = [];
         $command = new WorkflowApproveCommand(
             $root,
-            static function (array $argv) use (&$sessionCalls, $session): int {
-                $sessionCalls[] = $argv;
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
             static function (array $argv) use (&$recallCalls): int {
                 $recallCalls[] = $argv;
 
@@ -147,7 +157,8 @@ final class WorkflowPlanCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
-            self::assertSame([['brief', 'approve', 'ABC-123', '--by', 'lars']], $sessionCalls);
+            self::assertSame(WorkBriefStatus::APPROVED, $briefs->load($session)->status);
+            self::assertSame('lars', $briefs->approval($session)?->approvedBy);
             self::assertSame([
                 ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json'],
             ], $recallCalls);
@@ -157,11 +168,13 @@ final class WorkflowPlanCommandTest extends TestCase
         }
     }
 
-    public function testApproveProjectsTypedKanbanContextWhenTheTaskHasACard(): void
+    public function testApproveBuildsRecallInputFromOwnedArtifacts(): void
     {
-        $root = sys_get_temp_dir() . '/agent-loop-approve-kanban-' . bin2hex(random_bytes(6));
-        mkdir($root . '/session_plan', 0o775, true);
+        $root = $this->root('recall-input');
+        $learningRoot = $root . '/learning';
         mkdir($root . '/todo/cards', 0o775, true);
+        mkdir($root . '/.agent-map', 0o775, true);
+        mkdir($learningRoot, 0o775, true);
         file_put_contents($root . '/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
         file_put_contents($root . '/todo/cards/ABC-123.md', <<<'CARD'
 # ABC-123: Keep the view reviewable
@@ -181,134 +194,19 @@ Use the existing view factory seam.
 Touch only src/Foo.php and its focused test.
 CARD
 );
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
-        (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $recallCalls = [];
-        $command = new WorkflowApproveCommand(
-            $root,
-            static function (array $argv) use ($session): int {
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
-            static function (array $argv) use (&$recallCalls): int {
-                $recallCalls[] = $argv;
-
-                return 0;
-            },
-        );
-
-        try {
-            ob_start();
-            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn']));
-            ob_end_clean();
-
-            $contextPath = $session->path . '/kanban-context.json';
-            self::assertFileExists($contextPath);
-            $context = json_decode((string) file_get_contents($contextPath), true, 512, JSON_THROW_ON_ERROR);
-            self::assertSame('todo/cards/ABC-123.md', $context['source']['path']);
-            self::assertSame('READY', $context['card']['lane']);
-            self::assertSame([
-                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json', '--kanban-context', $contextPath],
-            ], $recallCalls);
-        } finally {
-            $this->removeDirectory($root);
-        }
-    }
-
-    public function testApprovePassesHostMapRootWithExistingIndex(): void
-    {
-        $root = sys_get_temp_dir() . '/agent-loop-approve-map-' . bin2hex(random_bytes(6));
-        mkdir($root . '/session_plan', 0o775, true);
-        mkdir($root . '/.agent-map', 0o775, true);
-        file_put_contents($root . '/.agent-map/php-symbols.json', '{}');
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
-        (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $recallCalls = [];
-        $command = new WorkflowApproveCommand(
-            $root,
-            static function (array $argv) use ($session): int {
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
-            static function (array $argv) use (&$recallCalls): int {
-                $recallCalls[] = $argv;
-
-                return 0;
-            },
-        );
-
-        try {
-            ob_start();
-            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn']));
-            ob_end_clean();
-
-            self::assertSame([
-                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json', '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root],
-            ], $recallCalls);
-        } finally {
-            $this->removeDirectory($root);
-        }
-    }
-
-    public function testApprovePassesTheDerivedSearchIndexWhenItWasBuilt(): void
-    {
-        $root = sys_get_temp_dir() . '/agent-loop-approve-search-' . bin2hex(random_bytes(6));
-        mkdir($root . '/session_plan', 0o775, true);
-        mkdir($root . '/.agent-map', 0o775, true);
         file_put_contents($root . '/.agent-map/php-symbols.json', '{}');
         file_put_contents($root . '/.agent-map/search.sqlite', '');
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
-        (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $recallCalls = [];
-        $command = new WorkflowApproveCommand(
-            $root,
-            static function (array $argv) use ($session): int {
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
-            static function (array $argv) use (&$recallCalls): int {
-                $recallCalls[] = $argv;
-
-                return 0;
-            },
-        );
-
-        try {
-            ob_start();
-            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn']));
-            ob_end_clean();
-
-            self::assertSame([
-                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json', '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root, '--map-search-index', $root . '/.agent-map/search.sqlite'],
-            ], $recallCalls);
-        } finally {
-            $this->removeDirectory($root);
-        }
-    }
-
-    public function testApprovePassesExplicitLearningRootDocumentManifest(): void
-    {
-        $root = sys_get_temp_dir() . '/agent-loop-approve-documents-' . bin2hex(random_bytes(6));
-        $learningRoot = $root . '/learning';
-        mkdir($root . '/session_plan', 0o775, true);
-        mkdir($learningRoot, 0o775, true);
         file_put_contents($learningRoot . '/recall-documents.json', json_encode([
             'schema_version' => '1.0',
             'documents' => [],
         ], JSON_THROW_ON_ERROR));
+
         $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
         (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        /** @var list<list<string>> $recallCalls */
         $recallCalls = [];
         $command = new WorkflowApproveCommand(
             $root,
-            static function (array $argv) use ($session): int {
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
             static function (array $argv) use (&$recallCalls): int {
                 $recallCalls[] = $argv;
 
@@ -321,46 +219,55 @@ CARD
             self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', $learningRoot]));
             ob_end_clean();
 
-            self::assertSame([
-                ['compile', '--root', $learningRoot, '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json', '--document-manifest', $learningRoot . '/recall-documents.json'],
-            ], $recallCalls);
+            $contextPath = $session->path . '/kanban-context.json';
+            self::assertFileExists($contextPath);
+            self::assertSame([[
+                'compile', '--root', $learningRoot,
+                '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json',
+                '--document-manifest', $learningRoot . '/recall-documents.json',
+                '--kanban-context', $contextPath,
+                '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root,
+                '--map-search-index', $root . '/.agent-map/search.sqlite',
+            ]], $recallCalls);
         } finally {
             $this->removeDirectory($root);
         }
     }
 
-    public function testPlanRecompilesRecallAndRevisesExistingBriefWithoutStartingAnotherSession(): void
+    public function testApproveCanResumeRecallAfterCompilationFailure(): void
     {
-        $root = sys_get_temp_dir() . '/agent-loop-plan-revise-' . bin2hex(random_bytes(6));
-        mkdir($root . '/session_plan', 0o775, true);
+        $root = $this->root('resume');
         $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
         $briefs = new WorkBriefStore();
-        $briefs->create($session, 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $briefs->approve($session, 'lars');
-
-        $sessionCalls = [];
-        $recallCalls = [];
-        $command = new WorkflowPlanCommand(
-            $root,
-            static function (array $argv) use (&$sessionCalls): int {
-                $sessionCalls[] = $argv;
-
-                return 0;
-            },
-        );
+        $briefs->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
 
         try {
             ob_start();
-            $exit = $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn', '--file', 'src/Foo.php', '--file', 'tests/FooTest.php', '--goal', 'Expanded scope.', '--validation', 'vendor/bin/phpunit tests/FooTest.php']);
+            $firstExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 7))->run([
+                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+            ]);
+            ob_end_clean();
+
+            self::assertSame(7, $firstExit);
+            self::assertSame(WorkBriefStatus::APPROVED, $briefs->load($session)->status);
+            self::assertSame(1, $briefs->approval($session)?->workBriefRevision);
+
+            ob_start();
+            $secondExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 0))->run([
+                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+            ]);
             $output = (string) ob_get_clean();
 
-            self::assertSame(0, $exit);
-            self::assertSame([['brief', 'revise', 'ABC-123', '--goal', 'Expanded scope.', '--scope', 'src/Foo.php', '--scope', 'tests/FooTest.php', '--validation', 'vendor/bin/phpunit tests/FooTest.php']], $sessionCalls);
-            self::assertSame([], $recallCalls);
-            self::assertStringContainsString('candidate work brief revised', $output);
+            self::assertSame(0, $secondExit);
+            self::assertStringContainsString('already approved; resuming recall compilation', $output);
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    private function root(string $suffix): string
+    {
+        return sys_get_temp_dir() . '/agent-loop-' . $suffix . '-' . bin2hex(random_bytes(6));
     }
 
     private function removeDirectory(string $path): void
@@ -368,6 +275,7 @@ CARD
         if (!is_dir($path)) {
             return;
         }
+
         foreach (scandir($path) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;

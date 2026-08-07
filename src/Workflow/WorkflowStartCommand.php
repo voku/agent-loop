@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStore;
 
 final readonly class WorkflowStartCommand
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner */
-    public function __construct(private string $rootPath, private mixed $sessionRunner, private mixed $recallRunner)
+    /** @param callable(list<string>): int $recallRunner */
+    public function __construct(private string $rootPath, private mixed $recallRunner)
     {
     }
 
@@ -24,17 +28,24 @@ final readonly class WorkflowStartCommand
             return 1;
         }
 
-        $sessionArgv = ['start', '--task', $taskId->value, '--by', $options['by']];
-        if ($options['baseCommit'] !== null) {
-            $sessionArgv[] = '--base-commit';
-            $sessionArgv[] = $options['baseCommit'];
+        try {
+            $session = $this->activeSession($taskId->value);
+            if ($session === null) {
+                (new SessionStore())->create(
+                    rtrim($this->rootPath, '/') . '/session_plan',
+                    $taskId->value,
+                    null,
+                    $options['by'],
+                    $options['baseCommit'],
+                );
+                echo "[OK] workflow start: session started for {$taskId->value}\n";
+            } else {
+                echo "[OK] workflow start: reusing active session {$session->id} for {$taskId->value}\n";
+            }
+        } catch (Throwable $e) {
+            fwrite(\STDERR, '[FAIL] workflow start: could not prepare session: ' . $e->getMessage() . "\n");
+            return 1;
         }
-
-        $exit = ($this->sessionRunner)($sessionArgv);
-        if ($exit !== 0) {
-            return $exit;
-        }
-        echo "[OK] workflow start: session started for {$taskId->value}\n";
 
         $recallArgv = ['compile', '--root', $options['learningRoot'], '--task', $taskId->value];
         foreach ($options['files'] as $file) {
@@ -56,6 +67,24 @@ final readonly class WorkflowStartCommand
         echo "  agent-loop workflow close {$taskId->value} --status done\n";
 
         return 0;
+    }
+
+    private function activeSession(string $taskId): ?Session
+    {
+        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($sessionsRoot)) {
+            return null;
+        }
+
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($sessionsRoot),
+            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+        ));
+        if (count($sessions) > 1) {
+            throw new RuntimeException("Multiple active sessions found for task {$taskId}.");
+        }
+
+        return $sessions[0] ?? null;
     }
 
     /**

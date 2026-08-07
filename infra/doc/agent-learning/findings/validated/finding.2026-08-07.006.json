@@ -1,0 +1,26 @@
+{
+  "id": "finding.2026-08-07.006",
+  "task_id": "TODO@agent-loop/self-shape-pr-28",
+  "session": "2026-08-07-self-shape",
+  "created_at": "2026-08-07T23:10:00+02:00",
+  "created_by": "agent-loop-self-shape",
+  "scope": [
+    "tools/self-shape-dogfood.sh",
+    "MEMORY.md",
+    "infra/doc/agent-learning/findings"
+  ],
+  "observation": "A successful self-shape artifact initially reported no_durable_learning while the same PR deliberately added validated findings and MEMORY.md entries. The workflow state was mechanically complete but semantically contradicted the repository evidence. The runner now derives the task learning decision from the actual changed-file scope.",
+  "evidence": [
+    {
+      "type": "test_result",
+      "command": "Agent-loop shapes itself / CI run 31218900484",
+      "summary": "The self-shape run detected project findings/MEMORY.md in the real 29-file PR diff and recorded findings_recorded. The final manifest projected learning.state=findings_recorded, review.state=ok, session.state=done, state=complete and next_action=none; all CI jobs were green."
+    }
+  ],
+  "hypothesis": "The task learning decision should describe the durable evidence actually produced by the diff rather than being a constant close-out value.",
+  "validated_conclusion": "Derive self-shape learning close-out from the actual PR evidence: when the diff records project findings or changes MEMORY.md, use findings_recorded; otherwise use no_durable_learning. The learning decision must agree with the repository evidence produced by the task.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

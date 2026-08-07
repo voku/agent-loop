@@ -87,8 +87,6 @@ final class WorkflowCliTest extends TestCase
         $cli = new WorkflowCli(
             sys_get_temp_dir(),
             static fn (array $argv): int => 0,
-            static fn (array $argv): int => 0,
-            static fn (array $argv): int => 0,
         );
 
         ob_start();

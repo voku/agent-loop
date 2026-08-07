@@ -1,0 +1,29 @@
+{
+  "id": "finding.2026-08-07.001",
+  "task_id": "TODO@agent-loop/self-shape-pr-28",
+  "session": "2026-08-07-self-shape",
+  "created_at": "2026-08-07T22:46:00+02:00",
+  "created_by": "agent-loop-self-shape",
+  "scope": [
+    "src/Dispatcher.php",
+    "src/Workflow/WorkflowCli.php",
+    "src/Workflow/WorkflowStartCommand.php",
+    "src/Workflow/WorkflowPlanCommand.php",
+    "src/Workflow/WorkflowApproveCommand.php",
+    "src/Workflow/WorkflowCloseCommand.php"
+  ],
+  "observation": "Workflow orchestration reconstructed voku/agent-session CLI argument lists and injected CLI runners even though agent-session already exposed typed SessionStore and WorkBriefStore APIs. Replacing those internal process-shaped boundaries with direct PHP calls removed workflow-specific argv/default/path knowledge from Dispatcher and reduced the production diff by 33 net lines while preserving the public session CLI namespace.",
+  "evidence": [
+    {
+      "type": "test_result",
+      "command": "composer ci",
+      "summary": "PR #28 passed PHPUnit and PHPStan on PHP 8.3, 8.4, and 8.5 after START, PLAN, APPROVE, and CLOSE were moved to typed package APIs. The installed release-set lifecycle also remained green."
+    }
+  ],
+  "hypothesis": "Internal PHP-to-PHP orchestration through focused-package CLIs duplicates transport knowledge and creates accidental process boundaries that are harder to type, test, and evolve than the package's existing application API.",
+  "validated_conclusion": "Inside agent-loop workflow orchestration, call focused-package typed PHP APIs when they exist. Keep CLI delegation at genuine user-facing command boundaries, not between PHP components in the same process.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

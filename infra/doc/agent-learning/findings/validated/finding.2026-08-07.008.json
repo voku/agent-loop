@@ -1,0 +1,30 @@
+{
+  "id": "finding.2026-08-07.008",
+  "task_id": "TODO@agent-loop/self-shape-pr-28",
+  "session": "2026-08-07-self-shape",
+  "created_at": "2026-08-07T23:25:00+02:00",
+  "created_by": "independent-review",
+  "scope": [
+    "src/Workflow/WorkflowStartCommand.php",
+    "src/Workflow/WorkflowPlanCommand.php",
+    "tests/WorkflowStartCommandTest.php"
+  ],
+  "observation": "SessionStore::create() generates a new active session directory whenever the preferred id already exists; it does not enforce one active session per task. WorkflowPlanCommand already rejects multiple active sessions, but WorkflowStartCommand previously called create() unconditionally. Retrying workflow start after a recall failure could therefore create a second active session and make later approve/close resolution ambiguous. WorkflowStartCommand now reuses the single active session and rejects an already-corrupt multi-active state before recall compilation.",
+  "evidence": [
+    {
+      "type": "review_comment",
+      "reference": "PR #28 CodeRabbit review thread PRRT_kwDOTALgUs6XZVxl: repeated workflow start can create multiple active sessions"
+    },
+    {
+      "type": "test_result",
+      "command": "CI run 31220192848",
+      "summary": "WorkflowStartCommand tests proved a retry reuses the existing active session and a pre-existing multi-active state fails before recall. PHP 8.3, 8.4, 8.5, self-shape, and installed release-set dogfood were all green."
+    }
+  ],
+  "hypothesis": "Every workflow entrypoint that creates or resumes session state must preserve the same one-active-session-per-task invariant; retries should reuse the active session rather than allocate a new one.",
+  "validated_conclusion": "Workflow session orchestration has at most one active session per task. Start and plan may reuse the one active session; if more than one active session already exists, fail explicitly before doing further task work. A retry after partial failure must not create another active session.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

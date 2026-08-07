@@ -10,11 +10,11 @@ use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
-use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
+use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
+use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
-use voku\AgentLoop\Workflow\WorkflowCli;
 
 /**
  * Unified entrypoint for the governed agentic-coding loop.
@@ -32,9 +32,9 @@ use voku\AgentLoop\Workflow\WorkflowCli;
  *  - `memory` -> voku/agent-loop (MemoryPromotionAnalyzer)
  *  - `review` -> voku/agent-recall-compiler (review reports and L2 prompts)
  *
- * Each library CLI expects the script name at argv[0] and its own command at
- * argv[1], so the namespace token is stripped and the remaining tokens are
- * re-prefixed with the script name before delegation.
+ * Each delegated library CLI expects the script name at argv[0] and its own
+ * command at argv[1], so those namespaces are re-prefixed before delegation.
+ * Workflow orchestration itself uses focused-package PHP APIs where they exist.
  */
 final class Dispatcher
 {
@@ -48,9 +48,6 @@ final class Dispatcher
      */
     public function run(array $argv): int
     {
-        // A floor, never a ceiling: several commands read a large map index, and a default 128M
-        // process dies on one. MemoryLimit understands PHP's shorthand, so `-d memory_limit=4G`
-        // stays 4G instead of being read as "4" and clamped down.
         if (MemoryLimit::shouldRaise((string) ini_get('memory_limit'))) {
             ini_set('memory_limit', MemoryLimit::MINIMUM);
         }
@@ -80,10 +77,8 @@ final class Dispatcher
 
     /**
      * Resolves `session record|checkpoint|close|claim|show <id>` and
-     * `session brief <action> <id>`, then delegates
-     * to voku/agent-session, unless task-id resolution reports an ambiguous
-     * match (see resolveSessionArgv()), in which case the error it already
-     * printed is the only output and the namespace is never delegated.
+     * `session brief <action> <id>`, then delegates to voku/agent-session,
+     * unless task-id resolution reports an ambiguous match.
      *
      * @param list<string> $rest
      */
@@ -97,34 +92,13 @@ final class Dispatcher
         return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
     }
 
-    /**
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
     private function dispatchWorkflow(string $scriptName, array $rest): int
     {
         return (new WorkflowCli(
             $this->rootPath,
-            fn (array $sessionRest): int => $this->dispatchSession($scriptName, $this->resolveWorkflowSessionRoot($sessionRest)),
-            fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest)),
-            fn (array $verifyRest): int => (new AgentLoopVerifier($this->rootPath))->run(array_values($verifyRest)),
+            fn (array $recallRest): int => $this->dispatchRecall($scriptName, $recallRest),
         ))->run($rest);
-    }
-
-    /**
-     * Workflow orchestration is rooted in this Dispatcher even when a host
-     * calls it from another current working directory. Direct `session`
-     * commands retain the package's normal current-directory default.
-     *
-     * @param list<string> $rest
-     * @return list<string>
-     */
-    private function resolveWorkflowSessionRoot(array $rest): array
-    {
-        if ($this->hasOption($rest, 'root')) {
-            return $rest;
-        }
-
-        return array_merge($rest, ['--root', rtrim($this->rootPath, '/') . '/session_plan']);
     }
 
     /**
@@ -164,9 +138,6 @@ final class Dispatcher
             return $rest;
         }
 
-        // `refresh` both reads and writes the map, so unlike the read-only commands it needs the
-        // root and the output target as well - otherwise it would resolve them against the current
-        // working directory and write the refreshed index somewhere else than it read it from.
         if ($command === 'build' || $command === 'refresh') {
             if (!$this->hasOption($rest, 'root')) {
                 $rest[] = '--root=' . rtrim($this->rootPath, '/');
@@ -184,9 +155,7 @@ final class Dispatcher
         return $rest;
     }
 
-    /**
-     * @param list<string> $tokens
-     */
+    /** @param list<string> $tokens */
     private function hasOption(array $tokens, string $name): bool
     {
         foreach ($tokens as $token) {
@@ -233,9 +202,7 @@ final class Dispatcher
      * Delegates to voku/agent-recall-compiler, then -- only for a successful
      * `recall compile` -- appends a note that the compiled artifacts are
      * written for review or harness ingestion, not consumed automatically by
-     * anything in this stack. This never touches the dependency's own
-     * output (which it writes via fwrite(STDOUT, ...), not echo); it only
-     * appends after delegation returns.
+     * anything in this stack.
      *
      * @param list<string> $rest
      */
@@ -253,30 +220,11 @@ final class Dispatcher
 
     /**
      * Lets `session record|checkpoint|close|claim|show` accept the task id
-     * passed to `session start --task` in place of the generated session id
-     * (e.g. `2026-06-20-abc-123`), which is otherwise easy to confuse with
-     * the task id and fails with a bare "Session not found". Resolution is a
-     * read-only lookup against the existing session_plan/ files at request
-     * time, not new state of its own.
-     *
-     * A task id can match more than one session (e.g. a dropped attempt
-     * followed by a fresh one for the same task). Resolution rules, in order:
-     *  1. an explicit, already-valid session id is left unchanged.
-     *  2. zero matches: left unchanged, so the upstream "Session not found"
-     *     failure still applies.
-     *  3. exactly one match: resolved.
-     *  4. multiple matches with exactly one non-closed ("active") session:
-     *     the active one is resolved.
-     *  5. multiple matches with zero or more-than-one active session: this
-     *     is ambiguous, so resolution fails cleanly (an [ERROR] is printed
-     *     and null is returned) instead of guessing which one the caller
-     *     meant.
+     * passed to `session start --task` in place of the generated session id.
      *
      * @param list<string> $rest
      *
-     * @return list<string>|null null when the task id matched more than one
-     *                            session and the caller must pass the
-     *                            generated session id explicitly instead
+     * @return list<string>|null
      */
     private function resolveSessionArgv(array $rest): ?array
     {
@@ -368,12 +316,7 @@ final class Dispatcher
 
     /**
      * Defaults `recall compile --task <id>` to `--output-dir <recall-root>/<id>`
-     * when the caller didn't pass one (the dependency itself defaults to the
-     * current directory). `<recall-root>` is `RecallOutputRoot::resolve()`:
-     * `paths.recall_root` from `.agent-loop/init.json` when the host project
-     * configures one, else `<root>/infra/doc/agent-learning/recall-output`
-     * when that learning root exists, else `<root>/recall`. Anything the
-     * caller already passed for `--output-dir` is left alone.
+     * when the caller didn't pass one.
      *
      * @param list<string> $rest
      *
@@ -417,9 +360,6 @@ final class Dispatcher
     }
 
     /**
-     * Rebuilds an argv array for a delegated library CLI: script name at index 0,
-     * the namespace's own command/arguments from index 1 onwards.
-     *
      * @param list<string> $rest
      *
      * @return list<string>
@@ -432,7 +372,7 @@ final class Dispatcher
     private function printUsage(int $exitCode, string $unknownNamespace = ''): int
     {
         if ($unknownNamespace !== '') {
-            fwrite(\STDERR, "Unknown command: {$unknownNamespace}\n\n");
+            fwrite(STDERR, "Unknown command: {$unknownNamespace}\n\n");
         }
 
         $usage = <<<TXT
@@ -485,7 +425,7 @@ final class Dispatcher
         if ($unknownNamespace === '') {
             echo $usage;
         } else {
-            fwrite(\STDERR, $usage);
+            fwrite(STDERR, $usage);
         }
 
         return $exitCode;

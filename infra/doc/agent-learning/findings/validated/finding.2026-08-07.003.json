@@ -1,0 +1,27 @@
+{
+  "id": "finding.2026-08-07.003",
+  "task_id": "TODO@agent-loop/self-shape-pr-28",
+  "session": "2026-08-07-self-shape",
+  "created_at": "2026-08-07T22:48:00+02:00",
+  "created_by": "agent-loop-self-shape",
+  "scope": [
+    ".github/workflows/ci.yml",
+    "tools/self-shape-dogfood.sh",
+    "src/Workflow/WorkflowCloseCommand.php",
+    "infra/doc/agent-learning/recall-output/SELF-SHAPE"
+  ],
+  "observation": "Self-shaping exposed two close-out traps. First, reviewing before outcome and checkpoint evidence exist produces expected warnings. Second, the blind-spot CLI may still exit successfully when its machine-readable report status is warn. A run therefore printed PASSED while the final report still contained missing_outcome_closeout. The session checkpoint also has to record the log-outcome action because the reviewer intentionally scans recall/session evidence rather than inferring completion from learning history elsewhere.",
+  "evidence": [
+    {
+      "type": "test_result",
+      "command": "Agent-loop shapes itself",
+      "summary": "The first lifecycle reported missing outcome and review checkpoint evidence. A later run logged outcome successfully but still produced final status warn with one missing_outcome_closeout finding; the shell runner continued because the review command exit code was 0. This demonstrated that final acceptance must inspect the JSON review status, not only process success."
+    }
+  ],
+  "hypothesis": "A self-review performed before its own close-out evidence is recorded is incomplete, and process exit codes alone are insufficient when a command has successful-but-warning semantic states.",
+  "validated_conclusion": "Use an exploratory blind-spot review while work is open. Then run recall log-outcome, record a session checkpoint that explicitly evidences both log-outcome and review blindspots close-out, and run the final review. The final dogfood gate must parse the machine-readable blindspots report and require status=ok; warn is not a completed self-shape even when the CLI exits 0.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

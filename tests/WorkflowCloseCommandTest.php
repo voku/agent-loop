@@ -8,9 +8,10 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
-use voku\AgentSession\SessionStore;
 use voku\AgentSession\LearningDecision;
 use voku\AgentSession\LearningDecisionStore;
+use voku\AgentSession\SessionStatus;
+use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
 use voku\AgentSession\WorkBriefStore;
@@ -18,6 +19,7 @@ use voku\AgentSession\WorkBriefStore;
 final class WorkflowCloseCommandTest extends TestCase
 {
     private string $root;
+    private string $sessionId;
     private string $sessionPath;
 
     protected function setUp(): void
@@ -34,9 +36,10 @@ final class WorkflowCloseCommandTest extends TestCase
 
     public function testCloseFailsWhenRecallMetaIsMissing(): void
     {
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
+        self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
         self::assertStringContainsString('[FAIL] recall: missing', $result['output']);
         self::assertStringContainsString('session was not closed', $result['output']);
     }
@@ -45,7 +48,7 @@ final class WorkflowCloseCommandTest extends TestCase
     {
         $this->writeRecallMeta();
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('[FAIL] review: missing', $result['output']);
@@ -57,7 +60,7 @@ final class WorkflowCloseCommandTest extends TestCase
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'fail']);
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('status is fail', $result['output']);
@@ -68,20 +71,22 @@ final class WorkflowCloseCommandTest extends TestCase
         $this->writeRecallMeta();
         $this->writeRawReviewReport('{');
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('invalid or missing status', $result['output']);
     }
 
-    public function testCloseFailsWhenVerifyFails(): void
+    public function testCloseFailsWhenCrossPackageVerifierFails(): void
     {
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'ok']);
+        $this->breakVerifierForTask();
 
-        $result = $this->runClose(verifyExit: 2);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
+        self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
         self::assertStringContainsString('verify failed', $result['output']);
     }
 
@@ -94,7 +99,7 @@ final class WorkflowCloseCommandTest extends TestCase
         ]);
         $this->writeReviewReport(['status' => 'ok']);
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('missing outcomes.jsonl for selected guidance', $result['output']);
@@ -106,34 +111,33 @@ final class WorkflowCloseCommandTest extends TestCase
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'ok']);
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('[FAIL] work brief: revision 1 is not approved', $result['output']);
     }
 
-    public function testCloseSucceedsWithOkReviewStatusAndVerifyPass(): void
+    public function testClosePersistsDoneStatusWithOkReviewAndVerifyPass(): void
     {
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'ok']);
 
-        $calls = [];
-        $result = $this->runClose(verifyExit: 0, sessionExit: 0, calls: $calls);
+        $result = $this->runClose();
 
         self::assertSame(0, $result['exit']);
-        self::assertSame([['close', 'ABC-123', '--status', 'done']], $calls);
+        self::assertSame(SessionStatus::DONE, $this->sessionStatus());
+        self::assertStringContainsString('gates passed; closing session', $result['output']);
     }
 
-    public function testCloseSucceedsWithWarnReviewStatusAndVerifyPass(): void
+    public function testCloseAcceptsWarnReviewStatus(): void
     {
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'warn']);
 
-        $calls = [];
-        $result = $this->runClose(verifyExit: 0, sessionExit: 0, calls: $calls);
+        $result = $this->runClose();
 
         self::assertSame(0, $result['exit']);
-        self::assertSame([['close', 'ABC-123', '--status', 'done']], $calls);
+        self::assertSame(SessionStatus::DONE, $this->sessionStatus());
     }
 
     public function testCloseReadsGeneratedReviewFixtureShape(): void
@@ -141,45 +145,29 @@ final class WorkflowCloseCommandTest extends TestCase
         $this->writeRecallMeta();
         $this->writeRawReviewReport((string) file_get_contents(__DIR__ . '/fixtures/review-reports/blindspots.warn.json'));
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('with status warn', $result['output']);
     }
 
-    public function testAcceptRiskWritesAcceptedRiskFileAndDelegatesDespiteFailedGates(): void
+    public function testAcceptRiskWritesRecordAndClosesDespiteFailedGates(): void
     {
-        $calls = [];
         $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
-            verifyExit: 1,
-            sessionExit: 0,
-            calls: $calls,
+            ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
         );
 
         self::assertSame(0, $result['exit']);
+        self::assertSame(SessionStatus::DONE, $this->sessionStatus());
         self::assertFileExists($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
         self::assertStringContainsString('accepted risk recorded', $result['output']);
-        self::assertSame([['close', 'ABC-123', '--status', 'done']], $calls);
-    }
-
-    public function testAcceptRiskReportsSessionCloseFailureAfterBypass(): void
-    {
-        $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
-            verifyExit: 1,
-            sessionExit: 9,
-        );
-
-        self::assertSame(9, $result['exit']);
-        self::assertStringContainsString('session close failed after accepted-risk bypass', $result['output']);
     }
 
     public function testAnEditBundleWithoutAVerificationResultBlocksClose(): void
     {
         mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('[FAIL] edit verification: missing verification-result.json', $result['output']);
@@ -193,7 +181,7 @@ final class WorkflowCloseCommandTest extends TestCase
             'gates' => ['runner_exit' => 'passed', 'php_lint_changed_files' => 'failed', 'target_resolvable' => 'not_run'],
         ]);
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('[FAIL] edit verification: status failed', $result['output']);
@@ -205,16 +193,85 @@ final class WorkflowCloseCommandTest extends TestCase
     {
         $this->writeEditVerificationResult(['status' => 'passed', 'gates' => ['runner_exit' => 'passed']]);
 
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertStringContainsString('[OK] edit verification: passed', $result['output']);
     }
 
     public function testATaskWithoutAnEditBundleIsNotAskedForOne(): void
     {
-        $result = $this->runClose(verifyExit: 0);
+        $result = $this->runClose();
 
         self::assertStringContainsString('[OK] edit verification: no edit bundle for ABC-123', $result['output']);
+    }
+
+    public function testAcceptRiskWithoutANamedOwnerIsRefused(): void
+    {
+        $result = $this->runClose(
+            ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
+        );
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
+        self::assertStringContainsString('--accept-risk-by', $result['output']);
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
+    }
+
+    public function testAcceptedRiskRecordNamesTheFailedVerifierGate(): void
+    {
+        $this->breakVerifierForTask();
+        $this->runClose(
+            ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
+        );
+
+        $record = (string) file_get_contents($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
+        self::assertStringContainsString('Accepted by: lars', $record);
+        self::assertStringContainsString('## Gates that failed', $record);
+        self::assertStringContainsString('`verify`: agent-loop verify failed', $record);
+    }
+
+    public function testAcceptRiskWithEmptyReasonFails(): void
+    {
+        $result = $this->runClose(['ABC-123', '--status', 'done', '--accept-risk', '']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
+    }
+
+    public function testCloseWithNonDoneStatusFailsAndSuggestsSessionClose(): void
+    {
+        $result = $this->runClose(['ABC-123', '--status', 'dropped']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
+        self::assertStringContainsString('Use agent-loop session close directly', $result['output']);
+    }
+
+    /**
+     * @param list<string> $args
+     *
+     * @return array{exit: int, output: string}
+     */
+    private function runClose(array $args = ['ABC-123', '--status', 'done']): array
+    {
+        $command = new WorkflowCloseCommand($this->root);
+
+        ob_start();
+        $exit = $command->run($args);
+        $output = (string) ob_get_clean();
+
+        return ['exit' => $exit, 'output' => $output];
+    }
+
+    private function breakVerifierForTask(): void
+    {
+        mkdir($this->root . '/tasks', 0o775, true);
+        file_put_contents($this->root . '/tasks/ABC-123.md', '');
+    }
+
+    private function sessionStatus(): SessionStatus
+    {
+        return (new SessionStore())->load($this->root . '/session_plan', $this->sessionId)->status;
     }
 
     /** @param array<string, mixed> $result */
@@ -227,77 +284,6 @@ final class WorkflowCloseCommandTest extends TestCase
         );
     }
 
-    public function testAcceptRiskWithoutANamedOwnerIsRefused(): void
-    {
-        $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
-            verifyExit: 1,
-        );
-
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('--accept-risk-by', $result['output']);
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
-    }
-
-    public function testAcceptedRiskRecordNamesTheFailedGates(): void
-    {
-        $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
-            verifyExit: 1,
-            sessionExit: 0,
-        );
-
-        $record = (string) file_get_contents($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
-        self::assertStringContainsString('Accepted by: lars', $record);
-        self::assertStringContainsString('## Gates that failed', $record);
-        self::assertStringContainsString('`verify`: agent-loop verify failed', $record);
-    }
-
-    public function testAcceptRiskWithEmptyReasonFails(): void
-    {
-        $result = $this->runClose(args: ['ABC-123', '--status', 'done', '--accept-risk', '']);
-
-        self::assertSame(1, $result['exit']);
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
-    }
-
-    public function testCloseWithNonDoneStatusFailsAndSuggestsSessionClose(): void
-    {
-        $result = $this->runClose(args: ['ABC-123', '--status', 'dropped']);
-
-        self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('Use agent-loop session close directly', $result['output']);
-    }
-
-    /**
-     * @param list<string> $args
-     * @param list<list<string>> $calls
-     *
-     * @return array{exit: int, output: string}
-     */
-    private function runClose(
-        array $args = ['ABC-123', '--status', 'done'],
-        int $verifyExit = 0,
-        int $sessionExit = 0,
-        array &$calls = [],
-    ): array {
-        $command = new WorkflowCloseCommand(
-            $this->root,
-            static function (array $argv) use (&$calls, $sessionExit): int {
-                $calls[] = $argv;
-
-                return $sessionExit;
-            },
-            static fn (array $argv): int => $verifyExit,
-        );
-
-        ob_start();
-        $exit = $command->run($args);
-        $output = (string) ob_get_clean();
-
-        return ['exit' => $exit, 'output' => $output];
-    }
-
     /** @param array<string, mixed> $meta */
     private function writeRecallMeta(array $meta = []): void
     {
@@ -308,6 +294,7 @@ final class WorkflowCloseCommandTest extends TestCase
     private function writeApprovedWorkBrief(): void
     {
         $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123');
+        $this->sessionId = $session->id;
         $this->sessionPath = $session->path;
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);

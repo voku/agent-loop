@@ -20,6 +20,42 @@ jobs:
       - run: composer install --no-interaction --prefer-dist
       - run: composer ci
 
+  self-shape-dogfood:
+    if: github.event_name == 'pull_request'
+    name: Agent-loop shapes itself
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Lint self-shape runner
+        run: bash -n tools/self-shape-dogfood.sh
+      - name: Govern this change with agent-loop itself
+        run: bash tools/self-shape-dogfood.sh --base-ref=${{ github.base_ref }}
+      - name: Upload self-shaping evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-shape-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/self-shape-*.json
+            infra/doc/agent-learning/recall-output/SELF-SHAPE
+            infra/doc/agent-learning/history
+            session_plan
+            .agent-loop/runs/SELF-SHAPE
+
   release-set-dogfood:
     name: Installed release-set dogfood
     runs-on: ubuntu-latest
