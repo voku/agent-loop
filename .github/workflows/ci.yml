@@ -40,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          agent_loop=(php bin/agent-loop)
           task='SELF-SHAPE'
           actor='agent-loop-self-shape'
           base_ref="${GITHUB_BASE_REF:-main}"
@@ -48,7 +49,7 @@ jobs:
 
           mkdir -p build learning-root
 
-          vendor/bin/agent-loop workflow plan "${task}" \
+          "${agent_loop[@]}" workflow plan "${task}" \
             --by "${actor}" \
             --learning-root learning-root \
             --base-commit "${base}" \
@@ -70,18 +71,18 @@ jobs:
             --validation 'composer ci' \
             --behavior-anchor 'agent-loop workflow command -> agent-session typed store -> persisted session and work-brief state'
 
-          vendor/bin/agent-loop workflow approve "${task}" \
+          "${agent_loop[@]}" workflow approve "${task}" \
             --by "${actor}" \
             --learning-root learning-root
 
-          vendor/bin/agent-loop workflow context "${task}" \
+          "${agent_loop[@]}" workflow context "${task}" \
             --format=json \
             --learning-root learning-root \
             > build/self-shape-context.json
 
           composer ci
 
-          vendor/bin/agent-loop session validation record "${task}" \
+          "${agent_loop[@]}" session validation record "${task}" \
             --brief-revision 1 \
             --command 'composer ci' \
             --status passed \
@@ -90,37 +91,37 @@ jobs:
             --by "${actor}"
 
           set +e
-          vendor/bin/agent-loop review blindspots "${task}"
+          "${agent_loop[@]}" review blindspots "${task}"
           review_exit=$?
           set -e
           if [[ "${review_exit}" -ne 0 && "${review_exit}" -ne 1 ]]; then
             exit "${review_exit}"
           fi
 
-          vendor/bin/agent-loop session checkpoint "${task}" \
+          "${agent_loop[@]}" session checkpoint "${task}" \
             --title 'Self-shape review' \
             --body "Inspected the deterministic blind-spot report for this change against ${base}."
 
-          vendor/bin/agent-loop review blindspots "${task}"
+          "${agent_loop[@]}" review blindspots "${task}"
 
-          vendor/bin/agent-loop recall log-outcome \
+          "${agent_loop[@]}" recall log-outcome \
             --root learning-root \
             --draft "recall/${task}/recall-log.draft.json" \
             --by "${actor}" \
             --commit "${head}"
 
-          vendor/bin/agent-loop session learning decide "${task}" \
+          "${agent_loop[@]}" session learning decide "${task}" \
             --status no_durable_learning \
             --by "${actor}"
 
-          vendor/bin/agent-loop workflow manifest "${task}" \
+          "${agent_loop[@]}" workflow manifest "${task}" \
             --write \
             --format=json \
             > build/self-shape-manifest-before-close.json
 
-          vendor/bin/agent-loop verify
+          "${agent_loop[@]}" verify
 
-          vendor/bin/agent-loop workflow report "${task}" \
+          "${agent_loop[@]}" workflow report "${task}" \
             --format=json \
             --learning-root learning-root \
             --changed-file src/Dispatcher.php \
@@ -138,8 +139,8 @@ jobs:
             --changed-file .github/workflows/ci.yml \
             > build/self-shape-report.json
 
-          vendor/bin/agent-loop workflow close "${task}" --status done
-          vendor/bin/agent-loop workflow status "${task}" --format=json \
+          "${agent_loop[@]}" workflow close "${task}" --status done
+          "${agent_loop[@]}" workflow status "${task}" --format=json \
             > build/self-shape-status.json
 
       - name: Upload self-shaping evidence
