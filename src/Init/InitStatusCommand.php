@@ -106,6 +106,7 @@ final readonly class InitStatusCommand
             ['label' => 'claude skills', 'targetRoot' => $this->resolveSkillsTargetRoot('claude'), 'kind' => 'skills', 'agent' => 'claude', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'copilot skills', 'targetRoot' => $this->resolveSkillsTargetRoot('copilot'), 'kind' => 'skills', 'agent' => 'copilot', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'antigravity skills', 'targetRoot' => $this->resolveSkillsTargetRoot('antigravity'), 'kind' => 'skills', 'agent' => 'antigravity', 'desiredEntries' => $skillsDesiredEntries],
+            ['label' => 'codex subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('codex'), 'kind' => 'subagents', 'agent' => 'codex', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.toml')],
             ['label' => 'copilot subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('copilot'), 'kind' => 'subagents', 'agent' => 'copilot', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.agent.md')],
             ['label' => 'antigravity subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('antigravity'), 'kind' => 'subagents', 'agent' => 'antigravity', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
             ['label' => 'codex hooks', 'targetRoot' => $this->resolveHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'codex', 'desiredEntries' => $this->hooksDesiredEntries($paths)],
@@ -289,9 +290,12 @@ final readonly class InitStatusCommand
 
     private function resolveSubagentsTargetRoot(string $agent): string
     {
-        return $agent === 'copilot'
-            ? ($this->resolvePathFromEnv('COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents')
-            : ($this->resolvePathFromEnv('ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents');
+        return match ($agent) {
+            'codex' => $this->resolvePathFromEnv('CODEX_AGENTS_DIR')
+                ?? (($codexHome = $this->resolvePathFromEnv('CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
+            'copilot' => $this->resolvePathFromEnv('COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
+            default => $this->resolvePathFromEnv('ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+        };
     }
 
     private function resolveHooksTargetRoot(): string
