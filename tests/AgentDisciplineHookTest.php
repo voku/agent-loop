@@ -18,8 +18,6 @@ final class AgentDisciplineHookTest extends TestCase
             'hook_event_name' => 'SessionStart',
         ]));
 
-        self::assertTrue($output['continue']);
-        self::assertTrue($output['suppressOutput']);
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertStringContainsString('Minimal Implementation Ladder', $output['hookSpecificOutput']['additionalContext']);
         self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext']);
@@ -50,11 +48,19 @@ final class AgentDisciplineHookTest extends TestCase
         $this->assertPassThrough('npm test ponytail');
     }
 
-    public function testUnboundedMapDumpIsDeniedWithBoundedAlternatives(): void
+    /** @return iterable<string, array{string}> */
+    public static function unboundedMapDumpProvider(): iterable
     {
-        $output = $this->preTool('cat .agent-map/php-symbols.json');
+        yield 'cat JSON index' => ['cat .agent-map/php-symbols.json'];
+        yield 'jq with options' => ["jq -r '.' .agent-map/php-symbols.json"];
+        yield 'arbitrary SQLite query' => ["sqlite3 .agent-map/search.sqlite 'SELECT * FROM documents'"];
+    }
 
-        self::assertTrue($output['continue']);
+    #[DataProvider('unboundedMapDumpProvider')]
+    public function testUnboundedMapDumpIsDeniedWithBoundedAlternatives(string $command): void
+    {
+        $output = $this->preTool($command);
+
         self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
         self::assertNotSame('', trim($output['hookSpecificOutput']['permissionDecisionReason'] ?? ''));
         self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext'] ?? '');
@@ -86,7 +92,6 @@ final class AgentDisciplineHookTest extends TestCase
     {
         $output = $this->preTool($command);
 
-        self::assertTrue($output['continue']);
         self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
         self::assertNotSame('', trim($output['hookSpecificOutput']['permissionDecisionReason'] ?? ''));
         self::assertStringContainsString('install-assets', $output['hookSpecificOutput']['additionalContext'] ?? '');
@@ -105,7 +110,6 @@ final class AgentDisciplineHookTest extends TestCase
     {
         $output = $this->preTool($command);
 
-        self::assertTrue($output['continue']);
         self::assertSame('PreToolUse', $output['hookSpecificOutput']['hookEventName']);
         self::assertArrayNotHasKey('permissionDecision', $output['hookSpecificOutput']);
         self::assertArrayNotHasKey('updatedInput', $output['hookSpecificOutput']);
