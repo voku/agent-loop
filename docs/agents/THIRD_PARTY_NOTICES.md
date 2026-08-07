@@ -20,6 +20,9 @@ implementation deliberately excludes their installers, JavaScript runtime,
 mode files, status lines, transcript statistics, marketplaces, MCP servers, and
 client-specific plugin adapters.
 
+These notices document provenance only. They are not installation instructions
+and are never read or executed by `agent-loop init install-assets`.
+
 The upstream projects remain copyright their respective authors and are
 available under their own MIT license files:
 
