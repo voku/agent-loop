@@ -77,12 +77,13 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertStringContainsString('invalid or missing status', $result['output']);
     }
 
-    public function testCloseFailsWhenVerifyFails(): void
+    public function testCloseFailsWhenCrossPackageVerifierFails(): void
     {
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'ok']);
+        $this->breakVerifierForTask();
 
-        $result = $this->runClose(verifyExit: 2);
+        $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
         self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
@@ -153,8 +154,7 @@ final class WorkflowCloseCommandTest extends TestCase
     public function testAcceptRiskWritesRecordAndClosesDespiteFailedGates(): void
     {
         $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
-            verifyExit: 1,
+            ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
         );
 
         self::assertSame(0, $result['exit']);
@@ -208,8 +208,7 @@ final class WorkflowCloseCommandTest extends TestCase
     public function testAcceptRiskWithoutANamedOwnerIsRefused(): void
     {
         $result = $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
-            verifyExit: 1,
+            ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.'],
         );
 
         self::assertSame(1, $result['exit']);
@@ -218,11 +217,11 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
     }
 
-    public function testAcceptedRiskRecordNamesTheFailedGates(): void
+    public function testAcceptedRiskRecordNamesTheFailedVerifierGate(): void
     {
+        $this->breakVerifierForTask();
         $this->runClose(
-            args: ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
-            verifyExit: 1,
+            ['ABC-123', '--status', 'done', '--accept-risk', 'Manual review.', '--accept-risk-by', 'lars'],
         );
 
         $record = (string) file_get_contents($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
@@ -233,7 +232,7 @@ final class WorkflowCloseCommandTest extends TestCase
 
     public function testAcceptRiskWithEmptyReasonFails(): void
     {
-        $result = $this->runClose(args: ['ABC-123', '--status', 'done', '--accept-risk', '']);
+        $result = $this->runClose(['ABC-123', '--status', 'done', '--accept-risk', '']);
 
         self::assertSame(1, $result['exit']);
         self::assertFileDoesNotExist($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
@@ -241,7 +240,7 @@ final class WorkflowCloseCommandTest extends TestCase
 
     public function testCloseWithNonDoneStatusFailsAndSuggestsSessionClose(): void
     {
-        $result = $this->runClose(args: ['ABC-123', '--status', 'dropped']);
+        $result = $this->runClose(['ABC-123', '--status', 'dropped']);
 
         self::assertSame(1, $result['exit']);
         self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
@@ -253,20 +252,21 @@ final class WorkflowCloseCommandTest extends TestCase
      *
      * @return array{exit: int, output: string}
      */
-    private function runClose(
-        array $args = ['ABC-123', '--status', 'done'],
-        int $verifyExit = 0,
-    ): array {
-        $command = new WorkflowCloseCommand(
-            $this->root,
-            static fn (array $argv): int => $verifyExit,
-        );
+    private function runClose(array $args = ['ABC-123', '--status', 'done']): array
+    {
+        $command = new WorkflowCloseCommand($this->root);
 
         ob_start();
         $exit = $command->run($args);
         $output = (string) ob_get_clean();
 
         return ['exit' => $exit, 'output' => $output];
+    }
+
+    private function breakVerifierForTask(): void
+    {
+        mkdir($this->root . '/tasks', 0o775, true);
+        file_put_contents($this->root . '/tasks/ABC-123.md', '');
     }
 
     private function sessionStatus(): SessionStatus
