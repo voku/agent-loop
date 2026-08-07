@@ -39,12 +39,20 @@ Use `--agent=all` for the complete package-owned set:
 
 - portable skills for Codex, Claude, Copilot, and Antigravity;
 - investigator, surgical-builder, and code-reviewer subagent definitions for
-  the existing Copilot and Antigravity agent targets;
+  Codex, Copilot, and Antigravity;
 - repository-local PHP hooks for Codex.
 
-Claude currently receives the portable skills only. Codex receives the role
-behavior through those portable skills plus the `SubagentStart` discipline hook;
-`sync-subagents` does not currently define a Codex target format.
+The canonical role Markdown under `docs/agents/subagents/` is rendered into the
+client format rather than duplicated as client-specific source:
+
+- Codex: `.codex/agents/*.toml` with `name`, `description`, and
+  `developer_instructions`;
+- Copilot: `.github/agents/*.agent.md`;
+- Antigravity: `.agents/agents/*.md`.
+
+Claude currently receives the portable skills only. Model selection remains a
+host/client concern; the package-owned role renderer does not pin model,
+reasoning, or provider-specific settings.
 
 The command:
 
@@ -57,8 +65,8 @@ The command:
 - supports `--dry-run`;
 - downloads and executes nothing.
 
-After Codex installation, open `/hooks`, inspect the copied PHP files, and trust
-them only after review.
+After Codex installation, inspect `.codex/agents/` and `/hooks`; trust the copied
+role/hook behavior only after review.
 
 ## Current commands
 
@@ -70,7 +78,7 @@ vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
-vendor/bin/agent-loop init sync-subagents --agent=copilot --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 vendor/bin/agent-loop init scaffold --dry-run
 ```
@@ -165,6 +173,11 @@ A common flow is investigator -> surgical builder -> code reviewer. Broader
 features and cross-cutting refactors stay in the main governed workflow instead
 of being forced through a tiny builder role.
 
+Codex role rendering follows Codex's current project role contract: roles are
+written under `.codex/agents/` as standalone TOML and contain the canonical
+name/description/body as `name`, `description`, and `developer_instructions`.
+No model override is generated.
+
 ## The three budgets
 
 The first-party discipline keeps three concerns separate:
@@ -247,6 +260,7 @@ validation and sync commands:
 ```bash
 vendor/bin/agent-loop init validate --kind=all --config=.agent-loop/init.json
 vendor/bin/agent-loop init sync-skills --agent=codex --config=.agent-loop/init.json --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --config=.agent-loop/init.json --dry-run
 ```
 
 Do not edit generated client copies first. Update canonical host sources,
@@ -286,7 +300,7 @@ neither file is an installation dependency.
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
-vendor/bin/agent-loop init sync-subagents --agent=copilot --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init doctor
 vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
