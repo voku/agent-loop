@@ -20,8 +20,7 @@ use voku\AgentSession\WorkBriefStore;
  */
 final readonly class WorkflowPlanCommand
 {
-    /** @param callable(list<string>): int $sessionRunner */
-    public function __construct(private string $rootPath, private mixed $sessionRunner)
+    public function __construct(private string $rootPath)
     {
     }
 
@@ -38,58 +37,49 @@ final readonly class WorkflowPlanCommand
         }
 
         try {
+            $sessions = new SessionStore();
+            $briefs = new WorkBriefStore();
             $activeSession = $this->activeSession($taskId->value);
+
             if ($activeSession === null) {
-                $sessionArgs = ['start', '--task', $taskId->value, '--by', $options['by']];
-                if ($options['baseCommit'] !== null) {
-                    $sessionArgs[] = '--base-commit';
-                    $sessionArgs[] = $options['baseCommit'];
-                }
-                // An experiment is declared when it starts, not repaired afterwards: a session that
-                // only ever existed to try a command out must never have been able to fail the
-                // repository-wide gate in the first place.
-                if ($options['ephemeral'] === true) {
-                    $sessionArgs[] = '--ephemeral';
-                }
-                $exit = ($this->sessionRunner)($sessionArgs);
-                if ($exit !== 0) {
-                    return $exit;
-                }
+                $activeSession = $sessions->create(
+                    rtrim($this->rootPath, '/') . '/session_plan',
+                    $taskId->value,
+                    null,
+                    $options['by'],
+                    $options['baseCommit'],
+                    $options['ephemeral'],
+                );
                 $briefAction = 'create';
             } else {
-                $briefAction = (new WorkBriefStore())->find($activeSession) === null ? 'create' : 'revise';
+                $briefAction = $briefs->find($activeSession) === null ? 'create' : 'revise';
+            }
+
+            if ($briefAction === 'create') {
+                $briefs->create(
+                    $activeSession,
+                    $options['goal'],
+                    $options['scope'],
+                    $options['nonGoals'],
+                    $options['validation'],
+                    $options['tags'],
+                    $options['behaviorAnchors'],
+                );
+            } else {
+                $briefs->revise(
+                    $activeSession,
+                    $options['goal'],
+                    $options['scope'],
+                    $options['nonGoals'],
+                    $options['validation'],
+                    $options['tags'],
+                    $options['behaviorAnchors'],
+                );
             }
         } catch (Throwable $e) {
             fwrite(STDERR, '[FAIL] workflow plan: ' . $e->getMessage() . "\n");
 
             return 1;
-        }
-
-        $briefArgs = ['brief', $briefAction, $taskId->value, '--goal', $options['goal']];
-        foreach ($options['scope'] as $scope) {
-            $briefArgs[] = '--scope';
-            $briefArgs[] = $scope;
-        }
-        foreach ($options['nonGoals'] as $nonGoal) {
-            $briefArgs[] = '--non-goal';
-            $briefArgs[] = $nonGoal;
-        }
-        foreach ($options['validation'] as $validation) {
-            $briefArgs[] = '--validation';
-            $briefArgs[] = $validation;
-        }
-        foreach ($options['tags'] as $tag) {
-            $briefArgs[] = '--tag';
-            $briefArgs[] = $tag;
-        }
-        foreach ($options['behaviorAnchors'] as $behaviorAnchor) {
-            $briefArgs[] = '--behavior-anchor';
-            $briefArgs[] = $behaviorAnchor;
-        }
-
-        $exit = ($this->sessionRunner)($briefArgs);
-        if ($exit !== 0) {
-            return $exit;
         }
 
         try {
@@ -125,7 +115,7 @@ final readonly class WorkflowPlanCommand
             static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
         ));
         if (count($sessions) > 1) {
-            throw new RuntimeException("Multiple active sessions found for task {$taskId}; pass a generated session id through agent-loop session brief instead.");
+            throw new RuntimeException("Multiple active sessions found for task {$taskId}.");
         }
 
         return $sessions[0] ?? null;
@@ -147,7 +137,6 @@ final readonly class WorkflowPlanCommand
         $tags = [];
         $behaviorAnchors = [];
         $baseCommit = null;
-
         $ephemeral = false;
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
