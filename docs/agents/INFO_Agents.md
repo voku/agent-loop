@@ -189,8 +189,8 @@ The bundled hooks are thin PHP entrypoints backed by the typed
 - `SessionStart` injects the package-owned discipline.
 - `SubagentStart` propagates the same contract to spawned agents.
 - `PreToolUse` leaves ordinary Bash commands unchanged.
-- `PreToolUse` redirects only unbounded dumps of generated `.agent-map` indexes
-  toward bounded map commands.
+- `PreToolUse` denies configured unbounded `.agent-map` dump patterns and
+  suggests bounded map commands.
 
 Hooks are behavioral guardrails, never a correctness or security boundary. A
 host may fail to dispatch a hook, so correctness, trust-boundary validation, CI,
