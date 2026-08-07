@@ -1,6 +1,6 @@
 # First-party agent discipline dogfood
 
-Date: 2026-08-07
+Date: 2026-08-07 (Europe/Berlin)
 
 ## Goal
 
@@ -9,145 +9,210 @@ agent behavior that:
 
 - keeps progress and final replies concise for humans;
 - prevents speculative or unrequested implementation;
-- uses `agent-map` before broad PHP reads;
+- uses `agent-map` to avoid broad PHP reads when navigation is needed;
 - preserves raw source, diffs, tests, and verification evidence;
 - installs without cloning repositories, plugin marketplaces, remote scripts,
-  Node.js, or runtime dependencies.
+  Node.js, or third-party runtime dependencies.
+
+The merge gate is behavioral as well as mechanical. A green installer is not
+enough if the resulting agent still reads broadly or invents work.
 
 ## Source review
 
-Direct `git clone` was attempted first and failed because the execution
-container had no DNS/network access. Relevant upstream files were then reviewed
-through the connected GitHub API at fixed commits:
+Direct `git clone` was attempted first and failed because the execution container
+had no DNS/network access. Relevant upstream files were reviewed through the
+connected GitHub API at fixed commits:
 
 - Caveman: `ec83e5bace4c20484d704dea21e12fc4eb94e9aa`
 - Ponytail: `16f29800fd2681bdf24f3eb4ccffe38be3baec6b`
 
-Reviewed surfaces included primary skills, configuration and activation hooks,
-mode parsers, subagent propagation, statistics, simplify-review/audit skills,
-debt handling, tests, and published benchmark notes.
+Reviewed surfaces included primary skills, activation/hooks, mode handling,
+subagent propagation, statistics, simplify/audit skills, debt handling, tests,
+and published benchmark notes.
 
 ## Kept
 
-- persistent guidance at session and subagent start;
-- concise communication that preserves negation, exact terms, paths, numbers,
-  commands, and errors;
-- a minimal implementation ladder applied after tracing the real code path;
-- root-cause changes after caller inspection;
-- a focused simplify-review separate from correctness and security review;
-- explicit points where brevity or minimalism must yield to clarity and safety;
-- observable artifact metrics instead of invented savings.
+- concise human-facing communication that preserves exact paths, symbols,
+  commands, numbers, negation, constraints, and errors;
+- a minimal implementation ladder after locating the real owner and callers;
+- root-cause changes instead of symptom patches;
+- a separate simplify-review that reads the complete raw diff;
+- `agent-map` as bounded navigation before broad PHP reads;
+- explicit evidence integrity and safety floors;
+- observable artifact metrics instead of invented token savings;
+- session/subagent context hooks as optional behavioral guardrails.
 
 ## Rejected
 
-- remote installers and plugin marketplaces;
+- remote installers, repositories, and plugin marketplaces;
 - Node.js runtime code;
 - mode parsers, status lines, flag files, transcript scanning, and savings
   estimates;
-- client-specific adapters beyond existing `agent-loop init` targets;
-- rewriting commands or tool output;
+- command or tool-output rewriting;
 - replacing full diffs with summaries;
-- claiming token or line savings without a real baseline.
+- hook blacklists that pretend to be a security sandbox;
+- host configuration for the immutable `install-assets` source;
+- mandatory map ceremony for trivial documentation or already-localized edits;
+- token or counterfactual code savings without direct telemetry.
 
-## Dogfood iterations
+## Iterations that changed the design
 
-### Baseline
+### 1. External recommendation was the wrong ownership model
 
-The first PR version merely removed RTK and recommended installing Caveman and
-Ponytail. It did not satisfy the security or ownership requirement and had no
-runtime dogfood.
+The first PR version removed RTK but still recommended installing Caveman and
+Ponytail. That did not satisfy the supply-chain or ownership goal. Their useful
+ideas were therefore distilled into package-owned skills and PHP code instead.
 
-### Candidate 1
+### 2. The first discipline was too large
 
-A combined PHP-oriented skill plus Codex hooks passed six synthetic hook cases,
-but the main skill was 116 lines and 4,670 bytes. That contradicted the intended
-attention budget, so it was reduced rather than defended with another essay.
+The initial combined skill was 116 lines / 4,670 bytes. A rule intended to save
+human attention should not become another wall of instructions, so it was
+reduced to 99 lines while preserving the implementation ladder, map boundary,
+evidence integrity, safety floor, and validation contract.
 
-### Candidate 2
+### 3. The real Codex parser rejected schema-looking hook output
 
-The skill was reduced to 99 lines and 3,799 bytes without losing the map-first,
-minimal-change, evidence-integrity, safety, or validation contracts. The same
-cases still passed.
-
-### Candidate 3
-
-The hook output was checked against Codex's actual hook parser rather than only
-its JSON schema. This exposed three invalid combinations in the prototype:
+Testing against Codex's parser exposed invalid prototype combinations that a
+superficial JSON check missed:
 
 - `continue:false` in `PreToolUse`;
 - `suppressOutput:true` in `PreToolUse`;
-- `permissionDecision:allow` without `updatedInput`.
+- synthetic `permissionDecision:allow` without `updatedInput`.
 
-The hook now leaves ordinary commands undecided and unchanged. A denial uses
-only `permissionDecision:deny` with a non-empty reason and keeps hook processing
-alive.
+Pass-through now leaves commands undecided and unchanged. Map denials keep hook
+processing alive and provide a bounded replacement.
 
-### Candidate 4
+### 4. The hook blacklist was itself speculative implementation
 
-The first external-bootstrap matcher denied any command that merely mentioned an
-upstream repository. That would have blocked legitimate work such as:
+An earlier hook attempted to deny known Caveman, Ponytail, and RTK installation
+commands. Dogfood first narrowed false positives, then the pre-merge simplify
+pass asked the more important question: why is this repository trying to become
+a shell security sandbox at all?
 
-```bash
-rg 'JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk' docs CHANGELOG.md
-```
+The user requirement is that `agent-loop init` never downloads third-party agent
+code. That is guaranteed by the package-owned `install-assets` path. Hook
+dispatch is host-dependent and cannot be a security boundary, so the external
+installation blacklist was deleted. A regression case now proves such a command
+passes through the hook unchanged.
 
-The matcher was narrowed to actual download, package-install, plugin-install,
-script-execution, and `rtk init` forms. Research now passes unchanged while the
-replaced bootstraps remain denied.
+### 5. `install-assets --config` was unnecessary flexibility
 
-## Current repository gate
+An earlier version accepted `--config` while deliberately refusing configured
+skill/hook source roots. That produced an ambiguous half-contract and a review
+suggestion to propagate configuration into the delegated sync commands.
 
-`php tools/agent-discipline-dogfood.php` verifies ten checks:
+The simpler boundary won: `install-assets` is configuration-free and reads only
+assets shipped in the installed Composer package. Host-owned custom assets use
+`sync-*`, where config and path overrides already belong.
 
-1. all three first-party skills and the hook definition exist;
-2. hook commands contain no remote URL;
-3. `SessionStart` injects the discipline context;
-4. `SubagentStart` receives the same map-first guidance;
-5. `git diff --no-ext-diff` remains allowed and receives no rewritten input;
-6. research about the replaced projects remains allowed and unchanged;
-7. an unbounded dump of `.agent-map/php-symbols.json` is denied with bounded
-   `agent-loop map` alternatives;
-8. a Caveman bootstrap is denied and points to `init install-assets`;
-9. a Ponytail bootstrap is denied and points to `init install-assets`;
-10. an RTK bootstrap is denied and points to `init install-assets`.
+## Pre-merge behavioral replay
 
-## Latest executed local evidence
+A clean same-model A/B runner is not available in the connector-only execution
+environment. The behavioral comparison therefore uses already-observed baseline
+work from this PR and labels that limitation instead of pretending model runs
+were identical.
 
-The current `AgentDisciplineHook` source was materialized into an isolated local
-workspace and executed with PHP 8.4 after Candidate 4. PHP lint passed and eight
-current policy/context cases passed:
+### Case A: investigate `install-assets --config`
 
-```json
-{
-  "result": "passed",
-  "cases": 8
-}
-```
+The baseline review used three broad repository shell probes with recorded output
+sizes of 8,119, 7,666, and 28,542 characters: **44,327 characters total**. It
+concluded that `--config` should be propagated further.
 
-Those cases covered session context, raw diff pass-through, upstream research
-pass-through, unbounded map denial, and Caveman, Ponytail, RTK-download, and
-`rtk init` denial.
+The disciplined replay inspected the three owning surfaces directly:
 
-The earlier full runtime dogfood also validated the unchanged PHP hook
-entrypoints. The current repository gate is wired into `composer ci`; the clean
-non-symlinked Composer-consumer installation is wired into GitHub Actions.
-Neither Composer nor an Actions runner was available in the connector-only
-local environment, so those broader gates remain unclaimed until their exit
-codes are observed.
+1. `src/Init/InitInstallAssetsCommand.php`;
+2. `tests/InitInstallAssetsCommandTest.php`;
+3. `src/Init/InitAgent.php`.
 
-## Behavioral effect on this change
+The result was not another propagation path. It removed `--config` from
+`install-assets` and kept host customization in the existing `sync-*` commands.
 
-The discipline changed the implementation path itself:
+| Metric | Observed baseline | Disciplined replay |
+| --- | ---: | ---: |
+| Broad repository probes | 3 | 0 |
+| Recorded broad-probe output | 44,327 chars | 0 chars |
+| Focused owning files inspected | not isolated | 3 |
+| New config surface | proposed | 0 |
+| New dependency | 0 | 0 |
+| Result | propagate flexibility | delete unnecessary flexibility |
+| Raw evidence retained | yes | yes |
 
-- existing `sync-skills` and `sync-hooks` are reused instead of adding another
-  copy engine;
-- only one thin `install-assets` orchestrator was added;
-- full external runtimes were rejected after inspection rather than ported;
-- the first skill draft was shortened after measuring its own size;
-- a schema-looking hook response was rejected after checking Codex's parser;
-- an overbroad security matcher was narrowed after dogfood exposed a false
-  positive;
-- `agent-map` is treated as navigation state, never prompt material to dump.
+This is the context/review-time improvement the project is aiming for: locate the
+owner, read the bounded evidence, and stop rather than searching wider until an
+additional mechanism looks justified.
+
+### Case B: run the new minimalism rule against this PR
+
+The last fully green pre-merge baseline was
+`c25dc91b72c9ea3510d8a404b5e554214dfd89dc`. Applying the new discipline and
+simplify-review to the PR itself changed ten files by **+118 / -181 lines**, a
+net reduction of **63 lines** at the measured checkpoint.
+
+The deleted surface included:
+
+- the external add-on installation blacklist in `AgentDisciplineHook`;
+- five bootstrap-denial regression cases;
+- `install-assets --config` parsing/loading;
+- the custom-config source test;
+- obsolete bootstrap-denial dogfood machinery.
+
+No replacement dependency, factory, interface, generic manager, config switch,
+or second asset-copy engine was introduced.
+
+### Case C: trivial work must stay trivial
+
+The discipline now explicitly skips map ceremony for documentation-only or
+already-localized edits. The documentation changes in this pre-merge pass were
+performed directly against their known files; no map build/query was required.
+This protects the opposite failure mode: a process for reducing context should
+not make a one-file text edit require a workflow pageant.
+
+## Current runtime gate
+
+`php tools/agent-discipline-dogfood.php` executes the configured hook commands in
+an isolated workspace without requiring a Git repository and verifies:
+
+1. all first-party skills and hook definitions are present;
+2. configured hook commands contain no remote URL or Git-root dependency;
+3. `SessionStart` injects the discipline;
+4. `SubagentStart` receives the same discipline;
+5. `git diff --no-ext-diff` passes through without command rewriting;
+6. an external installer command also passes through, proving the hook is not a
+   security sandbox;
+7. unbounded JSON/SQLite map dumps are denied with bounded `agent-loop map`
+   alternatives.
+
+The gate reports zero runtime dependencies and zero remote installers for the
+package-owned discipline.
+
+## Installed consumer evidence
+
+GitHub Actions CI #325 on
+`c25dc91b72c9ea3510d8a404b5e554214dfd89dc` passed:
+
+- `composer ci` on PHP 8.3, 8.4, and 8.5;
+- the clean non-symlinked Composer consumer lifecycle;
+- `init install-assets` from the installed `vendor/voku/agent-loop` package;
+- the installed first-party asset dogfood script.
+
+That run predates the final simplification in this report. The current head must
+pass the same gates before merge; this document does not claim that result until
+the new Actions exit codes are observed.
+
+## Acceptance decision
+
+The candidate meets the behavioral goal when the current CI is green because:
+
+- third-party agent add-ons are no longer runtime or init dependencies;
+- the immutable installer cannot be redirected by host config;
+- the hook is explicitly a behavior aid rather than fake security isolation;
+- raw source, diffs, tests, and verification artifacts remain untouched;
+- a real review replay replaced three broad probes / 44,327 characters of tool
+  output with three bounded owner reads;
+- applying the minimalism rule to its own implementation removed net code and
+  two unrequested mechanisms instead of adding another abstraction;
+- trivial localized work is exempt from mandatory map ceremony.
 
 This is the intended loop: guidance changes the work, the work exposes defects
-in the guidance, and the same cases are rerun until the contract survives.
+in the guidance, and defects are removed until both behavior and validation
+support the reason the guidance exists.
