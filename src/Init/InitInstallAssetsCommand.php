@@ -47,13 +47,23 @@ final readonly class InitInstallAssetsCommand
 
         $packageRoot = dirname(__DIR__, 2);
         $skillsRoot = $packageRoot . '/docs/agents/skills';
+        $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $hooksRoot = $packageRoot . '/docs/agents/codex-hooks';
+        $installsSubagents = $agent->isAll()
+            || in_array($agent->canonicalName(), ['copilot', 'antigravity'], true);
+        $installsHooks = $agent->isAll() || $agent->canonicalName() === 'codex';
+
         if (!is_dir($skillsRoot)) {
             fwrite(\STDERR, 'Bundled skills root is missing: ' . $skillsRoot . "\n");
 
             return 1;
         }
-        if (($agent->isAll() || $agent->canonicalName() === 'codex') && !is_file($hooksRoot . '/hooks.json')) {
+        if ($installsSubagents && !is_dir($subagentsRoot)) {
+            fwrite(\STDERR, 'Bundled subagents root is missing: ' . $subagentsRoot . "\n");
+
+            return 1;
+        }
+        if ($installsHooks && !is_file($hooksRoot . '/hooks.json')) {
             fwrite(\STDERR, 'Bundled Codex hooks are missing: ' . $hooksRoot . '/hooks.json' . "\n");
 
             return 1;
@@ -72,19 +82,36 @@ final readonly class InitInstallAssetsCommand
             return $skillsExit;
         }
 
-        if (!$agent->isAll() && $agent->canonicalName() !== 'codex') {
-            echo '[INFO] install assets: repository hooks are currently available for codex only; skills '
-                . ($dryRun ? 'would be installed' : 'were installed') . ' for ' . $agent->canonicalName() . ".\n";
-
-            return 0;
+        if ($installsSubagents) {
+            $subagentsExit = (new InitSyncSubagentsCommand($this->rootPath))->run(array_merge(
+                [
+                    '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
+                    '--subagents-root=' . $subagentsRoot,
+                ],
+                $forwarded,
+            ));
+            if ($subagentsExit !== 0) {
+                return $subagentsExit;
+            }
         }
 
-        $hooksExit = (new InitSyncHooksCommand($this->rootPath))->run(array_merge(
-            ['--agent=codex', '--hooks-root=' . $hooksRoot],
-            $forwarded,
-        ));
-        if ($hooksExit !== 0) {
-            return $hooksExit;
+        if ($installsHooks) {
+            $hooksExit = (new InitSyncHooksCommand($this->rootPath))->run(array_merge(
+                ['--agent=codex', '--hooks-root=' . $hooksRoot],
+                $forwarded,
+            ));
+            if ($hooksExit !== 0) {
+                return $hooksExit;
+            }
+        }
+
+        if (!$agent->isAll()) {
+            $canonicalAgent = $agent->canonicalName();
+            if ($canonicalAgent === 'claude') {
+                echo '[INFO] install assets: installed portable skills for claude; dedicated bundled subagent definitions and hooks are not emitted for this client.' . "\n";
+            } elseif (in_array($canonicalAgent, ['copilot', 'antigravity'], true)) {
+                echo '[INFO] install assets: installed portable skills and bundled subagent roles for ' . $canonicalAgent . '; repository hooks are currently available for codex only.' . "\n";
+            }
         }
 
         echo $dryRun
