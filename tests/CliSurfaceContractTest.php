@@ -32,7 +32,7 @@ final class CliSurfaceContractTest extends TestCase
         self::assertNotFalse($readme);
 
         $block = $this->cliNamespaceBlock($readme);
-        preg_match_all('/^([a-z][a-z:-]*)\s{2,}/m', $block, $matches);
+        preg_match_all('/^([a-z][a-z:-]*)\s+/m', $block, $matches);
         $documented = array_values(array_unique($matches[1]));
 
         $expected = self::STABLE_NAMESPACES;
