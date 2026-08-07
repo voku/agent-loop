@@ -9,9 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Init\InitInstallPlanCommand;
 
-/**
- * @internal
- */
+/** @internal */
 final class InitInstallPlanCommandTest extends TestCase
 {
     private string $root;
@@ -27,128 +25,110 @@ final class InitInstallPlanCommandTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testInstallPlanForCodexExitsZero(): void
+    public function testInstallPlanForCodexUsesFirstPartyAssets(): void
     {
         $result = $this->runInstallPlan(['--profile=wsl2', '--agent=codex']);
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Profile: wsl2', $result['output']);
         self::assertStringContainsString('Agent: codex', $result['output']);
-        self::assertStringContainsString('rtk init -g --codex', $result['output']);
-        self::assertCommonBlocks($result['output'], 'wsl2');
+        self::assertStringContainsString('init install-assets --agent=codex --dry-run', $result['output']);
+        self::assertStringContainsString('investigator, surgical-builder', $result['output']);
+        self::assertStringContainsString('open `/hooks`', $result['output']);
+        self::assertOfflineContract($result['output']);
     }
 
-    public function testInstallPlanForClaudeExitsZero(): void
+    public function testInstallPlanForClaudeUsesPortableSkills(): void
     {
-        $result = $this->runInstallPlan(['--profile=wsl2', '--agent=claude']);
+        $result = $this->runInstallPlan(['--profile=linux', '--agent=claude']);
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Agent: claude', $result['output']);
-        self::assertStringContainsString("rtk init -g\nrtk init --show", $result['output']);
-        self::assertCommonBlocks($result['output'], 'wsl2');
+        self::assertStringContainsString('init install-assets --agent=claude', $result['output']);
+        self::assertStringContainsString('Restart Claude Code inside Linux', $result['output']);
+        self::assertOfflineContract($result['output']);
     }
 
-    public function testInstallPlanForAntigravityExitsZero(): void
+    public function testInstallPlanForCopilotIsSupported(): void
     {
-        $result = $this->runInstallPlan(['--profile=wsl2', '--agent=antigravity']);
+        $result = $this->runInstallPlan(['--profile=windows', '--agent=copilot']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('Agent: antigravity', $result['output']);
-        self::assertStringContainsString('rtk init -g --gemini', $result['output']);
-        self::assertStringContainsString('verify the exact hook command against the current Google docs before running it', $result['output']);
-        self::assertCommonBlocks($result['output'], 'wsl2');
+        self::assertStringContainsString('Agent: copilot', $result['output']);
+        self::assertStringContainsString('init install-assets --agent=copilot', $result['output']);
+        self::assertStringContainsString('Restart or reload skills and repository agents in Copilot inside Windows', $result['output']);
+        self::assertOfflineContract($result['output']);
     }
 
-    public function testInstallPlanForNativeLinuxExitsZero(): void
-    {
-        $result = $this->runInstallPlan(['--profile=linux', '--agent=codex']);
-
-        self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('Profile: linux', $result['output']);
-        self::assertStringContainsString('Native Linux setup:', $result['output']);
-        self::assertStringContainsString('Codex: restart the agent inside Linux after enabling the hook.', $result['output']);
-        self::assertStringContainsString('Important native Linux boundary:', $result['output']);
-        self::assertStringNotContainsString('C:\Users\<you>\.claude', $result['output']);
-        self::assertCommonBlocks($result['output'], 'linux');
-    }
-
-    public function testInstallPlanForWindowsExitsZero(): void
-    {
-        $result = $this->runInstallPlan(['--profile=windows', '--agent=codex']);
-
-        self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('Profile: windows', $result['output']);
-        self::assertStringContainsString('Windows PowerShell setup:', $result['output']);
-        self::assertStringContainsString('winget install BurntSushi.ripgrep.MSVC', $result['output']);
-        self::assertStringContainsString('rg --version', $result['output']);
-        self::assertStringContainsString('Codex: restart the agent inside Windows after enabling the hook.', $result['output']);
-        self::assertStringContainsString('Important Windows boundary:', $result['output']);
-    }
-
-    public function testInstallPlanForGeminiAliasExitsZeroWithWarning(): void
+    public function testGeminiAliasResolvesToAntigravity(): void
     {
         $result = $this->runInstallPlan(['--profile=wsl2', '--agent=gemini']);
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('[WARN] Agent "gemini" is treated as a legacy Google coding-agent alias.', $result['output']);
-        self::assertStringContainsString('[INFO] Using canonical agent "antigravity".', $result['output']);
-        self::assertStringContainsString('Agent: antigravity', $result['output']);
+        self::assertStringContainsString('init install-assets --agent=antigravity', $result['output']);
     }
 
-    public function testInstallPlanWithUnknownProfileExitsOne(): void
+    public function testUnknownProfileFails(): void
     {
-        $result = $this->runInstallPlan(['--profile=macos', '--agent=codex']);
-
-        self::assertSame(1, $result['exit']);
+        self::assertSame(1, $this->runInstallPlan(['--profile=macos', '--agent=codex'])['exit']);
     }
 
-    public function testInstallPlanWithUnknownAgentExitsOne(): void
+    public function testUnknownAgentFails(): void
     {
-        $result = $this->runInstallPlan(['--profile=wsl2', '--agent=nope']);
-
-        self::assertSame(1, $result['exit']);
+        self::assertSame(1, $this->runInstallPlan(['--profile=wsl2', '--agent=nope'])['exit']);
     }
 
     public function testInstallPlanWritesNoFiles(): void
     {
         $before = $this->listFiles($this->root);
-
         $result = $this->runInstallPlan(['--profile=wsl2', '--agent=codex']);
 
         self::assertSame(0, $result['exit']);
         self::assertSame($before, $this->listFiles($this->root));
     }
 
+    private static function assertOfflineContract(string $output): void
+    {
+        self::assertStringContainsString('rg --version', $output);
+        self::assertStringContainsString('does not fetch or execute an installer', $output);
+        self::assertStringContainsString('shipped inside the installed `voku/agent-loop` package', $output);
+        foreach ([
+            'raw.githubusercontent.com',
+            'github.com/',
+            'curl ',
+            'Invoke-WebRequest',
+            'npm ',
+            'node -v',
+            'plugin install',
+            'caveman',
+            'ponytail',
+            'rtk',
+            'apt install',
+            'winget install',
+        ] as $forbidden) {
+            self::assertStringNotContainsString(
+                strtolower($forbidden),
+                strtolower($output),
+                'Unexpected remote bootstrap guidance: ' . $forbidden,
+            );
+        }
+    }
+
     /**
      * @param list<string> $tokens
-     *
      * @return array{exit: int, output: string}
      */
     private function runInstallPlan(array $tokens): array
     {
-        $command = new InitInstallPlanCommand();
-
         ob_start();
-        $exit = $command->run($tokens);
+        $exit = (new InitInstallPlanCommand())->run($tokens);
         $output = (string) ob_get_clean();
 
         return ['exit' => $exit, 'output' => $output];
     }
 
-    private static function assertCommonBlocks(string $output, string $profile): void
-    {
-        self::assertStringContainsString('This command prints a setup plan only.', $output);
-        self::assertStringContainsString('ripgrep (rg):', $output);
-        self::assertStringContainsString('sudo apt install -y ripgrep', $output);
-        self::assertStringContainsString('rg --version', $output);
-        self::assertStringContainsString('curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh -o /tmp/caveman-install.sh', $output);
-        self::assertStringContainsString('curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh', $output);
-        self::assertStringContainsString($profile === 'linux' ? 'Important native Linux boundary:' : 'Important WSL2 boundary:', $output);
-    }
-
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function listFiles(string $path): array
     {
         if (!is_dir($path)) {
@@ -159,11 +139,9 @@ final class InitInstallPlanCommandTest extends TestCase
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
         );
-
         foreach ($iterator as $item) {
             $files[] = str_replace($path . '/', '', $item->getPathname());
         }
-
         sort($files);
 
         return $files;
@@ -177,13 +155,11 @@ final class InitInstallPlanCommandTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
+            RecursiveIteratorIterator::CHILD_FIRST,
         );
-
         foreach ($iterator as $item) {
             $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
         }
-
         rmdir($path);
     }
 }

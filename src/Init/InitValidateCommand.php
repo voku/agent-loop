@@ -173,7 +173,7 @@ final readonly class InitValidateCommand
 
         $allowed = match (true) {
             $kind->isHooks() => ['codex'],
-            $kind->isSubagents() => ['copilot', 'antigravity'],
+            $kind->isSubagents() => ['codex', 'copilot', 'antigravity'],
             default => ['codex', 'claude', 'copilot', 'antigravity'],
         };
 

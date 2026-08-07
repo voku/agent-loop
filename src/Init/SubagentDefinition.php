@@ -89,6 +89,14 @@ final readonly class SubagentDefinition
 
     public function renderForClient(string $client): string
     {
+        if ($client === 'codex') {
+            return implode("\n", [
+                'name = ' . self::tomlString($this->name),
+                'description = ' . self::tomlString($this->description),
+                'developer_instructions = ' . self::tomlString(ltrim($this->body)),
+            ]);
+        }
+
         $frontmatter = [
             'name' => $this->name,
             'description' => $this->description,
@@ -118,6 +126,14 @@ final readonly class SubagentDefinition
         $lines[] = ltrim($this->body);
 
         return implode("\n", $lines);
+    }
+
+    private static function tomlString(string $value): string
+    {
+        return json_encode(
+            $value,
+            \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
+        );
     }
 
     private static function readFile(string $filePath): string

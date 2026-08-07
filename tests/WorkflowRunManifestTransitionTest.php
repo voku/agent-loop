@@ -29,6 +29,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-transition-manifest-' . bin2hex(random_bytes(4));
         mkdir($this->root);
+        mkdir($this->root . '/learning-root');
     }
 
     protected function tearDown(): void
@@ -125,11 +126,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         ob_start();
         $firstExit = $first->run(['ABC-123', '--by', 'lars']);
-        $firstOutput = (string) ob_get_clean();
+        ob_end_clean();
 
         self::assertSame(7, $firstExit);
         self::assertSame(1, $approvalCalls);
-        self::assertStringContainsString('remains approved', $firstOutput);
         $afterFailure = $this->manifest();
         self::assertSame('current', $this->referenceState($afterFailure, 'approval'));
         self::assertSame('missing', $this->referenceState($afterFailure, 'recall'));

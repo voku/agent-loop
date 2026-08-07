@@ -1,221 +1,140 @@
 ---
 name: agent-loop-task-progress
-description: Record useful working memory during an agent-loop task, including decisions, checkpoints, validation results, scope changes, and blocked states.
+description: Record bounded working memory during an agent-loop task, including decisions, checkpoints, validation evidence, scope changes, simplification ceilings, and blockers without copying raw evidence.
 ---
 
 # Agent Loop Task Progress
 
-Use this skill while implementing a task after it has been started with
-`agent-loop-task-start` and before it is closed with `agent-loop-review-close`.
+Use this skill after a task starts and before review or closure. Apply
+`agent-loop-discipline` while implementing. Record only information another
+agent or human would otherwise have to rediscover.
 
 ## Fast Path
-
-Record important decisions:
 
 ```bash
 vendor/bin/agent-loop session record <task-id> \
   --kind decision \
   --title "Keep change scoped" \
-  --body "Only update the dispatcher routing; do not change recall compiler behavior."
-```
+  --body "Only update dispatcher routing; recall compiler behavior is unchanged."
 
-Record progress checkpoints:
-
-```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Validation" \
-  --body "vendor/bin/agent-loop init validate --kind=skills passed."
-```
+  --body "vendor/bin/phpunit --filter Init passed with exit code 0."
 
-Inspect current task memory:
-
-```bash
 vendor/bin/agent-loop session show <task-id>
 vendor/bin/agent-loop workflow status <task-id>
 ```
 
-## What To Record
+## Record
 
-Record:
+- implementation direction and package ownership;
+- assumptions that future work must verify or preserve;
+- exact validation commands and observed results;
+- scope changes and re-plan decisions;
+- deliberate simplifications with a known ceiling and observable revisit trigger;
+- blockers and their cause;
+- accepted or rejected risky shortcuts with reason;
+- concise handoff information.
 
-- decisions that affect implementation direction
-- assumptions that future agents must not rediscover
-- validation results
-- scope changes
-- blockers and their cause
-- explicit tradeoffs
-- commands that materially changed confidence
-- why a risky shortcut was not taken
-- why a risky shortcut was taken, if it later becomes accepted risk
+Do not record unbounded logs, giant diffs, complete transcripts, copied stack
+traces when one decisive line suffices, vague notes, secrets, credentials, or
+production data.
 
-Do not record:
+## Checkpoint Timing
 
-- raw unbounded logs
-- giant diffs
-- copied stack traces unless the exact line matters
-- noisy command output
-- vague notes like "fixed stuff"
-- private secrets, tokens, cookies, credentials, or production data
+Checkpoint after:
 
-## Record Kinds
-
-Use `--kind decision` when the note changes or explains the direction of the work.
-
-Use checkpoints for:
-
-- validation
-- implementation milestones
-- review-readiness
-- blocked state
-- handoff to another agent or human
-
-If the exact supported `--kind` values differ in a host repo version, prefer
-the existing command help and keep the note type conservative.
-
-## When To Checkpoint
-
-Checkpoint:
-
-1. after selecting the implementation approach
-2. after touching risky code
-3. after each meaningful validation run
-4. before switching files or scope
-5. before review/close
-6. when blocked
+1. selecting the implementation approach;
+2. touching risky code or a public contract;
+3. each meaningful validation run;
+4. changing scope;
+5. reaching review readiness;
+6. becoming blocked.
 
 ## Scope Changes
-
-If the task changes scope, record it immediately:
 
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Scope change" \
-  --body "The task expanded from docs-only to docs plus init validate examples because the existing README list was stale."
+  --body "Task expanded from docs-only to docs plus init help because the executable contract was stale."
 ```
 
-Then run:
+Re-plan when the approved brief no longer describes the work. A new revision
+invalidates old approval and completion evidence.
+
+## Simplification Ceilings
+
+When the minimal implementation deliberately accepts a real limit, do not leave
+an anonymous `TODO` or a tool-specific marker in product code. Record the choice
+in session working memory with the ceiling and the condition that would justify
+more machinery:
 
 ```bash
-vendor/bin/agent-loop workflow status <task-id>
+vendor/bin/agent-loop session record <task-id> \
+  --kind decision \
+  --title "Simplification ceiling: global lock" \
+  --body "Current choice: one global lock. Ceiling: serializes independent accounts. Revisit when: measured lock contention materially affects request latency."
 ```
 
-If the scope changed enough that recall context is stale, use
-`agent-loop-l2-context` and recompile recall.
+The trigger must be observable. "Later", "if needed", and "might scale" are not
+triggers. If the lesson becomes reusable across tasks, carry it through the
+normal `agent-learning` review instead of turning a one-task decision into a
+permanent code comment by accident.
 
-## Validation Notes
+## Structured Validation Evidence
 
-Good validation checkpoint:
-
-```bash
-vendor/bin/agent-loop session checkpoint <task-id> \
-  --title "Validation" \
-  --body "vendor/bin/phpunit --filter Init passed; vendor/bin/agent-loop init validate --kind=all passed."
-```
-
-Bad validation checkpoint:
-
-```
-tests ok
-```
-
-Be specific enough that the next agent knows what was actually run.
-
-## Structured Completion Evidence
-
-A validation checkpoint explains progress but does not satisfy a governed
-`done` close. After each required command in the current work-brief revision
-has actually run, record the result separately:
+A prose checkpoint explains progress but does not satisfy a governed close:
 
 ```bash
 vendor/bin/agent-loop session validation record <task-id> \
   --brief-revision <current-revision> \
   --command "vendor/bin/phpunit tests/FocusedTest.php" \
-  --status passed --exit-code 0 --by <actor>
+  --status passed \
+  --exit-code 0 \
+  --by <actor>
 ```
 
-Use the exact command string from the brief. Add `--duration-ms` only when it
-was measured. A re-plan creates a new revision, so prior evidence remains
-auditable but cannot satisfy the revised validation requirement.
+Use the exact command from the brief. Add duration only when measured. Never
+claim a pass from a summary, absent output, or another revision.
 
-## Noise Control
+## Noise And Evidence
 
-Keep session memory compact. If command output is large, summarize the finding
-and point to the command instead of pasting the full output.
+Keep session memory compact while preserving raw evidence unchanged:
 
-Prefer `rg` for repository search after verifying ripgrep is installed:
+- summarize the finding and reference the exact command or artifact path;
+- preserve source, full diffs, tests, static-analysis output, and verification
+  files;
+- read redirected harness output from the stored file;
+- record size, line count, or hash when completeness matters;
+- use `agent-map` commands to select bounded source instead of copying generated
+  indexes into memory.
 
-```bash
-rg --version
-```
-
-Prefer RTK-wrapped commands in host repos when output is noisy:
-
-```bash
-rtk test vendor/bin/phpunit --filter Init
-rtk err vendor/bin/phpstan analyse --memory-limit=1G
-```
-
-Do not assume RTK compresses nested Make or Docker output unless the host repo
-documents that boundary.
+A summary supports navigation. It is not code review or diagnostic evidence.
 
 ## Before Review And Close
-
-Before using `agent-loop-review-close`, record a final checkpoint:
 
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Ready for review" \
-  --body "Implementation complete; recall was recompiled after docs changes; validation passed."
-```
+  --body "Implementation complete; full diff reviewed; required validation passed."
 
-Then continue with:
-
-```bash
 vendor/bin/agent-loop review blindspots <task-id>
 vendor/bin/agent-loop verify
 vendor/bin/agent-loop workflow status <task-id>
-```
 
-Record the explicit session learning decision before the governed close:
-
-```bash
 vendor/bin/agent-loop session learning decide <task-id> \
-  --status no_durable_learning --by <actor> \
+  --status no_durable_learning \
+  --by <actor> \
   --reason "No reusable finding from this bounded task."
 ```
 
-This records an outcome; it does not create or approve durable guidance.
+The learning decision records an outcome; it does not approve guidance.
 
-## Skill Boundary
+## Completion Check
 
-This skill owns:
-
-- useful session records during implementation
-- compact checkpoints
-- validation notes
-- scope-change notes
-- blocked-state notes
-- handoff notes
-
-This skill does not own:
-
-- starting the task (see `agent-loop-task-start`)
-- compiling L2 context (see `agent-loop-l2-context`)
-- review/verify/close (see `agent-loop-review-close`)
-- durable learning promotion
-- developing `agent-loop` itself
-
-## Validation
-
-- `vendor/bin/agent-loop session show <task-id>` shows useful notes
-- `vendor/bin/agent-loop workflow status <task-id>` still resolves the task
-- final checkpoint exists before review/close
-- no secrets or giant logs were stored
-
-## Example Triggers
-
-- "Record this decision in the agent-loop session."
-- "Checkpoint the validation result."
-- "We changed scope; update the task memory."
-- "Show the current session notes."
-- "Prepare this task for review."
+- `session show` contains bounded, useful notes;
+- `workflow status` resolves the current revision;
+- exact validation evidence exists;
+- deliberate simplifications name a ceiling and observable revisit trigger;
+- a review-ready checkpoint exists;
+- no secret or raw unbounded output was stored.

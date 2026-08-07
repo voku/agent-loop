@@ -17,7 +17,7 @@ final readonly class InitToolsCommand
     /**
      * @var list<string>
      */
-    private const array KNOWN_TOOLS = ['rg', 'rtk', 'git', 'php', 'composer', 'docker'];
+    private const array KNOWN_TOOLS = ['rg', 'git', 'php', 'composer', 'docker'];
 
     private const string DEFAULT_CACHE_PATH = '.agent-loop/tool-inventory.json';
 

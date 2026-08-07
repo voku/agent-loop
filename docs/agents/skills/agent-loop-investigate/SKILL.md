@@ -1,0 +1,47 @@
+---
+name: agent-loop-investigate
+description: Locate PHP definitions, callers, tests, and change sites with agent-map and bounded source reads. Read-only: report exact path/line/symbol evidence and do not propose or apply fixes.
+---
+
+# Agent Loop Investigate
+
+Use this for "where is X", "what calls Y", "which tests cover Z", or before a shared PHP change when the owning path is not already known.
+
+## Job
+
+Locate. Verify in real source. Report. Stop.
+
+Do not edit code and do not turn a locator task into architecture advice.
+
+## Navigation
+
+Start with the smallest relevant map operation:
+
+```bash
+vendor/bin/agent-loop map query <symbol>
+vendor/bin/agent-loop map related <symbol>
+vendor/bin/agent-loop map file <path>
+vendor/bin/agent-loop map changed --base=<ref>
+```
+
+Use `rg` only when the map cannot answer a literal/string/config/template question. Never dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite`.
+
+Map output is navigation, not evidence. Read only the selected real source ranges before reporting a hit.
+
+## Output Contract
+
+One line per verified site:
+
+```text
+<path>:<line> — `<symbol>` — <short factual role>
+```
+
+Group 3+ results under `Defs`, `Callers`, `Tests`, `Refs`, or `Sites`. End with counts when useful.
+
+No hit: `No verified match.`
+
+Keep exact paths, line numbers, symbols, literals, and relevant caller relationships. No exploration diary.
+
+## Escalation
+
+If the request changes from locating to editing, return the verified target set and stop. Use `agent-loop-surgical-edit` for a bounded 1-2 file change or the normal governed workflow for broader work.

@@ -37,7 +37,7 @@ final readonly class InitSyncSubagentsCommand
         }
 
         try {
-            $agent = InitAgent::parse($agentValue, ['copilot', 'antigravity'], true, $config['agents']);
+            $agent = InitAgent::parse($agentValue, ['codex', 'copilot', 'antigravity'], true, $config['agents']);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -53,7 +53,7 @@ final readonly class InitSyncSubagentsCommand
         $force = $this->hasFlag($tokens, 'force');
         $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
-        $agents = $agent->isAll() ? ['copilot', 'antigravity'] : [$agent->canonicalName()];
+        $agents = $agent->isAll() ? ['codex', 'copilot', 'antigravity'] : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
             $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
@@ -96,7 +96,11 @@ final readonly class InitSyncSubagentsCommand
             return 1;
         }
 
-        $targetSuffix = $agent === 'copilot' ? '.agent.md' : '.md';
+        $targetSuffix = match ($agent) {
+            'codex' => '.toml',
+            'copilot' => '.agent.md',
+            default => '.md',
+        };
         $desiredEntries = [];
         foreach (array_keys($definitions) as $sourceFile) {
             $desiredEntries[] = basename($sourceFile, '.md') . $targetSuffix;
@@ -162,19 +166,28 @@ final readonly class InitSyncSubagentsCommand
         }
 
         echo '[OK] sync subagents: synced ' . count($definitions) . ' subagent file(s) for ' . $agent . ' into ' . $targetRoot . "\n";
-        $reloadHint = $agent === 'antigravity'
-            ? "[INFO] Run '/agents reload' in your active Antigravity CLI session if needed."
-            : '[INFO] Reload the active Copilot agent registry if needed.';
-        echo $reloadHint . "\n";
+        echo $this->reloadHint($agent) . "\n";
 
         return 0;
     }
 
     private function resolveTargetRoot(string $agent): string
     {
-        return $agent === 'copilot'
-            ? ($this->resolvePathFromEnv('COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents')
-            : ($this->resolvePathFromEnv('ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents');
+        return match ($agent) {
+            'codex' => $this->resolvePathFromEnv('CODEX_AGENTS_DIR')
+                ?? (($codexHome = $this->resolvePathFromEnv('CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
+            'copilot' => $this->resolvePathFromEnv('COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
+            default => $this->resolvePathFromEnv('ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+        };
+    }
+
+    private function reloadHint(string $agent): string
+    {
+        return match ($agent) {
+            'codex' => '[INFO] Start a fresh Codex session if the project agent registry needs to be reloaded.',
+            'antigravity' => "[INFO] Run '/agents reload' in your active Antigravity CLI session if needed.",
+            default => '[INFO] Reload the active Copilot agent registry if needed.',
+        };
     }
 
     private function writeFile(string $filePath, string $content): void
@@ -239,7 +252,6 @@ final readonly class InitSyncSubagentsCommand
 
         return false;
     }
-
 
     /**
      * @param list<string> $tokens

@@ -44,20 +44,19 @@ final class InitToolsCommandTest extends TestCase
     public function testProbeReportsAvailableToolAndWritesCache(): void
     {
         $this->makeFakeExecutable('rg');
-        $this->makeFakeExecutable('rtk');
         putenv('PATH=' . $this->fakeBinDir);
 
         $result = $this->runTools([]);
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('[OK] rg: available (' . $this->fakeBinDir . '/rg)', $result['output']);
-        self::assertStringContainsString('[OK] rtk: available (' . $this->fakeBinDir . '/rtk)', $result['output']);
+        self::assertStringNotContainsString('rtk', strtolower($result['output']));
         self::assertFileExists($this->root . '/.agent-loop/tool-inventory.json');
 
         $cache = json_decode((string) file_get_contents($this->root . '/.agent-loop/tool-inventory.json'), true);
         self::assertIsArray($cache);
         self::assertTrue($cache['tools']['rg']['available']);
-        self::assertTrue($cache['tools']['rtk']['available']);
+        self::assertSame(['rg', 'git', 'php', 'composer', 'docker'], array_keys($cache['tools']));
     }
 
     public function testProbeReportsMissingToolAsWarning(): void

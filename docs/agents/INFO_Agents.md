@@ -2,264 +2,247 @@
 
 ## Purpose
 
-This document defines the portable, repo-managed agent-asset layout that
-`agent-loop init` is designed to validate and later sync.
+`agent-loop` ships portable, repository-managed agent assets with the Composer
+package. Consumers install those reviewed files from their local
+`vendor/voku/agent-loop` copy; `init` does not clone repositories, execute remote
+installers, or depend on an external plugin marketplace.
 
-The canonical source roots in this repository are:
+Canonical package roots:
 
 - `docs/agents/skills/`
 - `docs/agents/subagents/`
 - `docs/agents/codex-hooks/`
 - `docs/agents/tools/`
 
-Host repositories may override these roots with `--config` or CLI path
-options. This is how an older host layout such as
-`infra/doc/agents/...` can adopt `agent-loop init` without forking the
-command surface.
+Host repositories may override the normal sync source roots through
+`.agent-loop/init.json` or CLI path options. `init install-assets` is different:
+it is intentionally configuration-free and installs only the immutable assets
+shipped inside the currently installed `voku/agent-loop` package.
 
-## Current Commands
+## First-party install
 
-Use the implemented `init` commands for the current portable workflow:
+Review the plan:
 
 ```bash
-php bin/agent-loop init doctor
-php bin/agent-loop init validate --kind=all
-php bin/agent-loop init install-plan --profile=wsl2 --agent=codex
-php bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 ```
 
-The same commands also work through the Composer proxy:
+Preview and install the package-owned assets:
+
+```bash
+vendor/bin/agent-loop init install-assets --agent=codex --dry-run
+vendor/bin/agent-loop init install-assets --agent=codex
+vendor/bin/agent-loop init doctor
+```
+
+Use `--agent=all` for the complete package-owned set:
+
+- portable skills for Codex, Claude, Copilot, and Antigravity;
+- investigator, surgical-builder, and code-reviewer subagent definitions for
+  Codex, Copilot, and Antigravity;
+- repository-local PHP hooks for Codex.
+
+The canonical role Markdown under `docs/agents/subagents/` is rendered into the
+client format rather than duplicated as client-specific source:
+
+- Codex: `.codex/agents/*.toml` with `name`, `description`, and
+  `developer_instructions`;
+- Copilot: `.github/agents/*.agent.md`;
+- Antigravity: `.agents/agents/*.md`.
+
+Claude currently receives the portable skills only. Model selection remains a
+host/client concern; the package-owned role renderer does not pin model,
+reasoning, or provider-specific settings.
+
+The command:
+
+- reads assets only from the installed Composer package;
+- accepts no host config or source-root override;
+- reuses the existing manifest-safe `sync-skills`, `sync-subagents`, and
+  `sync-hooks` code;
+- refuses to overwrite unmanaged targets unless `--force` or
+  `--adopt-existing` is explicit;
+- supports `--dry-run`;
+- downloads and executes nothing.
+
+After Codex installation, inspect `.codex/agents/` and `/hooks`; trust the copied
+role/hook behavior only after review.
+
+## Current commands
 
 ```bash
 vendor/bin/agent-loop init doctor
+vendor/bin/agent-loop init status
+vendor/bin/agent-loop init tools
 vendor/bin/agent-loop init validate --kind=all
-vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
-vendor/bin/agent-loop init install-plan --profile=windows --agent=codex
-vendor/bin/agent-loop init sync-subagents --agent=copilot --dry-run
+vendor/bin/agent-loop init install-assets --agent=all --dry-run
+vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
+vendor/bin/agent-loop init scaffold --dry-run
 ```
 
-## Current Boundaries
+`init doctor` and `init status` are read-only. `init tools` writes only the
+bounded `.agent-loop/tool-inventory.json` cache. `install-plan` prints commands
+but executes none. `install-assets` and `sync-*` are the explicit mutation
+boundaries.
 
-`init doctor`:
+## What was adapted
 
-- reads local repo state
-- resolves source paths from defaults, config, and CLI overrides
-- checks for migration-compatible Makefile targets
-- does not write files
-- does not install tools
+The package-owned behavior combines concrete mechanisms reviewed in Caveman and
+Ponytail rather than merely repeating their slogans. Exact upstream commits and
+the mechanism mapping are recorded in `THIRD_PARTY_NOTICES.md`.
 
-`init validate --kind=skills|subagents|hooks|all`:
+### `agent-loop-discipline`
 
-- validates the resolved `skills`, `subagents`, and `codex-hooks` source roots
-- rejects unsafe skill directory names
-- rejects empty or unreadable canonical asset files
+The shared PHP engineering discipline combines concise communication with the
+minimal implementation ladder:
 
-`init sync-skills`, `init sync-subagents`, and `init sync-hooks`:
+- trace the real flow and callers before editing shared behavior;
+- use `agent-loop map query`, `related`, `file`, and `changed` before broad PHP
+  reads, without adding map ceremony to trivial or already-localized work;
+- prefer existing repository code, PHP standard library, platform features,
+  installed dependencies, one shared root-cause fix, and deterministic edits;
+- stop once the requested behavior is satisfied instead of adding adjacent
+  cleanup, configuration, abstractions, compatibility, or policy;
+- preserve exact paths, symbols, commands, numbers, negation, errors, and raw
+  evidence while removing filler from progress/final communication;
+- preserve strict types, precise PHPDoc where needed, contextual exceptions,
+  package ownership, security controls, and focused regression tests.
 
-- copy canonical repo-managed assets into client target directories
-- keep a local manifest of managed entries
-- remove only stale manifest-managed entries
-- refuse to overwrite unmanaged targets unless `--force` is given
-- support `--dry-run` for host-repo review before copying
+### `agent-loop-investigate`
 
-`init install-plan`:
+Read-only locator derived from Caveman's investigator role but adapted around
+`agent-map`. It returns verified `path:line`, symbol, caller, test, and reference
+locations after bounded real-source reads. It neither edits nor proposes fixes.
 
-- prints a reviewed Linux, WSL2, or Windows setup plan
-- prompts installation and verification of ripgrep (`rg`)
-- prompts installation and verification of RTK and Caveman
-- does not execute the printed commands
+### `agent-loop-surgical-edit`
 
-## ctx Historical Search Preflight
+Bounded one/two-file implementation role. It prefers deterministic
+`agent-loop edit --runner=auto` when an exact replacement is proven, otherwise
+makes the smallest verified edit. It escalates instead of silently widening to a
+cross-cutting change.
 
-[ctx](https://github.com/ctxrs/ctx) is an optional local agent-history search tool. Use it before
-non-trivial workflow, migration, or guidance tasks when prior coding-agent
-sessions may contain useful decisions, failed attempts, commands, or review
-context.
+### `agent-loop-code-review`
 
-Typical workflow:
+Concise correctness review of the complete raw diff. Findings are
+path/line/severity/problem/fix, with `agent-map` caller lookup when needed. It is
+separate from complexity review so terse output does not collapse two different
+questions into one vague audit.
+
+### `agent-loop-simplify-review`
+
+Diff-only complexity review adapted from Ponytail review. It identifies deletion,
+repository reuse, standard-library/native replacements, speculative abstractions,
+smaller expressions, and wrong package ownership. It applies nothing.
+
+### `agent-loop-simplify-audit`
+
+Repo-wide counterpart adapted from Ponytail audit. It uses map/navigation data to
+prioritize candidates, verifies them against real source/callers, and ranks
+concrete maintenance surface that could be removed.
+
+### `agent-loop-task-progress`
+
+Deliberate simplification debt is not stored as tool-specific comments. A
+shortcut with a real ceiling is recorded in `agent-session` as a decision naming
+that ceiling and an observable revisit trigger. Only reusable conclusions move
+through the normal `agent-learning` review boundary.
+
+### `agent-loop-dogfood`
+
+Behavioral evaluation uses observable artifacts such as tool calls, source
+reads, changed files, dependencies, unrequested behavior, executed checks,
+response length, full-evidence inspection, and review findings. No per-repo
+savings number is invented from code that was never built.
+
+## Package-owned subagent roles
+
+The canonical definitions under `docs/agents/subagents/` mirror the three-role
+Cavecrew workflow without copying its runtime:
+
+1. `agent-loop-investigator`: locate with `agent-map`, verify real source, return
+   terse evidence;
+2. `agent-loop-surgical-builder`: edit only already-understood 1-2 file scope,
+   validate, return a receipt;
+3. `agent-loop-code-reviewer`: inspect raw diff and relevant callers, return only
+   actionable correctness findings.
+
+A common flow is investigator -> surgical builder -> code reviewer. Broader
+features and cross-cutting refactors stay in the main governed workflow instead
+of being forced through a tiny builder role.
+
+Codex role rendering follows Codex's current project role contract: roles are
+written under `.codex/agents/` as standalone TOML and contain the canonical
+name/description/body as `name`, `description`, and `developer_instructions`.
+No model override is generated.
+
+## The three budgets
+
+The first-party discipline keeps three concerns separate:
+
+1. **Human attention:** progress and final replies remain concise, grammatical,
+   and technically exact.
+2. **Implementation complexity:** the agent stops at the first verified solution
+   that fully satisfies the request.
+3. **Context:** `agent-map` and recall select bounded source ranges before broad
+   file reads.
+
+None permits rewriting evidence. Source files, full diffs, test output,
+static-analysis output, verification artifacts, redirected harness files, and
+decisive errors remain complete and unchanged. A summary may point to evidence;
+it never replaces evidence.
+
+## Codex hooks
+
+The bundled hooks are thin PHP entrypoints backed by the typed
+`AgentDisciplineHook` class under `src/`.
+
+- `SessionStart` injects the package-owned discipline.
+- `SubagentStart` propagates the same contract to spawned agents.
+- `PreToolUse` leaves ordinary Bash commands unchanged.
+- `PreToolUse` denies configured unbounded `.agent-map` dump patterns and
+  suggests bounded map commands.
+
+Hooks are behavioral guardrails, never a correctness or security boundary. A
+host may fail to dispatch a hook, so correctness, trust-boundary validation, CI,
+and the offline install contract must remain valid without hook execution. The
+hook does not rewrite commands or filter tool output.
+
+## agent-map boundary
+
+Generated map files are navigation state, not source evidence:
 
 ```bash
-ctx status
-ctx sources
+vendor/bin/agent-loop map query <symbol>
+vendor/bin/agent-loop map related <symbol>
+vendor/bin/agent-loop map file <path>
+vendor/bin/agent-loop map changed --base=<ref>
+vendor/bin/agent-loop map stats
+```
+
+Do not dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite` into a
+prompt. Use map results to select the smallest real source range, then inspect
+that source directly.
+
+## Historical search
+
+`ctx` remains an optional local history search tool:
+
+```bash
 ctx search "<task / module / failure / command>"
 ctx show event <ctx-event-id> --window 5
-ctx locate event <ctx-event-id>
 ```
 
-Keep the package boundary clear:
+History is discovery material, not current evidence or durable memory. Inspect a
+focused event, verify it against the current repository, and persist only a
+bounded reference when it changes a learning conclusion.
 
-- `ctx` retrieves historical raw material from local sessions.
-- `agent-loop` orchestrates task workflow and recall handoffs.
-- `agent-learning` validates findings, proposals, and decisions.
+## Host-repository overrides
 
-Do not make `agent-loop` install ctx, run ctx setup, own the ctx SQLite
-database, scrape transcripts, or treat ctx hits as durable memory. If ctx
-material changes a learning conclusion, cite only bounded
-`agent_history_reference` evidence in the learning artifact and verify it
-against the current repository.
-
-## RTK And Nested Shell Boundaries
-
-Install-plan output should prompt `ripgrep` before RTK/Caveman usage, because
-`rg` is the baseline fast-search command expected by coding agents. Verify it
-with:
-
-```bash
-rg --version
-```
-
-RTK helps most at the shell boundary the agent actually executes.
-
-That means these benefit directly:
-
-```bash
-rtk git status
-rtk docker compose ps
-rtk docker compose logs --tail=200 php
-rtk test vendor/bin/phpunit --filter Init
-```
-
-But many real repo workflows are layered:
-
-```bash
-make phpstan
-docker compose exec php php scripts/foo.php
-docker compose logs db
-```
-
-In those cases, RTK wraps the outer command the agent sees, while noisy
-output can still be produced one layer deeper by Make, Docker, or shell
-scripts.
-
-### Practical host-repo rule
-
-When a host repo adopts `agent-loop init`, also audit its:
-
-- `AGENTS.md`
-- `README.md`
-- agent-guidance skills
-- Makefile targets used by agents
-
-Look for missing RTK guidance around:
-
-- `docker compose ps`
-- `docker compose logs`
-- `docker compose exec ...`
-- `make test`
-- `make phpstan`
-- DB diagnostics and PHP script entrypoints
-
-### Preferred command shapes
-
-Prefer:
-
-```bash
-rtk docker compose ps
-rtk docker compose logs --tail=200 db
-rtk docker compose logs --tail=200 php
-rtk docker compose exec -T php vendor/bin/phpunit --filter Init
-rtk docker compose exec -T php php scripts/private/check.php
-```
-
-Use raw passthrough only when the filtered output is hiding something you
-actually need:
-
-```bash
-rtk proxy docker compose logs php
-```
-
-### Hook-equipped clients rewrite commands for you
-
-Claude Code can carry a `PreToolUse` hook (`rtk hook claude`) that rewrites
-ordinary commands before they run, including `docker ...` and `grep ...`. Where
-that hook exists, write commands normally; hand-prefixing adds nothing. Clients
-without such a hook require the explicit `rtk` prefix shown above.
-
-### Coverage reports measure transcripts, not executions
-
-`rtk discover` and `rtk learn` read session transcripts, and a transcript stores
-the command as the model emitted it - before the hook rewrote it. A rewritten
-command is therefore counted as "not using RTK", so a low coverage percentage or
-a large "missed savings" number is not on its own evidence of anything. Verify
-both ends before turning such a report into guidance:
-
-```bash
-echo '{"tool_name":"Bash","tool_input":{"command":"grep -n foo bar.php"}}' | rtk hook claude
-rtk gain
-```
-
-The probe shows whether the command is rewritten; `rtk gain` shows what actually
-executed through RTK. Observed on one machine: discover reported 1.9% coverage
-while `rtk gain` had 60,192 RTK-executed commands recorded. Spend the effort on
-the commands discover lists as unhandled, and on clients that have no hook.
-
-### A bind-mounted repository needs no `docker cp`
-
-When compose maps the project directory into the container, a file written into
-the repo tree from the host is already reachable inside it under the same
-repo-relative path. Copying it in is an avoidable round trip, and `docker cp` is
-among the commands RTK does not filter. Write files a container command has to
-read to a git-ignored scratch path in the repository:
-
-```bash
-mkdir -p .agent-loop/tmp
-printf '%s' "$payload" > .agent-loop/tmp/input.json
-docker compose exec -T php php scripts/consume.php .agent-loop/tmp/input.json
-```
-
-Add `/.agent-loop/tmp/` to `.gitignore` so this cannot pollute a working tree
-that several agent sessions share. A copy remains correct for a container that
-does not mount the repository.
-
-### Prefer AI-oriented Make targets in host repos
-
-If the real workflow is mostly `make` and `docker`, host repos should add
-explicit low-noise targets for agents instead of assuming `rtk make ...`
-will fully compress nested output.
-
-Example pattern:
-
-```makefile
-.PHONY: ai-status
-ai-status:
-	rtk git status
-	rtk docker compose ps
-
-.PHONY: ai-phpstan
-ai-phpstan:
-	rtk docker compose exec -T php vendor/bin/phpstan analyse --memory-limit=1G
-
-.PHONY: ai-tests
-ai-tests:
-	rtk docker compose exec -T php vendor/bin/phpunit
-
-.PHONY: ai-php-logs
-ai-php-logs:
-	rtk docker compose logs --tail=200 php
-
-.PHONY: ai-db-logs
-ai-db-logs:
-	rtk docker compose logs --tail=200 db
-```
-
-For Codex specifically, do not rely on an invisible shell-rewrite story.
-Keep the RTK preference explicit in repository docs such as `AGENTS.md`
-and `README.md`.
-
-## Minimal Workflow Scaffold
-
-`init scaffold` is now the first-run path for a local governed workflow. It
-creates the minimum board, task, session, and learning-root structure plus a
-`DEMO-1` example, preserves existing files, and accepts `--dry-run` for a
-non-mutating preview. `validate --kind=subagents|hooks|all` and `sync-*`
-remain the separate repo-managed asset commands.
-
-## Host-Repo Migration Pattern
-
-For a host repo that still stores agent assets under `infra/doc/agents/`,
-check in a small config file such as:
+A host with legacy assets under `infra/doc/agents/` may configure the ordinary
+validation and sync commands:
 
 ```json
 {
@@ -270,65 +253,59 @@ check in a small config file such as:
     "codex_hooks_root": "infra/doc/agents/codex-hooks",
     "tools_root": "infra/doc/agents/tools",
     "recall_root": "infra/doc/agent-learning/recall-output"
-  },
-  "agents": {
-    "gemini": {
-      "status": "legacy_alias",
-      "maps_to": "antigravity"
-    }
   }
 }
 ```
 
-Then the host repo can move validation and sync first:
-
 ```bash
-vendor/bin/agent-loop init doctor --config=.agent-loop/init.json
-vendor/bin/agent-loop init validate --kind=skills --config=.agent-loop/init.json
-vendor/bin/agent-loop init validate --kind=subagents --config=.agent-loop/init.json
-vendor/bin/agent-loop init validate --kind=hooks --agent=codex --config=.agent-loop/init.json
-vendor/bin/agent-loop init sync-skills --agent=codex --config=.agent-loop/init.json
+vendor/bin/agent-loop init validate --kind=all --config=.agent-loop/init.json
+vendor/bin/agent-loop init sync-skills --agent=codex --config=.agent-loop/init.json --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --config=.agent-loop/init.json --dry-run
 ```
 
-See:
+Do not edit generated client copies first. Update canonical host sources,
+validate them, then sync them. Use `install-assets` when the package-owned
+first-party defaults are wanted instead.
 
-- `docs/agents/skills/agent-guidance-maintenance/SKILL.md`
-- `docs/agents/skills/agent-learning/SKILL.md`
-- `docs/agents/skills/agent-loop-workflow/SKILL.md`
+## Dogfood contract
 
-## Operational agent-loop skills
-
-These skills are shipped by `agent-loop` for coding agents working in
-**consuming repositories**. They teach the agent how to operate the loop,
-not how to develop `agent-loop` itself.
-
-| Skill | Purpose |
-| --- | --- |
-| `agent-loop-task-start` | Start a governed task, open session working memory, compile initial recall context |
-| `agent-loop-l2-context` | Compile and use recall/L2 meta-prompt artifacts without mistaking them for executed agent actions |
-| `agent-loop-task-progress` | Record decisions, checkpoints, validation results, scope changes, and blocked states during implementation |
-| `agent-loop-review-close` | Review, verify, and close a task safely, including accepted-risk handling |
-| `agent-loop-learning-boundary` | Handle reusable knowledge after a task closes — capture findings, move through the proposal pipeline, respect the boundary between workflow evidence and durable guidance |
-
-`agent-loop-task-progress` fills the middle of the loop — between task start
-and review/close — where agents most often lose track of decisions, forget
-scope changes, or silently accept risk without a record. Without it, the loop
-has a head and a tail but no working memory discipline during the actual work.
-
-`agent-loop-learning-boundary` closes the loop after review/close: it teaches
-agents how to carry a finding forward without self-approving it as durable
-guidance. The boundary rule — findings are not durable memory — is explicit,
-and the skill tells agents when to skip the learning step entirely.
-
-`agent-loop-workflow` remains the broad overview skill for understanding the
-full command vocabulary and workflow shape. The five operational skills above
-are smaller, focused activation targets for real agent sessions — a coding
-agent picks the one that matches its current step rather than loading the full
-workflow doc at every stage.
-
-Host repositories can sync these skills into their own agent client directories
-with:
+The local gate:
 
 ```bash
+composer dogfood:discipline
+```
+
+verifies the packaged discipline, hook definition, session/subagent context,
+unchanged raw commands, the explicit non-security hook boundary, and bounded map
+denial.
+
+`composer ci` runs PHPUnit, PHPStan, and this gate. The GitHub release-set job
+also installs `agent-loop` into a clean non-symlinked Composer consumer, executes
+`init install-assets --agent=all`, checks the installed skills/subagent roles and
+Codex hooks, and runs the dogfood script from the installed package.
+
+Runtime gates prove mechanics. Guidance changes additionally require the
+behavioral acceptance method documented by `agent-loop-dogfood`; a green
+installer alone does not prove that the agent became easier to review or less
+speculative.
+
+The reviewed iterations and observed failures are recorded in
+`docs/agents/dogfood/2026-08-07-first-party-discipline.md`. Third-party
+attribution and mechanism mapping are in `docs/agents/THIRD_PARTY_NOTICES.md`;
+neither file is an installation dependency.
+
+## Validation
+
+```bash
+vendor/bin/agent-loop init validate --kind=all
+vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
+vendor/bin/agent-loop init doctor
+vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init'
+vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+composer dogfood:discipline
+composer ci
 ```
+
+Never report a command as passed unless it ran and its exit code was observed.

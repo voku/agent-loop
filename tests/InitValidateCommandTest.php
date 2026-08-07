@@ -134,6 +134,17 @@ final class InitValidateCommandTest extends TestCase
         self::assertStringContainsString('[OK] validate subagents: 1 subagent file(s) valid', $result['output']);
     }
 
+    public function testValidateSubagentsAcceptsCodexAgent(): void
+    {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+
+        $result = $this->runValidate(['--kind=subagents', '--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[OK] validate subagents: 1 subagent file(s) valid', $result['output']);
+    }
+
     public function testValidateSubagentsFailsForInvalidName(): void
     {
         mkdir($this->root . '/docs/agents/subagents', 0o775, true);

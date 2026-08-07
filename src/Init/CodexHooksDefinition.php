@@ -8,9 +8,7 @@ use InvalidArgumentException;
 
 final readonly class CodexHooksDefinition
 {
-    /**
-     * @param list<string> $scriptNames
-     */
+    /** @param list<string> $scriptNames */
     private function __construct(
         private string $hooksJsonContent,
         private array $scriptNames,
@@ -35,14 +33,10 @@ final readonly class CodexHooksDefinition
             throw new InvalidArgumentException('hooks.json is not valid JSON');
         }
 
-        $scriptNames = self::referencedScriptNames($decoded);
-
-        return new self($content, $scriptNames);
+        return new self($content, self::referencedScriptNames($decoded));
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     public function scriptNames(): array
     {
         return $this->scriptNames;
@@ -53,9 +47,7 @@ final readonly class CodexHooksDefinition
         return $this->hooksJsonContent;
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     public static function validationErrors(string $hooksRoot): array
     {
         $hooksJsonPath = rtrim($hooksRoot, '/') . '/hooks.json';
@@ -64,11 +56,9 @@ final readonly class CodexHooksDefinition
             return [];
         }
 
-        $errors = [];
         if (!is_file($hooksJsonPath)) {
             return ['hooks.json not found'];
         }
-
         if (!is_readable($hooksJsonPath)) {
             return ['hooks.json is not readable'];
         }
@@ -88,12 +78,12 @@ final readonly class CodexHooksDefinition
             return ['hooks.json must contain a non-empty hooks object'];
         }
 
+        $errors = [];
         foreach (['SessionStart', 'SubagentStart', 'PreToolUse'] as $requiredEvent) {
             if (!array_key_exists($requiredEvent, $hooks)) {
                 $errors[] = 'hooks.json misses required event ' . $requiredEvent;
             }
         }
-
         if ($errors !== []) {
             return $errors;
         }
@@ -126,7 +116,6 @@ final readonly class CodexHooksDefinition
 
                         continue;
                     }
-
                     if (($hookEntry['type'] ?? null) !== 'command') {
                         $errors[] = $eventName . ' contains unsupported hook type';
 
@@ -134,19 +123,14 @@ final readonly class CodexHooksDefinition
                     }
 
                     $command = $hookEntry['command'] ?? null;
-                    if (!is_string($command) || !str_contains($command, '$(git rev-parse --show-toplevel)')) {
-                        $errors[] = $eventName . ' hook command must resolve from git root';
+                    $scriptName = is_string($command) ? self::scriptNameFromCommand($command) : null;
+                    if ($scriptName === null) {
+                        $errors[] = $eventName . ' hook command must call one repository-local .codex/hooks PHP script';
 
                         continue;
                     }
 
-                    if (preg_match('/\/\.codex\/hooks\/([^" ]+\.php)/', $command, $matches) !== 1) {
-                        $errors[] = $eventName . ' hook command must call a .codex/hooks PHP script';
-
-                        continue;
-                    }
-
-                    $scriptNames[$matches[1]] = $matches[1];
+                    $scriptNames[$scriptName] = $scriptName;
                 }
             }
         }
@@ -162,7 +146,6 @@ final readonly class CodexHooksDefinition
 
                 continue;
             }
-
             if (!is_readable($scriptPath)) {
                 $errors[] = 'Referenced hook script is not readable: hooks/' . $scriptName;
 
@@ -194,7 +177,6 @@ final readonly class CodexHooksDefinition
             if (!is_array($eventGroups)) {
                 continue;
             }
-
             foreach ($eventGroups as $eventGroup) {
                 if (!is_array($eventGroup)) {
                     continue;
@@ -204,19 +186,14 @@ final readonly class CodexHooksDefinition
                 if (!is_array($hookEntries)) {
                     continue;
                 }
-
                 foreach ($hookEntries as $hookEntry) {
-                    if (!is_array($hookEntry)) {
+                    if (!is_array($hookEntry) || !is_string($hookEntry['command'] ?? null)) {
                         continue;
                     }
 
-                    $command = $hookEntry['command'] ?? null;
-                    if (!is_string($command)) {
-                        continue;
-                    }
-
-                    if (preg_match('/\/\.codex\/hooks\/([^" ]+\.php)/', $command, $matches) === 1) {
-                        $scriptNames[$matches[1]] = $matches[1];
+                    $scriptName = self::scriptNameFromCommand($hookEntry['command']);
+                    if ($scriptName !== null) {
+                        $scriptNames[$scriptName] = $scriptName;
                     }
                 }
             }
@@ -225,5 +202,21 @@ final readonly class CodexHooksDefinition
         ksort($scriptNames);
 
         return array_values($scriptNames);
+    }
+
+    private static function scriptNameFromCommand(string $command): ?string
+    {
+        $suffix = '(?:\s+--event=(?:SessionStart|SubagentStart))?';
+        $relative = '~\Aphp\s+["\']?\.codex/hooks/([A-Za-z0-9_.-]+\.php)["\']?' . $suffix . '\z~';
+        if (preg_match($relative, trim($command), $matches) === 1) {
+            return $matches[1];
+        }
+
+        $gitRoot = '~\Aphp\s+["\']?\$\(git rev-parse --show-toplevel\)/\.codex/hooks/([A-Za-z0-9_.-]+\.php)["\']?' . $suffix . '\z~';
+        if (preg_match($gitRoot, trim($command), $matches) === 1) {
+            return $matches[1];
+        }
+
+        return null;
     }
 }

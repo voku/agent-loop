@@ -27,7 +27,7 @@ final class InitSyncCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-init-sync-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
+        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
     }
 
     protected function tearDown(): void
@@ -93,6 +93,30 @@ final class InitSyncCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('[INFO] Using canonical agent "antigravity".', $result['output']);
         self::assertFileExists($this->root . '/.agents/skills/demo-skill/SKILL.md');
+    }
+
+    public function testSyncSubagentsRendersCodexTargets(): void
+    {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\nCheck \"quoted\" values.\n");
+
+        $result = $this->runSyncSubagents(['--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.codex/agents/reviewer.toml');
+        $content = file_get_contents($this->root . '/.codex/agents/reviewer.toml') ?: '';
+        self::assertStringContainsString('name = "reviewer"', $content);
+        self::assertStringContainsString('description = "Review things"', $content);
+        self::assertStringContainsString('developer_instructions = "# Reviewer\\nCheck', $content);
+
+        $prefix = 'developer_instructions = ';
+        $line = array_values(array_filter(
+            explode("\n", $content),
+            static fn (string $value): bool => str_starts_with($value, $prefix),
+        ))[0] ?? '';
+        $instructions = json_decode(substr($line, strlen($prefix)), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame("# Reviewer\nCheck \"quoted\" values.\n", $instructions);
+        self::assertFileExists($this->root . '/.codex/agents/.agent-loop-manifest.json');
     }
 
     public function testSyncSubagentsRendersCopilotTargets(): void

@@ -40,6 +40,64 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-release-set
           --report=${{ github.workspace }}/build/release-set-report.json
           --keep
+      - name: Run installed first-party asset dogfood
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/agent-loop-assets-consumer"
+          rm -rf "${consumer}"
+          mkdir -p "${consumer}"
+          cat > "${consumer}/composer.json" <<JSON
+          {
+            "name": "voku/agent-loop-assets-consumer",
+            "require-dev": {
+              "voku/agent-loop": "dev-main"
+            },
+            "repositories": [
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}",
+                "options": {
+                  "symlink": false,
+                  "versions": {
+                    "voku/agent-loop": "dev-main"
+                  }
+                }
+              }
+            ],
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+          composer update --working-dir="${consumer}" --no-interaction --prefer-dist --no-progress --no-ansi
+          cd "${consumer}"
+          php vendor/bin/agent-loop init install-assets --agent=all
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-discipline/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-investigate/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-surgical-edit/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-code-review/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-simplify-audit/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/subagents/agent-loop-investigator.md
+          test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
+          test -f .codex/skills/agent-loop-discipline/SKILL.md
+          test -f .codex/skills/agent-loop-investigate/SKILL.md
+          test -f .codex/agents/agent-loop-investigator.toml
+          test -f .codex/agents/agent-loop-surgical-builder.toml
+          test -f .codex/agents/agent-loop-code-reviewer.toml
+          test -f .codex/hooks/context.php
+          test -f .github/agents/agent-loop-investigator.agent.md
+          test -f .github/agents/agent-loop-surgical-builder.agent.md
+          test -f .github/agents/agent-loop-code-reviewer.agent.md
+          test -f .agents/agents/agent-loop-investigator.md
+          test -f .agents/agents/agent-loop-surgical-builder.md
+          test -f .agents/agents/agent-loop-code-reviewer.md
+          mkdir -p "${GITHUB_WORKSPACE}/build"
+          php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
+            > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,4 +106,5 @@ jobs:
           if-no-files-found: warn
           path: |
             build/release-set-report.json
+            build/installed-assets-dogfood.json
             ${{ runner.temp }}/agent-loop-release-set/artifacts

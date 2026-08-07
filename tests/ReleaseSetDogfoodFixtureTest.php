@@ -28,7 +28,10 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
     public function testRunnerAndFixturePhpFilesPassPhpLint(): void
     {
         $repositoryRoot = dirname(__DIR__);
-        $files = [$repositoryRoot . '/tools/release-set-dogfood.php'];
+        $files = [
+            $repositoryRoot . '/tools/agent-discipline-dogfood.php',
+            $repositoryRoot . '/tools/release-set-dogfood.php',
+        ];
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(
                 $repositoryRoot . '/tests/fixtures/release-set-consumer',
@@ -42,7 +45,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         sort($files, SORT_STRING);
 
         foreach ($files as $file) {
-            [$exitCode, $stdout, $stderr] = $this->run([PHP_BINARY, '-l', $file], $repositoryRoot);
+            [$exitCode, $stdout, $stderr] = $this->executeCommand([PHP_BINARY, '-l', $file], $repositoryRoot);
             self::assertSame(0, $exitCode, $file . " failed PHP lint:\n" . $stdout . $stderr);
         }
     }
@@ -67,7 +70,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         copy($sourceRoot . '/src/RetryPolicy.php', $this->temporaryRoot . '/src/RetryPolicy.php');
         copy($sourceRoot . '/tools/apply-change.php', $this->temporaryRoot . '/tools/apply-change.php');
 
-        [$exitCode, $stdout, $stderr] = $this->run(
+        [$exitCode, $stdout, $stderr] = $this->executeCommand(
             [PHP_BINARY, $this->temporaryRoot . '/tools/apply-change.php'],
             $this->temporaryRoot,
         );
@@ -79,7 +82,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         self::assertStringContainsString('return 200 * $attempt;', $updated);
         self::assertStringNotContainsString('return 100 * $attempt;', $updated);
 
-        [$secondExit, , $secondStderr] = $this->run(
+        [$secondExit, , $secondStderr] = $this->executeCommand(
             [PHP_BINARY, $this->temporaryRoot . '/tools/apply-change.php'],
             $this->temporaryRoot,
         );
@@ -91,7 +94,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
      * @param list<string> $command
      * @return array{0: int, 1: string, 2: string}
      */
-    private function run(array $command, string $workingDirectory): array
+    private function executeCommand(array $command, string $workingDirectory): array
     {
         $pipes = [];
         $process = proc_open(
