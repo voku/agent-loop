@@ -9,10 +9,9 @@ use voku\AgentLoop\Run\RunManifestTransitionWriter;
 
 final readonly class WorkflowCli
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner @param callable(list<string>): int $verifyRunner */
+    /** @param callable(list<string>): int $recallRunner @param callable(list<string>): int $verifyRunner */
     public function __construct(
         private string $rootPath,
-        private mixed $sessionRunner,
         private mixed $recallRunner,
         private mixed $verifyRunner,
     ) {
@@ -41,7 +40,7 @@ final readonly class WorkflowCli
     /** @param list<string> $args */
     private function runClose(array $args): int
     {
-        $exit = (new WorkflowCloseCommand($this->rootPath, $this->sessionRunner, $this->verifyRunner))->run($args);
+        $exit = (new WorkflowCloseCommand($this->rootPath, $this->verifyRunner))->run($args);
         if ($exit !== 0) {
             return $exit;
         }
@@ -97,6 +96,7 @@ TXT;
     {
         fwrite(\STDERR, "Unknown workflow command: {$command}\n\n");
         $this->printHelp();
+
         return 1;
     }
 }
