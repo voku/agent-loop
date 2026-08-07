@@ -41,9 +41,9 @@ The runner performs this sequence against the real diff from the merge-base to `
 11. run the final blind-spot review and require its JSON report status to be exactly `ok`;
 12. review `MEMORY.md` promotion state;
 13. persist the manifest, run `agent-loop verify`, and render the completion report;
-14. CLOSE through the normal workflow gates and persist final status.
+14. CLOSE through the normal workflow gates, persist final status, and require the final projection to be `complete` with `next_action=none`, session `done`, review `ok`, and the expected learning state.
 
-The initial review may warn while the lifecycle is incomplete. The final review may not. The CLI exit code is not the semantic gate because `warn` can still be a successfully executed review command; the runner reads `SELF-SHAPE.blindspots.json` and accepts only `status=ok`.
+The initial review may warn while the lifecycle is incomplete. The final review may not. The CLI exit code is not the semantic gate because `warn` can still be a successfully executed review command; the runner reads `SELF-SHAPE.blindspots.json` and accepts only `status=ok`. Likewise, successful `workflow close` is not enough by itself: the persisted final projection is checked as machine-readable evidence before the dogfood run prints `PASSED`.
 
 ## Promotion rule
 
