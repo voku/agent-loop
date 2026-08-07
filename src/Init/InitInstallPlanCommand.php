@@ -73,8 +73,10 @@ final readonly class InitInstallPlanCommand
         ```
 
         `install-assets` copies skills shipped inside the installed `voku/agent-loop` package.
-        Codex also receives repository-local PHP hooks. It does not clone a repository,
-        execute a remote installer, use a plugin marketplace, or require Node.js.
+        Supported clients also receive the package-owned investigator, surgical-builder,
+        and code-reviewer roles; Codex additionally receives repository-local PHP hooks.
+        It does not clone a repository, execute a remote installer, use a plugin marketplace,
+        or require Node.js.
 
         {$this->renderActivation($agent, $profile)}
         TXT;
@@ -106,13 +108,13 @@ final readonly class InitInstallPlanCommand
             repository-local hooks, and trust them only after review.
             TXT,
             'copilot' => <<<TXT
-            Restart or reload skills in Copilot inside {$environment}.
+            Restart or reload skills and repository agents in Copilot inside {$environment}.
             TXT,
             'claude' => <<<TXT
             Restart Claude Code inside {$environment} so it reloads repository skills.
             TXT,
             default => <<<TXT
-            Restart Antigravity inside {$environment} so it reloads repository skills.
+            Restart Antigravity inside {$environment} so it reloads repository skills and agents.
             TXT,
         };
     }
