@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\AgentLoopVerifier;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\Session;
@@ -20,8 +21,7 @@ use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowCloseCommand
 {
-    /** @param callable(list<string>): int $verifyRunner */
-    public function __construct(private string $rootPath, private mixed $verifyRunner)
+    public function __construct(private string $rootPath)
     {
     }
 
@@ -222,7 +222,7 @@ final readonly class WorkflowCloseCommand
      */
     private function checkVerifyGate(string $taskId): ?string
     {
-        if (($this->verifyRunner)(['--task-id=' . $taskId]) === 0) {
+        if ((new AgentLoopVerifier($this->rootPath))->run(['--task-id=' . $taskId]) === 0) {
             echo "[OK] verify: agent-loop verify passed\n";
 
             return null;
