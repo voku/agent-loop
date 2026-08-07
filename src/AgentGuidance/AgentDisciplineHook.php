@@ -71,13 +71,6 @@ final readonly class AgentDisciplineHook
         }
 
         $command = $this->extractCommand($payload);
-        if ($this->isExternalAddonBootstrap($command)) {
-            return $this->deny(
-                'External agent add-on bootstrap is disabled for this repository.',
-                'Use package-owned assets: agent-loop init install-assets --agent=<agent>.',
-            );
-        }
-
         if ($this->isUnboundedMapDump($command)) {
             return $this->deny(
                 'Unbounded read of the generated agent-map index is blocked.',
@@ -156,6 +149,7 @@ final readonly class AgentDisciplineHook
         - Use agent-map before broad PHP reads.
         - Choose the smallest correct change in the owning package.
         - Preserve full diffs, source, tests, and verification artifacts unchanged.
+        - Hooks are behavioral guardrails, never correctness or security boundaries.
         - Never claim validation that was not executed.
         TEXT;
     }
@@ -163,18 +157,6 @@ final readonly class AgentDisciplineHook
     private function stripFrontmatter(string $content): string
     {
         return preg_replace('/\A---\R.*?\R---\R/s', '', $content, 1) ?? $content;
-    }
-
-    private function isExternalAddonBootstrap(string $command): bool
-    {
-        $externalSource = '(?:JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk)';
-
-        return preg_match('~\b(?:curl|wget|Invoke-WebRequest|iwr)\b[^\r\n]*' . $externalSource . '~i', $command) === 1
-            || preg_match('~\b(?:npm|pnpm|yarn)\b\s+(?:install|add|i)\b[^\r\n]*(?:@juliusbrussee/caveman|\bponytail\b)~i', $command) === 1
-            || preg_match('~\b(?:codex\s+plugin|agy\s+plugin|gemini\s+extensions)\b[^\r\n]*(?:DietrichGebert/ponytail|ponytail@ponytail)~i', $command) === 1
-            || preg_match('~(?:^|[;&|]\s*)/?plugin\s+(?:marketplace\s+add|install)\b[^\r\n]*(?:DietrichGebert/ponytail|ponytail@ponytail)~i', $command) === 1
-            || preg_match('~\b(?:bash|sh|pwsh|powershell)\b[^\r\n]*caveman-install\.(?:sh|ps1)~i', $command) === 1
-            || preg_match('~(?:^|[;&|]\s*)rtk\s+init(?:\s|$)~i', $command) === 1;
     }
 
     private function isUnboundedMapDump(string $command): bool
