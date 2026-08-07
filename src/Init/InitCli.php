@@ -46,7 +46,7 @@ final readonly class InitCli
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init install-assets --agent=<agent|all> [--config=PATH] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init install-assets --agent=<agent|all> [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
@@ -59,7 +59,7 @@ final readonly class InitCli
           tools          Probe and cache CLI tool availability (rg, git, php, composer, docker, agent-map index).
           validate       Validate repo-managed agent asset definitions.
           install-plan   Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets Install skills shipped with agent-loop; Codex also receives repository-local PHP hooks.
+          install-assets Install immutable skills shipped with agent-loop; Codex also receives package-owned PHP hooks.
           sync-skills    Sync repo-managed skills into a client target directory.
           sync-subagents Sync repo-managed subagents into a client target directory.
           sync-hooks     Sync repo-managed Codex hooks into a client target directory.
