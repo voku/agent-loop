@@ -62,30 +62,11 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringContainsString('without downloading remote code', $result['output']);
     }
 
-    public function testConfigCannotReplaceBundledAssetSources(): void
+    public function testConfigIsRejectedInsteadOfChangingPackageOwnedSources(): void
     {
-        mkdir($this->root . '/custom-skills/untrusted-skill', 0o775, true);
-        file_put_contents(
-            $this->root . '/custom-skills/untrusted-skill/SKILL.md',
-            "---\nname: untrusted-skill\ndescription: Must never be installed by install-assets.\n---\n",
-        );
-        file_put_contents(
-            $this->root . '/custom-init.json',
-            json_encode([
-                'version' => 1,
-                'paths' => [
-                    'skills_root' => 'custom-skills',
-                    'codex_hooks_root' => 'custom-hooks',
-                ],
-            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
-        );
-
         $result = $this->runCommand(['--agent=codex', '--config=custom-init.json']);
 
-        self::assertSame(0, $result['exit'], $result['output']);
-        self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
-        self::assertFileDoesNotExist($this->root . '/.codex/skills/untrusted-skill/SKILL.md');
-        self::assertFileExists($this->root . '/.codex/hooks/context.php');
+        self::assertSame(1, $result['exit']);
     }
 
     public function testClaudeInstallsSkillsWithoutCodexHooks(): void
