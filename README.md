@@ -85,8 +85,8 @@ The first-party set adapts concrete mechanisms reviewed in Caveman and Ponytail:
 | `agent-loop-simplify-audit` | Repo-wide simplify audit, prioritized through map/navigation evidence |
 | `agent-loop-dogfood` | Compare observable baseline/candidate artifacts without invented savings |
 
-For clients supported by the existing subagent target format, the package also
-installs three dedicated roles:
+The package also installs three dedicated roles where the client exposes a
+repository-local agent-role format:
 
 ```text
 investigator -> surgical builder -> code reviewer
@@ -95,6 +95,16 @@ investigator -> surgical builder -> code reviewer
 The investigator locates and stops. The builder edits only already-understood
 small scope. The reviewer returns correctness findings only. Broader features
 stay in the normal governed workflow.
+
+The same canonical role definitions are rendered for each supported client:
+
+- Codex: `.codex/agents/*.toml`, with `name`, `description`, and
+  `developer_instructions` only;
+- Copilot: `.github/agents/*.agent.md`;
+- Antigravity: `.agents/agents/*.md`.
+
+Model choice remains client/host policy. `agent-loop` does not pin a model,
+reasoning level, or provider-specific economics into the role files.
 
 Codex additionally receives package-owned PHP hooks:
 
@@ -109,9 +119,9 @@ security property is simpler: `install-assets` installs only files already
 shipped in the Composer package and never fetches remote agent code.
 
 `--agent=all` installs portable skills for Codex, Claude, Copilot, and
-Antigravity, dedicated subagent definitions for the existing Copilot and
-Antigravity targets, and Codex hooks. The exact upstream-to-agent-* mapping and
-what was deliberately not ported are documented in
+Antigravity; dedicated subagent definitions for Codex, Copilot, and Antigravity;
+and Codex hooks. The exact upstream-to-agent-* mapping and what was deliberately
+not ported are documented in
 [THIRD_PARTY_NOTICES.md](docs/agents/THIRD_PARTY_NOTICES.md).
 
 The implementation and failed iterations are documented in
@@ -321,7 +331,7 @@ repository owns customized canonical assets:
 ```bash
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
-vendor/bin/agent-loop init sync-subagents --agent=copilot --dry-run
+vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 ```
 
