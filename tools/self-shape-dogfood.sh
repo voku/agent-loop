@@ -137,8 +137,37 @@ done
 "${report[@]}" > build/self-shape-report.json
 
 "${agent_loop[@]}" workflow close "${task}" --status done
-"${agent_loop[@]}" workflow status "${task}" --format json \
-  > build/self-shape-status.json
+status_file='build/self-shape-status.json'
+"${agent_loop[@]}" workflow status "${task}" --format json > "${status_file}"
+php -r '
+$path = $argv[1];
+$expectedLearning = $argv[2];
+$json = file_get_contents($path);
+if ($json === false) {
+    fwrite(STDERR, "Missing final workflow status: {$path}\n");
+    exit(1);
+}
+$data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+$manifest = $data["manifest"] ?? null;
+$references = is_array($manifest) ? ($manifest["references"] ?? null) : null;
+$session = is_array($references) ? ($references["session"] ?? null) : null;
+$review = is_array($references) ? ($references["review"] ?? null) : null;
+$learning = is_array($references) ? ($references["learning"] ?? null) : null;
+if (
+    !is_array($manifest)
+    || ($manifest["state"] ?? null) !== "complete"
+    || ($manifest["next_action"] ?? null) !== "none"
+    || !is_array($session)
+    || ($session["state"] ?? null) !== "done"
+    || !is_array($review)
+    || ($review["state"] ?? null) !== "ok"
+    || !is_array($learning)
+    || ($learning["state"] ?? null) !== $expectedLearning
+) {
+    fwrite(STDERR, "Final workflow projection is not complete/done/clean/consistent:\n{$json}\n");
+    exit(1);
+}
+' "${status_file}" "${learning_status}"
 
 printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nChanged files: %d\nLearning decision: %s\n' \
   "${base}" "${head}" "${#changed_files[@]}" "${learning_status}"
