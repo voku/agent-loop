@@ -7,12 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Dispatcher;
 
-/**
- * Keeps the public command table, the executable help output, and the
- * documented availability classification in lockstep.
- *
- * @internal
- */
+/** Keeps the concise README namespace list and executable help in lockstep. @internal */
 final class CliSurfaceContractTest extends TestCase
 {
     /** @var list<string> */
@@ -36,11 +31,14 @@ final class CliSurfaceContractTest extends TestCase
         $readme = file_get_contents(dirname(__DIR__) . '/README.md');
         self::assertNotFalse($readme);
 
-        $table = $this->packageMapTable($readme);
-        preg_match_all('/^\\| `([^`]+)` \\| (Stable|Experimental|Planned) \\|/m', $table, $matches);
+        $block = $this->cliNamespaceBlock($readme);
+        preg_match_all('/^([a-z][a-z:-]*)\s{2,}/m', $block, $matches);
+        $documented = array_values(array_unique($matches[1]));
 
-        self::assertSame(self::STABLE_NAMESPACES, $matches[1]);
-        self::assertSame(array_fill(0, count(self::STABLE_NAMESPACES), 'Stable'), $matches[2]);
+        $expected = self::STABLE_NAMESPACES;
+        sort($documented);
+        sort($expected);
+        self::assertSame($expected, $documented);
 
         $dispatcher = new Dispatcher(sys_get_temp_dir());
         ob_start();
@@ -53,21 +51,25 @@ final class CliSurfaceContractTest extends TestCase
         }
     }
 
-    public function testReadmeDocumentsRunnableScaffoldQuickStart(): void
+    public function testReadmeDocumentsRunnableRepositoryStart(): void
     {
         $readme = file_get_contents(dirname(__DIR__) . '/README.md');
         self::assertNotFalse($readme);
-        self::assertStringContainsString('## Quick start', $readme);
+        self::assertStringContainsString('## Start a repository', $readme);
         self::assertStringContainsString('vendor/bin/agent-loop init scaffold', $readme);
         self::assertStringContainsString('docs/quick-start.md', $readme);
     }
 
-    private function packageMapTable(string $readme): string
+    private function cliNamespaceBlock(string $readme): string
     {
-        $start = strpos($readme, '| Namespace | Status | Purpose | Owning package |');
-        self::assertNotFalse($start);
+        $heading = strpos($readme, '## CLI namespaces');
+        self::assertNotFalse($heading);
 
-        $end = strpos($readme, "\n## The loop", $start);
+        $start = strpos($readme, "```text\n", $heading);
+        self::assertNotFalse($start);
+        $start += strlen("```text\n");
+
+        $end = strpos($readme, "\n```", $start);
         self::assertNotFalse($end);
 
         return substr($readme, $start, $end - $start);
