@@ -48,10 +48,10 @@ jobs:
           if-no-files-found: warn
           path: |
             build/self-shape-*.json
-            recall/SELF-SHAPE
+            infra/doc/agent-learning/recall-output/SELF-SHAPE
+            infra/doc/agent-learning/history
             session_plan
             .agent-loop/runs/SELF-SHAPE
-            infra/doc/agent-learning/history
 
   release-set-dogfood:
     name: Installed release-set dogfood
