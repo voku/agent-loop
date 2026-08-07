@@ -59,11 +59,11 @@ final class FirstPartyAgentAssetContractTest extends TestCase
     public function testPackageOwnedAgentAssetsContainNoRemoteBootstrap(): void
     {
         $root = dirname(__DIR__) . '/docs/agents';
-        $paths = [
-            ...glob($root . '/skills/*/SKILL.md') ?: [],
-            ...glob($root . '/subagents/*.md') ?: [],
-            ...glob($root . '/codex-hooks/*') ?: [],
-        ];
+        $paths = array_merge(
+            glob($root . '/skills/*/SKILL.md') ?: [],
+            glob($root . '/subagents/*.md') ?: [],
+            glob($root . '/codex-hooks/*') ?: [],
+        );
 
         self::assertNotSame([], $paths);
         foreach ($paths as $path) {
