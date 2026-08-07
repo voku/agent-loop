@@ -80,13 +80,17 @@ Bundled skills:
 | `agent-loop-simplify-review` | Review the complete raw diff for avoidable complexity without replacing correctness or security review |
 | `agent-loop-dogfood` | Compare stable baseline and candidate runs through observable artifacts |
 
-Codex also receives repository-local PHP hooks:
+Codex also receives package-owned PHP hooks installed into the repository:
 
 - `SessionStart` injects the discipline.
 - `SubagentStart` propagates it to spawned agents.
-- `PreToolUse` leaves normal Bash commands unchanged.
-- `PreToolUse` denies only known replaced add-on bootstrap commands and
-  unbounded dumps of generated `.agent-map` indexes.
+- `PreToolUse` leaves ordinary Bash commands unchanged.
+- `PreToolUse` redirects unbounded generated `.agent-map` dumps toward bounded
+  map commands.
+
+Hooks are behavioral guardrails, not a correctness or security boundary. The
+security property is simpler: `install-assets` installs only files already
+shipped in the Composer package and never fetches remote agent code.
 
 Other supported clients receive the portable skills. Use `--agent=all` to sync
 them for Codex, Claude, Copilot, and Antigravity.
@@ -269,6 +273,7 @@ vendor/bin/agent-loop <namespace> help
 - silently approve code or durable learning;
 - inject recall artifacts into an agent without the host doing so explicitly;
 - replace tests, PHPStan, code review, or human approval;
+- treat hooks as a correctness or security sandbox;
 - turn every transcript or observation into memory;
 - hide source or verification evidence behind a lossy summary.
 
@@ -287,7 +292,9 @@ Use `install-assets` for the immutable defaults shipped with this package:
 vendor/bin/agent-loop init install-assets --agent=codex
 ```
 
-Use `sync-*` when a host repository owns customized canonical assets:
+`install-assets` is intentionally configuration-free: host configuration cannot
+replace its source skills or hooks. Use `sync-*` when a host repository owns
+customized canonical assets:
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
@@ -312,6 +319,10 @@ The first-party discipline is tested at three levels:
 3. GitHub Actions installs `agent-loop` as a non-symlinked Composer dependency,
    installs the bundled assets from `vendor/`, and reruns the dogfood gate from
    the installed package.
+
+Guidance changes also require an observable behavioral comparison. A green
+installer or hook test alone does not prove that agents became easier to review
+or less likely to add unrequested work.
 
 Local commands:
 
