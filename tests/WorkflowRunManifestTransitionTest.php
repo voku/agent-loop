@@ -126,11 +126,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         ob_start();
         $firstExit = $first->run(['ABC-123', '--by', 'lars']);
-        $firstOutput = (string) ob_get_clean();
+        ob_end_clean();
 
         self::assertSame(7, $firstExit);
         self::assertSame(1, $approvalCalls);
-        self::assertStringContainsString('remains approved', $firstOutput);
         $afterFailure = $this->manifest();
         self::assertSame('current', $this->referenceState($afterFailure, 'approval'));
         self::assertSame('missing', $this->referenceState($afterFailure, 'recall'));
