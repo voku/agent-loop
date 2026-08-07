@@ -84,15 +84,28 @@ fi
   --commit "${head}"
 
 "${agent_loop[@]}" session checkpoint "${task}" \
-  --title 'review blindspots close-out' \
-  --body "Reviewed the deterministic review blindspots report for this change against ${base}."
+  --title 'log-outcome + review blindspots close-out' \
+  --body "recall log-outcome completed; reviewed the deterministic review blindspots report for this change against ${base}."
 
 "${agent_loop[@]}" session learning decide "${task}" \
   --status no_durable_learning \
   --by "${actor}"
 
-# The final review is a hard gate. WARN is not a completion state.
 "${agent_loop[@]}" review blindspots "${task}"
+review_report="${recall_root}/${task}/reviews/${task}.blindspots.json"
+php -r '
+$path = $argv[1];
+$json = file_get_contents($path);
+if ($json === false) {
+    fwrite(STDERR, "Missing final blind-spot report: {$path}\n");
+    exit(1);
+}
+$data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+if (($data["status"] ?? null) !== "ok") {
+    fwrite(STDERR, "Final blind-spot review must be status=ok:\n{$json}\n");
+    exit(1);
+}
+' "${review_report}"
 
 memory_review="$("${agent_loop[@]}" memory review --file=MEMORY.md)"
 printf '%s\n' "${memory_review}"
