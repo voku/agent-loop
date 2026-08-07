@@ -37,6 +37,13 @@ The review covered skills, dedicated agents, activation and mode hooks, subagent
 propagation, model overrides, compression code, stats/gain behavior, install
 helpers, rule-copy drift checks, debt/audit flows, tests, and benchmark guidance.
 
+The adaptation also checked the current Codex implementation rather than guessing
+its role format. `openai/codex` was reviewed at commit
+`4ee41929eaf4fc1e5662c9b4befd05230688ca62`, specifically
+`codex-rs/core/src/config/agent_roles.rs`. That source discovers project roles
+from the config layer's `agents/` directory and requires standalone role files to
+provide non-empty `name`, `description`, and `developer_instructions`.
+
 ## Mechanism inventory and adaptation
 
 ### Caveman core communication
@@ -100,9 +107,13 @@ canonical package roots, client rendering, managed-entry manifests,
 `init install-assets --agent=all` now installs:
 
 - portable skills for Codex, Claude, Copilot, and Antigravity;
-- the three dedicated role definitions for the existing Copilot and Antigravity
-  subagent target formats;
+- the three dedicated role definitions for Codex, Copilot, and Antigravity;
 - Codex PHP hooks.
+
+The canonical role definitions are rendered per client instead of maintained as
+three independent sources. Codex receives `.codex/agents/*.toml`, Copilot
+receives `.github/agents/*.agent.md`, and Antigravity receives
+`.agents/agents/*.md`.
 
 ### Caveman compress
 
@@ -250,12 +261,53 @@ skills+hooks-only installer was visibly incomplete. Rather than invent a new
 role installer, `install-assets` now delegates to the existing
 `InitSyncSubagentsCommand` for its supported targets.
 
+### Codex roles -> extend the existing renderer
+
+The first role port only rendered dedicated definitions for Copilot and
+Antigravity because those were the targets already implemented by
+`sync-subagents`. That was an implementation-history limitation, not an
+architecture reason.
+
+Checking current `openai/codex` source showed that project roles are discovered
+from the configuration layer's `agents/` directory and standalone role TOMLs
+must provide `name`, `description`, and `developer_instructions`. The existing
+renderer was therefore extended with a third Codex target:
+
+```text
+docs/agents/subagents/agent-loop-investigator.md
+  -> .codex/agents/agent-loop-investigator.toml
+  -> .github/agents/agent-loop-investigator.agent.md
+  -> .agents/agents/agent-loop-investigator.md
+```
+
+The Codex renderer intentionally emits no `model`, reasoning, sandbox, or
+provider-specific setting. Those remain host/client policy.
+
+`init status` uses the same Codex `.toml` projection and target root as
+`sync-subagents`, so managed-entry drift is visible instead of becoming a second
+silent contract.
+
 ### Rule duplication -> executable drift contract
 
 Adding portable role skills and dedicated subagent definitions created an
 intentional duplication seam. Ponytail's rule-copy script made that risk
 obvious, so the port includes a PHP contract test instead of hoping both copies
 stay aligned.
+
+### Hook command parser -> reject suffix injection
+
+A fresh review found that the initial hook validator accepted arbitrary trailing
+shell text after an otherwise valid local PHP script. The parser now accepts only
+the local hook script plus the supported `--event=SessionStart|SubagentStart`
+argument. Shell separators, command substitution, and arbitrary extra arguments
+have regression tests.
+
+### Asset scan -> include nested hook scripts
+
+The first package-asset safety test globbed `codex-hooks/*` and therefore saw the
+`hooks/` directory but not the PHP files inside it. The test now scans
+`codex-hooks/hooks/*.php` explicitly. A reassuring test name is not evidence that
+the intended files were inspected.
 
 ## Observable behavioral replay
 
@@ -295,9 +347,12 @@ GitHub Actions CI #386 on functional wiring head
 - installed Codex hooks;
 - installed-package hook dogfood.
 
-That run proves the complete first-party mechanism set can be installed from the
-Composer package without fetching the upstream add-ons. Later documentation-only
-commits must still pass the same repository CI before the PR leaves draft.
+That run proved the then-current package-owned mechanism set without fetching the
+upstream add-ons. The later native Codex role renderer, stricter hook parser,
+status projection, and expanded asset tests intentionally invalidate it as a
+final merge claim. The PR leaves draft only after the final head passes the same
+PHP matrix and clean installed-consumer gate, including the generated Codex role
+TOMLs.
 
 ## Acceptance boundary
 
