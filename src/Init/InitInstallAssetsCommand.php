@@ -22,11 +22,6 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load($this->readOptionValue($tokens, 'config'));
-        foreach ($config['warnings'] as $warning) {
-            echo $warning . "\n";
-        }
-
         $requestedAgent = $this->readOptionValue($tokens, 'agent');
         if ($requestedAgent === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
@@ -39,7 +34,6 @@ final readonly class InitInstallAssetsCommand
                 $requestedAgent,
                 ['codex', 'claude', 'copilot', 'antigravity'],
                 true,
-                $config['agents'],
             );
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
@@ -119,7 +113,7 @@ final readonly class InitInstallAssetsCommand
     /** @param list<string> $tokens */
     private function validateTokens(array $tokens): ?string
     {
-        $valueOptions = ['agent', 'config'];
+        $valueOptions = ['agent'];
         $flagOptions = ['dry-run', 'force', 'adopt-existing'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
