@@ -130,15 +130,10 @@ final readonly class SubagentDefinition
 
     private static function tomlString(string $value): string
     {
-        $encoded = json_encode(
+        return json_encode(
             $value,
             \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
         );
-        if (!is_string($encoded)) {
-            throw new InvalidArgumentException('Unable to encode Codex subagent TOML string.');
-        }
-
-        return $encoded;
     }
 
     private static function readFile(string $filePath): string
