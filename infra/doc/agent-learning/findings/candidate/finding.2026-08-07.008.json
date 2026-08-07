@@ -1,0 +1,31 @@
+{
+  "id": "finding.2026-08-07.008",
+  "task_id": "TODO@agent-loop/self-shape-pr-28",
+  "session": "2026-08-07-self-shape",
+  "created_at": "2026-08-07T23:25:00+02:00",
+  "created_by": "independent-review",
+  "scope": [
+    "src/Workflow/WorkflowStartCommand.php",
+    "src/Workflow/WorkflowPlanCommand.php",
+    "tests/WorkflowStartCommandTest.php"
+  ],
+  "observation": "SessionStore::create() generates a new active session directory whenever the preferred id already exists; it does not enforce one active session per task. WorkflowPlanCommand already rejects multiple active sessions, but WorkflowStartCommand previously called create() unconditionally. Retrying workflow start after a recall failure could therefore create a second active session and make later approve/close resolution ambiguous.",
+  "evidence": [
+    {
+      "type": "review",
+      "command": "CodeRabbit independent review on PR #28",
+      "summary": "The reviewer mapped SessionStore::create() and identified that repeated workflow start bypassed the one-active-session invariant assumed by plan, approve, and close."
+    },
+    {
+      "type": "test_result",
+      "command": "pending: WorkflowStartCommand retry and multi-active tests",
+      "summary": "Validation is pending. Promote only if restart reuses the existing active session, an already-corrupt multi-active state fails before recall compilation, and the complete CI/self-shape/release-set matrix remains green."
+    }
+  ],
+  "hypothesis": "Every workflow entrypoint that creates or resumes session state must preserve the same one-active-session-per-task invariant; retries should reuse the active session rather than allocate a new one.",
+  "validated_conclusion": "Pending validation.",
+  "confidence": "high",
+  "validation_status": "unverified",
+  "status": "candidate",
+  "sensitivity": "public"
+}
