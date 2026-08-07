@@ -10,9 +10,8 @@
   "observation": "The pull-request self-shape job executes repository code while inheriting default GITHUB_TOKEN permissions, and actions/checkout persisted its credential into the workspace. An independent review flagged both excessive permissions and credential persistence.",
   "evidence": [
     {
-      "type": "review",
-      "command": "CodeRabbit / zizmor review on PR #28",
-      "summary": "The review reported excessive-permissions and artipacked warnings for self-shape-dogfood and recommended job-level contents: read plus checkout persist-credentials: false."
+      "type": "review_comment",
+      "reference": "PR #28 CodeRabbit review thread PRRT_kwDOTALgUs6XZVxf: zizmor excessive-permissions + artipacked"
     },
     {
       "type": "test_result",
