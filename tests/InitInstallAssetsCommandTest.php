@@ -24,6 +24,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         foreach ([
             'CODEX_HOME',
             'CODEX_SKILLS_DIR',
+            'CODEX_AGENTS_DIR',
             'CLAUDE_SKILLS_DIR',
             'COPILOT_SKILLS_DIR',
             'ANTIGRAVITY_SKILLS_DIR',
@@ -50,6 +51,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-discipline', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-investigate', $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync subagents: install agent-loop-investigator.toml', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync hooks: install hooks.json', $result['output']);
         self::assertStringContainsString('package-owned guidance validated; no files written', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.codex');
@@ -58,7 +60,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringNotContainsString('plugin marketplace', strtolower($result['output']));
     }
 
-    public function testCodexInstallsBundledSkillsAndHooks(): void
+    public function testCodexInstallsBundledSkillsRolesAndHooks(): void
     {
         $result = $this->runCommand(['--agent=codex']);
 
@@ -70,6 +72,9 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-review/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-audit/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-dogfood/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-surgical-builder.toml');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-code-reviewer.toml');
         self::assertFileExists($this->root . '/.codex/hooks.json');
         self::assertFileExists($this->root . '/.codex/hooks/context.php');
         self::assertFileExists($this->root . '/.codex/hooks/pre_tool_use_policy.php');
@@ -92,6 +97,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-investigate/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
+        self::assertDirectoryDoesNotExist($this->root . '/.codex/agents');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
         self::assertStringContainsString('dedicated bundled subagent definitions and hooks are not emitted for this client', $result['output']);
     }
@@ -118,6 +124,9 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.github/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.agents/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-surgical-builder.toml');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-code-reviewer.toml');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-investigator.agent.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-surgical-builder.agent.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-code-reviewer.agent.md');
