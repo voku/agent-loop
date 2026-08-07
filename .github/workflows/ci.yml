@@ -20,6 +20,140 @@ jobs:
       - run: composer install --no-interaction --prefer-dist
       - run: composer ci
 
+  self-shape-dogfood:
+    name: Agent-loop shapes itself
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Govern this change with agent-loop itself
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          task='SELF-SHAPE'
+          actor='agent-loop-self-shape'
+          base_ref="${GITHUB_BASE_REF:-main}"
+          base="$(git merge-base HEAD "origin/${base_ref}")"
+          head="$(git rev-parse HEAD)"
+
+          mkdir -p build learning-root
+
+          vendor/bin/agent-loop workflow plan "${task}" \
+            --by "${actor}" \
+            --learning-root learning-root \
+            --base-commit "${base}" \
+            --file src/Dispatcher.php \
+            --file src/Workflow/WorkflowCli.php \
+            --file src/Workflow/WorkflowStartCommand.php \
+            --file src/Workflow/WorkflowPlanCommand.php \
+            --file src/Workflow/WorkflowApproveCommand.php \
+            --file src/Workflow/WorkflowCloseCommand.php \
+            --file tests/WorkflowStartCommandTest.php \
+            --file tests/WorkflowPlanCommandTest.php \
+            --file tests/WorkflowCloseCommandTest.php \
+            --file tests/WorkflowRecallOutputSupersederTest.php \
+            --file tests/WorkflowRunManifestTransitionTest.php \
+            --file tests/WorkflowCliTest.php \
+            --file .github/workflows/ci.yml \
+            --goal 'Replace internal workflow-to-session CLI reconstruction with typed agent-session APIs while preserving the governed lifecycle.' \
+            --non-goal 'Do not move package ownership, add a shared core package, or change public workflow semantics.' \
+            --validation 'composer ci' \
+            --behavior-anchor 'agent-loop workflow command -> agent-session typed store -> persisted session and work-brief state'
+
+          vendor/bin/agent-loop workflow approve "${task}" \
+            --by "${actor}" \
+            --learning-root learning-root
+
+          vendor/bin/agent-loop workflow context "${task}" \
+            --format=json \
+            --learning-root learning-root \
+            > build/self-shape-context.json
+
+          composer ci
+
+          vendor/bin/agent-loop session validation record "${task}" \
+            --brief-revision 1 \
+            --command 'composer ci' \
+            --status passed \
+            --exit-code 0 \
+            --duration-ms 0 \
+            --by "${actor}"
+
+          set +e
+          vendor/bin/agent-loop review blindspots "${task}"
+          review_exit=$?
+          set -e
+          if [[ "${review_exit}" -ne 0 && "${review_exit}" -ne 1 ]]; then
+            exit "${review_exit}"
+          fi
+
+          vendor/bin/agent-loop session checkpoint "${task}" \
+            --title 'Self-shape review' \
+            --body "Inspected the deterministic blind-spot report for this change against ${base}."
+
+          vendor/bin/agent-loop review blindspots "${task}"
+
+          vendor/bin/agent-loop recall log-outcome \
+            --root learning-root \
+            --draft "recall/${task}/recall-log.draft.json" \
+            --by "${actor}" \
+            --commit "${head}"
+
+          vendor/bin/agent-loop session learning decide "${task}" \
+            --status no_durable_learning \
+            --by "${actor}"
+
+          vendor/bin/agent-loop workflow manifest "${task}" \
+            --write \
+            --format=json \
+            > build/self-shape-manifest-before-close.json
+
+          vendor/bin/agent-loop verify
+
+          vendor/bin/agent-loop workflow report "${task}" \
+            --format=json \
+            --learning-root learning-root \
+            --changed-file src/Dispatcher.php \
+            --changed-file src/Workflow/WorkflowCli.php \
+            --changed-file src/Workflow/WorkflowStartCommand.php \
+            --changed-file src/Workflow/WorkflowPlanCommand.php \
+            --changed-file src/Workflow/WorkflowApproveCommand.php \
+            --changed-file src/Workflow/WorkflowCloseCommand.php \
+            --changed-file tests/WorkflowStartCommandTest.php \
+            --changed-file tests/WorkflowPlanCommandTest.php \
+            --changed-file tests/WorkflowCloseCommandTest.php \
+            --changed-file tests/WorkflowRecallOutputSupersederTest.php \
+            --changed-file tests/WorkflowRunManifestTransitionTest.php \
+            --changed-file tests/WorkflowCliTest.php \
+            --changed-file .github/workflows/ci.yml \
+            > build/self-shape-report.json
+
+          vendor/bin/agent-loop workflow close "${task}" --status done
+          vendor/bin/agent-loop workflow status "${task}" --format=json \
+            > build/self-shape-status.json
+
+      - name: Upload self-shaping evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-shape-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/self-shape-*.json
+            recall/SELF-SHAPE
+            session_plan
+            .agent-loop/runs/SELF-SHAPE
+
   release-set-dogfood:
     name: Installed release-set dogfood
     runs-on: ubuntu-latest
