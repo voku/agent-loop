@@ -4,6 +4,7 @@ set -euo pipefail
 task='SELF-SHAPE'
 actor='agent-loop-self-shape'
 learning_root='infra/doc/agent-learning'
+recall_root="${learning_root}/recall-output"
 base_ref="${GITHUB_BASE_REF:-main}"
 
 for argument in "$@"; do
@@ -78,7 +79,7 @@ fi
 
 "${agent_loop[@]}" recall log-outcome \
   --root "${learning_root}" \
-  --draft "recall/${task}/recall-log.draft.json" \
+  --draft "${recall_root}/${task}/recall-log.draft.json" \
   --by "${actor}" \
   --commit "${head}"
 
