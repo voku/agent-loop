@@ -76,7 +76,7 @@ jobs:
             --learning-root learning-root
 
           "${agent_loop[@]}" workflow context "${task}" \
-            --format=json \
+            --format json \
             --learning-root learning-root \
             > build/self-shape-context.json
 
@@ -116,13 +116,13 @@ jobs:
 
           "${agent_loop[@]}" workflow manifest "${task}" \
             --write \
-            --format=json \
+            --format json \
             > build/self-shape-manifest-before-close.json
 
           "${agent_loop[@]}" verify
 
           "${agent_loop[@]}" workflow report "${task}" \
-            --format=json \
+            --format json \
             --learning-root learning-root \
             --changed-file src/Dispatcher.php \
             --changed-file src/Workflow/WorkflowCli.php \
@@ -140,7 +140,7 @@ jobs:
             > build/self-shape-report.json
 
           "${agent_loop[@]}" workflow close "${task}" --status done
-          "${agent_loop[@]}" workflow status "${task}" --format=json \
+          "${agent_loop[@]}" workflow status "${task}" --format json \
             > build/self-shape-status.json
 
       - name: Upload self-shaping evidence
