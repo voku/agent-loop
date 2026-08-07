@@ -33,6 +33,7 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertStringContainsString('Profile: wsl2', $result['output']);
         self::assertStringContainsString('Agent: codex', $result['output']);
         self::assertStringContainsString('init install-assets --agent=codex --dry-run', $result['output']);
+        self::assertStringContainsString('investigator, surgical-builder', $result['output']);
         self::assertStringContainsString('open `/hooks`', $result['output']);
         self::assertOfflineContract($result['output']);
     }
@@ -55,7 +56,7 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Agent: copilot', $result['output']);
         self::assertStringContainsString('init install-assets --agent=copilot', $result['output']);
-        self::assertStringContainsString('Restart or reload skills in Copilot inside Windows', $result['output']);
+        self::assertStringContainsString('Restart or reload skills and repository agents in Copilot inside Windows', $result['output']);
         self::assertOfflineContract($result['output']);
     }
 
