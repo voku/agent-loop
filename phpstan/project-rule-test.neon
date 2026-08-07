@@ -1,0 +1,11 @@
+parameters:
+  level: 8
+  paths:
+    - ../tests/PHPStan/data/focused-package-cli-in-workflow.php
+  checkMissingOverrideMethodAttribute: false
+
+services:
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoFocusedPackageCliInWorkflowRule
+    tags:
+      - phpstan.rules.rule
