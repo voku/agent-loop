@@ -59,7 +59,7 @@ final readonly class InitCli
           tools          Probe and cache CLI tool availability (rg, git, php, composer, docker, agent-map index).
           validate       Validate repo-managed agent asset definitions.
           install-plan   Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets Install immutable skills shipped with agent-loop; Codex also receives package-owned PHP hooks.
+          install-assets Install immutable skills; supported clients also receive bundled subagent roles, and Codex receives PHP hooks.
           sync-skills    Sync repo-managed skills into a client target directory.
           sync-subagents Sync repo-managed subagents into a client target directory.
           sync-hooks     Sync repo-managed Codex hooks into a client target directory.
