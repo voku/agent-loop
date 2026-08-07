@@ -1,6 +1,6 @@
 ---
 name: agent-loop-task-progress
-description: Record bounded working memory during an agent-loop task, including decisions, checkpoints, validation evidence, scope changes, and blockers without copying raw evidence.
+description: Record bounded working memory during an agent-loop task, including decisions, checkpoints, validation evidence, scope changes, simplification ceilings, and blockers without copying raw evidence.
 ---
 
 # Agent Loop Task Progress
@@ -31,6 +31,7 @@ vendor/bin/agent-loop workflow status <task-id>
 - assumptions that future work must verify or preserve;
 - exact validation commands and observed results;
 - scope changes and re-plan decisions;
+- deliberate simplifications with a known ceiling and observable revisit trigger;
 - blockers and their cause;
 - accepted or rejected risky shortcuts with reason;
 - concise handoff information.
@@ -60,6 +61,25 @@ vendor/bin/agent-loop session checkpoint <task-id> \
 
 Re-plan when the approved brief no longer describes the work. A new revision
 invalidates old approval and completion evidence.
+
+## Simplification Ceilings
+
+When the minimal implementation deliberately accepts a real limit, do not leave
+an anonymous `TODO` or a tool-specific marker in product code. Record the choice
+in session working memory with the ceiling and the condition that would justify
+more machinery:
+
+```bash
+vendor/bin/agent-loop session record <task-id> \
+  --kind decision \
+  --title "Simplification ceiling: global lock" \
+  --body "Current choice: one global lock. Ceiling: serializes independent accounts. Revisit when: measured lock contention materially affects request latency."
+```
+
+The trigger must be observable. "Later", "if needed", and "might scale" are not
+triggers. If the lesson becomes reusable across tasks, carry it through the
+normal `agent-learning` review instead of turning a one-task decision into a
+permanent code comment by accident.
 
 ## Structured Validation Evidence
 
@@ -115,5 +135,6 @@ The learning decision records an outcome; it does not approve guidance.
 - `session show` contains bounded, useful notes;
 - `workflow status` resolves the current revision;
 - exact validation evidence exists;
+- deliberate simplifications name a ceiling and observable revisit trigger;
 - a review-ready checkpoint exists;
 - no secret or raw unbounded output was stored.
