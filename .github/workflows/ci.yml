@@ -85,6 +85,9 @@ jobs:
           test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
           test -f .codex/skills/agent-loop-discipline/SKILL.md
           test -f .codex/skills/agent-loop-investigate/SKILL.md
+          test -f .codex/agents/agent-loop-investigator.toml
+          test -f .codex/agents/agent-loop-surgical-builder.toml
+          test -f .codex/agents/agent-loop-code-reviewer.toml
           test -f .codex/hooks/context.php
           test -f .github/agents/agent-loop-investigator.agent.md
           test -f .github/agents/agent-loop-surgical-builder.agent.md
