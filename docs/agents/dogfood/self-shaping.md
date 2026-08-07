@@ -17,7 +17,7 @@ The durable source findings live under `infra/doc/agent-learning/findings/`:
 
 - `phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php` prevents `voku\\AgentLoop\\Workflow` from instantiating focused-package CLIs;
 - workflow PHPUnit tests assert persisted session, brief, approval, verification, and close behavior instead of adapter argv;
-- `tools/self-shape-dogfood.php` owns the repeatable repository lifecycle;
+- `tools/self-shape-dogfood.sh` owns the repeatable repository lifecycle;
 - `.github/workflows/ci.yml` invokes that runner and uploads its evidence rather than defining the lifecycle itself;
 - `tools/release-set-dogfood.php` remains the separate installed-consumer contract.
 
