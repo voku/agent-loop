@@ -3,4 +3,15 @@ parameters:
   paths:
     - src
     - tests
+    - phpstan
+    - tools/self-shape-dogfood.php
+  excludePaths:
+    analyse:
+      - tests/PHPStan/data/*
   checkMissingOverrideMethodAttribute: false
+
+services:
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoFocusedPackageCliInWorkflowRule
+    tags:
+      - phpstan.rules.rule
