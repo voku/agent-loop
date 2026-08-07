@@ -206,12 +206,13 @@ final readonly class CodexHooksDefinition
 
     private static function scriptNameFromCommand(string $command): ?string
     {
-        $relative = '~\Aphp\s+["\']?\.codex/hooks/([A-Za-z0-9_.-]+\.php)["\']?(?:\s+.*)?\z~';
+        $suffix = '(?:\s+--event=(?:SessionStart|SubagentStart))?';
+        $relative = '~\Aphp\s+["\']?\.codex/hooks/([A-Za-z0-9_.-]+\.php)["\']?' . $suffix . '\z~';
         if (preg_match($relative, trim($command), $matches) === 1) {
             return $matches[1];
         }
 
-        $gitRoot = '~\Aphp\s+["\']?\$\(git rev-parse --show-toplevel\)/\.codex/hooks/([A-Za-z0-9_.-]+\.php)["\']?(?:\s+.*)?\z~';
+        $gitRoot = '~\Aphp\s+["\']?\$\(git rev-parse --show-toplevel\)/\.codex/hooks/([A-Za-z0-9_.-]+\.php)["\']?' . $suffix . '\z~';
         if (preg_match($gitRoot, trim($command), $matches) === 1) {
             return $matches[1];
         }
