@@ -8,6 +8,7 @@ use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentLoop\Edit\EditCommand;
+use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
@@ -71,6 +72,7 @@ final class Dispatcher
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'review' => $this->dispatchReview($scriptName, $rest),
             'init' => (new InitCli($this->rootPath))->run($rest),
+            'githooks' => (new GitHooksCli($this->rootPath))->run($rest),
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };

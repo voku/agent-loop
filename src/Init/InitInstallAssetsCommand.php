@@ -50,7 +50,7 @@ final readonly class InitInstallAssetsCommand
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $hooksRoot = $packageRoot . '/docs/agents/codex-hooks';
         $installsSubagents = $agent->isAll()
-            || in_array($agent->canonicalName(), ['codex', 'copilot', 'antigravity'], true);
+            || in_array($agent->canonicalName(), ['codex', 'claude', 'copilot', 'antigravity'], true);
         $installsHooks = $agent->isAll() || $agent->canonicalName() === 'codex';
 
         if (!is_dir($skillsRoot)) {
@@ -108,7 +108,7 @@ final readonly class InitInstallAssetsCommand
         if (!$agent->isAll()) {
             $canonicalAgent = $agent->canonicalName();
             if ($canonicalAgent === 'claude') {
-                echo '[INFO] install assets: installed portable skills for claude; dedicated bundled subagent definitions and hooks are not emitted for this client.' . "\n";
+                echo '[INFO] install assets: installed portable skills and bundled subagent roles for claude; repository hooks are currently available for codex only.' . "\n";
             } elseif (in_array($canonicalAgent, ['copilot', 'antigravity'], true)) {
                 echo '[INFO] install assets: installed portable skills and bundled subagent roles for ' . $canonicalAgent . '; repository hooks are currently available for codex only.' . "\n";
             }

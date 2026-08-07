@@ -37,14 +37,20 @@ final readonly class InitValidateCommand
         }
 
         try {
-            $this->parseOptionalAgent($kind, $tokens, $config['agents']);
+            $agentName = $this->parseOptionalAgent($kind, $tokens, $config['agents']);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
             return 1;
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $overrides = $this->readPathOverrides($tokens);
+        if ($agentName === 'claude' && isset($overrides['hooks-root'])) {
+            $overrides['claude-hooks-root'] = $overrides['hooks-root'];
+            unset($overrides['hooks-root']);
+        }
+
+        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $overrides);
 
         if ($kind->isSkills()) {
             return $this->validateSkills($paths);
@@ -55,7 +61,7 @@ final readonly class InitValidateCommand
         }
 
         if ($kind->isHooks()) {
-            return $this->validateHooks($paths);
+            return $agentName === 'claude' ? $this->validateClaudeHooks($paths) : $this->validateHooks($paths);
         }
 
         $skillsExit = $this->validateSkills($paths);
@@ -160,19 +166,43 @@ final readonly class InitValidateCommand
         return 0;
     }
 
+    private function validateClaudeHooks(AgentAssetSourcePaths $paths): int
+    {
+        $hooksRoot = $paths->absoluteClaudeHooksRoot();
+        if (!is_file($hooksRoot . '/hooks.json') && !is_dir($hooksRoot . '/hooks')) {
+            echo '[WARN] validate hooks: no hooks found under ' . $paths->claudeHooksRoot() . "\n";
+
+            return 0;
+        }
+
+        $errors = ClaudeHooksDefinition::validationErrors($hooksRoot);
+        if ($errors !== []) {
+            foreach ($errors as $error) {
+                echo '[FAIL] validate hooks: ' . $error . "\n";
+            }
+
+            return 1;
+        }
+
+        $definition = ClaudeHooksDefinition::fromRoot($hooksRoot);
+        echo '[OK] validate hooks: hooks.json and ' . count($definition->scriptNames()) . ' hook file(s) valid' . "\n";
+
+        return 0;
+    }
+
     /**
      * @param list<string> $tokens
      * @param array<string, array<string, string>> $configAgents
      */
-    private function parseOptionalAgent(InitAssetKind $kind, array $tokens, array $configAgents): void
+    private function parseOptionalAgent(InitAssetKind $kind, array $tokens, array $configAgents): ?string
     {
         $agentValue = $this->readOptionValue($tokens, 'agent');
         if ($agentValue === null) {
-            return;
+            return null;
         }
 
         $allowed = match (true) {
-            $kind->isHooks() => ['codex'],
+            $kind->isHooks() => ['codex', 'claude'],
             $kind->isSubagents() => ['codex', 'copilot', 'antigravity'],
             default => ['codex', 'claude', 'copilot', 'antigravity'],
         };
@@ -181,6 +211,8 @@ final readonly class InitValidateCommand
         foreach ($agent->messages() as $message) {
             echo $message . "\n";
         }
+
+        return $agent->canonicalName();
     }
 
     /**

@@ -100,6 +100,7 @@ The same canonical role definitions are rendered for each supported client:
 
 - Codex: `.codex/agents/*.toml`, with `name`, `description`, and
   `developer_instructions` only;
+- Claude Code: `.claude/agents/*.md`;
 - Copilot: `.github/agents/*.agent.md`;
 - Antigravity: `.agents/agents/*.md`.
 
@@ -117,6 +118,123 @@ Codex additionally receives package-owned PHP hooks:
 Hooks are behavioral guardrails, not a correctness or security boundary. The
 security property is simpler: `install-assets` installs only files already
 shipped in the Composer package and never fetches remote agent code.
+
+## Host-owned hooks for Codex and Claude Code
+
+A host repository keeps its own hook bundle - `hooks.json` plus the PHP scripts
+it references - and syncs it into the client:
+
+```bash
+vendor/bin/agent-loop init validate --kind=hooks --agent=codex
+vendor/bin/agent-loop init sync-hooks --agent=codex
+
+vendor/bin/agent-loop init validate --kind=hooks --agent=claude
+vendor/bin/agent-loop init sync-hooks --agent=claude
+```
+
+Source roots default to `docs/agents/codex-hooks` and `docs/agents/claude-hooks`
+and are overridable through `.agent-loop/init.json` (`codex_hooks_root`,
+`claude_hooks_root`) or `--hooks-root`.
+
+The two clients register hooks differently, and the sync follows each:
+
+- **Codex** reads `.codex/hooks.json`, so the bundle is copied as-is.
+- **Claude Code** reads the `hooks` key of `.claude/settings.json`, so the sync
+  merges that single key and writes every other setting back unchanged. The
+  manifest entry `settings.json#hooks` records that one key as managed, which is
+  what makes a later removal or an `--adopt-existing` run safe. `CLAUDE_CONFIG_DIR`
+  overrides the target directory.
+
+Hook commands must call a script inside the client's own directory
+(`php .codex/hooks/<name>.php`, `php .claude/hooks/<name>.php`); validation
+rejects anything else so a bundle cannot point at an unmanaged path.
+
+## Package-owned Git hooks
+
+`post-merge` and `post-checkout` keep the agent-map index in step with the working
+tree after Git moved it. That logic is the same in every project, so it ships here:
+
+```bash
+vendor/bin/agent-loop init sync-githooks \
+  --hooks-dir=.githooks \
+  --commit-template=.gitmessage \
+  --container-service=php --container-image=my-php \
+  --container-workdir=/var/www/html --container-user=www-data
+```
+
+That installs `post-merge`, `post-checkout`, `agent-map-refresh.sh`, and the shared
+`lib/agent-loop-hooks.sh`, renders the project-specific values into
+`lib/agent-loop-hooks.env`, and sets `core.hooksPath` plus `commit.template`
+(`--skip-git-config` leaves the repository configuration alone).
+
+`pre-commit` and `commit-msg` are installed as well. They carry no policy: both call
+`agent-loop githooks`, which reads `.agent-loop/githooks.json`:
+
+```json
+{
+  "pre_commit": {
+    "file_patterns": ["*.php"],
+    "exclude_paths": ["/vendor/", "/archiv/"],
+    "batch_size": 500,
+    "checks": [
+      {"name": "lint", "type": "php-lint"},
+      {"name": "sniffer", "type": "phpcs", "standard": "build/phpcs.xml"},
+      {"name": "phpstan", "type": "phpstan", "config": "phpstan.neon", "level": 8},
+      {"name": "project rule", "type": "command", "command": "tools/custom-check.php {files}"}
+    ]
+  },
+  "commit_msg": {
+    "header_pattern": "/^\\[(\\+|~|!|\\*)\\]:\\s+.+\\s+->\\s+.+$/",
+    "header_hint": "[SYMBOL]: \"scope\" -> <subject>",
+    "trivial_header_pattern": "/^\\[\\*\\]:/",
+    "required_section": "WHY",
+    "vague_phrases": ["cleanup", "minor fixes"],
+    "vague_word_threshold": 8
+  }
+}
+```
+
+Check types render the standard tool call from the package - `php-lint`, `phpcs`,
+`phpcbf`, `php-cs-fixer`, `phpstan` - so a project configures its rule set rather
+than another wrapper script, and `type: command` covers everything else.
+`{files}` is replaced with the current batch of staged files (appended when the
+placeholder is absent). Without that config file both hooks are a no-op, so
+installing them cannot break a repository that has not configured them yet.
+
+Any other hook in the same directory - `prepare-commit-msg`, `pre-push`, whatever a
+project already has - is never read, rewritten, or removed. Only the installed
+entries enter the target manifest, so a later sync cleans up exactly what it created.
+
+The hooks never fail a Git operation and never build an index that does not exist
+yet: a missing index means nobody opted into the map, and a cold build is not
+something a hook starts on someone's behalf. Opt out entirely with
+`AGENT_LOOP_SKIP_MAP_REFRESH=1`.
+
+## Make targets for a host repository
+
+Host repositories should not re-declare one Make wrapper per client. Include the
+shipped targets instead:
+
+```make
+-include vendor/voku/agent-loop/make/agent-loop.mk
+```
+
+That provides `agent_init_doctor`, `agent_init_status`, `agent_init_install_plan`,
+`validate_agent_skills`, `validate_agent_subagents`, `validate_codex_hooks`,
+`validate_claude_hooks`, the per-client `install_*_skills` / `install_*_agents` /
+`install_*_hooks` targets, and the aggregates `install_agent_skills`,
+`install_agent_subagents`, `install_agent_hooks`, `install_agent_assets`.
+
+A host with its own entrypoint (extra bootstrap, raised memory limit, container
+dispatch) overrides one variable and keeps every target:
+
+```make
+AGENT_LOOP_BIN := php -d memory_limit=4G tools/agent-loop-entrypoint.php
+```
+
+`AGENT_LOOP_CONFIG` (default `.agent-loop/init.json`) and `AGENT_LOOP_SYNC_FLAGS`
+(default `--force`) are overridable the same way. The asset content stays in the
+host repository; only the commands live here.
 
 `--agent=all` installs portable skills for Codex, Claude, Copilot, and
 Antigravity; dedicated subagent definitions for Codex, Copilot, and Antigravity;

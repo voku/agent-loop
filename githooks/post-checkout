@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+# Git passes: <previous HEAD> <new HEAD> <1 = branch switch, 0 = file checkout>.
+# Only a branch switch can invalidate the agent-map index; a file checkout cannot move HEAD.
+
+set -uo pipefail
+
+if [[ "${3:-0}" != "1" ]]; then
+    exit 0
+fi
+
+exec "$(dirname -- "${BASH_SOURCE[0]}")/agent-map-refresh.sh" "${1:-}" "${2:-HEAD}"

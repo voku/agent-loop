@@ -27,6 +27,7 @@ final readonly class InitCli
             'sync-skills' => (new InitSyncSkillsCommand($this->rootPath))->run($rest),
             'sync-subagents' => (new InitSyncSubagentsCommand($this->rootPath))->run($rest),
             'sync-hooks' => (new InitSyncHooksCommand($this->rootPath))->run($rest),
+            'sync-githooks' => (new InitSyncGitHooksCommand($this->rootPath))->run($rest),
             'scaffold' => (new InitScaffoldCommand($this->rootPath))->run($rest),
             default => $this->printUsage(1, $command),
         };
@@ -50,6 +51,9 @@ final readonly class InitCli
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init sync-githooks [--hooks-dir=PATH] [--commit-template=PATH] [--container-service=NAME]
+                                       [--container-image=NAME] [--container-workdir=PATH] [--container-user=NAME]
+                                       [--skip-git-config] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--dry-run]
 
         Commands:
@@ -62,7 +66,8 @@ final readonly class InitCli
           install-assets Install immutable skills; supported clients also receive bundled subagent roles, and Codex receives PHP hooks.
           sync-skills    Sync repo-managed skills into a client target directory.
           sync-subagents Sync repo-managed subagents into a client target directory.
-          sync-hooks     Sync repo-managed Codex hooks into a client target directory.
+          sync-hooks     Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
+          sync-githooks  Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
           scaffold       Create the minimum local workflow structure and a DEMO-1 task.
         TXT;
 

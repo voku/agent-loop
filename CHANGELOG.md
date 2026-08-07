@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.13.0 - 2026-08-07
+
+- Pre-commit checks are declared by type instead of by command line:
+  `php-lint`, `phpcs`, `phpcbf`, `php-cs-fixer`, and `phpstan` render the standard
+  tool invocation from the package, so a repository configures its rule set
+  (`standard`, `config`, `level`, `memory_limit`) rather than another wrapper
+  script. `php-lint` runs per file because `php -l` takes exactly one path.
+  `type: command` stays the escape hatch for anything else, and an unknown type
+  fails with the list of known ones instead of running a broken command.
+- `init sync-subagents --agent=claude` renders repo-managed subagent roles into
+  `.claude/agents/*.md` (override with `CLAUDE_AGENTS_DIR`), and `--agent=all`
+  now includes Claude. `install-assets --agent=claude` therefore installs the
+  bundled investigator, surgical-builder, and code-reviewer roles as well;
+  repository hooks remain Codex-only.
+
+- `init sync-hooks --agent=claude` installs a host-owned hook bundle for Claude
+  Code. Claude registers hooks inside `settings.json` rather than in a hooks
+  file, so the sync owns exactly one key: it merges `hooks`, writes every other
+  setting back unchanged, and records `settings.json#hooks` in the target
+  manifest. That manifest entry is what makes the unmanaged-target refusal,
+  `--force`, `--adopt-existing`, and a later stale-removal behave the same way
+  they do for file-based targets. `CLAUDE_CONFIG_DIR` overrides the target
+  directory; the source root defaults to `docs/agents/claude-hooks` and is
+  configurable through `claude_hooks_root` or `--hooks-root`.
+- `init validate --kind=hooks --agent=claude` validates such a bundle. Claude has
+  no required event - a bundle may register only `PreToolUse` guardrails - but a
+  hook command must still call a script inside `.claude/hooks/`, so a bundle
+  cannot point at an unmanaged path.
+- Hook reading and validation moved into a client-agnostic `HooksDefinition`.
+  `CodexHooksDefinition` keeps its public API and now delegates, which is why the
+  Codex contract (required `SessionStart`, `SubagentStart`, `PreToolUse`, commands
+  under `.codex/hooks/`) is unchanged.
+- `agent-loop githooks pre-commit` and `agent-loop githooks commit-msg` implement
+  the hook logic every PHP repository was re-writing: skip merge commits, list the
+  staged files, drop the excluded ones, batch them, stop at the first failing
+  check - and for the message: header pattern, leftover template placeholders, a
+  required section that must contain something, and a nudge when that section is
+  short and vague. The project-specific half (check commands, commit convention)
+  is data in `.agent-loop/githooks.json`; without that file both hooks are a
+  no-op, so installing them cannot break a repository that has not configured
+  them yet.
+- `init sync-githooks` installs the package-owned Git hooks into a host
+  repository and points `core.hooksPath` (and optionally `commit.template`) at
+  them. The hooks themselves are generic - `post-merge` and `post-checkout` keep
+  the agent-map index in step with the working tree - while the project-specific
+  part (container service, image, workdir, user, index paths) is rendered next to
+  them as `lib/agent-loop-hooks.env` instead of being copied into a new shell
+  script per repository. Hooks the host owns, such as `pre-commit` and
+  `commit-msg` in the same directory, are never read, rewritten, or removed: only
+  the installed entries enter the target manifest.
+- The container lookup those hooks need (inside the container, through compose,
+  through a matching image, or plain host execution) now lives once in
+  `githooks/lib/agent-loop-hooks.sh`, together with a path mapper so a hook can
+  forward Git's temporary index for `git commit --only`.
+- Shipped `make/agent-loop.mk`. A host repository includes it instead of
+  maintaining one Make wrapper per client, and overrides `AGENT_LOOP_BIN`,
+  `AGENT_LOOP_CONFIG`, or `AGENT_LOOP_SYNC_FLAGS` when it needs its own
+  entrypoint. The asset content stays in the host repository; only the commands
+  live in the package. A contract test fails if the include calls an `init`
+  subcommand this package does not implement.
+
 ## 0.12.0 - 2026-08-07
 
 - `workflow manifest <task-id>` projects the run manifest v1 contract: the one

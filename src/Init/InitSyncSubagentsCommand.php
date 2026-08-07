@@ -37,7 +37,7 @@ final readonly class InitSyncSubagentsCommand
         }
 
         try {
-            $agent = InitAgent::parse($agentValue, ['codex', 'copilot', 'antigravity'], true, $config['agents']);
+            $agent = InitAgent::parse($agentValue, ['codex', 'claude', 'copilot', 'antigravity'], true, $config['agents']);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -53,7 +53,7 @@ final readonly class InitSyncSubagentsCommand
         $force = $this->hasFlag($tokens, 'force');
         $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
-        $agents = $agent->isAll() ? ['codex', 'copilot', 'antigravity'] : [$agent->canonicalName()];
+        $agents = $agent->isAll() ? ['codex', 'claude', 'copilot', 'antigravity'] : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
             $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
@@ -176,6 +176,7 @@ final readonly class InitSyncSubagentsCommand
         return match ($agent) {
             'codex' => $this->resolvePathFromEnv('CODEX_AGENTS_DIR')
                 ?? (($codexHome = $this->resolvePathFromEnv('CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
+            'claude' => $this->resolvePathFromEnv('CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
             'copilot' => $this->resolvePathFromEnv('COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
             default => $this->resolvePathFromEnv('ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
         };
@@ -185,6 +186,7 @@ final readonly class InitSyncSubagentsCommand
     {
         return match ($agent) {
             'codex' => '[INFO] Start a fresh Codex session if the project agent registry needs to be reloaded.',
+            'claude' => '[INFO] Start a fresh Claude Code session so the project agent registry is re-read.',
             'antigravity' => "[INFO] Run '/agents reload' in your active Antigravity CLI session if needed.",
             default => '[INFO] Reload the active Copilot agent registry if needed.',
         };

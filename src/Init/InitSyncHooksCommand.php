@@ -8,6 +8,9 @@ use InvalidArgumentException;
 
 final readonly class InitSyncHooksCommand
 {
+    /** Manifest entry for the one `settings.json` key this sync owns on the Claude Code target. */
+    private const string CLAUDE_SETTINGS_HOOKS_ENTRY = 'settings.json#hooks';
+
     public function __construct(private string $rootPath)
     {
     }
@@ -37,7 +40,7 @@ final readonly class InitSyncHooksCommand
         }
 
         try {
-            $agent = InitAgent::parse($agentValue, ['codex'], false, $config['agents']);
+            $agent = InitAgent::parse($agentValue, ['codex', 'claude'], false, $config['agents']);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -48,12 +51,186 @@ final readonly class InitSyncHooksCommand
             echo $message . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $overrides = $this->readPathOverrides($tokens);
+        if ($agent->canonicalName() === 'claude' && isset($overrides['hooks-root'])) {
+            $overrides['claude-hooks-root'] = $overrides['hooks-root'];
+            unset($overrides['hooks-root']);
+        }
+
+        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $overrides);
         $dryRun = $this->hasFlag($tokens, 'dry-run');
         $force = $this->hasFlag($tokens, 'force');
         $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
+        if ($agent->canonicalName() === 'claude') {
+            return $this->syncClaudeHooks($paths, $dryRun, $force, $adoptExisting);
+        }
+
         return $this->syncHooks($paths, $dryRun, $force, $adoptExisting);
+    }
+
+    /**
+     * Claude Code registers hooks inside `settings.json`, so the bundle's scripts are
+     * installed like any other client asset while the registration itself is merged
+     * into that single settings key.
+     */
+    private function syncClaudeHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
+    {
+        $hooksRoot = $paths->absoluteClaudeHooksRoot();
+        $errors = ClaudeHooksDefinition::validationErrors($hooksRoot);
+        if ($errors === [] && !is_file($hooksRoot . '/hooks.json') && !is_dir($hooksRoot . '/hooks')) {
+            echo '[WARN] sync hooks: no hooks found under ' . $paths->claudeHooksRoot() . "\n";
+
+            return 0;
+        }
+
+        if ($errors !== []) {
+            foreach ($errors as $error) {
+                echo '[FAIL] sync hooks: ' . $error . "\n";
+            }
+
+            return 1;
+        }
+
+        try {
+            $definition = ClaudeHooksDefinition::fromRoot($hooksRoot);
+        } catch (InvalidArgumentException $exception) {
+            fwrite(\STDERR, $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
+        $targetRoot = $this->resolveClaudeTargetRoot();
+        $settingsPath = $targetRoot . '/settings.json';
+        $settings = new ClaudeSettingsHooksWriter($settingsPath);
+
+        try {
+            $manifest = InitSyncManifest::load($targetRoot, 'hooks', 'claude');
+        } catch (InvalidArgumentException $exception) {
+            fwrite(\STDERR, $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
+        $desiredEntries = [self::CLAUDE_SETTINGS_HOOKS_ENTRY];
+        foreach ($definition->scriptNames() as $scriptName) {
+            $desiredEntries[] = 'hooks/' . $scriptName;
+        }
+        sort($desiredEntries);
+
+        $adopted = [];
+        foreach ($desiredEntries as $entry) {
+            $exists = $entry === self::CLAUDE_SETTINGS_HOOKS_ENTRY
+                ? $settings->hasHooks()
+                : $this->pathExists($targetRoot . '/' . $entry);
+            if (!$exists || $manifest->isManaged($entry) || $force) {
+                continue;
+            }
+
+            if ($adoptExisting) {
+                $adopted[$entry] = true;
+
+                continue;
+            }
+
+            $describedTarget = $entry === self::CLAUDE_SETTINGS_HOOKS_ENTRY
+                ? $settingsPath . ' (hooks key)'
+                : $targetRoot . '/' . $entry;
+
+            echo '[FAIL] sync hooks: unmanaged target already exists ' . $describedTarget . ' (use --force to overwrite, or --adopt-existing to record it as managed without touching its content)' . "\n";
+
+            return 1;
+        }
+
+        foreach ($manifest->staleEntries($desiredEntries) as $staleEntry) {
+            if ($staleEntry === self::CLAUDE_SETTINGS_HOOKS_ENTRY) {
+                if ($dryRun) {
+                    echo '[DRY-RUN] sync hooks: remove hooks key from ' . $settingsPath . "\n";
+
+                    continue;
+                }
+
+                $settings->removeHooks();
+                echo '[OK] sync hooks: removed hooks key from ' . $settingsPath . "\n";
+
+                continue;
+            }
+
+            $targetPath = $targetRoot . '/' . $staleEntry;
+            if ($dryRun) {
+                echo '[DRY-RUN] sync hooks: remove stale ' . $targetPath . "\n";
+
+                continue;
+            }
+
+            $this->removePath($targetPath);
+            echo '[OK] sync hooks: removed stale ' . $targetPath . "\n";
+        }
+
+        foreach ($definition->scriptNames() as $scriptName) {
+            $entry = 'hooks/' . $scriptName;
+            $targetFile = $targetRoot . '/' . $entry;
+
+            if (isset($adopted[$entry])) {
+                echo '[OK] sync hooks: adopted existing ' . $targetFile . ' into the manifest (content left untouched)' . "\n";
+
+                continue;
+            }
+
+            if ($dryRun) {
+                echo '[DRY-RUN] sync hooks: install ' . $scriptName . ' -> ' . $targetFile . "\n";
+
+                continue;
+            }
+
+            $sourceFile = $hooksRoot . '/hooks/' . $scriptName;
+            $content = file_get_contents($sourceFile);
+            if (!is_string($content)) {
+                fwrite(\STDERR, 'Unable to read hook script: ' . $sourceFile . "\n");
+
+                return 1;
+            }
+
+            $this->writeFile($targetFile, $content);
+            echo '[OK] sync hooks: installed ' . $scriptName . ' -> ' . $targetFile . "\n";
+        }
+
+        if (isset($adopted[self::CLAUDE_SETTINGS_HOOKS_ENTRY])) {
+            echo '[OK] sync hooks: adopted existing hooks key in ' . $settingsPath . ' into the manifest (content left untouched)' . "\n";
+        } elseif ($dryRun) {
+            echo '[DRY-RUN] sync hooks: write hooks key -> ' . $settingsPath . "\n";
+        } else {
+            $settings->write($definition->hooksObject());
+            echo '[OK] sync hooks: wrote hooks key -> ' . $settingsPath . "\n";
+        }
+
+        if (!$dryRun) {
+            $manifest->write($desiredEntries);
+        }
+
+        echo '[OK] sync hooks: synced ' . count($definition->scriptNames()) . ' hook file(s) into ' . $targetRoot . "\n";
+        echo "[IMPORTANT] Open '/hooks' in Claude Code to review the registered repository-local hooks; every other key in settings.json was left untouched.\n";
+
+        return 0;
+    }
+
+    private function resolveClaudeTargetRoot(): string
+    {
+        return $this->resolvePathFromEnv('CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
+    }
+
+    private function resolvePathFromEnv(string $variableName): ?string
+    {
+        $value = getenv($variableName);
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        if (str_starts_with($value, '/')) {
+            return rtrim($value, '/');
+        }
+
+        return rtrim($this->rootPath, '/') . '/' . trim($value, '/');
     }
 
     private function syncHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int

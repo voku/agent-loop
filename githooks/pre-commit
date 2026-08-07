@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# Runs the configured pre-commit checks where the project tooling lives.
+#
+# The hook itself holds no policy: which files are checked and which commands run
+# come from .agent-loop/githooks.json, read by `agent-loop githooks pre-commit`.
+
+set -uo pipefail
+
+hooks_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/agent-loop-hooks.sh
+. "$hooks_dir/lib/agent-loop-hooks.sh"
+
+repo_root="$(agent_loop_hooks_repo_root)" || exit 1
+cd "$repo_root" || exit 1
+
+# `git commit --only` builds a temporary index; a check that ignores it would
+# inspect unrelated entries of the shared worktree instead of what is committed.
+container_env=()
+if [[ -n "${GIT_INDEX_FILE:-}" ]]; then
+    if ! container_index="$(agent_loop_hooks_map_path "$GIT_INDEX_FILE" "$repo_root")"; then
+        printf 'Cannot map the Git index outside this worktree into the container: %s\n' "$GIT_INDEX_FILE" >&2
+        exit 1
+    fi
+
+    container_env=(--env "GIT_INDEX_FILE=$container_index")
+fi
+
+agent_loop_hooks_run "${AGENT_LOOP_BIN:-vendor/bin/agent-loop} githooks pre-commit" "${container_env[@]}"

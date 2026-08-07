@@ -49,6 +49,13 @@ Do not begin with generated copies under `.codex/`, `.claude/`, `.github/`, or
   canonical roots and support config/CLI overrides.
 - Both paths use target manifests and refuse unmanaged overwrites unless the
   caller explicitly chooses `--force` or `--adopt-existing`.
+- `sync-hooks` supports `--agent=codex` (copies `hooks.json` plus scripts) and
+  `--agent=claude` (installs the scripts, then merges only the `hooks` key of
+  `settings.json` and records it as `settings.json#hooks`). When a client keeps
+  hooks inside a shared settings document, own the single key and write every
+  other key back unchanged; never rewrite a file the user also edits.
+- Host repositories consume the Make targets from `make/agent-loop.mk` instead of
+  writing their own wrappers. Add a target there, not in every host Makefile.
 
 Do not make `install-assets` honor a host override for its source. That would
 turn an immutable package-install command into another ambiguous sync command.

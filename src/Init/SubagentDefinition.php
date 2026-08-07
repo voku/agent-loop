@@ -106,7 +106,9 @@ final readonly class SubagentDefinition
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
-        } elseif ($client !== 'copilot') {
+        } elseif (!in_array($client, ['copilot', 'claude'], true)) {
+            // Claude Code reads the same name/description frontmatter as Copilot,
+            // without Copilot's `.agent.md` suffix and without Antigravity's runtime keys.
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
 

@@ -14,6 +14,7 @@ final readonly class AgentAssetSourcePaths
         private string $subagentsRoot,
         private string $hooksRoot,
         private string $toolsRoot,
+        private string $claudeHooksRoot = 'docs/agents/claude-hooks',
     ) {
     }
 
@@ -27,6 +28,7 @@ final readonly class AgentAssetSourcePaths
             'skills_root' => 'docs/agents/skills',
             'subagents_root' => 'docs/agents/subagents',
             'codex_hooks_root' => 'docs/agents/codex-hooks',
+            'claude_hooks_root' => 'docs/agents/claude-hooks',
             'tools_root' => 'docs/agents/tools',
         ];
 
@@ -40,6 +42,7 @@ final readonly class AgentAssetSourcePaths
             'skills-root' => 'skills_root',
             'subagents-root' => 'subagents_root',
             'hooks-root' => 'codex_hooks_root',
+            'claude-hooks-root' => 'claude_hooks_root',
             'tools-root' => 'tools_root',
         ];
 
@@ -56,6 +59,7 @@ final readonly class AgentAssetSourcePaths
             $paths['subagents_root'],
             $paths['codex_hooks_root'],
             $paths['tools_root'],
+            $paths['claude_hooks_root'],
         );
     }
 
@@ -77,6 +81,16 @@ final readonly class AgentAssetSourcePaths
     public function toolsRoot(): string
     {
         return $this->toolsRoot;
+    }
+
+    public function claudeHooksRoot(): string
+    {
+        return $this->claudeHooksRoot;
+    }
+
+    public function absoluteClaudeHooksRoot(): string
+    {
+        return $this->resolvePath($this->claudeHooksRoot);
     }
 
     public function absoluteSkillsRoot(): string

@@ -27,7 +27,7 @@ final class InitSyncCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-init-sync-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
+        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'CLAUDE_AGENTS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
     }
 
     protected function tearDown(): void
@@ -43,6 +43,26 @@ final class InitSyncCommandTest extends TestCase
         }
 
         $this->removeDirectory($this->root);
+    }
+
+    public function testSyncSubagentsInstallsClaudeRolesForAllClients(): void
+    {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/docs/agents/subagents/demo-role.md',
+            "---\nname: demo-role\ndescription: Demo role.\n---\n\nLocate and stop.\n",
+        );
+
+        $result = $this->runSyncSubagents(['--agent=all']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.claude/agents/demo-role.md');
+        self::assertFileExists($this->root . '/.github/agents/demo-role.agent.md');
+        self::assertFileExists($this->root . '/.agents/agents/demo-role.md');
+
+        $manifest = json_decode((string) file_get_contents($this->root . '/.claude/agents/.agent-loop-manifest.json'), true);
+        self::assertSame('claude', $manifest['agent']);
+        self::assertContains('demo-role.md', $manifest['entries']);
     }
 
     public function testSyncSkillsCopiesCanonicalDirectoriesIntoCodexTarget(): void

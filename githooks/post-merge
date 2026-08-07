@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# A merge or pull just moved the working tree: bring the agent-map index along.
+# The helper skips itself when there is no index, no container, or no PHP file changed.
+
+set -uo pipefail
+
+exec "$(dirname -- "${BASH_SOURCE[0]}")/agent-map-refresh.sh" 'ORIG_HEAD' 'HEAD'

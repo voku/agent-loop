@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+# Validates the commit message against the repository's own convention.
+#
+# Git passes the message file; the rules come from .agent-loop/githooks.json.
+
+set -uo pipefail
+
+hooks_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/agent-loop-hooks.sh
+. "$hooks_dir/lib/agent-loop-hooks.sh"
+
+repo_root="$(agent_loop_hooks_repo_root)" || exit 1
+cd "$repo_root" || exit 1
+
+message_file="${1:-}"
+if [[ -z "$message_file" ]]; then
+    printf 'commit-msg hook called without a message file.\n' >&2
+    exit 1
+fi
+
+if ! container_message_file="$(agent_loop_hooks_map_path "$message_file" "$repo_root")"; then
+    printf 'Cannot map the commit message file into the container: %s\n' "$message_file" >&2
+    exit 1
+fi
+
+agent_loop_hooks_run "${AGENT_LOOP_BIN:-vendor/bin/agent-loop} githooks commit-msg '$container_message_file'"

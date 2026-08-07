@@ -89,17 +89,19 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
     }
 
-    public function testClaudeInstallsPortableSkillsOnly(): void
+    public function testClaudeInstallsPortableSkillsAndSubagentRoles(): void
     {
         $result = $this->runCommand(['--agent=claude']);
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-investigate/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/agents/agent-loop-investigator.md');
+        self::assertFileExists($this->root . '/.claude/agents/agent-loop-surgical-builder.md');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
         self::assertDirectoryDoesNotExist($this->root . '/.codex/agents');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
-        self::assertStringContainsString('dedicated bundled subagent definitions and hooks are not emitted for this client', $result['output']);
+        self::assertStringContainsString('repository hooks are currently available for codex only', $result['output']);
     }
 
     public function testCopilotInstallsPortableSkillsAndSubagentRoles(): void
