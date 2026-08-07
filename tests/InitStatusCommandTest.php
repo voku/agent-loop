@@ -25,7 +25,7 @@ final class InitStatusCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-init-status-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'COPILOT_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
+        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'CLAUDE_SKILLS_DIR', 'COPILOT_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
     }
 
     protected function tearDown(): void
@@ -161,6 +161,7 @@ final class InitStatusCommandTest extends TestCase
         $result = $this->runStatus([]);
 
         self::assertStringContainsString('[INFO] codex skills: no manifest at ' . $this->root . '/.codex/skills/.agent-loop-manifest.json', $result['output']);
+        self::assertStringContainsString('[INFO] codex subagents: no manifest at ' . $this->root . '/.codex/agents/.agent-loop-manifest.json', $result['output']);
     }
 
     public function testStatusReportsManifestFoundWhenManifestExists(): void
@@ -176,6 +177,25 @@ final class InitStatusCommandTest extends TestCase
         $result = $this->runStatus([]);
 
         self::assertStringContainsString('[OK] codex skills: manifest found (1 managed entrie(s))', $result['output']);
+    }
+
+    public function testStatusReportsCodexSubagentManifestAndStaleEntries(): void
+    {
+        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+
+        mkdir($this->root . '/.codex/agents', 0o775, true);
+        file_put_contents($this->root . '/.codex/agents/.agent-loop-manifest.json', json_encode([
+            'version' => 1,
+            'kind' => 'subagents',
+            'agent' => 'codex',
+            'entries' => ['reviewer.toml', 'old-role.toml'],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+
+        $result = $this->runStatus([]);
+
+        self::assertStringContainsString('[OK] codex subagents: manifest found (2 managed entrie(s))', $result['output']);
+        self::assertStringContainsString('[WARN] codex subagents: stale managed entries: old-role.toml', $result['output']);
     }
 
     public function testStatusReportsStaleManagedEntries(): void
