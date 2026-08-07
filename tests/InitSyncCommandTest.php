@@ -98,7 +98,7 @@ final class InitSyncCommandTest extends TestCase
     public function testSyncSubagentsRendersCodexTargets(): void
     {
         mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\nCheck \\\"quoted\\\" values.\n");
+        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\nCheck \"quoted\" values.\n");
 
         $result = $this->runSyncSubagents(['--agent=codex']);
 
@@ -108,7 +108,14 @@ final class InitSyncCommandTest extends TestCase
         self::assertStringContainsString('name = "reviewer"', $content);
         self::assertStringContainsString('description = "Review things"', $content);
         self::assertStringContainsString('developer_instructions = "# Reviewer\\nCheck', $content);
-        self::assertStringContainsString('\\\"quoted\\\"', $content);
+
+        $prefix = 'developer_instructions = ';
+        $line = array_values(array_filter(
+            explode("\n", $content),
+            static fn (string $value): bool => str_starts_with($value, $prefix),
+        ))[0] ?? '';
+        $instructions = json_decode(substr($line, strlen($prefix)), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame("# Reviewer\nCheck \"quoted\" values.\n", $instructions);
         self::assertFileExists($this->root . '/.codex/agents/.agent-loop-manifest.json');
     }
 
