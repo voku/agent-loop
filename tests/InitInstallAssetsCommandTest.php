@@ -21,7 +21,15 @@ final class InitInstallAssetsCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-install-assets-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        foreach (['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'COPILOT_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR'] as $name) {
+        foreach ([
+            'CODEX_HOME',
+            'CODEX_SKILLS_DIR',
+            'CLAUDE_SKILLS_DIR',
+            'COPILOT_SKILLS_DIR',
+            'ANTIGRAVITY_SKILLS_DIR',
+            'COPILOT_AGENTS_DIR',
+            'ANTIGRAVITY_AGENTS_DIR',
+        ] as $name) {
             $this->environment[$name] = getenv($name);
             putenv($name);
         }
@@ -41,9 +49,11 @@ final class InitInstallAssetsCommandTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-discipline', $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-investigate', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync hooks: install hooks.json', $result['output']);
         self::assertStringContainsString('package-owned guidance validated; no files written', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.codex');
+        self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
         self::assertStringNotContainsString('raw.githubusercontent.com', $result['output']);
         self::assertStringNotContainsString('plugin marketplace', strtolower($result['output']));
     }
@@ -54,11 +64,16 @@ final class InitInstallAssetsCommandTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-investigate/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-surgical-edit/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-code-review/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-review/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-audit/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-dogfood/SKILL.md');
         self::assertFileExists($this->root . '/.codex/hooks.json');
         self::assertFileExists($this->root . '/.codex/hooks/context.php');
         self::assertFileExists($this->root . '/.codex/hooks/pre_tool_use_policy.php');
+        self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
         self::assertStringContainsString('without downloading remote code', $result['output']);
     }
 
@@ -69,17 +84,32 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
     }
 
-    public function testClaudeInstallsSkillsWithoutCodexHooks(): void
+    public function testClaudeInstallsPortableSkillsOnly(): void
     {
         $result = $this->runCommand(['--agent=claude']);
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/agent-loop-investigate/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
-        self::assertStringContainsString('hooks are currently available for codex only', $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
+        self::assertStringContainsString('dedicated bundled subagent definitions and hooks are not emitted for this client', $result['output']);
     }
 
-    public function testAllInstallsSkillsForEveryAgentAndCodexHooksOnce(): void
+    public function testCopilotInstallsPortableSkillsAndSubagentRoles(): void
+    {
+        $result = $this->runCommand(['--agent=copilot']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.github/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.github/agents/agent-loop-investigator.agent.md');
+        self::assertFileExists($this->root . '/.github/agents/agent-loop-surgical-builder.agent.md');
+        self::assertFileExists($this->root . '/.github/agents/agent-loop-code-reviewer.agent.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
+        self::assertStringContainsString('portable skills and bundled subagent roles for copilot', $result['output']);
+    }
+
+    public function testAllInstallsSkillsSubagentRolesAndCodexHooks(): void
     {
         $result = $this->runCommand(['--agent=all']);
 
@@ -88,6 +118,12 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.github/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.agents/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.github/agents/agent-loop-investigator.agent.md');
+        self::assertFileExists($this->root . '/.github/agents/agent-loop-surgical-builder.agent.md');
+        self::assertFileExists($this->root . '/.github/agents/agent-loop-code-reviewer.agent.md');
+        self::assertFileExists($this->root . '/.agents/agents/agent-loop-investigator.md');
+        self::assertFileExists($this->root . '/.agents/agents/agent-loop-surgical-builder.md');
+        self::assertFileExists($this->root . '/.agents/agents/agent-loop-code-reviewer.md');
         self::assertFileExists($this->root . '/.codex/hooks/context.php');
     }
 
