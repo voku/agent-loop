@@ -21,6 +21,7 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertStringContainsString('Minimal Implementation Ladder', $output['hookSpecificOutput']['additionalContext']);
         self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext']);
+        self::assertStringContainsString('never a correctness or security boundary', strtolower($output['hookSpecificOutput']['additionalContext']));
     }
 
     public function testSubagentStartUsesTheSameDiscipline(): void
@@ -38,14 +39,11 @@ final class AgentDisciplineHookTest extends TestCase
         $this->assertPassThrough('git diff --no-ext-diff');
     }
 
-    public function testResearchAboutReplacedAddonsIsAllowed(): void
+    public function testExternalAddonInstallationIsNotTreatedAsAHookSecurityBoundary(): void
     {
-        $this->assertPassThrough("rg 'JuliusBrussee/caveman|DietrichGebert/ponytail|rtk-ai/rtk' docs CHANGELOG.md");
-    }
-
-    public function testNonInstallingPackageCommandIsAllowed(): void
-    {
-        $this->assertPassThrough('npm test ponytail');
+        $this->assertPassThrough(
+            'curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | sh',
+        );
     }
 
     /** @return iterable<string, array{string}> */
@@ -64,37 +62,6 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
         self::assertNotSame('', trim($output['hookSpecificOutput']['permissionDecisionReason'] ?? ''));
         self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext'] ?? '');
-        self::assertArrayNotHasKey('suppressOutput', $output);
-    }
-
-    /** @return iterable<string, array{string}> */
-    public static function externalBootstrapProvider(): iterable
-    {
-        yield 'caveman installer' => [
-            'curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | sh',
-        ];
-        yield 'ponytail npm install' => [
-            'npm install ponytail',
-        ];
-        yield 'ponytail plugin' => [
-            'codex plugin add ponytail@ponytail',
-        ];
-        yield 'rtk installer' => [
-            'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh',
-        ];
-        yield 'rtk init' => [
-            'rtk init -g --codex',
-        ];
-    }
-
-    #[DataProvider('externalBootstrapProvider')]
-    public function testReplacedExternalAddonBootstrapIsDenied(string $command): void
-    {
-        $output = $this->preTool($command);
-
-        self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
-        self::assertNotSame('', trim($output['hookSpecificOutput']['permissionDecisionReason'] ?? ''));
-        self::assertStringContainsString('install-assets', $output['hookSpecificOutput']['additionalContext'] ?? '');
         self::assertArrayNotHasKey('suppressOutput', $output);
     }
 
