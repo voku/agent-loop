@@ -33,6 +33,7 @@
   },
   "autoload-dev": {
     "psr-4": {
+      "voku\\AgentLoop\\PHPStan\\": "phpstan/",
       "voku\\AgentLoop\\Tests\\": "tests/"
     }
   },
@@ -43,6 +44,7 @@
     "test": "phpunit",
     "phpstan": "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M",
     "dogfood:discipline": "php tools/agent-discipline-dogfood.php",
+    "dogfood:self-shape": "php tools/self-shape-dogfood.php",
     "ci": [
       "@composer validate --strict",
       "@test",
