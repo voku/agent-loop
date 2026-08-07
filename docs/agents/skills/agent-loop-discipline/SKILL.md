@@ -32,11 +32,15 @@ guide bounded source reads and are not source evidence.
 
 ## Role Routing
 
-Use a narrow role only when its contract matches the task:
+Use a narrow role only when its contract matches the task. Where the client
+supports the bundled dedicated subagent, delegate to the name in parentheses:
 
-- locate definitions/callers/tests only -> `agent-loop-investigate`;
-- already-understood one/two-file implementation -> `agent-loop-surgical-edit`;
-- correctness review of a diff/file -> `agent-loop-code-review`;
+- locate definitions/callers/tests only -> `agent-loop-investigate`
+  (`agent-loop-investigator`);
+- already-understood one/two-file implementation -> `agent-loop-surgical-edit`
+  (`agent-loop-surgical-builder`);
+- correctness review of a diff/file -> `agent-loop-code-review`
+  (`agent-loop-code-reviewer`);
 - unnecessary complexity in the current diff -> `agent-loop-simplify-review`;
 - repo-wide complexity audit -> `agent-loop-simplify-audit`;
 - ambiguous, architectural, new-feature, or 3+ file work -> main governed workflow.
@@ -44,7 +48,7 @@ Use a narrow role only when its contract matches the task:
 Useful bounded chain:
 
 ```text
-investigate -> surgical edit -> code review
+investigator -> surgical builder -> code reviewer
 ```
 
 Do not delegate a one-line answer merely to look agentic. Do not force broad work
