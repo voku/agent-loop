@@ -10,12 +10,14 @@ The durable source findings live under `infra/doc/agent-learning/findings/`:
 
 - `finding.2026-08-07.001`: internal workflow orchestration through focused-package CLIs duplicated argv, path, default, and failure knowledge that typed package APIs already owned;
 - `finding.2026-08-07.002`: repository-under-development and installed-consumer execution have different binary entrypoints and must be tested separately;
-- `finding.2026-08-07.003`: the final blind-spot review must run after recall outcome close-out and an explicit review checkpoint, not before them;
-- `finding.2026-08-07.004`: candidate finding that CI should invoke a local self-shape runner and let that runner derive changed-file scope from Git.
+- `finding.2026-08-07.003`: final blind-spot acceptance requires complete close-out evidence and machine-readable status `ok`; process exit success alone may still represent `warn`;
+- `finding.2026-08-07.004`: candidate finding that CI should invoke a local self-shape runner and let that runner derive changed-file scope from Git;
+- `finding.2026-08-07.005`: project-specific PHPStan rules must be tested in an isolated PHPStan process because loading `PHPStan\\Testing\\RuleTestCase` into normal PHPUnit polluted the runtime used by agent-map's Composer-based PHPStan discovery.
 
 `MEMORY.md` contains only the reviewed durable rules. Objective recurrence prevention is pushed lower where possible:
 
 - `phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php` prevents `voku\\AgentLoop\\Workflow` from instantiating focused-package CLIs;
+- `tools/project-phpstan-rules.sh` proves that rule in a separate PHPStan process without contaminating PHPUnit;
 - workflow PHPUnit tests assert persisted session, brief, approval, verification, and close behavior instead of adapter argv;
 - `tools/self-shape-dogfood.sh` owns the repeatable repository lifecycle;
 - `.github/workflows/ci.yml` invokes that runner and uploads its evidence rather than defining the lifecycle itself;
@@ -31,15 +33,15 @@ The runner performs this sequence against the real diff from the merge-base to `
 4. render bounded context;
 5. run `composer ci` and record structured validation evidence;
 6. run an exploratory deterministic blind-spot review;
-7. log recall outcome close-out;
-8. record a checkpoint containing the explicit `review blindspots` marker;
+7. run `recall log-outcome`;
+8. record a checkpoint explicitly evidencing both `log-outcome` and `review blindspots` close-out;
 9. record the learning decision;
-10. require the final blind-spot review to exit clean;
+10. run the final blind-spot review and require its JSON report status to be exactly `ok`;
 11. review `MEMORY.md` promotion state;
 12. persist the manifest, run `agent-loop verify`, and render the completion report;
 13. CLOSE through the normal workflow gates and persist final status.
 
-The initial review is allowed to return the documented warning exit while the lifecycle is incomplete. The final review is not. A warning at final review is a failed dogfood run, not a success with nicer wording.
+The initial review may warn while the lifecycle is incomplete. The final review may not. The CLI exit code is not the semantic gate because `warn` can still be a successfully executed review command; the runner reads `SELF-SHAPE.blindspots.json` and accepts only `status=ok`.
 
 ## Promotion rule
 
