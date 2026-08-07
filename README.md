@@ -101,8 +101,8 @@ Codex additionally receives package-owned PHP hooks:
 - `SessionStart` injects the discipline.
 - `SubagentStart` propagates it to spawned agents.
 - `PreToolUse` leaves ordinary Bash commands unchanged.
-- `PreToolUse` redirects unbounded generated `.agent-map` dumps toward bounded
-  map commands.
+- `PreToolUse` denies configured unbounded `.agent-map` dump patterns and
+  suggests bounded map commands.
 
 Hooks are behavioral guardrails, not a correctness or security boundary. The
 security property is simpler: `install-assets` installs only files already
