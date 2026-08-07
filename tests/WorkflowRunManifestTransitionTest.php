@@ -7,7 +7,6 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
 use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
@@ -15,7 +14,6 @@ use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 use voku\AgentSession\LearningDecision;
 use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\Session;
-use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
@@ -39,22 +37,8 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
     public function testPlanPersistsTheCandidateRunProjection(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
-        $runner = function (array $argv) use ($session): int {
-            self::assertSame(['brief', 'create'], array_slice($argv, 0, 2));
-            (new WorkBriefStore())->create(
-                $session,
-                'Keep the task scope reviewable.',
-                ['src/Foo.php'],
-                [],
-                ['vendor/bin/phpunit'],
-            );
-
-            return 0;
-        };
-
         ob_start();
-        $exit = (new WorkflowPlanCommand($this->root, $runner))->run([
+        $exit = (new WorkflowPlanCommand($this->root))->run([
             'ABC-123',
             '--by', 'lars',
             '--file', 'src/Foo.php',
@@ -74,16 +58,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     public function testApproveCanResumeCompilationAfterTheBriefWasAlreadyApproved(): void
     {
         $session = $this->createApprovedSession();
-        $sessionCalls = 0;
         $recallCalls = 0;
 
         $command = new WorkflowApproveCommand(
             $this->root,
-            static function (array $argv) use (&$sessionCalls): int {
-                ++$sessionCalls;
-
-                return 99;
-            },
             function (array $argv) use (&$recallCalls): int {
                 ++$recallCalls;
                 $this->writeRecallMeta();
@@ -97,7 +75,6 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit);
-        self::assertSame(0, $sessionCalls, 'the current approved revision must not be approved twice');
         self::assertSame(1, $recallCalls);
         self::assertStringContainsString('already approved; resuming recall compilation', $output);
 
@@ -110,17 +87,11 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     public function testFailedCompilationLeavesAnApprovedManifestThatTheSameCommandCanResume(): void
     {
         $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
-        (new WorkBriefStore())->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $approvalCalls = 0;
+        $briefs = new WorkBriefStore();
+        $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
 
         $first = new WorkflowApproveCommand(
             $this->root,
-            function (array $argv) use ($session, &$approvalCalls): int {
-                ++$approvalCalls;
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
             static fn (array $argv): int => 7,
         );
 
@@ -129,16 +100,13 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         ob_end_clean();
 
         self::assertSame(7, $firstExit);
-        self::assertSame(1, $approvalCalls);
+        self::assertSame(1, $briefs->approval($session)?->workBriefRevision);
         $afterFailure = $this->manifest();
         self::assertSame('current', $this->referenceState($afterFailure, 'approval'));
         self::assertSame('missing', $this->referenceState($afterFailure, 'recall'));
 
         $second = new WorkflowApproveCommand(
             $this->root,
-            static function (array $argv): int {
-                throw new RuntimeException('approval must not be repeated');
-            },
             function (array $argv): int {
                 $this->writeRecallMeta();
 
@@ -151,7 +119,6 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         ob_end_clean();
 
         self::assertSame(0, $secondExit);
-        self::assertSame(1, $approvalCalls);
         self::assertSame('compiled', $this->referenceState($this->manifest(), 'recall'));
     }
 
@@ -175,15 +142,8 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
-        $sessions = new SessionStore();
         $cli = new WorkflowCli(
             $this->root,
-            static function (array $argv) use ($sessions, $session): int {
-                self::assertSame(['close', 'ABC-123', '--status', 'done'], $argv);
-                $sessions->setStatus($session, SessionStatus::DONE);
-
-                return 0;
-            },
             static fn (array $argv): int => 0,
             static fn (array $argv): int => 0,
         );
