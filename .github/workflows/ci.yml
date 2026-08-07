@@ -75,11 +75,23 @@ jobs:
           JSON
           composer update --working-dir="${consumer}" --no-interaction --prefer-dist --no-progress --no-ansi
           cd "${consumer}"
-          php vendor/bin/agent-loop init install-assets --agent=codex
+          php vendor/bin/agent-loop init install-assets --agent=all
           test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-discipline/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-investigate/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-surgical-edit/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-code-review/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-simplify-audit/SKILL.md
+          test -f vendor/voku/agent-loop/docs/agents/subagents/agent-loop-investigator.md
           test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
           test -f .codex/skills/agent-loop-discipline/SKILL.md
+          test -f .codex/skills/agent-loop-investigate/SKILL.md
           test -f .codex/hooks/context.php
+          test -f .github/agents/agent-loop-investigator.agent.md
+          test -f .github/agents/agent-loop-surgical-builder.agent.md
+          test -f .github/agents/agent-loop-code-reviewer.agent.md
+          test -f .agents/agents/agent-loop-investigator.md
+          test -f .agents/agents/agent-loop-surgical-builder.md
+          test -f .agents/agents/agent-loop-code-reviewer.md
           mkdir -p "${GITHUB_WORKSPACE}/build"
           php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
