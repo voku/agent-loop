@@ -12,9 +12,8 @@
   "observation": "SessionStore::create() generates a new active session directory whenever the preferred id already exists; it does not enforce one active session per task. WorkflowPlanCommand already rejects multiple active sessions, but WorkflowStartCommand previously called create() unconditionally. Retrying workflow start after a recall failure could therefore create a second active session and make later approve/close resolution ambiguous.",
   "evidence": [
     {
-      "type": "review",
-      "command": "CodeRabbit independent review on PR #28",
-      "summary": "The reviewer mapped SessionStore::create() and identified that repeated workflow start bypassed the one-active-session invariant assumed by plan, approve, and close."
+      "type": "review_comment",
+      "reference": "PR #28 CodeRabbit review thread PRRT_kwDOTALgUs6XZVxl: repeated workflow start can create multiple active sessions"
     },
     {
       "type": "test_result",
