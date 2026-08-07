@@ -30,6 +30,26 @@ Skip map ceremony for trivial documentation or already-localized edits. Do not
 dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite`; generated indexes
 guide bounded source reads and are not source evidence.
 
+## Role Routing
+
+Use a narrow role only when its contract matches the task:
+
+- locate definitions/callers/tests only -> `agent-loop-investigate`;
+- already-understood one/two-file implementation -> `agent-loop-surgical-edit`;
+- correctness review of a diff/file -> `agent-loop-code-review`;
+- unnecessary complexity in the current diff -> `agent-loop-simplify-review`;
+- repo-wide complexity audit -> `agent-loop-simplify-audit`;
+- ambiguous, architectural, new-feature, or 3+ file work -> main governed workflow.
+
+Useful bounded chain:
+
+```text
+investigate -> surgical edit -> code review
+```
+
+Do not delegate a one-line answer merely to look agentic. Do not force broad work
+through a small role to preserve a pretty workflow diagram.
+
 ## Minimal Implementation Ladder
 
 Stop at the first rung that fully satisfies the verified requirement:
