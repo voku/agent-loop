@@ -16,8 +16,8 @@ Canonical package roots:
 
 Host repositories may override the normal sync source roots through
 `.agent-loop/init.json` or CLI path options. `init install-assets` is different:
-it intentionally installs the immutable assets shipped inside the currently
-installed `voku/agent-loop` package.
+it is intentionally configuration-free and installs only the immutable assets
+shipped inside the currently installed `voku/agent-loop` package.
 
 ## First-party install
 
@@ -42,7 +42,8 @@ Antigravity currently receive the portable skills only.
 
 The command:
 
-- reads assets from the installed Composer package;
+- reads assets only from the installed Composer package;
+- accepts no host config or source-root override;
 - reuses the existing manifest-safe `sync-skills` and `sync-hooks` code;
 - refuses to overwrite unmanaged targets unless `--force` or
   `--adopt-existing` is explicit;
@@ -96,11 +97,13 @@ The default PHP engineering discipline:
 
 - trace the real flow and callers before editing shared behavior;
 - use `agent-loop map query`, `related`, `file`, and `changed` before broad PHP
-  reads;
+  reads, without adding map ceremony to trivial documentation or already-localized work;
 - prefer existing repository code, PHP standard library, platform features,
   installed dependencies, one shared root-cause fix, and deterministic edits;
-- preserve strict types, precise PHPDoc, contextual exceptions, package
-  ownership, security controls, and focused regression tests;
+- stop once the requested behavior is satisfied instead of adding adjacent
+  cleanup, configuration, abstractions, compatibility, or policy;
+- preserve strict types, precise PHPDoc where needed, contextual exceptions,
+  package ownership, security controls, and focused regression tests;
 - report only executed validation.
 
 ### `agent-loop-simplify-review`
@@ -113,12 +116,16 @@ accessibility, or performance review and applies no changes automatically.
 
 ### `agent-loop-dogfood`
 
-A repeatable evaluation method for guidance and hook changes. Baseline and
-candidate runs use the same task, repository revision, model, tools, and
-validation. The comparison uses observable artifacts such as changed files,
-line counts, dependencies, unrequested behavior, broad reads, executed checks,
-response length, and review findings. It does not invent reasoning-token or
-counterfactual code savings.
+A repeatable evaluation method for guidance and hook changes. Prefer clean
+baseline/candidate runs with the same task, revision, model, tools, and
+validation. When the host cannot run a clean model A/B, an already-observed
+baseline may be replayed, but that limitation must be explicit.
+
+The comparison uses observable artifacts such as tool calls, source reads,
+changed files, line counts, dependencies, unrequested behavior, executed checks,
+response length, full-evidence inspection, and review findings. Guidance is kept
+only when correctness/evidence do not regress and at least one non-trivial human
+attention or context metric improves without adding ceremony to trivial work.
 
 ## Codex hooks
 
@@ -128,14 +135,13 @@ The bundled hooks are thin PHP entrypoints backed by the typed
 - `SessionStart` injects the package-owned discipline.
 - `SubagentStart` propagates the same contract to spawned agents.
 - `PreToolUse` leaves ordinary Bash commands unchanged.
-- `PreToolUse` denies only two repository-specific unsafe patterns:
-  - remote bootstrap commands for the previously evaluated add-ons;
-  - unbounded dumps of generated `.agent-map` indexes.
+- `PreToolUse` redirects only unbounded dumps of generated `.agent-map` indexes
+  toward bounded map commands.
 
-The denial names a bounded replacement. It does not rewrite a command or filter
-its output. The hook output matches Codex's current command-hook schemas and
-parser behavior, including the requirement that `PreToolUse` pass-through
-returns no synthetic `allow` decision.
+Hooks are behavioral guardrails, never a correctness or security boundary. A
+host may fail to dispatch a hook, so correctness, trust-boundary validation,
+CI, and the offline install contract must remain valid without hook execution.
+The hook does not rewrite commands or filter tool output.
 
 ## agent-map boundary
 
@@ -202,12 +208,17 @@ composer dogfood:discipline
 ```
 
 verifies the packaged skills, hook definition, session/subagent context,
-unchanged raw diff command, bounded map denial, and remote-bootstrap denial.
+unchanged raw commands, the explicit non-security hook boundary, and bounded map
+denial.
 
 `composer ci` runs PHPUnit, PHPStan, and this gate. The GitHub release-set job
 also installs `agent-loop` into a clean non-symlinked Composer consumer, checks
 that the assets exist under `vendor/voku/agent-loop`, executes
 `init install-assets`, and runs the dogfood script from the installed package.
+
+Runtime gates prove mechanics. Guidance changes additionally require the
+behavioral acceptance gate documented by `agent-loop-dogfood`; a green installer
+alone does not prove that the agent became easier to review or less speculative.
 
 The reviewed iterations and observed failures are recorded in
 `docs/agents/dogfood/2026-08-07-first-party-discipline.md`. Third-party
