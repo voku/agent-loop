@@ -37,9 +37,9 @@ jobs:
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
       - name: Lint self-shape runner
-        run: php -l tools/self-shape-dogfood.php
+        run: bash -n tools/self-shape-dogfood.sh
       - name: Govern this change with agent-loop itself
-        run: php tools/self-shape-dogfood.php --base-ref=${{ github.base_ref }}
+        run: bash tools/self-shape-dogfood.sh --base-ref=${{ github.base_ref }}
       - name: Upload self-shaping evidence
         if: always()
         uses: actions/upload-artifact@v4
