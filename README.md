@@ -49,21 +49,22 @@ See [Your first governed task](docs/quick-start.md) for the complete first run.
 
 ## First-party agent discipline
 
-`agent-loop` ships its own reviewed skills and PHP hooks. It does not download
-RTK, Caveman, Ponytail, a plugin marketplace package, or a remote installer.
+`agent-loop` ships its own reviewed agent behavior. It does not download RTK,
+Caveman, Ponytail, a plugin marketplace package, or a remote installer.
 
 Preview and install the assets already present in the Composer package:
 
 ```bash
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
-vendor/bin/agent-loop init install-assets --agent=codex --dry-run
-vendor/bin/agent-loop init install-assets --agent=codex
+vendor/bin/agent-loop init install-assets --agent=all --dry-run
+vendor/bin/agent-loop init install-assets --agent=all
 vendor/bin/agent-loop init doctor
 ```
 
 The package-owned guidance separates three budgets:
 
-1. **Human attention:** progress and final replies stay concise and factual.
+1. **Human attention:** progress, handoffs, and review findings stay concise and
+   technically exact.
 2. **Implementation complexity:** stop at the first verified solution that fully
    satisfies the request.
 3. **Context:** use `agent-map` and recall to select bounded source reads.
@@ -72,15 +73,30 @@ Raw evidence is never compressed or rewritten. Source, full diffs, test output,
 static-analysis output, verification artifacts, redirected harness files, and
 decisive errors remain complete.
 
-Bundled skills:
+The first-party set adapts concrete mechanisms reviewed in Caveman and Ponytail:
 
-| Skill | Purpose |
+| Asset | Purpose |
 | --- | --- |
-| `agent-loop-discipline` | Map-first navigation, minimal strict PHP changes, concise communication, and evidence integrity |
-| `agent-loop-simplify-review` | Review the complete raw diff for avoidable complexity without replacing correctness or security review |
-| `agent-loop-dogfood` | Compare stable baseline and candidate runs through observable artifacts |
+| `agent-loop-discipline` | Concise communication + minimal strict-PHP implementation ladder + evidence integrity |
+| `agent-loop-investigate` | Read-only `agent-map` locator returning verified path/line/symbol/caller/test evidence |
+| `agent-loop-surgical-edit` | Already-localized 1-2 file change; prefer deterministic `agent-loop edit` and refuse silent scope expansion |
+| `agent-loop-code-review` | Concise correctness review of the complete raw diff |
+| `agent-loop-simplify-review` | Diff-only review for deletion/reuse/stdlib/native/YAGNI opportunities |
+| `agent-loop-simplify-audit` | Repo-wide simplify audit, prioritized through map/navigation evidence |
+| `agent-loop-dogfood` | Compare observable baseline/candidate artifacts without invented savings |
 
-Codex also receives package-owned PHP hooks installed into the repository:
+For clients supported by the existing subagent target format, the package also
+installs three dedicated roles:
+
+```text
+investigator -> surgical builder -> code reviewer
+```
+
+The investigator locates and stops. The builder edits only already-understood
+small scope. The reviewer returns correctness findings only. Broader features
+stay in the normal governed workflow.
+
+Codex additionally receives package-owned PHP hooks:
 
 - `SessionStart` injects the discipline.
 - `SubagentStart` propagates it to spawned agents.
@@ -92,14 +108,14 @@ Hooks are behavioral guardrails, not a correctness or security boundary. The
 security property is simpler: `install-assets` installs only files already
 shipped in the Composer package and never fetches remote agent code.
 
-Other supported clients receive the portable skills. Use `--agent=all` to sync
-them for Codex, Claude, Copilot, and Antigravity.
+`--agent=all` installs portable skills for Codex, Claude, Copilot, and
+Antigravity, dedicated subagent definitions for the existing Copilot and
+Antigravity targets, and Codex hooks. The exact upstream-to-agent-* mapping and
+what was deliberately not ported are documented in
+[THIRD_PARTY_NOTICES.md](docs/agents/THIRD_PARTY_NOTICES.md).
 
-The implementation and its failed iterations are documented in
+The implementation and failed iterations are documented in
 [the dogfood report](docs/agents/dogfood/2026-08-07-first-party-discipline.md).
-Upstream inspiration and MIT attribution live in
-[THIRD_PARTY_NOTICES.md](docs/agents/THIRD_PARTY_NOTICES.md); they are not runtime
-dependencies.
 
 ## Exact target edit
 
@@ -185,6 +201,10 @@ vendor/bin/agent-loop session validation record ABC-123 \
   --by lars
 ```
 
+When a deliberately minimal implementation has a known ceiling, record the
+ceiling and an observable revisit trigger in `agent-session` instead of leaving a
+tool-specific debt marker in product code.
+
 Review and verify:
 
 ```bash
@@ -230,11 +250,11 @@ smallest real source range, then inspect that source directly.
 | Package | Responsibility |
 | --- | --- |
 | `voku/agent-kanban` | Git-native Markdown task board and optional external issue comparison |
-| `voku/agent-session` | Per-task working memory, decisions, assumptions, checkpoints, and validation evidence |
+| `voku/agent-session` | Per-task working memory, decisions, assumptions, checkpoints, simplification ceilings, and validation evidence |
 | `voku/agent-map` | Compact PHP symbol maps and bounded source navigation |
 | `voku/agent-recall-compiler` | Task-scoped recall, validation plans, and deterministic review prompts |
 | `voku/agent-learning` | Findings, proposals, decision history, constraints, and reviewed guidance maintenance |
-| `voku/agent-loop` | Unified CLI, edit orchestration, governed lifecycle gates, memory review, and repository setup |
+| `voku/agent-loop` | Unified CLI, edit orchestration, governed lifecycle gates, first-party agent assets, memory review, and repository setup |
 
 `agent-loop` does not become a second store for board, session, map, recall, or
 learning state. It orchestrates the focused packages and verifies their shared
@@ -274,7 +294,9 @@ vendor/bin/agent-loop <namespace> help
 - inject recall artifacts into an agent without the host doing so explicitly;
 - replace tests, PHPStan, code review, or human approval;
 - treat hooks as a correctness or security sandbox;
+- rewrite durable memory files merely to shorten them;
 - turn every transcript or observation into memory;
+- invent per-repo token or line savings from an unbuilt counterfactual;
 - hide source or verification evidence behind a lossy summary.
 
 Findings are not durable memory. Generated map output is not source evidence.
@@ -289,12 +311,12 @@ See [Learning boundary](docs/workflow/learning-boundary.md) and
 Use `install-assets` for the immutable defaults shipped with this package:
 
 ```bash
-vendor/bin/agent-loop init install-assets --agent=codex
+vendor/bin/agent-loop init install-assets --agent=all
 ```
 
 `install-assets` is intentionally configuration-free: host configuration cannot
-replace its source skills or hooks. Use `sync-*` when a host repository owns
-customized canonical assets:
+replace its package-owned skills, roles, or hooks. Use `sync-*` when a host
+repository owns customized canonical assets:
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
@@ -311,18 +333,18 @@ Detailed asset behavior is documented in
 
 ## Dogfood and validation
 
-The first-party discipline is tested at three levels:
+The first-party behavior is tested at three levels:
 
-1. PHPUnit covers typed hook semantics and offline installation.
-2. `composer dogfood:discipline` executes the packaged skills and hooks in an
-   isolated workspace.
+1. PHPUnit covers typed hook semantics and offline asset installation.
+2. `composer dogfood:discipline` executes the packaged discipline and hooks in
+   an isolated workspace.
 3. GitHub Actions installs `agent-loop` as a non-symlinked Composer dependency,
-   installs the bundled assets from `vendor/`, and reruns the dogfood gate from
-   the installed package.
+   runs `init install-assets --agent=all`, verifies the installed skills/roles/
+   hooks, and reruns the dogfood gate from the installed package.
 
 Guidance changes also require an observable behavioral comparison. A green
-installer or hook test alone does not prove that agents became easier to review
-or less likely to add unrequested work.
+installer or hook test alone does not prove that agents became easier to review,
+more selective in context, or less likely to add unrequested work.
 
 Local commands:
 
@@ -352,7 +374,7 @@ Never report a command as passed unless it ran and its exit code was observed.
 - [Cross-package lifecycle](docs/agents/LIFECYCLE.md)
 - [Learning and durable-memory boundary](docs/workflow/learning-boundary.md)
 - [First-party discipline dogfood report](docs/agents/dogfood/2026-08-07-first-party-discipline.md)
-- [Third-party inspiration notices](docs/agents/THIRD_PARTY_NOTICES.md)
+- [Upstream mechanism mapping and notices](docs/agents/THIRD_PARTY_NOTICES.md)
 
 ## Scheduled execution
 
