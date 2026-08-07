@@ -29,6 +29,14 @@ if [[ "${#changed_files[@]}" -eq 0 ]]; then
   exit 1
 fi
 
+learning_status='no_durable_learning'
+for file in "${changed_files[@]}"; do
+  if [[ "${file}" == infra/doc/agent-learning/findings/* || "${file}" == 'MEMORY.md' ]]; then
+    learning_status='findings_recorded'
+    break
+  fi
+done
+
 mkdir -p build
 
 "${agent_loop[@]}" learn validate --root "${learning_root}"
@@ -88,7 +96,7 @@ fi
   --body "recall log-outcome completed; reviewed the deterministic review blindspots report for this change against ${base}."
 
 "${agent_loop[@]}" session learning decide "${task}" \
-  --status no_durable_learning \
+  --status "${learning_status}" \
   --by "${actor}"
 
 "${agent_loop[@]}" review blindspots "${task}"
@@ -132,5 +140,5 @@ done
 "${agent_loop[@]}" workflow status "${task}" --format json \
   > build/self-shape-status.json
 
-printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nChanged files: %d\n' \
-  "${base}" "${head}" "${#changed_files[@]}"
+printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nChanged files: %d\nLearning decision: %s\n' \
+  "${base}" "${head}" "${#changed_files[@]}" "${learning_status}"
