@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use Throwable;
+use voku\AgentSession\SessionStore;
 
 final readonly class WorkflowStartCommand
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $recallRunner */
-    public function __construct(private string $rootPath, private mixed $sessionRunner, private mixed $recallRunner)
+    /** @param callable(list<string>): int $recallRunner */
+    public function __construct(private string $rootPath, private mixed $recallRunner)
     {
     }
 
@@ -24,15 +26,17 @@ final readonly class WorkflowStartCommand
             return 1;
         }
 
-        $sessionArgv = ['start', '--task', $taskId->value, '--by', $options['by']];
-        if ($options['baseCommit'] !== null) {
-            $sessionArgv[] = '--base-commit';
-            $sessionArgv[] = $options['baseCommit'];
-        }
-
-        $exit = ($this->sessionRunner)($sessionArgv);
-        if ($exit !== 0) {
-            return $exit;
+        try {
+            (new SessionStore())->create(
+                rtrim($this->rootPath, '/') . '/session_plan',
+                $taskId->value,
+                null,
+                $options['by'],
+                $options['baseCommit'],
+            );
+        } catch (Throwable $e) {
+            fwrite(\STDERR, '[FAIL] workflow start: could not create session: ' . $e->getMessage() . "\n");
+            return 1;
         }
         echo "[OK] workflow start: session started for {$taskId->value}\n";
 
