@@ -179,11 +179,9 @@ final readonly class AgentDisciplineHook
 
     private function isUnboundedMapDump(string $command): bool
     {
-        $mapPath = '(?:\.agent-map/(?:php-symbols\.json|search\.sqlite))';
-
-        return preg_match('~(?:^|[;&|]\s*)(?:cat|less|more)\s+[^;&|]*' . $mapPath . '~i', $command) === 1
-            || preg_match('~(?:^|[;&|]\s*)sqlite3\s+[^;&|]*' . $mapPath . '\s+(?:\.dump|\.schema)?\s*(?:$|[;&|])~i', $command) === 1
-            || preg_match('~(?:^|[;&|]\s*)jq\s+["\']?\.["\']?\s+[^;&|]*' . $mapPath . '~i', $command) === 1;
+        return preg_match('~(?:^|[;&|]\s*)(?:cat|less|more)\b[^;&|]*\.agent-map/(?:php-symbols\.json|search\.sqlite)~i', $command) === 1
+            || preg_match('~(?:^|[;&|]\s*)sqlite3\b[^;&|]*\.agent-map/search\.sqlite(?:\s|$)~i', $command) === 1
+            || preg_match('~(?:^|[;&|]\s*)jq\b[^;&|]*\.agent-map/php-symbols\.json(?:\s|$)~i', $command) === 1;
     }
 
     /**
