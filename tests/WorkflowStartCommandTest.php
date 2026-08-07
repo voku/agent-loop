@@ -83,6 +83,75 @@ final class WorkflowStartCommandTest extends TestCase
         }
     }
 
+    public function testRestartReusesExistingActiveSession(): void
+    {
+        $root = $this->root();
+        /** @var list<list<string>> $recallCalls */
+        $recallCalls = [];
+        $command = new WorkflowStartCommand(
+            $root,
+            static function (array $argv) use (&$recallCalls): int {
+                $recallCalls[] = $argv;
+
+                return 0;
+            },
+        );
+        $args = ['ABC-123', '--by', 'lars', '--learning-root', 'learn', '--file', 'src/Foo.php'];
+
+        try {
+            ob_start();
+            self::assertSame(0, $command->run($args));
+            ob_end_clean();
+
+            $sessionsBeforeRestart = (new SessionStore())->all($root . '/session_plan');
+            self::assertCount(1, $sessionsBeforeRestart);
+            $sessionId = $sessionsBeforeRestart[0]->id;
+
+            ob_start();
+            $exit = $command->run($args);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(0, $exit);
+            self::assertCount(2, $recallCalls);
+            $sessionsAfterRestart = (new SessionStore())->all($root . '/session_plan');
+            self::assertCount(1, $sessionsAfterRestart);
+            self::assertSame($sessionId, $sessionsAfterRestart[0]->id);
+            self::assertStringContainsString("reusing active session {$sessionId}", $output);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testStartFailsWhenMultipleActiveSessionsAlreadyExist(): void
+    {
+        $root = $this->root();
+        $store = new SessionStore();
+        $store->create($root . '/session_plan', 'ABC-123', by: 'first');
+        $store->create($root . '/session_plan', 'ABC-123', by: 'second');
+        $recallCalls = 0;
+        $command = new WorkflowStartCommand(
+            $root,
+            static function (array $argv) use (&$recallCalls): int {
+                ++$recallCalls;
+
+                return 0;
+            },
+        );
+
+        try {
+            ob_start();
+            $exit = $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn', '--file', 'src/Foo.php']);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(1, $exit);
+            self::assertSame(0, $recallCalls);
+            self::assertCount(2, $store->all($root . '/session_plan'));
+            self::assertStringContainsString('Multiple active sessions found for task ABC-123.', $output);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testStartValidatesRequiredInputsBeforeWritingSession(): void
     {
         $root = $this->root();
