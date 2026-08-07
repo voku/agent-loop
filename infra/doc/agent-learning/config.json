@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "project_root": "../../..",
+  "constraint_generation_dir": "constraint-generation",
+  "active_constraints_dir": "constraints/active",
+  "learning_policy": {
+    "default_classification": "ADD_LEARNING_NOTE",
+    "promotion_requires_validation_case": true,
+    "create_skill_requires_overlap_check": true,
+    "create_skill_max_overlap_percent": 50,
+    "outcome_feedback_buckets": [
+      "helpful",
+      "irrelevant",
+      "harmful"
+    ],
+    "selection_is_not_usefulness": true
+  }
+}
