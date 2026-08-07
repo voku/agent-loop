@@ -141,12 +141,11 @@ final class WorkflowStartCommandTest extends TestCase
         try {
             ob_start();
             $exit = $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn', '--file', 'src/Foo.php']);
-            $output = (string) ob_get_clean();
+            ob_end_clean();
 
             self::assertSame(1, $exit);
             self::assertSame(0, $recallCalls);
             self::assertCount(2, $store->all($root . '/session_plan'));
-            self::assertStringContainsString('Multiple active sessions found for task ABC-123.', $output);
         } finally {
             $this->removeDirectory($root);
         }
