@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 use voku\AgentLoop\RecallOutputRoot;
-use voku\AgentSession\SessionStore;
 use voku\AgentSession\LearningDecisionStore;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStatus;
+use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidence;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
@@ -17,8 +20,8 @@ use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowCloseCommand
 {
-    /** @param callable(list<string>): int $sessionRunner @param callable(list<string>): int $verifyRunner */
-    public function __construct(private string $rootPath, private mixed $sessionRunner, private mixed $verifyRunner)
+    /** @param callable(list<string>): int $verifyRunner */
+    public function __construct(private string $rootPath, private mixed $verifyRunner)
     {
     }
 
@@ -30,6 +33,7 @@ final readonly class WorkflowCloseCommand
             $options = $this->parse(array_slice($args, 1));
             if ($options['status'] !== 'done') {
                 echo "[FAIL] workflow close currently gates only --status done. Use agent-loop session close directly for other statuses.\n";
+
                 return 1;
             }
 
@@ -37,15 +41,15 @@ final readonly class WorkflowCloseCommand
             $failed = $failures !== [];
             if ($failed && $options['acceptRisk'] === null) {
                 echo "[FAIL] workflow close: gates failed; session was not closed.\n";
+
                 return 1;
             }
 
             $acceptedRisk = $options['acceptRisk'] !== null;
             if ($acceptedRisk) {
-                // An override without a name is an anonymous decision, which is the thing this
-                // record exists to prevent.
                 if ($options['acceptRiskBy'] === null) {
                     echo "[FAIL] workflow close: --accept-risk also requires --accept-risk-by <name>.\n";
+
                     return 1;
                 }
                 $path = (new AcceptedRiskWriter($this->rootPath))->write(
@@ -56,23 +60,32 @@ final readonly class WorkflowCloseCommand
                 );
                 echo "[WARN] workflow close: accepted risk recorded at {$path}\n";
                 if ($failed) {
-                    echo "[WARN] workflow close: delegating to session close despite failed gates\n";
+                    echo "[WARN] workflow close: closing session despite failed gates\n";
                 }
             } else {
-                echo "[OK] workflow close: gates passed; delegating to session close\n";
+                echo "[OK] workflow close: gates passed; closing session\n";
             }
 
-            $exit = ($this->sessionRunner)(['close', $taskId->value, '--status', 'done']);
-            if ($exit !== 0 && $acceptedRisk) {
-                echo "[FAIL] workflow close: session close failed after accepted-risk bypass\n";
+            try {
+                $session = $this->activeSession($taskId->value)
+                    ?? throw new RuntimeException("Expected exactly one active session for {$taskId->value}.");
+                (new SessionStore())->setStatus($session, SessionStatus::DONE);
+            } catch (Throwable $exception) {
+                if ($acceptedRisk) {
+                    echo "[FAIL] workflow close: session close failed after accepted-risk bypass\n";
+                }
+
+                throw $exception;
             }
 
-            return $exit;
+            return 0;
         } catch (InvalidArgumentException $e) {
-            fwrite(\STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
+            fwrite(STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
+
             return 1;
         } catch (Throwable $e) {
-            fwrite(\STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
+            fwrite(STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
+
             return 1;
         }
     }
@@ -163,10 +176,12 @@ final readonly class WorkflowCloseCommand
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
         if (is_file($path)) {
             echo "[OK] recall: found {$relative}\n";
+
             return null;
         }
 
         echo "[FAIL] recall: missing {$relative}\n";
+
         return 'missing ' . $relative;
     }
 
@@ -179,20 +194,24 @@ final readonly class WorkflowCloseCommand
         if (!$report['exists']) {
             echo "[FAIL] review: missing {$relative}\n";
             echo "[ACTION REQUIRED] Run agent-loop review blindspots {$taskId} before workflow close.\n";
+
             return 'missing blind-spot report ' . $relative;
         }
 
         if ($report['invalid']) {
             echo "[FAIL] review: blindspot report JSON is invalid or missing status\n";
+
             return 'invalid blind-spot report ' . $relative;
         }
 
         if ($report['status'] === 'fail') {
             echo "[FAIL] review: blindspot report status is fail\n";
+
             return 'blind-spot report status is fail';
         }
 
         echo "[OK] review: found {$relative} with status {$report['status']}\n";
+
         return null;
     }
 
@@ -205,10 +224,12 @@ final readonly class WorkflowCloseCommand
     {
         if (($this->verifyRunner)(['--task-id=' . $taskId]) === 0) {
             echo "[OK] verify: agent-loop verify passed\n";
+
             return null;
         }
 
         echo "[FAIL] verify: agent-loop verify failed\n";
+
         return 'agent-loop verify failed';
     }
 
@@ -223,7 +244,7 @@ final readonly class WorkflowCloseCommand
 
         $sessions = array_values(array_filter(
             (new SessionStore())->all($sessionsRoot),
-            static fn ($session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
         ));
         if (count($sessions) !== 1) {
             echo "[FAIL] work brief: expected one active session for task {$taskId}, found " . count($sessions) . "\n";
@@ -268,11 +289,15 @@ final readonly class WorkflowCloseCommand
         $evidence = (new ValidationEvidenceStore())->all($session);
         $missing = [];
         foreach ($brief->validation as $command) {
-            $matching = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $brief->revision && $item->command === $command));
+            $matching = array_values(array_filter(
+                $evidence,
+                static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $brief->revision && $item->command === $command,
+            ));
             $latest = $matching === [] ? null : $matching[count($matching) - 1];
             if ($latest?->status !== ValidationStatus::PASSED) {
                 echo '[FAIL] validation: ' . ($latest === null ? 'missing' : $latest->status->value) . " evidence for {$command} (work brief revision {$brief->revision})\n";
                 $missing[] = $command . ' (' . ($latest === null ? 'no evidence' : $latest->status->value) . ')';
+
                 continue;
             }
             echo "[OK] validation: {$command} (exit {$latest->exitCode}, revision {$brief->revision})\n";
@@ -299,7 +324,10 @@ final readonly class WorkflowCloseCommand
 
             return 'invalid recall metadata for task ' . $taskId;
         }
-        $selected = array_values(array_filter($meta['selected_guidance'] ?? [], static fn (mixed $id): bool => is_string($id) && trim($id) !== ''));
+        $selected = array_values(array_filter(
+            $meta['selected_guidance'] ?? [],
+            static fn (mixed $id): bool => is_string($id) && trim($id) !== '',
+        ));
         foreach ($meta['selected_constraints'] ?? [] as $constraint) {
             if (is_array($constraint) && is_string($constraint['id'] ?? null) && trim($constraint['id']) !== '') {
                 $selected[] = $constraint['id'];
@@ -330,11 +358,19 @@ final readonly class WorkflowCloseCommand
             } catch (\JsonException) {
                 continue;
             }
-            if (is_array($outcome) && ($outcome['task_id'] ?? null) === $taskId && ($outcome['compilation_id'] ?? null) === $compilationId && is_string($outcome['guidance_id'] ?? null)) {
+            if (
+                is_array($outcome)
+                && ($outcome['task_id'] ?? null) === $taskId
+                && ($outcome['compilation_id'] ?? null) === $compilationId
+                && is_string($outcome['guidance_id'] ?? null)
+            ) {
                 $recorded[$outcome['guidance_id']] = true;
             }
         }
-        $missing = array_values(array_filter(array_unique($selected), static fn (string $id): bool => !isset($recorded[$id])));
+        $missing = array_values(array_filter(
+            array_unique($selected),
+            static fn (string $id): bool => !isset($recorded[$id]),
+        ));
         if ($missing !== []) {
             echo '[FAIL] recall outcomes: missing explicit outcome for ' . implode(', ', $missing) . "\n";
 
@@ -362,13 +398,16 @@ final readonly class WorkflowCloseCommand
         return null;
     }
 
-    private function activeSession(string $taskId): ?\voku\AgentSession\Session
+    private function activeSession(string $taskId): ?Session
     {
         $root = rtrim($this->rootPath, '/') . '/session_plan';
         if (!is_dir($root)) {
             return null;
         }
-        $sessions = array_values(array_filter((new SessionStore())->all($root), static fn ($session): bool => $session->taskId === $taskId && !$session->status->isClosed()));
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($root),
+            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+        ));
 
         return count($sessions) === 1 ? $sessions[0] : null;
     }
