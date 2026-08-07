@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "php \"$(git rev-parse --show-toplevel)/.codex/hooks/context.php\" --event=SessionStart",
+            "command": "php .codex/hooks/context.php --event=SessionStart",
             "timeout": 10
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "php \"$(git rev-parse --show-toplevel)/.codex/hooks/context.php\" --event=SubagentStart",
+            "command": "php .codex/hooks/context.php --event=SubagentStart",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "php \"$(git rev-parse --show-toplevel)/.codex/hooks/pre_tool_use_policy.php\"",
+            "command": "php .codex/hooks/pre_tool_use_policy.php",
             "timeout": 5
           }
         ]
