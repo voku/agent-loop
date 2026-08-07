@@ -20,6 +20,7 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-recall-superseder-' . bin2hex(random_bytes(4));
         mkdir($this->root);
+        mkdir($this->root . '/learning-root');
     }
 
     protected function tearDown(): void
