@@ -1,0 +1,26 @@
+{
+  "id": "finding.2026-08-07.003",
+  "task_id": "TODO@agent-loop/self-shape-pr-28",
+  "session": "2026-08-07-self-shape",
+  "created_at": "2026-08-07T22:48:00+02:00",
+  "created_by": "agent-loop-self-shape",
+  "scope": [
+    ".github/workflows/ci.yml",
+    "src/Workflow/WorkflowCloseCommand.php",
+    "recall/SELF-SHAPE"
+  ],
+  "observation": "The first complete self-shape lifecycle reached a green close gate with a blind-spot report in warn state. The report had two concrete findings: recall outcome close-out had not yet been logged and the checkpoint text did not contain a recognized review-blindspots marker. Reordering close-out and recording an explicit review checkpoint changed the final deterministic review to ok with zero findings.",
+  "evidence": [
+    {
+      "type": "test_result",
+      "command": "Agent-loop shapes itself",
+      "summary": "The initial deterministic review reported two warnings. After log-outcome and an explicit review blindspots checkpoint were recorded before the final review, the final CI evidence reported status ok with zero findings and workflow close completed without accepted risk."
+    }
+  ],
+  "hypothesis": "A self-review performed before its own outcome and review evidence are recorded can only review an incomplete lifecycle and may turn expected missing close-out evidence into tolerated warnings.",
+  "validated_conclusion": "Run an exploratory blind-spot review before close-out if useful, then record outcome and an explicit review checkpoint, and require a final blind-spot review to exit clean before workflow close. Do not normalize warn as the final success state.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
