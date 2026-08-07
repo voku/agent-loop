@@ -72,10 +72,9 @@ final readonly class InitInstallPlanCommand
         php vendor/bin/agent-loop init doctor
         ```
 
-        `install-assets` copies skills shipped inside the installed `voku/agent-loop`
-        package. Codex also receives repository-local PHP hooks. It does not clone a
-        repository, execute a remote installer, use a plugin marketplace, or require
-        Node.js.
+        `install-assets` copies skills shipped inside the installed `voku/agent-loop` package.
+        Codex also receives repository-local PHP hooks. It does not clone a repository,
+        execute a remote installer, use a plugin marketplace, or require Node.js.
 
         {$this->renderActivation($agent, $profile)}
         TXT;
