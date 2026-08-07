@@ -49,11 +49,6 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
 
         $command = new WorkflowApproveCommand(
             $this->root,
-            static function (array $argv) use ($session): int {
-                (new WorkBriefStore())->approve($session, 'lars');
-
-                return 0;
-            },
             static fn (array $argv): int => 7,
         );
 
@@ -62,6 +57,7 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertSame(7, $exit);
+        self::assertSame('lars', (new WorkBriefStore())->approval($session)?->approvedBy);
         self::assertStringContainsString('superseded recall output archived', $output);
         self::assertDirectoryDoesNotExist($this->root . '/recall/ABC-123');
 
