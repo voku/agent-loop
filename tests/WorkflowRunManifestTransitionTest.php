@@ -145,7 +145,6 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $cli = new WorkflowCli(
             $this->root,
             static fn (array $argv): int => 0,
-            static fn (array $argv): int => 0,
         );
 
         ob_start();
