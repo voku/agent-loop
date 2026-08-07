@@ -98,21 +98,21 @@ jobs:
             exit "${review_exit}"
           fi
 
-          "${agent_loop[@]}" session checkpoint "${task}" \
-            --title 'Self-shape review' \
-            --body "Inspected the deterministic blind-spot report for this change against ${base}."
-
-          "${agent_loop[@]}" review blindspots "${task}"
-
           "${agent_loop[@]}" recall log-outcome \
             --root learning-root \
             --draft "recall/${task}/recall-log.draft.json" \
             --by "${actor}" \
             --commit "${head}"
 
+          "${agent_loop[@]}" session checkpoint "${task}" \
+            --title 'Review blindspots close-out' \
+            --body "Ran agent-loop review blindspots for ${task} against ${base}; then ran recall log-outcome before the final blind-spot pass."
+
           "${agent_loop[@]}" session learning decide "${task}" \
             --status no_durable_learning \
             --by "${actor}"
+
+          "${agent_loop[@]}" review blindspots "${task}"
 
           "${agent_loop[@]}" workflow manifest "${task}" \
             --write \
