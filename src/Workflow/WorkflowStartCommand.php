@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
+use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
 final readonly class WorkflowStartCommand
@@ -27,18 +29,23 @@ final readonly class WorkflowStartCommand
         }
 
         try {
-            (new SessionStore())->create(
-                rtrim($this->rootPath, '/') . '/session_plan',
-                $taskId->value,
-                null,
-                $options['by'],
-                $options['baseCommit'],
-            );
+            $session = $this->activeSession($taskId->value);
+            if ($session === null) {
+                (new SessionStore())->create(
+                    rtrim($this->rootPath, '/') . '/session_plan',
+                    $taskId->value,
+                    null,
+                    $options['by'],
+                    $options['baseCommit'],
+                );
+                echo "[OK] workflow start: session started for {$taskId->value}\n";
+            } else {
+                echo "[OK] workflow start: reusing active session {$session->id} for {$taskId->value}\n";
+            }
         } catch (Throwable $e) {
-            fwrite(\STDERR, '[FAIL] workflow start: could not create session: ' . $e->getMessage() . "\n");
+            fwrite(\STDERR, '[FAIL] workflow start: could not prepare session: ' . $e->getMessage() . "\n");
             return 1;
         }
-        echo "[OK] workflow start: session started for {$taskId->value}\n";
 
         $recallArgv = ['compile', '--root', $options['learningRoot'], '--task', $taskId->value];
         foreach ($options['files'] as $file) {
@@ -60,6 +67,24 @@ final readonly class WorkflowStartCommand
         echo "  agent-loop workflow close {$taskId->value} --status done\n";
 
         return 0;
+    }
+
+    private function activeSession(string $taskId): ?Session
+    {
+        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($sessionsRoot)) {
+            return null;
+        }
+
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($sessionsRoot),
+            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+        ));
+        if (count($sessions) > 1) {
+            throw new RuntimeException("Multiple active sessions found for task {$taskId}.");
+        }
+
+        return $sessions[0] ?? null;
     }
 
     /**
