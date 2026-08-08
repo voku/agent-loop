@@ -30,15 +30,47 @@ vendor/bin/agent-loop edit '<Class>::<method>' \
 
 No new abstraction, dependency, configuration switch, compatibility layer, cleanup, or unrelated refactor unless the request or validation requires it.
 
-If the correct fix needs 3+ files, a new architectural seam, or unresolved product intent, stop the surgical role and return the discovered scope. Broader work belongs in the normal governed workflow.
+If the correct fix needs 3+ files, a new architectural seam, an irreversible/risk decision, or unresolved product intent, stop the surgical role. Broader work belongs in the normal governed workflow.
 
-## Receipt
+## Terminal Result Contract
+
+Return exactly one terminal `STATUS` first. Do not bury escalation in prose.
+
+Successful bounded edit:
 
 ```text
-<path>:<line-range> — <short change>.
-validated: <exact command> — exit <code>.
+STATUS: applied
+CHANGE: <path>:<line-range> — <short change>.
+EVIDENCE: <exact validation command> — exit <code>; re-read <path>:<line-range>.
 ```
 
-If scope expanded: `scope-expanded: <verified paths/reason>.`
-If ambiguous: `ambiguous: <single missing decision>.`
-If validation regressed: report the exact failing command/error and do not hide it behind the receipt.
+Verified scope exceeds this role:
+
+```text
+STATUS: scope_expanded
+EVIDENCE: <verified paths/reason>.
+NEXT: main governed workflow must re-plan; do not widen here.
+```
+
+A real human decision is required:
+
+```text
+STATUS: human_gate
+GATE: <exact irreversible action, risk ownership, or missing product-intent decision>.
+```
+
+The requested behavior is not yet objectively resolvable:
+
+```text
+STATUS: ambiguous
+UNKNOWN: <single missing fact that prevents a correct edit>.
+```
+
+Validation proves the edit regressed behavior and the fix does not fit this role:
+
+```text
+STATUS: regressed
+EVIDENCE: <exact failing command/error>.
+```
+
+`human_gate` is not a generic request for permission. Reads, edits, tests, source inspection, and diagnostics the agent can run are agent work. `ambiguous` preserves an unknown fact; it must not be replaced by a plausible guess.
