@@ -64,6 +64,8 @@ final class FirstPartyAgentAssetContractTest extends TestCase
             glob($root . '/subagents/*.md') ?: [],
             glob($root . '/codex-hooks/*') ?: [],
             glob($root . '/codex-hooks/hooks/*.php') ?: [],
+            glob($root . '/claude-hooks/*') ?: [],
+            glob($root . '/claude-hooks/hooks/*.php') ?: [],
         );
 
         self::assertNotSame([], $paths);
