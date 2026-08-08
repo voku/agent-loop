@@ -165,6 +165,39 @@ final class AgentResultContractTest extends TestCase
         self::assertSame(['src/Added.php', 'src/Kept.php', 'src/Removed.php'], $changed);
     }
 
+    public function testSnapshotterSeesChangesInsideALinkedGitWorktree(): void
+    {
+        $repository = $this->root . '/worktree-source';
+        mkdir($repository . '/src', 0o775, true);
+        file_put_contents($repository . '/src/Probe.php', "<?php\n");
+        foreach ([
+            ['git', 'init', '-q'],
+            ['git', 'config', 'user.email', 'test@example.com'],
+            ['git', 'config', 'user.name', 'test'],
+            ['git', 'add', '-A'],
+            ['git', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'baseline'],
+        ] as $command) {
+            $this->git($repository, $command);
+        }
+
+        $worktree = $this->root . '/linked-worktree';
+        $this->git($repository, ['git', 'worktree', 'add', '-q', '--detach', $worktree, 'HEAD']);
+        self::assertFileExists($worktree . '/.git');
+        self::assertFalse(is_dir($worktree . '/.git'), 'linked worktrees use a .git file, not a directory');
+
+        $snapshotter = new WorkingTreeSnapshotter();
+        $before = $snapshotter->capture($worktree);
+        self::assertTrue($before->available);
+        self::assertSame([], $before->entries);
+
+        file_put_contents($worktree . '/src/Probe.php', "<?php\n// edited in linked worktree\n");
+
+        self::assertSame(
+            ['src/Probe.php'],
+            $snapshotter->capture($worktree)->changedPathsSince($before),
+        );
+    }
+
     /** @param non-empty-list<string> $command */
     private function git(string $workingDirectory, array $command): void
     {
