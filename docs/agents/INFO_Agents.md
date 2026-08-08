@@ -160,8 +160,8 @@ The discipline routes only when a narrow contract actually fits:
    verify real source, report exact locations, never edit;
 2. `agent-loop-surgical-edit` / `agent-loop-surgical-builder`: already-understood
    one/two-file edit, smallest diff, validate, escalate when scope expands;
-3. `agent-loop-code-review` / `agent-loop-code-reviewer`: complete raw-diff
-   correctness findings only;
+3. `agent-loop-code-review` / `agent-loop-code-reviewer`: complete raw-diff review
+   through one dominant installed `code-review-*` lens, with at most one evidence-backed handoff;
 4. `agent-loop-simplify-review`: current-diff complexity only;
 5. `agent-loop-simplify-audit`: repo-wide complexity audit;
 6. ambiguous, architectural, new-feature, or 3+ file work stays in the main
