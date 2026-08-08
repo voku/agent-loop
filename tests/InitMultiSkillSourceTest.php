@@ -54,7 +54,8 @@ final class InitMultiSkillSourceTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.codex/skills/workflow-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/code-review-security/SKILL.md');
-        self::assertStringContainsString('synced 2 skill file(s) from 2 source root(s)', $result['output']);
+        self::assertStringContainsString('synced 2 skill file(s) for codex', $result['output']);
+        self::assertStringContainsString('from 2 source root(s)', $result['output']);
 
         $manifest = json_decode(
             (string) file_get_contents($this->root . '/.codex/skills/.agent-loop-manifest.json'),
