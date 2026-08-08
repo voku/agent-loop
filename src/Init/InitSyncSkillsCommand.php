@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\PathResolver;
 
 final readonly class InitSyncSkillsCommand
 {
@@ -50,14 +51,32 @@ final readonly class InitSyncSkillsCommand
             echo $message . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
+        $requestedSkillRoots = $this->readOptionValues($tokens, 'skills-root');
+        $skillRoots = $requestedSkillRoots === []
+            ? [$paths->absoluteSkillsRoot()]
+            : array_values(array_unique(array_map(
+                fn (string $path): string => PathResolver::join($this->rootPath, $path),
+                $requestedSkillRoots,
+            )));
+
+        if ($requestedSkillRoots !== []) {
+            foreach ($skillRoots as $skillRoot) {
+                if (!is_dir($skillRoot)) {
+                    fwrite(\STDERR, '[FAIL] sync skills: source root does not exist: ' . $this->displayPath($skillRoot) . "\n");
+
+                    return 1;
+                }
+            }
+        }
+
         $dryRun = $this->hasFlag($tokens, 'dry-run');
         $force = $this->hasFlag($tokens, 'force');
         $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
 
-        $agents = $agent->isAll() ? ['codex', 'claude', 'copilot', 'antigravity'] : [$agent->canonicalName()];
+        $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
-            $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
+            $exit = $this->syncAgent($canonicalAgent, $skillRoots, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
                 return $exit;
             }
@@ -66,11 +85,23 @@ final readonly class InitSyncSkillsCommand
         return 0;
     }
 
-    private function syncAgent(string $agent, AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
+    /**
+     * @param non-empty-list<string> $skillRoots
+     */
+    private function syncAgent(string $agent, array $skillRoots, bool $dryRun, bool $force, bool $adoptExisting): int
     {
-        $skillFiles = $this->findSkillFiles($paths->absoluteSkillsRoot());
+        $collected = $this->collectSkillFiles($skillRoots);
+        if ($collected['errors'] !== []) {
+            foreach ($collected['errors'] as $error) {
+                echo $error . "\n";
+            }
+
+            return 1;
+        }
+
+        $skillFiles = $collected['files'];
         if ($skillFiles === []) {
-            echo '[WARN] sync skills: no skills found under ' . $paths->skillsRoot() . '/*/SKILL.md' . "\n";
+            echo '[WARN] sync skills: no skills found under ' . implode(', ', array_map($this->displayPath(...), $skillRoots)) . "\n";
 
             return 0;
         }
@@ -118,7 +149,7 @@ final readonly class InitSyncSkillsCommand
         $adopted = [];
         foreach ($desiredEntries as $entry) {
             $targetPath = $targetRoot . '/' . $entry;
-            if (($this->pathExists($targetPath)) && !$manifest->isManaged($entry) && !$force) {
+            if ($this->pathExists($targetPath) && !$manifest->isManaged($entry) && !$force) {
                 if ($adoptExisting) {
                     $adopted[$entry] = true;
 
@@ -173,7 +204,7 @@ final readonly class InitSyncSkillsCommand
             $manifest->write($desiredEntries);
         }
 
-        echo '[OK] sync skills: synced ' . count($skillFiles) . ' skill file(s) for ' . $agent . ' into ' . $targetRoot . "\n";
+        echo '[OK] sync skills: synced ' . count($skillFiles) . ' skill file(s) from ' . count($skillRoots) . ' source root(s) for ' . $agent . ' into ' . $targetRoot . "\n";
         $reloadHint = $this->reloadHint($agent);
         if ($reloadHint !== null) {
             echo $reloadHint . "\n";
@@ -223,7 +254,7 @@ final readonly class InitSyncSkillsCommand
 
             if ($item->isDir()) {
                 if (!is_dir($destinationPath) && !mkdir($destinationPath, 0o775, true) && !is_dir($destinationPath)) {
-                    throw new InvalidArgumentException('Unable to create target directory: ' . $destinationPath);
+                    throw new InvalidArgumentException('Unable to create directory: ' . $destinationPath);
                 }
 
                 continue;
@@ -231,7 +262,7 @@ final readonly class InitSyncSkillsCommand
 
             $destinationDir = dirname($destinationPath);
             if (!is_dir($destinationDir) && !mkdir($destinationDir, 0o775, true) && !is_dir($destinationDir)) {
-                throw new InvalidArgumentException('Unable to create target directory: ' . $destinationDir);
+                throw new InvalidArgumentException('Unable to create directory: ' . $destinationDir);
             }
 
             if (!copy($item->getPathname(), $destinationPath)) {
@@ -290,44 +321,12 @@ final readonly class InitSyncSkillsCommand
             return null;
         }
 
-        if ($this->isAbsolutePath($value)) {
-            return rtrim(str_replace('\\', '/', $value), '/');
-        }
-
-        return rtrim(str_replace('\\', '/', $this->rootPath), '/') . '/' . trim(str_replace('\\', '/', $value), '/');
+        return PathResolver::join($this->rootPath, $value);
     }
 
-    private function isAbsolutePath(string $path): bool
+    private function displayPath(string $path): string
     {
-        if ($path === '') {
-            return false;
-        }
-
-        if (str_starts_with($path, '/')) {
-            return true;
-        }
-
-        if (preg_match('/^[a-zA-Z]:[\\\\\/]/', $path) === 1) {
-            return true;
-        }
-
-        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) {
-            return true;
-        }
-
-        return false;
-    }
-
-
-    /**
-     * @param list<string> $tokens
-     * @return array<string, string>
-     */
-    private function readPathOverrides(array $tokens): array
-    {
-        $value = $this->readOptionValue($tokens, 'skills-root');
-
-        return $value === null ? [] : ['skills-root' => $value];
+        return PathResolver::relativeTo($this->rootPath, $path);
     }
 
     /**
@@ -353,8 +352,8 @@ final readonly class InitSyncSkillsCommand
             }
 
             $normalized = strtok(substr($token, 2), '=');
-            if (!in_array($normalized, array_merge($valueOptions, $flagOptions), true)) {
-                return 'Unknown init sync-skills option: --' . $normalized;
+            if (!is_string($normalized) || !in_array($normalized, array_merge($valueOptions, $flagOptions), true)) {
+                return 'Unknown init sync-skills option: --' . (is_string($normalized) ? $normalized : '');
             }
 
             if (in_array($normalized, $valueOptions, true) && !str_contains($token, '=')) {
@@ -375,48 +374,83 @@ final readonly class InitSyncSkillsCommand
      */
     private function readOptionValue(array $tokens, string $name): ?string
     {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
+        $values = $this->readOptionValues($tokens, $name);
 
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
-            }
-        }
-
-        return null;
+        return $values[0] ?? null;
     }
 
     /**
-     * @return array<string, string>
+     * @param list<string> $tokens
+     * @return list<string>
      */
-    private function findSkillFiles(string $skillsRoot): array
+    private function readOptionValues(array $tokens, string $name): array
     {
-        if (!is_dir($skillsRoot)) {
-            return [];
-        }
+        $values = [];
+        $prefix = '--' . $name . '=';
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (str_starts_with($token, $prefix)) {
+                $value = substr($token, strlen($prefix));
+                if ($value !== '') {
+                    $values[] = $value;
+                }
 
-        $files = [];
-        foreach (scandir($skillsRoot) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
                 continue;
             }
 
-            $skillFile = $skillsRoot . '/' . $entry . '/SKILL.md';
-            if (is_file($skillFile)) {
+            if ($token !== '--' . $name) {
+                continue;
+            }
+
+            $candidate = $tokens[$i + 1] ?? null;
+            if (is_string($candidate) && !str_starts_with($candidate, '--')) {
+                $values[] = $candidate;
+                ++$i;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param non-empty-list<string> $skillRoots
+     * @return array{files: array<string, string>, errors: list<string>}
+     */
+    private function collectSkillFiles(array $skillRoots): array
+    {
+        $files = [];
+        $sources = [];
+        $errors = [];
+
+        foreach ($skillRoots as $skillsRoot) {
+            if (!is_dir($skillsRoot)) {
+                continue;
+            }
+
+            foreach (scandir($skillsRoot) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+
+                $skillFile = $skillsRoot . '/' . $entry . '/SKILL.md';
+                if (!is_file($skillFile)) {
+                    continue;
+                }
+
+                if (isset($files[$entry])) {
+                    $errors[] = '[FAIL] sync skills: duplicate skill ' . $entry . ' in ' . $this->displayPath($sources[$entry]) . ' and ' . $this->displayPath($skillsRoot);
+
+                    continue;
+                }
+
                 $files[$entry] = $skillFile;
+                $sources[$entry] = $skillsRoot;
             }
         }
 
         ksort($files);
 
-        return $files;
+        return ['files' => $files, 'errors' => $errors];
     }
 }
