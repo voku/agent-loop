@@ -18,10 +18,13 @@ final readonly class WorkingTreeSnapshotter
     public function capture(string $repositoryRoot): WorkingTreeSnapshot
     {
         $root = realpath($repositoryRoot);
-        if ($root === false || !is_dir($root . '/.git')) {
+        if ($root === false) {
             return WorkingTreeSnapshot::unavailable();
         }
 
+        // Let Git decide whether this path is a working tree. A linked `git worktree` stores `.git`
+        // as a file pointing at the main repository metadata, so checking for a `.git` directory
+        // incorrectly downgraded real worktrees to unavailable evidence.
         $head = $this->run($root, ['git', 'rev-parse', 'HEAD']);
         $status = $this->run($root, ['git', 'status', '--porcelain=v1', '-z', '--untracked-files=all']);
         if ($status === null) {
