@@ -26,11 +26,11 @@ final class InitDoctorHostCapabilityTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
-            self::assertStringContainsString('Host capabilities [codex]: skills=supported, subagents=supported', $output);
-            self::assertStringContainsString('Host capabilities [claude]: skills=supported, subagents=supported', $output);
-            self::assertStringContainsString('Host capabilities [copilot]: skills=supported, subagents=supported', $output);
+            self::assertStringContainsString('Host capabilities [codex]: skill-projection=supported, subagent-projection=supported', $output);
+            self::assertStringContainsString('Host capabilities [claude]: skill-projection=supported, subagent-projection=supported', $output);
+            self::assertStringContainsString('Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertStringContainsString('repository-hooks=unsupported', $output);
-            self::assertStringContainsString('Host capabilities [antigravity]: skills=supported, subagents=supported', $output);
+            self::assertStringContainsString('Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertSame($before, scandir($root));
         } finally {
             rmdir($root);
