@@ -1,0 +1,256 @@
+name: Probe recall canonical guidance handoff
+
+on:
+  pull_request:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      EXPECTED_AGENT_LEARNING_REF: 0d2b94826e0baf4d7a6af20c0a0e28a53019c8e6
+      EXPECTED_RECALL_REF: 60b6d6231f09878387f42a8bee7991e5b76a5009
+      LEARNING_ROOT: infra/doc/agent-learning
+      PROBE_ACTOR: ci-canonical-handoff-probe
+      SELF_SHAPE_GOAL: Probe compile-local canonical guidance handoff with a real APPLIED memory proposal.
+      SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
+      SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Install exact learning + recall candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer config repositories.agent-learning-probe vcs https://github.com/voku/agent-learning
+          composer config repositories.recall-pr14 vcs https://github.com/voku/agent-recall-compiler
+          composer require 'voku/agent-learning:dev-main as 0.8.99' --no-update
+          composer require 'voku/agent-recall-compiler:dev-handoff/canonical-source-loaded as 0.9.99' --no-update
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
+          php -r '
+          require "vendor/autoload.php";
+          $expected = [
+              "voku/agent-learning" => getenv("EXPECTED_AGENT_LEARNING_REF"),
+              "voku/agent-recall-compiler" => getenv("EXPECTED_RECALL_REF"),
+          ];
+          foreach ($expected as $package => $wanted) {
+              $actual = Composer\InstalledVersions::getReference($package);
+              if (!is_string($wanted) || $wanted === "" || !is_string($actual) || $actual !== $wanted) {
+                  fwrite(STDERR, "Installed {$package} ref mismatch: expected {$wanted}, got " . var_export($actual, true) . ".\n");
+                  exit(1);
+              }
+              echo "{$package}: {$actual}\n";
+          }
+          '
+
+      - name: Create a real APPLIED memory proposal through agent-learning
+        id: proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cat > build/handoff-consolidation.json <<'JSON'
+          {
+            "action": "ADD",
+            "source_findings": ["finding.2026-08-07.006"],
+            "reason": "Cross-repository dogfood probe: make the proposal globally relevant only long enough to prove that an exact canonical MEMORY source replaces duplicate Proposal wording in this compile.",
+            "target_type": "memory",
+            "target": "memory.canonical-handoff-probe",
+            "scope": ["/"],
+            "new": "Workflow orchestration calls focused-package typed PHP APIs when they exist.",
+            "boundary": "Temporary CI-only handoff probe; do not mutate repository guidance content.",
+            "validation": ["Verify exact repository MEMORY source reference and sha256 during Recall compilation."]
+          }
+          JSON
+
+          proposal_id="$(php -r '
+          require "vendor/autoload.php";
+          echo (new voku\AgentLearning\ProposalImporter())->import($argv[1], $argv[2]);
+          ' "${LEARNING_ROOT}" build/handoff-consolidation.json)"
+          test -n "${proposal_id}"
+          printf '%s\n' "${proposal_id}" > build/handoff-proposal-id.txt
+          echo "proposal_id=${proposal_id}" >> "${GITHUB_OUTPUT}"
+
+          php -r '
+          require "vendor/autoload.php";
+          (new voku\AgentLearning\ProposalTransitionManager())->approve($argv[1], $argv[2], $argv[3]);
+          ' "${LEARNING_ROOT}" "${proposal_id}" "${PROBE_ACTOR}"
+
+          memory_sha="$(sha256sum MEMORY.md | awk '{print $1}')"
+          php -r '
+          echo json_encode([
+              "target_source_ref" => "MEMORY.md",
+              "target_content_hash" => $argv[1],
+              "probe" => "canonical-handoff",
+          ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), PHP_EOL;
+          ' "${memory_sha}" > build/handoff-validation.json
+
+          php -r '
+          require "vendor/autoload.php";
+          (new voku\AgentLearning\ProposalTransitionManager())->apply(
+              $argv[1],
+              $argv[2],
+              $argv[3],
+              $argv[4],
+              $argv[5],
+          );
+          ' "${LEARNING_ROOT}" "${proposal_id}" "${PROBE_ACTOR}" "$(git rev-parse HEAD)" build/handoff-validation.json
+
+          php bin/agent-loop learn validate --root "${LEARNING_ROOT}"
+
+      - name: Exact canonical MEMORY suppresses duplicate Proposal wording
+        shell: bash
+        run: |
+          set -euo pipefail
+          proposal_id='${{ steps.proposal.outputs.proposal_id }}'
+          rm -rf build/handoff-exact
+          php bin/agent-loop recall compile \
+            --root "${LEARNING_ROOT}" \
+            --task HANDOFF-EXACT \
+            --description 'Probe exact canonical-memory handoff.' \
+            --file .github/workflows/probe-recall-pr14-handoff.yml \
+            --output-dir build/handoff-exact
+
+          php -r '
+          $proposalId = $argv[1];
+          $selection = json_decode((string) file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
+          $facts = json_decode((string) file_get_contents($argv[3]), true, 512, JSON_THROW_ON_ERROR);
+          $selected = $selection["selected_guidance"] ?? [];
+          if (in_array($proposalId, is_array($selected) ? $selected : [], true)) {
+              fwrite(STDERR, "Exact canonical home did not suppress duplicate Proposal guidance.\n");
+              exit(1);
+          }
+          $evaluated = null;
+          foreach (($selection["evaluated_guidance"] ?? []) as $item) {
+              if (is_array($item) && ($item["guidance_id"] ?? null) === $proposalId) {
+                  $evaluated = $item;
+                  break;
+              }
+          }
+          if (!is_array($evaluated) || ($evaluated["exclusion_reason"] ?? null) !== "canonical_home_loaded" || ($evaluated["selected"] ?? null) !== false) {
+              fwrite(STDERR, "Proposal was not reported as canonical_home_loaded.\n");
+              exit(1);
+          }
+          $memory = null;
+          foreach (($facts["facts"] ?? []) as $fact) {
+              if (is_array($fact) && ($fact["id"] ?? null) === "memory.global") {
+                  $memory = $fact;
+                  break;
+              }
+          }
+          if (!is_array($memory) || ($memory["payload"]["canonical_source_ref"] ?? null) !== "MEMORY.md") {
+              fwrite(STDERR, "Exact compile did not load canonical repository MEMORY.\n");
+              exit(1);
+          }
+          if (($memory["payload"]["source_sha256"] ?? null) !== hash_file("sha256", "MEMORY.md")) {
+              fwrite(STDERR, "Canonical MEMORY hash does not match repository file.\n");
+              exit(1);
+          }
+          echo "[OK] exact canonical MEMORY replaced duplicate Proposal guidance for this compile\n";
+          ' "${proposal_id}" build/handoff-exact/selection-report.json build/handoff-exact/facts.json
+
+      - name: Stale handoff proof falls back to Proposal guidance
+        shell: bash
+        run: |
+          set -euo pipefail
+          proposal_id='${{ steps.proposal.outputs.proposal_id }}'
+          proposal_file="${LEARNING_ROOT}/proposals/applied/${proposal_id}.json"
+          cp "${proposal_file}" build/handoff-applied.valid.json
+          php -r '
+          $path = $argv[1];
+          $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          $data["applied_validation"]["target_content_hash"] = str_repeat("0", 64);
+          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+          ' "${proposal_file}"
+
+          rm -rf build/handoff-stale
+          php bin/agent-loop recall compile \
+            --root "${LEARNING_ROOT}" \
+            --task HANDOFF-STALE \
+            --description 'Probe stale canonical-memory handoff.' \
+            --file .github/workflows/probe-recall-pr14-handoff.yml \
+            --output-dir build/handoff-stale
+
+          php -r '
+          $proposalId = $argv[1];
+          $selection = json_decode((string) file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
+          $selected = $selection["selected_guidance"] ?? [];
+          if (!in_array($proposalId, is_array($selected) ? $selected : [], true)) {
+              fwrite(STDERR, "Stale canonical hash made Proposal guidance disappear instead of falling back.\n");
+              exit(1);
+          }
+          echo "[OK] stale canonical proof conservatively restored Proposal guidance\n";
+          ' "${proposal_id}" build/handoff-stale/selection-report.json
+
+          mv build/handoff-applied.valid.json "${proposal_file}"
+          php bin/agent-loop learn validate --root "${LEARNING_ROOT}"
+
+      - name: Let agent-loop self-shape with the real APPLIED proposal present
+        run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
+
+      - name: Prove self-shape also preferred repository MEMORY
+        shell: bash
+        run: |
+          set -euo pipefail
+          proposal_id='${{ steps.proposal.outputs.proposal_id }}'
+          selection="${LEARNING_ROOT}/recall-output/SELF-SHAPE/selection-report.json"
+          facts="${LEARNING_ROOT}/recall-output/SELF-SHAPE/facts.json"
+          test -s "${selection}"
+          test -s "${facts}"
+          php -r '
+          $proposalId = $argv[1];
+          $selection = json_decode((string) file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
+          $facts = json_decode((string) file_get_contents($argv[3]), true, 512, JSON_THROW_ON_ERROR);
+          if (in_array($proposalId, $selection["selected_guidance"] ?? [], true)) {
+              fwrite(STDERR, "Self-shape selected duplicate Proposal guidance despite exact MEMORY handoff.\n");
+              exit(1);
+          }
+          $reason = null;
+          foreach (($selection["evaluated_guidance"] ?? []) as $item) {
+              if (is_array($item) && ($item["guidance_id"] ?? null) === $proposalId) {
+                  $reason = $item["exclusion_reason"] ?? null;
+                  break;
+              }
+          }
+          if ($reason !== "canonical_home_loaded") {
+              fwrite(STDERR, "Self-shape did not report canonical_home_loaded for probe Proposal.\n");
+              exit(1);
+          }
+          $memoryFound = false;
+          foreach (($facts["facts"] ?? []) as $fact) {
+              if (is_array($fact) && ($fact["id"] ?? null) === "memory.global") {
+                  $memoryFound = true;
+                  break;
+              }
+          }
+          if (!$memoryFound) {
+              fwrite(STDERR, "Self-shape compiled no repository MEMORY fact.\n");
+              exit(1);
+          }
+          echo "[OK] self-shape agent context used canonical MEMORY without duplicate Proposal wording\n";
+          ' "${proposal_id}" "${selection}" "${facts}"
+
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recall-pr14-handoff-probe-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/handoff-*
+            infra/doc/agent-learning/recall-output/SELF-SHAPE
+            infra/doc/agent-learning/proposals/applied
+            infra/doc/agent-learning/history/decisions.jsonl
+            session_plan
