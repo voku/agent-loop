@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Keep agent-* PHP work concise for humans, minimal in implementation, map-first in navigation, and exact in evidence. Use for coding, debugging, refactoring, review, and guidance changes.
+description: Keep agent-* PHP work concise for humans, minimal in implementation, map-first in navigation, deterministic in workflow state, and exact in evidence. Use for coding, debugging, refactoring, review, and guidance changes.
 ---
 
 # Agent Loop Discipline
@@ -12,6 +12,27 @@ Control three separate budgets:
 3. context: bounded source reads selected through `agent-map` and recall.
 
 Never compress or rewrite raw evidence.
+
+## Governed Workflow Activation
+
+When the current task is explicitly using `agent-loop`, treat persisted workflow
+state as the source of truth rather than inventing a parallel conversational
+workflow.
+
+1. Reuse the stable task id and inspect `workflow status` before mutating code.
+2. Resume the active session for that task. Do not create a second active session.
+3. Use `agent-loop-workflow` for plan, approval, context, implementation,
+   validation, review, learning, verification, and close transitions.
+4. A mutating governed task does not bypass its approved brief because the edit
+   looks small. A locator or already-bounded read-only question may use a narrow
+   role directly when no governed mutation is being performed.
+5. If verified scope no longer matches the approved brief, re-plan. Do not
+   silently widen the task and keep old approval or validation evidence.
+
+Human gates stay human: approval of a work-brief revision, acceptance of real
+risk or irreversible action, and genuinely missing product intent. Everything
+else the available tools can inspect, edit, validate, or report remains agent
+work; do not hand executable work back to the human as instructions.
 
 ## Before Editing
 
@@ -32,8 +53,9 @@ guide bounded source reads and are not source evidence.
 
 ## Role Routing
 
-Use a narrow role only when its contract matches the task. Where the client
-supports the bundled dedicated subagent, delegate to the name in parentheses:
+Use a narrow role only when its contract matches the verified task. Where the
+client supports the bundled dedicated subagent, delegate to the name in
+parentheses:
 
 - locate definitions/callers/tests only -> `agent-loop-investigate`
   (`agent-loop-investigator`);
@@ -72,6 +94,41 @@ configuration, abstractions, compatibility, or policy unless the task requires
 it or validation proves it necessary. A small patch in the wrong layer is still
 a compact defect.
 
+## Workflow State And Output
+
+For a governed task, derive the current phase from persisted artifacts and
+observed command results. Never advance because the work merely looks complete.
+Use these phase names consistently:
+
+```text
+PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+```
+
+After a material transition, result, or blocker, use one compact receipt when a
+human-facing progress update is useful:
+
+```text
+RESULT: <one verified fact, decision, changed artifact, or blocker>
+STATE: <phase> <task-id> <brief revision when known>
+NEXT: <one concrete action owned by the agent, or the exact human gate>
+```
+
+Do not emit a receipt for every tool call and do not repeat unchanged state. A
+human gate is not a generic invitation to continue; name the exact approval,
+risk decision, irreversible action, or missing intent that blocks progress.
+
+On completion, report only:
+
+```text
+RESULT: <what changed and why>
+EVIDENCE: <exact validation commands/results and decisive artifact paths>
+OMITTED: <deliberate omissions plus observable revisit trigger, or none>
+```
+
+The receipt compresses narration, not evidence. Raw diffs, test output, static
+analysis, source, errors, and verification artifacts remain complete where they
+are stored or inspected.
+
 ## PHP Defaults
 
 - New files use `declare(strict_types=1);`.
@@ -87,8 +144,10 @@ a compact defect.
 
 - Remove filler, repetition, ceremonial preambles, and speculative feature tours.
 - Use clear full sentences; do not break grammar to save tokens.
-- Update only when a decision, result, blocker, or scope changes.
-- Preserve exact paths, symbols, commands, numbers, constraints, and errors.
+- Lead with the useful result or action, then state only context needed for the
+  next decision.
+- Update only when a decision, result, blocker, scope, or governed phase changes.
+- Preserve exact paths, symbols, commands, numbers, constraints, negation, and errors.
 - Persisted docs, commits, issues, PRs, and user-facing text use normal prose.
 - Expand security warnings, irreversible actions, ordering, and ambiguous trade-offs.
 
@@ -119,5 +178,5 @@ commands and claim a pass only after observing its exit code.
 
 ## Completion
 
-Report only: what changed and why; exact validation; deliberate omissions and
-the trigger that would justify them.
+Stop when the approved behavior is satisfied and every required gate is closed.
+Do not manufacture a follow-up task merely to keep the agent busy.

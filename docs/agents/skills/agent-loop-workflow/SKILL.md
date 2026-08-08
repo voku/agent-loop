@@ -1,27 +1,64 @@
 ---
 name: agent-loop-workflow
-description: Use the governed agent-loop workflow for planning, approval, bounded context, implementation evidence, review, learning decisions, and safe closure.
+description: Use the governed agent-loop state machine for planning, approval, bounded context, implementation evidence, review, learning decisions, verification, and safe closure.
 ---
 
 # Agent Loop Workflow
 
-Use this skill when operating or changing `agent-loop`. Apply
-`agent-loop-discipline` during implementation and
-`agent-loop-simplify-review` as an additional complexity-only review when the
-diff may contain speculative code.
+Use this skill when operating or changing a task under the governed `agent-loop`
+workflow. Apply `agent-loop-discipline` throughout implementation and
+`agent-loop-simplify-review` as a separate complexity-only pass when the diff may
+contain speculative code.
+
+Persisted workflow artifacts are the execution state. Conversation prose is not.
+Start by resolving the existing task/session state instead of inventing another
+plan beside it.
+
+## Deterministic Phase Model
+
+```text
+PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+```
+
+| Phase | Required evidence before leaving | Route |
+|---|---|---|
+| `PLAN` | candidate brief with goal, scope, non-goals, behavior anchors, validation | `agent-loop-task-start` |
+| `APPROVE` | named human approval of that exact brief revision | human gate |
+| `CONTEXT` | bounded approved L2 context plus verified real-source locations | `agent-loop-l2-context`, then `agent-loop-investigate` when location is unknown |
+| `IMPLEMENT` | smallest correct diff inside approved scope | `agent-loop-surgical-edit` for verified 1-2 file scope; otherwise main workflow |
+| `VALIDATE` | exact required commands recorded against current brief revision | `agent-loop-task-progress` |
+| `REVIEW` | blind-spot artifact plus complete raw-diff correctness review; complexity pass when relevant | `agent-loop-code-review`, `agent-loop-simplify-review` |
+| `LEARN` | truthful recall outcomes plus explicit learning decision | `agent-loop-learning-boundary` |
+| `VERIFY` | cross-package verification and workflow report pass | `agent-loop-review-close` |
+| `CLOSE` | close gate accepts current evidence | `agent-loop-review-close` |
+
+Transitions are evidence-driven, not optimistic:
+
+- scope exceeds the approved brief -> `PLAN` and obtain approval again;
+- validation fails because implementation is wrong -> `IMPLEMENT`;
+- validation exposes missing scope or product intent -> `PLAN`;
+- correctness review finds a defect -> `IMPLEMENT`, then repeat validation/review;
+- a reusable finding exists -> remain in `LEARN` until it is recorded truthfully;
+- a proposal is never self-approved by an agent;
+- failed verification -> repair the missing gate, do not jump to `CLOSE`;
+- accepted risk is an explicit named human override, never an implicit transition.
 
 ## Fast Path
 
 1. Inspect prior history only when earlier decisions materially affect the task.
-2. Plan explicit goal, scope, non-goals, behavior anchors, and exact validation.
-3. Approve that revision through a named human actor.
-4. Use `agent-map` to select bounded source reads.
-5. Implement the smallest correct change in the owning package.
-6. Record validation against the current brief revision.
-7. Review blind spots and the complete raw diff.
-8. Record recall outcomes and an explicit learning decision.
-9. Run cross-package verification and inspect the workflow report.
-10. Close as `done` only when every required gate passes.
+2. Resolve existing task/session state and reuse the stable task id.
+3. Plan explicit goal, scope, non-goals, behavior anchors, and exact validation.
+4. Approve that revision through a named human actor.
+5. Use `agent-map` to select bounded source reads.
+6. Implement the smallest correct change in the owning package.
+7. Record validation against the current brief revision.
+8. Review blind spots, the complete raw diff, and complexity separately when needed.
+9. Record recall outcomes and an explicit learning decision.
+10. Run cross-package verification, inspect the workflow report, and close only when every required gate passes.
+
+Do not ask the human to run reads, edits, tests, or reports that the available
+tools can run. Human interaction is reserved for approval, genuine ambiguity,
+irreversible actions, and explicit risk ownership.
 
 ## Canonical Flow
 
@@ -66,11 +103,26 @@ Use lower-level commands only for direct control:
   verification.
 - Recall files are not silently injected into an agent.
 - Findings are not durable memory until reviewed and promoted.
+- One task has one active session; resume it rather than creating parallel state.
 
 The L2 briefing labels claims `VERIFIED`, `INFERRED`, `ASSUMED`, `BLOCKED`, or
 `CONTRADICTED`. Model explanations and review comments remain hypotheses until
 current repository evidence, focused history, or a safe runtime observation
 supports them.
+
+## Progress Receipt
+
+After a meaningful phase transition, result, or blocker, report the compact
+contract from `agent-loop-discipline`:
+
+```text
+RESULT: <verified result>
+STATE: <phase> <task-id> <brief revision when known>
+NEXT: <one agent-owned action or exact human gate>
+```
+
+Do not narrate every tool call. Do not repeat unchanged state. Derive `STATE`
+from persisted artifacts or observed command results, never from intention.
 
 ## Navigation And Evidence
 
@@ -137,8 +189,7 @@ When package-owned agent behavior changes, run:
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
-vendor/bin/agent-loop init install-assets --agent=codex --dry-run
-vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init doctor
 composer dogfood:discipline
 vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|DispatcherTest'

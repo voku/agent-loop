@@ -34,6 +34,20 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertStringContainsString('Evidence Integrity', $output['hookSpecificOutput']['additionalContext']);
     }
 
+    public function testClaudeContextOmitsUserVisibleSystemMessageAndKeepsBoundedDiscipline(): void
+    {
+        $output = $this->hook()->claudeContextOutput('SessionStart', $this->json([
+            'hook_event_name' => 'SessionStart',
+            'source' => 'startup',
+        ]));
+
+        self::assertArrayNotHasKey('systemMessage', $output);
+        self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
+        self::assertLessThanOrEqual(9_500, strlen($output['hookSpecificOutput']['additionalContext']));
+        self::assertStringContainsString('Governed Workflow Activation', $output['hookSpecificOutput']['additionalContext']);
+        self::assertStringContainsString('RESULT:', $output['hookSpecificOutput']['additionalContext']);
+    }
+
     public function testRawDiffIsAllowedWithoutInputRewrite(): void
     {
         $this->assertPassThrough('git diff --no-ext-diff');

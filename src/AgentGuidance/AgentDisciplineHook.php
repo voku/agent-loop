@@ -12,6 +12,7 @@ final readonly class AgentDisciplineHook
 {
     private const int MAX_INPUT_BYTES = 1_048_576;
     private const int MAX_CONTEXT_BYTES = 32_768;
+    private const int MAX_CLAUDE_CONTEXT_BYTES = 9_500;
 
     public function __construct(private string $repositoryRoot)
     {
@@ -27,28 +28,41 @@ final readonly class AgentDisciplineHook
      */
     public function contextOutput(string $event, string $rawPayload): array
     {
-        if (!in_array($event, ['SessionStart', 'SubagentStart'], true)) {
-            throw new UnexpectedValueException('Unsupported context hook event: ' . $event);
-        }
-
-        $payload = $this->decodePayload($rawPayload);
-        $payloadEvent = $payload['hook_event_name'] ?? null;
-        if (!is_string($payloadEvent) || $payloadEvent !== $event) {
-            throw new UnexpectedValueException(sprintf(
-                'Expected hook_event_name %s, got %s.',
-                $event,
-                is_scalar($payloadEvent) ? (string) $payloadEvent : get_debug_type($payloadEvent),
-            ));
-        }
-
         return [
             'continue' => true,
             'suppressOutput' => true,
             'systemMessage' => 'AGENT_LOOP_DISCIPLINE',
-            'hookSpecificOutput' => [
-                'hookEventName' => $event,
-                'additionalContext' => $this->disciplineContext(),
-            ],
+            'hookSpecificOutput' => $this->contextHookSpecificOutput(
+                $event,
+                $rawPayload,
+                self::MAX_CONTEXT_BYTES,
+                '.codex',
+            ),
+        ];
+    }
+
+    /**
+     * Claude Code renders `systemMessage` as a user-visible warning, so its
+     * context hook deliberately omits the Codex marker while preserving the
+     * same hidden discipline context.
+     *
+     * @return array{
+     *   continue: true,
+     *   suppressOutput: true,
+     *   hookSpecificOutput: array{hookEventName: 'SessionStart'|'SubagentStart', additionalContext: string}
+     * }
+     */
+    public function claudeContextOutput(string $event, string $rawPayload): array
+    {
+        return [
+            'continue' => true,
+            'suppressOutput' => true,
+            'hookSpecificOutput' => $this->contextHookSpecificOutput(
+                $event,
+                $rawPayload,
+                self::MAX_CLAUDE_CONTEXT_BYTES,
+                '.claude',
+            ),
         ];
     }
 
@@ -81,6 +95,35 @@ final readonly class AgentDisciplineHook
         return [
             'continue' => true,
             'hookSpecificOutput' => ['hookEventName' => 'PreToolUse'],
+        ];
+    }
+
+    /**
+     * @return array{hookEventName: 'SessionStart'|'SubagentStart', additionalContext: string}
+     */
+    private function contextHookSpecificOutput(
+        string $event,
+        string $rawPayload,
+        int $maxContextBytes,
+        string $clientDirectory,
+    ): array {
+        if (!in_array($event, ['SessionStart', 'SubagentStart'], true)) {
+            throw new UnexpectedValueException('Unsupported context hook event: ' . $event);
+        }
+
+        $payload = $this->decodePayload($rawPayload);
+        $payloadEvent = $payload['hook_event_name'] ?? null;
+        if (!is_string($payloadEvent) || $payloadEvent !== $event) {
+            throw new UnexpectedValueException(sprintf(
+                'Expected hook_event_name %s, got %s.',
+                $event,
+                is_scalar($payloadEvent) ? (string) $payloadEvent : get_debug_type($payloadEvent),
+            ));
+        }
+
+        return [
+            'hookEventName' => $event,
+            'additionalContext' => substr($this->disciplineContext($clientDirectory), 0, $maxContextBytes),
         ];
     }
 
@@ -125,10 +168,10 @@ final readonly class AgentDisciplineHook
         throw new UnexpectedValueException('PreToolUse Bash payload misses command text.');
     }
 
-    private function disciplineContext(): string
+    private function disciplineContext(string $clientDirectory): string
     {
         foreach ([
-            $this->repositoryRoot . '/.codex/skills/agent-loop-discipline/SKILL.md',
+            $this->repositoryRoot . '/' . $clientDirectory . '/skills/agent-loop-discipline/SKILL.md',
             $this->repositoryRoot . '/docs/agents/skills/agent-loop-discipline/SKILL.md',
         ] as $candidate) {
             if (!is_file($candidate) || !is_readable($candidate)) {
@@ -140,7 +183,7 @@ final readonly class AgentDisciplineHook
                 continue;
             }
 
-            return substr($this->stripFrontmatter($content), 0, self::MAX_CONTEXT_BYTES);
+            return $this->stripFrontmatter($content);
         }
 
         return <<<'TEXT'
