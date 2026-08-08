@@ -12,7 +12,7 @@ Own the review workflow, not the engineering handbook.
 1. Review the complete raw diff and task/brief evidence. Never review a summary instead.
 2. Use `agent-loop map changed --base=<ref>` and focused caller/context lookup when a claim depends on surrounding code. Verify against real source.
 3. Select **one dominant** installed `code-review-*` engineering lens for the most material concern. Do not run a default review swarm.
-4. Accept at most one evidence-backed `HANDOFF:` from that lens. A handoff changes focus; it does not fan out into every other lens.
+4. Accept at most one `HANDOFF:` only when it names an installed lens plus evidence `path:line` and why that concern is dominant. Otherwise return `STATUS: blocked` with the missing target/evidence.
 5. Persist/report the lens result without turning it into workflow approval. `review blindspots` remains a separate deterministic process/evidence check.
 6. Read-only. Do not apply fixes during review.
 
@@ -28,7 +28,7 @@ Lens results are:
 ```text
 STATUS: findings
 <path>:<line>: <severity> <problem>. <concrete fix>.
-HANDOFF: <code-review-* lens>   # optional, at most one
+HANDOFF: <code-review-* lens> <path>:<line> <why this concern is dominant>   # optional, at most one
 ```
 
 ```text
