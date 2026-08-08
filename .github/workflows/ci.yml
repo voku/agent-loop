@@ -27,6 +27,10 @@ jobs:
     permissions:
       contents: read
     timeout-minutes: 30
+    env:
+      SELF_SHAPE_GOAL: ${{ github.event.pull_request.title }}
+      SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
+      SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -46,7 +50,7 @@ jobs:
       - name: Let agent-loop edit itself in an isolated worktree
         run: php tools/self-edit-dogfood.php
       - name: Govern this change with agent-loop itself
-        run: bash tools/self-shape-dogfood.sh --base-ref=${{ github.base_ref }}
+        run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
       - name: Upload self-shaping evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,6 +59,7 @@ jobs:
           if-no-files-found: warn
           path: |
             build/self-shape-*.json
+            build/self-shape-raw.diff
             infra/doc/agent-learning/recall-output/SELF-SHAPE
             infra/doc/agent-learning/history
             session_plan
