@@ -4,6 +4,10 @@
 
 The repository therefore keeps a first-party self-shaping scenario that runs the same public workflow used by consumers, while preserving the one packaging distinction that cannot be identical: the root checkout invokes `php bin/agent-loop`, whereas the installed-consumer gate invokes `vendor/bin/agent-loop`.
 
+The self-shape job also contains one deliberately narrower preflight: `tools/self-edit-dogfood.php` creates an isolated linked Git worktree and lets `agent-loop edit --runner=mechanical` change a tiny tracked fixture in its own repository. The probe then requires Git-observed `changed_files` evidence for exactly that fixture and proves that no external model was invoked. The worktree is discarded afterwards; the PR checkout is never mechanically rewritten by CI.
+
+That distinction matters. The normal self-shape lifecycle governs the real PR diff. The self-edit probe separately proves that the product can actually execute and observe one edit against itself rather than merely review a diff produced by something else.
+
 ## Evidence chain
 
 The validated source findings live under `infra/doc/agent-learning/findings/validated/`:
@@ -22,9 +26,27 @@ The validated source findings live under `infra/doc/agent-learning/findings/vali
 - `phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php` prevents `voku\\AgentLoop\\Workflow` from instantiating focused-package CLIs;
 - `tools/project-phpstan-rules.sh` proves that rule in a separate PHPStan process without contaminating PHPUnit;
 - workflow PHPUnit tests assert persisted session, brief, approval, verification, close behavior, and the one-active-session retry invariant instead of adapter argv;
+- `WorkingTreeSnapshotter` asks Git whether a path is a working tree instead of assuming `.git` must be a directory, so linked worktrees retain observed-diff evidence;
+- `tools/self-edit-dogfood.php` performs one deterministic mechanical edit in an isolated linked worktree and verifies the observed edit evidence;
 - `tools/self-shape-dogfood.sh` owns the repeatable repository lifecycle and derives its changed-file scope and learning decision from repository evidence;
-- `.github/workflows/ci.yml` invokes that runner with read-only/non-persisted repository credentials and uploads its evidence rather than defining the lifecycle itself;
+- `.github/workflows/ci.yml` runs the isolated self-edit probe and then the normal self-shape runner with read-only/non-persisted repository credentials, uploading both evidence sets rather than granting either write access;
 - `tools/release-set-dogfood.php` remains the separate installed-consumer contract.
+
+## Self-edit preflight
+
+The self-edit probe intentionally does less than the governed lifecycle and more than a unit test:
+
+1. create a detached linked worktree at the PR `HEAD`;
+2. expose the already-installed Composer dependency tree without installing a second package set;
+3. invoke the real `agent-loop edit` command against `SelfEditProbe::value`;
+4. route through the mechanical runner with one exact replacement;
+5. require PHP lint success from the runner;
+6. require `agent-result.json` to report `changed_files_source=git_status_diff`;
+7. require exactly `tests/fixtures/self-shape/SelfEditProbe.php` as the observed changed file;
+8. require the execution artifact to prove the mechanical runner was used with zero model tokens/tool calls and `external_model_invoked=false`;
+9. copy bounded JSON evidence into `build/` and delete the worktree.
+
+It does not run `edit verify`: verifier-owned knowledge answers must not be copied from the private key merely to make a self-test green. The installed release-set work tracks full mechanical edit verification separately. Self-dogfood is not an excuse to let the product grade its own answers.
 
 ## Self-shape lifecycle
 
@@ -47,7 +69,7 @@ The runner performs this sequence against the real diff from the merge-base to `
 
 The initial review may warn while the lifecycle is incomplete. The final review may not. The CLI exit code is not the semantic gate because `warn` can still be a successfully executed review command; the runner reads `SELF-SHAPE.blindspots.json` and accepts only `status=ok`. Likewise, successful `workflow close` is not enough by itself: the persisted final projection is checked as machine-readable evidence before the dogfood run prints `PASSED`.
 
-The CI wrapper is deliberately less privileged than the code it tests: the pull-request self-shape job declares `contents: read` and checks out with `persist-credentials: false`. The runner needs the Git graph for its merge-base and changed-file scope; it does not need a repository write credential.
+The CI wrapper is deliberately less privileged than the code it tests: the pull-request self-shape job declares `contents: read` and checks out with `persist-credentials: false`. Neither the self-edit probe nor the lifecycle runner needs a repository write credential. The linked worktree is local process state, not a hidden push path.
 
 ## Promotion rule
 
