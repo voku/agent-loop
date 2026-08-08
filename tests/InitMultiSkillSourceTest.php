@@ -97,6 +97,50 @@ final class InitMultiSkillSourceTest extends TestCase
         self::assertDirectoryDoesNotExist($this->root . '/.codex/skills');
     }
 
+    public function testSyncSkillsRejectsUnreadableSourceBeforeMutatingManagedTargets(): void
+    {
+        $this->writeSkill('workflow-skills', 'workflow-discipline', '# Workflow');
+
+        $unreadableRoot = $this->root . '/engineering-skills';
+        mkdir($unreadableRoot, 0o775, true);
+        self::assertTrue(chmod($unreadableRoot, 0o111));
+        if (is_readable($unreadableRoot)) {
+            self::markTestSkipped('Current test user can still read a 0111 directory.');
+        }
+
+        $staleSkill = $this->root . '/.codex/skills/stale/SKILL.md';
+        mkdir(dirname($staleSkill), 0o775, true);
+        file_put_contents($staleSkill, "# Existing managed target\n");
+        $manifestPath = $this->root . '/.codex/skills/.agent-loop-manifest.json';
+        $manifestBefore = <<<'JSON'
+{
+    "version": 1,
+    "kind": "skills",
+    "agent": "codex",
+    "entries": [
+        "stale"
+    ]
+}
+JSON;
+        file_put_contents($manifestPath, $manifestBefore . "\n");
+
+        try {
+            $result = $this->runSync([
+                '--agent=codex',
+                '--skills-root=workflow-skills',
+                '--skills-root=engineering-skills',
+            ]);
+        } finally {
+            chmod($unreadableRoot, 0o775);
+        }
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('unable to read source root: engineering-skills', $result['output']);
+        self::assertFileExists($staleSkill);
+        self::assertSame($manifestBefore . "\n", file_get_contents($manifestPath));
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/workflow-discipline/SKILL.md');
+    }
+
     public function testInstallAssetsMergesBundledWorkflowSkillsWithExplicitLocalEngineeringSkills(): void
     {
         $this->writeSkill('engineering-skills', 'code-review-security', '# Security');
