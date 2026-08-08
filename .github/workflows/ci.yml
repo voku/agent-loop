@@ -141,6 +141,13 @@ jobs:
           test -f .agents/agents/agent-loop-surgical-builder.md
           test -f .agents/agents/agent-loop-code-reviewer.md
           mkdir -p "${GITHUB_WORKSPACE}/build"
+          doctor_output="$(php vendor/bin/agent-loop init doctor)"
+          printf '%s\n' "${doctor_output}" > "${GITHUB_WORKSPACE}/build/installed-host-capabilities.txt"
+          grep -Fq 'Host capabilities [codex]: skills=supported, subagents=supported' <<< "${doctor_output}"
+          grep -Fq 'Host capabilities [claude]: skills=supported, subagents=supported' <<< "${doctor_output}"
+          grep -Fq 'Host capabilities [copilot]: skills=supported, subagents=supported' <<< "${doctor_output}"
+          grep -Fq 'Host capabilities [antigravity]: skills=supported, subagents=supported' <<< "${doctor_output}"
+          grep -Fq 'repository-hooks=unsupported' <<< "${doctor_output}"
           php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence
@@ -152,4 +159,5 @@ jobs:
           path: |
             build/release-set-report.json
             build/installed-assets-dogfood.json
+            build/installed-host-capabilities.txt
             ${{ runner.temp }}/agent-loop-release-set/artifacts
