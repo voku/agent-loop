@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: 1ad35434896e22fc747629d41de3069b87306aea
+          ref: 7fa831a5c2a2f7d98dcb0efe78f69472d8980d59
           path: build/agent-skills-source
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
@@ -139,11 +139,20 @@ jobs:
           test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
           test -f .codex/skills/agent-loop-discipline/SKILL.md
           test -f .codex/skills/agent-loop-investigate/SKILL.md
+          test -f .codex/skills/coding-simplicity/SKILL.md
           test -f .codex/skills/code-review-security/SKILL.md
           test -f .codex/skills/operational-prompting/SKILL.md
+          test -f .claude/skills/coding-simplicity/SKILL.md
+          test -f .github/skills/coding-simplicity/SKILL.md
+          test -f .agents/skills/coding-simplicity/SKILL.md
           test -f .claude/skills/code-review-security/SKILL.md
           test -f .github/skills/code-review-security/SKILL.md
           test -f .agents/skills/code-review-security/SKILL.md
+          grep -Fq '## Search order' .codex/skills/coding-simplicity/SKILL.md
+          grep -Fq '## Safety floor' .codex/skills/coding-simplicity/SKILL.md
+          grep -Fq '## Verification floor' .codex/skills/coding-simplicity/SKILL.md
+          grep -Fq 'does not impose a persona' .codex/skills/coding-simplicity/SKILL.md
+          ! grep -Fq 'Minimal Implementation Ladder' .codex/skills/agent-loop-discipline/SKILL.md
           test -f .codex/agents/agent-loop-investigator.toml
           test -f .codex/agents/agent-loop-surgical-builder.toml
           test -f .codex/agents/agent-loop-code-reviewer.toml
