@@ -24,6 +24,14 @@ final readonly class InitAgent
     }
 
     /**
+     * @return list<string>
+     */
+    public static function canonicalNames(): array
+    {
+        return self::CANONICAL;
+    }
+
+    /**
      * @param list<string> $allowedCanonicalAgents
      * @param array<string, array<string, string>> $configOverrides
      */

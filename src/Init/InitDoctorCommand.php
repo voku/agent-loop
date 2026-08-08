@@ -67,7 +67,7 @@ final readonly class InitDoctorCommand
      */
     private function buildResults(AgentAssetSourcePaths $paths): array
     {
-        $results = [
+        return [
             $this->checkPhpVersion(),
             ...$this->checkComposer(),
             $this->checkGit(),
@@ -76,14 +76,13 @@ final readonly class InitDoctorCommand
             InitCheckResult::info('subagents-root: ' . $paths->subagentsRoot()),
             InitCheckResult::info('hooks-root: ' . $paths->hooksRoot()),
             InitCheckResult::info('tools-root: ' . $paths->toolsRoot()),
+            ...$this->checkHostCapabilities(),
             $this->checkSkills($paths),
             $this->checkSubagents($paths),
             $this->checkHooks($paths),
             $this->checkTools($paths),
             InitCheckResult::ok('Workflow: init diagnostics do not affect workflow close'),
         ];
-
-        return $results;
     }
 
     private function checkPhpVersion(): InitCheckResult
@@ -186,6 +185,24 @@ final readonly class InitDoctorCommand
         }
 
         $results[] = InitCheckResult::ok('Make agent assets: found ' . implode(', ', $foundTargets));
+
+        return $results;
+    }
+
+    /**
+     * @return list<InitCheckResult>
+     */
+    private function checkHostCapabilities(): array
+    {
+        $results = [];
+        foreach (InitAgent::canonicalNames() as $agent) {
+            $capabilities = [];
+            foreach (HostCapabilityMatrix::forAgent($agent) as $row) {
+                $capabilities[] = $row['capability']->value . '=' . $row['status']->value;
+            }
+
+            $results[] = InitCheckResult::info('Host capabilities [' . $agent . ']: ' . implode(', ', $capabilities));
+        }
 
         return $results;
     }

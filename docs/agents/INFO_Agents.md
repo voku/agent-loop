@@ -2,10 +2,10 @@
 
 ## Purpose
 
-`agent-loop` ships portable, repository-managed agent behavior with the Composer
+`agent-loop` ships portable, repository-managed workflow behavior with the Composer
 package. Consumers install reviewed files from their local `vendor/voku/agent-loop`
 copy; `init` does not clone repositories, execute remote installers, or depend on
-an external plugin marketplace.
+an external plugin marketplace at runtime.
 
 Canonical package roots:
 
@@ -26,6 +26,11 @@ discover another clever agent plugin on the internet:
 
 The first three are canonical. Host adapters do not get to invent policy.
 
+Reusable engineering knowledge has a separate first-party owner: `voku/agent-skills`.
+`agent-loop` may project an explicitly supplied local `agent-skills/skills` tree
+alongside its package-owned workflow skills, but it does not copy that engineering
+semantics into a second canonical source.
+
 ## First-party install
 
 Review the plan:
@@ -34,7 +39,7 @@ Review the plan:
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 ```
 
-Preview and install the package-owned assets:
+Preview and install package-owned assets only:
 
 ```bash
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
@@ -42,9 +47,28 @@ vendor/bin/agent-loop init install-assets --agent=all
 vendor/bin/agent-loop init doctor
 ```
 
-`--agent=all` installs:
+To project a separately checked-out/pinned first-party engineering skill source in
+the same managed skill sync, pass it explicitly as a local root:
 
-- portable skills for Codex, Claude, Copilot, and Antigravity;
+```bash
+vendor/bin/agent-loop init install-assets \
+  --agent=all \
+  --extra-skills-root=/path/to/agent-skills/skills
+```
+
+`--extra-skills-root` is repeatable. It never replaces the bundled workflow skill
+root. All selected skill roots are collected before target mutation and written
+through one managed manifest. If two roots contain the same skill directory name,
+the install fails rather than choosing a winner by source order.
+
+The caller owns provenance for additional local roots. A release/CI workflow may,
+for example, check out an exact `voku/agent-skills` commit before calling
+`install-assets`; normal `agent-loop` runtime does not fetch that repository.
+
+`--agent=all` installs/projects:
+
+- package-owned workflow skills, plus any explicit local skill roots, for Codex,
+  Claude, Copilot, and Antigravity;
 - investigator, surgical-builder, and code-reviewer subagent definitions for all
   four clients;
 - repository-local discipline hooks for Codex and Claude.
@@ -56,14 +80,17 @@ reasoning level.
 
 Package installation is intentionally boring:
 
-- assets are read only from the installed Composer package;
-- no host source override is accepted by `install-assets`;
+- package-owned workflow skills, subagent roles, and hooks are always read from
+  the installed Composer package;
+- `install-assets` may merge explicit additional **local skill roots** only; it
+  does not accept replacement sources for package roles or hooks;
+- no remote source is downloaded by `install-assets` or `sync-skills`;
+- duplicate skill IDs across canonical roots fail before target mutation;
 - existing manifest-safe `sync-skills`, `sync-subagents`, and `sync-hooks`
   implementations perform the writes;
 - unmanaged targets are not overwritten unless `--force` or `--adopt-existing`
   is explicit;
-- `--dry-run` is supported;
-- nothing is downloaded or executed remotely.
+- `--dry-run` is supported.
 
 ## Bootstrap execution contract
 
@@ -233,6 +260,28 @@ Hooks are behavioral guardrails, never correctness or security boundaries. A
 host can skip or disable them. Product code, CI, trust-boundary checks, workflow
 gates, and package installation must remain correct without hook execution.
 
+## Host capability projection
+
+Different agent assets have different portability. `HostCapabilityMatrix` records
+what **agent-loop currently implements**, not every feature a vendor may expose.
+`init doctor` renders that current truth explicitly.
+
+The first distinction is deliberate:
+
+- `skill-projection=supported` means agent-loop can render/install the selected
+  canonical skill roots for that host;
+- `subagent-projection=supported` means agent-loop can render/install the
+  canonical role representation for that host;
+- neither statement by itself proves host discovery, delegated inheritance, or
+  runtime execution.
+
+Session bootstrap, subagent bootstrap, pre-tool guardrails, and repository hook
+integration are separate capabilities. They remain `unsupported` for a host until
+agent-loop has a verified native mechanism and executable evidence for it.
+
+See `FIRST_PARTY_CAPABILITY_MATRIX.md` for semantic ownership and host projection
+inventory.
+
 ## Current commands
 
 ```bash
@@ -242,7 +291,8 @@ vendor/bin/agent-loop init tools
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
-vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init install-assets --agent=all --extra-skills-root=/path/to/agent-skills/skills
+vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=docs/agents/skills --skills-root=/path/to/agent-skills/skills --dry-run
 vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
@@ -271,7 +321,7 @@ Query the index, then inspect the selected real source. Never dump
 ## Host-repository overrides
 
 Ordinary validation/sync commands may use host-owned canonical roots through
-`.agent-loop/init.json`; `install-assets` intentionally cannot.
+`.agent-loop/init.json`:
 
 ```json
 {
@@ -286,6 +336,11 @@ Ordinary validation/sync commands may use host-owned canonical roots through
   }
 }
 ```
+
+`install-assets` does not accept that configuration as a replacement for its
+package-owned workflow source. It may only **add** explicitly named local skill
+roots via `--extra-skills-root`. Package roles/hooks stay immutable first-party
+assets, and duplicate skill IDs across roots fail rather than override.
 
 Do not edit generated client copies first. Update canonical host/package source,
 validate it, then sync it.
@@ -303,12 +358,23 @@ Guidance changes additionally use `agent-loop-dogfood`: observable
 tool/source/diff/validation/review artifacts, not invented reasoning-token
 savings.
 
-The release-set CI installs `agent-loop` into a clean Composer consumer and
-exercises package-owned installation. A green installer proves mechanics, not
-that guidance improved behavior; behavioral claims still require comparable
-observed tasks.
+PR CI runs `tools/self-shape-dogfood.sh` against the real PR diff, so changes to
+agent-loop pass through agent-loop's own governed lifecycle. The installed
+release-set job separately installs the candidate into a clean Composer consumer.
+For first-party engineering-skill integration it checks out an exact
+`voku/agent-skills` revision in CI, passes that checkout as a local
+`--extra-skills-root`, and verifies that package workflow skills and engineering
+skills coexist in one managed projection across the supported host roots.
+
+A green installer proves projection mechanics, not that a host executes every
+installed capability. Runtime/delegation claims require their own evidence.
 
 ## Provenance
+
+`FIRST_PARTY_CAPABILITY_MATRIX.md` maps our own semantic owners and current host
+projection boundaries. It is the first place to check before adding another
+workflow skill that may already be owned by `voku/agent-skills` or a focused
+agent-* package.
 
 `UPSTREAM_CAPABILITY_MATRIX.md` is the row-by-row integration inventory for
 Caveman, Ponytail, and Attention Control. It distinguishes `ALREADY`, `ADAPT`,

@@ -71,6 +71,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout pinned first-party engineering skills
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-skills
+          ref: b5b910666c08e30950e2a5999d9c4a447b31e367
+          path: build/agent-skills-source
+          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -120,7 +127,9 @@ jobs:
           JSON
           composer update --working-dir="${consumer}" --no-interaction --prefer-dist --no-progress --no-ansi
           cd "${consumer}"
-          php vendor/bin/agent-loop init install-assets --agent=all
+          php vendor/bin/agent-loop init install-assets \
+            --agent=all \
+            --extra-skills-root="${GITHUB_WORKSPACE}/build/agent-skills-source/skills"
           test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-discipline/SKILL.md
           test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-investigate/SKILL.md
           test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-surgical-edit/SKILL.md
@@ -130,6 +139,11 @@ jobs:
           test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
           test -f .codex/skills/agent-loop-discipline/SKILL.md
           test -f .codex/skills/agent-loop-investigate/SKILL.md
+          test -f .codex/skills/code-review-security/SKILL.md
+          test -f .codex/skills/operational-prompting/SKILL.md
+          test -f .claude/skills/code-review-security/SKILL.md
+          test -f .github/skills/code-review-security/SKILL.md
+          test -f .agents/skills/code-review-security/SKILL.md
           test -f .codex/agents/agent-loop-investigator.toml
           test -f .codex/agents/agent-loop-surgical-builder.toml
           test -f .codex/agents/agent-loop-code-reviewer.toml
@@ -141,6 +155,14 @@ jobs:
           test -f .agents/agents/agent-loop-surgical-builder.md
           test -f .agents/agents/agent-loop-code-reviewer.md
           mkdir -p "${GITHUB_WORKSPACE}/build"
+          doctor_output="$(php vendor/bin/agent-loop init doctor)"
+          printf '%s\n' "${doctor_output}" > "${GITHUB_WORKSPACE}/build/installed-host-capabilities.txt"
+          grep -Fq 'Host capabilities [codex]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
+          grep -Fq 'Host capabilities [claude]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
+          grep -Fq 'Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
+          grep -F 'Host capabilities [copilot]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
+          grep -Fq 'Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
+          grep -F 'Host capabilities [antigravity]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
           php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence
@@ -152,4 +174,5 @@ jobs:
           path: |
             build/release-set-report.json
             build/installed-assets-dogfood.json
+            build/installed-host-capabilities.txt
             ${{ runner.temp }}/agent-loop-release-set/artifacts
