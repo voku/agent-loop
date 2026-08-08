@@ -1,11 +1,11 @@
 ---
 name: agent-loop-discipline
-description: Keep agent-* PHP work concise for humans, minimal in implementation, map-first in navigation, deterministic in workflow state, and exact in evidence. Use for coding, debugging, refactoring, review, and guidance changes.
+description: Keep governed agent-* work resumable, map-first, deterministic in workflow state, and exact in evidence. Use for agent-loop workflow, navigation, delegation, review routing, and guidance changes. Engineering implementation rules belong to loadable agent-skills, not this session bootstrap.
 ---
 
 # Agent Loop Discipline
 
-Keep three budgets separate: human attention, implementation complexity, and context. Never compress or rewrite raw evidence.
+Keep workflow state, evidence, navigation, and human attention bounded. Never compress or rewrite raw evidence, and do not turn this bootstrap into a general engineering handbook.
 
 ## Governed Workflow
 
@@ -40,6 +40,17 @@ vendor/bin/agent-loop map changed --base=<ref>
 
 Skip map ceremony for trivial docs/already-localized edits. Never dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite`; map output selects bounded real-source reads and is not source evidence.
 
+## Engineering Skill Routing
+
+`agent-loop` owns orchestration, not reusable engineering judgment.
+
+- Coding, bug fixing, or refactoring that needs minimal implementation discipline -> load `coding-simplicity` when installed.
+- PHP-specific implementation guidance -> load `php-best-practices` when relevant.
+- Engineering review -> select one dominant installed `code-review-*` lens; allow at most one evidence-backed handoff.
+- If a required engineering skill is unavailable, name that capability gap. Do not silently recreate its rules inside this bootstrap.
+
+`coding-simplicity` owns the Ponytail-derived implementation search order, root-cause rule, safety floor, and verification floor. Those rules are intentionally **not** injected into every session or unrelated subagent.
+
 ## Role Routing
 
 Use a narrow role only when its verified contract fits:
@@ -54,23 +65,6 @@ Use a narrow role only when its verified contract fits:
 Useful bounded chain: `investigator -> surgical builder -> code reviewer`.
 
 Narrow roles return deterministic terminal states: `located`, `no_match`, `applied`, `scope_expanded`, `human_gate`, `ambiguous`, `regressed`, `findings`, `clean`, or `blocked`. The parent consumes the state; a narrow role never silently widens scope. Do not delegate trivial answers merely to look agentic.
-
-## Minimal Implementation Ladder
-
-Stop at the first rung that satisfies the verified requirement:
-
-1. no change;
-2. reuse repository code;
-3. PHP standard library;
-4. native platform/database/shell/protocol;
-5. installed dependency;
-6. one verified root-cause fix for all callers;
-7. deterministic `agent-loop edit --runner=auto`;
-8. minimum new code.
-
-Then stop. No adjacent cleanup, abstraction, config, compatibility, dependency, or policy unless requested or validation requires it. A small patch in the wrong layer is still wrong.
-
-Non-trivial changed logic leaves the smallest meaningful runnable proof that would fail if the behavior breaks. Do not invent a test framework for a trivial edit.
 
 ## Uncertainty Is State
 
@@ -110,15 +104,6 @@ OMITTED: <deliberate omissions plus observable revisit trigger, or none>
 
 Receipts compress narration, never source, diffs, tests, static analysis, errors, or verification artifacts.
 
-## PHP Defaults
-
-- New files use `declare(strict_types=1);`.
-- Prefer `final`, immutable state, constructor injection, and `readonly` where valid.
-- Use explicit native types and precise PHPDoc; contain unavoidable dynamic input at one validated boundary.
-- Avoid `mixed`, suppression, silent fallback, and context-free exceptions.
-- No one-implementation interface, speculative factory, generic manager, future-only switch, or dependency for a few stable lines.
-- Preserve focused package ownership; the umbrella package orchestrates.
-
 ## Communication And Evidence
 
 Lead with the useful result/action. Remove filler, repetition, ceremonial preambles, and speculative feature tours. Use normal grammar. Update only for a changed decision, result, blocker, scope, or phase.
@@ -131,8 +116,6 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Code,
 
 Resume hints may expose only validated unfinished task identifiers/projected state. Never inject free-form manifest `next_action`, disagreements, task prose, or copied evidence. Resolve authoritative state through `workflow status`.
 
-## Safety, Validation, Completion
+## Validation And Close
 
-Minimal never removes trust-boundary validation, security controls, data-loss prevention, required transaction/concurrency guarantees, accessibility, explicit requirements, or the smallest meaningful regression check.
-
-Run the narrowest proof first, then repository gates. Claim a pass only after observing the exit code. Stop when approved behavior is satisfied and every required gate is closed; do not manufacture follow-up work.
+Run the narrowest relevant proof first, then repository gates required by the approved brief. Claim a pass only after observing the exit code. Stop when approved behavior is satisfied and every required gate is closed; do not manufacture follow-up work.
