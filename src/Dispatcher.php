@@ -219,8 +219,8 @@ final class Dispatcher
     }
 
     /**
-     * Lets `session record|checkpoint|close|claim|show` accept the task id
-     * passed to `session start --task` in place of the generated session id.
+     * Resolves task IDs accepted as ergonomic aliases by session commands to
+     * the one active generated session id. Explicit session ids pass through.
      *
      * @param list<string> $rest
      *
@@ -229,73 +229,42 @@ final class Dispatcher
     private function resolveSessionArgv(array $rest): ?array
     {
         $command = $rest[0] ?? null;
-        if (!in_array($command, ['claim', 'checkpoint', 'record', 'close', 'show', 'brief', 'validation', 'learning'], true)) {
-            return $rest;
-        }
-
         $tokens = array_slice($rest, 1);
-        $firstPositionalIndex = 0;
-        if (in_array($command, ['brief', 'validation', 'learning'], true)) {
-            $action = $tokens[0] ?? null;
-            $actions = match ($command) {
-                'brief' => ['create', 'revise', 'approve', 'show'],
-                'validation' => ['record'],
-                'learning' => ['decide'],
-            };
-            if (!in_array($action, $actions, true)) {
-                return $rest;
-            }
-            $firstPositionalIndex = 1;
-        }
-
-        $sessionsRoot = null;
-        $positionalIndex = null;
-        $count = count($tokens);
-
-        for ($i = $firstPositionalIndex; $i < $count; ++$i) {
-            $token = $tokens[$i];
-            if (str_starts_with($token, '--')) {
-                $hasValue = $i + 1 < $count && !str_starts_with($tokens[$i + 1], '--');
-                if ($hasValue) {
-                    if (substr($token, 2) === 'root') {
-                        $sessionsRoot = $tokens[$i + 1];
-                    }
-                    ++$i;
-                }
-
-                continue;
-            }
-
-            if ($positionalIndex === null) {
-                $positionalIndex = $i;
-            }
-        }
-
-        if ($positionalIndex === null) {
+        $positionalIndex = match ($command) {
+            'record', 'checkpoint', 'close', 'claim', 'show' => 0,
+            'brief', 'validation', 'learning' => 1,
+            default => null,
+        };
+        if ($positionalIndex === null || !isset($tokens[$positionalIndex])) {
             return $rest;
         }
 
-        $sessionsRoot ??= rtrim($this->rootPath, '/') . '/session_plan';
-        $store = new SessionStore();
         $candidate = $tokens[$positionalIndex];
-
-        if ($store->exists($sessionsRoot, $candidate)) {
+        if (str_starts_with($candidate, '--')) {
             return $rest;
+        }
+
+        $sessionRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($sessionRoot)) {
+            return $rest;
+        }
+
+        $store = new SessionStore();
+        try {
+            $store->load($sessionRoot, $candidate);
+
+            return $rest;
+        } catch (\RuntimeException) {
+            // Keep resolving the candidate as a task id below.
         }
 
         $matchingSessions = array_values(array_filter(
-            $store->all($sessionsRoot),
+            $store->all($sessionRoot),
             static fn ($session): bool => $session->taskId === $candidate,
         ));
 
         if ($matchingSessions === []) {
             return $rest;
-        }
-
-        if (count($matchingSessions) === 1) {
-            $tokens[$positionalIndex] = $matchingSessions[0]->id;
-
-            return array_merge([$command], $tokens);
         }
 
         $activeSessions = array_values(array_filter(
@@ -406,8 +375,8 @@ final class Dispatcher
                   Compact PHP repository symbol map (voku/agent-map). `build`
                   writes the whole scope; `refresh` re-analyses only changed or
                   new files and patches them into the existing index.
-          memory  <review>
-                  MEMORY.md promotion review (voku/agent-loop).
+          memory  <validate|review>
+                  MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
                   Gated workflow orchestration commands.
           review  <blindspots|code>
