@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           composer config repositories.recall-pr12 vcs https://github.com/voku/agent-recall-compiler
           composer require 'voku/agent-recall-compiler:dev-fix/project-root-memory-recall as 0.9.99' --no-update
-          composer update voku/agent-recall-compiler voku/agent-loop --with-dependencies --no-interaction --prefer-dist --no-progress --no-ansi
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
           php -r '
           require "vendor/autoload.php";
           echo Composer\InstalledVersions::getPrettyVersion("voku/agent-recall-compiler"), "\n";
