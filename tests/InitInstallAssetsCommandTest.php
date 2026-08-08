@@ -25,6 +25,7 @@ final class InitInstallAssetsCommandTest extends TestCase
             'CODEX_HOME',
             'CODEX_SKILLS_DIR',
             'CODEX_AGENTS_DIR',
+            'CLAUDE_CONFIG_DIR',
             'CLAUDE_SKILLS_DIR',
             'COPILOT_SKILLS_DIR',
             'ANTIGRAVITY_SKILLS_DIR',
@@ -89,7 +90,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
     }
 
-    public function testClaudeInstallsPortableSkillsAndSubagentRoles(): void
+    public function testClaudeInstallsPortableSkillsSubagentRolesAndHooks(): void
     {
         $result = $this->runCommand(['--agent=claude']);
 
@@ -98,10 +99,33 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-investigate/SKILL.md');
         self::assertFileExists($this->root . '/.claude/agents/agent-loop-investigator.md');
         self::assertFileExists($this->root . '/.claude/agents/agent-loop-surgical-builder.md');
+        self::assertFileExists($this->root . '/.claude/hooks/context.php');
+        self::assertFileExists($this->root . '/.claude/hooks/pre_tool_use_policy.php');
+        self::assertFileExists($this->root . '/.claude/settings.json');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
         self::assertDirectoryDoesNotExist($this->root . '/.codex/agents');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
-        self::assertStringContainsString('repository hooks are currently available for codex only', $result['output']);
+        self::assertStringContainsString('repository discipline hooks for claude', $result['output']);
+
+        $settings = json_decode((string) file_get_contents($this->root . '/.claude/settings.json'), true, 64, JSON_THROW_ON_ERROR);
+        self::assertIsArray($settings);
+        self::assertArrayHasKey('SessionStart', $settings['hooks']);
+        self::assertArrayHasKey('SubagentStart', $settings['hooks']);
+        self::assertArrayHasKey('PreToolUse', $settings['hooks']);
+        self::assertSame(
+            'php .claude/hooks/context.php --event=SessionStart',
+            $settings['hooks']['SessionStart'][0]['hooks'][0]['command'],
+        );
+    }
+
+    public function testClaudeDryRunInstallsNothing(): void
+    {
+        $result = $this->runCommand(['--agent=claude', '--dry-run']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync hooks: write hooks key', $result['output']);
+        self::assertFileDoesNotExist($this->root . '/.claude/settings.json');
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/hooks');
     }
 
     public function testCopilotInstallsPortableSkillsAndSubagentRoles(): void
@@ -114,10 +138,10 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.github/agents/agent-loop-surgical-builder.agent.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-code-reviewer.agent.md');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
-        self::assertStringContainsString('portable skills and bundled subagent roles for copilot', $result['output']);
+        self::assertStringContainsString('repository discipline hooks are currently available for codex and claude', $result['output']);
     }
 
-    public function testAllInstallsSkillsSubagentRolesAndCodexHooks(): void
+    public function testAllInstallsSkillsSubagentRolesAndCodexAndClaudeHooks(): void
     {
         $result = $this->runCommand(['--agent=all']);
 
@@ -136,6 +160,8 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-surgical-builder.md');
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-code-reviewer.md');
         self::assertFileExists($this->root . '/.codex/hooks/context.php');
+        self::assertFileExists($this->root . '/.claude/hooks/context.php');
+        self::assertFileExists($this->root . '/.claude/settings.json');
     }
 
     public function testUnknownAgentFails(): void
