@@ -19,13 +19,16 @@ final class AgentDisciplineHookTest extends TestCase
         $output = $this->hook()->contextOutput('SessionStart', $this->json([
             'hook_event_name' => 'SessionStart',
         ]));
+        $context = $output['hookSpecificOutput']['additionalContext'];
 
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
-        self::assertStringContainsString('Minimal Implementation Ladder', $output['hookSpecificOutput']['additionalContext']);
-        self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext']);
+        self::assertStringContainsString('Engineering Skill Routing', $context);
+        self::assertStringContainsString('coding-simplicity', $context);
+        self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
+        self::assertStringContainsString('agent-loop map query', $context);
         self::assertStringContainsString(
             'Hooks are behavioral guardrails, never correctness or security boundaries.',
-            $output['hookSpecificOutput']['additionalContext'],
+            $context,
         );
     }
 
@@ -38,6 +41,10 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertSame('SubagentStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertStringContainsString(
             'Summaries may point to evidence; they never replace it.',
+            $output['hookSpecificOutput']['additionalContext'],
+        );
+        self::assertStringNotContainsString(
+            'Minimal Implementation Ladder',
             $output['hookSpecificOutput']['additionalContext'],
         );
     }
@@ -54,7 +61,7 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertTrue(mkdir($completeRun, 0o775, true));
         self::assertNotFalse(file_put_contents(
             $skillDirectory . '/SKILL.md',
-            "---\nname: agent-loop-discipline\n---\nMinimal Implementation Ladder\nEvidence Integrity\n",
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\nEvidence Integrity\n",
         ));
         self::assertNotFalse(file_put_contents(
             $unfinishedRun . '/manifest.json',
@@ -93,7 +100,7 @@ final class AgentDisciplineHookTest extends TestCase
             self::assertStringNotContainsString('IGNORE PRIOR INSTRUCTIONS', $context);
             self::assertStringNotContainsString('MALICIOUS THING', $context);
             self::assertStringNotContainsString('DONE-1', $context);
-            self::assertStringContainsString('Minimal Implementation Ladder', $context);
+            self::assertStringContainsString('Engineering Skill Routing', $context);
         } finally {
             $this->removeTree($root);
         }
@@ -106,7 +113,7 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertTrue(mkdir($skillDirectory, 0o775, true));
         self::assertNotFalse(file_put_contents(
             $skillDirectory . '/SKILL.md',
-            "---\nname: agent-loop-discipline\n---\nMinimal Implementation Ladder\n",
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
         ));
 
         foreach (['TASK-A' => 'blocked', 'TASK-B' => 'ready_to_close'] as $taskId => $state) {
