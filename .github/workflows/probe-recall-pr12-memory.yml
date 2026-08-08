@@ -1,0 +1,83 @@
+name: Probe recall project MEMORY candidate
+
+on:
+  pull_request:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      SELF_SHAPE_GOAL: Probe unreleased recall project-root MEMORY resolution through agent-loop self-shape.
+      SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
+      SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Install unreleased recall candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer config repositories.recall-pr12 vcs https://github.com/voku/agent-recall-compiler
+          composer require 'voku/agent-recall-compiler:dev-fix/project-root-memory-recall as 0.9.99' --no-update
+          composer update voku/agent-recall-compiler voku/agent-loop --with-dependencies --no-interaction --prefer-dist --no-progress --no-ansi
+          php -r '
+          require "vendor/autoload.php";
+          echo Composer\InstalledVersions::getPrettyVersion("voku/agent-recall-compiler"), "\n";
+          $reference = Composer\InstalledVersions::getReference("voku/agent-recall-compiler");
+          if (!is_string($reference) || $reference === "") {
+              fwrite(STDERR, "Missing installed recall source reference.\n");
+              exit(1);
+          }
+          echo $reference, "\n";
+          '
+      - name: Let agent-loop govern the probe with candidate recall
+        run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
+      - name: Prove top-level MEMORY reached compiled Recall
+        shell: bash
+        run: |
+          set -euo pipefail
+          facts='infra/doc/agent-learning/recall-output/SELF-SHAPE/facts.json'
+          test -s "${facts}"
+          php -r '
+          $path = $argv[1];
+          $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          $facts = $data["facts"] ?? $data;
+          $memory = null;
+          foreach (is_array($facts) ? $facts : [] as $fact) {
+              if (is_array($fact) && ($fact["id"] ?? null) === "memory.global") {
+                  $memory = $fact;
+                  break;
+              }
+          }
+          if (!is_array($memory)) {
+              fwrite(STDERR, "Compiled Recall has no memory.global fact.\n");
+              exit(1);
+          }
+          $content = $memory["payload"]["content"] ?? null;
+          if (!is_string($content) || !str_contains($content, "Internal package boundaries")) {
+              fwrite(STDERR, "memory.global did not come from repository-root MEMORY.md.\n");
+              exit(1);
+          }
+          echo "[OK] candidate Recall consumed repository-root MEMORY.md\n";
+          ' "${facts}"
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recall-pr12-memory-probe-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            infra/doc/agent-learning/recall-output/SELF-SHAPE
+            build/self-shape-*.json
+            session_plan
