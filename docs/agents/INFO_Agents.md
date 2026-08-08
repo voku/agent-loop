@@ -48,7 +48,7 @@ vendor/bin/agent-loop init doctor
 ```
 
 To project a separately checked-out/pinned first-party engineering skill source in
-the same atomic skill sync, pass it explicitly as a local root:
+the same managed skill sync, pass it explicitly as a local root:
 
 ```bash
 vendor/bin/agent-loop init install-assets \
