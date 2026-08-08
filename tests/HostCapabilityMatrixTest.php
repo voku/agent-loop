@@ -37,7 +37,7 @@ final class HostCapabilityMatrixTest extends TestCase
         }
     }
 
-    public function testHookBackedDisciplineIsOnlyImplementedForCodexAndClaude(): void
+    public function testHookBackedDisciplineStaysDegradedUntilHostRuntimeIsObserved(): void
     {
         $hookBacked = [
             HostCapability::SessionBootstrap,
@@ -47,8 +47,8 @@ final class HostCapabilityMatrixTest extends TestCase
         ];
 
         foreach ($hookBacked as $capability) {
-            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status('codex', $capability));
-            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status('claude', $capability));
+            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('codex', $capability));
+            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('claude', $capability));
             self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status('copilot', $capability));
             self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status('antigravity', $capability));
         }
