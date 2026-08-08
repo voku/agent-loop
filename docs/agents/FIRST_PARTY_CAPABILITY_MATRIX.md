@@ -20,7 +20,7 @@ The invariant is:
 | Process/evidence blind-spot check | `voku/agent-loop` | `review blindspots` deterministic lifecycle check | `KEEP` | Must remain distinct from LLM engineering review lenses |
 | Correctness review workflow contract | `voku/agent-loop` | Own exact diff/context input, no-mutation boundary, terminal state, persistence/routing | `THIN_ADAPTER` | General engineering review semantics must not keep growing here |
 | General simplicity review semantics | `voku/agent-skills` | `agent-loop` may add only agent-* ownership/map-specific overlay | `MOVE_SEMANTICS` | Reconcile `agent-loop-simplify-review` / audit against `code-review-simplicity` without losing workflow evidence contracts |
-| Host skill installation | `voku/agent-loop` | Resolve canonical skill source, project to native host root, track managed entries | `ADAPT` | Current implementation mostly copies one `SKILL.md` tree; add deterministic `agent-skills` source integration without remote runtime fetches |
+| Host skill installation/projection | `voku/agent-loop` | Resolve canonical skill source, project to native host root, track managed entries | `ADAPT` | Current implementation mostly copies one `SKILL.md` tree; add deterministic `agent-skills` source integration without remote runtime fetches |
 | Host subagent/custom-agent representation | `voku/agent-loop` | Parse one role meaning and render native host representation | `KEEP` | `SubagentDefinition` already acts as a small compiler; extend only for proven missing semantics |
 | Host hook/bootstrap representation | `voku/agent-loop` | Project shared discipline policy through explicit host mechanics | `ADAPT` | Codex and Claude are implemented differently; Copilot/Antigravity behavior must stay explicitly unsupported until verified and implemented |
 | Host capability/degradation reporting | `voku/agent-loop` | Typed matrix + `init doctor` projection | `ADAPT` | `HostCapabilityMatrix` starts with current repository facts; later revisions must be evidence-backed and tested |
@@ -39,14 +39,20 @@ Different asset types have different portability. Do not force them through one 
 
 The typed current-state projection lives in `HostCapabilityMatrix`. `init doctor` renders that model so unsupported behavior is visible instead of silently disappearing.
 
+## Projection is not runtime behavior
+
+The first self-shape pass of this PR was mechanically green, but review tightened the model from generic `skills` / `subagents` support to `skill-projection` / `subagent-projection`. The clean-consumer gate proves that agent-loop can render/install those assets for the target host. It does **not** by itself prove that a host discovers them in every session, propagates them into delegated work, or executes their semantics correctly.
+
+Those runtime properties need their own capability rows and evidence. This is why bootstrap, propagation, guardrails, and hook support remain separate from file projection.
+
 ## Current host capability truth
 
 The matrix below describes what **this repository currently implements**, not everything a vendor product may theoretically support.
 
 | Capability | Codex | Claude | Copilot | Antigravity |
 |---|---|---|---|---|
-| skills | supported | supported | supported | supported |
-| subagents | supported | supported | supported | supported |
+| skill projection | supported | supported | supported | supported |
+| subagent projection | supported | supported | supported | supported |
 | session bootstrap | supported | supported | unsupported | unsupported |
 | subagent bootstrap | supported | supported | unsupported | unsupported |
 | pre-tool guardrail | supported | supported | unsupported | unsupported |
