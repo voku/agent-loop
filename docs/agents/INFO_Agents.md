@@ -230,7 +230,7 @@ constraint that prevents recurrence.
 
 ## Repository hooks
 
-Both supported hook bundles call the same typed `AgentDisciplineHook` runtime.
+Both current hook adapters call the same typed `AgentDisciplineHook` runtime.
 The client files only adapt host serialization and registration.
 
 ### Codex
@@ -276,8 +276,9 @@ The first distinction is deliberate:
   runtime execution.
 
 Session bootstrap, subagent bootstrap, pre-tool guardrails, and repository hook
-integration are separate capabilities. They remain `unsupported` for a host until
-agent-loop has a verified native mechanism and executable evidence for it.
+integration are separate capabilities. A contract-tested native adapter without
+observed host runtime behavior is `degraded`; a missing agent-loop adapter is
+`unsupported`.
 
 See `FIRST_PARTY_CAPABILITY_MATRIX.md` for semantic ownership and host projection
 inventory.
