@@ -12,89 +12,86 @@ reviewing these MIT-licensed projects at fixed commits:
 - **Attention Control**, aaddrick:
   `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`.
 
-The review covered skills, hooks/runtime, subagent propagation, dedicated agent
-roles, review/audit flows, compression/debt/statistics ideas, installation
-surfaces, tests, benchmark guidance, and human-facing output structure. The
-resulting `agent-loop` behavior is an adaptation for the existing PHP-oriented
-`agent-*` architecture, not a bundled copy of any upstream runtime.
+A source review is not an adaptation claim. The reviewed repositories contain
+more mechanisms than `agent-loop` should or currently does implement.
+`UPSTREAM_CAPABILITY_MATRIX.md` is the explicit row-by-row inventory of what is
+already represented, what this repository adapted, what is deferred behind a
+missing typed contract, and what is deliberately rejected.
 
-The August 2026 recheck found no new Caveman mechanism that invalidated the
-existing adaptation. Ponytail had expanded host portability, which reinforced
-using one canonical behavior contract with thin client-specific adapters rather
-than importing another runtime.
+The target is not feature parity. `agent-loop` adapts useful mechanisms into its
+existing PHP-oriented architecture: persisted workflow state, bounded context,
+exact evidence, narrow roles, reviewed learning, and executable constraints only
+where the condition is objectively observable.
 
-## Adapted mechanisms
+## High-level adapted ideas
 
 ### From Caveman
 
-- filler-free human-facing communication became the communication section of
-  `agent-loop-discipline`, while keeping normal grammar;
-- terse correctness review became `agent-loop-code-review` and the
-  `agent-loop-code-reviewer` role;
-- Cavecrew's locator/editor/reviewer split became the map-first
-  `agent-loop-investigate`, `agent-loop-surgical-edit`, and
-  `agent-loop-code-review` skills plus package-owned subagent definitions;
-- the locator role uses `agent-map` before bounded real-source reads instead of
-  relying on broad grep/explore output;
-- role output contracts informed compact receipts while exact evidence remains
-  uncompressed;
-- the compression goal is handled through selective `agent-map`/recall context
-  rather than overwriting durable memory files;
-- honest measurement informed `agent-loop-dogfood`; no local token-savings claim
-  is emitted without real telemetry.
+- concise human-facing communication without changing exact technical strings;
+- narrow locator, surgical-builder, and correctness-review roles;
+- deterministic terminal outcomes for narrow role handoff;
+- session/subagent reinforcement so global discipline survives delegation and
+  host context resets;
+- compact projections for human/context efficiency while raw source, diffs,
+  tests, errors, and verification evidence remain unchanged.
 
 ### From Ponytail
 
-- the minimal implementation ladder and root-cause/caller rule became part of
-  `agent-loop-discipline`;
-- diff-only complexity review became `agent-loop-simplify-review`;
-- repository-wide complexity hunting became `agent-loop-simplify-audit`;
-- deliberate simplification debt is recorded in `agent-session` as a decision
-  with a known ceiling and observable revisit trigger, then promoted only through
-  the normal `agent-learning` review boundary;
-- the gain/benchmark honesty rule became an observable-artifact requirement in
-  `agent-loop-dogfood`;
-- session/subagent propagation informed the package-owned hook and subagent
-  installation paths;
-- newer multi-host adapters reinforced keeping shared policy in typed PHP and
-  making host hook serialization a thin boundary.
+- the minimal implementation ladder and root-cause/caller discipline;
+- diff-only and repository-wide complexity review as separate passes;
+- deliberate simplifications recorded with a known ceiling and observable
+  revisit trigger;
+- the smallest meaningful runnable proof for non-trivial changed logic;
+- one canonical behavior source with thin host adapters;
+- measurement honesty: no per-repository or counterfactual savings claim without
+  owned telemetry and a valid baseline.
 
 ### From Attention Control
 
-- human-facing progress leads with a useful result/fact and keeps explicit
-  workflow state plus one concrete next action;
-- agents perform reads, edits, validation, and reporting that their available
-  tools own instead of handing executable work back to the human;
-- state is restated only when it materially changes, avoiding both hidden drift
-  and per-tool narration;
-- accuracy, exact technical strings, security context, and irreversible-action
-  clarity override brevity or formatting;
-- output-shaping instructions are treated as behavioral guidance, not as an
-  enforcement or security boundary.
+- lead progress with a useful result/fact and one concrete next action;
+- perform tool-executable work instead of handing it back to the human;
+- preserve workflow state across context loss with a bounded resume hint;
+- preserve uncertainty as a fact rather than filling gaps with plausible
+  versions, paths, line numbers, results, approvals, or intent;
+- state errors and blockers with decisive evidence;
+- let safety, irreversible actions, exact strings, and accuracy override brevity.
 
 The generic `RESULT` / `STATE` / `NEXT` progress receipt and
 `RESULT` / `EVIDENCE` / `OMITTED` completion receipt are `agent-loop` contracts,
 not copies of Attention Control's reader-specific presentation model. Their
-fields map directly to persisted workflow state and agent-loop evidence gates.
+fields map to persisted workflow state and `agent-loop` evidence gates.
 
 ## Deliberately not ported
 
 `agent-loop` does not download, execute, or depend on these upstream projects at
-runtime. It deliberately excludes their:
+runtime. It deliberately excludes mechanisms whose scope or trade-offs do not
+fit the workflow contract, including:
 
 - remote installers and plugin marketplaces;
-- Node.js runtimes;
-- hidden mode/flag state and status lines;
-- transcript scanners and per-repo savings estimates;
-- file-overwriting memory compression runtime;
+- Node.js runtimes as a dependency of the package-owned guidance path;
+- hidden persona/intensity mode flags and status lines;
+- transcript scanners and ungrounded token/code savings claims;
+- file-overwriting model compression of durable memory/evidence;
+- model/provider overrides owned by the host;
 - client adapters already covered by `agent-loop init` target rendering;
-- MCP/plugin surfaces that do not belong to the existing `agent-*` packages;
-- reader-identity assumptions or prose rules that do not describe a coding
-  workflow invariant.
+- reader-identity assumptions or fixed prose limits that are presentation
+  preferences rather than coding-workflow invariants;
+- convenience features such as a commit-message generator that do not belong to
+  workflow governance.
 
-Caveman's commit-message helper is also not an `agent-loop` responsibility; the
-workflow package should not absorb every useful coding-agent convenience merely
-because an upstream project contains it.
+Some useful ideas are intentionally **deferred**, not rejected. For example, a
+cross-session simplification-debt ledger needs a typed `agent-session` decision
+query before the umbrella package can provide it without scraping a focused
+package's storage layout. These distinctions are maintained in
+`UPSTREAM_CAPABILITY_MATRIX.md`.
+
+## Recheck rule
+
+Do not summarize a future upstream comparison as "nothing relevant changed"
+merely because the pinned commit diff is small. A recheck must first compare the
+current upstream mechanism set against the capability matrix, including `DEFER`
+rows and previous rejection reasons. Reading a changed file is evidence of the
+source review, not evidence that `agent-loop` already contains its essence.
 
 These notices document provenance only. They are not installation instructions
 and are never read or executed by `agent-loop init install-assets`.
