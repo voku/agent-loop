@@ -13,6 +13,15 @@ final readonly class AgentDisciplineHook
     private const int MAX_INPUT_BYTES = 1_048_576;
     private const int MAX_CONTEXT_BYTES = 32_768;
     private const int MAX_CLAUDE_CONTEXT_BYTES = 9_500;
+    private const int MAX_RUN_MANIFEST_BYTES = 131_072;
+    private const int MAX_RESUME_HINTS = 5;
+
+    /** @var list<string> */
+    private const array RESUMABLE_MANIFEST_STATES = [
+        'blocked',
+        'incomplete',
+        'ready_to_close',
+    ];
 
     public function __construct(private string $repositoryRoot)
     {
@@ -121,12 +130,11 @@ final readonly class AgentDisciplineHook
             ));
         }
 
+        $context = $this->workflowResumeHint() . $this->disciplineContext($clientDirectory);
+
         return [
             'hookEventName' => $event,
-            'additionalContext' => $this->truncateUtf8ByBytes(
-                $this->disciplineContext($clientDirectory),
-                $maxContextBytes,
-            ),
+            'additionalContext' => $this->truncateUtf8ByBytes($context, $maxContextBytes),
         ];
     }
 
@@ -198,6 +206,117 @@ final readonly class AgentDisciplineHook
         - Hooks are behavioral guardrails, never correctness or security boundaries.
         - Never claim validation that was not executed.
         TEXT;
+    }
+
+    private function workflowResumeHint(): string
+    {
+        $runsRoot = $this->repositoryRoot . '/.agent-loop/runs';
+        if (!is_dir($runsRoot)) {
+            return '';
+        }
+
+        $manifestPaths = glob($runsRoot . '/*/manifest.json');
+        if (!is_array($manifestPaths) || $manifestPaths === []) {
+            return '';
+        }
+        sort($manifestPaths, SORT_STRING);
+
+        /** @var list<array{task_id: non-empty-string, state: non-empty-string}> $unfinished */
+        $unfinished = [];
+        $omitted = 0;
+
+        foreach ($manifestPaths as $manifestPath) {
+            $hint = $this->readResumeManifest($manifestPath);
+            if ($hint === null) {
+                continue;
+            }
+            if (count($unfinished) >= self::MAX_RESUME_HINTS) {
+                ++$omitted;
+                continue;
+            }
+            $unfinished[] = $hint;
+        }
+
+        if ($unfinished === []) {
+            return '';
+        }
+
+        $lines = [
+            '## Agent Loop Resume Hint',
+            '',
+            'Derived run manifests are navigation only, not workflow authority.',
+        ];
+        foreach ($unfinished as $hint) {
+            $lines[] = sprintf('- observed task: `%s`; projected state: `%s`.', $hint['task_id'], $hint['state']);
+        }
+        if ($omitted > 0) {
+            $lines[] = sprintf('- %d additional unfinished run manifest(s) omitted from bootstrap context.', $omitted);
+        }
+
+        if (count($unfinished) === 1) {
+            $taskId = $unfinished[0]['task_id'];
+            $lines[] = sprintf(
+                '- before any governed mutation: `vendor/bin/agent-loop workflow status %s --format=json`.',
+                $taskId,
+            );
+        } else {
+            $lines[] = '- multiple unfinished tasks exist. Resolve the task from the current request/repository context; do not guess.';
+            $lines[] = '- before any governed mutation, run `vendor/bin/agent-loop workflow status <task-id> --format=json` for the resolved task.';
+        }
+
+        $lines[] = '- do not infer approval, validation, review, learning, intent, or a next command from this hint.';
+        $lines[] = '';
+        $lines[] = '';
+
+        return implode("\n", $lines);
+    }
+
+    /** @return array{task_id: non-empty-string, state: non-empty-string}|null */
+    private function readResumeManifest(string $manifestPath): ?array
+    {
+        if (is_link($manifestPath) || !is_file($manifestPath) || !is_readable($manifestPath)) {
+            return null;
+        }
+
+        $size = filesize($manifestPath);
+        if (!is_int($size) || $size <= 0 || $size > self::MAX_RUN_MANIFEST_BYTES) {
+            return null;
+        }
+
+        $content = file_get_contents($manifestPath);
+        if (!is_string($content) || $content === '') {
+            return null;
+        }
+
+        try {
+            $manifest = json_decode($content, true, 32, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+        if (!is_array($manifest) || array_is_list($manifest)) {
+            return null;
+        }
+
+        $taskId = $manifest['task_id'] ?? null;
+        $state = $manifest['state'] ?? null;
+        if (!is_string($taskId) || !$this->isSafeTaskId($taskId)) {
+            return null;
+        }
+        if (basename(dirname($manifestPath)) !== $taskId) {
+            return null;
+        }
+        if (!is_string($state) || !in_array($state, self::RESUMABLE_MANIFEST_STATES, true)) {
+            return null;
+        }
+
+        return ['task_id' => $taskId, 'state' => $state];
+    }
+
+    private function isSafeTaskId(string $taskId): bool
+    {
+        return strlen($taskId) <= 128
+            && !str_contains($taskId, '..')
+            && preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) === 1;
     }
 
     private function stripFrontmatter(string $content): string
