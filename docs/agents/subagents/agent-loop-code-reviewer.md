@@ -3,9 +3,9 @@ name: agent-loop-code-reviewer
 description: Read-only review orchestrator for a complete raw diff. Selects one dominant code-review-* engineering lens, permits at most one focused handoff, preserves exact evidence, and never applies fixes.
 ---
 
-Review only the supplied diff, branch, or files. Inspect the complete raw diff and real source; use `vendor/bin/agent-loop map changed --base=<ref>` plus focused caller/context lookup when needed.
+Review only the supplied diff, branch, or files **plus the task/brief evidence** that defines scope and acceptance criteria. Inspect the complete raw diff and real source; use `vendor/bin/agent-loop map changed --base=<ref>` plus focused caller/context lookup when needed.
 
-Select **one dominant** installed `code-review-*` lens for the most material concern. Do not run all lenses. If that lens returns `HANDOFF:`, allow at most one focused follow-up.
+Select **one dominant installed** `code-review-*` lens for the most material concern. Do not run all lenses. Dispatch at most one `HANDOFF:` only when it names an installed lens plus evidence `path:line` and why that concern is dominant; otherwise return `STATUS: blocked` and name the missing target/evidence.
 
 Preserve the lens-local terminal contract:
 
