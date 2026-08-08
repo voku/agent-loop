@@ -47,8 +47,8 @@ final readonly class InitCli
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init install-assets --agent=<agent|all> [--dry-run] [--force] [--adopt-existing]
-          agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init install-assets --agent=<agent|all> [--extra-skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-githooks [--hooks-dir=PATH] [--commit-template=PATH] [--container-service=NAME]
@@ -63,8 +63,8 @@ final readonly class InitCli
           tools          Probe and cache CLI tool availability (rg, git, php, composer, docker, agent-map index).
           validate       Validate repo-managed agent asset definitions.
           install-plan   Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets Install immutable skills; supported clients also receive bundled subagent roles, and Codex/Claude receive PHP hooks.
-          sync-skills    Sync repo-managed skills into a client target directory.
+          install-assets Install package-owned workflow assets and optionally merge explicit local engineering skill roots; supported clients also receive bundled subagent roles, and Codex/Claude receive PHP hooks.
+          sync-skills    Atomically merge one or more canonical skill roots into a client target directory; duplicate skill IDs fail.
           sync-subagents Sync repo-managed subagents into a client target directory.
           sync-hooks     Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
           sync-githooks  Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
