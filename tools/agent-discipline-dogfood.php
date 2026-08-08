@@ -235,9 +235,13 @@ try {
     $skillPath = $workspace . '/.codex/skills/agent-loop-discipline/SKILL.md';
     $skill = file_get_contents($skillPath);
     assertTrue(is_string($skill), 'Unable to read staged discipline skill.');
+    assertTrue(strlen($skill) <= 8_000, 'Discipline skill exceeds the 8 KiB bootstrap budget.');
     assertTrue(str_contains($skill, 'Minimal Implementation Ladder'), 'Discipline skill misses minimal implementation ladder.');
     assertTrue(str_contains($skill, 'Uncertainty Is State'), 'Discipline skill misses uncertainty boundary.');
-    assertTrue(str_contains($skill, 'Evidence Integrity'), 'Discipline skill misses evidence integrity boundary.');
+    assertTrue(
+        str_contains($skill, 'Summaries may point to evidence; they never replace it.'),
+        'Discipline skill misses evidence integrity boundary.',
+    );
     assertTrue(str_contains($skill, 'Hook Boundary'), 'Discipline skill misses hook boundary.');
     assertTrue(str_contains($skill, 'agent-loop map query'), 'Discipline skill misses map-first navigation.');
     assertTrue(!str_contains($skill, 'raw.githubusercontent.com'), 'Discipline skill contains a remote bootstrap URL.');
