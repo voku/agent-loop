@@ -11,7 +11,7 @@ The invariant is:
 | Capability | Semantic owner | Current agent-loop role | Classification | Evidence / next gap |
 |---|---|---|---|---|
 | Historical engineering principles and lesson evolution | `voku/learnings` | Architecture input only; never dumped wholesale into runtime context | `KEEP` | Agentic Coding lessons already encode process, bounded context, earned memory, verification, resumability, and architecture feedback |
-| Reusable PHP/testing/security/performance/architecture/type/simplicity guidance | `voku/agent-skills` | Select/install/use capability; do not duplicate the engineering truth | `ADAPT` | `agent-skills` already owns `code-review-*`, `php-best-practices`, `testing-best-practices`, `code-slop`, and `operational-prompting`; deterministic release integration is still missing |
+| Reusable PHP/testing/security/performance/architecture/type/simplicity guidance | `voku/agent-skills` | Select/install/use capability; do not duplicate the engineering truth | `ADAPT` | `agent-skills` owns `code-review-*`, `php-best-practices`, `testing-best-practices`, `code-slop`, and `operational-prompting`; `install-assets --extra-skills-root` now merges an explicit local source without copying its semantics into agent-loop |
 | Workflow phase, approval, validation, review gate, learning decision, verify, close | `voku/agent-loop` | Canonical workflow owner | `KEEP` | Persisted workflow/session/recall/learning artifacts and close gates |
 | Task assumptions, decisions, checkpoints, validation evidence | `voku/agent-session` | Orchestrate through typed package boundary | `KEEP` | Do not scrape focused-package storage or reconstruct argv internally |
 | Bounded symbol/caller/context navigation | `voku/agent-map` | Select source context before assertions/reviews | `KEEP` | Generated map is navigation, real source remains evidence |
@@ -20,7 +20,7 @@ The invariant is:
 | Process/evidence blind-spot check | `voku/agent-loop` | `review blindspots` deterministic lifecycle check | `KEEP` | Must remain distinct from LLM engineering review lenses |
 | Correctness review workflow contract | `voku/agent-loop` | Own exact diff/context input, no-mutation boundary, terminal state, persistence/routing | `THIN_ADAPTER` | General engineering review semantics must not keep growing here |
 | General simplicity review semantics | `voku/agent-skills` | `agent-loop` may add only agent-* ownership/map-specific overlay | `MOVE_SEMANTICS` | Reconcile `agent-loop-simplify-review` / audit against `code-review-simplicity` without losing workflow evidence contracts |
-| Host skill installation/projection | `voku/agent-loop` | Resolve canonical skill source, project to native host root, track managed entries | `ADAPT` | Current implementation mostly copies one `SKILL.md` tree; add deterministic `agent-skills` source integration without remote runtime fetches |
+| Host skill installation/projection | `voku/agent-loop` | Merge one or more explicit canonical skill roots, project them to the native host root, track one managed manifest | `ADAPT` | Multi-source sync is atomic; missing explicit roots and duplicate skill IDs fail before target mutation; runtime never downloads a source |
 | Host subagent/custom-agent representation | `voku/agent-loop` | Parse one role meaning and render native host representation | `KEEP` | `SubagentDefinition` already acts as a small compiler; extend only for proven missing semantics |
 | Host hook/bootstrap representation | `voku/agent-loop` | Project shared discipline policy through explicit host mechanics | `ADAPT` | Codex and Claude are implemented differently; Copilot/Antigravity behavior must stay explicitly unsupported until verified and implemented |
 | Host capability/degradation reporting | `voku/agent-loop` | Typed matrix + `init doctor` projection | `ADAPT` | `HostCapabilityMatrix` starts with current repository facts; later revisions must be evidence-backed and tested |
@@ -31,13 +31,28 @@ Different asset types have different portability. Do not force them through one 
 
 | Asset | Current portability | Current implementation |
 |---|---|---|
-| Skills | High | Same canonical skill directory copied into `.codex/skills`, `.claude/skills`, `.github/skills`, or `.agents/skills` |
+| Skills | High | One or more canonical local skill roots are merged before mutation, then projected into `.codex/skills`, `.claude/skills`, `.github/skills`, or `.agents/skills` through one manifest |
 | Subagents/custom agents | Medium | Canonical Markdown role parsed by `SubagentDefinition`, rendered as Codex TOML, Copilot `.agent.md`, or host Markdown/frontmatter |
 | Session/subagent discipline bootstrap | Low | Implemented through Codex/Claude hook lifecycles; unsupported for other canonical hosts until a real native mechanism is implemented |
 | Pre-tool guardrail | Low | Shared typed policy is exposed through Codex/Claude hook adapters; unsupported elsewhere today |
 | Repository hook registration | Low | Codex hook bundle and Claude `settings.json#hooks` require different installation/registration mechanics |
 
 The typed current-state projection lives in `HostCapabilityMatrix`. `init doctor` renders that model so unsupported behavior is visible instead of silently disappearing.
+
+## Skill-source boundary
+
+`agent-loop` keeps its bundled workflow skill root authoritative and may merge additional explicitly supplied **local** skill roots. This is how `voku/agent-skills` can remain the canonical owner of reusable engineering knowledge without copying its content into `agent-loop`.
+
+The merge contract is deliberately boring:
+
+- roots are collected before writing targets;
+- an explicitly requested missing root fails the operation;
+- the same skill directory name in two roots is an error;
+- all selected skills share one target manifest, so a second source cannot accidentally make the first source look stale;
+- `install-assets` never clones or downloads the additional source;
+- the caller owns source provenance and may pin/check out the source before invocation.
+
+PR CI dogfoods this contract with `voku/agent-skills` pinned to commit `b5b910666c08e30950e2a5999d9c4a447b31e367`. A clean Composer consumer installs the candidate `agent-loop`, passes the pinned checkout as `--extra-skills-root`, and verifies that `agent-loop-discipline`, `code-review-security`, and `operational-prompting` coexist in the projected host skill trees. The pin is test provenance, not a runtime dependency.
 
 ## Projection is not runtime behavior
 
@@ -82,4 +97,4 @@ The next slice must classify those rules before deleting or merging anything. On
 
 Changes to this area must run through `agent-loop` itself. PR CI executes `tools/self-shape-dogfood.sh`, which builds a real governed brief from the PR diff, compiles context, runs `composer ci`, records validation, performs deterministic process blind-spot review, records the learning decision, verifies, reports, and closes the self-shape task.
 
-Installed release-set dogfood must additionally prove that a clean consumer can execute `agent-loop init doctor` and observe the host capability projection shipped by the candidate package.
+Installed release-set dogfood must additionally prove that a clean consumer can execute `agent-loop init doctor` and observe the host capability projection shipped by the candidate package. When engineering skill-source integration changes, that consumer must also project the real pinned first-party `voku/agent-skills` source rather than a hand-written lookalike fixture alone.
