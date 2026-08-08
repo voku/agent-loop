@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
+use RuntimeException;
+
 /**
  * Generic MEMORY.md promotion reviewer.
  *
- * Self-contained re-implementation of the host-specific
- * `review_memory_promotions.php` glue: it parses the durable-rule and archive
- * tables out of a Markdown MEMORY file and reports how many archived rows still
- * need a promotion decision. Unlike the host version it carries no project
- * specific autoload/global dependencies and no hard-coded promotion targets, so
- * consumers keep their own canonical-home heuristics where needed.
+ * The review depends on a small Markdown contract. Validation and review share
+ * the same parser so an unrecognized or malformed table can never be confused
+ * with an empty, clean review queue.
  */
 final class MemoryPromotionAnalyzer
 {
@@ -33,6 +32,13 @@ final class MemoryPromotionAnalyzer
         'Promoted to',
     ];
 
+    private const string DURABLE_HEADING = '## Durable repository rules';
+
+    /**
+     * @var list<string>
+     */
+    private const array ARCHIVE_HEADINGS = ['## Archived task learning', '## Archive'];
+
     public function __construct(private readonly string $rootPath)
     {
     }
@@ -50,7 +56,7 @@ final class MemoryPromotionAnalyzer
             return 0;
         }
 
-        if ($command !== 'review') {
+        if (!in_array($command, ['review', 'validate'], true)) {
             fwrite(\STDERR, "Unknown memory command: {$command}\n\n");
             fwrite(\STDERR, $this->usage());
 
@@ -65,23 +71,67 @@ final class MemoryPromotionAnalyzer
             return 1;
         }
 
-        $content = (string) file_get_contents($file);
-        if (trim($content) === '') {
-            fwrite(\STDERR, "[ERROR] MEMORY file is empty: {$file}\n");
+        $content = file_get_contents($file);
+        if ($content === false || trim($content) === '') {
+            fwrite(\STDERR, "[ERROR] MEMORY file is empty or unreadable: {$file}\n");
 
             return 1;
         }
 
-        return $this->review($content);
+        try {
+            $analysis = $this->analyze($content);
+        } catch (RuntimeException $exception) {
+            fwrite(\STDERR, '[ERROR] Invalid MEMORY structure: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
+        if ($command === 'validate') {
+            echo "# MEMORY validation\n\n";
+            echo '[OK] MEMORY structure is valid: '
+                . count($analysis['durableRows']) . ' durable rule(s), '
+                . count($analysis['archiveRows']) . " archived task row(s).\n";
+
+            return 0;
+        }
+
+        return $this->review($analysis['durableRows'], $analysis['archiveRows']);
     }
 
-    private function review(string $content): int
+    /**
+     * @return array{
+     *   durableRows: list<array<string, string>>,
+     *   archiveRows: list<array<string, string>>
+     * }
+     */
+    private function analyze(string $content): array
     {
-        $durableRows = $this->parseAllMarkdownTables($content, self::DURABLE_HEADERS);
+        $lines = preg_split('/\R/', $content) ?: [];
+        $durableHeading = $this->findHeading($lines, [self::DURABLE_HEADING]);
+        if ($durableHeading === null) {
+            throw new RuntimeException('missing required section ' . self::DURABLE_HEADING);
+        }
 
-        $archiveTables = $this->parseAllMarkdownTables($content, self::ARCHIVE_HEADERS);
-        $archiveRows = $archiveTables[0] ?? [];
+        $durableRows = $this->parseTableInSection($lines, $durableHeading, self::DURABLE_HEADERS, 'durable rules');
+        $this->assertUniqueDurableSubjects($durableRows);
 
+        $archiveHeading = $this->findHeading($lines, self::ARCHIVE_HEADINGS);
+        $archiveRows = $archiveHeading === null
+            ? []
+            : $this->parseTableInSection($lines, $archiveHeading, self::ARCHIVE_HEADERS, 'archived task learning');
+
+        return [
+            'durableRows' => $durableRows,
+            'archiveRows' => $archiveRows,
+        ];
+    }
+
+    /**
+     * @param list<array<string, string>> $durableRows
+     * @param list<array<string, string>> $archiveRows
+     */
+    private function review(array $durableRows, array $archiveRows): int
+    {
         $pendingRows = array_values(array_filter(
             $archiveRows,
             static function (array $row): bool {
@@ -92,7 +142,7 @@ final class MemoryPromotionAnalyzer
         ));
 
         echo "# MEMORY promotion review\n\n";
-        echo 'Durable repository rules: ' . $this->countTableRows($durableRows) . "\n";
+        echo 'Durable repository rules: ' . count($durableRows) . "\n";
         echo 'Archived task rows: ' . count($archiveRows) . "\n";
         echo 'Rows still needing promotion review: ' . count($pendingRows) . "\n\n";
 
@@ -131,56 +181,104 @@ final class MemoryPromotionAnalyzer
     }
 
     /**
-     * @param list<list<array<string, string>>> $tables
+     * @param list<string> $lines
+     * @param list<string> $headings
      */
-    private function countTableRows(array $tables): int
+    private function findHeading(array $lines, array $headings): ?int
     {
-        $count = 0;
-        foreach ($tables as $rows) {
-            $count += count($rows);
+        foreach ($lines as $index => $line) {
+            if (in_array(trim($line), $headings, true)) {
+                return $index;
+            }
         }
 
-        return $count;
+        return null;
     }
 
     /**
+     * @param list<string> $lines
      * @param list<string> $headers
      *
-     * @return list<list<array<string, string>>>
+     * @return list<array<string, string>>
      */
-    private function parseAllMarkdownTables(string $content, array $headers): array
+    private function parseTableInSection(array $lines, int $headingIndex, array $headers, string $label): array
     {
-        $lines = preg_split('/\R/', $content) ?: [];
         $headerLine = '| ' . implode(' | ', $headers) . ' |';
-        $tables = [];
+        $headerIndex = null;
 
-        foreach ($lines as $index => $line) {
-            if (trim($line) !== $headerLine) {
-                continue;
+        for ($i = $headingIndex + 1; $i < count($lines); ++$i) {
+            $line = trim($lines[$i]);
+            if (str_starts_with($line, '## ')) {
+                break;
             }
-
-            $rows = [];
-
-            for ($i = $index + 2; $i < count($lines); ++$i) {
-                $rowLine = trim($lines[$i]);
-                if ($rowLine === '' || !str_starts_with($rowLine, '|')) {
-                    break;
-                }
-
-                $cells = $this->parseMarkdownTableRow($rowLine);
-                if (count($cells) !== count($headers)) {
-                    break;
-                }
-
-                /** @var array<string, string> $row */
-                $row = array_combine($headers, $cells);
-                $rows[] = $row;
+            if ($line === $headerLine) {
+                $headerIndex = $i;
+                break;
             }
-
-            $tables[] = $rows;
+            if ($line !== '' && str_starts_with($line, '|')) {
+                throw new RuntimeException("{$label} table header does not match the supported columns");
+            }
         }
 
-        return $tables;
+        if ($headerIndex === null) {
+            throw new RuntimeException("{$label} section has no supported table header");
+        }
+
+        $separatorIndex = $headerIndex + 1;
+        if (!isset($lines[$separatorIndex])) {
+            throw new RuntimeException("{$label} table has no separator row");
+        }
+
+        $separatorCells = $this->parseMarkdownTableRow(trim($lines[$separatorIndex]));
+        if (count($separatorCells) !== count($headers)) {
+            throw new RuntimeException("{$label} separator has the wrong number of columns");
+        }
+        foreach ($separatorCells as $cell) {
+            if (preg_match('/^:?-{3,}:?$/', $cell) !== 1) {
+                throw new RuntimeException("{$label} separator contains an invalid cell: {$cell}");
+            }
+        }
+
+        $rows = [];
+        for ($i = $headerIndex + 2; $i < count($lines); ++$i) {
+            $rowLine = trim($lines[$i]);
+            if ($rowLine === '' || str_starts_with($rowLine, '## ')) {
+                break;
+            }
+            if (!str_starts_with($rowLine, '|')) {
+                throw new RuntimeException("{$label} contains non-table content before the table ended");
+            }
+
+            $cells = $this->parseMarkdownTableRow($rowLine);
+            if (count($cells) !== count($headers)) {
+                throw new RuntimeException("{$label} row has the wrong number of columns: {$rowLine}");
+            }
+
+            /** @var array<string, string> $row */
+            $row = array_combine($headers, $cells);
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, string>> $rows
+     */
+    private function assertUniqueDurableSubjects(array $rows): void
+    {
+        $subjects = [];
+        foreach ($rows as $row) {
+            $subject = trim($row['Subject'] ?? '');
+            if ($subject === '') {
+                throw new RuntimeException('durable rule has an empty Subject');
+            }
+            $key = strtolower($subject);
+            if (isset($subjects[$key])) {
+                throw new RuntimeException("duplicate durable rule Subject: {$subject}");
+            }
+            $subjects[$key] = true;
+        }
     }
 
     /**
@@ -188,6 +286,10 @@ final class MemoryPromotionAnalyzer
      */
     private function parseMarkdownTableRow(string $line): array
     {
+        if (!str_starts_with($line, '|') || !str_ends_with($line, '|')) {
+            return [];
+        }
+
         $trimmed = trim(trim($line), '|');
 
         return array_map(
@@ -199,12 +301,13 @@ final class MemoryPromotionAnalyzer
     private function usage(): string
     {
         return <<<TXT
-        agent-loop memory - MEMORY.md promotion review.
+        agent-loop memory - MEMORY.md structure validation and promotion review.
 
         Usage:
-          agent-loop memory review [--file=path/to/MEMORY.md]
+          agent-loop memory validate [--file=path/to/MEMORY.md]
+          agent-loop memory review   [--file=path/to/MEMORY.md]
 
-        Defaults to <root>/MEMORY.md when --file is omitted.
+        Review always validates first. Defaults to <root>/MEMORY.md when --file is omitted.
 
         TXT;
     }
