@@ -29,8 +29,9 @@ final class InitDoctorHostCapabilityTest extends TestCase
             self::assertStringContainsString('Host capabilities [codex]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertStringContainsString('Host capabilities [claude]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertStringContainsString('Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported', $output);
-            self::assertStringContainsString('repository-hooks=unsupported', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \[copilot\]: [^\n]*repository-hooks=unsupported/', $output);
             self::assertStringContainsString('Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \[antigravity\]: [^\n]*repository-hooks=unsupported/', $output);
             self::assertSame($before, scandir($root));
         } finally {
             rmdir($root);
