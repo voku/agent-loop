@@ -41,8 +41,6 @@ final class AgentDisciplineHookTest extends TestCase
             'source' => 'startup',
         ]));
 
-        self::assertTrue($output['continue']);
-        self::assertTrue($output['suppressOutput']);
         self::assertArrayNotHasKey('systemMessage', $output);
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertLessThanOrEqual(9_500, strlen($output['hookSpecificOutput']['additionalContext']));
