@@ -23,7 +23,10 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertStringContainsString('Minimal Implementation Ladder', $output['hookSpecificOutput']['additionalContext']);
         self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext']);
-        self::assertStringContainsString('never a correctness or security boundary', strtolower($output['hookSpecificOutput']['additionalContext']));
+        self::assertStringContainsString(
+            'Hooks are behavioral guardrails, never correctness or security boundaries.',
+            $output['hookSpecificOutput']['additionalContext'],
+        );
     }
 
     public function testSubagentStartUsesTheSameDiscipline(): void
@@ -33,7 +36,10 @@ final class AgentDisciplineHookTest extends TestCase
         ]));
 
         self::assertSame('SubagentStart', $output['hookSpecificOutput']['hookEventName']);
-        self::assertStringContainsString('Evidence Integrity', $output['hookSpecificOutput']['additionalContext']);
+        self::assertStringContainsString(
+            'Summaries may point to evidence; they never replace it.',
+            $output['hookSpecificOutput']['additionalContext'],
+        );
     }
 
     public function testSessionStartAddsOnlyBoundedWorkflowResumeState(): void
@@ -141,7 +147,10 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertArrayNotHasKey('systemMessage', $output);
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertLessThanOrEqual(9_500, strlen($output['hookSpecificOutput']['additionalContext']));
-        self::assertStringContainsString('Governed Workflow Activation', $output['hookSpecificOutput']['additionalContext']);
+        self::assertStringContainsString(
+            'persisted workflow state beats conversational state',
+            $output['hookSpecificOutput']['additionalContext'],
+        );
         self::assertStringContainsString('RESULT:', $output['hookSpecificOutput']['additionalContext']);
     }
 
