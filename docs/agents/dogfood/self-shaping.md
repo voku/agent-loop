@@ -4,7 +4,7 @@
 
 The repository therefore keeps a first-party self-shaping scenario that runs the same public workflow used by consumers, while preserving the one packaging distinction that cannot be identical: the root checkout invokes `php bin/agent-loop`, whereas the installed-consumer gate invokes `vendor/bin/agent-loop`.
 
-The self-shape job also contains one deliberately narrower preflight: `tools/self-edit-dogfood.php` creates an isolated linked Git worktree and lets `agent-loop edit --runner=mechanical` change a tiny tracked fixture in its own repository. The probe then requires Git-observed `changed_files` evidence for exactly that fixture and proves that no external model was invoked. The worktree is discarded afterwards; the PR checkout is never mechanically rewritten by CI.
+The self-shape job also contains one deliberately narrower preflight: `tools/self-edit-dogfood.php` creates an isolated linked Git worktree and lets `agent-loop edit --runner=mechanical` change a tiny tracked fixture in its own repository. The probe then requires Git-observed `changed_files` evidence for exactly that fixture and proves that no external model was invoked. The worktree is discarded afterward; the PR checkout is never mechanically rewritten by CI.
 
 That distinction matters. The normal self-shape lifecycle governs the real PR diff. The self-edit probe separately proves that the product can actually execute and observe one edit against itself rather than merely review a diff produced by something else.
 
