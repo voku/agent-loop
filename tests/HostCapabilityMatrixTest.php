@@ -32,8 +32,8 @@ final class HostCapabilityMatrixTest extends TestCase
     public function testPortableSkillAndSubagentProjectionIsSupportedForEveryCanonicalAgent(): void
     {
         foreach (InitAgent::canonicalNames() as $agent) {
-            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::Skills));
-            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::Subagents));
+            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::SkillProjection));
+            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::SubagentProjection));
         }
     }
 
