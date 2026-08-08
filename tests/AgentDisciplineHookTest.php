@@ -48,6 +48,33 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertStringContainsString('RESULT:', $output['hookSpecificOutput']['additionalContext']);
     }
 
+    public function testClaudeContextPreservesUtf8WhenByteLimitCutsAMultibyteCharacter(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-utf8-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.claude/skills/agent-loop-discipline';
+        $skillPath = $skillDirectory . '/SKILL.md';
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertNotFalse(file_put_contents($skillPath, str_repeat('a', 9_499) . '€'));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->claudeContextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+                'source' => 'startup',
+            ]));
+            $context = $output['hookSpecificOutput']['additionalContext'];
+
+            self::assertSame(9_499, strlen($context));
+            self::assertSame(1, preg_match('//u', $context));
+            json_encode($output, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        } finally {
+            unlink($skillPath);
+            rmdir($skillDirectory);
+            rmdir(dirname($skillDirectory));
+            rmdir(dirname($skillDirectory, 2));
+            rmdir($root);
+        }
+    }
+
     public function testRawDiffIsAllowedWithoutInputRewrite(): void
     {
         $this->assertPassThrough('git diff --no-ext-diff');
