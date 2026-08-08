@@ -6,7 +6,10 @@ planner='agent-loop-self-shape'
 learning_root='infra/doc/agent-learning'
 recall_root="${learning_root}/recall-output"
 base_ref="${GITHUB_BASE_REF:-main}"
-goal="${SELF_SHAPE_GOAL:-Govern and validate agent-loop's current diff through agent-loop itself.}"
+goal="${SELF_SHAPE_GOAL:-}"
+if [[ -z "${goal//[[:space:]]/}" ]]; then
+  goal='Govern and validate the current agent-loop diff through agent-loop itself.'
+fi
 approval_actor="${SELF_SHAPE_APPROVER:-ci-self-shape-approval-fixture}"
 pr_number="${SELF_SHAPE_PR_NUMBER:-}"
 
