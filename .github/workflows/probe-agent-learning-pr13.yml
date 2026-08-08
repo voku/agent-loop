@@ -10,7 +10,7 @@ jobs:
     permissions:
       contents: read
     env:
-      EXPECTED_AGENT_LEARNING_REF: c07126f222094442affb989e9bf8ef16bc234e45
+      EXPECTED_AGENT_LEARNING_REF: 9a3654d26ec59bccdfe6d987d3b217c80d13ee9f
       SELF_SHAPE_GOAL: Probe unreleased agent-learning applied-guidance target proof through agent-loop self-shape.
       SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
       SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
