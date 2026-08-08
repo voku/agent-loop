@@ -22,8 +22,8 @@ The invariant is:
 | General simplicity review semantics | `voku/agent-skills` | `agent-loop` may add only agent-* ownership/map-specific overlay | `MOVE_SEMANTICS` | Reconcile `agent-loop-simplify-review` / audit against `code-review-simplicity` without losing workflow evidence contracts; tracked by #36 |
 | Host skill installation/projection | `voku/agent-loop` | Merge one or more explicit canonical skill roots, project them to the native host root, track one managed manifest | `ADAPT` | All roots are checked/collected before target mutation; missing/unreadable explicit roots and duplicate skill IDs fail early; one managed manifest prevents one source from making another look stale; runtime never downloads a source |
 | Host subagent/custom-agent representation | `voku/agent-loop` | Parse one role meaning and render native host representation | `KEEP` | `SubagentDefinition` already acts as a small compiler; extend only for proven missing semantics |
-| Host hook/bootstrap representation | `voku/agent-loop` | Project shared discipline policy through explicit host mechanics | `ADAPT` | Codex and Claude are implemented differently; Copilot/Antigravity behavior must stay explicitly unsupported until verified and implemented |
-| Host capability/degradation reporting | `voku/agent-loop` | Typed matrix + `init doctor` projection | `ADAPT` | `HostCapabilityMatrix` starts with current repository facts; later revisions must be evidence-backed and tested |
+| Host hook/bootstrap representation | `voku/agent-loop` | Project shared discipline policy through explicit host mechanics | `ADAPT` | Codex and Claude adapters are contract-tested but remain degraded until live host execution is observed. Copilot now documents repository hooks, but agent-loop has no adapter/runtime proof yet; Antigravity remains unverified |
+| Host capability/degradation reporting | `voku/agent-loop` | Typed matrix + `init doctor` projection | `ADAPT` | `HostCapabilityMatrix` reports evidence level, not optimistic feature availability |
 
 ## Host projection levels
 
@@ -33,11 +33,11 @@ Different asset types have different portability. Do not force them through one 
 |---|---|---|
 | Skills | High | One or more canonical local skill roots are merged before mutation, then projected into `.codex/skills`, `.claude/skills`, `.github/skills`, or `.agents/skills` through one manifest |
 | Subagents/custom agents | Medium | Canonical Markdown role parsed by `SubagentDefinition`, rendered as Codex TOML, Copilot `.agent.md`, or host Markdown/frontmatter |
-| Session/subagent discipline bootstrap | Low | Implemented through Codex/Claude hook lifecycles; unsupported for other canonical hosts until a real native mechanism is implemented |
-| Pre-tool guardrail | Low | Shared typed policy is exposed through Codex/Claude hook adapters; unsupported elsewhere today |
-| Repository hook registration | Low | Codex hook bundle and Claude `settings.json#hooks` require different installation/registration mechanics |
+| Session/subagent discipline bootstrap | Low | Codex/Claude native hook adapters exist and are contract-tested; runtime execution/propagation is not yet observed, so capability stays degraded |
+| Pre-tool guardrail | Low | Shared typed policy is exposed through Codex/Claude hook adapters; runtime execution is not yet observed, so capability stays degraded |
+| Repository hook registration | Low | Codex hook bundle and Claude `settings.json#hooks` require different installation/registration mechanics; registration alone is not runtime proof |
 
-The typed current-state projection lives in `HostCapabilityMatrix`. `init doctor` renders that model so unsupported behavior is visible instead of silently disappearing.
+The typed current-state projection lives in `HostCapabilityMatrix`. `init doctor` renders that model so unsupported or degraded behavior is visible instead of silently disappearing.
 
 ## Skill-source boundary
 
@@ -65,18 +65,26 @@ Those runtime properties need their own capability rows and evidence. This is wh
 
 ## Current host capability truth
 
-The matrix below describes what **this repository currently implements**, not everything a vendor product may theoretically support.
+The matrix describes the strongest evidence **this repository currently owns**, not everything a vendor product may theoretically support.
+
+Status meanings are intentionally strict:
+
+- `supported`: agent-loop behavior is directly exercised by executable evidence at the claimed boundary;
+- `degraded`: agent-loop has a native adapter and contract tests, but the host runtime/delegation behavior itself has not been observed;
+- `unsupported`: agent-loop has no adapter for the claimed capability.
 
 | Capability | Codex | Claude | Copilot | Antigravity |
 |---|---|---|---|---|
 | skill projection | supported | supported | supported | supported |
 | subagent projection | supported | supported | supported | supported |
-| session bootstrap | supported | supported | unsupported | unsupported |
-| subagent bootstrap | supported | supported | unsupported | unsupported |
-| pre-tool guardrail | supported | supported | unsupported | unsupported |
-| repository hooks | supported | supported | unsupported | unsupported |
+| session bootstrap | degraded | degraded | unsupported | unsupported |
+| subagent bootstrap | degraded | degraded | unsupported | unsupported |
+| pre-tool guardrail | degraded | degraded | unsupported | unsupported |
+| repository hooks | degraded | degraded | unsupported | unsupported |
 
-A future host adapter may change an `unsupported` cell only with source/runtime evidence and executable tests. Do not infer support from a vendor feature name that merely sounds similar.
+GitHub now documents repository-level Copilot hooks under `.github/hooks/*.json`, including `sessionStart`, `subagentStart`, and `preToolUse` for Copilot CLI/cloud agent. That proves a vendor mechanism exists; it does not prove our PHP hook commands execute safely in every Copilot runtime. In particular, command-hook failures for `preToolUse` can deny tool execution. The Copilot cell therefore remains `unsupported` until an agent-loop adapter and executable runtime evidence exist. See [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference).
+
+A future host adapter may change an `unsupported` or `degraded` cell only with evidence at the boundary the new status claims. Do not infer runtime support from generated files or a vendor feature name that merely sounds similar.
 
 ## Review ownership audit discovered by dogfood
 
