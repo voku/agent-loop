@@ -278,13 +278,8 @@ final readonly class AgentDisciplineHook
             return null;
         }
 
-        $size = filesize($manifestPath);
-        if (!is_int($size) || $size <= 0 || $size > self::MAX_RUN_MANIFEST_BYTES) {
-            return null;
-        }
-
-        $content = file_get_contents($manifestPath);
-        if (!is_string($content) || $content === '') {
+        $content = file_get_contents($manifestPath, false, null, 0, self::MAX_RUN_MANIFEST_BYTES + 1);
+        if (!is_string($content) || $content === '' || strlen($content) > self::MAX_RUN_MANIFEST_BYTES) {
             return null;
         }
 
@@ -299,7 +294,7 @@ final readonly class AgentDisciplineHook
 
         $taskId = $manifest['task_id'] ?? null;
         $state = $manifest['state'] ?? null;
-        if (!is_string($taskId) || !$this->isSafeTaskId($taskId)) {
+        if (!is_string($taskId) || $taskId === '' || !$this->isSafeTaskId($taskId)) {
             return null;
         }
         if (basename(dirname($manifestPath)) !== $taskId) {
