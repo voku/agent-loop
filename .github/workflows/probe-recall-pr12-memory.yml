@@ -10,6 +10,7 @@ jobs:
     permissions:
       contents: read
     env:
+      EXPECTED_RECALL_REF: 84f1c009e64eb47dfaf5041206d19782b6147328
       SELF_SHAPE_GOAL: Probe unreleased recall project-root MEMORY resolution through agent-loop self-shape.
       SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
       SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -37,6 +38,11 @@ jobs:
           $reference = Composer\InstalledVersions::getReference("voku/agent-recall-compiler");
           if (!is_string($reference) || $reference === "") {
               fwrite(STDERR, "Missing installed recall source reference.\n");
+              exit(1);
+          }
+          $expected = getenv("EXPECTED_RECALL_REF");
+          if (!is_string($expected) || $expected === "" || $reference !== $expected) {
+              fwrite(STDERR, "Installed recall ref mismatch: expected {$expected}, got {$reference}.\n");
               exit(1);
           }
           echo $reference, "\n";
