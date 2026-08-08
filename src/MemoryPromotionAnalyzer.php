@@ -108,14 +108,17 @@ final class MemoryPromotionAnalyzer
     {
         $lines = preg_split('/\R/', $content) ?: [];
         $durableHeading = $this->findHeading($lines, [self::DURABLE_HEADING]);
-        if ($durableHeading === null) {
-            throw new RuntimeException('missing required section ' . self::DURABLE_HEADING);
+        $archiveHeading = $this->findHeading($lines, self::ARCHIVE_HEADINGS);
+
+        if ($durableHeading === null && $archiveHeading === null) {
+            throw new RuntimeException('no supported MEMORY section found');
         }
 
-        $durableRows = $this->parseTableInSection($lines, $durableHeading, self::DURABLE_HEADERS, 'durable rules');
+        $durableRows = $durableHeading === null
+            ? []
+            : $this->parseTableInSection($lines, $durableHeading, self::DURABLE_HEADERS, 'durable rules');
         $this->assertUniqueDurableSubjects($durableRows);
 
-        $archiveHeading = $this->findHeading($lines, self::ARCHIVE_HEADINGS);
         $archiveRows = $archiveHeading === null
             ? []
             : $this->parseTableInSection($lines, $archiveHeading, self::ARCHIVE_HEADERS, 'archived task learning');
