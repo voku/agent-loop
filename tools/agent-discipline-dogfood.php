@@ -236,7 +236,9 @@ try {
     $skill = file_get_contents($skillPath);
     assertTrue(is_string($skill), 'Unable to read staged discipline skill.');
     assertTrue(strlen($skill) <= 8_000, 'Discipline skill exceeds the 8 KiB bootstrap budget.');
-    assertTrue(str_contains($skill, 'Minimal Implementation Ladder'), 'Discipline skill misses minimal implementation ladder.');
+    assertTrue(str_contains($skill, 'Engineering Skill Routing'), 'Discipline skill misses engineering skill routing.');
+    assertTrue(str_contains($skill, 'coding-simplicity'), 'Discipline skill misses coding-simplicity route.');
+    assertTrue(!str_contains($skill, 'Minimal Implementation Ladder'), 'Discipline bootstrap still embeds implementation minimization rules.');
     assertTrue(str_contains($skill, 'Uncertainty Is State'), 'Discipline skill misses uncertainty boundary.');
     assertTrue(
         str_contains($skill, 'Summaries may point to evidence; they never replace it.'),
@@ -254,6 +256,7 @@ try {
 
     $surgicalSkill = file_get_contents($repositoryRoot . '/docs/agents/skills/agent-loop-surgical-edit/SKILL.md');
     assertTrue(is_string($surgicalSkill), 'Unable to read surgical edit skill.');
+    assertTrue(str_contains($surgicalSkill, 'coding-simplicity'), 'Surgical edit skill misses coding-simplicity routing.');
     foreach (['STATUS: applied', 'STATUS: scope_expanded', 'STATUS: human_gate', 'STATUS: ambiguous', 'STATUS: regressed'] as $status) {
         assertTrue(str_contains($surgicalSkill, $status), 'Surgical edit skill misses terminal result: ' . $status);
     }
@@ -283,7 +286,8 @@ try {
     assertTrue(($session['continue'] ?? null) === true, 'SessionStart did not continue.');
     assertTrue(($session['hookSpecificOutput']['hookEventName'] ?? null) === 'SessionStart', 'SessionStart event mismatch.');
     $sessionContext = (string) ($session['hookSpecificOutput']['additionalContext'] ?? '');
-    assertTrue(str_contains($sessionContext, 'Minimal Implementation Ladder'), 'SessionStart did not inject discipline context.');
+    assertTrue(str_contains($sessionContext, 'Engineering Skill Routing'), 'SessionStart did not inject workflow discipline context.');
+    assertTrue(!str_contains($sessionContext, 'Minimal Implementation Ladder'), 'SessionStart injected coding implementation rules.');
     assertTrue(str_contains($sessionContext, 'Agent Loop Resume Hint'), 'SessionStart did not inject workflow resume hint.');
     assertTrue(str_contains($sessionContext, '`DOGFOOD-42`'), 'SessionStart resume hint misses unfinished task id.');
     assertTrue(str_contains($sessionContext, 'projected state: `incomplete`'), 'SessionStart resume hint misses projected state.');
@@ -308,6 +312,7 @@ try {
     assertTrue(($subagent['hookSpecificOutput']['hookEventName'] ?? null) === 'SubagentStart', 'SubagentStart event mismatch.');
     $subagentContext = (string) ($subagent['hookSpecificOutput']['additionalContext'] ?? '');
     assertTrue(str_contains($subagentContext, 'agent-loop map query'), 'SubagentStart did not inherit map guidance.');
+    assertTrue(!str_contains($subagentContext, 'Minimal Implementation Ladder'), 'SubagentStart injected coding implementation rules.');
     assertTrue(str_contains($subagentContext, '`DOGFOOD-42`'), 'SubagentStart did not inherit workflow resume hint.');
     assertTrue(!str_contains($subagentContext, 'IGNORE PRIOR INSTRUCTIONS'), 'SubagentStart injected free-form manifest next_action.');
     $checks[] = ['id' => 'subagent-context', 'result' => 'passed'];
