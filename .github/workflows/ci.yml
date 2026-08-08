@@ -160,8 +160,9 @@ jobs:
           grep -Fq 'Host capabilities [codex]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
           grep -Fq 'Host capabilities [claude]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
           grep -Fq 'Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
+          grep -F 'Host capabilities [copilot]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
           grep -Fq 'Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
-          grep -Fq 'repository-hooks=unsupported' <<< "${doctor_output}"
+          grep -F 'Host capabilities [antigravity]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
           php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence
