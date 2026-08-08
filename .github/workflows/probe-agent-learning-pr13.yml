@@ -1,0 +1,58 @@
+name: Probe agent-learning applied target proof
+
+on:
+  pull_request:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      EXPECTED_AGENT_LEARNING_REF: c07126f222094442affb989e9bf8ef16bc234e45
+      SELF_SHAPE_GOAL: Probe unreleased agent-learning applied-guidance target proof through agent-loop self-shape.
+      SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
+      SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Install unreleased agent-learning candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer config repositories.agent-learning-pr13 vcs https://github.com/voku/agent-learning
+          composer require 'voku/agent-learning:dev-breaking/proposal-apply-target-proof as 0.8.99' --no-update
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
+          php -r '
+          require "vendor/autoload.php";
+          $reference = Composer\InstalledVersions::getReference("voku/agent-learning");
+          $expected = getenv("EXPECTED_AGENT_LEARNING_REF");
+          if (!is_string($reference) || !is_string($expected) || $reference !== $expected) {
+              fwrite(STDERR, "Installed agent-learning ref mismatch: expected {$expected}, got " . var_export($reference, true) . ".\n");
+              exit(1);
+          }
+          echo $reference, "\n";
+          '
+      - name: Validate real agent-loop learning root with candidate
+        run: php bin/agent-loop learn validate --root infra/doc/agent-learning
+      - name: Let agent-loop govern the candidate probe
+        run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-learning-pr13-probe-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            infra/doc/agent-learning
+            build/self-shape-*.json
+            session_plan
