@@ -29,6 +29,19 @@ workflow.
 5. If verified scope no longer matches the approved brief, re-plan. Do not
    silently widen the task and keep old approval or validation evidence.
 
+A SessionStart/SubagentStart hook may include an `Agent Loop Resume Hint` built
+from unfinished run manifests. That hint is navigation only. The run manifest is
+a derived projection, not workflow authority. Before any governed mutation:
+
+```bash
+vendor/bin/agent-loop workflow status <task-id> --format=json
+```
+
+If the hint contains multiple unfinished tasks, do not guess which task owns the
+request. Resolve the task from the current request/repository context, then read
+its authoritative workflow status. Never infer approval, validation, review,
+learning, product intent, or a next command from the bootstrap hint.
+
 Human gates stay human: approval of a work-brief revision, acceptance of real
 risk or irreversible action, and genuinely missing product intent. Everything
 else the available tools can inspect, edit, validate, or report remains agent
@@ -73,6 +86,11 @@ Useful bounded chain:
 investigator -> surgical builder -> code reviewer
 ```
 
+Narrow roles return deterministic terminal states such as `located`, `no_match`,
+`applied`, `scope_expanded`, `human_gate`, `ambiguous`, `regressed`, `findings`,
+`clean`, or `blocked`. The main workflow consumes that state; it does not ask a
+small role to silently exceed its contract.
+
 Do not delegate a one-line answer merely to look agentic. Do not force broad work
 through a small role to preserve a pretty workflow diagram.
 
@@ -93,6 +111,29 @@ After the requirement is satisfied, stop. Do not add adjacent cleanup,
 configuration, abstractions, compatibility, or policy unless the task requires
 it or validation proves it necessary. A small patch in the wrong layer is still
 a compact defect.
+
+A non-trivial logic change leaves the smallest meaningful runnable regression
+proof that would fail if the changed behavior breaks. This includes branches,
+loops, parsers, security or money paths, and shared contracts. Do not build a new
+test framework or ceremony for a trivial one-line change merely to satisfy a
+ritual; use the repository's smallest existing proof surface.
+
+## Uncertainty Is State
+
+Delete hedging; keep uncertainty. Unknown input is not permission to invent a
+specific value that makes the workflow look complete.
+
+- Never fabricate a version, path, line number, command result, approval,
+  validation result, review result, product intent, or runtime fact.
+- Inspect the owning source, package state, manifest owner, or safe runtime probe
+  when an available tool can settle the question.
+- When it cannot be settled, state the exact unknown fact and whether it blocks
+  the current phase. Do not replace it with a plausible guess.
+- A review question is a real terminal result when author/product intent is
+  required; it is not a softened assertion.
+- After repeated equivalent failures, stop stacking another speculative patch.
+  Name the assumption that may be wrong, gather new evidence, and return to
+  `CONTEXT` or `PLAN` when the approved model no longer fits reality.
 
 ## Workflow State And Output
 
@@ -164,6 +205,12 @@ Hooks are behavioral guardrails, never a correctness or security boundary. Code,
 CI, trust-boundary validation, and the offline `install-assets` contract must stay
 correct when a host does not dispatch a hook. Do not grow hook blacklists to
 simulate a security sandbox.
+
+A resume hint follows the same boundary: it may identify an unfinished task and
+projected state, but it never injects free-form manifest fields such as
+`next_action`, disagreement messages, or copied task prose. The authoritative
+workflow read happens through `workflow status` after the agent resolves the
+actual task.
 
 ## Safety Floor
 
