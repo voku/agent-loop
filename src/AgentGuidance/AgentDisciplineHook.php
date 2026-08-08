@@ -123,7 +123,10 @@ final readonly class AgentDisciplineHook
 
         return [
             'hookEventName' => $event,
-            'additionalContext' => substr($this->disciplineContext($clientDirectory), 0, $maxContextBytes),
+            'additionalContext' => $this->truncateUtf8ByBytes(
+                $this->disciplineContext($clientDirectory),
+                $maxContextBytes,
+            ),
         ];
     }
 
@@ -200,6 +203,25 @@ final readonly class AgentDisciplineHook
     private function stripFrontmatter(string $content): string
     {
         return preg_replace('/\A---\R.*?\R---\R/s', '', $content, 1) ?? $content;
+    }
+
+    private function truncateUtf8ByBytes(string $context, int $maxBytes): string
+    {
+        if (preg_match('//u', $context) !== 1) {
+            throw new UnexpectedValueException('Agent discipline context must be valid UTF-8.');
+        }
+        if (strlen($context) <= $maxBytes) {
+            return $context;
+        }
+
+        $truncated = substr($context, 0, $maxBytes);
+        while (preg_match('//u', $truncated) !== 1) {
+            // The original context is valid UTF-8, so at most three trailing
+            // bytes can belong to the code point cut by the byte limit.
+            $truncated = substr($truncated, 0, -1);
+        }
+
+        return $truncated;
     }
 
     private function isUnboundedMapDump(string $command): bool
