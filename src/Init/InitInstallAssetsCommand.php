@@ -32,7 +32,7 @@ final readonly class InitInstallAssetsCommand
         try {
             $agent = InitAgent::parse(
                 $requestedAgent,
-                ['codex', 'claude', 'copilot', 'antigravity'],
+                InitAgent::canonicalNames(),
                 true,
             );
         } catch (InvalidArgumentException $exception) {
@@ -50,8 +50,9 @@ final readonly class InitInstallAssetsCommand
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $codexHooksRoot = $packageRoot . '/docs/agents/codex-hooks';
         $claudeHooksRoot = $packageRoot . '/docs/agents/claude-hooks';
+        $extraSkillRoots = $this->readOptionValues($tokens, 'extra-skills-root');
         $installsSubagents = $agent->isAll()
-            || in_array($agent->canonicalName(), ['codex', 'claude', 'copilot', 'antigravity'], true);
+            || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
         $hookAgents = $agent->isAll()
             ? ['codex', 'claude']
             : (in_array($agent->canonicalName(), ['codex', 'claude'], true) ? [$agent->canonicalName()] : []);
@@ -77,11 +78,16 @@ final readonly class InitInstallAssetsCommand
 
         $dryRun = in_array('--dry-run', $tokens, true);
         $forwarded = $this->forwardedTokens($tokens);
+        $skillArguments = [
+            '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
+            '--skills-root=' . $skillsRoot,
+        ];
+        foreach ($extraSkillRoots as $extraSkillRoot) {
+            $skillArguments[] = '--skills-root=' . $extraSkillRoot;
+        }
+
         $skillsExit = (new InitSyncSkillsCommand($this->rootPath))->run(array_merge(
-            [
-                '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
-                '--skills-root=' . $skillsRoot,
-            ],
+            $skillArguments,
             $forwarded,
         ));
         if ($skillsExit !== 0) {
@@ -121,9 +127,13 @@ final readonly class InitInstallAssetsCommand
             }
         }
 
+        $sourceDescription = $extraSkillRoots === []
+            ? 'package-owned guidance'
+            : 'package-owned guidance plus ' . count($extraSkillRoots) . ' explicit local skill source(s)';
+
         echo $dryRun
-            ? '[DRY-RUN] install assets: package-owned guidance validated; no files written.' . "\n"
-            : '[OK] install assets: installed package-owned guidance without downloading remote code.' . "\n";
+            ? '[DRY-RUN] install assets: ' . $sourceDescription . ' validated; no files written.' . "\n"
+            : '[OK] install assets: installed ' . $sourceDescription . ' without downloading remote code.' . "\n";
 
         return 0;
     }
@@ -147,7 +157,7 @@ final readonly class InitInstallAssetsCommand
     /** @param list<string> $tokens */
     private function validateTokens(array $tokens): ?string
     {
-        $valueOptions = ['agent'];
+        $valueOptions = ['agent', 'extra-skills-root'];
         $flagOptions = ['dry-run', 'force', 'adopt-existing'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
@@ -177,22 +187,42 @@ final readonly class InitInstallAssetsCommand
     /** @param list<string> $tokens */
     private function readOptionValue(array $tokens, string $name): ?string
     {
+        $values = $this->readOptionValues($tokens, $name);
+
+        return $values[0] ?? null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function readOptionValues(array $tokens, string $name): array
+    {
+        $values = [];
         $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
             if (str_starts_with($token, $prefix)) {
                 $value = substr($token, strlen($prefix));
+                if ($value !== '') {
+                    $values[] = $value;
+                }
 
-                return $value === '' ? null : $value;
+                continue;
             }
 
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
+            if ($token !== '--' . $name) {
+                continue;
+            }
+
+            $candidate = $tokens[$i + 1] ?? null;
+            if (is_string($candidate) && !str_starts_with($candidate, '--')) {
+                $values[] = $candidate;
+                ++$i;
             }
         }
 
-        return null;
+        return $values;
     }
 }
