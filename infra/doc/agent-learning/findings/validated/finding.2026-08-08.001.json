@@ -12,8 +12,8 @@
   "observation": "WorkingTreeSnapshotter treated a path as Git-backed only when <root>/.git was a directory. A linked git worktree stores .git as a file pointing to the main repository metadata, so edits executed in a real linked worktree silently produced unavailable working-tree evidence even though git status and git rev-parse worked normally. Building the self-edit dogfood probe reproduced the boundary directly: the safe isolated place for agent-loop to mechanically edit its own HEAD was exactly the repository shape the snapshotter rejected.",
   "evidence": [
     {
-      "type": "code_inspection",
-      "reference": "src/Edit/WorkingTreeSnapshotter.php previously returned WorkingTreeSnapshot::unavailable() when !is_dir(<root>/.git) before asking Git for status."
+      "type": "manual_verification",
+      "summary": "Before this fix, src/Edit/WorkingTreeSnapshotter.php returned WorkingTreeSnapshot::unavailable() when <root>/.git was not a directory, before asking Git for status. The pre-fix implementation is present in the PR base commit ab59c60225e0d81959c9d59677fc8e61fe7eab7a."
     },
     {
       "type": "test_result",
