@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: 7fa831a5c2a2f7d98dcb0efe78f69472d8980d59
+          ref: 84ecf946b83937fe7fcb1931432b13228467b4f2
           path: build/agent-skills-source
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
