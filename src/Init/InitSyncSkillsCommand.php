@@ -40,7 +40,7 @@ final readonly class InitSyncSkillsCommand
         }
 
         try {
-            $agent = InitAgent::parse($agentValue, ['codex', 'claude', 'copilot', 'antigravity'], true, $config['agents']);
+            $agent = InitAgent::parse($agentValue, InitAgent::canonicalNames(), true, $config['agents']);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -63,7 +63,7 @@ final readonly class InitSyncSkillsCommand
         if ($requestedSkillRoots !== []) {
             foreach ($skillRoots as $skillRoot) {
                 if (!is_dir($skillRoot)) {
-                    fwrite(\STDERR, '[FAIL] sync skills: source root does not exist: ' . $this->displayPath($skillRoot) . "\n");
+                    echo '[FAIL] sync skills: source root does not exist: ' . $this->displayPath($skillRoot) . "\n";
 
                     return 1;
                 }
@@ -204,7 +204,7 @@ final readonly class InitSyncSkillsCommand
             $manifest->write($desiredEntries);
         }
 
-        echo '[OK] sync skills: synced ' . count($skillFiles) . ' skill file(s) from ' . count($skillRoots) . ' source root(s) for ' . $agent . ' into ' . $targetRoot . "\n";
+        echo '[OK] sync skills: synced ' . count($skillFiles) . ' skill file(s) for ' . $agent . ' into ' . $targetRoot . ' from ' . count($skillRoots) . ' source root(s)' . "\n";
         $reloadHint = $this->reloadHint($agent);
         if ($reloadHint !== null) {
             echo $reloadHint . "\n";
