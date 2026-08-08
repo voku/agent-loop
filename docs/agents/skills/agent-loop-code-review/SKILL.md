@@ -1,52 +1,43 @@
 ---
 name: agent-loop-code-review
-description: Review a complete PHP diff for correctness with deterministic terminal status and terse, actionable findings. Preserve full evidence, use agent-map for caller/context lookup, and keep complexity review separate.
+description: Govern a read-only review of the complete raw diff, routing one dominant engineering lens and at most one focused handoff while preserving exact evidence and deterministic terminal state.
 ---
 
 # Agent Loop Code Review
 
-Review the complete raw diff. Findings only; no praise, throat-clearing, or feature tour.
+Own the review workflow, not the engineering handbook.
 
-Use `agent-loop map changed --base=<ref>` to orient changed symbols and `map related <symbol>` when a finding depends on callers or shared behavior. Read the relevant real source before asserting a problem.
+## Contract
 
-## Terminal Result Contract
+1. Review the complete raw diff and task/brief evidence. Never review a summary instead.
+2. Use `agent-loop map changed --base=<ref>` and focused caller/context lookup when a claim depends on surrounding code. Verify against real source.
+3. Select **one dominant** installed `code-review-*` engineering lens for the most material concern. Do not run a default review swarm.
+4. Accept at most one evidence-backed `HANDOFF:` from that lens. A handoff changes focus; it does not fan out into every other lens.
+5. Persist/report the lens result without turning it into workflow approval. `review blindspots` remains a separate deterministic process/evidence check.
+6. Read-only. Do not apply fixes during review.
 
-One or more verified correctness findings:
+If no applicable engineering lens is available:
+
+```text
+STATUS: blocked
+UNKNOWN: no applicable code-review-* capability is available.
+```
+
+Lens results are:
 
 ```text
 STATUS: findings
 <path>:<line>: <severity> <problem>. <concrete fix>.
+HANDOFF: <code-review-* lens>   # optional, at most one
 ```
-
-No correctness finding after reviewing the complete supplied scope:
 
 ```text
 STATUS: clean
 ```
-
-Required source, diff, or caller context is unavailable and a correctness judgment cannot be made:
 
 ```text
 STATUS: blocked
 UNKNOWN: <exact missing evidence>.
 ```
 
-Severity:
-
-- `bug:` wrong result, crash, data loss, security failure;
-- `risk:` edge case, race, leak, missing guard, contract mismatch;
-- `nit:` naming/style only when explicitly requested;
-- `question:` author intent is required before judging.
-
-A `question:` is still a finding under `STATUS: findings`; it preserves the missing intent instead of guessing. Use `STATUS: blocked` only when the review scope itself cannot be inspected sufficiently.
-
-## Rules
-
-- Preserve exact symbols, values, paths, error text, and contract names.
-- Do not restate the diff.
-- Do not invent a refactor when a local fix exists.
-- Need more context: inspect it or preserve the unknown; never guess.
-- Security findings get enough explanation to make impact and trust boundary clear. Brevity never hides risk.
-- Do not apply fixes during review.
-
-Run `agent-loop-simplify-review` separately when the goal is unnecessary complexity. Correctness and simplification are different passes.
+Correctness comes from the selected engineering capability plus exact evidence. `agent-loop` owns scope, routing, persistence, and workflow progression.
