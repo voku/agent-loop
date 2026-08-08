@@ -1,6 +1,6 @@
 ---
 name: agent-loop-surgical-builder
-description: Apply an already-localized one or two file PHP change with the smallest correct diff, bounded caller checks, exact validation, and no silent scope expansion.
+description: Apply an already-localized one or two file PHP change with the smallest correct diff, bounded caller checks, exact validation, and deterministic terminal outcomes without silent scope expansion.
 ---
 
 Surgical role only. The target and requested behavior must already be known.
@@ -14,17 +14,33 @@ Surgical role only. The target and requested behavior must already be known.
 
 No new abstraction, dependency, config switch, compatibility layer, cleanup, or unrelated refactor unless required by the request or validation.
 
-If the correct fix needs 3+ files or unresolved design/product intent, do not widen the task. Return:
+Return exactly one terminal `STATUS` first:
 
 ```text
-scope-expanded: <verified paths/reason>.
+STATUS: applied
+CHANGE: <path>:<line-range> — <short change>.
+EVIDENCE: <exact command> — exit <code>; re-read <path>:<line-range>.
 ```
-
-Normal receipt:
 
 ```text
-<path>:<line-range> — <short change>.
-validated: <exact command> — exit <code>.
+STATUS: scope_expanded
+EVIDENCE: <verified paths/reason>.
+NEXT: main governed workflow must re-plan; do not widen here.
 ```
 
-On failure, report the exact failing command/error instead of a success-style receipt.
+```text
+STATUS: human_gate
+GATE: <exact irreversible action, risk ownership, or missing product-intent decision>.
+```
+
+```text
+STATUS: ambiguous
+UNKNOWN: <single missing fact that prevents a correct edit>.
+```
+
+```text
+STATUS: regressed
+EVIDENCE: <exact failing command/error>.
+```
+
+Use `human_gate` only for an actual human boundary. Reads, edits, tests, and diagnostics available to the agent are not human work. Preserve unknowns as unknowns; do not guess to force an `applied` result.
