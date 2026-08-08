@@ -6,7 +6,8 @@ description: Compile and use agent-loop recall/L2 meta-prompt artifacts from the
 # Agent Loop L2 Context
 
 Use this skill when the task asks for L2 prompts, recall compilation, context
-briefing, or agent context from the current repository.
+briefing, reusable operational prompt recipes, or agent context from the current
+repository.
 
 ## Fast Path
 
@@ -47,7 +48,7 @@ artifacts under `recall/<task-id>/` (the default when `--output-dir` is not set)
 - `system.md` — compiled briefing for an agent or harness
 - `validation-plan.md` — validation steps derived from the task scope
 - `recall.bundle.json` — canonical task snapshot with source digests and resolved facts
-- `facts.json` — compact structured task, board, map, and document facts
+- `facts.json` — compact structured task, board, map, document, and prompt-recipe facts
 - `selection-report.json` — deterministic learning/constraint selection explanation
 - `recall-log.draft.json` — structured log of what was compiled
 - `meta.json` — metadata and output hash used by `agent-loop verify`
@@ -57,6 +58,55 @@ Check that `recall/<task-id>/meta.json` exists after compiling:
 ```bash
 ls recall/<task-id>/
 ```
+
+## Reusable Operational Prompt Recipes
+
+When `recall compile` receives an operating-prompt manifest and a selected
+recipe, the recipe is compiled beside the same project context instead of being
+used as a generic standalone prompt.
+
+The intended flow is:
+
+```text
+L2 recipe + recall context -> project-specific L1 operating prompt -> execution
+```
+
+Most reusable engineering recipes should be L2. The shared recipe owns the
+method and quality floor; recall owns the project context: exact files, symbols,
+callers, tests, project documents, constraints, validation commands, task state,
+and known risks.
+
+Example:
+
+```bash
+vendor/bin/agent-loop recall compile \
+  --root <learning-root-path> \
+  --task <task-id> \
+  --file src/Parser.php \
+  --file tests/ParserTest.php \
+  --operating-prompt-manifest <path-to-operating-prompts.json> \
+  --operating-prompt '{"id":"coverage-mutation","arguments":{"minimum_percentage_points":10,"mutation_command":"vendor/bin/infection --threads=max"}}'
+```
+
+If `system.md` contains `## L2 Operational Prompt Construction`, use a strict
+two-pass boundary:
+
+1. **Prompt construction pass:** read the compiled recall context and construct
+   one project-specific L1 prompt with exactly `Goal`, `Context`, `Constraints`,
+   and `Done When`. Preserve numeric floors and stopping conditions. Replace
+   generic placeholders with exact repository facts when available. Do not
+   implement the task in this pass.
+2. **Execution pass:** execute the resulting L1 prompt as the task contract.
+   Validate against `validation-plan.md` and the repository-specific evidence
+   named by the generated prompt.
+
+Do not collapse the two passes into "understand the intent and start coding".
+That throws away the point of L2: first turn reusable policy plus project facts
+into a concrete operating contract, then execute that contract.
+
+A recipe with `level: 1` is already an execution contract and may be applied
+directly. Typical L1 recipes are context-independent control rules such as
+bounded retries or evidence-report formatting.
 
 ## ctx Versus Recall
 
@@ -99,6 +149,11 @@ unless your harness consumes them automatically.
 You must explicitly read or pass `system.md` and `validation-plan.md` into
 your active workflow. They are review inputs or harness inputs, not
 automatically executed agent actions.
+
+For L2 prompt recipes this warning is especially important: the compiled L2
+section is an instruction to construct a project-specific L1 prompt. The
+presence of that section does not prove the L1 prompt was constructed, and the
+presence of an L1 prompt does not prove it was executed.
 
 ## Compact Map Locations
 
@@ -187,6 +242,7 @@ are logging. Do not log outcomes before the work is done. For a governed
 
 - Check `recall/<task-id>/meta.json` exists
 - Verify generated artifacts were inspected before use
+- For L2 recipes, verify a project-specific L1 prompt was constructed before execution
 - Run `vendor/bin/agent-loop verify` to confirm the briefing is not stale
 
 ## Skill Boundary
@@ -194,6 +250,7 @@ are logging. Do not log outcomes before the work is done. For a governed
 This skill owns:
 
 - compiling and using recall/L2 context from the current repository
+- reusing L2 prompt recipes to construct project-specific L1 contracts
 - understanding what recall compile writes and where
 - knowing that artifacts are review/harness inputs, not auto-executed
 - recompile discipline when files change
@@ -208,5 +265,7 @@ This skill does not own:
 
 - "Run the L2 meta prompt for this repo."
 - "Compile recall context from these files."
+- "Use the coverage-mutation recipe for this task."
+- "Turn this reusable prompt recipe into a project-specific operating prompt."
 - "Use the generated validation plan before coding."
 - "Review blind spots from the compiled context."
