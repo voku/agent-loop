@@ -428,7 +428,20 @@ final readonly class InitSyncSkillsCommand
                 continue;
             }
 
-            foreach (scandir($skillsRoot) ?: [] as $entry) {
+            if (!is_readable($skillsRoot)) {
+                $errors[] = '[FAIL] sync skills: unable to read source root: ' . $this->displayPath($skillsRoot);
+
+                continue;
+            }
+
+            $entries = scandir($skillsRoot);
+            if ($entries === false) {
+                $errors[] = '[FAIL] sync skills: unable to read source root: ' . $this->displayPath($skillsRoot);
+
+                continue;
+            }
+
+            foreach ($entries as $entry) {
                 if ($entry === '.' || $entry === '..') {
                     continue;
                 }
