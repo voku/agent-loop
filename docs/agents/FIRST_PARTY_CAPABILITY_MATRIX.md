@@ -20,7 +20,7 @@ The invariant is:
 | Process/evidence blind-spot check | `voku/agent-loop` | `review blindspots` deterministic lifecycle check | `KEEP` | Must remain distinct from LLM engineering review lenses |
 | Correctness review workflow contract | `voku/agent-loop` | Own exact diff/context input, no-mutation boundary, terminal state, persistence/routing | `THIN_ADAPTER` | General engineering review semantics must not keep growing here |
 | General simplicity review semantics | `voku/agent-skills` | `agent-loop` may add only agent-* ownership/map-specific overlay | `MOVE_SEMANTICS` | Reconcile `agent-loop-simplify-review` / audit against `code-review-simplicity` without losing workflow evidence contracts |
-| Host skill installation/projection | `voku/agent-loop` | Merge one or more explicit canonical skill roots, project them to the native host root, track one managed manifest | `ADAPT` | Multi-source sync is atomic; missing explicit roots and duplicate skill IDs fail before target mutation; runtime never downloads a source |
+| Host skill installation/projection | `voku/agent-loop` | Merge one or more explicit canonical skill roots, project them to the native host root, track one managed manifest | `ADAPT` | All roots are checked/collected before target mutation; missing explicit roots and duplicate skill IDs fail early; one managed manifest prevents one source from making another look stale; runtime never downloads a source |
 | Host subagent/custom-agent representation | `voku/agent-loop` | Parse one role meaning and render native host representation | `KEEP` | `SubagentDefinition` already acts as a small compiler; extend only for proven missing semantics |
 | Host hook/bootstrap representation | `voku/agent-loop` | Project shared discipline policy through explicit host mechanics | `ADAPT` | Codex and Claude are implemented differently; Copilot/Antigravity behavior must stay explicitly unsupported until verified and implemented |
 | Host capability/degradation reporting | `voku/agent-loop` | Typed matrix + `init doctor` projection | `ADAPT` | `HostCapabilityMatrix` starts with current repository facts; later revisions must be evidence-backed and tested |
@@ -45,12 +45,14 @@ The typed current-state projection lives in `HostCapabilityMatrix`. `init doctor
 
 The merge contract is deliberately boring:
 
-- roots are collected before writing targets;
+- roots are collected and explicit roots are checked before writing targets;
 - an explicitly requested missing root fails the operation;
 - the same skill directory name in two roots is an error;
 - all selected skills share one target manifest, so a second source cannot accidentally make the first source look stale;
 - `install-assets` never clones or downloads the additional source;
 - the caller owns source provenance and may pin/check out the source before invocation.
+
+This is a prevalidated single managed projection, not a filesystem transaction. A later I/O failure is still an ordinary write failure; there is no rollback claim.
 
 PR CI dogfoods this contract with `voku/agent-skills` pinned to commit `b5b910666c08e30950e2a5999d9c4a447b31e367`. A clean Composer consumer installs the candidate `agent-loop`, passes the pinned checkout as `--extra-skills-root`, and verifies that `agent-loop-discipline`, `code-review-security`, and `operational-prompting` coexist in the projected host skill trees. The pin is test provenance, not a runtime dependency.
 
