@@ -19,8 +19,8 @@ The invariant is:
 | Findings, proposals, evidence, reviewed learning boundary | `voku/agent-learning` | Record reusable observations and require review before durable guidance | `KEEP` | Findings are not memory; no automatic promotion |
 | Process/evidence blind-spot check | `voku/agent-loop` | `review blindspots` deterministic lifecycle check | `KEEP` | Must remain distinct from LLM engineering review lenses |
 | Correctness review workflow contract | `voku/agent-loop` | Own exact diff/context input, no-mutation boundary, terminal state, persistence/routing | `THIN_ADAPTER` | General engineering review semantics must not keep growing here |
-| General simplicity review semantics | `voku/agent-skills` | `agent-loop` may add only agent-* ownership/map-specific overlay | `MOVE_SEMANTICS` | Reconcile `agent-loop-simplify-review` / audit against `code-review-simplicity` without losing workflow evidence contracts |
-| Host skill installation/projection | `voku/agent-loop` | Merge one or more explicit canonical skill roots, project them to the native host root, track one managed manifest | `ADAPT` | All roots are checked/collected before target mutation; missing explicit roots and duplicate skill IDs fail early; one managed manifest prevents one source from making another look stale; runtime never downloads a source |
+| General simplicity review semantics | `voku/agent-skills` | `agent-loop` may add only agent-* ownership/map-specific overlay | `MOVE_SEMANTICS` | Reconcile `agent-loop-simplify-review` / audit against `code-review-simplicity` without losing workflow evidence contracts; tracked by #36 |
+| Host skill installation/projection | `voku/agent-loop` | Merge one or more explicit canonical skill roots, project them to the native host root, track one managed manifest | `ADAPT` | All roots are checked/collected before target mutation; missing/unreadable explicit roots and duplicate skill IDs fail early; one managed manifest prevents one source from making another look stale; runtime never downloads a source |
 | Host subagent/custom-agent representation | `voku/agent-loop` | Parse one role meaning and render native host representation | `KEEP` | `SubagentDefinition` already acts as a small compiler; extend only for proven missing semantics |
 | Host hook/bootstrap representation | `voku/agent-loop` | Project shared discipline policy through explicit host mechanics | `ADAPT` | Codex and Claude are implemented differently; Copilot/Antigravity behavior must stay explicitly unsupported until verified and implemented |
 | Host capability/degradation reporting | `voku/agent-loop` | Typed matrix + `init doctor` projection | `ADAPT` | `HostCapabilityMatrix` starts with current repository facts; later revisions must be evidence-backed and tested |
@@ -47,6 +47,7 @@ The merge contract is deliberately boring:
 
 - roots are collected and explicit roots are checked before writing targets;
 - an explicitly requested missing root fails the operation;
+- a source root that exists but cannot be read/enumerated fails before target or manifest mutation;
 - the same skill directory name in two roots is an error;
 - all selected skills share one target manifest, so a second source cannot accidentally make the first source look stale;
 - `install-assets` never clones or downloads the additional source;
@@ -77,14 +78,35 @@ The matrix below describes what **this repository currently implements**, not ev
 
 A future host adapter may change an `unsupported` cell only with source/runtime evidence and executable tests. Do not infer support from a vendor feature name that merely sounds similar.
 
-## Review boundary to reconcile next
+## Review ownership audit discovered by dogfood
 
-`agent-loop-code-review`, `agent-loop-simplify-review`, and `agent-loop-simplify-audit` currently mix two kinds of knowledge:
+The PR's own review path made the next ownership problem concrete instead of leaving it as a noun in the roadmap. Current review assets contain several different contracts that should not share one owner.
 
-1. workflow-specific contracts that belong here: exact raw diff, bounded source/caller lookup, no mutation, deterministic terminal status, task evidence and routing;
-2. general engineering judgment that should be canonical in `voku/agent-skills`.
+| Current source/concept | Correct owner | Classification | Required direction |
+|---|---|---|---|
+| `agent-loop-code-review`: complete raw diff, exact source/caller evidence, no mutation, `findings|clean|blocked` terminal state | `voku/agent-loop` | `WORKFLOW_CONTRACT` | Keep; this is routing/evidence behavior, not a technical review handbook |
+| `agent-loop-code-review`: general security/architecture/type/performance judgment as it grows | `voku/agent-skills` | `ENGINEERING_SEMANTIC` | Do not duplicate; dispatch the dominant first-party lens instead |
+| `agent-loop-simplify-review`: `delete/reuse/stdlib/native/yagni/shrink` engineering judgment | `voku/agent-skills` | `ENGINEERING_SEMANTIC` | Reconcile with `code-review-simplicity`; keep only workflow and agent-* overlay locally |
+| `agent-loop-simplify-review`: `agent-map changed/file/related`, agent-* package ownership, no automatic edits | `voku/agent-loop` | `AGENT_LOOP_OVERLAY` | Keep thin and explicit |
+| `agent-loop-simplify-audit`: bounded candidate selection and real-source/caller verification | `voku/agent-loop` | `WORKFLOW_CONTRACT` | Keep the audit/navigation contract; technical simplicity rules should come from the canonical lens |
+| `agent-skills/code-review-*`: concern-specific technical rules and required evidence | `voku/agent-skills` | `ENGINEERING_SEMANTIC` / `LENS_EVIDENCE_CONTRACT` | Keep and make each lens independently dispatchable |
+| `agent-skills/code-review-*`: mandatory six-pass protocol, global precedence, merged-finding/dedupe policy | workflow caller (`agent-loop` when it is the caller) | `WORKFLOW_ORCHESTRATION` | Remove from individual lens semantics; one dominant lens first, at most one evidence-backed handoff |
+| `agent-skills/code-review-simplicity`: mandatory bound-range enumeration for every non-blocked review | `voku/agent-skills` | `OVERFIT_RULE` | Make conditional on changed/relevant bounds instead of blocking unrelated simplicity reviews |
+| `agent-loop review blindspots` | `voku/agent-loop` | `PROCESS_EVIDENCE` | Keep deterministic and separate from every engineering lens |
 
-The next slice must classify those rules before deleting or merging anything. One dominant engineering lens should be selected first; do not create a mandatory multi-lens swarm.
+This is intentionally an audit, not the migration itself. The cross-repository implementation is tracked in #36. `voku/agent-skills` currently has GitHub Issues disabled, so the integration issue lives here without changing semantic ownership.
+
+The target composition is:
+
+```text
+agent-loop REVIEW
+    owns exact scope/evidence, selects one dominant engineering capability,
+    persists the result, and decides workflow progression
+        |
+        +--> agent-skills/code-review-<dominant concern>
+                owns engineering judgment for that concern
+                may request at most one focused follow-up when evidence warrants it
+```
 
 ## Non-goals
 
