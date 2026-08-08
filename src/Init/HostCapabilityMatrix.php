@@ -35,8 +35,8 @@ final readonly class HostCapabilityMatrix
         }
 
         return match ($capability) {
-            HostCapability::Skills,
-            HostCapability::Subagents => HostCapabilityStatus::Supported,
+            HostCapability::SkillProjection,
+            HostCapability::SubagentProjection => HostCapabilityStatus::Supported,
             HostCapability::SessionBootstrap,
             HostCapability::SubagentBootstrap,
             HostCapability::PreToolGuardrail,
