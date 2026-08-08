@@ -16,7 +16,7 @@ Apply `agent-loop-discipline` to implementation work and
 2. Keep the change scoped to the guidance contract.
 3. Update executable help and focused tests when public `init` behavior changes.
 4. Run the local dogfood case before broad validation.
-5. Validate canonical assets and dry-run package installation.
+5. Validate canonical assets and dry-run package installation for every affected client.
 6. Test a clean installed Composer consumer when package-owned assets change.
 7. Update README, changelog, notices, and dogfood notes when the public contract
    or provenance changes.
@@ -26,7 +26,9 @@ Apply `agent-loop-discipline` to implementation work and
 ## Canonical Files
 
 - `docs/agents/skills/`;
+- `docs/agents/subagents/`;
 - `docs/agents/codex-hooks/`;
+- `docs/agents/claude-hooks/`;
 - `docs/agents/INFO_Agents.md`;
 - `docs/agents/dogfood/`;
 - `docs/agents/THIRD_PARTY_NOTICES.md`;
@@ -47,11 +49,14 @@ Do not begin with generated copies under `.codex/`, `.claude/`, `.github/`, or
   `voku/agent-loop` package.
 - `init sync-skills`, `sync-subagents`, and `sync-hooks` read the host's resolved
   canonical roots and support config/CLI overrides.
-- Both paths use target manifests and refuse unmanaged overwrites unless the
-  caller explicitly chooses `--force` or `--adopt-existing`.
-- `sync-hooks` supports `--agent=codex` (copies `hooks.json` plus scripts) and
-  `--agent=claude` (installs the scripts, then merges only the `hooks` key of
-  `settings.json` and records it as `settings.json#hooks`). When a client keeps
+- Package-owned repository hooks currently target Codex and Claude. Both call the
+  same typed PHP policy; only host registration/output serialization differs.
+- Both install and sync paths use target manifests and refuse unmanaged
+  overwrites unless the caller explicitly chooses `--force` or
+  `--adopt-existing`.
+- `sync-hooks --agent=codex` copies `hooks.json` plus scripts.
+- `sync-hooks --agent=claude` installs scripts, merges only the `hooks` key of
+  `settings.json`, and records it as `settings.json#hooks`. When a client keeps
   hooks inside a shared settings document, own the single key and write every
   other key back unchanged; never rewrite a file the user also edits.
 - Host repositories consume the Make targets from `make/agent-loop.mk` instead of
@@ -63,8 +68,8 @@ turn an immutable package-install command into another ambiguous sync command.
 ## Guidance Rules
 
 - Describe behavior that exists now; label future work explicitly.
-- Keep human attention, implementation complexity, context size, and raw
-  evidence as separate concerns.
+- Keep human attention, implementation complexity, context size, workflow state,
+  and raw evidence as separate concerns.
 - Use `agent-map` for bounded navigation; never dump generated indexes into a
   prompt.
 - Preserve source, full diffs, command output, tests, and verification artifacts.
@@ -75,16 +80,24 @@ turn an immutable package-install command into another ambiguous sync command.
 - Keep installation offline and package-owned. No remote script, repository
   clone, marketplace, or runtime dependency may enter the init path silently.
 - Keep target-manifest safety explicit.
+- A progress/output format is guidance, not proof. Workflow state must come from
+  persisted artifacts and observed command results.
 
 ## Hook Changes
 
-Codex hook output must be checked against both the current schema and parser
+Keep hook entrypoints thin. Put behavior in typed PHP under `src/` so PHPUnit and
+PHPStan can test the same logic the hook executes.
+
+Codex hook output must be checked against both its current schema and parser
 semantics. In particular, `PreToolUse` pass-through returns no artificial
 permission decision and no rewritten input; a denial uses a non-empty reason and
 continues hook processing.
 
-Keep hook entrypoints thin. Put behavior in typed PHP under `src/` so PHPUnit and
-PHPStan can test the same logic the hook executes.
+Claude hook output must be checked against current Claude Code semantics rather
+than assumed to match Codex merely because field names overlap. For example,
+Claude renders top-level `systemMessage` as a user-visible warning, so the shared
+context runtime exposes a Claude-specific serialization that omits the Codex
+marker. Keep Claude additional context below the documented host output limit.
 
 ## Dogfood
 
@@ -111,8 +124,10 @@ subjective style preferences into noisy PHPStan rules.
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
-vendor/bin/agent-loop init install-assets --agent=codex --dry-run
+vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
+vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
+vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
 vendor/bin/agent-loop init doctor
 composer dogfood:discipline
 vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|DispatcherTest'
@@ -121,5 +136,5 @@ composer ci
 ```
 
 The clean installed-consumer CI scenario is required when package assets or
-`install-assets` change. Never report a command as passed unless its exit code
+`install-assets` change. Never report a command as passed unless its exit status
 was observed.
