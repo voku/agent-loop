@@ -41,7 +41,7 @@ final readonly class HostCapabilityMatrix
             HostCapability::SubagentBootstrap,
             HostCapability::PreToolGuardrail,
             HostCapability::RepositoryHooks => in_array($canonicalAgent, ['codex', 'claude'], true)
-                ? HostCapabilityStatus::Supported
+                ? HostCapabilityStatus::Degraded
                 : HostCapabilityStatus::Unsupported,
         };
     }
