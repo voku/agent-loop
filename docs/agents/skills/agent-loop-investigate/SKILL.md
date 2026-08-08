@@ -28,19 +28,31 @@ Use `rg` only when the map cannot answer a literal/string/config/template questi
 
 Map output is navigation, not evidence. Read only the selected real source ranges before reporting a hit.
 
-## Output Contract
+## Terminal Result Contract
 
-One line per verified site:
+Verified hits:
 
 ```text
+STATUS: located
 <path>:<line> — `<symbol>` — <short factual role>
 ```
 
 Group 3+ results under `Defs`, `Callers`, `Tests`, `Refs`, or `Sites`. End with counts when useful.
 
-No hit: `No verified match.`
+No verified hit:
 
-Keep exact paths, line numbers, symbols, literals, and relevant caller relationships. No exploration diary.
+```text
+STATUS: no_match
+```
+
+Required source/context cannot be read or verified:
+
+```text
+STATUS: blocked
+UNKNOWN: <exact missing source/context>.
+```
+
+Keep exact paths, line numbers, symbols, literals, and relevant caller relationships. No exploration diary. Never turn `no_match` into a guessed location.
 
 ## Escalation
 

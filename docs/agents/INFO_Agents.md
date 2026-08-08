@@ -84,6 +84,29 @@ explicit risk ownership, irreversible actions, and genuinely missing product
 intent remain human gates. Reads, edits, validation, review tooling, and reports
 that the agent can perform remain agent work.
 
+### Resume without inventing state
+
+Session and subagent hooks may prepend an `Agent Loop Resume Hint` when
+`.agent-loop/runs/*/manifest.json` contains unfinished projected runs. The hint
+contains only validated task identifiers and the small documented projected-state
+vocabulary. It deliberately excludes `next_action`, disagreement messages,
+references, task descriptions, and other free-form manifest content.
+
+The hint is **navigation, not authority**. A run manifest is a derived projection.
+Before any governed mutation, the agent resolves the actual task and runs:
+
+```bash
+vendor/bin/agent-loop workflow status <task-id> --format=json
+```
+
+A single unfinished task gets the exact status command in the hint. Multiple
+unfinished tasks are listed in bounded form and the agent is told not to guess
+which one owns the current request. Completed runs are omitted.
+
+This gives resumed/compacted sessions and delegated agents enough state to avoid
+starting a parallel conversational workflow without turning a writable JSON
+projection into hidden instructions.
+
 A useful progress update is deliberately small:
 
 ```text
@@ -95,6 +118,12 @@ NEXT: <one agent-owned action or exact human gate>
 Completion uses `RESULT`, `EVIDENCE`, and `OMITTED`. This compresses narration,
 not source, diffs, tests, static-analysis output, errors, or verification
 artifacts.
+
+Unknown facts remain explicit state. The agent must inspect an owning artifact or
+safe runtime observation when possible; it may not fabricate versions, paths,
+line numbers, validation results, approvals, review results, or product intent to
+make a receipt look complete. Repeated equivalent failures return to evidence
+gathering or re-planning instead of stacking another speculative patch.
 
 ## Role routing
 
@@ -117,6 +146,19 @@ A common bounded chain remains:
 investigator -> surgical builder -> code reviewer
 ```
 
+Narrow roles use deterministic terminal status before their evidence:
+
+```text
+investigator: located | no_match | blocked
+builder:      applied | scope_expanded | human_gate | ambiguous | regressed
+reviewer:     findings | clean | blocked
+```
+
+This is deliberately stricter than merely asking each subagent to be terse. The
+main thread can route a result without inferring intent from tone. A human gate
+remains distinct from missing information, and a missing match remains distinct
+from a guessed location.
+
 A one-line answer does not need three agents merely to make the activity diagram
 look important.
 
@@ -135,13 +177,20 @@ The implementation ladder stays below workflow governance:
 
 This never removes trust-boundary validation, security controls, data-loss
 prevention, required concurrency/transaction guarantees, accessibility,
-explicit requirements, or the smallest meaningful regression check.
+explicit requirements, or the smallest meaningful regression check. Non-trivial
+changed logic leaves the smallest runnable proof already appropriate for the
+repository; trivial edits do not manufacture test ceremony.
+
+Deliberate simplifications belong in task working memory with a known ceiling and
+an observable revisit trigger. They do not become anonymous `TODO`s or permanent
+tool-branded comments. Reusable conclusions cross the normal `agent-learning`
+review boundary.
 
 ## Learning remains the differentiator
 
-The upstream inspirations help with role focus, implementation restraint, and
-human attention. `agent-loop` adds the part they do not provide as one governed
-contract:
+The upstream inspirations help with role focus, implementation restraint,
+attention, and activation. `agent-loop` adds the part they do not provide as one
+governed contract:
 
 ```text
 current evidence -> task finding -> proposal -> named human review -> durable guidance
@@ -159,8 +208,9 @@ The client files only adapt host serialization and registration.
 
 ### Codex
 
-- `SessionStart` injects the discipline;
-- `SubagentStart` propagates it;
+- `SessionStart` injects discipline plus a bounded unfinished-run hint when one
+  exists;
+- `SubagentStart` propagates the same discipline/resume boundary;
 - `PreToolUse` leaves ordinary Bash commands untouched and denies configured
   unbounded `.agent-map` dump patterns.
 
@@ -170,13 +220,14 @@ contract.
 ### Claude
 
 - `SessionStart` runs on startup/resume/clear/compact/fork and injects the same
-  discipline;
+  discipline/resume boundary;
 - `SubagentStart` propagates it;
 - `PreToolUse` uses the same bounded-map policy;
 - registration is merged into only the `hooks` key of `.claude/settings.json`;
 - the context output omits Codex's `systemMessage` marker because Claude renders
   that field as a user-visible warning;
-- context is bounded below Claude's current hook output limit.
+- context is bounded below Claude's current hook output limit, with resume state
+  placed before the longer static discipline so it survives truncation.
 
 Hooks are behavioral guardrails, never correctness or security boundaries. A
 host can skip or disable them. Product code, CI, trust-boundary checks, workflow
@@ -242,10 +293,15 @@ validate it, then sync it.
 ## Dogfood contract
 
 `composer dogfood:discipline` verifies the packaged discipline, hook behavior,
-session/subagent propagation, unchanged raw commands, explicit non-security hook
-boundary, and bounded map denial. Guidance changes additionally use
-`agent-loop-dogfood`: observable tool/source/diff/validation/review artifacts,
-not invented reasoning-token savings.
+session/subagent propagation, deterministic narrow-role terminal contracts,
+unchanged raw commands, explicit non-security hook boundary, bounded map denial,
+and the workflow-resume projection boundary. The resume fixture includes hostile
+free-form `next_action`/disagreement content and proves that only validated task
+and projected-state identifiers enter hidden context.
+
+Guidance changes additionally use `agent-loop-dogfood`: observable
+tool/source/diff/validation/review artifacts, not invented reasoning-token
+savings.
 
 The release-set CI installs `agent-loop` into a clean Composer consumer and
 exercises package-owned installation. A green installer proves mechanics, not
@@ -254,9 +310,13 @@ observed tasks.
 
 ## Provenance
 
-`THIRD_PARTY_NOTICES.md` records the reviewed Caveman, Ponytail, and Attention
-Control commits, the mechanisms adapted from each, and the parts deliberately
-left out. None of those projects is a runtime dependency.
+`UPSTREAM_CAPABILITY_MATRIX.md` is the row-by-row integration inventory for
+Caveman, Ponytail, and Attention Control. It distinguishes `ALREADY`, `ADAPT`,
+`DEFER`, and `REJECT` mechanisms with concrete ownership/enforcement. A source
+recheck is not itself an adaptation claim.
+
+`THIRD_PARTY_NOTICES.md` records source pins, licensing, and the high-level
+provenance summary. None of those projects is a runtime dependency.
 
 ## Validation
 

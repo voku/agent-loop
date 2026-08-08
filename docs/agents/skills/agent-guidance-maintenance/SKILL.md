@@ -1,6 +1,6 @@
 ---
 name: agent-guidance-maintenance
-description: Maintain package-owned and host-owned agent skills, hooks, docs, sync targets, dogfood evidence, and migration-safe validation.
+description: Maintain package-owned and host-owned agent skills, hooks, docs, sync targets, dogfood evidence, provenance capability mapping, and migration-safe validation.
 ---
 
 # Agent Guidance Maintenance
@@ -18,8 +18,8 @@ Apply `agent-loop-discipline` to implementation work and
 4. Run the local dogfood case before broad validation.
 5. Validate canonical assets and dry-run package installation for every affected client.
 6. Test a clean installed Composer consumer when package-owned assets change.
-7. Update README, changelog, notices, and dogfood notes when the public contract
-   or provenance changes.
+7. Update README, changelog, notices, capability matrix, and dogfood notes when
+   the public contract or provenance changes.
 8. Audit for contradictory instructions, duplicate skills, remote bootstraps,
    lossy evidence handling, and unverified claims.
 
@@ -30,6 +30,7 @@ Apply `agent-loop-discipline` to implementation work and
 - `docs/agents/codex-hooks/`;
 - `docs/agents/claude-hooks/`;
 - `docs/agents/INFO_Agents.md`;
+- `docs/agents/UPSTREAM_CAPABILITY_MATRIX.md`;
 - `docs/agents/dogfood/`;
 - `docs/agents/THIRD_PARTY_NOTICES.md`;
 - `src/AgentGuidance/`;
@@ -83,6 +84,28 @@ turn an immutable package-install command into another ambiguous sync command.
 - A progress/output format is guidance, not proof. Workflow state must come from
   persisted artifacts and observed command results.
 
+## Upstream Inspiration Rechecks
+
+`UPSTREAM_CAPABILITY_MATRIX.md` is the review inventory. A source recheck and an
+adaptation decision are separate events.
+
+For every reviewed upstream mechanism:
+
+1. pin the source revision;
+2. classify the mechanism as `ALREADY`, `ADAPT`, `DEFER`, or `REJECT`;
+3. name the concrete `agent-loop` equivalent, owner, or rejection reason;
+4. for `ALREADY`/`ADAPT`, point at the smallest test, dogfood case, workflow gate,
+   or executable constraint that makes the claim observable;
+5. for `DEFER`, name the missing typed ownership/API rather than reaching into a
+   focused package's storage layout;
+6. revisit old `REJECT` reasons when the upstream mechanism or our architecture
+   changes.
+
+Never infer "nothing relevant changed" from a small commit diff alone. First
+compare the current upstream capability set against every matrix row and look for
+new mechanisms that have no row. Reading a skill or hook does not mean its
+behavior was adapted.
+
 ## Hook Changes
 
 Keep hook entrypoints thin. Put behavior in typed PHP under `src/` so PHPUnit and
@@ -99,6 +122,11 @@ Claude renders top-level `systemMessage` as a user-visible warning, so the share
 context runtime exposes a Claude-specific serialization that omits the Codex
 marker. Keep Claude additional context below the documented host output limit.
 
+A bootstrap resume hint may read only a bounded, validated subset of derived run
+manifests. Do not inject free-form `next_action`, disagreement messages, task
+prose, or copied evidence into hidden context. The hint is navigation; the agent
+must resolve current state through the owning workflow command before mutation.
+
 ## Dogfood
 
 For every behavior change:
@@ -109,6 +137,11 @@ For every behavior change:
 4. measure observable artifacts;
 5. rerun the same case after every fix;
 6. record failures, not only the final green result.
+
+When bootstrap state is involved, include hostile free-form manifest content in
+the fixture and prove only validated identifiers/state reach the injected
+context. This tests the projection boundary rather than merely proving JSON can
+be read.
 
 Do not claim saved reasoning tokens or counterfactual code size without actual
 telemetry and a valid baseline.
