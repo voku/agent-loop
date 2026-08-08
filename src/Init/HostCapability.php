@@ -6,8 +6,8 @@ namespace voku\AgentLoop\Init;
 
 enum HostCapability: string
 {
-    case Skills = 'skills';
-    case Subagents = 'subagents';
+    case SkillProjection = 'skill-projection';
+    case SubagentProjection = 'subagent-projection';
     case SessionBootstrap = 'session-bootstrap';
     case SubagentBootstrap = 'subagent-bootstrap';
     case PreToolGuardrail = 'pre-tool-guardrail';
