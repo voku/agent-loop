@@ -47,7 +47,11 @@ final readonly class SelfEditDogfood
             ], $worktree);
 
             $source = file_get_contents($worktree . '/' . self::SOURCE);
-            if (!is_string($source) || !str_contains($source, 'return 101 + $input;')) {
+            if (
+                !is_string($source)
+                || str_contains($source, 'return 100 + $input;')
+                || substr_count($source, 'return 101 + $input;') !== 1
+            ) {
                 throw new SelfEditDogfoodFailure('Mechanical self-edit did not update the probe source.');
             }
 
@@ -108,17 +112,35 @@ final readonly class SelfEditDogfood
         string $workingDirectory,
         bool $throwOnFailure = true,
     ): int {
+        $stdoutPath = tempnam(sys_get_temp_dir(), 'agent-loop-self-edit-stdout-');
+        $stderrPath = tempnam(sys_get_temp_dir(), 'agent-loop-self-edit-stderr-');
+        if (!is_string($stdoutPath) || !is_string($stderrPath)) {
+            if (is_string($stdoutPath)) {
+                @unlink($stdoutPath);
+            }
+            if (is_string($stderrPath)) {
+                @unlink($stderrPath);
+            }
+            if ($throwOnFailure) {
+                throw new SelfEditDogfoodFailure('Unable to create temporary command output files.');
+            }
+
+            return 1;
+        }
+
         $process = proc_open(
             $command,
             [
                 0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
+                1 => ['file', $stdoutPath, 'w'],
+                2 => ['file', $stderrPath, 'w'],
             ],
             $pipes,
             $workingDirectory,
         );
         if (!is_resource($process)) {
+            @unlink($stdoutPath);
+            @unlink($stderrPath);
             if ($throwOnFailure) {
                 throw new SelfEditDogfoodFailure('Unable to start command: ' . implode(' ', $command));
             }
@@ -127,11 +149,11 @@ final readonly class SelfEditDogfood
         }
 
         fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
         $exitCode = proc_close($process);
+        $stdout = file_get_contents($stdoutPath);
+        $stderr = file_get_contents($stderrPath);
+        @unlink($stdoutPath);
+        @unlink($stderrPath);
 
         if ($stdout !== false && $stdout !== '') {
             fwrite(STDOUT, $stdout);
