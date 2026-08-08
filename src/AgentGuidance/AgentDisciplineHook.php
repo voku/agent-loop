@@ -32,7 +32,12 @@ final readonly class AgentDisciplineHook
             'continue' => true,
             'suppressOutput' => true,
             'systemMessage' => 'AGENT_LOOP_DISCIPLINE',
-            'hookSpecificOutput' => $this->contextHookSpecificOutput($event, $rawPayload, self::MAX_CONTEXT_BYTES),
+            'hookSpecificOutput' => $this->contextHookSpecificOutput(
+                $event,
+                $rawPayload,
+                self::MAX_CONTEXT_BYTES,
+                '.codex',
+            ),
         ];
     }
 
@@ -52,7 +57,12 @@ final readonly class AgentDisciplineHook
         return [
             'continue' => true,
             'suppressOutput' => true,
-            'hookSpecificOutput' => $this->contextHookSpecificOutput($event, $rawPayload, self::MAX_CLAUDE_CONTEXT_BYTES),
+            'hookSpecificOutput' => $this->contextHookSpecificOutput(
+                $event,
+                $rawPayload,
+                self::MAX_CLAUDE_CONTEXT_BYTES,
+                '.claude',
+            ),
         ];
     }
 
@@ -91,8 +101,12 @@ final readonly class AgentDisciplineHook
     /**
      * @return array{hookEventName: 'SessionStart'|'SubagentStart', additionalContext: string}
      */
-    private function contextHookSpecificOutput(string $event, string $rawPayload, int $maxContextBytes): array
-    {
+    private function contextHookSpecificOutput(
+        string $event,
+        string $rawPayload,
+        int $maxContextBytes,
+        string $clientDirectory,
+    ): array {
         if (!in_array($event, ['SessionStart', 'SubagentStart'], true)) {
             throw new UnexpectedValueException('Unsupported context hook event: ' . $event);
         }
@@ -109,7 +123,7 @@ final readonly class AgentDisciplineHook
 
         return [
             'hookEventName' => $event,
-            'additionalContext' => substr($this->disciplineContext(), 0, $maxContextBytes),
+            'additionalContext' => substr($this->disciplineContext($clientDirectory), 0, $maxContextBytes),
         ];
     }
 
@@ -154,11 +168,10 @@ final readonly class AgentDisciplineHook
         throw new UnexpectedValueException('PreToolUse Bash payload misses command text.');
     }
 
-    private function disciplineContext(): string
+    private function disciplineContext(string $clientDirectory): string
     {
         foreach ([
-            $this->repositoryRoot . '/.codex/skills/agent-loop-discipline/SKILL.md',
-            $this->repositoryRoot . '/.claude/skills/agent-loop-discipline/SKILL.md',
+            $this->repositoryRoot . '/' . $clientDirectory . '/skills/agent-loop-discipline/SKILL.md',
             $this->repositoryRoot . '/docs/agents/skills/agent-loop-discipline/SKILL.md',
         ] as $candidate) {
             if (!is_file($candidate) || !is_readable($candidate)) {
