@@ -19,7 +19,8 @@ The validated source findings live under `infra/doc/agent-learning/findings/vali
 - `finding.2026-08-07.005`: project-specific PHPStan rules must be tested in an isolated PHPStan process because loading `PHPStan\\Testing\\RuleTestCase` into normal PHPUnit polluted the runtime used by agent-map's Composer-based PHPStan discovery;
 - `finding.2026-08-07.006`: the self-shape learning decision must agree with durable evidence in the real PR diff, using `findings_recorded` when findings or `MEMORY.md` are changed and `no_durable_learning` otherwise;
 - `finding.2026-08-07.007`: pull-request self-dogfood needs repository history but no write credential, so its token is read-only and checkout credentials are not persisted into the PR-controlled workspace;
-- `finding.2026-08-07.008`: workflow session creation/resume preserves one active session per task; restart reuses the active session and an already-corrupt multi-active state fails before further task work.
+- `finding.2026-08-07.008`: workflow session creation/resume preserves one active session per task; restart reuses the active session and an already-corrupt multi-active state fails before further task work;
+- `finding.2026-08-08.001`: linked Git worktrees store `.git` as a file; edit evidence must ask Git rather than infer repository validity from metadata shape, and self-edit dogfood now proves the real mechanical edit path in an isolated worktree.
 
 `MEMORY.md` contains only the reviewed durable rules. Objective recurrence prevention is pushed lower where possible:
 
