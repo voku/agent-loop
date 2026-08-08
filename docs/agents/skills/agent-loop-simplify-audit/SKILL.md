@@ -1,15 +1,15 @@
 ---
 name: agent-loop-simplify-audit
-description: Audit a PHP repository for avoidable complexity beyond the current diff. Use agent-map to prioritize symbols and relationships, then report concrete deletion/reuse/stdlib/native/YAGNI opportunities without applying changes.
+description: Run a bounded repo-wide complexity audit through the canonical code-review-simplicity lens, using agent-map only to choose and verify candidates.
 ---
 
 # Agent Loop Simplify Audit
 
-Repo-wide counterpart to `agent-loop-simplify-review`. One-shot, read-only, complexity only.
+Repo-wide workflow overlay for `code-review-simplicity`. Keep engineering simplicity semantics in the canonical lens.
 
-## Start Bounded
+## Bounded audit
 
-Use generated navigation state to choose where to inspect instead of reading the repository front to back:
+Use generated navigation state only to select candidates:
 
 ```bash
 vendor/bin/agent-loop map stats
@@ -18,32 +18,15 @@ vendor/bin/agent-loop map related <symbol>
 vendor/bin/agent-loop map file <path>
 ```
 
-Use `rg` for structural smells the map does not model: one-implementation interfaces, single-product factories, pass-through wrappers, dead config flags, duplicated helpers, and dependencies used for trivial functionality.
+Use `rg` when needed for structural candidate discovery. Map/search output is navigation, not proof. Verify every candidate against real source and actual callers.
 
-Map data selects candidates. Every finding must be verified against real source and actual callers.
+Dispatch `code-review-simplicity` for the selected scope. Preserve its deterministic result and optional single handoff. Keep only one local concern: focused `agent-*` ownership must not be duplicated in the umbrella package.
 
-## Findings
+Read-only. Do not apply fixes.
 
-Same tags as the diff review:
-
-- `delete:` dead/speculative behavior;
-- `reuse:` existing repository code already owns it;
-- `stdlib:` PHP standard library replaces it;
-- `native:` platform/database/protocol replaces it;
-- `yagni:` abstraction/config/layer has no demonstrated second use;
-- `shrink:` same behavior with a concrete smaller local implementation;
-- `boundary:` behavior sits in the wrong `agent-*` package.
-
-Format:
+If `code-review-simplicity` is unavailable:
 
 ```text
-<tag> <what to remove/simplify>. <replacement>. [<path>:<line>]
+STATUS: blocked
+UNKNOWN: code-review-simplicity capability is unavailable.
 ```
-
-Rank by maintenance surface removed. Estimate lines/dependencies only when the raw source makes the replacement concrete; otherwise do not invent numbers.
-
-Nothing actionable: `Lean already. Stop.`
-
-## Boundaries
-
-Do not apply fixes. Do not treat required validation, security, accessibility, error handling, package boundaries, or regression tests as bloat. Correctness/security/performance review remains separate.
