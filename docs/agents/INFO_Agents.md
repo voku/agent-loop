@@ -2,10 +2,9 @@
 
 ## Purpose
 
-`agent-loop` ships portable, repository-managed workflow behavior with the Composer
-package. Consumers install reviewed files from their local `vendor/voku/agent-loop`
-copy; `init` does not clone repositories, execute remote installers, or depend on
-an external plugin marketplace at runtime.
+`agent-loop` owns workflow governance, persisted state, evidence boundaries, narrow role routing, and host projection. Reusable engineering judgment belongs to `voku/agent-skills` or the focused `agent-*` package that owns it.
+
+The Composer package installs reviewed local assets only. Normal `init` does not clone repositories, run remote installers, or require a plugin marketplace.
 
 Canonical package roots:
 
@@ -15,31 +14,9 @@ Canonical package roots:
 - `docs/agents/claude-hooks/`
 - `docs/agents/tools/`
 
-The design separates four concerns that are easy to muddle together when humans
-discover another clever agent plugin on the internet:
-
-1. **discipline**: the always-on behavioral invariants;
-2. **workflow**: persisted task state and evidence-driven phase transitions;
-3. **roles**: narrow investigator, builder, and reviewer contracts;
-4. **host adapters**: the smallest client-specific representation of the same
-   behavior.
-
-The first three are canonical. Host adapters do not get to invent policy.
-
-Reusable engineering knowledge has a separate first-party owner: `voku/agent-skills`.
-`agent-loop` may project an explicitly supplied local `agent-skills/skills` tree
-alongside its package-owned workflow skills, but it does not copy that engineering
-semantics into a second canonical source.
+Do not duplicate engineering semantics in package workflow skills merely because a host can inject them at session start.
 
 ## First-party install
-
-Review the plan:
-
-```bash
-vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
-```
-
-Preview and install package-owned assets only:
 
 ```bash
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
@@ -47,8 +24,7 @@ vendor/bin/agent-loop init install-assets --agent=all
 vendor/bin/agent-loop init doctor
 ```
 
-To project a separately checked-out/pinned first-party engineering skill source in
-the same managed skill sync, pass it explicitly as a local root:
+A separately pinned `voku/agent-skills` checkout can be projected beside package workflow skills:
 
 ```bash
 vendor/bin/agent-loop init install-assets \
@@ -56,232 +32,81 @@ vendor/bin/agent-loop init install-assets \
   --extra-skills-root=/path/to/agent-skills/skills
 ```
 
-`--extra-skills-root` is repeatable. It never replaces the bundled workflow skill
-root. All selected skill roots are collected before target mutation and written
-through one managed manifest. If two roots contain the same skill directory name,
-the install fails rather than choosing a winner by source order.
+`--extra-skills-root` is additive and repeatable. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
 
-The caller owns provenance for additional local roots. A release/CI workflow may,
-for example, check out an exact `voku/agent-skills` commit before calling
-`install-assets`; normal `agent-loop` runtime does not fetch that repository.
+`--agent=all` projects workflow skills and optional engineering skills for Codex, Claude, Copilot, and Antigravity; it also projects the package roles for all four clients and repository-local discipline hooks for Codex and Claude.
 
-`--agent=all` installs/projects:
+## Bootstrap boundary
 
-- package-owned workflow skills, plus any explicit local skill roots, for Codex,
-  Claude, Copilot, and Antigravity;
-- investigator, surgical-builder, and code-reviewer subagent definitions for all
-  four clients;
-- repository-local discipline hooks for Codex and Claude.
+`agent-loop-discipline` is a compact workflow bootstrap, not a coding handbook. Session/subagent hooks may inject:
 
-The canonical role Markdown under `docs/agents/subagents/` is rendered into the
-client format rather than duplicated as client-specific source. Model selection
-remains a host/client concern; package-owned roles do not pin a provider or
-reasoning level.
+- persisted workflow/resume navigation;
+- map-first source navigation;
+- role and engineering-skill routing;
+- uncertainty/evidence rules;
+- hook and human-gate boundaries.
 
-Package installation is intentionally boring:
+They deliberately do **not** inject the Ponytail-derived implementation ladder or PHP coding rules into every session.
 
-- package-owned workflow skills, subagent roles, and hooks are always read from
-  the installed Composer package;
-- `install-assets` may merge explicit additional **local skill roots** only; it
-  does not accept replacement sources for package roles or hooks;
-- no remote source is downloaded by `install-assets` or `sync-skills`;
-- duplicate skill IDs across canonical roots fail before target mutation;
-- existing manifest-safe `sync-skills`, `sync-subagents`, and `sync-hooks`
-  implementations perform the writes;
-- unmanaged targets are not overwritten unless `--force` or `--adopt-existing`
-  is explicit;
-- `--dry-run` is supported.
-
-## Bootstrap execution contract
-
-`agent-loop-discipline` is the compact session/subagent bootstrap. It does not
-try to contain the whole manual. It establishes invariants and routes the agent
-to the more specific skills.
-
-When a task is explicitly governed by `agent-loop`:
+When work is governed by `agent-loop`:
 
 ```text
 PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 ```
 
-The current phase comes from persisted workflow artifacts and observed command
-results, never from conversational confidence. Scope drift returns to `PLAN` and
-invalidates approval/evidence tied to the old brief revision. Human approval,
-explicit risk ownership, irreversible actions, and genuinely missing product
-intent remain human gates. Reads, edits, validation, review tooling, and reports
-that the agent can perform remain agent work.
+Persisted workflow state beats conversational confidence. Scope drift returns to PLAN and invalidates evidence tied to the old brief revision.
 
-### Resume without inventing state
-
-Session and subagent hooks may prepend an `Agent Loop Resume Hint` when
-`.agent-loop/runs/*/manifest.json` contains unfinished projected runs. The hint
-contains only validated task identifiers and the small documented projected-state
-vocabulary. It deliberately excludes `next_action`, disagreement messages,
-references, task descriptions, and other free-form manifest content.
-
-The hint is **navigation, not authority**. A run manifest is a derived projection.
-Before any governed mutation, the agent resolves the actual task and runs:
+A resume hint from `.agent-loop/runs/*/manifest.json` is navigation only. Before governed mutation, resolve authoritative state with:
 
 ```bash
 vendor/bin/agent-loop workflow status <task-id> --format=json
 ```
 
-A single unfinished task gets the exact status command in the hint. Multiple
-unfinished tasks are listed in bounded form and the agent is told not to guess
-which one owns the current request. Completed runs are omitted.
+Free-form manifest prose such as `next_action` or disagreement text must never become hidden instructions.
 
-This gives resumed/compacted sessions and delegated agents enough state to avoid
-starting a parallel conversational workflow without turning a writable JSON
-projection into hidden instructions.
+## Engineering skill routing
 
-A useful progress update is deliberately small:
+Reusable implementation behavior is selected when the task needs it:
 
-```text
-RESULT: <verified result>
-STATE: <phase> <task-id> <brief revision when known>
-NEXT: <one agent-owned action or exact human gate>
-```
+- `coding-simplicity`: coding, bug fixing, and refactoring with the smallest correct implementation;
+- `php-best-practices`: PHP-specific engineering guidance;
+- `code-review-*`: one dominant engineering review lens, with at most one evidence-backed handoff;
+- `code-review-simplicity`: review-time complexity judgment, distinct from implementation-time `coding-simplicity`.
 
-Completion uses `RESULT`, `EVIDENCE`, and `OMITTED`. This compresses narration,
-not source, diffs, tests, static-analysis output, errors, or verification
-artifacts.
+`coding-simplicity` is the first-party adaptation of Ponytail's useful implementation mechanics: understand the real flow, search no-change/reuse/stdlib/native/installed options before new code, fix the shared root cause, preserve safety constraints, and leave the smallest meaningful proof. It intentionally drops Ponytail's persona, intensity modes, output-style rules, and session-wide persistence.
 
-Unknown facts remain explicit state. The agent must inspect an owning artifact or
-safe runtime observation when possible; it may not fabricate versions, paths,
-line numbers, validation results, approvals, review results, or product intent to
-make a receipt look complete. Repeated equivalent failures return to evidence
-gathering or re-planning instead of stacking another speculative patch.
+If a required engineering skill is unavailable, report that capability gap. Do not silently recreate the missing skill inside `agent-loop-discipline`.
 
 ## Role routing
 
-The discipline routes only when a narrow contract actually fits:
+Use narrow roles only when their verified scope fits:
 
-1. `agent-loop-investigate` / `agent-loop-investigator`: locate with `agent-map`,
-   verify real source, report exact locations, never edit;
-2. `agent-loop-surgical-edit` / `agent-loop-surgical-builder`: already-understood
-   one/two-file edit, smallest diff, validate, escalate when scope expands;
-3. `agent-loop-code-review` / `agent-loop-code-reviewer`: complete raw-diff review
-   through one dominant installed `code-review-*` lens, with at most one evidence-backed handoff;
-4. `agent-loop-simplify-review`: current-diff complexity only;
-5. `agent-loop-simplify-audit`: repo-wide complexity audit;
-6. ambiguous, architectural, new-feature, or 3+ file work stays in the main
-   governed workflow.
+1. `agent-loop-investigate` / investigator: locate definitions, callers, and tests; never edit.
+2. `agent-loop-surgical-edit` / surgical builder: already-understood one/two-file edit; load `coding-simplicity` for implementation choices when installed.
+3. `agent-loop-code-review` / reviewer: complete raw diff through one dominant installed `code-review-*` lens.
+4. `agent-loop-simplify-review`: current-diff simplicity review.
+5. `agent-loop-simplify-audit`: bounded repository-wide simplicity audit.
+6. Ambiguous, architectural, new-feature, or broader work stays in the main governed workflow.
 
-A common bounded chain remains:
+Narrow roles return deterministic terminal status instead of hiding escalation in prose.
 
-```text
-investigator -> surgical builder -> code reviewer
-```
+## Evidence and human gates
 
-Narrow roles use deterministic terminal status before their evidence:
+Never fabricate versions, paths, line numbers, command results, approvals, validation/review results, product intent, or runtime behavior. Read the owning source/state or run a safe probe when possible; otherwise name the exact unknown.
 
-```text
-investigator: located | no_match | blocked
-builder:      applied | scope_expanded | human_gate | ambiguous | regressed
-reviewer:     findings | clean | blocked
-```
+Human gates are limited to approval, actual risk/irreversible actions, and genuinely missing product intent. Reads, edits, tests, diagnostics, and reports available to the agent remain agent work.
 
-This is deliberately stricter than merely asking each subagent to be terse. The
-main thread can route a result without inferring intent from tone. A human gate
-remains distinct from missing information, and a missing match remains distinct
-from a guessed location.
-
-A one-line answer does not need three agents merely to make the activity diagram
-look important.
-
-## Minimal implementation discipline
-
-The implementation ladder stays below workflow governance:
-
-1. no change needed;
-2. reuse existing repository behavior;
-3. use PHP standard library;
-4. use the native platform/database/shell/protocol capability;
-5. reuse an installed dependency;
-6. fix one verified root cause for all callers;
-7. use deterministic `agent-loop edit --runner=auto` when an exact edit is proven;
-8. only then add the minimum new code.
-
-This never removes trust-boundary validation, security controls, data-loss
-prevention, required concurrency/transaction guarantees, accessibility,
-explicit requirements, or the smallest meaningful regression check. Non-trivial
-changed logic leaves the smallest runnable proof already appropriate for the
-repository; trivial edits do not manufacture test ceremony.
-
-Deliberate simplifications belong in task working memory with a known ceiling and
-an observable revisit trigger. They do not become anonymous `TODO`s or permanent
-tool-branded comments. Reusable conclusions cross the normal `agent-learning`
-review boundary.
-
-## Learning remains the differentiator
-
-The upstream inspirations help with role focus, implementation restraint,
-attention, and activation. `agent-loop` adds the part they do not provide as one
-governed contract:
-
-```text
-current evidence -> task finding -> proposal -> named human review -> durable guidance
-```
-
-A finding is not memory. A compact response is not evidence. A green close does
-not approve a learning. Reusable conclusions pass through `agent-learning`; a
-statically verifiable reviewed rule should move into the smallest executable
-constraint that prevents recurrence.
-
-## Repository hooks
-
-Both current hook adapters call the same typed `AgentDisciplineHook` runtime.
-The client files only adapt host serialization and registration.
-
-### Codex
-
-- `SessionStart` injects discipline plus a bounded unfinished-run hint when one
-  exists;
-- `SubagentStart` propagates the same discipline/resume boundary;
-- `PreToolUse` leaves ordinary Bash commands untouched and denies configured
-  unbounded `.agent-map` dump patterns.
-
-Codex receives the `AGENT_LOOP_DISCIPLINE` system marker used by its hook
-contract.
-
-### Claude
-
-- `SessionStart` runs on startup/resume/clear/compact/fork and injects the same
-  discipline/resume boundary;
-- `SubagentStart` propagates it;
-- `PreToolUse` uses the same bounded-map policy;
-- registration is merged into only the `hooks` key of `.claude/settings.json`;
-- the context output omits Codex's `systemMessage` marker because Claude renders
-  that field as a user-visible warning;
-- context is bounded below Claude's current hook output limit, with resume state
-  placed before the longer static discipline so it survives truncation.
-
-Hooks are behavioral guardrails, never correctness or security boundaries. A
-host can skip or disable them. Product code, CI, trust-boundary checks, workflow
-gates, and package installation must remain correct without hook execution.
+Hooks are behavioral guardrails, never correctness or security boundaries. Product code, CI, trust-boundary checks, and workflow gates must remain correct when hooks do not execute.
 
 ## Host capability projection
 
-Different agent assets have different portability. `HostCapabilityMatrix` records
-what **agent-loop currently implements**, not every feature a vendor may expose.
-`init doctor` renders that current truth explicitly.
+`HostCapabilityMatrix` reports evidence, not vendor marketing surface:
 
-The first distinction is deliberate:
+- `supported`: executable evidence exercises the claimed agent-loop boundary;
+- `degraded`: a native adapter is contract-tested, but host runtime/delegation behavior has not been observed;
+- `unsupported`: agent-loop has no adapter for that capability.
 
-- `skill-projection=supported` means agent-loop can render/install the selected
-  canonical skill roots for that host;
-- `subagent-projection=supported` means agent-loop can render/install the
-  canonical role representation for that host;
-- neither statement by itself proves host discovery, delegated inheritance, or
-  runtime execution.
-
-Session bootstrap, subagent bootstrap, pre-tool guardrails, and repository hook
-integration are separate capabilities. A contract-tested native adapter without
-observed host runtime behavior is `degraded`; a missing agent-loop adapter is
-`unsupported`.
-
-See `FIRST_PARTY_CAPABILITY_MATRIX.md` for semantic ownership and host projection
-inventory.
+Skill/subagent projection is not proof of host discovery or runtime execution. See `FIRST_PARTY_CAPABILITY_MATRIX.md` for the current matrix.
 
 ## Current commands
 
@@ -292,19 +117,15 @@ vendor/bin/agent-loop init tools
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
-vendor/bin/agent-loop init install-assets --agent=all --extra-skills-root=/path/to/agent-skills/skills
-vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=docs/agents/skills --skills-root=/path/to/agent-skills/skills --dry-run
+vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=docs/agents/skills --dry-run
 vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
-vendor/bin/agent-loop init scaffold --dry-run
 ```
 
-`doctor` and `status` are read-only. `tools` writes only the bounded tool
-inventory cache. `install-plan` prints commands but executes none.
-`install-assets` and `sync-*` are explicit mutation boundaries.
+`doctor` and `status` are read-only. Mutation lives behind explicit `install-assets` / `sync-*` commands.
 
-## agent-map boundary
+## Map boundary
 
 Generated map files are navigation state, not source evidence:
 
@@ -313,77 +134,25 @@ vendor/bin/agent-loop map query <symbol>
 vendor/bin/agent-loop map related <symbol>
 vendor/bin/agent-loop map file <path>
 vendor/bin/agent-loop map changed --base=<ref>
-vendor/bin/agent-loop map stats
 ```
 
-Query the index, then inspect the selected real source. Never dump
-`.agent-map/php-symbols.json` or `.agent-map/search.sqlite` into a prompt.
-
-## Host-repository overrides
-
-Ordinary validation/sync commands may use host-owned canonical roots through
-`.agent-loop/init.json`:
-
-```json
-{
-  "version": 1,
-  "paths": {
-    "skills_root": "infra/doc/agents/skills",
-    "subagents_root": "infra/doc/agents/subagents",
-    "codex_hooks_root": "infra/doc/agents/codex-hooks",
-    "claude_hooks_root": "infra/doc/agents/claude-hooks",
-    "tools_root": "infra/doc/agents/tools",
-    "recall_root": "infra/doc/agent-learning/recall-output"
-  }
-}
-```
-
-`install-assets` does not accept that configuration as a replacement for its
-package-owned workflow source. It may only **add** explicitly named local skill
-roots via `--extra-skills-root`. Package roles/hooks stay immutable first-party
-assets, and duplicate skill IDs across roots fail rather than override.
-
-Do not edit generated client copies first. Update canonical host/package source,
-validate it, then sync it.
+Query the index, then inspect selected real source. Never dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite` into a prompt.
 
 ## Dogfood contract
 
-`composer dogfood:discipline` verifies the packaged discipline, hook behavior,
-session/subagent propagation, deterministic narrow-role terminal contracts,
-unchanged raw commands, explicit non-security hook boundary, bounded map denial,
-and the workflow-resume projection boundary. The resume fixture includes hostile
-free-form `next_action`/disagreement content and proves that only validated task
-and projected-state identifiers enter hidden context.
+`composer dogfood:discipline` verifies the bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, and bounded map denial. In particular, it now proves the implementation ladder is **absent** from SessionStart/SubagentStart context.
 
-Guidance changes additionally use `agent-loop-dogfood`: observable
-tool/source/diff/validation/review artifacts, not invented reasoning-token
-savings.
+PR CI additionally runs `tools/self-shape-dogfood.sh` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects an exact pinned `voku/agent-skills` revision. That cross-repository run is the executable proof that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
 
-PR CI runs `tools/self-shape-dogfood.sh` against the real PR diff, so changes to
-agent-loop pass through agent-loop's own governed lifecycle. The installed
-release-set job separately installs the candidate into a clean Composer consumer.
-For first-party engineering-skill integration it checks out an exact
-`voku/agent-skills` revision in CI, passes that checkout as a local
-`--extra-skills-root`, and verifies that package workflow skills and engineering
-skills coexist in one managed projection across the supported host roots.
-
-A green installer proves projection mechanics, not that a host executes every
-installed capability. Runtime/delegation claims require their own evidence.
+A green installer proves projection mechanics only. Runtime/delegation claims require their own evidence.
 
 ## Provenance
 
-`FIRST_PARTY_CAPABILITY_MATRIX.md` maps our own semantic owners and current host
-projection boundaries. It is the first place to check before adding another
-workflow skill that may already be owned by `voku/agent-skills` or a focused
-agent-* package.
+- `FIRST_PARTY_CAPABILITY_MATRIX.md`: semantic owners and host projection boundaries.
+- `UPSTREAM_CAPABILITY_MATRIX.md`: row-by-row adaptation decisions for upstream ideas.
+- `THIRD_PARTY_NOTICES.md`: source pins and licensing.
 
-`UPSTREAM_CAPABILITY_MATRIX.md` is the row-by-row integration inventory for
-Caveman, Ponytail, and Attention Control. It distinguishes `ALREADY`, `ADAPT`,
-`DEFER`, and `REJECT` mechanisms with concrete ownership/enforcement. A source
-recheck is not itself an adaptation claim.
-
-`THIRD_PARTY_NOTICES.md` records source pins, licensing, and the high-level
-provenance summary. None of those projects is a runtime dependency.
+A source recheck is not adaptation evidence, and an upstream benchmark is not proof of first-party equivalence.
 
 ## Validation
 

@@ -47,8 +47,9 @@ final class AgentDisciplineContextBudgetTest extends TestCase
 
             self::assertLessThanOrEqual(9_500, strlen($context));
             self::assertStringContainsString('Agent Loop Resume Hint', $context);
-            self::assertStringContainsString('Safety, Validation, Completion', $context);
+            self::assertStringContainsString('Engineering Skill Routing', $context);
             self::assertStringContainsString('do not manufacture follow-up work', $context);
+            self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
             self::assertStringNotContainsString('UNTRUSTED-', $context);
         } finally {
             $this->removeTree($root);

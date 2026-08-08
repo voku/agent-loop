@@ -44,22 +44,26 @@ objective constraints where they can be enforced.
 
 ## Ponytail
 
-| Upstream mechanism | Decision | `agent-loop` equivalent / enforcement |
+The current Ponytail benchmark explicitly treats `Follow YAGNI principles, and prefer one-liner solutions` as a comparison arm, not as a proven compact reproduction of the skill. Its own result calls that arm erratic and records one dropped path-traversal guard. The transferable target is therefore the smallest instruction set that preserves the useful behavior and safety, not the fewest English words.
+
+| Upstream mechanism | Decision | First-party equivalent / enforcement |
 | --- | --- | --- |
-| YAGNI / existing code / stdlib / native / installed dependency / minimum code ladder | `ALREADY` | `agent-loop-discipline` uses the minimal implementation ladder before adding code. |
-| Understand the real flow before choosing the small fix | `ALREADY` | Map-first navigation plus bounded real-source reads; a small patch in the wrong layer is explicitly rejected. |
-| Root-cause fix after checking callers | `ALREADY` | Shared behavior requires caller/test inspection; one verified root cause is preferred over repeated symptom guards. |
-| No speculative abstraction, config, compatibility, dependency or cleanup | `ALREADY` | Discipline and surgical-edit contracts prohibit adjacent machinery unless request or validation requires it. |
-| One runnable check for non-trivial logic | `ADAPT` | Discipline states this as the regression floor: branch/loop/parser/security/money/shared-contract changes leave the smallest meaningful runnable proof. |
-| Deliberate simplification with ceiling + observable upgrade trigger | `ALREADY` | `agent-loop-task-progress` records the decision in session working memory instead of leaving tool-branded product-code comments. Reusable lessons cross the `agent-learning` review boundary. |
-| Diff-only over-engineering review | `ALREADY` | `agent-loop-simplify-review`. |
-| Repository-wide over-engineering audit | `ALREADY` | `agent-loop-simplify-audit`. |
+| YAGNI / existing code / stdlib / native / installed dependency / minimum code ladder | `ADAPT` | `voku/agent-skills/coding-simplicity` owns the coding-time search order. `agent-loop` routes to it instead of injecting the ladder into every session. |
+| Understand the real flow before choosing the small fix | `ADAPT` | `coding-simplicity` requires task/flow understanding before minimization; `agent-map` remains bounded navigation support, not the semantic owner. |
+| Root-cause fix after checking callers | `ADAPT` | `coding-simplicity` owns the root-cause rule; `agent-loop-surgical-edit` keeps caller evidence and bounded-scope orchestration. |
+| No speculative abstraction, config, compatibility, dependency or cleanup | `ADAPT` | `coding-simplicity` owns implementation restraint. The surgical role only prevents silent scope expansion. |
+| One runnable check for non-trivial logic | `ADAPT` | `coding-simplicity` owns the verification floor and defers to the repository's existing relevant gates. |
+| Deliberate simplification with ceiling + observable upgrade trigger | `ADAPT` | `coding-simplicity` requires a known ceiling/revisit trigger; `agent-loop` provides task/session evidence rather than tool-branded product-code comments. |
+| Diff-only over-engineering review | `ALREADY` | `agent-loop-simplify-review` is a thin workflow overlay around first-party `code-review-simplicity`. |
+| Repository-wide over-engineering audit | `ALREADY` | `agent-loop-simplify-audit` is a bounded navigation/evidence wrapper around `code-review-simplicity`. |
 | Cross-repository shortcut/debt ledger | `DEFER` | The concept is useful, but `agent-session` does not yet expose a typed cross-session decision query. `agent-loop` will not grep focused-package internals to fake one. |
-| Benchmark/gain scoreboard | `REJECT` | Upstream benchmark results are not evidence for this repository. Agent-loop dogfood records its own observations only. |
-| Session/subagent reinjection | `ALREADY` | Shared typed hook runtime drives SessionStart/SubagentStart for supported hosts. |
-| Multi-host adapters around one behavior source | `ALREADY` | Canonical skills/roles plus thin Codex/Claude adapters; portable skill/role installation for Copilot and Antigravity. |
-| User-selectable persistent intensity/mode tracking | `REJECT` | Governance does not become optional because a mode flag changed. Host/user style preferences stay outside the workflow invariant. |
+| Benchmark/gain scoreboard | `DEFER` | Upstream numbers are not evidence for our adaptation. A first-party benchmark should compare baseline, full Ponytail, the seven-word arm, and progressively shorter complete-rule instructions on safety, completeness, and implementation surface before claiming behavioral equivalence. |
+| Session/subagent reinjection of Ponytail coding behavior | `REJECT` | Coding minimization is task-specific engineering guidance. SessionStart/SubagentStart carry workflow/navigation/evidence bootstrap only; load `coding-simplicity` when coding work needs it. |
+| Multi-host adapters around one behavior source | `ALREADY` | `agent-loop` can project canonical local first-party skills into supported host roots without copying their semantics into the workflow package. |
+| User-selectable persistent intensity/mode tracking | `REJECT` | Engineering semantics are selected by task context, not a hidden persona/intensity flag. |
 | Host-specific status line and plugin surfaces | `REJECT` | Not required for deterministic workflow state; `workflow status` and the run manifest are the product state surfaces. |
+
+This boundary is deliberate: a separate loadable coding skill is useful precisely because it can be active for implementation work without making unrelated planning, research, review orchestration, or session bootstrap inherit a coding persona.
 
 ## Attention Control
 
@@ -98,4 +102,4 @@ A future recheck updates this matrix row by row. Do not write "nothing relevant
 changed upstream" merely because the pinned commit moved little. First compare
 all mechanisms that are still `DEFER`, all previously `REJECT` decisions whose
 reason may have changed, and every `ALREADY`/`ADAPT` row against the current
-`agent-loop` implementation.
+first-party implementation and semantic owner.

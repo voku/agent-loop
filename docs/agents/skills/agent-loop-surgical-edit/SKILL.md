@@ -1,6 +1,6 @@
 ---
 name: agent-loop-surgical-edit
-description: Apply an already-localized 1-2 file PHP change with the smallest verified diff. Use agent-map evidence, prefer deterministic agent-loop edit when possible, and escalate instead of silently widening scope.
+description: Apply an already-localized 1-2 file PHP change with the smallest verified diff. Use agent-map evidence, load coding-simplicity for implementation choices when installed, prefer deterministic agent-loop edit when possible, and escalate instead of silently widening scope.
 ---
 
 # Agent Loop Surgical Edit
@@ -11,8 +11,9 @@ Use only when the target and required behavior are already understood and the ex
 
 1. Read the exact target source. Never edit from map output alone.
 2. Check relevant callers/tests with `agent-loop map related` when shared behavior changes.
-3. Apply the smallest correct change in the owning layer.
-4. Prefer deterministic execution for exact replacements:
+3. Apply `coding-simplicity` when installed; it owns implementation minimization. This role owns only the bounded workflow/edit contract.
+4. Apply the smallest correct change in the owning layer.
+5. Prefer deterministic execution for exact replacements:
 
 ```bash
 vendor/bin/agent-loop edit '<Class>::<method>' \
@@ -22,9 +23,9 @@ vendor/bin/agent-loop edit '<Class>::<method>' \
   '<exact requested behavior>'
 ```
 
-5. Otherwise edit only the verified target ranges.
-6. Run the narrowest meaningful validation, then the required repository gate.
-7. Re-read the changed range and inspect the complete raw diff.
+6. Otherwise edit only the verified target ranges.
+7. Run the narrowest meaningful validation, then the required repository gate.
+8. Re-read the changed range and inspect the complete raw diff.
 
 ## Do Not Expand Silently
 
