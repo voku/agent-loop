@@ -82,6 +82,28 @@ final class ExecutionContractStoreTest extends TestCase
         }
     }
 
+    public function testMalformedReadyDocumentIsProjectedAsInvalid(): void
+    {
+        $root = $this->root('invalid-document');
+
+        try {
+            $this->fixture($root, 'TASK-INVALID', level: 2);
+            $store = new ExecutionContractStore($root);
+            $store->writeReady('TASK-INVALID', 'lars', $this->contract());
+            file_put_contents(
+                $root . '/recall/TASK-INVALID/execution-contract.md',
+                "## Goal\nOnly one section remains.\n",
+            );
+
+            $reference = $store->inspect('TASK-INVALID');
+
+            self::assertSame('invalid', $reference['state']);
+            self::assertStringContainsString('exactly these ordered H2 sections', (string) $reference['reason']);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testBlockedAndRejectedAreExplicitEvidenceBackedStates(): void
     {
         $root = $this->root('blocked');
