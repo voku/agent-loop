@@ -7,7 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\GovernedRunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\WorkflowStatusCommand;
 use voku\AgentSession\SessionStore;
@@ -126,7 +126,7 @@ final class WorkflowStatusCommandTest extends TestCase
 
     public function testJsonStatusUsesTheSameProjectionAndReportsPersistedManifestFreshness(): void
     {
-        $projector = new RunManifestProjector($this->root);
+        $projector = new GovernedRunManifestProjector($this->root);
         $store = new RunManifestStore($this->root);
         $store->write($projector->project('ABC-123'));
 
