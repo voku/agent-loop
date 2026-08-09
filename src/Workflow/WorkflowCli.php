@@ -40,6 +40,26 @@ final readonly class WorkflowCli
     /** @param list<string> $args */
     private function runClose(array $args): int
     {
+        try {
+            $taskId = new WorkflowTaskId($args[0] ?? '');
+            $contract = (new ExecutionContractStore($this->rootPath))->inspect($taskId->value);
+            $contractState = is_string($contract['state'] ?? null) ? $contract['state'] : 'invalid';
+            if (!in_array($contractState, ['ready', 'not_required', 'not_applicable'], true)) {
+                fwrite(
+                    STDERR,
+                    '[FAIL] workflow close: successful close requires a current execution contract when L2 policy is selected; current state is '
+                    . $contractState
+                    . ".\n[ACTION REQUIRED] Run agent-loop workflow status {$taskId->value} --format=json and satisfy or revise the execution contract. Accepted risk does not bypass this contract gate.\n",
+                );
+
+                return 1;
+            }
+        } catch (Throwable $exception) {
+            fwrite(STDERR, '[FAIL] workflow close: unable to evaluate execution contract gate: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
         $exit = (new WorkflowCloseCommand($this->rootPath))->run($args);
         if ($exit !== 0) {
             return $exit;
@@ -84,12 +104,12 @@ Commands:
   plan      Start a session and create a candidate work brief, including selected operating-prompt policy.
   approve   Approve the brief, then compile recall from that sealed context.
   contract  Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
-  start     Start a task workflow by creating a session and compiling recall artifacts.
+  start     Legacy/bootstrap context shortcut. It does not create or approve a WorkBrief and therefore does not make governed mutation implementation-ready.
   status    Show the read-only cross-package run projection and one next action.
   manifest  Inspect or atomically persist the cross-package run projection.
   context   Render a bounded, read-only task context from existing artifacts.
   report    Show a read-only, auditable completion report for a task.
-  close     Close a task through workflow safety gates.
+  close     Close a task through workflow safety gates. Accepted risk never bypasses a required L2 execution contract.
 
 L2 contract flow:
   PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
