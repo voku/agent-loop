@@ -108,9 +108,12 @@ vendor/bin/agent-loop workflow plan TASK-123 \
   --scope src/Parser.php \
   --scope tests/ParserTest.php \
   --validation "vendor/bin/phpunit tests/ParserTest.php" \
-  --operating-prompt-manifest .agent-skills/operating-prompts.json \
+  --operating-prompt-manifest <path-to-operating-prompts.json> \
   --operating-prompt '{"id":"regression-hunt","arguments":{"minimum_findings":1}}'
 ```
+
+Use the exact manifest path installed or projected by the host repository. The
+workflow does not search for or guess an operating-prompt manifest.
 
 There is no hidden recipe selection and no hidden threshold default. If policy
 changes, the WorkBrief revision changes and the old approval no longer applies.
