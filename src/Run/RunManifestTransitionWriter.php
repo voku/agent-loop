@@ -19,7 +19,7 @@ final readonly class RunManifestTransitionWriter
 
     public function write(string $taskId): string
     {
-        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
+        $manifest = (new GovernedRunManifestProjector($this->rootPath))->project($taskId);
         $path = (new RunManifestStore($this->rootPath))->write($manifest);
 
         return RelativePath::fromRoot($this->rootPath, $path);
