@@ -63,7 +63,7 @@ final class AgentLoopHistoricalEditReplayTest extends TestCase
         $agentPath = $this->writeSource($agentRoot, $path, $parentSource);
         $outputDirectory = $agentRoot . '/execution';
 
-        $command = new EditCommand($this->packageRoot);
+        $command = new EditCommand($agentRoot);
         ob_start();
         $exit = $command->run([
             $target,
