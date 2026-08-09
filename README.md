@@ -268,14 +268,24 @@ green dashboard.
 
 ### 10. CLOSE
 
+A successful governed close uses:
+
 ```bash
 vendor/bin/agent-loop workflow close TASK-123 --status done
 ```
 
-A successful close is gated. For L2-selected tasks, a current ready execution
-contract is mandatory and `--accept-risk` does **not** bypass that boundary.
-Accepted risk remains available only for explicitly bypassable close gates and
-must carry both reason and owner.
+For an L2-selected task closed as `done`, a current ready execution contract is
+mandatory and `--accept-risk` does **not** bypass that boundary. Accepted risk
+remains available only for explicitly bypassable close gates and must carry both
+reason and owner.
+
+Unsuccessful or abandoned work must not fabricate a READY contract merely to
+look complete. `workflow close` intentionally gates only successful `done`
+closure; close the underlying session explicitly as dropped instead:
+
+```bash
+vendor/bin/agent-loop session close TASK-123 --status dropped
+```
 
 ## Status and run manifest
 
