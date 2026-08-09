@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\EditCommand;
+use voku\AgentSession\SessionStore;
 
 final class EditCommandIntegrationTest extends TestCase
 {
@@ -119,7 +120,6 @@ final class EditCommandIntegrationTest extends TestCase
             self::assertMatchesRegularExpression('/\Asha256:[a-f0-9]{64}\z/', $execution[$digestField]);
         }
 
-        // The answer sheet is part of the bundle, seeded from the plan the compiler just emitted.
         $resultJson = file_get_contents($this->root . '/.agent-loop/edit/EDIT-1/agent-result.json');
         self::assertIsString($resultJson);
         $result = json_decode($resultJson, true, 512, JSON_THROW_ON_ERROR);
@@ -187,6 +187,27 @@ final class EditCommandIntegrationTest extends TestCase
         self::assertIsString($runnerOutput);
         self::assertStringContainsString('applied exactly once', $runnerOutput);
         self::assertStringContainsString('No syntax errors detected', $runnerOutput);
+    }
+
+    public function testMutatingEditCannotUseGeneratedTaskIdWhileGovernedTaskIsActive(): void
+    {
+        (new SessionStore())->create($this->root . '/session_plan', 'GOVERNED-1', by: 'lars');
+        $before = (string) file_get_contents($this->root . '/src/UserService.php');
+
+        ob_start();
+        $exit = (new EditCommand($this->root))->run([
+            'Demo\\UserService::save',
+            '--map-paths=src,tests',
+            '--runner=mechanical',
+            '--replace-old=if (!$active)',
+            '--replace-new=if ($active === false)',
+            '--',
+            'Attempt mutation without identifying the active governed task.',
+        ]);
+        ob_end_clean();
+
+        self::assertSame(1, $exit);
+        self::assertSame($before, (string) file_get_contents($this->root . '/src/UserService.php'));
     }
 
     public function testAutoRunnerUsesMechanicalExecutionForAnExactReplacement(): void
