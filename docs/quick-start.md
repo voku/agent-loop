@@ -5,6 +5,10 @@ task. It intentionally starts **without** an L2 operating-prompt recipe so the
 basic lifecycle stays small. The optional CONTRACT section below shows what
 changes when a task does select L2 policy.
 
+In the examples, replace `<actor>` with a non-empty human or agent identity.
+Do not derive it from optional local Git configuration and then discover during
+APPROVE that an empty string is, astonishingly, not an identity.
+
 ## 1. Bootstrap the repository
 
 Run this from the root of an existing Composer project:
@@ -29,17 +33,17 @@ the cross-package verifier.
 
 ## 2. PLAN
 
-Choose a file you are actually going to change. `composer.json` makes this
-example portable across Composer projects; a real source file is usually more
-useful.
+Choose a file you are actually going to change. `composer.json` plus
+`composer validate` makes this example portable across Composer projects; a real
+source file and repository-native test command are usually more useful.
 
 ```bash
 vendor/bin/agent-loop workflow plan DEMO-1 \
-  --by "$(git config user.name)" \
+  --by <actor> \
   --file composer.json \
   --goal "Add a small validated change." \
   --behavior-anchor "composer configuration -> Composer validation result" \
-  --validation "composer test"
+  --validation "composer validate"
 ```
 
 This creates a candidate WorkBrief revision. It does **not** authorize work yet.
@@ -50,7 +54,7 @@ anchors, and optional operating-prompt policy.
 
 ```bash
 vendor/bin/agent-loop workflow approve DEMO-1 \
-  --by "$(git config user.name)"
+  --by <actor>
 ```
 
 Approval seals the exact WorkBrief revision and compiles recall from that state.
@@ -82,10 +86,10 @@ path and explicit recipe arguments:
 
 ```bash
 vendor/bin/agent-loop workflow plan DEMO-1 \
-  --by "$(git config user.name)" \
+  --by <actor> \
   --file composer.json \
   --goal "Find a concrete regression before declaring the tests strong." \
-  --validation "composer test" \
+  --validation "composer validate" \
   --operating-prompt-manifest <path-to-operating-prompts.json> \
   --operating-prompt '{"id":"regression-hunt","arguments":{"minimum_findings":1}}'
 ```
@@ -107,29 +111,37 @@ Persist it before mutating work:
 vendor/bin/agent-loop workflow contract DEMO-1 \
   --status ready \
   --from <project-specific-l1.md> \
-  --by "$(git config user.name)"
+  --by <actor>
 ```
 
 A missing, stale, invalid, blocked, or rejected contract keeps governed mutation
 out of IMPLEMENT. If the approved recipe cannot be satisfied, record BLOCKED
 with concrete evidence instead of weakening the approved floor.
 
-## 5. IMPLEMENT and VALIDATE
+## 5. IMPLEMENT
 
-Make the smallest change allowed by the approved policy. Then run the actual
-validation command and record its observed result. The first WorkBrief revision
-is `1`; after any re-plan, use the current revision shown by workflow status.
+Make the smallest change allowed by the approved policy. Do not widen scope merely
+because the agent found another interesting thing while looking around.
+
+For an active governed L2 task, mutating `agent-loop edit` runners must identify
+the active task and the current execution contract must be READY.
+
+## 6. VALIDATE
+
+Run the actual validation command and record its observed result. The first
+WorkBrief revision is `1`; after any re-plan, use the current revision shown by
+workflow status.
 
 ```bash
-composer test
+composer validate
 
 vendor/bin/agent-loop session validation record DEMO-1 \
   --brief-revision 1 \
-  --command "composer test" \
+  --command "composer validate" \
   --status passed \
   --exit-code 0 \
   --duration-ms 0 \
-  --by "$(git config user.name)"
+  --by <actor>
 ```
 
 Use the real exit code and duration when available. A non-zero exit code cannot
@@ -144,7 +156,7 @@ vendor/bin/agent-loop edit verify \
   --run-commands
 ```
 
-## 6. REVIEW
+## 7. REVIEW
 
 Generate and inspect the blind-spot review:
 
@@ -167,14 +179,14 @@ vendor/bin/agent-loop review blindspots DEMO-1
 A second agent agreeing with the implementation is not a replacement for tests,
 static analysis, runtime probes, or other repository-native evidence.
 
-## 7. LEARN
+## 8. LEARN
 
 Close the learning boundary explicitly:
 
 ```bash
 vendor/bin/agent-loop session learning decide DEMO-1 \
   --status no_durable_learning \
-  --by "$(git config user.name)" \
+  --by <actor> \
   --reason "No reusable finding emerged."
 ```
 
@@ -186,7 +198,7 @@ If the task selected guidance or operating-prompt recipes, finalize the outcome
 rows required by the recall draft before CLOSE. Selection is exposure, not proof
 that the guidance or recipe was helpful.
 
-## 8. VERIFY
+## 9. VERIFY
 
 ```bash
 vendor/bin/agent-loop verify --task-id=DEMO-1
@@ -195,17 +207,26 @@ vendor/bin/agent-loop verify --task-id=DEMO-1
 This checks cross-package consistency and drift. It is different from per-edit
 bundle verification.
 
-## 9. CLOSE
+## 10. CLOSE
+
+A successful governed close uses:
 
 ```bash
 vendor/bin/agent-loop workflow close DEMO-1 --status done
 ```
 
-CLOSE enforces the applicable current gates. For an L2-selected task, the
-execution contract must still be current and READY; accepted risk does not bypass
-that boundary.
+For an L2-selected task closed as `done`, the execution contract must still be
+current and READY; accepted risk does not bypass that boundary.
 
-When close fails, do not create fake evidence to satisfy the gate. Use:
+Unsuccessful/abandoned work must not fabricate a READY contract merely to look
+complete. Close that session explicitly as dropped instead:
+
+```bash
+vendor/bin/agent-loop session close DEMO-1 --status dropped
+```
+
+When a successful close fails, do not create fake evidence to satisfy the gate.
+Use:
 
 ```bash
 vendor/bin/agent-loop workflow status DEMO-1
