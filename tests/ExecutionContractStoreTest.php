@@ -52,7 +52,7 @@ final class ExecutionContractStoreTest extends TestCase
             self::assertSame(1, $metadata['work_brief_revision']);
             self::assertSame(str_repeat('a', 64), $metadata['recall_bundle_sha256']);
             self::assertSame(['coverage-mutation'], $metadata['prompt_ids']);
-            self::assertMatchesRegularExpression('/^sha256:[a-f0-9]{64}$/', $metadata['prompt_policy_sha256']);
+            self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $metadata['prompt_policy_sha256']);
             self::assertMatchesRegularExpression('/^sha256:[a-f0-9]{64}$/', $metadata['content_sha256']);
         } finally {
             $this->removeDirectory($root);
