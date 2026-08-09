@@ -15,7 +15,8 @@ final class WorkflowExecutionContractCloseTest extends TestCase
         $root = sys_get_temp_dir() . '/agent-loop-contract-close-' . bin2hex(random_bytes(6));
 
         try {
-            $session = (new SessionStore())->create($root . '/session_plan', 'CLOSE-L2', by: 'lars');
+            $sessionsRoot = $root . '/session_plan';
+            $session = (new SessionStore())->create($sessionsRoot, 'CLOSE-L2', by: 'lars');
             file_put_contents($session->path . '/work-brief.json', json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'CLOSE-L2',
@@ -82,7 +83,7 @@ final class WorkflowExecutionContractCloseTest extends TestCase
             ]);
 
             self::assertSame(1, $exit);
-            self::assertFalse((new SessionStore())->load($session->path)->status->isClosed());
+            self::assertFalse((new SessionStore())->load($sessionsRoot, $session->id)->status->isClosed());
         } finally {
             $this->removeDirectory($root);
         }
