@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit;
 
+use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Edit\Verify\EditVerifyCommand;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStore;
 
 final readonly class EditCommand
 {
@@ -35,6 +38,7 @@ final readonly class EditCommand
         try {
             $request = $this->parser->parse($this->projectRoot, $tokens);
             if (!$request->dryRun && in_array($request->runner, ['command', 'mechanical', 'auto'], true)) {
+                $this->assertTaskSelectionIsGoverned($request);
                 (new ExecutionContractStore($request->projectRoot))->assertReadyForMutation($request->taskId);
             }
             $outcome = $this->orchestrator->execute($request);
@@ -55,6 +59,33 @@ final readonly class EditCommand
         return $outcome->succeeded() ? 0 : 1;
     }
 
+    private function assertTaskSelectionIsGoverned(EditRequest $request): void
+    {
+        $sessionsRoot = rtrim($request->projectRoot, '/') . '/session_plan';
+        if (!is_dir($sessionsRoot)) {
+            return;
+        }
+
+        $activeTaskIds = [];
+        foreach ((new SessionStore())->all($sessionsRoot) as $session) {
+            if (!$session instanceof Session || $session->status->isClosed() || $session->ephemeral) {
+                continue;
+            }
+            $activeTaskIds[] = $session->taskId;
+        }
+        $activeTaskIds = array_values(array_unique($activeTaskIds));
+        sort($activeTaskIds);
+        if ($activeTaskIds === [] || in_array($request->taskId, $activeTaskIds, true)) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            'Mutating edit task %s does not identify an active governed session. Active governed task(s): %s. Pass the intended active task explicitly with --task before mutation.',
+            $request->taskId,
+            implode(', ', $activeTaskIds),
+        ));
+    }
+
     private function help(): int
     {
         $usage = <<<'TXT'
@@ -66,12 +97,13 @@ final readonly class EditCommand
         the compiled prompt to a generic command runner.
 
         Governed mutation gate:
-          If --task identifies an active governed workflow, command/mechanical/auto
-          mutation requires the current L2 execution contract to be ready. Dry-run
-          and stdout prompt preparation remain read-only and may run before that gate.
+          When the repository has an active governed session, command/mechanical/auto
+          mutation must identify one of those tasks with --task and satisfy its
+          current L2 execution-contract gate. A generated or unrelated task ID is
+          not a bypass. Dry-run and stdout prompt preparation remain read-only.
 
         Options:
-          --task ID                 Stable task ID. Generated from target and instruction by default.
+          --task ID                 Stable task ID. Generated from target and instruction by default when no governed session is active.
           --recall-root PATH        Learning/recall root. Auto-discovered below the project root.
           --map-index PATH          JSON or TOON map path. Default: .agent-map/php-symbols.json
           --map-root PATH           Runtime source root for map freshness checks. Default: project root.
