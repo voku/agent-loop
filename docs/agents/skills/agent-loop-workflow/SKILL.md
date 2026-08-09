@@ -1,6 +1,6 @@
 ---
 name: agent-loop-workflow
-description: Use the governed agent-loop state machine for planning, approval, bounded context, implementation evidence, review, learning decisions, verification, and safe closure.
+description: Use the governed agent-loop state machine for planning, approval, bounded context, L2 execution contracts, implementation evidence, review, learning decisions, verification, and safe closure.
 ---
 
 # Agent Loop Workflow
@@ -17,50 +17,57 @@ plan beside it.
 ## Deterministic Phase Model
 
 ```text
-PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 ```
 
 | Phase | Required evidence before leaving | Route |
 |---|---|---|
-| `PLAN` | candidate brief with goal, scope, non-goals, behavior anchors, validation | `agent-loop-task-start` |
+| `PLAN` | candidate brief with goal, scope, non-goals, behavior anchors, validation, and selected operating-prompt policy when used | `agent-loop-task-start` |
 | `APPROVE` | named human approval of that exact brief revision | human gate |
-| `CONTEXT` | bounded approved L2 context plus verified real-source locations | `agent-loop-l2-context`, then `agent-loop-investigate` when location is unknown |
-| `IMPLEMENT` | smallest correct diff inside approved scope | `agent-loop-surgical-edit` for verified 1-2 file scope; otherwise main workflow |
+| `CONTEXT` | bounded approved recall plus verified real-source locations | `agent-loop-l2-context`, then `agent-loop-investigate` when location is unknown |
+| `CONTRACT` | for selected L2 recipes, one current project-specific L1 bound to the approved brief + recall bundle | `workflow contract` |
+| `IMPLEMENT` | smallest correct diff inside approved scope; required execution contract is current | `agent-loop-surgical-edit` for verified 1-2 file scope; otherwise main workflow |
 | `VALIDATE` | exact required commands recorded against current brief revision | `agent-loop-task-progress` |
 | `REVIEW` | blind-spot artifact plus complete raw-diff correctness review; complexity pass when relevant | `agent-loop-code-review`, `agent-loop-simplify-review` |
-| `LEARN` | truthful recall outcomes plus explicit learning decision | `agent-loop-learning-boundary` |
+| `LEARN` | truthful recall/recipe outcomes plus explicit learning decision | `agent-loop-learning-boundary` |
 | `VERIFY` | cross-package verification and workflow report pass | `agent-loop-review-close` |
-| `CLOSE` | close gate accepts current evidence | `agent-loop-review-close` |
+| `CLOSE` | close gate accepts current evidence and any required L2 execution contract is still current | `agent-loop-review-close` |
 
 Transitions are evidence-driven, not optimistic:
 
-- scope exceeds the approved brief -> `PLAN` and obtain approval again;
+- scope or task policy exceeds the approved brief -> `PLAN` and obtain approval again;
+- approval/recompile changes the recall bundle -> any prior execution contract becomes superseded/stale -> `CONTRACT`;
+- required L2 contract is missing, stale, or invalid -> `CONTRACT`, never `IMPLEMENT`;
+- contract construction proves the approved task cannot be executed safely -> record `BLOCKED` or `REJECTED`; do not weaken policy silently;
 - validation fails because implementation is wrong -> `IMPLEMENT`;
 - validation exposes missing scope or product intent -> `PLAN`;
 - correctness review finds a defect -> `IMPLEMENT`, then repeat validation/review;
 - a reusable finding exists -> remain in `LEARN` until it is recorded truthfully;
 - a proposal is never self-approved by an agent;
 - failed verification -> repair the missing gate, do not jump to `CLOSE`;
-- accepted risk is an explicit named human override, never an implicit transition.
+- accepted risk is an explicit named human override for bypassable close gates; it never bypasses a required L2 execution contract.
 
 ## Fast Path
 
 1. Inspect prior history only when earlier decisions materially affect the task.
 2. Resolve existing task/session state and reuse the stable task id.
-3. Plan explicit goal, scope, non-goals, behavior anchors, and exact validation.
-4. Approve that revision through a named human actor.
-5. Use `agent-map` to select bounded source reads.
-6. Implement the smallest correct change in the owning package.
-7. Record validation against the current brief revision.
-8. Review blind spots, the complete raw diff, and complexity separately when needed.
-9. Record recall outcomes and an explicit learning decision.
-10. Run cross-package verification, inspect the workflow report, and close only when every required gate passes.
+3. Plan explicit goal, scope, non-goals, behavior anchors, exact validation, and any selected operating-prompt recipe + explicit arguments.
+4. Approve that exact revision through a named human actor.
+5. Compile/use bounded recall; use `agent-map` to select precise source reads.
+6. When recall contains L2 recipes, construct exactly one project-specific L1 with `Goal`, `Context`, `Constraints`, `Verification`, and `Done When`; persist it with `workflow contract` before mutation.
+7. Implement the smallest correct change in the owning package.
+8. Record validation against the current brief revision.
+9. Review blind spots, the complete raw diff, and complexity separately when needed.
+10. Record recall outcomes, evidence-backed operating-prompt outcomes, and an explicit learning decision.
+11. Run cross-package verification, inspect the workflow report, and close only when every required gate passes.
 
 Do not ask the human to run reads, edits, tests, or reports that the available
 tools can run. Human interaction is reserved for approval, genuine ambiguity,
 irreversible actions, and explicit risk ownership.
 
 ## Canonical Flow
+
+Without an L2 recipe:
 
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \
@@ -72,35 +79,106 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --validation "vendor/bin/phpunit tests/FocusedTest.php"
 
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
+```
 
-vendor/bin/agent-loop map build --paths=src,tests
-vendor/bin/agent-loop map query <symbol>
-vendor/bin/agent-loop map related <symbol>
+With a reusable L2 recipe, selection is part of the WorkBrief that gets approved:
+
+```bash
+vendor/bin/agent-loop workflow plan <task-id> \
+  --by <actor> \
+  --learning-root <path> \
+  --file <path> \
+  --goal "Harden the parser tests." \
+  --validation "composer ci" \
+  --operating-prompt-manifest skills/operational-prompting/operating-prompts.json \
+  --operating-prompt '{"id":"coverage-mutation","arguments":{"minimum_percentage_points":10,"mutation_command":"vendor/bin/infection"}}'
+
+vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
 
-Use lower-level commands only for direct control:
+The L2 construction pass creates one repository-grounded L1 document with exactly:
 
-- `session` for decisions and checkpoints;
-- `session validation record` for revision-bound evidence;
-- `session learning decide` for the required learning outcome;
-- `recall compile` for briefing diagnostics;
-- `review blindspots` and `review code` for deterministic review artifacts;
-- `verify` for cross-package consistency;
-- `learn` and `memory review` for reviewed durable knowledge;
-- `init install-assets` for package-owned agent behavior;
-- `init sync-*` for host-owned canonical assets.
+```markdown
+## Goal
+...
+
+## Context
+...
+
+## Constraints
+...
+
+## Verification
+...
+
+## Done When
+...
+```
+
+Persist that generated contract before implementation:
+
+```bash
+vendor/bin/agent-loop workflow contract <task-id> \
+  --status ready \
+  --from <project-specific-l1.md> \
+  --by <actor>
+```
+
+If construction proves the approved contract cannot safely be executed, persist the stop state instead of weakening it:
+
+```bash
+vendor/bin/agent-loop workflow contract <task-id> \
+  --status blocked \
+  --reason "<blocking requirement>" \
+  --evidence "<observable evidence>" \
+  --affected-constraint "<constraint when known>" \
+  --minimum-change "<smallest approved contract change that would unblock>" \
+  --by <actor>
+```
+
+`REJECTED` is used when an implementation/approach violated the approved contract and must be discarded/reconstructed rather than repaired by negotiating around the violation.
+
+Continue source navigation after the contract is current:
+
+```bash
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map query <symbol>
+vendor/bin/agent-loop map related <symbol>
+```
+
+## Execution Contract Boundary
+
+The persisted L1 is stored beside the task recall artifacts as:
+
+```text
+<recall-root>/<task-id>/execution-contract.md
+<recall-root>/<task-id>/execution-contract.json
+```
+
+The metadata binds the document to the current:
+
+- task id;
+- WorkBrief revision;
+- recall bundle digest;
+- selected L2 prompt semantics/arguments;
+- content digest and actor.
+
+Re-planning and approving a newer brief supersedes the prior recall task directory, so an old execution contract cannot silently remain current. `workflow status` and `workflow manifest` expose `execution_contract` as `missing`, `ready`, `stale`, `blocked`, `rejected`, or `invalid` when the gate applies.
+
+For an active governed task, mutating `agent-loop edit` runners (`command`, `mechanical`, `auto`) require the current L2 execution contract to be `ready`. Read-only prompt/context preparation remains possible before that gate. Context-independent L1-only recipes do not require a synthetic L2 construction pass.
+
+`workflow start` is a legacy/bootstrap shortcut that creates context without a revisioned WorkBrief approval. It is not a replacement for `workflow plan` + `workflow approve` and does not make governed mutation implementation-ready.
 
 ## Workflow Boundary
 
-- Planning records a candidate brief; approval seals its exact revision.
+- Planning records a candidate brief; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments.
 - Re-planning invalidates approval and validation evidence for the old revision.
 - `workflow context`, `status`, and `report` are read-only.
 - `workflow context` never rebuilds recall or a map.
 - `workflow report` does not run Git; pass observed changed paths explicitly.
-- `workflow close --status done` requires the current approval, exact validation
-  evidence, recall outcomes, blind-spot review, learning decision, and passing
-  verification.
+- `workflow close --status done` requires the current approval, exact validation evidence, recall outcomes, blind-spot review, learning decision, passing verification, and any required current L2 execution contract.
+- `--accept-risk` may override only the existing explicitly bypassable close gates; it never bypasses a required L2 execution contract.
 - Recall files are not silently injected into an agent.
 - Findings are not durable memory until reviewed and promoted.
 - One task has one active session; resume it rather than creating parallel state.
@@ -109,6 +187,10 @@ The L2 briefing labels claims `VERIFIED`, `INFERRED`, `ASSUMED`, `BLOCKED`, or
 `CONTRADICTED`. Model explanations and review comments remain hypotheses until
 current repository evidence, focused history, or a safe runtime observation
 supports them.
+
+## Project Capability Evidence
+
+Recall may expose bounded `project.capabilities` evidence from the configured project root: exact Composer scripts, runtime constraint, known test/static-analysis/mutation/formatting tool packages and configs, plus CI workflow anchors. Treat package presence as evidence that a tool exists, **not** proof of a command. Exact Verification commands must come from repository-supported scripts, task validation, constraints, or other explicit evidence. Missing commands remain `UNKNOWN` and become discovery work; do not fabricate them.
 
 ## Progress Receipt
 
@@ -136,6 +218,7 @@ Keep complete and unchanged:
 - full diffs and per-file patches;
 - test and static-analysis output;
 - generated verification artifacts;
+- execution-contract metadata/document;
 - redirected harness files and decisive errors.
 
 Concise summaries help humans navigate evidence; they never replace it. Run
@@ -166,6 +249,12 @@ vendor/bin/agent-loop session validation record <task-id> \
 
 Never infer a pass from missing output, an agent summary, or an earlier brief.
 
+## Learning And Recipe Outcomes
+
+`recall-log.draft.json` contains ordinary guidance outcomes and, when prompt recipes were selected, `operating_prompt_outcomes`. Final `helpful`, `irrelevant`, or `harmful` recipe classifications require concrete evidence; helpful/harmful additionally require the recipe to have been applied. Record the outcome before final logging. Prior aggregate recipe outcomes are future recall evidence, not authority to rewrite the recipe automatically.
+
+A learning decision records an outcome; it does not approve durable guidance or mutate reusable prompt semantics.
+
 ## Review And Close
 
 ```bash
@@ -180,8 +269,6 @@ vendor/bin/agent-loop session learning decide <task-id> \
 
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
-
-A learning decision records an outcome; it does not approve durable guidance.
 
 ## Guidance Changes
 
