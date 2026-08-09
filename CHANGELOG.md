@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.14.0 - 2026-08-09
+
+### Added
+
+- Added a governed `CONTRACT` phase between compiled context and implementation
+  for tasks that select L2 operating-prompt policy. The workflow is now:
+  `PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE`.
+- `workflow plan` can seal an explicit operating-prompt manifest and typed recipe
+  selections in the revisioned `agent-session` WorkBrief. Recipe IDs, arguments,
+  thresholds, and manifest source therefore share the same human approval boundary
+  as goal, scope, and validation.
+- Added `workflow contract <task-id>` for `ready`, `blocked`, and `rejected`
+  execution-contract results. A ready L1 document must contain exactly the ordered
+  `Goal`, `Context`, `Constraints`, `Verification`, and `Done When` sections.
+- L2-selected tasks persist `execution-contract.md` plus structured metadata under
+  the task recall directory. The metadata binds the contract to task id, WorkBrief
+  revision, recall bundle digest, selected prompt semantics/arguments, content
+  digest, actor, and time.
+- Workflow status and run-manifest projection now expose the execution-contract
+  state and route missing, stale, invalid, blocked, or rejected contracts back to
+  `CONTRACT` rather than pretending implementation is available.
+- Added an end-to-end execution-contract dogfood gate: a real bounded mutation
+  must fail before a bound L1 exists and succeed after the exact five-section L1
+  is persisted. Evidence is uploaded as a machine-readable CI artifact.
+
+### Changed
+
+- Governed mutating `agent-loop edit` runners (`command`, `mechanical`, `auto`)
+  require the current L2 execution contract to be `ready`. Read-only stdout and
+  dry-run prompt/context construction remain available before that gate.
+- Successful `workflow close --status done` also requires a current ready L2
+  contract. `--accept-risk` cannot bypass the execution-contract boundary;
+  failed/dropped work can still be closed honestly without fabricating readiness.
+- Replanning or superseding recall automatically makes the old execution contract
+  non-current because the contract lives with and is bound to that revision's
+  recall evidence.
+- The packaged `agent-loop-discipline`, `agent-loop-workflow`, and L2-context
+  guidance now describe `CONTRACT` explicitly, including blocked/rejected restart
+  behavior and the distinction between Verification and Done When.
+- Coordinated development CI uses exact commit-pinned `agent-learning`,
+  `agent-session`, `agent-recall-compiler`, and `agent-skills` candidates. The
+  installed release-set dogfood remains a separate gate against actually
+  published package versions.
+- Requires `voku/agent-learning` `0.9.*`, `voku/agent-session` `0.4.*`, and
+  `voku/agent-recall-compiler` `^0.10.0`. The release consumes the new physical
+  applied-guidance proof, approved prompt-policy WorkBrief, and evidence-backed
+  L2/project-capability/recipe-outcome contracts instead of relying on APIs that
+  the older package lines do not contain.
+- `dev-main` now follows the `0.14.x-dev` release line.
+
+### Fixed
+
+- An omitted explicit task id can no longer be treated as permission to escape a
+  governed execution-contract check when mutating work belongs to an active task.
+- Invalid/truncated execution-contract documents are projected as explicit invalid
+  state instead of collapsing workflow status into a generic failure.
+- Contract metadata digest formats and status details are consistent and blocked
+  or rejected states surface their stop reason instead of hiding it behind prompt
+  identifiers.
+- Successful close cannot silently bypass a missing L2 contract through the
+  accepted-risk path.
+
 ## 0.13.0 - 2026-08-07
 
 - Pre-commit checks are declared by type instead of by command line:
@@ -554,7 +616,7 @@ All notable changes to this project will be documented in this file.
 ## 0.1.2 - 2026-06-23
 
 - Bumped the `voku/agent-learning` constraint from `0.6.*@dev` to `0.7.*@dev` to
-  pick up the new `retired` `ProposalStatus` / `proposal-retire` command
+  pick up the new `retired` `ProposalStatus` / `proposal-retire` CLI command
   (`agent-learning` 0.7.0). This repo's own code needed no other change: the
   `learn` dispatch in `Dispatcher.php` already passes every `learn <command>`
   through generically (`proposal-*` in its own help text already covers the new
