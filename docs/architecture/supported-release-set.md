@@ -1,120 +1,141 @@
 # Supported `agent-*` release set
 
-Status: initial compatibility baseline for
-[agent-loop#20](https://github.com/voku/agent-loop/issues/20)  
+Status: `0.14.0` coordinated release candidate; public support starts only after
+the clean-consumer installed release-set gate passes against published package
+versions.  
 Recorded: 2026-08-06  
-Updated: 2026-08-07 (root package baseline raised to `0.12.0` for run manifest v1)
+Updated: 2026-08-09
 
 ## Purpose
 
 Composer constraints describe which versions may resolve. They do not prove that
 a concrete installed package set works together through the complete lifecycle.
 
-This document records the initial release set that the clean-consumer dogfood
-gate must install and exercise.
+This document records both the candidate set being qualified for `agent-loop`
+0.14.0 and the rule for when that candidate becomes a supported published set.
 
-## Baseline set
+## 0.14 candidate set
 
-| Package | Baseline release | `agent-loop` constraint | Required baseline capability |
+| Package | Intended release | `agent-loop` constraint | Required capability |
 | --- | ---: | --- | --- |
-| `voku/agent-loop` | `0.12.0` | root package | joined workflow status, run manifest v1 projection, ephemeral experiments, package-owned agent assets, current lifecycle contract |
+| `voku/agent-loop` | `0.14.0` | root package | governed CONTRACT phase, bound L1 mutation/close gates, joined run/status projection |
 | `voku/agent-kanban` | `0.2.1` | `0.2.*` | typed board API, safe card mutations, deterministic verification/JSON |
-| `voku/agent-session` | `0.3.0` | `0.3.*` | revisioned briefs/approvals, validation evidence, explicit ephemeral sessions |
+| `voku/agent-session` | `0.4.0` | `0.4.*` | revisioned briefs/approvals plus approved operating-prompt policy and validation evidence |
 | `voku/agent-map` | `0.4.1` | `^0.4.0` | semantic map, incremental refresh, hybrid search and Unicode-safe query planning |
-| `voku/agent-recall-compiler` | `0.9.2` | `^0.9.0` | target-aware recall, map-search candidates, deterministic verification artifacts |
-| `voku/agent-learning` | `0.8.12` | `0.8.*` | evidence-backed learning, outcome histories, deterministic maintenance/projections |
+| `voku/agent-recall-compiler` | `0.10.0` | `^0.10.0` | target-aware recall, five-section L2 -> L1 construction, project capabilities, recipe outcomes, verification artifacts |
+| `voku/agent-learning` | `0.9.0` | `0.9.*` | evidence-backed learning plus physical canonical-target proof for APPLIED Memory/Skill guidance |
 
-The baseline is a test input, not a promise to freeze patch versions. A changed
-resolved version updates the recorded release-set result and must still satisfy
-the required capabilities.
+The coordinated candidate CI pins the owning package commits exactly:
+
+```text
+agent-learning        221a9cc893ddf6b350cd87ba615ad003443662d9
+agent-session         8b8700522c28e2650b8c6cd11b3317127fbb8649
+agent-recall-compiler 84ade5a628746e3229c0f9cb470a8b7c08b1f540
+agent-skills          c7e9d8bdda59d957600bca8dc9f787f03286b277
+```
+
+Those commit pins prove a coordinated candidate. They do **not** make the
+versions public or supported. The installed release-set gate must still resolve
+the intended package versions through normal Composer resolution.
 
 ## Current Composer boundary
 
-The root package currently requires:
+The 0.14 root package requires:
 
 ```json
 {
   "voku/agent-kanban": "0.2.*",
-  "voku/agent-learning": "0.8.*",
+  "voku/agent-learning": "0.9.*",
   "voku/agent-map": "^0.4.0",
-  "voku/agent-recall-compiler": "^0.9.0",
-  "voku/agent-session": "0.3.*"
+  "voku/agent-recall-compiler": "^0.10.0",
+  "voku/agent-session": "0.4.*"
 }
 ```
 
-The compatibility gate must test the actual resolved lock file and record every
-resolved version. It must not report only the declared constraints.
+The compatibility gate records the actual resolved lock file. It must not report
+only the declared constraints.
 
-## Installation modes
+## Candidate versus supported
 
-### Released baseline
-
-Install the currently supported released versions from normal Composer
-resolution. This is the minimum public compatibility proof.
-
-### Candidate package under test
-
-For an integration-affecting change, replace only the candidate package with an
-explicit path/VCS candidate while keeping the remaining packages on the released
-baseline.
-
-The fixture must prevent a candidate checkout's nested `vendor/` from winning
-over the consumer project's autoloader.
+The release process intentionally answers two different questions.
 
 ### Coordinated candidate set
 
-Use only when a contract change intentionally requires coordinated updates in
-more than one package. Record every candidate source and commit SHA. This mode
-must not become the default escape hatch whenever independent versions fail.
+Before tags exist, CI may install exact owning-package commits through non-
+symlinked path repositories and synthetic candidate versions. This proves the new
+cross-package contracts together and catches integration drift before publishing
+anything irreversible.
 
-## Capability identities to introduce
+For 0.14 that gate covers the PHP matrix, the governed execution-contract dogfood
+and `Agent-loop shapes itself`.
 
-Exact capability names remain part of
-[agent-loop#21](https://github.com/voku/agent-loop/issues/21), but the initial
-inventory needs at least these categories:
+### Published release set
 
-| Capability category | Owning package | Why it matters |
+The installed release-set dogfood must then create a clean consumer with the
+normal `agent-loop` Composer constraints. No path/VCS fallback may be introduced
+for the focused packages merely to turn the gate green.
+
+The 0.14 candidate becomes **supported** only after:
+
+1. `agent-learning` `0.9.0`, `agent-session` `0.4.0`, and
+   `agent-recall-compiler` `0.10.0` are published through the normal repository /
+   Composer release path;
+2. a clean consumer resolves those release lines;
+3. the installed release-set lifecycle passes; and
+4. `agent-loop` `0.14.0` is published from the reviewed integration commit.
+
+A failed clean-consumer `composer update` with no resolved release set is a
+publication failure, not evidence that constraints should be weakened.
+
+## Capability boundaries
+
+The release-set proof is capability-oriented rather than only version-oriented:
+
+| Capability | Owning package | Why it matters |
 | --- | --- | --- |
-| board typed API/reference schema | `agent-kanban` | joined board/card status without parsing Markdown |
-| session brief/approval reference schema | `agent-session` | bind the run to the exact approved revision |
+| board typed API/reference schema | `agent-kanban` | joined board/card state without parsing Markdown |
+| WorkBrief/approval schema | `agent-session` | bind the run to exact approved task + prompt policy |
 | ephemeral session semantics | `agent-session` | keep experiments outside governed gates |
-| map/readiness/context reference schema | `agent-map` | bind repository evidence and recovery state |
+| map/readiness/context schema | `agent-map` | bind repository evidence and recovery state |
 | map-search candidate semantics | `agent-recall-compiler` + `agent-map` | preserve inferred/verified authority boundary |
-| recall compilation reference schema | `agent-recall-compiler` | bind selected guidance and output hashes |
+| recall compilation + prompt facts | `agent-recall-compiler` | bind selected guidance/recipes and output hashes |
+| project-capability evidence | `agent-recall-compiler` | expose supported repository facts without inventing commands |
 | verification-plan/key schema | `agent-recall-compiler` | preserve public/private answer boundary |
-| edit verification result schema | `agent-loop` | bind execution to independent verdict |
-| learning event-lineage schema | `agent-learning` | trace selection, outcomes and findings to one run |
+| recipe outcome schema | `agent-recall-compiler` | separate recipe exposure/usefulness from normal guidance outcomes |
+| execution-contract schema/gate | `agent-loop` | bind project-specific L1 to approved policy and current recall |
+| edit verification result schema | `agent-loop` | bind execution to an independently checkable verdict |
+| learning event-lineage schema | `agent-learning` | trace selection/outcomes/findings to one run |
+| APPLIED canonical-target proof | `agent-learning` | prevent proposal state from outrunning physical repository reality |
 | run-manifest schema | `agent-loop` | project the complete lifecycle without duplicating owners |
-| managed guidance schema | `agent-loop` | detect runtime/guidance drift |
+| managed guidance/asset schema | `agent-loop` + `agent-skills` | detect runtime/guidance drift and preserve explicit skill provenance |
 
-Capability checks should use schema-compatible ranges where possible. Exact
-package versions remain diagnostics and Composer inputs, not the only proof of
-compatibility.
+Exact package versions remain important release inputs and diagnostics, but the
+clean-consumer scenarios are the proof that the required capabilities compose.
 
 ## Required clean-consumer environment
 
-The first gate should run on the repository's supported PHP matrix, with at
-least one canonical environment for full lifecycle evidence:
+The gate runs with:
 
 - PHP 8.3 or newer;
 - Composer 2;
 - Git repository initialized with a deterministic fixture commit;
-- no sibling `agent-*` checkout on the autoload path;
-- no nested package `vendor/` used by the binaries;
-- local-only execution with no required external model/API;
+- no sibling `agent-*` checkout on the consumer autoload path;
+- no nested package `vendor/` used by installed binaries;
+- no required hosted model/API;
 - SQLite/FTS capability reported explicitly;
-- sqlite-vec availability reported, but semantic retrieval remains optional.
+- optional semantic-search extensions reported without making retrieval depend on
+  them.
 
 ## Compatibility result
 
-The release-set report must contain:
+The release-set report records at least:
 
 ```json
 {
   "schema_version": "1.0",
   "resolved_packages": {
     "voku/agent-loop": {
-      "version": "0.11.0",
+      "version": "0.14.0-or-candidate",
       "source": "dist|vcs|path",
       "reference": "commit-or-dist-reference"
     }
@@ -130,33 +151,36 @@ The release-set report must contain:
 }
 ```
 
-Volatile duration/timestamp fields, when included, must be marked as volatile and
-excluded from byte-stability claims.
+Volatile duration/timestamp/environment values are evidence rather than replay
+identity and must not be mistaken for semantic drift.
 
-## Supported versus untested
+## Supported versus candidate versus untested
 
-The report uses three distinct terms:
+Use these terms precisely:
 
-- **supported**: package constraints allow the set and the release-set gate
-  passed;
-- **compatible by contract**: capability/schema ranges indicate compatibility,
-  but the exact set has not been exercised;
-- **untested**: neither an executed gate nor a declared compatible capability
-  range proves the set.
+- **candidate-proven**: exact coordinated commits passed candidate integration
+  gates but one or more intended package releases are not yet published;
+- **supported**: normal package constraints resolve the published set and the
+  clean-consumer release-set gate passed;
+- **compatible by contract**: declared capability/schema ranges indicate likely
+  compatibility, but the exact set has not been exercised;
+- **untested**: neither an executed gate nor a declared capability contract proves
+  the set.
 
-“Composer installed it” does not by itself mean “the product lifecycle works.”
-The dependency solver has many talents, but end-to-end epistemology is not among
-them.
+“Composer installed it” is still not the same statement as “the product
+lifecycle works.” The dependency solver remains stubbornly uninterested in our
+epistemology.
 
 ## Update rule
 
 Update this baseline when:
 
 - `agent-loop` changes a dependency constraint;
-- an owning package changes an integration artifact or capability schema;
+- an owning package changes an integration artifact/capability schema;
 - the release-set gate resolves a new supported baseline;
-- a previously supported combination fails and the failure is not a fixture
-  defect.
+- a previously supported combination fails for a real package reason rather than
+  a fixture defect.
 
-Every update must link the machine-readable release-set report or the issue/PR
-that establishes why no such report exists yet.
+Every supported-set update must point at the machine-readable release-set evidence
+or the release issue explaining why the candidate has not crossed the publication
+gate yet.
