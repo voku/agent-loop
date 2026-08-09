@@ -66,6 +66,25 @@ agent-map            ^0.4.0
 agent-kanban         0.2.*
 ```
 
+## CLI namespaces
+
+The stable top-level command surface is kept in lockstep with executable help:
+
+```text
+edit          target-aware edit orchestration and bundle verification
+board         durable kanban/card commands
+session       working-memory, WorkBrief, validation and learning decisions
+map           deterministic PHP repository navigation
+recall        deterministic briefing compilation and outcome logging
+learn         durable finding/proposal/guidance lifecycle
+verify        cross-package consistency and drift checks
+workflow      governed plan/approve/context/contract/status/close orchestration
+board:verify  board-only consistency verification
+memory        repository MEMORY validation/review
+review        deterministic blind-spot and code-review helpers
+init          setup, diagnostics and managed agent assets
+```
+
 ## Start a repository
 
 Create the minimum local workflow structure:
