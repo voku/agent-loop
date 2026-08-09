@@ -7,7 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentLoop\Run\CanonicalJson;
-use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\GovernedRunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 
 /**
@@ -27,7 +27,7 @@ final readonly class WorkflowManifestCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
-            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+            $manifest = (new GovernedRunManifestProjector($this->rootPath))->project($taskId->value);
             $store = new RunManifestStore($this->rootPath);
 
             if ($options['write']) {
