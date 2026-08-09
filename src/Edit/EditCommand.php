@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Edit;
 
 use Throwable;
 use voku\AgentLoop\Edit\Verify\EditVerifyCommand;
+use voku\AgentLoop\Workflow\ExecutionContractStore;
 
 final readonly class EditCommand
 {
@@ -33,6 +34,9 @@ final readonly class EditCommand
 
         try {
             $request = $this->parser->parse($this->projectRoot, $tokens);
+            if (!$request->dryRun && in_array($request->runner, ['command', 'mechanical', 'auto'], true)) {
+                (new ExecutionContractStore($request->projectRoot))->assertReadyForMutation($request->taskId);
+            }
             $outcome = $this->orchestrator->execute($request);
         } catch (Throwable $exception) {
             fwrite(STDERR, '[ERROR] ' . $exception->getMessage() . "\n");
@@ -60,6 +64,11 @@ final readonly class EditCommand
         Deterministically refreshes the repository map when necessary, compiles
         target-aware recall, writes one execution bundle, and optionally hands
         the compiled prompt to a generic command runner.
+
+        Governed mutation gate:
+          If --task identifies an active governed workflow, command/mechanical/auto
+          mutation requires the current L2 execution contract to be ready. Dry-run
+          and stdout prompt preparation remain read-only and may run before that gate.
 
         Options:
           --task ID                 Stable task ID. Generated from target and instruction by default.
