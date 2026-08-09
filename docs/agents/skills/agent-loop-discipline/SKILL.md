@@ -5,7 +5,7 @@ description: Keep governed agent-* work resumable, map-first, evidence-exact, an
 
 # Agent Loop Discipline
 
-Persisted workflow state beats conversational state. Keep the bootstrap small: it owns orchestration discipline, evidence integrity, and routing, not a general engineering handbook.
+persisted workflow state beats conversational state. Keep the bootstrap small: it owns orchestration discipline, evidence integrity, and routing, not a general engineering handbook.
 
 ## Governed Workflow
 
