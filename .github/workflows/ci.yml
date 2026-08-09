@@ -12,18 +12,25 @@ jobs:
         php: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout candidate agent-learning
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-learning
+          ref: 221a9cc893ddf6b350cd87ba615ad003443662d9
+          path: build/candidate-agent-learning
+          persist-credentials: false
       - name: Checkout candidate agent-session
         uses: actions/checkout@v6
         with:
           repository: voku/agent-session
-          ref: main
+          ref: 8b8700522c28e2650b8c6cd11b3317127fbb8649
           path: build/candidate-agent-session
           persist-credentials: false
       - name: Checkout candidate agent-recall-compiler
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: main
+          ref: 84ade5a628746e3229c0f9cb470a8b7c08b1f540
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
@@ -37,8 +44,9 @@ jobs:
           $path = "composer.json";
           $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
           $data["repositories"] = [
-              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.9.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-learning", "options" => ["symlink" => false, "versions" => ["voku/agent-learning" => "0.9.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.4.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
           ];
           file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
           '
@@ -57,25 +65,32 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Checkout candidate agent-learning
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-learning
+          ref: 221a9cc893ddf6b350cd87ba615ad003443662d9
+          path: build/candidate-agent-learning
+          persist-credentials: false
       - name: Checkout candidate agent-session
         uses: actions/checkout@v6
         with:
           repository: voku/agent-session
-          ref: main
+          ref: 8b8700522c28e2650b8c6cd11b3317127fbb8649
           path: build/candidate-agent-session
           persist-credentials: false
       - name: Checkout candidate agent-recall-compiler
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: main
+          ref: 84ade5a628746e3229c0f9cb470a8b7c08b1f540
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
       - name: Checkout current first-party operational prompt catalog
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: main
+          ref: c7e9d8bdda59d957600bca8dc9f787f03286b277
           path: build/candidate-agent-skills
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
@@ -90,8 +105,9 @@ jobs:
           $path = "composer.json";
           $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
           $data["repositories"] = [
-              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.9.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-learning", "options" => ["symlink" => false, "versions" => ["voku/agent-learning" => "0.9.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.4.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
           ];
           file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
           '
@@ -126,12 +142,45 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Checkout candidate agent-learning
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-learning
+          ref: 221a9cc893ddf6b350cd87ba615ad003443662d9
+          path: build/candidate-agent-learning
+          persist-credentials: false
+      - name: Checkout candidate agent-session
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-session
+          ref: 8b8700522c28e2650b8c6cd11b3317127fbb8649
+          path: build/candidate-agent-session
+          persist-credentials: false
+      - name: Checkout candidate agent-recall-compiler
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-recall-compiler
+          ref: 84ade5a628746e3229c0f9cb470a8b7c08b1f540
+          path: build/candidate-agent-recall-compiler
+          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           coverage: none
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
+      - name: Configure coordinated candidate dependencies
+        run: |
+          php -r '
+          $path = "composer.json";
+          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          $data["repositories"] = [
+              ["type" => "path", "url" => "build/candidate-agent-learning", "options" => ["symlink" => false, "versions" => ["voku/agent-learning" => "0.9.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.4.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
+          ];
+          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
+          '
       - run: composer install --no-interaction --prefer-dist
       - name: Lint self-shape tools
         run: |
@@ -165,7 +214,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: 84ecf946b83937fe7fcb1931432b13228467b4f2
+          ref: c7e9d8bdda59d957600bca8dc9f787f03286b277
           path: build/agent-skills-source
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
