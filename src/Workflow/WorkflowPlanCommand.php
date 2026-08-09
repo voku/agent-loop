@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
+use voku\AgentSession\OperatingPromptSelection;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStore;
@@ -64,6 +65,8 @@ final readonly class WorkflowPlanCommand
                     $options['validation'],
                     $options['tags'],
                     $options['behaviorAnchors'],
+                    $options['operatingPromptManifest'],
+                    $options['operatingPrompts'],
                 );
             } else {
                 $briefs->revise(
@@ -74,6 +77,8 @@ final readonly class WorkflowPlanCommand
                     $options['validation'],
                     $options['tags'],
                     $options['behaviorAnchors'],
+                    $options['operatingPromptManifest'],
+                    $options['operatingPrompts'],
                 );
             }
         } catch (Throwable $e) {
@@ -123,7 +128,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, baseCommit: string|null, ephemeral: bool}
+     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<OperatingPromptSelection>, baseCommit: string|null, ephemeral: bool}
      */
     private function parse(array $tokens): array
     {
@@ -136,6 +141,9 @@ final readonly class WorkflowPlanCommand
         $validation = [];
         $tags = [];
         $behaviorAnchors = [];
+        $operatingPromptManifest = null;
+        $operatingPrompts = [];
+        $operatingPromptIds = [];
         $baseCommit = null;
         $ephemeral = false;
 
@@ -146,7 +154,7 @@ final readonly class WorkflowPlanCommand
 
                 continue;
             }
-            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--behavior-anchor', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -158,18 +166,53 @@ final readonly class WorkflowPlanCommand
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
 
-            match ($token) {
-                '--by' => $by = $value,
-                '--learning-root', '--root' => $learningRoot = $value,
-                '--file' => $files[] = $value,
-                '--goal' => $goal = $value,
-                '--scope' => $scope[] = $value,
-                '--non-goal' => $nonGoals[] = $value,
-                '--validation' => $validation[] = $value,
-                '--tag' => $tags[] = $value,
-                '--behavior-anchor' => $behaviorAnchors[] = $value,
-                '--base-commit' => $baseCommit = $value,
-            };
+            switch ($token) {
+                case '--by':
+                    $by = $value;
+                    break;
+                case '--learning-root':
+                case '--root':
+                    $learningRoot = $value;
+                    break;
+                case '--file':
+                    $files[] = $value;
+                    break;
+                case '--goal':
+                    $goal = $value;
+                    break;
+                case '--scope':
+                    $scope[] = $value;
+                    break;
+                case '--non-goal':
+                    $nonGoals[] = $value;
+                    break;
+                case '--validation':
+                    $validation[] = $value;
+                    break;
+                case '--tag':
+                    $tags[] = $value;
+                    break;
+                case '--behavior-anchor':
+                    $behaviorAnchors[] = $value;
+                    break;
+                case '--operating-prompt-manifest':
+                    if ($operatingPromptManifest !== null) {
+                        throw new InvalidArgumentException('--operating-prompt-manifest may be provided only once.');
+                    }
+                    $operatingPromptManifest = $value;
+                    break;
+                case '--operating-prompt':
+                    $selection = OperatingPromptSelection::fromJson($value);
+                    if (isset($operatingPromptIds[$selection->id])) {
+                        throw new InvalidArgumentException('Operating prompt selected more than once: ' . $selection->id);
+                    }
+                    $operatingPromptIds[$selection->id] = true;
+                    $operatingPrompts[] = $selection;
+                    break;
+                case '--base-commit':
+                    $baseCommit = $value;
+                    break;
+            }
         }
 
         if ($by === null) {
@@ -184,6 +227,12 @@ final readonly class WorkflowPlanCommand
         if ($validation === []) {
             throw new InvalidArgumentException('--validation is required.');
         }
+        if ($operatingPrompts !== [] && $operatingPromptManifest === null) {
+            throw new InvalidArgumentException('--operating-prompt requires --operating-prompt-manifest.');
+        }
+        if ($operatingPromptManifest !== null && $operatingPrompts === []) {
+            throw new InvalidArgumentException('--operating-prompt-manifest requires at least one --operating-prompt.');
+        }
 
         return [
             'by' => $by,
@@ -195,6 +244,8 @@ final readonly class WorkflowPlanCommand
             'validation' => $validation,
             'tags' => $tags,
             'behaviorAnchors' => $behaviorAnchors,
+            'operatingPromptManifest' => $operatingPromptManifest,
+            'operatingPrompts' => $operatingPrompts,
             'baseCommit' => $baseCommit,
             'ephemeral' => $ephemeral,
         ];
