@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -69,6 +71,11 @@ final readonly class WorkflowApproveCommand
                 '--task', $taskId->value,
                 '--task-brief', $briefPath,
             ];
+            $operatingPromptManifest = $this->operatingPromptManifest($briefPath);
+            if ($operatingPromptManifest !== null) {
+                $recallArgs[] = '--operating-prompt-manifest';
+                $recallArgs[] = $operatingPromptManifest;
+            }
             $documentManifest = rtrim($learningRoot, '/') . '/recall-documents.json';
             if (is_file($documentManifest)) {
                 $recallArgs[] = '--document-manifest';
@@ -128,6 +135,47 @@ final readonly class WorkflowApproveCommand
 
             return 1;
         }
+    }
+
+    /**
+     * Return the explicitly approved prompt manifest, resolved relative to the
+     * project root. The work brief owns selection policy; the compiler owns the
+     * manifest semantics.
+     */
+    private function operatingPromptManifest(string $briefPath): ?string
+    {
+        $contents = file_get_contents($briefPath);
+        if ($contents === false) {
+            throw new RuntimeException('Unable to read approved work brief: ' . $briefPath);
+        }
+        try {
+            $brief = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Invalid approved work-brief JSON: ' . $exception->getMessage(), 0, $exception);
+        }
+        if (!is_array($brief)) {
+            throw new RuntimeException('Approved work brief must decode to an object.');
+        }
+
+        $prompts = $brief['operating_prompts'] ?? [];
+        if (!is_array($prompts)) {
+            throw new RuntimeException('Approved work brief operating_prompts must be a list.');
+        }
+        if ($prompts === []) {
+            return null;
+        }
+
+        $manifest = $brief['operating_prompt_manifest'] ?? null;
+        if (!is_string($manifest) || trim($manifest) === '') {
+            throw new RuntimeException('Approved operating prompts require operating_prompt_manifest.');
+        }
+
+        $resolved = PathResolver::join($this->rootPath, trim($manifest));
+        if (!is_file($resolved)) {
+            throw new RuntimeException('Approved operating prompt manifest not found: ' . $resolved);
+        }
+
+        return $resolved;
     }
 
     /**

@@ -26,6 +26,7 @@ final readonly class WorkflowCli
             'help', '--help', '-h', '' => $this->printHelp(),
             'plan' => (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath, $this->recallRunner))->run($rest),
+            'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
             'start' => (new WorkflowStartCommand($this->rootPath, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
@@ -39,6 +40,26 @@ final readonly class WorkflowCli
     /** @param list<string> $args */
     private function runClose(array $args): int
     {
+        try {
+            $taskId = new WorkflowTaskId($args[0] ?? '');
+            $contract = (new ExecutionContractStore($this->rootPath))->inspect($taskId->value);
+            $contractState = is_string($contract['state'] ?? null) ? $contract['state'] : 'invalid';
+            if (!in_array($contractState, ['ready', 'not_required', 'not_applicable'], true)) {
+                fwrite(
+                    STDERR,
+                    '[FAIL] workflow close: successful close requires a current execution contract when L2 policy is selected; current state is '
+                    . $contractState
+                    . ".\n[ACTION REQUIRED] Run agent-loop workflow status {$taskId->value} --format=json and satisfy or revise the execution contract. Accepted risk does not bypass this contract gate.\n",
+                );
+
+                return 1;
+            }
+        } catch (Throwable $exception) {
+            fwrite(STDERR, '[FAIL] workflow close: unable to evaluate execution contract gate: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
         $exit = (new WorkflowCloseCommand($this->rootPath))->run($args);
         if ($exit !== 0) {
             return $exit;
@@ -67,8 +88,10 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--base-commit <sha>] [--ephemeral]
+  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--ephemeral]
   agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
+  agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
+  agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
   agent-loop workflow start <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] [--base-commit <sha>]
   agent-loop workflow status <task-id> [--format text|json]
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
@@ -78,14 +101,21 @@ Usage:
 
 Commands:
   help      Show workflow help.
-  plan      Start a session and create a candidate work brief.
+  plan      Start a session and create a candidate work brief, including selected operating-prompt policy.
   approve   Approve the brief, then compile recall from that sealed context.
-  start     Start a task workflow by creating a session and compiling recall artifacts.
+  contract  Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
+  start     Legacy/bootstrap context shortcut. It does not create or approve a WorkBrief and therefore does not make governed mutation implementation-ready.
   status    Show the read-only cross-package run projection and one next action.
   manifest  Inspect or atomically persist the cross-package run projection.
   context   Render a bounded, read-only task context from existing artifacts.
   report    Show a read-only, auditable completion report for a task.
-  close     Close a task through workflow safety gates.
+  close     Close a task through workflow safety gates. Accepted risk never bypasses a required L2 execution contract.
+
+L2 contract flow:
+  PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+  An approved L2-selected task is not implementation-ready until execution-contract.md is bound to the current WorkBrief revision and recall bundle.
+  The execution contract contains exactly Goal, Context, Constraints, Verification, and Done When.
+  BLOCKED and REJECTED never weaken the approved brief silently; they preserve evidence and require an explicit next contract change/restart.
 
 TXT;
         return 0;
