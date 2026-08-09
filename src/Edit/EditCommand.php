@@ -8,7 +8,6 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Edit\Verify\EditVerifyCommand;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
-use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
 final readonly class EditCommand
@@ -68,7 +67,7 @@ final readonly class EditCommand
 
         $activeTaskIds = [];
         foreach ((new SessionStore())->all($sessionsRoot) as $session) {
-            if (!$session instanceof Session || $session->status->isClosed() || $session->ephemeral) {
+            if ($session->status->isClosed() || $session->ephemeral) {
                 continue;
             }
             $activeTaskIds[] = $session->taskId;
