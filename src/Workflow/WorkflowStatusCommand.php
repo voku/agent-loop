@@ -7,8 +7,8 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Run\GovernedRunManifestProjector;
 use voku\AgentLoop\Run\RunManifest;
-use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 
 /**
@@ -31,7 +31,7 @@ final readonly class WorkflowStatusCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $format = $this->parseFormat(array_slice($args, 1));
-            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+            $manifest = (new GovernedRunManifestProjector($this->rootPath))->project($taskId->value);
             $storage = (new RunManifestStore($this->rootPath))->status($manifest);
 
             if ($format === 'json') {
@@ -59,15 +59,15 @@ final readonly class WorkflowStatusCommand
     private function renderText(RunManifest $manifest, array $storage): void
     {
         echo 'Task ' . $manifest->taskId . "\n";
-        printf("  %-17s %-22s %s\n", 'Run:', $manifest->runId, $manifest->mode);
-        printf("  %-17s %-22s %s\n", 'Overall:', $manifest->state, 'derived from owning artifacts');
-        printf("  %-17s %-22s %s\n", 'Manifest:', $storage['state'], $storage['path']);
+        printf("  %-19s %-22s %s\n", 'Run:', $manifest->runId, $manifest->mode);
+        printf("  %-19s %-22s %s\n", 'Overall:', $manifest->state, 'derived from owning artifacts');
+        printf("  %-19s %-22s %s\n", 'Manifest:', $storage['state'], $storage['path']);
 
         echo "\nLifecycle:\n";
         foreach ($this->orderedReferences($manifest) as $name => $reference) {
             $state = is_string($reference['state'] ?? null) ? $reference['state'] : 'unknown';
             printf(
-                "  %-17s %-22s %s\n",
+                "  %-19s %-22s %s\n",
                 $this->label($name) . ':',
                 $state,
                 $this->detail($name, $reference),
@@ -101,6 +101,7 @@ final readonly class WorkflowStatusCommand
             'map',
             'search_index',
             'recall',
+            'execution_contract',
             'edit',
             'verification',
             'review',
@@ -120,6 +121,7 @@ final readonly class WorkflowStatusCommand
         return match ($name) {
             'work_brief' => 'Work brief',
             'search_index' => 'Search index',
+            'execution_contract' => 'Execution contract',
             'outcome_lineage' => 'Outcome lineage',
             default => ucfirst($name),
         };
@@ -134,9 +136,24 @@ final readonly class WorkflowStatusCommand
             'work_brief' => $this->revisionDetail($reference),
             'approval' => $this->approvalDetail($reference),
             'recall' => $this->value($reference, 'compilation_id', $this->pathOrOwner($reference)),
+            'execution_contract' => $this->executionContractDetail($reference),
             'learning' => $this->value($reference, 'decided_by', $this->pathOrOwner($reference), 'recorded by '),
             default => $this->pathOrOwner($reference),
         };
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function executionContractDetail(array $reference): string
+    {
+        $promptIds = $reference['prompt_ids'] ?? null;
+        if (is_array($promptIds)) {
+            $ids = array_values(array_filter($promptIds, 'is_string'));
+            if ($ids !== []) {
+                return 'L2: ' . implode(', ', $ids) . $this->sourceSuffix($reference);
+            }
+        }
+
+        return $this->pathOrOwner($reference);
     }
 
     /** @param array<string, mixed> $reference */
