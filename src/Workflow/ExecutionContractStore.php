@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\RecallOutputRoot;
@@ -91,10 +92,10 @@ final readonly class ExecutionContractStore
                 'document' => $this->artifact($documentPath),
                 'created_by' => is_string($metadata['created_by'] ?? null) ? $metadata['created_by'] : null,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (RuntimeException | InvalidArgumentException $exception) {
             return $this->bindingReference($binding, 'invalid', [
                 'reason' => $exception->getMessage(),
-                'source' => is_file($metadataPath) ? $this->artifact($metadataPath) : null,
+                'source' => $this->artifact($metadataPath),
             ]);
         }
     }
@@ -448,7 +449,9 @@ final readonly class ExecutionContractStore
             throw new RuntimeException('Unable to write temporary execution contract artifact: ' . $temporary);
         }
         if (!rename($temporary, $path)) {
-            @unlink($temporary);
+            if (is_file($temporary) && !unlink($temporary)) {
+                throw new RuntimeException('Unable to remove temporary execution contract artifact after publish failure: ' . $temporary);
+            }
             throw new RuntimeException('Unable to atomically publish execution contract artifact: ' . $path);
         }
     }
