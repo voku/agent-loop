@@ -125,12 +125,37 @@ plan+=(
   > build/self-shape-context.json
 
 validation_started_ms="$(php -r 'echo (string) ((int) round(microtime(true) * 1000));')"
-composer ci
+validation_log='build/self-shape-composer-ci.log'
+set +e
+composer ci > "${validation_log}" 2>&1
+validation_exit=$?
+set -e
 validation_finished_ms="$(php -r 'echo (string) ((int) round(microtime(true) * 1000));')"
 validation_duration_ms=$((validation_finished_ms - validation_started_ms))
 if [[ "${validation_duration_ms}" -lt 0 ]]; then
   echo 'Observed composer ci duration cannot be negative.' >&2
   exit 1
+fi
+php -r '
+$path = $argv[1];
+$exitCode = (int) $argv[2];
+$durationMs = (int) $argv[3];
+$output = file_get_contents($path);
+if ($output === false) {
+    fwrite(STDERR, "Unable to read self-shape composer ci log: {$path}\n");
+    exit(1);
+}
+echo json_encode([
+    "schema_version" => "1.0",
+    "command" => "composer ci",
+    "exit_code" => $exitCode,
+    "duration_ms" => $durationMs,
+    "output" => $output,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), PHP_EOL;
+' "${validation_log}" "${validation_exit}" "${validation_duration_ms}" > build/self-shape-composer-ci.json
+cat "${validation_log}"
+if [[ "${validation_exit}" -ne 0 ]]; then
+  exit "${validation_exit}"
 fi
 
 "${agent_loop[@]}" session validation record "${task}" \
