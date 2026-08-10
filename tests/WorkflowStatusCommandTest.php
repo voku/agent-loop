@@ -7,11 +7,14 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLearning\RunLearningDecisionStatus;
+use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunManifestProjector;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowStatusCommand;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowStatusCommandTest extends TestCase
 {
@@ -20,7 +23,7 @@ final class WorkflowStatusCommandTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-status-' . bin2hex(random_bytes(4));
-        mkdir($this->root);
+        mkdir($this->root, 0o775, true);
     }
 
     protected function tearDown(): void
@@ -28,7 +31,7 @@ final class WorkflowStatusCommandTest extends TestCase
         $this->rm($this->root);
     }
 
-    public function testStatusNamesTheCompleteLifecycleAndOneNextCommandWithoutWritingAnything(): void
+    public function testStatusNamesDurableLifecycleWithoutWritingAnything(): void
     {
         $before = $this->files();
 
@@ -38,12 +41,12 @@ final class WorkflowStatusCommandTest extends TestCase
         foreach ([
             'Board:',
             'Session:',
-            'Work brief:',
+            'Contract:',
             'Approval:',
             'Map:',
             'Search index:',
             'Recall:',
-            'Edit:',
+            'Execution contract:',
             'Verification:',
             'Review:',
             'Learning:',
@@ -51,28 +54,27 @@ final class WorkflowStatusCommandTest extends TestCase
         ] as $stage) {
             self::assertStringContainsString($stage, $out);
         }
-        self::assertStringContainsString('Overall:', $out);
-        self::assertStringContainsString('Manifest:', $out);
-        self::assertStringContainsString('workflow plan ABC-123', $out, 'an empty task must point at plan, not at close');
+        self::assertStringNotContainsString('Work brief:', $out);
+        self::assertStringContainsString('workflow plan ABC-123', $out);
         self::assertSame($before, $this->files(), 'status is read-only');
     }
 
-    public function testTheNextCommandFollowsTheProjectedLifecycleAsArtifactsAppear(): void
+    public function testNextCommandFollowsOwnerArtifacts(): void
     {
-        $sessions = new SessionStore();
-        $session = $sessions->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
         self::assertStringContainsString('workflow approve ABC-123', $this->statusText('ABC-123'));
 
-        $briefs = new WorkBriefStore();
-        $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $briefs->approve($session, 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars');
+        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session);
         $approved = $this->statusText('ABC-123');
-        self::assertStringContainsString('current', $approved);
+        self::assertStringContainsString('Contract:', $approved);
+        self::assertStringContainsString('revision 1', $approved);
         self::assertStringContainsString('revision 1 by lars', $approved);
-        self::assertStringContainsString('workflow approve ABC-123', $approved, 'an approved brief without a briefing still needs approve to compile recall');
+        self::assertStringContainsString('workflow approve ABC-123', $approved);
 
-        mkdir($this->root . '/recall/ABC-123', 0o775, true);
-        file_put_contents($this->root . '/recall/ABC-123/meta.json', '{}');
+        $this->writeRecall();
         self::assertStringContainsString('review blindspots ABC-123', $this->statusText('ABC-123'));
 
         mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
@@ -80,28 +82,19 @@ final class WorkflowStatusCommandTest extends TestCase
             $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
-        self::assertStringContainsString('learning decide', $this->statusText('ABC-123'));
+        self::assertStringContainsString('workflow learn ABC-123', $this->statusText('ABC-123'));
+
+        mkdir($this->root . '/learning-root', 0o775, true);
+        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+            $run->runId,
+            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
+            'lars',
+            'No durable learning for status fixture.',
+        );
+        self::assertStringContainsString('workflow close ABC-123 --status done', $this->statusText('ABC-123'));
     }
 
-    public function testAnUnverifiedEditBundleIsTheNextThingToDo(): void
-    {
-        $sessions = new SessionStore();
-        $session = $sessions->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
-        $briefs = new WorkBriefStore();
-        $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $briefs->approve($session, 'lars');
-        mkdir($this->root . '/recall/ABC-123', 0o775, true);
-        file_put_contents($this->root . '/recall/ABC-123/meta.json', '{}');
-        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
-
-        $out = $this->statusText('ABC-123');
-
-        self::assertStringContainsString('Verification:', $out);
-        self::assertStringContainsString('missing', $out);
-        self::assertStringContainsString('edit verify --bundle=.agent-loop/edit/ABC-123', $out);
-    }
-
-    public function testAnEphemeralSessionIsShownAsAnExperimentAndAsksToBeClosed(): void
+    public function testEphemeralSessionIsExperimentAndAsksToBeClosed(): void
     {
         $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars', ephemeral: true);
 
@@ -112,7 +105,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('session close ' . $session->id, $out);
     }
 
-    public function testAnUnreadableReviewReportBlocksStatusInsteadOfMasqueradingAsProgress(): void
+    public function testUnreadableReviewBlocksStatusInsteadOfMasqueradingAsProgress(): void
     {
         mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
         file_put_contents($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json', '{');
@@ -124,7 +117,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('review.report_invalid', $out);
     }
 
-    public function testJsonStatusUsesTheSameProjectionAndReportsPersistedManifestFreshness(): void
+    public function testJsonStatusReportsPersistedProjectionFreshness(): void
     {
         $projector = new GovernedRunManifestProjector($this->root);
         $store = new RunManifestStore($this->root);
@@ -133,27 +126,40 @@ final class WorkflowStatusCommandTest extends TestCase
         [$currentExit, $currentOutput] = $this->statusOf('ABC-123', ['--format=json']);
         $current = json_decode($currentOutput, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(0, $currentExit);
-        self::assertIsArray($current);
-        self::assertIsArray($current['storage'] ?? null);
-        self::assertIsArray($current['manifest'] ?? null);
-        self::assertSame('current', $current['storage']['state']);
-        self::assertSame('legacy_inferred', $current['manifest']['mode']);
+        self::assertSame('current', $current['storage']['state'] ?? null);
+        self::assertSame('legacy_inferred', $current['manifest']['mode'] ?? null);
 
-        (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        (new TaskContractStore($this->root))->create(
+            'ABC-123',
+            'Create a real planned lifecycle.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'lars',
+        );
         [$staleExit, $staleOutput] = $this->statusOf('ABC-123', ['--format', 'json']);
         $stale = json_decode($staleOutput, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(0, $staleExit);
-        self::assertIsArray($stale);
-        self::assertIsArray($stale['storage'] ?? null);
-        self::assertIsArray($stale['manifest'] ?? null);
-        self::assertSame('stale', $stale['storage']['state']);
-        self::assertSame('governed', $stale['manifest']['mode']);
+        self::assertSame('stale', $stale['storage']['state'] ?? null);
+        self::assertSame('planned', $stale['manifest']['mode'] ?? null);
     }
 
-    /**
-     * @param list<string> $options
-     * @return array{0: int, 1: string}
-     */
+    private function writeRecall(): void
+    {
+        mkdir($this->root . '/recall/ABC-123', 0o775, true);
+        file_put_contents(
+            $this->root . '/recall/ABC-123/meta.json',
+            json_encode([
+                'task_id' => 'ABC-123',
+                'compilation_id' => 'status-fixture',
+                'selected_guidance' => [],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /** @param list<string> $options @return array{0: int, 1: string} */
     private function statusOf(string $taskId, array $options = []): array
     {
         ob_start();
@@ -166,7 +172,7 @@ final class WorkflowStatusCommandTest extends TestCase
     private function statusText(string $taskId): string
     {
         [$exit, $out] = $this->statusOf($taskId);
-        self::assertSame(0, $exit);
+        self::assertSame(0, $exit, $out);
 
         return $out;
     }
@@ -175,10 +181,9 @@ final class WorkflowStatusCommandTest extends TestCase
     private function files(): array
     {
         $files = [];
-        if (!is_dir($this->root)) {
-            return [];
-        }
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS)) as $file) {
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
+        ) as $file) {
             $files[] = $file->getPathname();
         }
         sort($files);
@@ -191,7 +196,10 @@ final class WorkflowStatusCommandTest extends TestCase
         if (!is_dir($dir)) {
             return;
         }
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $file) {
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        ) as $file) {
             $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
         }
         rmdir($dir);
