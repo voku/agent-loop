@@ -7,18 +7,19 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\AgentLoopVerifier;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
-use voku\AgentSession\LearningDecisionStore;
+use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidence;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
-use voku\AgentSession\WorkBriefStatus;
-use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowCloseCommand
 {
@@ -38,29 +39,45 @@ final readonly class WorkflowCloseCommand
                 return 1;
             }
 
-            try {
-                $contract = (new ExecutionContractStore($this->rootPath))->inspect($taskId->value);
-                $contractState = is_string($contract['state'] ?? null) ? $contract['state'] : 'invalid';
-            } catch (Throwable $exception) {
-                fwrite(STDERR, '[FAIL] workflow close: unable to evaluate execution contract gate: ' . $exception->getMessage() . "\n");
-
-                return 1;
+            $contract = (new TaskContractStore($this->rootPath))->load($taskId->value);
+            if ($contract->status !== TaskContract::APPROVED) {
+                throw new RuntimeException('Successful close requires the current durable Task Contract to be approved.');
             }
-            if (!in_array($contractState, ['ready', 'not_required', 'not_applicable'], true)) {
+            $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
+                ?? throw new RuntimeException('Successful close requires a governed Run.');
+            $this->assertRunContractBinding($run, $contract);
+
+            $executionContract = (new ExecutionContractStore($this->rootPath))->inspect($taskId->value);
+            $executionContractState = is_string($executionContract['state'] ?? null) ? $executionContract['state'] : 'invalid';
+            if (!in_array($executionContractState, ['ready', 'not_required'], true)) {
                 fwrite(
                     STDERR,
                     '[FAIL] workflow close: successful close requires a current execution contract when L2 policy is selected; current state is '
-                    . $contractState
+                    . $executionContractState
                     . ".\n[ACTION REQUIRED] Run agent-loop workflow status {$taskId->value} --format=json and satisfy or revise the execution contract. Accepted risk does not bypass this contract gate.\n",
                 );
 
                 return 1;
             }
 
-            $failures = $this->runGates($taskId->value);
+            $session = $this->sessionForRun($run);
+            if ($session === null) {
+                $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId->value);
+                if ($receipt !== null) {
+                    $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+                    echo "[OK] workflow close: Session already pruned; durable close evidence remains at {$manifestPath}\n";
+
+                    return 0;
+                }
+                throw new RuntimeException('Governed Run Session is missing before final verification evidence was persisted.');
+            }
+
+            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
+            $validation = $this->validationSnapshot($contract, $session);
+            $failures = $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']);
             $failed = $failures !== [];
             if ($failed && $options['acceptRisk'] === null) {
-                echo "[FAIL] workflow close: gates failed; session was not closed.\n";
+                echo "[FAIL] workflow close: gates failed; Session was not closed.\n";
 
                 return 1;
             }
@@ -79,69 +96,56 @@ final readonly class WorkflowCloseCommand
                     $failures,
                 );
                 echo "[WARN] workflow close: accepted risk recorded at {$path}\n";
-                if ($failed) {
-                    echo "[WARN] workflow close: closing session despite failed gates\n";
-                }
             } else {
-                echo "[OK] workflow close: gates passed; closing session\n";
+                echo "[OK] workflow close: gates passed\n";
             }
 
-            try {
-                $session = $this->activeSession($taskId->value)
-                    ?? throw new RuntimeException("Expected exactly one active session for {$taskId->value}.");
+            $receipt = (new RunVerificationReceiptStore($this->rootPath))->record(
+                $run,
+                $contract,
+                $session,
+                $validation['detail'] === null ? 'satisfied' : 'unsatisfied',
+                $validation['obligations'],
+            );
+            echo "[OK] workflow close: durable verification receipt persisted at {$receipt->path}\n";
+
+            if (!$session->status->isClosed()) {
                 (new SessionStore())->setStatus($session, SessionStatus::DONE);
-            } catch (Throwable $exception) {
-                if ($acceptedRisk) {
-                    echo "[FAIL] workflow close: session close failed after accepted-risk bypass\n";
-                }
-
-                throw $exception;
+                echo "[OK] workflow close: disposable Session marked done\n";
             }
 
-            try {
-                $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
-                echo "[OK] workflow close: final run manifest refreshed at {$manifestPath}\n";
-            } catch (Throwable $exception) {
-                fwrite(
-                    STDERR,
-                    '[FAIL] workflow close: session was closed, but final run-manifest refresh failed: '
-                    . $exception->getMessage()
-                    . "\n[ACTION REQUIRED] Run agent-loop workflow manifest <task-id> --write after repairing the projection error.\n",
-                );
-
-                return 1;
-            }
+            $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+            echo "[OK] workflow close: final Run projection refreshed at {$manifestPath}\n";
 
             return 0;
-        } catch (Throwable $e) {
-            fwrite(STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
+        } catch (Throwable $exception) {
+            fwrite(STDERR, '[FAIL] workflow close: ' . $exception->getMessage() . "\n");
 
             return 1;
         }
     }
 
     /**
-     * Runs every gate and returns what failed, rather than a single boolean.
-     *
-     * An override has to record which gates failed and which evidence was missing, so the reasons
-     * have to survive the run instead of being reduced to false. Every gate still runs even after
-     * one fails: a human deciding whether to override needs the whole picture, not the first
-     * problem alphabetically.
-     *
+     * @param array{detail: string|null, obligations: list<array{command: string, status: string, exit_code: int|null, executed_at: string|null, recorded_by: string|null, duration_ms: int|null}>} $validation
      * @return list<array{gate: string, detail: string}>
      */
-    private function runGates(string $taskId): array
-    {
+    private function runGates(
+        TaskContract $contract,
+        GovernedRun $run,
+        Session $session,
+        string $learningRoot,
+        ?string $validationDetail,
+    ): array {
         $failures = [];
         foreach ([
-            'recall' => $this->checkRecallGate($taskId),
-            'review' => $this->checkReviewGate($taskId),
-            'work_brief' => $this->checkWorkBriefGate($taskId),
-            'validation' => $this->checkValidationGate($taskId),
-            'recall_outcomes' => $this->checkRecallOutcomeGate($taskId),
-            'learning_decision' => $this->checkLearningDecisionGate($taskId),
-            'edit_verification' => $this->checkEditVerificationGate($taskId),
-            'verify' => $this->checkVerifyGate($taskId),
+            'recall' => $this->checkRecallGate($contract->taskId),
+            'review' => $this->checkReviewGate($contract->taskId),
+            'task_contract' => $this->checkTaskContractGate($contract, $run),
+            'validation' => $validationDetail,
+            'recall_outcomes' => $this->checkRecallOutcomeGate($contract->taskId, $learningRoot),
+            'learning_decision' => $this->checkLearningDecisionGate($run, $learningRoot),
+            'edit_verification' => $this->checkEditVerificationGate($contract->taskId),
+            'verify' => $this->checkVerifyGate($contract->taskId),
         ] as $gate => $detail) {
             if ($detail !== null) {
                 $failures[] = ['gate' => $gate, 'detail' => $detail];
@@ -152,50 +156,52 @@ final readonly class WorkflowCloseCommand
     }
 
     /**
-     * Requires a passing `verification-result.json` for every edit bundle of this task.
-     *
-     * A task closed without ever running `agent-loop edit` has no bundle to grade, and demanding
-     * one would only push people to fake it; that case passes with an explicit note. A bundle that
-     * exists but was never verified does not: an ungraded edit is exactly what this gate is for.
+     * @return array{detail: string|null, obligations: list<array{command: string, status: string, exit_code: int|null, executed_at: string|null, recorded_by: string|null, duration_ms: int|null}>}
      */
-    private function checkEditVerificationGate(string $taskId): ?string
+    private function validationSnapshot(TaskContract $contract, Session $session): array
     {
-        $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
-        if (!is_dir($bundle)) {
-            echo "[OK] edit verification: no edit bundle for {$taskId}\n";
-
-            return null;
+        $evidence = (new ValidationEvidenceStore())->all($session);
+        $missing = [];
+        $obligations = [];
+        foreach ($contract->validation as $command) {
+            $matching = array_values(array_filter(
+                $evidence,
+                static fn (ValidationEvidence $item): bool => $item->contractRevision === $contract->revision && $item->command === $command,
+            ));
+            $latest = $matching === [] ? null : $matching[count($matching) - 1];
+            if ($latest?->status !== ValidationStatus::PASSED) {
+                $status = $latest === null ? 'missing' : $latest->status->value;
+                echo "[FAIL] validation: {$status} evidence for {$command} (Contract revision {$contract->revision})\n";
+                $missing[] = $command . ' (' . ($latest === null ? 'no evidence' : $latest->status->value) . ')';
+            } else {
+                echo "[OK] validation: {$command} (exit {$latest->exitCode}, Contract revision {$contract->revision})\n";
+            }
+            $obligations[] = [
+                'command' => $command,
+                'status' => $latest === null ? 'missing' : $latest->status->value,
+                'exit_code' => $latest?->exitCode,
+                'executed_at' => $latest?->executedAt,
+                'recorded_by' => $latest?->recordedBy,
+                'duration_ms' => $latest?->durationMs,
+            ];
         }
 
-        $resultFile = $bundle . '/verification-result.json';
-        if (!is_file($resultFile)) {
-            echo "[FAIL] edit verification: missing verification-result.json in .agent-loop/edit/{$taskId}\n";
-            echo "[ACTION REQUIRED] Run agent-loop edit verify --bundle=.agent-loop/edit/{$taskId}\n";
+        return [
+            'detail' => $missing === [] ? null : 'validation evidence missing or not passed for: ' . implode(', ', $missing),
+            'obligations' => $obligations,
+        ];
+    }
 
-            return 'missing verification-result.json for edit bundle ' . $taskId;
-        }
-
+    private function checkTaskContractGate(TaskContract $contract, GovernedRun $run): ?string
+    {
         try {
-            $result = json_decode((string) file_get_contents($resultFile), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            echo "[FAIL] edit verification: verification-result.json is not valid JSON\n";
+            $this->assertRunContractBinding($run, $contract);
+        } catch (RuntimeException $exception) {
+            echo '[FAIL] task contract: ' . $exception->getMessage() . "\n";
 
-            return 'unreadable verification-result.json for edit bundle ' . $taskId;
+            return $exception->getMessage();
         }
-        if (!is_array($result) || !is_string($result['status'] ?? null)) {
-            echo "[FAIL] edit verification: verification-result.json has no status\n";
-
-            return 'verification-result.json without a status for edit bundle ' . $taskId;
-        }
-        if ($result['status'] !== 'passed') {
-            $gates = is_array($result['gates'] ?? null) ? $result['gates'] : [];
-            $notPassed = array_keys(array_filter($gates, static fn (mixed $status): bool => $status !== 'passed'));
-            echo '[FAIL] edit verification: status ' . $result['status'] . ($notPassed === [] ? '' : ' (gates: ' . implode(', ', $notPassed) . ')') . "\n";
-
-            return 'edit verification status ' . $result['status'] . ($notPassed === [] ? '' : '; gates not passed: ' . implode(', ', $notPassed));
-        }
-
-        echo "[OK] edit verification: passed for .agent-loop/edit/{$taskId}\n";
+        echo "[OK] task contract: approved revision {$contract->revision} bound to {$run->runId}\n";
 
         return null;
     }
@@ -220,123 +226,40 @@ final readonly class WorkflowCloseCommand
         $reader = new WorkflowReviewReportReader($this->rootPath);
         $relative = $reader->relativePath($taskId);
         $report = $reader->read($taskId);
-
         if (!$report['exists']) {
             echo "[FAIL] review: missing {$relative}\n";
-            echo "[ACTION REQUIRED] Run agent-loop review blindspots {$taskId} before workflow close.\n";
 
             return 'missing blind-spot report ' . $relative;
         }
-
         if ($report['invalid']) {
             echo "[FAIL] review: blindspot report JSON is invalid or missing status\n";
 
             return 'invalid blind-spot report ' . $relative;
         }
-
         if ($report['status'] === 'fail') {
             echo "[FAIL] review: blindspot report status is fail\n";
 
             return 'blind-spot report status is fail';
         }
-
         echo "[OK] review: found {$relative} with status {$report['status']}\n";
 
         return null;
     }
 
-    /**
-     * Scoped to this task so an unrelated task's stale recall draft or
-     * broken task file can't block this close; package delegates, board,
-     * and the learning root still verify repo-wide either way.
-     */
-    private function checkVerifyGate(string $taskId): ?string
+    private function checkLearningDecisionGate(GovernedRun $run, string $learningRoot): ?string
     {
-        if ((new AgentLoopVerifier($this->rootPath))->run(['--task-id=' . $taskId]) === 0) {
-            echo "[OK] verify: agent-loop verify passed\n";
+        $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
+        if ($decision === null) {
+            echo "[FAIL] learning decision: no durable Run learning conclusion exists\n";
 
-            return null;
+            return 'missing durable Run learning decision';
         }
-
-        echo "[FAIL] verify: agent-loop verify failed\n";
-
-        return 'agent-loop verify failed';
-    }
-
-    private function checkWorkBriefGate(string $taskId): ?string
-    {
-        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
-        if (!is_dir($sessionsRoot)) {
-            echo "[FAIL] work brief: no active session found for task {$taskId}\n";
-
-            return 'no active session for task ' . $taskId;
-        }
-
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($sessionsRoot),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($sessions) !== 1) {
-            echo "[FAIL] work brief: expected one active session for task {$taskId}, found " . count($sessions) . "\n";
-
-            return 'expected one active session, found ' . count($sessions);
-        }
-
-        $briefs = new WorkBriefStore();
-        $brief = $briefs->find($sessions[0]);
-        if ($brief === null) {
-            echo "[FAIL] work brief: missing for task {$taskId}\n";
-
-            return 'missing work brief for task ' . $taskId;
-        }
-
-        $approval = $briefs->approval($sessions[0]);
-        if ($brief->status !== WorkBriefStatus::APPROVED || $approval === null || $approval->workBriefRevision !== $brief->revision) {
-            echo "[FAIL] work brief: revision {$brief->revision} is not approved for task {$taskId}\n";
-
-            return 'work brief revision ' . $brief->revision . ' is not approved';
-        }
-
-        echo "[OK] work brief: revision {$brief->revision} approved by {$approval->approvedBy}\n";
+        echo "[OK] learning decision: {$decision->decision->value} by {$decision->decidedBy}\n";
 
         return null;
     }
 
-    private function checkValidationGate(string $taskId): ?string
-    {
-        $session = $this->activeSession($taskId);
-        if ($session === null) {
-            echo "[FAIL] validation: no single active session found for task {$taskId}\n";
-
-            return 'no single active session for task ' . $taskId;
-        }
-        $brief = (new WorkBriefStore())->find($session);
-        if ($brief === null) {
-            echo "[FAIL] validation: work brief is missing for task {$taskId}\n";
-
-            return 'missing work brief for task ' . $taskId;
-        }
-        $evidence = (new ValidationEvidenceStore())->all($session);
-        $missing = [];
-        foreach ($brief->validation as $command) {
-            $matching = array_values(array_filter(
-                $evidence,
-                static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $brief->revision && $item->command === $command,
-            ));
-            $latest = $matching === [] ? null : $matching[count($matching) - 1];
-            if ($latest?->status !== ValidationStatus::PASSED) {
-                echo '[FAIL] validation: ' . ($latest === null ? 'missing' : $latest->status->value) . " evidence for {$command} (work brief revision {$brief->revision})\n";
-                $missing[] = $command . ' (' . ($latest === null ? 'no evidence' : $latest->status->value) . ')';
-
-                continue;
-            }
-            echo "[OK] validation: {$command} (exit {$latest->exitCode}, revision {$brief->revision})\n";
-        }
-
-        return $missing === [] ? null : 'validation evidence missing or not passed for: ' . implode(', ', $missing);
-    }
-
-    private function checkRecallOutcomeGate(string $taskId): ?string
+    private function checkRecallOutcomeGate(string $taskId, string $learningRoot): ?string
     {
         $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
         if (!is_file($path)) {
@@ -345,15 +268,12 @@ final readonly class WorkflowCloseCommand
         try {
             $meta = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            echo "[FAIL] recall outcomes: invalid recall metadata\n";
-
             return 'invalid recall metadata for task ' . $taskId;
         }
         if (!is_array($meta)) {
-            echo "[FAIL] recall outcomes: invalid recall metadata\n";
-
             return 'invalid recall metadata for task ' . $taskId;
         }
+
         $selected = array_values(array_filter(
             $meta['selected_guidance'] ?? [],
             static fn (mixed $id): bool => is_string($id) && trim($id) !== '',
@@ -368,19 +288,16 @@ final readonly class WorkflowCloseCommand
 
             return null;
         }
+
         $compilationId = $meta['compilation_id'] ?? null;
         if (!is_string($compilationId) || trim($compilationId) === '') {
-            echo "[FAIL] recall outcomes: selected guidance has no compilation id\n";
-
             return 'selected guidance without a compilation id';
         }
-        $root = $this->learningRoot();
-        $outcomesPath = $root === null ? null : $root . '/history/outcomes.jsonl';
-        if ($outcomesPath === null || !is_file($outcomesPath)) {
-            echo "[FAIL] recall outcomes: missing outcomes.jsonl for selected guidance\n";
-
+        $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';
+        if (!is_file($outcomesPath)) {
             return 'missing history/outcomes.jsonl for selected guidance';
         }
+
         $recorded = [];
         foreach (file($outcomesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
             try {
@@ -402,8 +319,6 @@ final readonly class WorkflowCloseCommand
             static fn (string $id): bool => !isset($recorded[$id]),
         ));
         if ($missing !== []) {
-            echo '[FAIL] recall outcomes: missing explicit outcome for ' . implode(', ', $missing) . "\n";
-
             return 'missing explicit recall outcome for: ' . implode(', ', $missing);
         }
         echo '[OK] recall outcomes: explicit outcomes recorded for ' . count($selected) . " selected guidance item(s)\n";
@@ -411,86 +326,112 @@ final readonly class WorkflowCloseCommand
         return null;
     }
 
-    private function checkLearningDecisionGate(string $taskId): ?string
+    private function checkEditVerificationGate(string $taskId): ?string
     {
-        $session = $this->activeSession($taskId);
-        if ($session === null) {
-            return 'no single active session for task ' . $taskId;
-        }
-        $decision = (new LearningDecisionStore())->find($session);
-        if ($decision === null) {
-            echo "[FAIL] learning decision: missing (record findings_recorded, no_durable_learning, or follow_up_required)\n";
+        $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
+        if (!is_dir($bundle)) {
+            echo "[OK] edit verification: no edit bundle for {$taskId}\n";
 
-            return 'missing learning decision';
+            return null;
         }
-        echo "[OK] learning decision: {$decision->decision->value} by {$decision->decidedBy}\n";
+        $resultFile = $bundle . '/verification-result.json';
+        if (!is_file($resultFile)) {
+            return 'missing verification-result.json for edit bundle ' . $taskId;
+        }
+        try {
+            $result = json_decode((string) file_get_contents($resultFile), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return 'unreadable verification-result.json for edit bundle ' . $taskId;
+        }
+        if (!is_array($result) || !is_string($result['status'] ?? null)) {
+            return 'verification-result.json without a status for edit bundle ' . $taskId;
+        }
+        if ($result['status'] !== 'passed') {
+            return 'edit verification status ' . $result['status'];
+        }
+        echo "[OK] edit verification: passed for .agent-loop/edit/{$taskId}\n";
 
         return null;
     }
 
-    private function activeSession(string $taskId): ?Session
+    private function checkVerifyGate(string $taskId): ?string
+    {
+        if ((new AgentLoopVerifier($this->rootPath))->run(['--task-id=' . $taskId]) === 0) {
+            echo "[OK] verify: agent-loop verify passed\n";
+
+            return null;
+        }
+
+        return 'agent-loop verify failed';
+    }
+
+    private function sessionForRun(GovernedRun $run): ?Session
     {
         $root = rtrim($this->rootPath, '/') . '/session_plan';
         if (!is_dir($root)) {
             return null;
         }
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-
-        return count($sessions) === 1 ? $sessions[0] : null;
-    }
-
-    private function learningRoot(): ?string
-    {
-        foreach (['infra/doc/agent-learning', 'learning-root'] as $relative) {
-            $candidate = rtrim($this->rootPath, '/') . '/' . $relative;
-            if (is_dir($candidate)) {
-                return $candidate;
-            }
+        try {
+            $session = (new SessionStore())->load($root, $run->sessionId);
+        } catch (Throwable) {
+            return null;
+        }
+        if ($session->taskId !== $run->taskId) {
+            throw new RuntimeException('Governed Run Session belongs to another task.');
         }
 
-        return null;
+        return $session;
+    }
+
+    private function assertRunContractBinding(GovernedRun $run, TaskContract $contract): void
+    {
+        if ($run->taskId !== $contract->taskId || $run->contractRevision !== $contract->revision) {
+            throw new RuntimeException('Governed Run is not bound to the current Task Contract revision.');
+        }
+        $hash = hash_file('sha256', $contract->path);
+        if ($hash === false || !hash_equals($run->contractSource['sha256'], 'sha256:' . $hash)) {
+            throw new RuntimeException('Governed Run Contract digest is stale.');
+        }
     }
 
     /**
      * @param list<string> $tokens
-     *
-     * @return array{status: string, acceptRisk: string|null, acceptRiskBy: string|null}
+     * @return array{status: string, acceptRisk: string|null, acceptRiskBy: string|null, learningRoot: string|null}
      */
     private function parse(array $tokens): array
     {
         $status = null;
         $risk = null;
         $riskBy = null;
+        $learningRoot = null;
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--status', '--accept-risk', '--accept-risk-by'], true)) {
+            if (!in_array($token, ['--status', '--accept-risk', '--accept-risk-by', '--learning-root'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
                 throw new InvalidArgumentException($token . ' requires a value.');
             }
-            $value = $tokens[++$i];
-            if ($token === '--status') {
-                $status = $value;
-            } elseif ($token === '--accept-risk') {
-                $risk = $value;
-            } else {
-                $riskBy = $value;
+            $value = trim($tokens[++$i]);
+            if ($value === '') {
+                throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
+            match ($token) {
+                '--status' => $status = $value,
+                '--accept-risk' => $risk = $value,
+                '--accept-risk-by' => $riskBy = $value,
+                '--learning-root' => $learningRoot = $value,
+            };
         }
-        if ($status === null || trim($status) === '') {
+        if ($status === null) {
             throw new InvalidArgumentException('--status done is required.');
         }
-        if ($risk !== null && trim($risk) === '') {
-            throw new InvalidArgumentException('--accept-risk requires a non-empty reason.');
-        }
-        if ($riskBy !== null && trim($riskBy) === '') {
-            throw new InvalidArgumentException('--accept-risk-by requires a non-empty name.');
-        }
 
-        return ['status' => $status, 'acceptRisk' => $risk, 'acceptRiskBy' => $riskBy];
+        return [
+            'status' => $status,
+            'acceptRisk' => $risk,
+            'acceptRiskBy' => $riskBy,
+            'learningRoot' => $learningRoot,
+        ];
     }
 }
