@@ -14,15 +14,13 @@ use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidence;
 use voku\AgentSession\ValidationEvidenceStore;
-use voku\AgentSession\WorkBrief;
-use voku\AgentSession\WorkBriefStore;
 
 /**
  * Read-only projection of the artifacts that make a governed task auditable.
  *
- * Changed files are deliberately supplied by the caller. The command does not
- * invoke git: a report remains deterministic for a supplied artifact root and
- * does not silently make a working tree the source of truth.
+ * Durable Contract state is independent from Session working memory. Changed
+ * files are deliberately supplied by the caller so the report remains a
+ * deterministic projection and never silently makes a worktree authoritative.
  */
 final readonly class WorkflowReportCommand
 {
@@ -59,7 +57,6 @@ final readonly class WorkflowReportCommand
 
     /**
      * @param list<string> $tokens
-     *
      * @return array{format: 'text'|'json', learningRoot: string|null, changedFiles: list<string>}
      */
     private function parse(array $tokens): array
@@ -103,7 +100,6 @@ final readonly class WorkflowReportCommand
 
     /**
      * @param list<string> $changedFiles
-     *
      * @return array<string, mixed>
      */
     public function buildReport(string $taskId, ?string $learningRoot = null, array $changedFiles = []): array
@@ -111,11 +107,11 @@ final readonly class WorkflowReportCommand
         $sessions = $this->sessionsFor($taskId);
         $activeSessions = array_values(array_filter($sessions, static fn (Session $session): bool => !$session->status->isClosed()));
         $session = $this->reportSession($sessions, $activeSessions);
-        $brief = $session['session'] instanceof Session ? (new WorkBriefStore())->find($session['session']) : null;
-        $approval = $session['session'] instanceof Session ? (new WorkBriefStore())->approval($session['session']) : null;
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        $contractReport = $this->contractReport($contract);
 
         return [
-            'schema_version' => '1.0',
+            'schema_version' => '1.1',
             'task_id' => $taskId,
             'session' => [
                 'count' => count($sessions),
@@ -124,9 +120,12 @@ final readonly class WorkflowReportCommand
                 'id' => $session['session']?->id,
                 'path' => $session['session'] === null ? null : $this->relativePath($session['session']->path),
             ],
-            'work_brief' => $this->workBriefReport($brief, $approval?->workBriefRevision, $approval?->approvedBy, $approval?->approvedAt),
-            'scope' => $this->scopeReport($brief, $changedFiles),
-            'validation' => $this->validationReport($brief, $session['session']),
+            'contract' => $contractReport,
+            // Transitional read compatibility for WorkflowContextCommand and older
+            // consumers. This is the same projection, not a second authority.
+            'work_brief' => $contractReport,
+            'scope' => $this->scopeReport($contract, $changedFiles),
+            'validation' => $this->validationReport($contract, $session['session']),
             'recall' => $this->recallReport($taskId, $learningRoot),
             'review' => $this->reviewReport($taskId),
             'learning' => $this->learningReport($taskId, $learningRoot, $session['session']),
@@ -151,7 +150,6 @@ final readonly class WorkflowReportCommand
     /**
      * @param list<Session> $sessions
      * @param list<Session> $activeSessions
-     *
      * @return array{status: string, session: Session|null}
      */
     private function reportSession(array $sessions, array $activeSessions): array
@@ -172,11 +170,11 @@ final readonly class WorkflowReportCommand
     }
 
     /**
-     * @return array{status: string, revision: int|null, goal: string|null, behavior_anchors: list<string>, scope: list<string>, non_goals: list<string>, approval: array{revision: int|null, by: string|null, at: string|null}}
+     * @return array{status: string, revision: int|null, goal: string|null, behavior_anchors: list<string>, scope: list<string>, non_goals: list<string>, path: string|null, approval: array{revision: int|null, by: string|null, at: string|null}}
      */
-    private function workBriefReport(?WorkBrief $brief, ?int $approvedRevision, ?string $approvedBy, ?string $approvedAt): array
+    private function contractReport(?TaskContract $contract): array
     {
-        if ($brief === null) {
+        if ($contract === null) {
             return [
                 'status' => 'missing',
                 'revision' => null,
@@ -184,29 +182,34 @@ final readonly class WorkflowReportCommand
                 'behavior_anchors' => [],
                 'scope' => [],
                 'non_goals' => [],
+                'path' => null,
                 'approval' => ['revision' => null, 'by' => null, 'at' => null],
             ];
         }
 
         return [
-            'status' => $brief->status->value,
-            'revision' => $brief->revision,
-            'goal' => $brief->goal,
-            'behavior_anchors' => $brief->behaviorAnchors,
-            'scope' => $brief->scope,
-            'non_goals' => $brief->nonGoals,
-            'approval' => ['revision' => $approvedRevision, 'by' => $approvedBy, 'at' => $approvedAt],
+            'status' => $contract->status,
+            'revision' => $contract->revision,
+            'goal' => $contract->goal,
+            'behavior_anchors' => $contract->behaviorAnchors,
+            'scope' => $contract->scope,
+            'non_goals' => $contract->nonGoals,
+            'path' => $this->relativePath($contract->path),
+            'approval' => [
+                'revision' => $contract->status === TaskContract::APPROVED ? $contract->revision : null,
+                'by' => $contract->approvedBy,
+                'at' => $contract->approvedAt,
+            ],
         ];
     }
 
     /**
      * @param list<string> $changedFiles
-     *
      * @return array{changed_files_supplied: bool, changed_files: list<string>, outside_approved_scope: list<string>}
      */
-    private function scopeReport(?WorkBrief $brief, array $changedFiles): array
+    private function scopeReport(?TaskContract $contract, array $changedFiles): array
     {
-        $scope = $brief === null ? [] : $brief->scope;
+        $scope = $contract?->scope ?? [];
         $outside = array_values(array_filter(
             $changedFiles,
             static fn (string $file): bool => !self::inScope($file, $scope),
@@ -236,21 +239,21 @@ final readonly class WorkflowReportCommand
     /**
      * @return list<array{command: string, work_brief_revision: int, status: 'passed'|'failed'|'stale'|'missing', exit_code: int|null, duration_ms: int|null, executed_at: string|null}>
      */
-    private function validationReport(?WorkBrief $brief, ?Session $session): array
+    private function validationReport(?TaskContract $contract, ?Session $session): array
     {
-        if ($brief === null || $session === null) {
+        if ($contract === null) {
             return [];
         }
 
-        $evidence = (new ValidationEvidenceStore())->all($session);
+        $evidence = $session === null ? [] : (new ValidationEvidenceStore())->all($session);
         $result = [];
-        foreach ($brief->validation as $command) {
-            $exact = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $brief->revision && $item->command === $command));
+        foreach ($contract->validation as $command) {
+            $exact = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $contract->revision && $item->command === $command));
             $historical = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->command === $command));
             $latest = $exact === [] ? null : $exact[count($exact) - 1];
             $result[] = [
                 'command' => $command,
-                'work_brief_revision' => $brief->revision,
+                'work_brief_revision' => $contract->revision,
                 'status' => $latest === null ? ($historical === [] ? 'missing' : 'stale') : $latest->status->value,
                 'exit_code' => $latest?->exitCode,
                 'duration_ms' => $latest?->durationMs,
@@ -407,30 +410,30 @@ final readonly class WorkflowReportCommand
         $session = $report['session'];
         echo sprintf("Session: %s (%d total, %d active)\n", $session['status'], $session['count'], $session['active_count']);
 
-        $brief = $report['work_brief'];
-        if ($brief['status'] === 'missing') {
-            echo "Work brief: missing\n";
+        $contract = $report['contract'];
+        if ($contract['status'] === 'missing') {
+            echo "Contract: missing\n";
         } else {
-            $approval = $brief['approval']['by'] === null ? 'not approved' : 'approved by ' . $brief['approval']['by'];
-            echo sprintf("Work brief: %s revision %d (%s)\n", $brief['status'], $brief['revision'], $approval);
-            if ($brief['behavior_anchors'] !== []) {
-                echo 'Behavior anchors: ' . implode('; ', $brief['behavior_anchors']) . "\n";
+            $approval = $contract['approval']['by'] === null ? 'not approved' : 'approved by ' . $contract['approval']['by'];
+            echo sprintf("Contract: %s revision %d (%s)\n", $contract['status'], $contract['revision'], $approval);
+            if ($contract['behavior_anchors'] !== []) {
+                echo 'Behavior anchors: ' . implode('; ', $contract['behavior_anchors']) . "\n";
             }
-            echo 'Approved scope: ' . implode(', ', $brief['scope']) . "\n";
+            echo 'Contract scope: ' . implode(', ', $contract['scope']) . "\n";
         }
 
         $scope = $report['scope'];
         if (!$scope['changed_files_supplied']) {
             echo "Changed files: not supplied (pass --changed-file; workflow report does not run git)\n";
         } elseif ($scope['outside_approved_scope'] === []) {
-            echo "Changed files: all supplied paths are within approved scope\n";
+            echo "Changed files: all supplied paths are within Contract scope\n";
         } else {
-            echo 'Changed files outside approved scope: ' . implode(', ', $scope['outside_approved_scope']) . "\n";
+            echo 'Changed files outside Contract scope: ' . implode(', ', $scope['outside_approved_scope']) . "\n";
         }
 
         echo "Validation evidence:\n";
         if ($report['validation'] === []) {
-            echo "  - no work brief or validation commands\n";
+            echo "  - no Contract validation commands\n";
         }
         foreach ($report['validation'] as $validation) {
             echo '  - [' . $validation['status'] . '] ' . $validation['command'];
