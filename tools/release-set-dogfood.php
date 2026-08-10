@@ -319,17 +319,12 @@ final class ReleaseSetDogfood
     {
         $this->mustRun([
             'vendor/bin/agent-loop',
-            'workflow',
-            'plan',
+            'session',
+            'start',
+            '--task',
             'EXP-1',
             '--by',
             'release-set-gate',
-            '--file',
-            'src/RetryPolicy.php',
-            '--goal',
-            'Exercise an isolated experiment.',
-            '--validation',
-            'composer test',
             '--ephemeral',
         ]);
         $status = $this->mustRun([
@@ -342,7 +337,7 @@ final class ReleaseSetDogfood
         $json = $this->json($status->stdout, 'ephemeral workflow status');
         $manifest = $json['manifest'] ?? null;
         if (!is_array($manifest) || ($manifest['mode'] ?? null) !== 'ephemeral') {
-            throw new DogfoodFailure('regression', 'Ephemeral task was not projected as ephemeral.');
+            throw new DogfoodFailure('regression', 'Ephemeral Session was not projected as ephemeral.');
         }
         $runId = $manifest['run_id'] ?? null;
         if (!is_string($runId) || !str_starts_with($runId, 'session:')) {
@@ -378,9 +373,19 @@ final class ReleaseSetDogfood
             '--validation',
             'composer test',
         ]);
-        $status = $this->status('DEMO-1');
-        $this->assertManifestState($status, 'incomplete');
-        $this->assertReferenceState($status, 'work_brief', 'candidate');
+
+        $contractPath = $this->consumerRoot . '/.agent-loop/contracts/DEMO-1/contract.json';
+        $contract = $this->jsonFile($contractPath);
+        if (($contract['status'] ?? null) !== 'candidate' || ($contract['revision'] ?? null) !== 1) {
+            throw new DogfoodFailure('regression', 'Governed PLAN did not persist candidate Contract revision 1.');
+        }
+        if (is_dir($this->consumerRoot . '/session_plan') && (glob($this->consumerRoot . '/session_plan/*', GLOB_ONLYDIR) ?: []) !== []) {
+            throw new DogfoodFailure('regression', 'Governed PLAN created Session working memory before approval.');
+        }
+        if (is_file($this->consumerRoot . '/.agent-loop/runs/DEMO-1/manifest.json')) {
+            throw new DogfoodFailure('regression', 'Governed PLAN created a RunManifest before a Run exists.');
+        }
+        $this->artifact($contractPath);
     }
 
     private function governedApprove(): void
