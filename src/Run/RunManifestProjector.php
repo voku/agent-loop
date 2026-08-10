@@ -11,6 +11,7 @@ use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Approval;
@@ -51,13 +52,14 @@ final readonly class RunManifestProjector
             ];
         }
 
+        $layout = new ProjectLayout($this->rootPath);
         $references = [
             'board' => $this->boardReference($taskId, $disagreements),
             'session' => $this->sessionReference($session),
             'work_brief' => $this->workBriefReference($session, $brief),
             'approval' => $this->approvalReference($session, $brief, $approval),
-            'map' => $this->fileReference('agent-map', '.agent-map/php-symbols.json', 'missing'),
-            'search_index' => $this->fileReference('agent-map', '.agent-map/search.sqlite', 'not_built'),
+            'map' => $this->fileReference('agent-map', RelativePath::fromRoot($this->rootPath, $layout->mapIndex()), 'missing'),
+            'search_index' => $this->fileReference('agent-map', RelativePath::fromRoot($this->rootPath, $layout->mapSearchIndex()), 'not_built'),
             'recall' => $this->recallReference($taskId, $disagreements),
             'edit' => $this->editReference($taskId),
             'verification' => $this->verificationReference($taskId, $disagreements),
@@ -84,12 +86,10 @@ final readonly class RunManifestProjector
         return new RunManifest($taskId, $runId, $mode, $state, $references, $disagreements, $nextAction);
     }
 
-    /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
-     */
+    /** @param list<array{code: string, owner: string, message: string}> $disagreements */
     private function sessionForTask(string $taskId, array &$disagreements): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
@@ -137,7 +137,8 @@ final readonly class RunManifestProjector
      */
     private function boardReference(string $taskId, array &$disagreements): array
     {
-        $configPath = rtrim($this->rootPath, '/') . '/todo/kanban.config.json';
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
+        $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
         if (!is_file($configPath)) {
             return [
                 'owner' => 'agent-kanban',
@@ -159,7 +160,7 @@ final readonly class RunManifestProjector
 
         try {
             $repository = new MarkdownCardRepository(
-                $this->rootPath,
+                $boardRoot,
                 BoardConfig::fromJsonFile($configPath),
             );
             if (!$repository->exists($cardId)) {
