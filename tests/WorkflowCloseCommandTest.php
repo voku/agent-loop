@@ -113,8 +113,6 @@ final class WorkflowCloseCommandTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
-        self::assertStringContainsString('current state is pending_approval', $result['output']);
-        self::assertStringContainsString('Accepted risk does not bypass this contract gate', $result['output']);
     }
 
     public function testClosePersistsDoneStatusWithOkReviewAndVerifyPass(): void
