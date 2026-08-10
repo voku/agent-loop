@@ -147,7 +147,7 @@ final readonly class WorkflowApproveCommand
             throw new RuntimeException('Session preparation requires an approved durable Contract.');
         }
         $contractHash = hash_file('sha256', $contract->path);
-        if (!is_string($contractHash) || $contractHash === '') {
+        if ($contractHash === false) {
             throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);
         }
         $source = [
