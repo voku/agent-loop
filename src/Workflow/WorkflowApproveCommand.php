@@ -9,6 +9,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -51,7 +52,9 @@ final readonly class WorkflowApproveCommand
 
             $session = $this->prepareSession($contract);
             $this->writeSessionContractSnapshot($session, $contract);
-            echo "[OK] workflow approve: working Session {$session->id} prepared for approved Contract revision {$contract->revision}\n";
+            $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session);
+            echo "[OK] workflow approve: governed Run {$run->runId} prepared for Contract revision {$contract->revision}\n";
+            echo "[OK] workflow approve: working Session {$session->id} attached to governed Run {$run->runId}\n";
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
             echo "[OK] workflow approve: approved-state Run projection refreshed at {$manifestPath}\n";
@@ -94,7 +97,7 @@ final readonly class WorkflowApproveCommand
             if ($exit !== 0) {
                 fwrite(
                     STDERR,
-                    "[FAIL] workflow approve: Contract remains approved and Session remains resumable, but recall compilation failed. Rerun the same workflow approve command after fixing compiler input.\n",
+                    "[FAIL] workflow approve: Contract and governed Run remain resumable, but recall compilation failed. Rerun the same workflow approve command after fixing compiler input.\n",
                 );
 
                 return $exit;
