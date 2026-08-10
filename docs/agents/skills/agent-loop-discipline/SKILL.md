@@ -5,7 +5,7 @@ description: Keep governed agent-* work resumable, map-first, deterministic in w
 
 # Agent Loop Discipline
 
-Keep workflow state, evidence, navigation, and human attention bounded. Persisted state beats conversational state. This bootstrap owns orchestration discipline, not a general engineering handbook.
+Keep workflow state, evidence, navigation, and human attention bounded; persisted workflow state beats conversational state. This bootstrap owns orchestration discipline, not a general engineering handbook.
 
 ## Governed Workflow
 
