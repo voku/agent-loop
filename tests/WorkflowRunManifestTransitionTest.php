@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
@@ -17,7 +18,6 @@ use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
-use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowRunManifestTransitionTest extends TestCase
 {
@@ -35,7 +35,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $this->rm($this->root);
     }
 
-    public function testPlanPersistsTheCandidateRunProjection(): void
+    public function testPlanPersistsContractWithoutCreatingRunProjection(): void
     {
         ob_start();
         $exit = (new WorkflowPlanCommand($this->root))->run([
@@ -48,16 +48,16 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit);
-        self::assertStringContainsString('run manifest refreshed', $output);
-        $manifest = $this->manifest();
-        self::assertSame('governed', $this->stringField($manifest, 'mode'));
-        self::assertSame('candidate', $this->referenceState($manifest, 'work_brief'));
-        self::assertSame('missing', $this->referenceState($manifest, 'approval'));
+        self::assertStringContainsString('candidate Contract created', $output);
+        self::assertNull((new RunManifestStore($this->root))->read('ABC-123'));
+        self::assertSame([], (new SessionStore())->all($this->root . '/session_plan'));
     }
 
-    public function testApproveCanResumeCompilationAfterTheBriefWasAlreadyApproved(): void
+    public function testApproveCanResumeCompilationAfterContractWasAlreadyApproved(): void
     {
-        $session = $this->createApprovedSession();
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
+        $contracts->approve('ABC-123', 'lars');
         $recallCalls = 0;
 
         $command = new WorkflowApproveCommand(
@@ -76,19 +76,20 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertSame(1, $recallCalls);
-        self::assertStringContainsString('already approved; resuming recall compilation', $output);
+        self::assertStringContainsString('already approved; resuming Run preparation', $output);
 
+        $sessions = (new SessionStore())->all($this->root . '/session_plan');
+        self::assertCount(1, $sessions);
         $manifest = $this->manifest();
-        self::assertSame('session:' . $session->id, $this->stringField($manifest, 'run_id'));
+        self::assertSame('session:' . $sessions[0]->id, $this->stringField($manifest, 'run_id'));
         self::assertSame('current', $this->referenceState($manifest, 'approval'));
         self::assertSame('compiled', $this->referenceState($manifest, 'recall'));
     }
 
-    public function testFailedCompilationLeavesAnApprovedManifestThatTheSameCommandCanResume(): void
+    public function testFailedCompilationLeavesApprovedContractAndPreparedRunResumable(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
-        $briefs = new WorkBriefStore();
-        $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
 
         $first = new WorkflowApproveCommand(
             $this->root,
@@ -100,7 +101,9 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         ob_end_clean();
 
         self::assertSame(7, $firstExit);
-        self::assertSame(1, $briefs->approval($session)?->workBriefRevision);
+        self::assertSame('approved', $contracts->load('ABC-123')->status);
+        $sessions = (new SessionStore())->all($this->root . '/session_plan');
+        self::assertCount(1, $sessions);
         $afterFailure = $this->manifest();
         self::assertSame('current', $this->referenceState($afterFailure, 'approval'));
         self::assertSame('missing', $this->referenceState($afterFailure, 'recall'));
@@ -119,12 +122,13 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         ob_end_clean();
 
         self::assertSame(0, $secondExit);
+        self::assertCount(1, (new SessionStore())->all($this->root . '/session_plan'));
         self::assertSame('compiled', $this->referenceState($this->manifest(), 'recall'));
     }
 
     public function testSuccessfulCliClosePersistsTheFinalProjection(): void
     {
-        $session = $this->createApprovedSession();
+        $session = $this->prepareApprovedRun();
         (new ValidationEvidenceStore())->record(
             $session,
             1,
@@ -135,7 +139,6 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             'lars',
         );
         (new LearningDecisionStore())->decide($session, LearningDecision::NO_DURABLE_LEARNING, 'lars');
-        $this->writeRecallMeta();
         mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
             $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
@@ -159,14 +162,26 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame('none', $this->stringField($manifest, 'next_action'));
     }
 
-    private function createApprovedSession(): Session
+    private function prepareApprovedRun(): Session
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
-        $briefs = new WorkBriefStore();
-        $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
-        $briefs->approve($session, 'lars');
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
+        $command = new WorkflowApproveCommand(
+            $this->root,
+            function (array $argv): int {
+                $this->writeRecallMeta();
 
-        return $session;
+                return 0;
+            },
+        );
+        ob_start();
+        self::assertSame(0, $command->run(['ABC-123', '--by', 'lars']));
+        ob_end_clean();
+
+        $sessions = (new SessionStore())->all($this->root . '/session_plan');
+        self::assertCount(1, $sessions);
+
+        return $sessions[0];
     }
 
     private function writeRecallMeta(): void
