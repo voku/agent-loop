@@ -9,6 +9,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
@@ -51,8 +52,8 @@ final readonly class WorkflowApproveCommand
             }
 
             $session = $this->prepareSession($contract);
-            $this->writeSessionContractSnapshot($session, $contract);
             $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session);
+            $recallInput = $this->writeGovernedRecallInput($run, $contract);
             echo "[OK] workflow approve: governed Run {$run->runId} prepared for Contract revision {$contract->revision}\n";
             echo "[OK] workflow approve: working Session {$session->id} attached to governed Run {$run->runId}\n";
 
@@ -63,7 +64,7 @@ final readonly class WorkflowApproveCommand
             $recallArgs = [
                 'compile', '--root', $learningRoot,
                 '--task', $taskId->value,
-                '--task-brief', $contract->path,
+                '--task-brief', $recallInput,
             ];
             $operatingPromptManifest = $this->operatingPromptManifest($contract);
             if ($operatingPromptManifest !== null) {
@@ -104,7 +105,7 @@ final readonly class WorkflowApproveCommand
             }
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
-            echo "[OK] workflow approve: Contract approved and recall compiled for {$taskId->value}\n";
+            echo "[OK] workflow approve: Contract approved and governed Recall compiled for {$taskId->value}\n";
             echo "[OK] workflow approve: compiled-state Run projection refreshed at {$manifestPath}\n";
 
             return 0;
@@ -144,57 +145,26 @@ final readonly class WorkflowApproveCommand
         );
     }
 
-    private function writeSessionContractSnapshot(Session $session, TaskContract $contract): void
+    private function writeGovernedRecallInput(GovernedRun $run, TaskContract $contract): string
     {
-        if ($contract->status !== TaskContract::APPROVED || $contract->approvedBy === null || $contract->approvedAt === null) {
-            throw new RuntimeException('Session preparation requires an approved durable Contract.');
-        }
-        $contractHash = hash_file('sha256', $contract->path);
-        if ($contractHash === false) {
-            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);
-        }
-        $source = [
-            'path' => $contract->path,
-            'sha256' => $contractHash,
-            'authority' => 'task_contract',
-        ];
-        $brief = [
+        $path = dirname($run->path) . '/recall-input.json';
+        $input = [
             'schema_version' => '1.0',
-            'task_id' => $contract->taskId,
-            'goal' => $contract->goal,
-            'scope' => $contract->scope,
-            'non_goals' => $contract->nonGoals,
-            'validation' => $contract->validation,
-            'tags' => $contract->tags,
-            'behavior_anchors' => $contract->behaviorAnchors,
-            'operating_prompt_manifest' => $contract->operatingPromptManifest,
-            'operating_prompts' => $contract->operatingPrompts,
-            'status' => 'approved',
-            'revision' => $contract->revision,
-            'created_at' => $contract->createdAt,
-            'updated_at' => $contract->updatedAt,
-            'derived_from_contract' => $source,
+            'kind' => 'governed_recall_input',
+            'run_id' => $run->runId,
+            'contract' => [
+                'path' => '../../contracts/' . $contract->taskId . '/contract.json',
+                'sha256' => $run->contractSource['sha256'],
+                'revision' => $contract->revision,
+            ],
         ];
-        $approval = [
-            'schema_version' => '1.0',
-            'task_id' => $contract->taskId,
-            'work_brief_revision' => $contract->revision,
-            'approved_by' => $contract->approvedBy,
-            'approved_at' => $contract->approvedAt,
-            'derived_from_contract' => $source,
-        ];
-
-        $this->atomicWrite($session->path . '/work-brief.json', CanonicalJson::pretty($brief));
-        $this->atomicWrite($session->path . '/approval.json', CanonicalJson::pretty($approval));
-    }
-
-    private function atomicWrite(string $path, string $contents): void
-    {
         $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
-        if (file_put_contents($tmp, $contents) === false || !rename($tmp, $path)) {
+        if (file_put_contents($tmp, CanonicalJson::pretty($input)) === false || !rename($tmp, $path)) {
             @unlink($tmp);
-            throw new RuntimeException('Unable to write derived Session Contract snapshot: ' . $path);
+            throw new RuntimeException('Unable to persist governed Recall input: ' . $path);
         }
+
+        return $path;
     }
 
     private function operatingPromptManifest(TaskContract $contract): ?string
