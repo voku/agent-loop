@@ -105,16 +105,16 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertStringContainsString('missing outcomes.jsonl for selected guidance', $result['output']);
     }
 
-    public function testCloseFailsWhenActiveSessionHasNoApprovedWorkBrief(): void
+    public function testCloseFailsAtContractBoundaryWhenCurrentBriefIsNotApproved(): void
     {
         unlink($this->sessionPath . '/approval.json');
-        $this->writeRecallMeta();
-        $this->writeReviewReport(['status' => 'ok']);
 
         $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('[FAIL] work brief: revision 1 is not approved', $result['output']);
+        self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
+        self::assertStringContainsString('current state is pending_approval', $result['output']);
+        self::assertStringContainsString('Accepted risk does not bypass this contract gate', $result['output']);
     }
 
     public function testClosePersistsDoneStatusWithOkReviewAndVerifyPass(): void
