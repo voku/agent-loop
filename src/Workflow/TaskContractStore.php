@@ -157,7 +157,12 @@ final class TaskContractStore
             return null;
         }
 
-        return $this->decode((string) file_get_contents($path), $path, $taskId);
+        $contents = file_get_contents($path);
+        if (!is_string($contents)) {
+            throw new RuntimeException('Unable to read Contract artifact: ' . $path);
+        }
+
+        return $this->decode($contents, $path, $taskId);
     }
 
     public function load(string $taskId): TaskContract
@@ -230,8 +235,12 @@ final class TaskContractStore
         if ($plannedBy === '') {
             throw new RuntimeException('A Contract requires a non-empty --by actor.');
         }
+
         $scope = $this->normalizedLines($scope);
+        $nonGoals = $this->normalizedLines($nonGoals);
         $validation = $this->normalizedLines($validation);
+        $tags = $this->normalizedLines($tags);
+        $behaviorAnchors = $this->normalizedLines($behaviorAnchors);
         if ($scope === []) {
             throw new RuntimeException('A Contract requires at least one scope path.');
         }
@@ -249,7 +258,7 @@ final class TaskContractStore
             $taskId,
             $goal,
             $scope,
-            $this->normalizedLines($nonGoals),
+            $nonGoals,
             $validation,
             $status,
             $revision,
@@ -258,8 +267,8 @@ final class TaskContractStore
             $this->path($taskId),
             $plannedBy,
             $this->optionalString($baseCommit),
-            $this->normalizedLines($tags),
-            $this->normalizedLines($behaviorAnchors),
+            $tags,
+            $behaviorAnchors,
             $operatingPromptManifest,
             $operatingPrompts,
         );
@@ -293,6 +302,12 @@ final class TaskContractStore
         if (!is_int($revision) || $revision < 1) {
             throw new RuntimeException('Contract revision must be a positive integer in ' . $path . '.');
         }
+
+        $scope = $this->listField($data, 'scope', $path, true);
+        $nonGoals = $this->listField($data, 'non_goals', $path);
+        $validation = $this->listField($data, 'validation', $path, true);
+        $tags = $this->listField($data, 'tags', $path);
+        $behaviorAnchors = $this->listField($data, 'behavior_anchors', $path);
         $operatingPrompts = $this->operatingPromptsField($data, $path);
         $manifest = $this->optionalStringField($data, 'operating_prompt_manifest', $path);
         if ($operatingPrompts !== [] && $manifest === null) {
@@ -310,9 +325,9 @@ final class TaskContractStore
         return new TaskContract(
             $taskId,
             $this->requiredString($data, 'goal', $path),
-            $this->listField($data, 'scope', $path, true),
-            $this->listField($data, 'non_goals', $path),
-            $this->listField($data, 'validation', $path, true),
+            $scope,
+            $nonGoals,
+            $validation,
             $status,
             $revision,
             $this->requiredString($data, 'created_at', $path),
@@ -320,8 +335,8 @@ final class TaskContractStore
             $path,
             $this->requiredString($data, 'planned_by', $path),
             $this->optionalStringField($data, 'base_commit', $path),
-            $this->listField($data, 'tags', $path),
-            $this->listField($data, 'behavior_anchors', $path),
+            $tags,
+            $behaviorAnchors,
             $manifest,
             $operatingPrompts,
             $approvedBy,
@@ -329,7 +344,9 @@ final class TaskContractStore
         );
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     */
     private function requiredString(array $data, string $key, string $path): string
     {
         $value = $data[$key] ?? null;
@@ -340,7 +357,9 @@ final class TaskContractStore
         return trim($value);
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     */
     private function optionalStringField(array $data, string $key, string $path): ?string
     {
         if (!array_key_exists($key, $data) || $data[$key] === null) {
@@ -353,13 +372,17 @@ final class TaskContractStore
         return $this->optionalString($data[$key]);
     }
 
-    /** @param array<string, mixed> $data @return list<string> */
+    /**
+     * @param array<string, mixed> $data
+     * @return list<string>
+     */
     private function listField(array $data, string $key, string $path, bool $required = false): array
     {
         $value = $data[$key] ?? [];
         if (!is_array($value)) {
             throw new RuntimeException('Contract ' . $path . ' field ' . $key . ' must be an array.');
         }
+
         $items = [];
         foreach ($value as $item) {
             if (!is_string($item) || trim($item) === '') {
@@ -385,7 +408,7 @@ final class TaskContractStore
         $seen = [];
         foreach ($prompts as $prompt) {
             $id = trim($prompt['id']);
-            if ($id === '' || preg_match('/^[a-z][a-z0-9._-]*$/', $id) !== 1 || isset($seen[$id])) {
+            if (preg_match('/^[a-z][a-z0-9._-]*$/', $id) !== 1 || isset($seen[$id])) {
                 throw new RuntimeException('Contract operating prompt ids must be unique and match [a-z][a-z0-9._-]*.');
             }
             $arguments = $prompt['arguments'];
@@ -397,13 +420,17 @@ final class TaskContractStore
         return $result;
     }
 
-    /** @param array<string, mixed> $data @return list<array{id: string, arguments: array<string, bool|int|string>}> */
+    /**
+     * @param array<string, mixed> $data
+     * @return list<array{id: string, arguments: array<string, bool|int|string>}>
+     */
     private function operatingPromptsField(array $data, string $path): array
     {
         $value = $data['operating_prompts'] ?? [];
         if (!is_array($value)) {
             throw new RuntimeException('Contract ' . $path . ' operating_prompts must be an array.');
         }
+
         $prompts = [];
         foreach ($value as $entry) {
             if (!is_array($entry) || !is_string($entry['id'] ?? null) || !is_array($entry['arguments'] ?? null)) {
@@ -422,7 +449,10 @@ final class TaskContractStore
         return $this->normalizedOperatingPrompts($prompts);
     }
 
-    /** @param list<string> $values @return list<string> */
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
     private function normalizedLines(array $values): array
     {
         return array_values(array_unique(array_filter(
