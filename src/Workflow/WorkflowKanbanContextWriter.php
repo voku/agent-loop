@@ -9,6 +9,7 @@ use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
 
 /**
@@ -23,7 +24,8 @@ final readonly class WorkflowKanbanContextWriter
 
     public function write(string $taskId, Session $session): ?string
     {
-        $configPath = rtrim($this->rootPath, '/') . '/todo/kanban.config.json';
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
+        $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
         if (!is_file($configPath)) {
             return null;
         }
@@ -36,7 +38,7 @@ final readonly class WorkflowKanbanContextWriter
         }
 
         $repository = new MarkdownCardRepository(
-            $this->rootPath,
+            $boardRoot,
             BoardConfig::fromJsonFile($configPath),
         );
         if (!$repository->exists($cardId)) {
