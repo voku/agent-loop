@@ -32,7 +32,6 @@ final readonly class ExecutionContractDocument
             );
         }
 
-        /** @var list<array{0:string,1:int}> $fullMatches */
         $fullMatches = $matches[0];
         foreach ($fullMatches as $index => $heading) {
             $bodyStart = $heading[1] + strlen($heading[0]);
