@@ -9,59 +9,43 @@ use voku\AgentLoop\Workflow\WorkflowCli;
 
 final class WorkflowCliTest extends TestCase
 {
-    public function testHelpExitsZero(): void
+    public function testHelpExposesGovernedLifecycleWithoutStartShortcut(): void
     {
         $result = $this->runCli(['help']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('agent-loop workflow start', $result['output']);
         self::assertStringContainsString('agent-loop workflow plan', $result['output']);
-    }
-
-    public function testLongHelpExitsZero(): void
-    {
-        $result = $this->runCli(['--help']);
-
-        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('agent-loop workflow approve', $result['output']);
+        self::assertStringContainsString('agent-loop workflow learn', $result['output']);
         self::assertStringContainsString('agent-loop workflow close', $result['output']);
+        self::assertStringNotContainsString('agent-loop workflow start', $result['output']);
+        self::assertStringContainsString('session start --ephemeral', $result['output']);
     }
 
-    public function testShortHelpExitsZero(): void
+    public function testHelpAliasesExitZero(): void
     {
-        $result = $this->runCli(['-h']);
+        self::assertSame(0, $this->runCli(['--help'])['exit']);
+        self::assertSame(0, $this->runCli(['-h'])['exit']);
+    }
 
-        self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('Commands:', $result['output']);
+    public function testRemovedStartIsUnknownInsteadOfCompatibilityPath(): void
+    {
+        $result = $this->runCli(['start', 'ABC-123']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('Unknown workflow command: start', $result['output']);
     }
 
     public function testUnknownCommandExitsOne(): void
     {
-        $result = $this->runCli(['nope']);
-
-        self::assertSame(1, $result['exit']);
+        self::assertSame(1, $this->runCli(['nope'])['exit']);
     }
 
-    public function testStartWithoutTaskIdExitsOne(): void
+    public function testGovernedCommandsWithoutTaskIdFail(): void
     {
-        self::assertSame(1, $this->runCli(['start'])['exit']);
-    }
-
-    public function testStatusWithoutTaskIdExitsOne(): void
-    {
-        self::assertSame(1, $this->runCli(['status'])['exit']);
-    }
-
-    public function testCloseWithoutTaskIdExitsOne(): void
-    {
-        self::assertSame(1, $this->runCli(['close'])['exit']);
-    }
-
-    public function testPlanAndApproveWithoutTaskIdExitOne(): void
-    {
-        self::assertSame(1, $this->runCli(['plan'])['exit']);
-        self::assertSame(1, $this->runCli(['approve'])['exit']);
-        self::assertSame(1, $this->runCli(['context'])['exit']);
-        self::assertSame(1, $this->runCli(['report'])['exit']);
+        foreach (['plan', 'approve', 'contract', 'status', 'manifest', 'context', 'report', 'learn', 'close'] as $command) {
+            self::assertSame(1, $this->runCli([$command])['exit'], $command);
+        }
     }
 
     public function testReportIsRoutedThroughWorkflowCli(): void
@@ -77,17 +61,10 @@ final class WorkflowCliTest extends TestCase
         self::assertSame(1, $this->runCli(['status', '../bad'])['exit']);
     }
 
-    /**
-     * @param list<string> $args
-     *
-     * @return array{exit: int, output: string}
-     */
+    /** @param list<string> $args @return array{exit: int, output: string} */
     private function runCli(array $args): array
     {
-        $cli = new WorkflowCli(
-            sys_get_temp_dir(),
-            static fn (array $argv): int => 0,
-        );
+        $cli = new WorkflowCli(sys_get_temp_dir(), static fn (array $argv): int => 0);
 
         ob_start();
         $exit = $cli->run($args);
