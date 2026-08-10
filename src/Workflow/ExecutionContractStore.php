@@ -94,7 +94,7 @@ final readonly class ExecutionContractStore
         } catch (RuntimeException $exception) {
             return $this->bindingReference($binding, 'invalid', [
                 'reason' => $exception->getMessage(),
-                'source' => is_file($metadataPath) ? $this->artifact($metadataPath) : null,
+                'source' => $this->artifact($metadataPath),
             ]);
         }
     }
