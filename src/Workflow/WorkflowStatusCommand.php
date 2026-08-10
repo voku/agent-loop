@@ -11,14 +11,7 @@ use voku\AgentLoop\Run\GovernedRunManifestProjector;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestStore;
 
-/**
- * The paved, read-only lifecycle view for humans and coding agents.
- *
- * The status command consumes the same run projection as `workflow manifest`.
- * That keeps board, session, repository, recall, execution, verification,
- * review and learning states in one model instead of politely disagreeing in
- * six independently green status commands.
- */
+/** Read-only lifecycle view built from package-owned artifacts. */
 final readonly class WorkflowStatusCommand
 {
     public function __construct(private string $rootPath)
@@ -96,7 +89,7 @@ final readonly class WorkflowStatusCommand
         foreach ([
             'board',
             'session',
-            'work_brief',
+            'contract',
             'approval',
             'map',
             'search_index',
@@ -119,7 +112,6 @@ final readonly class WorkflowStatusCommand
     private function label(string $name): string
     {
         return match ($name) {
-            'work_brief' => 'Work brief',
             'search_index' => 'Search index',
             'execution_contract' => 'Execution contract',
             'outcome_lineage' => 'Outcome lineage',
@@ -133,11 +125,11 @@ final readonly class WorkflowStatusCommand
         return match ($name) {
             'board' => $this->boardDetail($reference),
             'session' => $this->value($reference, 'session_id', 'agent-session'),
-            'work_brief' => $this->revisionDetail($reference),
+            'contract' => $this->revisionDetail($reference),
             'approval' => $this->approvalDetail($reference),
             'recall' => $this->value($reference, 'compilation_id', $this->pathOrOwner($reference)),
             'execution_contract' => $this->executionContractDetail($reference),
-            'learning' => $this->value($reference, 'decided_by', $this->pathOrOwner($reference), 'recorded by '),
+            'learning' => $this->learningDetail($reference),
             default => $this->pathOrOwner($reference),
         };
     }
@@ -159,7 +151,7 @@ final readonly class WorkflowStatusCommand
     /** @param array<string, mixed> $reference */
     private function revisionDetail(array $reference): string
     {
-        $revision = $reference['revision'] ?? null;
+        $revision = $reference['revision'] ?? $reference['contract_revision'] ?? null;
         if (!is_int($revision) && !is_string($revision)) {
             return $this->pathOrOwner($reference);
         }
@@ -171,12 +163,24 @@ final readonly class WorkflowStatusCommand
     private function approvalDetail(array $reference): string
     {
         $actor = $reference['approved_by'] ?? null;
-        $revision = $reference['work_brief_revision'] ?? null;
+        $revision = $reference['contract_revision'] ?? null;
         if (!is_string($actor) || (!is_int($revision) && !is_string($revision))) {
             return $this->pathOrOwner($reference);
         }
 
         return 'revision ' . $revision . ' by ' . $actor;
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function learningDetail(array $reference): string
+    {
+        $decision = $reference['decision'] ?? null;
+        $actor = $reference['decided_by'] ?? null;
+        if (is_string($decision) && is_string($actor)) {
+            return $decision . ' by ' . $actor;
+        }
+
+        return $this->pathOrOwner($reference);
     }
 
     /** @param array<string, mixed> $reference */
@@ -243,10 +247,7 @@ final readonly class WorkflowStatusCommand
         return is_string($value) && $value !== '' ? $prefix . $value : $fallback;
     }
 
-    /**
-     * @param list<string> $tokens
-     * @return 'text'|'json'
-     */
+    /** @param list<string> $tokens @return 'text'|'json' */
     private function parseFormat(array $tokens): string
     {
         $format = 'text';
@@ -254,7 +255,6 @@ final readonly class WorkflowStatusCommand
             $token = $tokens[$index];
             if (str_starts_with($token, '--format=')) {
                 $format = $this->format(substr($token, strlen('--format=')));
-
                 continue;
             }
             if ($token !== '--format') {
