@@ -9,15 +9,9 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 
-/**
- * @internal
- */
 final class DispatcherTest extends TestCase
 {
-    /**
-     * @param list<string>          $argv
-     * @param non-empty-list<string> $expectedNeedles
-     */
+    /** @param list<string> $argv @param non-empty-list<string> $expectedNeedles */
     private function assertRun(array $argv, int $expectedExit, array $expectedNeedles, string $root = '.'): void
     {
         $dispatcher = new Dispatcher($root);
@@ -53,136 +47,78 @@ final class DispatcherTest extends TestCase
         self::assertSame(1, $exit);
     }
 
-    public function testBoardNamespaceRoutesToKanban(): void
+    public function testPackageNamespacesRouteToTheirOwners(): void
     {
-        // No subcommand -> CliApplication prints its own usage and exits 0,
-        // proving the `board` namespace reached voku/agent-kanban. The help
-        // path is resolved before any board configuration is read, so it
-        // never touches the test working directory's filesystem.
-        $dispatcher = new Dispatcher('.');
-
-        ob_start();
-        $exit = $dispatcher->run(['agent-loop', 'board']);
-        ob_end_clean();
-
-        self::assertSame(0, $exit);
+        foreach ([
+            ['board'],
+            ['learn', 'help'],
+            ['recall', 'help'],
+            ['session', 'help'],
+        ] as $args) {
+            ob_start();
+            $exit = (new Dispatcher('.'))->run(['agent-loop', ...$args]);
+            ob_end_clean();
+            self::assertSame(0, $exit, implode(' ', $args));
+        }
     }
 
-    public function testLearnNamespaceRoutesToLearningCli(): void
-    {
-        $dispatcher = new Dispatcher('.');
-
-        ob_start();
-        $exit = $dispatcher->run(['agent-loop', 'learn', 'help']);
-        ob_end_clean();
-
-        self::assertSame(0, $exit);
-    }
-
-    public function testRecallNamespaceRoutesToRecallCli(): void
+    public function testWorkflowNamespaceRoutesToGovernedWorkflowCli(): void
     {
         $dispatcher = new Dispatcher('.');
-
         ob_start();
-        $exit = $dispatcher->run(['agent-loop', 'recall', 'help']);
-        ob_end_clean();
+        $exit = $dispatcher->run(['agent-loop', 'workflow', 'help']);
+        $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit);
+        self::assertStringContainsString('agent-loop workflow plan', $output);
+        self::assertStringContainsString('agent-loop workflow close', $output);
+        self::assertStringNotContainsString('agent-loop workflow start', $output);
     }
 
-    public function testSessionNamespaceRoutesToSessionCli(): void
-    {
-        $dispatcher = new Dispatcher('.');
-
-        ob_start();
-        $exit = $dispatcher->run(['agent-loop', 'session', 'help']);
-        ob_end_clean();
-
-        self::assertSame(0, $exit);
-    }
-
-    public function testWorkflowNamespaceRoutesToWorkflowCli(): void
-    {
-        $this->assertRun(['agent-loop', 'workflow', 'help'], 0, ['Usage:', 'workflow start']);
-    }
-
-    public function testInitNamespaceRoutesToInitCli(): void
+    public function testInitEditAndMapNamespacesRoute(): void
     {
         $this->assertRun(['agent-loop', 'init', 'help'], 0, ['agent-loop init doctor', 'sync-skills', 'install-plan']);
-    }
-
-    public function testEditNamespaceRoutesToEditCommand(): void
-    {
         $this->assertRun(['agent-loop', 'edit', 'help'], 0, ['agent-loop edit CLASS::METHOD', '--runner-command']);
-    }
-
-    public function testMapNamespaceRoutesToAgentMapCli(): void
-    {
         $this->assertRun(['agent-loop', 'map', 'help'], 0, ['agent-map - compact PHP symbol maps', 'agent-map query']);
     }
 
-    public function testMapBuildAndQueryUseDispatcherRootDefaults(): void
+    public function testMapBuildQueryAndRefreshUseDispatcherRootDefaults(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-map-' . bin2hex(random_bytes(6));
         mkdir($root . '/src', 0o775, true);
-        file_put_contents($root . '/src/LoopMapService.php', <<<'PHP'
-        <?php
-
-        declare(strict_types=1);
-
-        namespace Demo\Loop;
-
-        final class LoopMapService
-        {
-            public function run(): void
-            {
-            }
-        }
-        PHP);
+        file_put_contents($root . '/src/LoopMapService.php', $this->mapFixture('LoopMapService'));
 
         try {
             $this->assertRun(
                 ['agent-loop', 'map', 'build', '--paths=src'],
                 0,
                 ['Wrote 1 file(s),', $root . '/.agent-map/php-symbols.json'],
-                $root
+                $root,
             );
-
             $this->assertRun(
                 ['agent-loop', 'map', 'query', 'LoopMapService'],
                 0,
                 ['src/LoopMapService.php', 'class Demo\Loop\LoopMapService'],
-                $root
+                $root,
             );
+
+            file_put_contents($root . '/src/LoopMapSecond.php', $this->mapFixture('LoopMapSecond'));
+            $this->assertRun(['agent-loop', 'map', 'refresh'], 0, ['Refreshed 1 changed'], $root);
+            $this->assertRun(['agent-loop', 'map', 'stale'], 0, ['OK'], $root);
+            $this->assertRun(['agent-loop', 'map', 'query', 'LoopMapSecond'], 0, ['src/LoopMapSecond.php'], $root);
         } finally {
             $this->removeDirectory($root);
         }
     }
 
-    public function testMapRefreshWritesBackToTheDispatcherRootIndex(): void
+    public function testMemoryNamespaceUsesDefaultRootFile(): void
     {
-        $root = sys_get_temp_dir() . '/agent-loop-map-refresh-' . bin2hex(random_bytes(6));
-        mkdir($root . '/src', 0o775, true);
-        file_put_contents($root . '/src/LoopMapService.php', $this->mapFixture('LoopMapService'));
-
-        try {
-            $this->assertRun(['agent-loop', 'map', 'build', '--paths=src'], 0, ['Wrote 1 file(s),'], $root);
-
-            file_put_contents($root . '/src/LoopMapSecond.php', $this->mapFixture('LoopMapSecond'));
-
-            // refresh both reads and writes: without the dispatcher's root/out defaults it would
-            // resolve them against the current working directory instead of the index it just read.
-            $this->assertRun(['agent-loop', 'map', 'refresh'], 0, ['Refreshed 1 changed'], $root);
-            $this->assertRun(['agent-loop', 'map', 'stale'], 0, ['OK'], $root);
-            $this->assertRun(['agent-loop', 'map', 'query', 'LoopMapSecond'], 0, ['src/LoopMapSecond.php'], $root);
-
-            self::assertStringContainsString(
-                'src/LoopMapSecond.php',
-                (string) file_get_contents($root . '/.agent-map/php-symbols.json'),
-            );
-        } finally {
-            $this->removeDirectory($root);
-        }
+        $this->assertRun(
+            ['agent-loop', 'memory', 'review'],
+            0,
+            ['MEMORY promotion review', 'Rows still needing promotion review: 1'],
+            __DIR__ . '/fixtures/root-with-memory',
+        );
     }
 
     private function mapFixture(string $class): string
@@ -203,25 +139,16 @@ final class DispatcherTest extends TestCase
         PHP;
     }
 
-    public function testMemoryNamespaceUsesDefaultRootFile(): void
-    {
-        $root = __DIR__ . '/fixtures/root-with-memory';
-
-        $this->assertRun(
-            ['agent-loop', 'memory', 'review'],
-            0,
-            ['MEMORY promotion review', 'Rows still needing promotion review: 1'],
-            $root
-        );
-    }
-
     private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
             return;
         }
 
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
         foreach ($iterator as $item) {
             $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
         }
