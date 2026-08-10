@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -49,6 +50,7 @@ final readonly class WorkflowApproveCommand
             }
 
             $session = $this->prepareSession($contract);
+            $this->writeSessionContractSnapshot($session, $contract);
             echo "[OK] workflow approve: working Session {$session->id} prepared for approved Contract revision {$contract->revision}\n";
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
@@ -137,6 +139,59 @@ final readonly class WorkflowApproveCommand
             $contract->plannedBy,
             $contract->baseCommit,
         );
+    }
+
+    private function writeSessionContractSnapshot(Session $session, TaskContract $contract): void
+    {
+        if ($contract->status !== TaskContract::APPROVED || $contract->approvedBy === null || $contract->approvedAt === null) {
+            throw new RuntimeException('Session preparation requires an approved durable Contract.');
+        }
+        $contractHash = hash_file('sha256', $contract->path);
+        if (!is_string($contractHash) || $contractHash === '') {
+            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);
+        }
+        $source = [
+            'path' => $contract->path,
+            'sha256' => $contractHash,
+            'authority' => 'task_contract',
+        ];
+        $brief = [
+            'schema_version' => '1.0',
+            'task_id' => $contract->taskId,
+            'goal' => $contract->goal,
+            'scope' => $contract->scope,
+            'non_goals' => $contract->nonGoals,
+            'validation' => $contract->validation,
+            'tags' => $contract->tags,
+            'behavior_anchors' => $contract->behaviorAnchors,
+            'operating_prompt_manifest' => $contract->operatingPromptManifest,
+            'operating_prompts' => $contract->operatingPrompts,
+            'status' => 'approved',
+            'revision' => $contract->revision,
+            'created_at' => $contract->createdAt,
+            'updated_at' => $contract->updatedAt,
+            'derived_from_contract' => $source,
+        ];
+        $approval = [
+            'schema_version' => '1.0',
+            'task_id' => $contract->taskId,
+            'work_brief_revision' => $contract->revision,
+            'approved_by' => $contract->approvedBy,
+            'approved_at' => $contract->approvedAt,
+            'derived_from_contract' => $source,
+        ];
+
+        $this->atomicWrite($session->path . '/work-brief.json', CanonicalJson::pretty($brief));
+        $this->atomicWrite($session->path . '/approval.json', CanonicalJson::pretty($approval));
+    }
+
+    private function atomicWrite(string $path, string $contents): void
+    {
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, $contents) === false || !rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new RuntimeException('Unable to write derived Session Contract snapshot: ' . $path);
+        }
     }
 
     private function operatingPromptManifest(TaskContract $contract): ?string
