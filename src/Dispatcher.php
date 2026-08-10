@@ -45,7 +45,7 @@ final class Dispatcher
         return match ($namespace) {
             'edit' => (new EditCommand($this->rootPath))->run($rest),
             'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
-            'verify' => $this->dispatchVerify($scriptName, $rest),
+            'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
             'board:verify' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
             'learn' => $this->dispatchLearn($scriptName, $rest),
             'recall' => $this->dispatchRecall($scriptName, $rest),
@@ -59,36 +59,6 @@ final class Dispatcher
             'help', '--help', '-h', '' => $this->printUsage(0),
             default => $this->printUsage(1, $namespace),
         };
-    }
-
-    /** @param list<string> $rest */
-    private function dispatchVerify(string $scriptName, array $rest): int
-    {
-        $layout = $this->layout();
-        if (!$layout->isCompact()) {
-            return (new AgentLoopVerifier($this->rootPath))->run($rest);
-        }
-
-        $resolved = $rest;
-        foreach ([
-            'tasks-root' => $layout->tasksRoot(),
-            'sessions-root' => $layout->sessionsRoot(),
-            'learning-root' => $layout->learningRoot(),
-        ] as $name => $path) {
-            if (is_string($path) && !$this->hasOption($resolved, $name)) {
-                $resolved[] = '--' . $name . '=' . $path;
-            }
-        }
-
-        $exit = (new AgentLoopVerifier($this->rootPath))->run($resolved);
-        $boardRoot = $layout->boardRoot();
-        if (!$this->hasBoard($boardRoot)) {
-            return $exit;
-        }
-
-        $boardExit = (new CliApplication($boardRoot))->run($this->subArgv($scriptName, ['verify']));
-
-        return $exit === 0 && $boardExit === 0 ? 0 : 1;
     }
 
     /** @param list<string> $rest */
@@ -371,16 +341,6 @@ final class Dispatcher
     private function subArgv(string $scriptName, array $rest): array
     {
         return array_merge([$scriptName], $rest);
-    }
-
-    private function hasBoard(string $boardRoot): bool
-    {
-        $todo = rtrim($boardRoot, '/') . '/todo';
-
-        return is_file($todo . '/board.md')
-            || is_file($todo . '/kanban.config.json')
-            || (glob($todo . '/cards/*.md') ?: []) !== []
-            || (glob($todo . '/jira/*.md') ?: []) !== [];
     }
 
     private function layout(): ProjectLayout
