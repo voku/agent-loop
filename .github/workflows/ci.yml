@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 84ade5a628746e3229c0f9cb470a8b7c08b1f540
+          ref: dfedda1ac4fed35e439f3adf0d4089470451acfd
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
@@ -83,7 +83,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 84ade5a628746e3229c0f9cb470a8b7c08b1f540
+          ref: dfedda1ac4fed35e439f3adf0d4089470451acfd
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
       - name: Checkout current first-party operational prompt catalog
@@ -160,7 +160,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 84ade5a628746e3229c0f9cb470a8b7c08b1f540
+          ref: dfedda1ac4fed35e439f3adf0d4089470451acfd
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
