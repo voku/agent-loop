@@ -12,6 +12,7 @@ jobs:
     env:
       EXPECTED_AGENT_LEARNING_REF: 4ff47759fcfa1ef4833e1f29f21bc4be41737416
       EXPECTED_RECALL_REF: e360ecc86043c676b6c58250ac007501ad482eb6
+      EXPECTED_SESSION_REF: 8b8700522c28e2650b8c6cd11b3317127fbb8649
       LEARNING_ROOT: infra/doc/agent-learning
       PROBE_ACTOR: ci-target-identity-probe
       SELF_SHAPE_GOAL: Probe Proposal target identity cleanup with a real APPLIED memory proposal.
@@ -30,20 +31,23 @@ jobs:
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
 
-      - name: Install exact learning + recall candidates
+      - name: Install exact coordinated candidates
         shell: bash
         run: |
           set -euo pipefail
           composer config repositories.agent-learning-probe vcs https://github.com/voku/agent-learning
           composer config repositories.recall-probe vcs https://github.com/voku/agent-recall-compiler
+          composer config repositories.session-probe vcs https://github.com/voku/agent-session
           composer require 'voku/agent-learning:dev-fix/remove-semantic-target-path-guess as 0.8.99' --no-update
           composer require 'voku/agent-recall-compiler:dev-main as 0.9.99' --no-update
+          composer require 'voku/agent-session:dev-main as 0.3.99' --no-update
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           php -r '
           require "vendor/autoload.php";
           $expected = [
               "voku/agent-learning" => getenv("EXPECTED_AGENT_LEARNING_REF"),
               "voku/agent-recall-compiler" => getenv("EXPECTED_RECALL_REF"),
+              "voku/agent-session" => getenv("EXPECTED_SESSION_REF"),
           ];
           foreach ($expected as $package => $wanted) {
               $actual = Composer\InstalledVersions::getReference($package);
@@ -97,8 +101,6 @@ jobs:
           ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), PHP_EOL;
           ' "${memory_sha}" > build/handoff-validation.json
 
-          # If Proposal::target is still guessed as a path, this collision would
-          # create a competing top-level target_content_hash.
           printf 'unrelated semantic target collision\n' > "${LEARNING_ROOT}/memory.target-identity-probe"
 
           php -r '
