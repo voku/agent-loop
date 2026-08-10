@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use voku\AgentKanban\Cli\CliApplication;
+use voku\AgentLoop\ProjectLayout;
 
 /**
  * Creates the smallest local state needed for the governed workflow.
@@ -25,27 +26,60 @@ final readonly class InitScaffoldCommand
      */
     public function run(array $tokens): int
     {
-        if ($tokens !== [] && $tokens !== ['--dry-run']) {
-            fwrite(STDERR, '[FAIL] init scaffold: only --dry-run is supported.' . "\n");
+        try {
+            $options = $this->parse($tokens);
+        } catch (\InvalidArgumentException $exception) {
+            fwrite(STDERR, '[FAIL] init scaffold: ' . $exception->getMessage() . "\n");
 
             return 1;
         }
 
-        $dryRun = $tokens === ['--dry-run'];
+        $dryRun = $options['dryRun'];
         $root = rtrim($this->rootPath, '/');
+        $configPath = $root . '/.agent-loop/init.json';
+        $existingConfig = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+        $layout = $options['layout'] ?? $existingConfig['layout'];
 
-        foreach ([
-            '.agent-loop',
-            'todo/cards',
-            'tasks',
-            'session_plan',
-            'infra/doc/agent-learning/findings',
-        ] as $directory) {
-            $this->ensureDirectory($root, $directory, $dryRun);
+        if (is_file($configPath) && $options['layout'] !== null && $existingConfig['layout'] !== $options['layout']) {
+            fwrite(
+                STDERR,
+                '[FAIL] init scaffold: existing .agent-loop/init.json uses layout '
+                . $existingConfig['layout']
+                . '; refusing to rewrite it as '
+                . $options['layout']
+                . ".\n",
+            );
+
+            return 1;
         }
 
-        $this->ensureFile($root, '.agent-loop/init.json', "{\n  \"version\": 1\n}\n", $dryRun);
-        $this->ensureFile($root, 'todo/board.md', <<<'MD'
+        $this->ensureDirectory($root . '/.agent-loop', '.agent-loop', $dryRun);
+        if (!is_file($configPath)) {
+            $config = $layout === 'compact'
+                ? "{\n  \"version\": 1,\n  \"layout\": \"compact\"\n}\n"
+                : "{\n  \"version\": 1\n}\n";
+            $this->ensureFile($configPath, '.agent-loop/init.json', $config, $dryRun);
+        } else {
+            echo '[SKIP] .agent-loop/init.json already exists' . "\n";
+        }
+
+        $layoutResolver = $layout === 'compact'
+            ? new ProjectLayout($root)
+            : null;
+        $stateRoot = $layout === 'compact' ? $root . '/.agent-loop' : $root;
+        $sessionsRoot = $layout === 'compact' ? $stateRoot . '/sessions' : $root . '/session_plan';
+        $learningRoot = $layout === 'compact' ? $stateRoot . '/learning' : $root . '/infra/doc/agent-learning';
+
+        foreach ([
+            [$stateRoot . '/todo/cards', $this->relative($root, $stateRoot . '/todo/cards')],
+            [$stateRoot . '/tasks', $this->relative($root, $stateRoot . '/tasks')],
+            [$sessionsRoot, $this->relative($root, $sessionsRoot)],
+            [$learningRoot . '/findings', $this->relative($root, $learningRoot . '/findings')],
+        ] as [$directory, $display]) {
+            $this->ensureDirectory($directory, $display, $dryRun);
+        }
+
+        $this->ensureFile($stateRoot . '/todo/board.md', $this->relative($root, $stateRoot . '/todo/board.md'), <<<'MD'
 # Board Metadata
 
 - **Source:** `todo/cards/*.md`
@@ -53,7 +87,7 @@ final readonly class InitScaffoldCommand
 - **Done count:** 0
 MD
             . "\n", $dryRun);
-        $this->ensureFile($root, 'tasks/DEMO-1.md', <<<'MD'
+        $this->ensureFile($stateRoot . '/tasks/DEMO-1.md', $this->relative($root, $stateRoot . '/tasks/DEMO-1.md'), <<<'MD'
 # DEMO-1: Add a small validated change
 
 Use this generated task to try the governed workflow. Choose one small,
@@ -61,13 +95,14 @@ real change in this repository, then record the validation that proves it.
 MD
             . "\n", $dryRun);
 
-        $cardPath = $root . '/todo/cards/' . self::EXAMPLE_TASK_ID . '.md';
-        if (is_file($cardPath) || is_file($root . '/todo/jira/' . self::EXAMPLE_TASK_ID . '.md')) {
-            echo '[SKIP] todo/cards/DEMO-1.md already exists' . "\n";
+        $cardPath = $stateRoot . '/todo/cards/' . self::EXAMPLE_TASK_ID . '.md';
+        $cardDisplay = $this->relative($root, $cardPath);
+        if (is_file($cardPath) || is_file($stateRoot . '/todo/jira/' . self::EXAMPLE_TASK_ID . '.md')) {
+            echo '[SKIP] ' . $cardDisplay . ' already exists' . "\n";
         } elseif ($dryRun) {
-            echo '[DRY-RUN] would create todo/cards/DEMO-1.md' . "\n";
+            echo '[DRY-RUN] would create ' . $cardDisplay . "\n";
         } else {
-            $board = new CliApplication($root);
+            $board = new CliApplication($stateRoot);
             ob_start();
             try {
                 $exit = $board->run([
@@ -97,10 +132,16 @@ MD
 
                 return $exit;
             }
-            echo '[CREATE] todo/cards/DEMO-1.md' . "\n";
+            echo '[CREATE] ' . $cardDisplay . "\n";
         }
 
-        echo "\n[OK] init scaffold: minimal local workflow structure is ready.\n";
+        if ($layoutResolver instanceof ProjectLayout && !$layoutResolver->isCompact() && !$dryRun) {
+            fwrite(STDERR, "[FAIL] init scaffold: compact layout config was not persisted correctly.\n");
+
+            return 1;
+        }
+
+        echo "\n[OK] init scaffold: minimal local workflow structure is ready ({$layout} layout).\n";
         echo "Next:\n";
         echo "  agent-loop board card show DEMO-1\n";
         echo "  agent-loop workflow plan DEMO-1 --by <actor> --file composer.json --goal \"Add a small validated change.\" --validation \"composer test\"\n";
@@ -108,17 +149,50 @@ MD
         return 0;
     }
 
-    private function ensureDirectory(string $root, string $relativePath, bool $dryRun): void
+    /**
+     * @param list<string> $tokens
+     * @return array{dryRun: bool, layout: 'legacy'|'compact'|null}
+     */
+    private function parse(array $tokens): array
     {
-        $path = $root . '/' . $relativePath;
+        $dryRun = false;
+        $layout = null;
+
+        foreach ($tokens as $token) {
+            if ($token === '--dry-run') {
+                $dryRun = true;
+
+                continue;
+            }
+            if (str_starts_with($token, '--layout=')) {
+                $value = substr($token, strlen('--layout='));
+                if (!in_array($value, ['legacy', 'compact'], true)) {
+                    throw new \InvalidArgumentException('--layout must be legacy or compact.');
+                }
+                if ($layout !== null) {
+                    throw new \InvalidArgumentException('--layout may be provided only once.');
+                }
+                $layout = $value;
+
+                continue;
+            }
+
+            throw new \InvalidArgumentException('supported options are --dry-run and --layout=legacy|compact.');
+        }
+
+        return ['dryRun' => $dryRun, 'layout' => $layout];
+    }
+
+    private function ensureDirectory(string $path, string $displayPath, bool $dryRun): void
+    {
         if (is_dir($path)) {
-            echo '[SKIP] ' . $relativePath . '/ already exists' . "\n";
+            echo '[SKIP] ' . $displayPath . '/ already exists' . "\n";
 
             return;
         }
 
         if ($dryRun) {
-            echo '[DRY-RUN] would create ' . $relativePath . '/' . "\n";
+            echo '[DRY-RUN] would create ' . $displayPath . '/' . "\n";
 
             return;
         }
@@ -127,20 +201,19 @@ MD
             throw new \RuntimeException('Unable to create directory: ' . $path);
         }
 
-        echo '[CREATE] ' . $relativePath . '/' . "\n";
+        echo '[CREATE] ' . $displayPath . '/' . "\n";
     }
 
-    private function ensureFile(string $root, string $relativePath, string $content, bool $dryRun): void
+    private function ensureFile(string $path, string $displayPath, string $content, bool $dryRun): void
     {
-        $path = $root . '/' . $relativePath;
         if (is_file($path)) {
-            echo '[SKIP] ' . $relativePath . ' already exists' . "\n";
+            echo '[SKIP] ' . $displayPath . ' already exists' . "\n";
 
             return;
         }
 
         if ($dryRun) {
-            echo '[DRY-RUN] would create ' . $relativePath . "\n";
+            echo '[DRY-RUN] would create ' . $displayPath . "\n";
 
             return;
         }
@@ -149,6 +222,13 @@ MD
             throw new \RuntimeException('Unable to write file: ' . $path);
         }
 
-        echo '[CREATE] ' . $relativePath . "\n";
+        echo '[CREATE] ' . $displayPath . "\n";
+    }
+
+    private function relative(string $root, string $path): string
+    {
+        $prefix = rtrim($root, '/') . '/';
+
+        return str_starts_with($path, $prefix) ? substr($path, strlen($prefix)) : $path;
     }
 }
