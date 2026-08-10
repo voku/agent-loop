@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStatus;
-use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowPlanCommandTest extends TestCase
 {
@@ -55,7 +54,7 @@ final class WorkflowPlanCommandTest extends TestCase
         }
     }
 
-    public function testPlanUsesFilesAsDefaultScopeAndDoesNotPretendAnExperimentIsDurablePlan(): void
+    public function testPlanUsesFilesAsDefaultScopeAndRejectsEphemeralWorkflowPlans(): void
     {
         $root = $this->root('scope');
 
@@ -108,7 +107,7 @@ final class WorkflowPlanCommandTest extends TestCase
         }
     }
 
-    public function testPlanRevisesDurableContractAndInvalidatesApprovalWithoutStartingSession(): void
+    public function testPlanRevisionInvalidatesApprovalWithoutStartingSession(): void
     {
         $root = $this->root('revise');
         $contracts = new TaskContractStore($root);
@@ -138,7 +137,7 @@ final class WorkflowPlanCommandTest extends TestCase
         }
     }
 
-    public function testApprovePersistsContractApprovalPreparesSessionSnapshotAndDelegatesRecall(): void
+    public function testApproveCreatesRunAndSessionWithoutSessionOwnedContractCopy(): void
     {
         $root = $this->root('approve');
         $contracts = new TaskContractStore($root);
@@ -166,16 +165,19 @@ final class WorkflowPlanCommandTest extends TestCase
 
             $sessions = (new SessionStore())->all($root . '/session_plan');
             self::assertCount(1, $sessions);
-            $briefs = new WorkBriefStore();
-            self::assertSame(WorkBriefStatus::APPROVED, $briefs->load($sessions[0])->status);
-            self::assertSame('lars', $briefs->approval($sessions[0])?->approvedBy);
-            $snapshot = json_decode((string) file_get_contents($sessions[0]->path . '/work-brief.json'), true, 512, JSON_THROW_ON_ERROR);
-            self::assertSame('task_contract', $snapshot['derived_from_contract']['authority'] ?? null);
-            self::assertSame($contract->path, $snapshot['derived_from_contract']['path'] ?? null);
+            self::assertFileDoesNotExist($sessions[0]->path . '/work-brief.json');
+            self::assertFileDoesNotExist($sessions[0]->path . '/approval.json');
+
+            $run = (new GovernedRunStore($root))->find('ABC-123');
+            self::assertNotNull($run);
+            self::assertSame($sessions[0]->id, $run->sessionId);
+            self::assertSame(1, $run->contractRevision);
+            $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
+            self::assertFileExists($recallInput);
             self::assertSame([
-                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $contract->path],
+                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $recallInput],
             ], $recallCalls);
-            self::assertStringContainsString('Contract approved and recall compiled', $output);
+            self::assertStringContainsString('governed Run', $output);
         } finally {
             $this->removeDirectory($root);
         }
@@ -202,9 +204,6 @@ final class WorkflowPlanCommandTest extends TestCase
 
 ## Handoff / Context
 Use the existing view factory seam.
-
-## Agent Task Brief
-Touch only src/Foo.php and its focused test.
 CARD
 );
         file_put_contents($root . '/.agent-map/php-symbols.json', '{}');
@@ -235,10 +234,12 @@ CARD
             $sessions = (new SessionStore())->all($root . '/session_plan');
             self::assertCount(1, $sessions);
             $contextPath = $sessions[0]->path . '/kanban-context.json';
+            $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
             self::assertFileExists($contextPath);
+            self::assertFileExists($recallInput);
             self::assertSame([[
                 'compile', '--root', $learningRoot,
-                '--task', 'ABC-123', '--task-brief', $contracts->path('ABC-123'),
+                '--task', 'ABC-123', '--task-brief', $recallInput,
                 '--document-manifest', $learningRoot . '/recall-documents.json',
                 '--kanban-context', $contextPath,
                 '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root,
@@ -249,7 +250,7 @@ CARD
         }
     }
 
-    public function testApproveCanResumeRecallAfterCompilationFailure(): void
+    public function testApproveCanResumeRecallAfterCompilationFailureWithoutRecreatingRun(): void
     {
         $root = $this->root('resume');
         $contracts = new TaskContractStore($root);
@@ -266,7 +267,8 @@ CARD
             self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
             $sessions = (new SessionStore())->all($root . '/session_plan');
             self::assertCount(1, $sessions);
-            self::assertSame(WorkBriefStatus::APPROVED, (new WorkBriefStore())->load($sessions[0])->status);
+            $firstRun = (new GovernedRunStore($root))->find('ABC-123');
+            self::assertNotNull($firstRun);
 
             ob_start();
             $secondExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 0))->run([
@@ -276,6 +278,8 @@ CARD
 
             self::assertSame(0, $secondExit);
             self::assertStringContainsString('already approved; resuming Run preparation', $output);
+            self::assertSame($firstRun->runId, (new GovernedRunStore($root))->find('ABC-123')?->runId);
+            self::assertCount(1, (new SessionStore())->all($root . '/session_plan'));
         } finally {
             $this->removeDirectory($root);
         }
