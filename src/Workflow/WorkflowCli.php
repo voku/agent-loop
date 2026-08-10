@@ -24,7 +24,6 @@ final readonly class WorkflowCli
             'plan' => (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath, $this->recallRunner))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
-            'start' => (new WorkflowStartCommand($this->rootPath, $this->recallRunner))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
@@ -49,7 +48,7 @@ Usage:
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
   agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>] [--learning-root <path>]
-  agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
+  agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>] [--learning-root <path>]
 
 Commands:
   plan      Create or revise a durable candidate Contract. PLAN creates no Session and no Run.
@@ -62,10 +61,6 @@ Commands:
   learn     Record the durable Run Learning close-out through agent-learning.
   close     Close the governed Run through safety gates and preserve durable close evidence.
 
-Legacy/bootstrap:
-  workflow start is retained only for explicitly ungoverned/bootstrap context while the pre-1.0 migration is being completed.
-  It does not create a Contract or governed Run and must not satisfy governed CLOSE.
-
 Governed flow:
   PLAN -> APPROVE/PREPARE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 
@@ -74,6 +69,8 @@ Ownership:
   Session is pruneable working memory and raw run-local observations.
   Recall owns deterministic briefing/verification-plan artifacts.
   agent-learning owns durable Learning close-out and guidance evolution.
+
+For ungoverned experiments use `agent-loop session start --ephemeral`; there is no workflow shortcut that can masquerade as governed work.
 
 TXT;
         return 0;
