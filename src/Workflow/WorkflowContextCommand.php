@@ -14,9 +14,9 @@ use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
 /**
- * Read-only, budgeted task context assembled from existing workflow artifacts.
- * It intentionally never compiles recall, refreshes a map, or changes session
- * state: stale and missing inputs are reported as such instead of repaired.
+ * Read-only, budgeted task context assembled from existing owner artifacts.
+ * It never compiles Recall, refreshes a map, or changes Session state: stale
+ * and missing inputs are reported instead of silently repaired.
  */
 final readonly class WorkflowContextCommand
 {
@@ -59,15 +59,15 @@ final readonly class WorkflowContextCommand
         $learningRoot = null;
         $maxLines = 120;
         $maxBytes = 12000;
-        for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
-            $token = $tokens[$i];
+        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
+            $token = $tokens[$index];
             if (!in_array($token, ['--format', '--learning-root', '--max-lines', '--max-bytes'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
-            if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
+            if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
                 throw new InvalidArgumentException($token . ' requires a value.');
             }
-            $value = trim($tokens[++$i]);
+            $value = trim($tokens[++$index]);
             if ($value === '') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
@@ -95,22 +95,28 @@ final readonly class WorkflowContextCommand
         $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId, $learningRoot);
         $budget = new WorkflowContextBudget($maxLines, $maxBytes);
         $budget->add('header', 'Task: ' . $taskId);
+        $budget->add('header', 'Run: ' . ($report['run_id'] ?? 'missing'));
         $budget->add('header', 'Session: ' . ($report['session']['id'] ?? 'missing'));
-        $brief = $report['work_brief'];
-        if ($brief['status'] === 'missing') {
-            $budget->add('brief', 'Work brief: missing');
+
+        $contract = $report['contract'];
+        if ($contract['status'] === 'missing') {
+            $budget->add('contract', 'Contract: missing');
         } else {
-            $budget->add('brief', 'Work brief: revision ' . $brief['revision'] . ', ' . ($brief['approval']['by'] === null ? 'not approved' : 'approved by ' . $brief['approval']['by']));
+            $budget->add(
+                'contract',
+                'Contract: revision ' . $contract['revision'] . ', '
+                . ($contract['approval']['by'] === null ? 'not approved' : 'approved by ' . $contract['approval']['by']),
+            );
             $budget->section('Goal');
-            $budget->add('brief', '  ' . $brief['goal']);
+            $budget->add('contract', '  ' . $contract['goal']);
             $budget->section('Approved scope');
-            foreach ($brief['scope'] as $scope) {
+            foreach ($contract['scope'] as $scope) {
                 $budget->add('scope', '  ' . $scope);
             }
-            if ($brief['non_goals'] !== []) {
+            if ($contract['non_goals'] !== []) {
                 $budget->section('Non-goals');
-                foreach ($brief['non_goals'] as $nonGoal) {
-                    $budget->add('brief', '  ' . $nonGoal);
+                foreach ($contract['non_goals'] as $nonGoal) {
+                    $budget->add('contract', '  ' . $nonGoal);
                 }
             }
         }
@@ -121,19 +127,25 @@ final readonly class WorkflowContextCommand
         }
         $hasBundleNavigation = $this->addRecall($budget, $taskId);
         if (!$hasBundleNavigation) {
-            $this->addMap($budget, $brief['scope']);
+            $this->addMap($budget, is_array($contract['scope'] ?? null) ? $contract['scope'] : []);
         }
         $budget->section('Required validation');
         foreach ($report['validation'] as $validation) {
-            $budget->add('validation', sprintf('  [%s] %s', $validation['status'], $validation['command']));
+            $budget->add('validation', sprintf(
+                '  [%s] %s (Contract revision %d, source %s)',
+                $validation['status'],
+                $validation['command'],
+                $validation['contract_revision'],
+                $validation['source'],
+            ));
         }
         if ($report['validation'] === []) {
-            $budget->add('validation', '  [SKIP] no work brief validation requirements');
+            $budget->add('validation', '  [SKIP] no Contract validation requirements');
         }
         $budget->finish();
 
         return [
-            'schema_version' => '1.0',
+            'schema_version' => '2.0',
             'task_id' => $taskId,
             'lines' => $budget->lines(),
             'omitted' => $budget->omitted(),
@@ -147,7 +159,11 @@ final readonly class WorkflowContextCommand
             return null;
         }
         $root = rtrim($this->rootPath, '/') . '/session_plan';
-        $session = (new SessionStore())->load($root, $id);
+        try {
+            $session = (new SessionStore())->load($root, $id);
+        } catch (Throwable) {
+            return null;
+        }
 
         return $session->taskId === $taskId ? $session : null;
     }
@@ -176,9 +192,9 @@ final readonly class WorkflowContextCommand
     }
 
     /**
-     * @return bool true when a bundle intentionally supplied navigation facts
-     *              or an explicit stale/missing map status. Old artifacts fall
-     *              back to the legacy read-only map projection below.
+     * @return bool true when the compiled bundle supplied navigation facts or
+     *              an explicit navigation status. Otherwise the current map is
+     *              read directly without mutating or rebuilding it.
      */
     private function addRecall(WorkflowContextBudget $budget, string $taskId): bool
     {
@@ -302,9 +318,6 @@ final readonly class WorkflowContextCommand
                 continue;
             }
 
-            // A directory-shaped scope entry never matches file()'s exact
-            // path lookup; expand it to every indexed file under it instead
-            // of silently rendering an empty "Relevant symbols" section.
             $prefix = rtrim($path, '/') . '/';
             $matches = array_filter($index->files, static fn (FileEntry $entry): bool => str_starts_with($entry->path, $prefix));
             if ($matches !== []) {
@@ -332,7 +345,9 @@ final readonly class WorkflowContextCommand
     /** @return list<string> */
     private function strings(mixed $value): array
     {
-        return is_array($value) ? array_values(array_filter($value, static fn (mixed $item): bool => is_string($item) && trim($item) !== '')) : [];
+        return is_array($value)
+            ? array_values(array_filter($value, static fn (mixed $item): bool => is_string($item) && trim($item) !== ''))
+            : [];
     }
 
     private function positive(string $value, string $option): int
