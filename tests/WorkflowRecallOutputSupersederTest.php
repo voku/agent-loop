@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStore;
@@ -30,8 +31,8 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
 
     public function testNewApprovalArchivesPreviousRecallBeforeCompilationStarts(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
-        (new WorkBriefStore())->create($session, 'New task scope.', ['src/New.php'], [], ['vendor/bin/phpunit']);
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ABC-123', 'New task scope.', ['src/New.php'], [], ['vendor/bin/phpunit'], 'lars');
 
         mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
@@ -57,7 +58,10 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertSame(7, $exit);
-        self::assertSame('lars', (new WorkBriefStore())->approval($session)?->approvedBy);
+        self::assertSame('lars', $contracts->load('ABC-123')->approvedBy);
+        $sessions = (new SessionStore())->all($this->root . '/session_plan');
+        self::assertCount(1, $sessions);
+        self::assertSame('lars', (new WorkBriefStore())->approval($sessions[0])?->approvedBy);
         self::assertStringContainsString('superseded recall output archived', $output);
         self::assertDirectoryDoesNotExist($this->root . '/recall/ABC-123');
 
