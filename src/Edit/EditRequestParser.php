@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit;
 
 use InvalidArgumentException;
+use voku\AgentLoop\ProjectLayout;
 
 final readonly class EditRequestParser
 {
@@ -110,11 +111,14 @@ final readonly class EditRequestParser
             throw new InvalidArgumentException('Invalid edit task ID: ' . $taskId);
         }
 
+        $layout = new ProjectLayout($realProjectRoot);
         $mapRoot = $this->resolveExistingDirectory($realProjectRoot, $values['map-root'] ?? $realProjectRoot, 'map root');
         $recallRoot = isset($values['recall-root'])
             ? $this->resolveExistingDirectory($realProjectRoot, $values['recall-root'], 'recall root')
-            : $this->discoverRecallRoot($realProjectRoot);
-        $mapIndex = $this->resolvePath($realProjectRoot, $values['map-index'] ?? '.agent-map/php-symbols.json');
+            : ($layout->learningRoot() ?? $this->discoverRecallRoot($realProjectRoot));
+        $mapIndex = isset($values['map-index'])
+            ? $this->resolvePath($realProjectRoot, $values['map-index'])
+            : $layout->mapIndex();
         $outputDirectory = $this->resolvePath($realProjectRoot, $values['output-dir'] ?? '.agent-loop/edit/' . $taskId);
         $mapPaths = $this->splitList($values['map-paths'] ?? '.');
         $phpStanConfiguration = isset($values['phpstan-config']) && trim($values['phpstan-config']) !== ''
