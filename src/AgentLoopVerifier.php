@@ -9,23 +9,23 @@ use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentKanban\Verification\BoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\TaskContract;
+use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStatus;
-use voku\AgentSession\WorkBriefStore;
-use voku\AgentLoop\Workflow\WorkflowCli;
 
 /**
  * Cross-package consistency check for the agentic-coding loop.
  *
- * `agent-loop verify` is the only command that looks *across* board, session,
- * recall, and learning state at once. Every check below skips itself when its
- * inputs are absent, so the command stays meaningful for a repo that only
- * wires up part of the stack (e.g. session + recall, no kanban board).
+ * `agent-loop verify` is the only command that looks across board, Session,
+ * Recall, durable Contract/Run and Learning state at once. Optional inputs are
+ * skipped rather than fabricated.
  */
 final class AgentLoopVerifier
 {
@@ -34,14 +34,10 @@ final class AgentLoopVerifier
     ) {
     }
 
-    /**
-     * @var list<string>
-     */
+    /** @var list<string> */
     private array $taskIds = [];
 
-    /**
-     * @param list<string> $tokens tokens after the `verify` namespace
-     */
+    /** @param list<string> $tokens tokens after the `verify` namespace */
     public function run(array $tokens): int
     {
         if (array_intersect($tokens, ['help', '--help', '-h']) !== []) {
@@ -78,7 +74,6 @@ final class AgentLoopVerifier
 
     /**
      * @param list<string> $tokens
-     *
      * @return array{tasks-root: string, sessions-root: string, recall-root: string, learning-root: ?string, task-id: ?string}
      */
     private function parseOptions(array $tokens): array
@@ -105,7 +100,6 @@ final class AgentLoopVerifier
             foreach ([$root . '/infra/doc/agent-learning', $root . '/learning-root'] as $candidate) {
                 if (is_dir($candidate)) {
                     $options['learning-root'] = $candidate;
-
                     break;
                 }
             }
@@ -116,10 +110,7 @@ final class AgentLoopVerifier
         return $options;
     }
 
-    /**
-     * Confirms every namespace the Dispatcher routes to still resolves to a
-     * loadable class, i.e. the command surface itself is intact.
-     */
+    /** Confirms every namespace routed by Dispatcher still resolves. */
     private function checkPackagesWired(): bool
     {
         $delegates = [
@@ -146,7 +137,7 @@ final class AgentLoopVerifier
             return false;
         }
 
-        echo '[OK] package delegates: board, learn, map, recall, review, session, workflow commands all resolve to an installed package' . "\n";
+        echo "[OK] package delegates: board, learn, map, recall, review, session, workflow commands all resolve to an installed package\n";
 
         return true;
     }
@@ -169,12 +160,9 @@ final class AgentLoopVerifier
             $content = (string) file_get_contents($file);
             $id = basename($file, '.md');
             if (trim($content) === '' || !preg_match('/^#\s+\S/m', $content)) {
-                // Scoped runs only fail on the target task's own file; an
-                // unrelated broken task file is someone else's drift.
                 if ($taskId === null || $id === $taskId) {
                     $broken[] = $file;
                 }
-
                 continue;
             }
 
@@ -258,26 +246,19 @@ final class AgentLoopVerifier
             }
 
             ++$activeCount;
-
-            // An experiment never claimed to be governed work: it has no approved brief and no
-            // briefing on purpose. Failing the repository-wide gate for it punishes every other
-            // session for someone trying a command out, which is how a correct gate becomes one
-            // people route around.
             if ($session->ephemeral) {
                 echo "[SKIP] sessions: {$session->id} is ephemeral; repository gates do not apply\n";
-
                 continue;
             }
 
             if ($taskId === null && $this->taskIds !== [] && !in_array($session->taskId, $this->taskIds, true)) {
                 echo "[FAIL] sessions: session {$session->id} points to unknown task '{$session->taskId}'\n";
                 $ok = false;
-
                 continue;
             }
 
             $ok = $this->checkRecallCoverage($recallRoot, $session->id, $session->taskId) && $ok;
-            $ok = $this->checkWorkBrief($session) && $ok;
+            $ok = $this->checkGovernedBinding($session) && $ok;
         }
 
         if ($ok) {
@@ -314,46 +295,45 @@ final class AgentLoopVerifier
     }
 
     /**
-     * Work briefs are additive for existing sessions. Once a session has one,
-     * however, its task id, revision, and current approval must be coherent.
-     * A candidate is valid while work is in progress; workflow close adds the
-     * stricter requirement that the current revision is approved.
+     * If a Session belongs to a governed Run, prove the durable owner boundary.
+     * Standalone Session+Recall usage remains valid and has no invented Contract.
      */
-    private function checkWorkBrief(Session $session): bool
+    private function checkGovernedBinding(Session $session): bool
     {
-        $briefs = new WorkBriefStore();
-        $brief = $briefs->find($session);
-        if ($brief === null) {
+        $run = (new GovernedRunStore($this->rootPath))->find($session->taskId);
+        if ($run === null) {
             return true;
         }
-
-        $approval = $briefs->approval($session);
-        if ($brief->status === WorkBriefStatus::APPROVED && ($approval === null || $approval->workBriefRevision !== $brief->revision)) {
-            echo "[FAIL] work brief: session {$session->id} has approved revision {$brief->revision} without matching approval metadata\n";
-
-            return false;
-        }
-        if ($brief->status === WorkBriefStatus::CANDIDATE && $approval !== null) {
-            echo "[FAIL] work brief: session {$session->id} has candidate revision {$brief->revision} with stale approval metadata\n";
-
-            return false;
-        }
-        if ($brief->status === WorkBriefStatus::SUPERSEDED) {
-            echo "[FAIL] work brief: session {$session->id} exposes superseded revision {$brief->revision} as current\n";
+        if ($run->sessionId !== $session->id) {
+            echo "[FAIL] governed run: {$run->runId} points to Session {$run->sessionId}, not active Session {$session->id}\n";
 
             return false;
         }
 
-        echo "[OK] work brief: session {$session->id} revision {$brief->revision} is {$brief->status->value}\n";
+        $contract = (new TaskContractStore($this->rootPath))->find($session->taskId);
+        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
+            echo "[FAIL] governed run: {$run->runId} has no current approved durable Contract\n";
+
+            return false;
+        }
+        if ($run->contractRevision !== $contract->revision) {
+            echo "[FAIL] governed run: {$run->runId} Contract revision {$run->contractRevision} differs from current revision {$contract->revision}\n";
+
+            return false;
+        }
+        $hash = hash_file('sha256', $contract->path);
+        if ($hash === false || !hash_equals($run->contractSource['sha256'], 'sha256:' . $hash)) {
+            echo "[FAIL] governed run: {$run->runId} Contract digest is stale\n";
+
+            return false;
+        }
+
+        echo "[OK] governed run: {$run->runId} binds active Session {$session->id} to approved Contract revision {$contract->revision}\n";
 
         return true;
     }
 
-    /**
-     * Recomputes the sha256 hashes a `recall compile` run recorded for its own
-     * output files and flags any output that was edited or regenerated out of
-     * band since.
-     */
+    /** Recomputes Recall output hashes and flags out-of-band edits. */
     private function checkRecallStaleness(string $recallRoot, ?string $taskId): bool
     {
         if (!is_dir($recallRoot)) {
@@ -385,20 +365,18 @@ final class AgentLoopVerifier
             if (!is_array($decoded)) {
                 echo "[FAIL] recall: {$metaFile} is not valid JSON\n";
                 $ok = false;
-
                 continue;
             }
 
-            $taskId = basename($taskDir);
-            if (isset($decoded['task_id']) && $decoded['task_id'] !== $taskId && $taskId !== 'current') {
-                echo "[INFO] recall: {$metaFile} task_id '{$decoded['task_id']}' differs from directory name '{$taskId}'\n";
+            $directoryTaskId = basename($taskDir);
+            if (isset($decoded['task_id']) && $decoded['task_id'] !== $directoryTaskId && $directoryTaskId !== 'current') {
+                echo "[INFO] recall: {$metaFile} task_id '{$decoded['task_id']}' differs from directory name '{$directoryTaskId}'\n";
             }
 
             $hashes = $decoded['output_hashes'] ?? [];
             if (!is_array($hashes)) {
                 echo "[FAIL] recall: {$metaFile} has a malformed output_hashes field\n";
                 $ok = false;
-
                 continue;
             }
 
@@ -411,7 +389,6 @@ final class AgentLoopVerifier
                 if (!is_file($outputFile)) {
                     echo "[FAIL] recall: {$outputFile} referenced in meta.json is missing\n";
                     $ok = false;
-
                     continue;
                 }
 
@@ -426,18 +403,6 @@ final class AgentLoopVerifier
         return $ok;
     }
 
-    /**
-     * Reports a missing-input SKIP, or -- under `--strict` -- a FAIL instead.
-     *
-     * Only checkTasks() and checkSessionsAndRecall() call this: a missing
-     * tasks/ or session_plan/ directory means the baseline premise this
-     * command exists to confirm (a task exists, a session is tracking it)
-     * doesn't hold. checkBoard()'s optional typed board source and checkLearningRoot()'s
-     * learning root stay unconditionally skippable even under --strict,
-     * since both are documented, opt-in additions on top of that baseline
-     * loop (see README.md), not something every repo using `agent-loop` is
-     * expected to have wired up.
-     */
     private function skipOrFail(string $label, string $detail, bool $strict): bool
     {
         if ($strict) {
@@ -454,7 +419,7 @@ final class AgentLoopVerifier
     private function checkLearningRoot(?string $learningRoot): bool
     {
         if ($learningRoot === null || !is_dir($learningRoot)) {
-            echo '[SKIP] learning root: no directory found (checked --learning-root, infra/doc/agent-learning, learning-root)' . "\n";
+            echo "[SKIP] learning root: no directory found (checked --learning-root, infra/doc/agent-learning, learning-root)\n";
 
             return true;
         }
@@ -482,15 +447,15 @@ final class AgentLoopVerifier
           agent-loop verify [options]
 
         Checks (each skips itself when its inputs are absent):
-          - package delegates: board/learn/map/recall/session classes are installed
+          - package delegates: board/learn/map/recall/session/workflow classes are installed
           - tasks:    every *.md file under tasks/ parses (non-empty, has a heading)
           - board:    typed kanban board verification (delegated to voku/agent-kanban)
-          - sessions: every non-closed session under session_plan/ points to a
-                      known task id and has a compiled recall briefing
-          - work brief: any session-local brief has coherent task, revision,
-                        status, and approval metadata
+          - sessions: every non-closed Session under session_plan/ points to a
+                      known task id and has a compiled Recall briefing
+          - governed Run: when a Session is attached to a Run, Run, Session and
+                          approved Contract revision/digest must agree
           - recall:   every recall/<task>/meta.json output_hashes entry still
-                      matches the file on disk (catches stale/edited briefings)
+                      matches the file on disk
           - learning: the learning root (findings/proposals/history) validates
 
         Options:
@@ -499,18 +464,9 @@ final class AgentLoopVerifier
           --recall-root=PATH    Default: <root>/recall
           --learning-root=PATH  Default: <root>/infra/doc/agent-learning or <root>/learning-root
           --strict              Fail (instead of [SKIP]) when tasks/ or
-                                 session_plan/ is missing entirely. board and
-                                 the learning root stay
-                                 skippable even in strict mode -- both are
-                                 documented opt-in additions, not part of
-                                 the baseline task/session loop.
-          --task-id=ID           Scope the tasks/sessions/recall checks to
-                                 one task, so an unrelated task's stale
-                                 recall draft or broken task file doesn't
-                                 fail this run (e.g. inside `workflow
-                                 close`). package delegates, board, and the
-                                 learning root stay repo-wide checks either
-                                 way.
+                                session_plan/ is missing entirely. Board and
+                                Learning remain optional.
+          --task-id=ID          Scope tasks/sessions/recall checks to one task.
 
         TXT;
     }
