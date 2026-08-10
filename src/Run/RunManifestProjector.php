@@ -35,6 +35,7 @@ final readonly class RunManifestProjector
         /** @var list<array{code: string, owner: string, message: string}> $disagreements */
         $disagreements = [];
         $session = $this->sessionForTask($taskId, $disagreements);
+        $governedRun = (new GovernedRunStore($this->rootPath))->find($taskId);
         $briefStore = new WorkBriefStore();
         $brief = $session === null ? null : $briefStore->find($session);
         $approval = $session === null ? null : $briefStore->approval($session);
@@ -76,8 +77,13 @@ final readonly class RunManifestProjector
             static fn (array $left, array $right): int => strcmp($left['code'], $right['code']),
         );
 
-        $mode = $session === null ? 'legacy_inferred' : ($session->ephemeral ? 'ephemeral' : 'governed');
-        $runId = $session === null ? 'task:' . $taskId . ':legacy' : 'session:' . $session->id;
+        $ephemeral = $session !== null && $session->ephemeral;
+        $mode = $ephemeral
+            ? 'ephemeral'
+            : ($governedRun !== null ? 'governed' : ($session === null ? 'legacy_inferred' : 'governed'));
+        $runId = $ephemeral
+            ? 'session:' . $session->id
+            : ($governedRun?->runId ?? ($session === null ? 'task:' . $taskId . ':legacy' : 'session:' . $session->id));
         $state = $this->overallState($session, $brief, $references, $disagreements);
         $nextAction = $this->nextAction($taskId, $session, $brief, $references, $disagreements);
 
