@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\AgentLoopVerifier;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\LearningDecisionStore;
@@ -120,16 +121,7 @@ final readonly class WorkflowCloseCommand
         }
     }
 
-    /**
-     * Runs every gate and returns what failed, rather than a single boolean.
-     *
-     * An override has to record which gates failed and which evidence was missing, so the reasons
-     * have to survive the run instead of being reduced to false. Every gate still runs even after
-     * one fails: a human deciding whether to override needs the whole picture, not the first
-     * problem alphabetically.
-     *
-     * @return list<array{gate: string, detail: string}>
-     */
+    /** @return list<array{gate: string, detail: string}> */
     private function runGates(string $taskId): array
     {
         $failures = [];
@@ -151,13 +143,6 @@ final readonly class WorkflowCloseCommand
         return $failures;
     }
 
-    /**
-     * Requires a passing `verification-result.json` for every edit bundle of this task.
-     *
-     * A task closed without ever running `agent-loop edit` has no bundle to grade, and demanding
-     * one would only push people to fake it; that case passes with an explicit note. A bundle that
-     * exists but was never verified does not: an ungraded edit is exactly what this gate is for.
-     */
     private function checkEditVerificationGate(string $taskId): ?string
     {
         $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
@@ -227,13 +212,11 @@ final readonly class WorkflowCloseCommand
 
             return 'missing blind-spot report ' . $relative;
         }
-
         if ($report['invalid']) {
             echo "[FAIL] review: blindspot report JSON is invalid or missing status\n";
 
             return 'invalid blind-spot report ' . $relative;
         }
-
         if ($report['status'] === 'fail') {
             echo "[FAIL] review: blindspot report status is fail\n";
 
@@ -245,14 +228,20 @@ final readonly class WorkflowCloseCommand
         return null;
     }
 
-    /**
-     * Scoped to this task so an unrelated task's stale recall draft or
-     * broken task file can't block this close; package delegates, board,
-     * and the learning root still verify repo-wide either way.
-     */
     private function checkVerifyGate(string $taskId): ?string
     {
-        if ((new AgentLoopVerifier($this->rootPath))->run(['--task-id=' . $taskId]) === 0) {
+        $arguments = ['--task-id=' . $taskId];
+        $layout = new ProjectLayout($this->rootPath);
+        if ($layout->isCompact()) {
+            $arguments[] = '--tasks-root=' . $layout->tasksRoot();
+            $arguments[] = '--sessions-root=' . $layout->sessionsRoot();
+            $learningRoot = $layout->learningRoot();
+            if (is_string($learningRoot)) {
+                $arguments[] = '--learning-root=' . $learningRoot;
+            }
+        }
+
+        if ((new AgentLoopVerifier($this->rootPath))->run($arguments) === 0) {
             echo "[OK] verify: agent-loop verify passed\n";
 
             return null;
@@ -265,7 +254,7 @@ final readonly class WorkflowCloseCommand
 
     private function checkWorkBriefGate(string $taskId): ?string
     {
-        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($sessionsRoot)) {
             echo "[FAIL] work brief: no active session found for task {$taskId}\n";
 
@@ -430,7 +419,7 @@ final readonly class WorkflowCloseCommand
 
     private function activeSession(string $taskId): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
@@ -444,19 +433,13 @@ final readonly class WorkflowCloseCommand
 
     private function learningRoot(): ?string
     {
-        foreach (['infra/doc/agent-learning', 'learning-root'] as $relative) {
-            $candidate = rtrim($this->rootPath, '/') . '/' . $relative;
-            if (is_dir($candidate)) {
-                return $candidate;
-            }
-        }
+        $root = (new ProjectLayout($this->rootPath))->learningRoot();
 
-        return null;
+        return is_string($root) && is_dir($root) ? $root : null;
     }
 
     /**
      * @param list<string> $tokens
-     *
      * @return array{status: string, acceptRisk: string|null, acceptRiskBy: string|null}
      */
     private function parse(array $tokens): array
