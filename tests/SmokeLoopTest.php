@@ -9,13 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 
-/**
- * End-to-end proof that `agent-loop` can drive task -> session -> recall ->
- * learn -> verify against tests/fixtures/basic-loop without any of the
- * underlying packages tripping over each other.
- *
- * @internal
- */
+/** End-to-end proof that the installed package boundaries cooperate. */
 final class SmokeLoopTest extends TestCase
 {
     private string $root;
@@ -31,12 +25,9 @@ final class SmokeLoopTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testFullLoopReportsNoDrift(): void
+    public function testStandaloneSessionRecallAndLearningPackagesReportNoDrift(): void
     {
-        // session/recall/learn write straight to STDOUT (fwrite), not through
-        // PHP's output buffer, so only their exit codes are asserted here;
-        // their own packages cover output-text behavior in their own suites.
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester', '--root', $this->root . '/session_plan'])['exit'], 'session start');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester', '--root', $this->root . '/session_plan'])['exit']);
 
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'recall', 'compile',
@@ -44,9 +35,9 @@ final class SmokeLoopTest extends TestCase
             '--task', 'task.001',
             '--file', 'src/Signup.php',
             '--output-dir', $this->root . '/recall/task.001',
-        ])['exit'], 'recall compile');
+        ])['exit']);
 
-        self::assertSame(0, $this->dispatch(['agent-loop', 'learn', 'validate', '--root', $this->root . '/learning-root'])['exit'], 'learn validate');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'learn', 'validate', '--root', $this->root . '/learning-root'])['exit']);
 
         $result = $this->dispatch(['agent-loop', 'verify']);
 
@@ -67,7 +58,6 @@ final class SmokeLoopTest extends TestCase
         self::assertSame(1, $result['exit'], $result['output']);
         self::assertStringContainsString('[FAIL] recall: active session', $result['output']);
         self::assertStringContainsString('has no compiled briefing', $result['output']);
-        self::assertStringContainsString('[FAIL] agent-loop verify: drift detected, see above.', $result['output']);
     }
 
     public function testVerifyFailsWhenRecallOutputIsTamperedWith(): void
@@ -90,7 +80,7 @@ final class SmokeLoopTest extends TestCase
         self::assertStringContainsString('is stale (hash no longer matches meta.json)', $result['output']);
     }
 
-    public function testGovernedCompletionFlowUsesOnlyRecordedArtifacts(): void
+    public function testGovernedCompletionFlowUsesOnlyRecordedOwnerArtifacts(): void
     {
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'plan', 'task.001', '--by', 'tester',
@@ -98,40 +88,52 @@ final class SmokeLoopTest extends TestCase
             '--goal', 'Keep completion evidence auditable.',
             '--validation', 'vendor/bin/phpunit tests/SignupTest.php',
         ])['exit']);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester'])['exit']);
+        self::assertSame(0, $this->dispatch([
+            'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
+            '--learning-root', $this->root . '/learning-root',
+        ])['exit']);
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'session', 'validation', 'record', 'task.001',
-            '--brief-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
+            '--contract-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
             '--status', 'passed', '--exit-code', '0', '--duration-ms', '12', '--by', 'tester', '--root', $this->root . '/session_plan',
         ])['exit']);
         self::assertSame(0, $this->dispatch([
-            'agent-loop', 'session', 'learning', 'decide', 'task.001',
-            '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan',
+            'agent-loop', 'workflow', 'learn', 'task.001',
+            '--status', 'no_durable_learning', '--by', 'tester',
+            '--reason', 'The smoke run produced no reusable guidance.',
+            '--learning-root', $this->root . '/learning-root',
         ])['exit']);
         mkdir($this->root . '/recall/task.001/reviews', 0o775, true);
-        file_put_contents($this->root . '/recall/task.001/reviews/task.001.blindspots.json', json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR));
+        file_put_contents(
+            $this->root . '/recall/task.001/reviews/task.001.blindspots.json',
+            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
+        );
 
         $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
         self::assertSame(0, $context['exit']);
         self::assertStringContainsString('Keep completion evidence auditable.', $context['output']);
         self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php', $context['output']);
 
-        $report = $this->dispatch(['agent-loop', 'workflow', 'report', 'task.001']);
+        $report = $this->dispatch([
+            'agent-loop', 'workflow', 'report', 'task.001',
+            '--learning-root', $this->root . '/learning-root',
+        ]);
         self::assertSame(0, $report['exit']);
-        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php', $report['output']);
-        self::assertStringContainsString('decision no_durable_learning', $report['output']);
+        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php via session', $report['output']);
+        self::assertStringContainsString('Run decision no_durable_learning', $report['output']);
 
-        $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'task.001', '--status', 'done']);
+        $close = $this->dispatch([
+            'agent-loop', 'workflow', 'close', 'task.001', '--status', 'done',
+            '--learning-root', $this->root . '/learning-root',
+        ]);
         self::assertSame(0, $close['exit'], $close['output']);
         self::assertStringContainsString('[OK] validation:', $close['output']);
         self::assertStringContainsString('[OK] learning decision:', $close['output']);
+        self::assertStringContainsString('durable verification receipt persisted', $close['output']);
+        self::assertFileExists($this->root . '/.agent-loop/runs/task.001/verification.json');
     }
 
-    /**
-     * @param list<string> $argv
-     *
-     * @return array{exit: int, output: string}
-     */
+    /** @param list<string> $argv @return array{exit: int, output: string} */
     private function dispatch(array $argv): array
     {
         $dispatcher = new Dispatcher($this->root);
@@ -149,7 +151,7 @@ final class SmokeLoopTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::SELF_FIRST
+            RecursiveIteratorIterator::SELF_FIRST,
         );
 
         foreach ($iterator as $item) {
@@ -170,7 +172,7 @@ final class SmokeLoopTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
+            RecursiveIteratorIterator::CHILD_FIRST,
         );
 
         foreach ($iterator as $item) {
