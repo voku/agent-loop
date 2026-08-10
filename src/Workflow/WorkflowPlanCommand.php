@@ -5,19 +5,17 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 use Throwable;
-use voku\AgentLoop\Run\RunManifestTransitionWriter;
-use voku\AgentSession\OperatingPromptSelection;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStore;
 
 /**
- * Creates the initial governed task state without compiling a prompt against
- * provisional input. Recall is compiled after the work brief is approved, so
- * its task context is an explicit, revisioned contract rather than a parallel
- * list of manual --file arguments.
+ * Creates or revises durable candidate Contract state.
+ *
+ * PLAN deliberately creates neither Session nor Run. Working memory starts only
+ * after an exact Contract revision is approved and a governed Run is prepared.
  */
 final readonly class WorkflowPlanCommand
 {
@@ -31,77 +29,55 @@ final readonly class WorkflowPlanCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
-        } catch (InvalidArgumentException $e) {
-            fwrite(STDERR, '[FAIL] workflow plan: ' . $e->getMessage() . "\n");
+            $contracts = new TaskContractStore($this->rootPath);
+            $existing = $contracts->find($taskId->value);
 
-            return 1;
-        }
+            if ($existing !== null && $this->activeSession($taskId->value) !== null) {
+                throw new RuntimeException(
+                    'Cannot revise Contract for ' . $taskId->value
+                    . ' while a governed Session is active. Finish or drop that Run before changing durable intent.',
+                );
+            }
 
-        try {
-            $sessions = new SessionStore();
-            $briefs = new WorkBriefStore();
-            $activeSession = $this->activeSession($taskId->value);
-
-            if ($activeSession === null) {
-                $activeSession = $sessions->create(
-                    rtrim($this->rootPath, '/') . '/session_plan',
+            if ($existing === null) {
+                $contract = $contracts->create(
                     $taskId->value,
-                    null,
+                    $options['goal'],
+                    $options['scope'],
+                    $options['nonGoals'],
+                    $options['validation'],
                     $options['by'],
                     $options['baseCommit'],
-                    $options['ephemeral'],
-                );
-                $briefAction = 'create';
-            } else {
-                $briefAction = $briefs->find($activeSession) === null ? 'create' : 'revise';
-            }
-
-            if ($briefAction === 'create') {
-                $briefs->create(
-                    $activeSession,
-                    $options['goal'],
-                    $options['scope'],
-                    $options['nonGoals'],
-                    $options['validation'],
                     $options['tags'],
                     $options['behaviorAnchors'],
                     $options['operatingPromptManifest'],
                     $options['operatingPrompts'],
                 );
+                $action = 'created';
             } else {
-                $briefs->revise(
-                    $activeSession,
+                $contract = $contracts->revise(
+                    $taskId->value,
                     $options['goal'],
                     $options['scope'],
                     $options['nonGoals'],
                     $options['validation'],
+                    $options['by'],
+                    $options['baseCommit'],
                     $options['tags'],
                     $options['behaviorAnchors'],
                     $options['operatingPromptManifest'],
                     $options['operatingPrompts'],
                 );
+                $action = 'revised';
             }
-        } catch (Throwable $e) {
-            fwrite(STDERR, '[FAIL] workflow plan: ' . $e->getMessage() . "\n");
-
-            return 1;
-        }
-
-        try {
-            $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
         } catch (Throwable $exception) {
-            fwrite(
-                STDERR,
-                '[FAIL] workflow plan: candidate brief was written, but run-manifest refresh failed: '
-                . $exception->getMessage()
-                . "\n[ACTION REQUIRED] Run agent-loop workflow manifest {$taskId->value} --write after repairing the projection error.\n",
-            );
+            fwrite(STDERR, '[FAIL] workflow plan: ' . $exception->getMessage() . "\n");
 
             return 1;
         }
 
-        echo "[OK] workflow plan: candidate work brief {$briefAction}d for {$taskId->value}\n";
-        echo "[OK] workflow plan: run manifest refreshed at {$manifestPath}\n";
+        echo "[OK] workflow plan: candidate Contract {$action} for {$taskId->value} revision {$contract->revision}\n";
+        echo "[OK] workflow plan: durable source {$contract->path}\n";
         echo "Next:\n";
         echo "  agent-loop workflow approve {$taskId->value} --by {$options['by']}\n";
 
@@ -110,30 +86,28 @@ final readonly class WorkflowPlanCommand
 
     private function activeSession(string $taskId): ?Session
     {
-        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
-        if (!is_dir($sessionsRoot)) {
+        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        if (!is_dir($root)) {
             return null;
         }
-
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($sessionsRoot),
+        $matches = array_values(array_filter(
+            (new SessionStore())->all($root),
             static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
         ));
-        if (count($sessions) > 1) {
-            throw new RuntimeException("Multiple active sessions found for task {$taskId}.");
+        if (count($matches) > 1) {
+            throw new RuntimeException('Multiple active Sessions exist for task ' . $taskId . '.');
         }
 
-        return $sessions[0] ?? null;
+        return $matches[0] ?? null;
     }
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<OperatingPromptSelection>, baseCommit: string|null, ephemeral: bool}
+     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null}
      */
     private function parse(array $tokens): array
     {
         $by = null;
-        $learningRoot = null;
         $files = [];
         $goal = null;
         $scope = [];
@@ -145,15 +119,9 @@ final readonly class WorkflowPlanCommand
         $operatingPrompts = [];
         $operatingPromptIds = [];
         $baseCommit = null;
-        $ephemeral = false;
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if ($token === '--ephemeral') {
-                $ephemeral = true;
-
-                continue;
-            }
             if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
@@ -172,7 +140,8 @@ final readonly class WorkflowPlanCommand
                     break;
                 case '--learning-root':
                 case '--root':
-                    $learningRoot = $value;
+                    // Kept as accepted PLAN syntax while Recall still receives its root at APPROVE.
+                    WorkflowLearningRoot::resolve($this->rootPath, $value);
                     break;
                 case '--file':
                     $files[] = $value;
@@ -202,11 +171,11 @@ final readonly class WorkflowPlanCommand
                     $operatingPromptManifest = $value;
                     break;
                 case '--operating-prompt':
-                    $selection = OperatingPromptSelection::fromJson($value);
-                    if (isset($operatingPromptIds[$selection->id])) {
-                        throw new InvalidArgumentException('Operating prompt selected more than once: ' . $selection->id);
+                    $selection = $this->operatingPrompt($value);
+                    if (isset($operatingPromptIds[$selection['id']])) {
+                        throw new InvalidArgumentException('Operating prompt selected more than once: ' . $selection['id']);
                     }
-                    $operatingPromptIds[$selection->id] = true;
+                    $operatingPromptIds[$selection['id']] = true;
                     $operatingPrompts[] = $selection;
                     break;
                 case '--base-commit':
@@ -236,7 +205,6 @@ final readonly class WorkflowPlanCommand
 
         return [
             'by' => $by,
-            'learningRoot' => WorkflowLearningRoot::resolve($this->rootPath, $learningRoot),
             'files' => $files,
             'goal' => $goal,
             'scope' => $scope === [] ? $files : $scope,
@@ -247,7 +215,33 @@ final readonly class WorkflowPlanCommand
             'operatingPromptManifest' => $operatingPromptManifest,
             'operatingPrompts' => $operatingPrompts,
             'baseCommit' => $baseCommit,
-            'ephemeral' => $ephemeral,
         ];
+    }
+
+    /** @return array{id: string, arguments: array<string, bool|int|string>} */
+    private function operatingPrompt(string $json): array
+    {
+        try {
+            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Operating prompt selection must be valid JSON: ' . $exception->getMessage(), 0, $exception);
+        }
+        if (!is_array($data) || !is_string($data['id'] ?? null) || !is_array($data['arguments'] ?? [])) {
+            throw new InvalidArgumentException('Operating prompt selection requires string id and object arguments.');
+        }
+        $id = trim($data['id']);
+        if ($id === '' || preg_match('/^[a-z][a-z0-9._-]*$/', $id) !== 1) {
+            throw new InvalidArgumentException('Operating prompt id must match [a-z][a-z0-9._-]*.');
+        }
+        $arguments = [];
+        foreach ($data['arguments'] ?? [] as $name => $argument) {
+            if (!is_string($name) || preg_match('/^[a-z][a-z0-9_]*$/', $name) !== 1 || (!is_bool($argument) && !is_int($argument) && !is_string($argument))) {
+                throw new InvalidArgumentException('Operating prompt arguments must use valid names and bool, int, or string values.');
+            }
+            $arguments[$name] = $argument;
+        }
+        ksort($arguments);
+
+        return ['id' => $id, 'arguments' => $arguments];
     }
 }
