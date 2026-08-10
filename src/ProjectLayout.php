@@ -45,7 +45,9 @@ final readonly class ProjectLayout
 
     public function sessionsRoot(): string
     {
-        return $this->stateRoot() . '/sessions';
+        return $this->isCompact()
+            ? $this->stateRoot() . '/sessions'
+            : $this->projectRoot() . '/session_plan';
     }
 
     public function learningRoot(): ?string
