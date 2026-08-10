@@ -364,7 +364,10 @@ final class Dispatcher
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
-    /** @param list<string> $rest */
+    /**
+     * @param list<string> $rest
+     * @return list<string>
+     */
     private function subArgv(string $scriptName, array $rest): array
     {
         return array_merge([$scriptName], $rest);
