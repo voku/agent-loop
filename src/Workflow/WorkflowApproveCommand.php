@@ -9,6 +9,7 @@ use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -86,7 +87,9 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = '--kanban-context';
                 $recallArgs[] = $kanbanContext;
             }
-            $mapIndex = rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+
+            $layout = new ProjectLayout($this->rootPath);
+            $mapIndex = $layout->mapIndex();
             if (is_file($mapIndex)) {
                 $recallArgs[] = '--map-index';
                 $recallArgs[] = $mapIndex;
@@ -96,7 +99,7 @@ final readonly class WorkflowApproveCommand
                 // The derived search index is a cache: a repository that never built one gets the
                 // same briefing as before, and one that did gets ranked candidates for a brief that
                 // names no exact target yet.
-                $mapSearchIndex = rtrim($this->rootPath, '/') . '/.agent-map/search.sqlite';
+                $mapSearchIndex = $layout->mapSearchIndex();
                 if (is_file($mapSearchIndex)) {
                     $recallArgs[] = '--map-search-index';
                     $recallArgs[] = $mapSearchIndex;
@@ -210,7 +213,7 @@ final readonly class WorkflowApproveCommand
 
     private function activeSession(string $taskId): Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         $sessions = is_dir($root) ? array_values(array_filter(
             (new SessionStore())->all($root),
             static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
