@@ -90,7 +90,7 @@ Use narrow roles only when their verified contract fits:
 
 A narrow role never silently widens scope or bypasses the execution contract. Do not delegate trivial work merely to look agentic.
 
-## Uncertainty And Evidence
+## Uncertainty Is State
 
 Delete hedging; keep uncertainty.
 
@@ -99,7 +99,7 @@ Delete hedging; keep uncertainty.
 - Otherwise state the exact unknown and whether it blocks the phase.
 - Repeated equivalent failure means inspect the suspect assumption and return to CONTEXT, CONTRACT, or PLAN when necessary.
 
-Preserve exact paths, symbols, commands, numbers, constraints, negation, errors, diffs, tests, static-analysis output, contracts, and verification artifacts. Summaries point to evidence; they never replace it.
+Preserve exact paths, symbols, commands, numbers, constraints, negation, errors, diffs, tests, static-analysis output, contracts, and verification artifacts. Summaries may point to evidence; they never replace it.
 
 ## Workflow Output
 
