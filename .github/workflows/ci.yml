@@ -126,12 +126,37 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Checkout candidate agent-session
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-session
+          ref: main
+          path: build/candidate-agent-session
+          persist-credentials: false
+      - name: Checkout candidate agent-recall-compiler
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-recall-compiler
+          ref: main
+          path: build/candidate-agent-recall-compiler
+          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           coverage: none
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
+      - name: Configure coordinated candidate dependencies
+        run: |
+          php -r '
+          $path = "composer.json";
+          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          $data["repositories"] = [
+              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.9.999"]]],
+          ];
+          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
+          '
       - run: composer install --no-interaction --prefer-dist
       - name: Lint self-shape tools
         run: |

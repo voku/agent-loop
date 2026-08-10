@@ -9,6 +9,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLoop\AgentLoopVerifier;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
@@ -33,6 +34,25 @@ final readonly class WorkflowCloseCommand
             $options = $this->parse(array_slice($args, 1));
             if ($options['status'] !== 'done') {
                 echo "[FAIL] workflow close currently gates only --status done. Use agent-loop session close directly for other statuses.\n";
+
+                return 1;
+            }
+
+            try {
+                $contract = (new ExecutionContractStore($this->rootPath))->inspect($taskId->value);
+                $contractState = is_string($contract['state'] ?? null) ? $contract['state'] : 'invalid';
+            } catch (Throwable $exception) {
+                fwrite(STDERR, '[FAIL] workflow close: unable to evaluate execution contract gate: ' . $exception->getMessage() . "\n");
+
+                return 1;
+            }
+            if (!in_array($contractState, ['ready', 'not_required', 'not_applicable'], true)) {
+                fwrite(
+                    STDERR,
+                    '[FAIL] workflow close: successful close requires a current execution contract when L2 policy is selected; current state is '
+                    . $contractState
+                    . ".\n[ACTION REQUIRED] Run agent-loop workflow status {$taskId->value} --format=json and satisfy or revise the execution contract. Accepted risk does not bypass this contract gate.\n",
+                );
 
                 return 1;
             }
@@ -78,11 +98,21 @@ final readonly class WorkflowCloseCommand
                 throw $exception;
             }
 
-            return 0;
-        } catch (InvalidArgumentException $e) {
-            fwrite(STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
+            try {
+                $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+                echo "[OK] workflow close: final run manifest refreshed at {$manifestPath}\n";
+            } catch (Throwable $exception) {
+                fwrite(
+                    STDERR,
+                    '[FAIL] workflow close: session was closed, but final run-manifest refresh failed: '
+                    . $exception->getMessage()
+                    . "\n[ACTION REQUIRED] Run agent-loop workflow manifest <task-id> --write after repairing the projection error.\n",
+                );
 
-            return 1;
+                return 1;
+            }
+
+            return 0;
         } catch (Throwable $e) {
             fwrite(STDERR, '[FAIL] workflow close: ' . $e->getMessage() . "\n");
 

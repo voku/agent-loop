@@ -82,7 +82,7 @@ final class WorkflowExecutionContractCloseTest extends TestCase
             ]);
 
             self::assertSame(1, $exit);
-            self::assertFalse((new SessionStore())->load($session->path)->status->isClosed());
+            self::assertFalse((new SessionStore())->load($root . '/session_plan', $session->id)->status->isClosed());
         } finally {
             $this->removeDirectory($root);
         }
