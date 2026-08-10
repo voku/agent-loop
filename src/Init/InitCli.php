@@ -54,7 +54,7 @@ final readonly class InitCli
           agent-loop init sync-githooks [--hooks-dir=PATH] [--commit-template=PATH] [--container-service=NAME]
                                        [--container-image=NAME] [--container-workdir=PATH] [--container-user=NAME]
                                        [--skip-git-config] [--dry-run] [--force] [--adopt-existing]
-          agent-loop init scaffold [--dry-run]
+          agent-loop init scaffold [--layout=legacy|compact] [--dry-run]
 
         Commands:
           help           Show init help.
@@ -68,7 +68,7 @@ final readonly class InitCli
           sync-subagents Sync repo-managed subagents into a client target directory.
           sync-hooks     Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
           sync-githooks  Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
-          scaffold       Create the minimum local workflow structure and a DEMO-1 task.
+          scaffold       Create the minimum local workflow structure and a DEMO-1 task. Use --layout=compact to keep workflow state below .agent-loop/.
         TXT;
 
         if ($unknownCommand === '') {
