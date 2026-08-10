@@ -11,8 +11,6 @@ use RuntimeException;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RelativePath;
-use voku\AgentSession\Session;
-use voku\AgentSession\SessionStore;
 
 final readonly class ExecutionContractStore
 {
@@ -33,6 +31,8 @@ final readonly class ExecutionContractStore
                 'state' => 'not_required',
                 'required' => false,
                 'observation_mode' => 'checked',
+                'contract_revision' => $binding['contract_revision'] ?? null,
+                'contract_source' => $binding['contract_source'] ?? null,
             ];
         }
 
@@ -52,7 +52,7 @@ final readonly class ExecutionContractStore
 
             foreach ([
                 'task_id' => $taskId,
-                'work_brief_revision' => $binding['work_brief_revision'],
+                'contract_revision' => $binding['contract_revision'],
                 'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
                 'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             ] as $key => $expected) {
@@ -110,9 +110,10 @@ final readonly class ExecutionContractStore
         $metadataPath = $directory . '/execution-contract.json';
         $this->atomicWrite($documentPath, $document->content);
         $this->atomicWrite($metadataPath, CanonicalJson::pretty([
-            'schema_version' => '1.0',
+            'schema_version' => '2.0',
+            'kind' => 'execution_contract',
             'task_id' => $taskId,
-            'work_brief_revision' => $binding['work_brief_revision'],
+            'contract_revision' => $binding['contract_revision'],
             'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
             'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             'prompt_ids' => $binding['prompt_ids'],
@@ -138,10 +139,14 @@ final readonly class ExecutionContractStore
         if ($status === ExecutionContractStatus::READY) {
             throw new RuntimeException('writeStopped requires blocked or rejected status.');
         }
+
         $binding = $this->requireResolvedL2Binding($taskId);
         $reason = trim($reason);
         $minimumContractChange = trim($minimumContractChange);
-        $evidence = array_values(array_unique(array_filter(array_map('trim', $evidence), static fn (string $item): bool => $item !== '')));
+        $evidence = array_values(array_unique(array_filter(
+            array_map('trim', $evidence),
+            static fn (string $item): bool => $item !== '',
+        )));
         if ($reason === '' || $minimumContractChange === '' || $evidence === []) {
             throw new RuntimeException('Blocked/rejected execution contracts require reason, evidence, and minimum contract change.');
         }
@@ -150,9 +155,10 @@ final readonly class ExecutionContractStore
         $this->makeDirectory($directory);
         $metadataPath = $directory . '/execution-contract.json';
         $this->atomicWrite($metadataPath, CanonicalJson::pretty([
-            'schema_version' => '1.0',
+            'schema_version' => '2.0',
+            'kind' => 'execution_contract',
             'task_id' => $taskId,
-            'work_brief_revision' => $binding['work_brief_revision'],
+            'contract_revision' => $binding['contract_revision'],
             'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
             'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             'prompt_ids' => $binding['prompt_ids'],
@@ -187,48 +193,36 @@ final readonly class ExecutionContractStore
     /** @return array<string, mixed> */
     private function currentBinding(string $taskId): array
     {
-        $session = $this->activeSession($taskId);
-        if (!$session instanceof Session) {
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        if (!$contract instanceof TaskContract) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'not_applicable',
                 'required' => false,
                 'observation_mode' => 'checked',
-                'reason' => 'No active governed session exists for this task.',
+                'reason' => 'No durable Task Contract exists for this task.',
             ];
         }
-
-        $briefPath = $session->path . '/work-brief.json';
-        $approvalPath = $session->path . '/approval.json';
-        if (!is_file($briefPath) || !is_file($approvalPath)) {
+        if ($contract->status !== TaskContract::APPROVED) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'pending_approval',
                 'required' => false,
                 'observation_mode' => 'checked',
-                'reason' => 'Current governed session is not approved yet.',
-            ];
-        }
-        $brief = $this->decodeJson($briefPath);
-        $approval = $this->decodeJson($approvalPath);
-        $revision = $brief['revision'] ?? null;
-        if (!is_int($revision) || ($brief['status'] ?? null) !== 'approved' || ($approval['work_brief_revision'] ?? null) !== $revision) {
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'pending_approval',
-                'required' => false,
-                'observation_mode' => 'checked',
-                'reason' => 'Work brief and approval do not seal the same current revision.',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
+                'reason' => 'Current Task Contract revision is not approved.',
             ];
         }
 
-        $selected = $brief['operating_prompts'] ?? [];
-        if (!is_array($selected) || $selected === []) {
+        if ($contract->operatingPrompts === []) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'resolved',
                 'required' => false,
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
             ];
         }
 
@@ -239,9 +233,12 @@ final readonly class ExecutionContractStore
                 'state' => 'pending_recall',
                 'required' => true,
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
                 'reason' => 'Approved prompt policy exists but recall facts have not been compiled.',
             ];
         }
+
         $factsDocument = $this->decodeJson($factsPath);
         $facts = $factsDocument['facts'] ?? null;
         if (!is_array($facts)) {
@@ -281,8 +278,11 @@ final readonly class ExecutionContractStore
                 'state' => 'resolved',
                 'required' => false,
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
             ];
         }
+
         $bundleSha = $factsDocument['bundle_sha256'] ?? null;
         if (!is_string($bundleSha) || preg_match('/^[a-f0-9]{64}$/', $bundleSha) !== 1) {
             throw new RuntimeException('Recall facts.json requires a canonical bundle_sha256.');
@@ -293,11 +293,11 @@ final readonly class ExecutionContractStore
             'state' => 'resolved',
             'required' => true,
             'observation_mode' => 'checked',
-            'work_brief_revision' => $revision,
+            'contract_revision' => $contract->revision,
             'recall_bundle_sha256' => $bundleSha,
             'prompt_policy_sha256' => hash('sha256', CanonicalJson::pretty(['prompts' => $promptFacts])),
-            'prompt_ids' => $l2PromptIds,
-            'brief_source' => $this->artifact($briefPath),
+            'prompt_ids' => array_values(array_unique($l2PromptIds)),
+            'contract_source' => $this->artifact($contract->path),
             'recall_source' => $this->artifact($factsPath),
         ];
     }
@@ -325,28 +325,12 @@ final readonly class ExecutionContractStore
             'state' => $state,
             'required' => true,
             'observation_mode' => 'checked',
-            'work_brief_revision' => $binding['work_brief_revision'],
+            'contract_revision' => $binding['contract_revision'],
             'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
             'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             'prompt_ids' => $binding['prompt_ids'],
+            'contract_source' => $binding['contract_source'],
         ], $extra);
-    }
-
-    private function activeSession(string $taskId): ?Session
-    {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
-        if (!is_dir($root)) {
-            return null;
-        }
-        $matches = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($matches) > 1) {
-            throw new RuntimeException('Multiple active sessions exist for governed task ' . $taskId . '.');
-        }
-
-        return $matches[0] ?? null;
     }
 
     private function contractDirectory(string $taskId): string
@@ -391,12 +375,22 @@ final readonly class ExecutionContractStore
             return [];
         }
 
-        return array_values(array_filter($value, 'is_string'));
+        $items = [];
+        foreach ($value as $item) {
+            if (is_string($item) && trim($item) !== '') {
+                $items[] = trim($item);
+            }
+        }
+
+        return $items;
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{path: string, sha256: string} */
     private function artifact(string $path): array
     {
+        if (!is_file($path)) {
+            throw new RuntimeException('Referenced artifact does not exist: ' . $path);
+        }
         $sha = hash_file('sha256', $path);
         if ($sha === false) {
             throw new RuntimeException('Unable to hash artifact: ' . $path);
@@ -406,6 +400,22 @@ final readonly class ExecutionContractStore
             'path' => RelativePath::fromRoot($this->rootPath, $path),
             'sha256' => 'sha256:' . $sha,
         ];
+    }
+
+    private function makeDirectory(string $path): void
+    {
+        if (!is_dir($path) && !mkdir($path, 0o775, true) && !is_dir($path)) {
+            throw new RuntimeException('Unable to create directory: ' . $path);
+        }
+    }
+
+    private function atomicWrite(string $path, string $contents): void
+    {
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, $contents) === false || !rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new RuntimeException('Unable to write execution contract artifact: ' . $path);
+        }
     }
 
     private function actor(string $actor): string
@@ -420,36 +430,13 @@ final readonly class ExecutionContractStore
 
     private function nullableTrim(?string $value): ?string
     {
-        if ($value === null) {
-            return null;
-        }
-        $value = trim($value);
+        $value = $value === null ? null : trim($value);
 
         return $value === '' ? null : $value;
     }
 
     private function now(): string
     {
-        return (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
-    }
-
-    private function makeDirectory(string $path): void
-    {
-        if (!is_dir($path) && !mkdir($path, 0777, true) && !is_dir($path)) {
-            throw new RuntimeException('Unable to create execution contract directory: ' . $path);
-        }
-    }
-
-    private function atomicWrite(string $path, string $contents): void
-    {
-        $this->makeDirectory(dirname($path));
-        $temporary = $path . '.tmp-' . bin2hex(random_bytes(6));
-        if (file_put_contents($temporary, $contents) === false) {
-            throw new RuntimeException('Unable to write temporary execution contract artifact: ' . $temporary);
-        }
-        if (!rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new RuntimeException('Unable to atomically publish execution contract artifact: ' . $path);
-        }
+        return (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
     }
 }
