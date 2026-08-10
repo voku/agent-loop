@@ -9,7 +9,10 @@ use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidence;
@@ -18,9 +21,9 @@ use voku\AgentSession\ValidationEvidenceStore;
 /**
  * Read-only projection of the artifacts that make a governed task auditable.
  *
- * Durable Contract state is independent from Session working memory. Changed
- * files are deliberately supplied by the caller so the report remains a
- * deterministic projection and never silently makes a worktree authoritative.
+ * Durable Contract, Run, Verification and Learning state remain readable when
+ * Session working memory has been pruned. Changed files are supplied by the
+ * caller so this command never silently promotes a worktree to authority.
  */
 final readonly class WorkflowReportCommand
 {
@@ -44,12 +47,12 @@ final readonly class WorkflowReportCommand
             $this->printText($report);
 
             return 0;
-        } catch (InvalidArgumentException $e) {
-            fwrite(STDERR, '[FAIL] workflow report: ' . $e->getMessage() . "\n");
+        } catch (InvalidArgumentException $exception) {
+            fwrite(STDERR, '[FAIL] workflow report: ' . $exception->getMessage() . "\n");
 
             return 1;
-        } catch (Throwable $e) {
-            fwrite(STDERR, '[FAIL] workflow report: ' . $e->getMessage() . "\n");
+        } catch (Throwable $exception) {
+            fwrite(STDERR, '[FAIL] workflow report: ' . $exception->getMessage() . "\n");
 
             return 1;
         }
@@ -65,16 +68,16 @@ final readonly class WorkflowReportCommand
         $learningRoot = null;
         $changedFiles = [];
 
-        for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
-            $token = $tokens[$i];
+        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
+            $token = $tokens[$index];
             if (!in_array($token, ['--format', '--learning-root', '--changed-file'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
-            if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
+            if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
                 throw new InvalidArgumentException($token . ' requires a value.');
             }
 
-            $value = trim($tokens[++$i]);
+            $value = trim($tokens[++$index]);
             if ($value === '') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
@@ -108,11 +111,11 @@ final readonly class WorkflowReportCommand
         $activeSessions = array_values(array_filter($sessions, static fn (Session $session): bool => !$session->status->isClosed()));
         $session = $this->reportSession($sessions, $activeSessions);
         $contract = (new TaskContractStore($this->rootPath))->find($taskId);
-        $contractReport = $this->contractReport($contract);
 
         return [
-            'schema_version' => '1.1',
+            'schema_version' => '2.0',
             'task_id' => $taskId,
+            'run_id' => (new GovernedRunStore($this->rootPath))->find($taskId)?->runId,
             'session' => [
                 'count' => count($sessions),
                 'active_count' => count($activeSessions),
@@ -120,15 +123,13 @@ final readonly class WorkflowReportCommand
                 'id' => $session['session']?->id,
                 'path' => $session['session'] === null ? null : $this->relativePath($session['session']->path),
             ],
-            'contract' => $contractReport,
-            // Transitional read compatibility for WorkflowContextCommand and older
-            // consumers. This is the same projection, not a second authority.
-            'work_brief' => $contractReport,
+            'contract' => $this->contractReport($contract),
             'scope' => $this->scopeReport($contract, $changedFiles),
-            'validation' => $this->validationReport($contract, $session['session']),
+            'validation' => $this->validationReport($taskId, $contract, $session['session']),
+            'verification' => $this->verificationReport($taskId),
             'recall' => $this->recallReport($taskId, $learningRoot),
             'review' => $this->reviewReport($taskId),
-            'learning' => $this->learningReport($taskId, $learningRoot, $session['session']),
+            'learning' => $this->learningReport($taskId, $learningRoot),
             'accepted_risk' => $this->acceptedRiskReport($taskId),
         ];
     }
@@ -237,31 +238,97 @@ final readonly class WorkflowReportCommand
     }
 
     /**
-     * @return list<array{command: string, work_brief_revision: int, status: 'passed'|'failed'|'stale'|'missing', exit_code: int|null, duration_ms: int|null, executed_at: string|null}>
+     * @return list<array{command: string, contract_revision: int, status: 'passed'|'failed'|'stale'|'missing', exit_code: int|null, duration_ms: int|null, executed_at: string|null, source: 'session'|'verification_receipt'}>
      */
-    private function validationReport(?TaskContract $contract, ?Session $session): array
+    private function validationReport(string $taskId, ?TaskContract $contract, ?Session $session): array
     {
         if ($contract === null) {
             return [];
         }
 
         $evidence = $session === null ? [] : (new ValidationEvidenceStore())->all($session);
+        $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId);
         $result = [];
         foreach ($contract->validation as $command) {
-            $exact = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->workBriefRevision === $contract->revision && $item->command === $command));
-            $historical = array_values(array_filter($evidence, static fn (ValidationEvidence $item): bool => $item->command === $command));
+            $exact = array_values(array_filter(
+                $evidence,
+                static fn (ValidationEvidence $item): bool => $item->contractRevision === $contract->revision && $item->command === $command,
+            ));
+            $historical = array_values(array_filter(
+                $evidence,
+                static fn (ValidationEvidence $item): bool => $item->command === $command,
+            ));
             $latest = $exact === [] ? null : $exact[count($exact) - 1];
+            if ($latest !== null) {
+                $result[] = [
+                    'command' => $command,
+                    'contract_revision' => $contract->revision,
+                    'status' => $latest->status->value,
+                    'exit_code' => $latest->exitCode,
+                    'duration_ms' => $latest->durationMs,
+                    'executed_at' => $latest->executedAt,
+                    'source' => 'session',
+                ];
+                continue;
+            }
+
+            $receiptObligation = null;
+            if ($receipt !== null && $receipt->contractRevision === $contract->revision) {
+                foreach ($receipt->obligations as $obligation) {
+                    if (($obligation['command'] ?? null) === $command) {
+                        $receiptObligation = $obligation;
+                        break;
+                    }
+                }
+            }
+            if (is_array($receiptObligation)) {
+                $status = ($receiptObligation['status'] ?? null) === 'passed' ? 'passed' : 'failed';
+                $result[] = [
+                    'command' => $command,
+                    'contract_revision' => $contract->revision,
+                    'status' => $status,
+                    'exit_code' => is_int($receiptObligation['exit_code'] ?? null) ? $receiptObligation['exit_code'] : null,
+                    'duration_ms' => is_int($receiptObligation['duration_ms'] ?? null) ? $receiptObligation['duration_ms'] : null,
+                    'executed_at' => is_string($receiptObligation['executed_at'] ?? null) ? $receiptObligation['executed_at'] : null,
+                    'source' => 'verification_receipt',
+                ];
+                continue;
+            }
+
             $result[] = [
                 'command' => $command,
-                'work_brief_revision' => $contract->revision,
-                'status' => $latest === null ? ($historical === [] ? 'missing' : 'stale') : $latest->status->value,
-                'exit_code' => $latest?->exitCode,
-                'duration_ms' => $latest?->durationMs,
-                'executed_at' => $latest?->executedAt,
+                'contract_revision' => $contract->revision,
+                'status' => $historical === [] ? 'missing' : 'stale',
+                'exit_code' => null,
+                'duration_ms' => null,
+                'executed_at' => null,
+                'source' => 'session',
             ];
         }
 
         return $result;
+    }
+
+    /** @return array{status: string, path: string, run_id: string|null, contract_revision: int|null} */
+    private function verificationReport(string $taskId): array
+    {
+        $store = new RunVerificationReceiptStore($this->rootPath);
+        $receipt = $store->find($taskId);
+        if ($receipt === null) {
+            return [
+                'status' => 'missing',
+                'path' => $this->relativePath($store->path($taskId)),
+                'run_id' => null,
+                'contract_revision' => null,
+            ];
+        }
+
+        return [
+            'status' => $receipt->verdict,
+            'path' => $this->relativePath($receipt->path),
+            'run_id' => $receipt->runId,
+            'contract_revision' => $receipt->contractRevision,
+        ];
     }
 
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
@@ -302,13 +369,22 @@ final readonly class WorkflowReportCommand
         return [...$reader->read($taskId), 'path' => $reader->relativePath($taskId)];
     }
 
-    /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int, decision: string|null} */
-    private function learningReport(string $taskId, ?string $learningRoot, ?Session $session): array
+    /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int, decision: string|null, run_id: string|null} */
+    private function learningReport(string $taskId, ?string $learningRoot): array
     {
-        $decision = $session === null ? null : (new \voku\AgentSession\LearningDecisionStore())->find($session)?->decision->value;
         $root = $this->resolveLearningRoot($learningRoot);
+        $run = (new GovernedRunStore($this->rootPath))->find($taskId);
+        $decision = $root === null || $run === null ? null : (new RunLearningDecisionStore($root))->find($run->runId);
         if ($root === null) {
-            return ['status' => 'unavailable', 'root' => null, 'findings' => 0, 'proposals' => 0, 'outcomes' => 0, 'decision' => $decision];
+            return [
+                'status' => 'unavailable',
+                'root' => null,
+                'findings' => 0,
+                'proposals' => 0,
+                'outcomes' => 0,
+                'decision' => null,
+                'run_id' => $run?->runId,
+            ];
         }
 
         try {
@@ -330,10 +406,19 @@ final readonly class WorkflowReportCommand
                 'findings' => count($findings),
                 'proposals' => count($proposals),
                 'outcomes' => count($outcomes),
-                'decision' => $decision,
+                'decision' => $decision?->decision->value,
+                'run_id' => $run?->runId,
             ];
         } catch (RuntimeException) {
-            return ['status' => 'invalid', 'root' => $this->relativePath($root), 'findings' => 0, 'proposals' => 0, 'outcomes' => 0, 'decision' => $decision];
+            return [
+                'status' => 'invalid',
+                'root' => $this->relativePath($root),
+                'findings' => 0,
+                'proposals' => 0,
+                'outcomes' => 0,
+                'decision' => $decision?->decision->value,
+                'run_id' => $run?->runId,
+            ];
         }
     }
 
@@ -406,6 +491,7 @@ final readonly class WorkflowReportCommand
     private function printText(array $report): void
     {
         echo 'Workflow report: ' . $report['task_id'] . "\n\n";
+        echo 'Run: ' . ($report['run_id'] ?? 'missing') . "\n";
 
         $session = $report['session'];
         echo sprintf("Session: %s (%d total, %d active)\n", $session['status'], $session['count'], $session['active_count']);
@@ -436,19 +522,21 @@ final readonly class WorkflowReportCommand
             echo "  - no Contract validation commands\n";
         }
         foreach ($report['validation'] as $validation) {
-            echo '  - [' . $validation['status'] . '] ' . $validation['command'];
+            echo '  - [' . $validation['status'] . '] ' . $validation['command'] . ' via ' . $validation['source'];
             if ($validation['executed_at'] !== null) {
                 echo ' (exit ' . $validation['exit_code'] . ', executed ' . $validation['executed_at'] . ')';
             }
             echo "\n";
         }
 
+        $verification = $report['verification'];
+        echo 'Verification receipt: ' . $verification['status'] . "\n";
         $recall = $report['recall'];
         echo sprintf("Recall: %s, outcome draft %s, %d logged outcome(s)\n", $recall['status'], $recall['outcome_draft'] ? 'present' : 'missing', $recall['logged_outcomes']);
         $review = $report['review'];
         echo 'Review: ' . ($review['exists'] ? ($review['invalid'] ? 'invalid' : $review['status']) : 'missing') . "\n";
         $learning = $report['learning'];
-        echo sprintf("Learning: %s, %d finding(s), %d proposal(s), %d outcome(s), decision %s\n", $learning['status'], $learning['findings'], $learning['proposals'], $learning['outcomes'], $learning['decision'] ?? 'missing');
+        echo sprintf("Learning: %s, %d finding(s), %d proposal(s), %d outcome(s), Run decision %s\n", $learning['status'], $learning['findings'], $learning['proposals'], $learning['outcomes'], $learning['decision'] ?? 'missing');
         $risk = $report['accepted_risk'];
         echo 'Accepted risk: ' . ($risk['recorded'] ? 'recorded at ' . $risk['path'] : 'none') . "\n";
     }
