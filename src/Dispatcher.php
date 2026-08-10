@@ -19,22 +19,8 @@ use voku\AgentSession\SessionStore;
 /**
  * Unified entrypoint for the governed agentic-coding loop.
  *
- * Routes the first CLI argument to the matching library:
- *  - `board`  -> voku/agent-kanban (CliApplication)
- *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
- *  - `workflow` -> voku/agent-loop (plan/approve/start/status/report/close orchestration)
- *  - `map` -> voku/agent-map (PHP repository symbol map)
- *  - `edit` -> voku/agent-loop (target-aware map + recall + runner orchestration)
- *  - `board:verify` -> voku/agent-kanban (CliApplication `verify`; kanban board source only)
- *  - `learn`  -> voku/agent-learning (Cli)
- *  - `recall` -> voku/agent-recall-compiler (Cli)
- *  - `session` -> voku/agent-session (Cli)
- *  - `memory` -> voku/agent-loop (MemoryPromotionAnalyzer)
- *  - `review` -> voku/agent-recall-compiler (review reports and L2 prompts)
- *
- * Each delegated library CLI expects the script name at argv[0] and its own
- * command at argv[1], so those namespaces are re-prefixed before delegation.
- * Workflow orchestration itself uses focused-package PHP APIs where they exist.
+ * Routes the first CLI argument to the matching library while keeping the
+ * real project/source root separate from optional compact workflow state.
  */
 final class Dispatcher
 {
@@ -58,10 +44,10 @@ final class Dispatcher
 
         return match ($namespace) {
             'edit' => (new EditCommand($this->rootPath))->run($rest),
-            'board' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, $rest)),
-            'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
-            'board:verify' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, ['verify'])),
-            'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
+            'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
+            'verify' => $this->dispatchVerify($scriptName, $rest),
+            'board:verify' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
+            'learn' => $this->dispatchLearn($scriptName, $rest),
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
             'workflow' => $this->dispatchWorkflow($scriptName, $rest),
@@ -75,10 +61,54 @@ final class Dispatcher
         };
     }
 
+    /** @param list<string> $rest */
+    private function dispatchVerify(string $scriptName, array $rest): int
+    {
+        $layout = $this->layout();
+        if (!$layout->isCompact()) {
+            return (new AgentLoopVerifier($this->rootPath))->run($rest);
+        }
+
+        $resolved = $rest;
+        foreach ([
+            'tasks-root' => $layout->tasksRoot(),
+            'sessions-root' => $layout->sessionsRoot(),
+            'learning-root' => $layout->learningRoot(),
+        ] as $name => $path) {
+            if (is_string($path) && !$this->hasOption($resolved, $name)) {
+                $resolved[] = '--' . $name . '=' . $path;
+            }
+        }
+
+        $exit = (new AgentLoopVerifier($this->rootPath))->run($resolved);
+        $boardRoot = $layout->boardRoot();
+        if (!$this->hasBoard($boardRoot)) {
+            return $exit;
+        }
+
+        $boardExit = (new CliApplication($boardRoot))->run($this->subArgv($scriptName, ['verify']));
+
+        return $exit === 0 && $boardExit === 0 ? 0 : 1;
+    }
+
+    /** @param list<string> $rest */
+    private function dispatchLearn(string $scriptName, array $rest): int
+    {
+        if ($this->layout()->isCompact() && !in_array($rest[0] ?? 'help', ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
+            $root = $this->layout()->learningRoot();
+            if (is_string($root)) {
+                $rest[] = '--root';
+                $rest[] = $root;
+            }
+        }
+
+        return (new LearningCli())->run($this->subArgv($scriptName, $rest));
+    }
+
     /**
-     * Resolves `session record|checkpoint|close|claim|show <id>` and
-     * `session brief <action> <id>`, then delegates to voku/agent-session,
-     * unless task-id resolution reports an ambiguous match.
+     * Resolves task IDs accepted as ergonomic aliases by session commands to
+     * the one active generated session id, then injects the compact root when
+     * the caller did not choose one explicitly.
      *
      * @param list<string> $rest
      */
@@ -87,6 +117,11 @@ final class Dispatcher
         $resolved = $this->resolveSessionArgv($rest);
         if ($resolved === null) {
             return 1;
+        }
+
+        if ($this->layout()->isCompact() && !$this->hasOption($resolved, 'root')) {
+            $resolved[] = '--root';
+            $resolved[] = $this->layout()->sessionsRoot();
         }
 
         return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
@@ -102,10 +137,8 @@ final class Dispatcher
     }
 
     /**
-     * Delegates review commands to voku/agent-recall-compiler, where the L2
-     * prompt/review feature lives. When the caller does not pass --output-dir,
-     * use the same resolved recall root as `recall compile` so the standard
-     * workflow stays: recall compile -> review blindspots/code.
+     * Delegates review commands to voku/agent-recall-compiler. When the caller
+     * does not pass --output-dir, use the same resolved recall root as compile.
      *
      * @param list<string> $rest
      */
@@ -114,13 +147,7 @@ final class Dispatcher
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
     }
 
-    /**
-     * Delegates repository symbol-map commands to voku/agent-map while
-     * preserving agent-loop's root path for programmatic hosts. Callers can
-     * still override every default with normal agent-map options.
-     *
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
     private function dispatchMap(string $scriptName, array $rest): int
     {
         return (new AgentMapApplication())->run($this->subArgv($scriptName, $this->resolveMapArgv($rest)));
@@ -128,7 +155,6 @@ final class Dispatcher
 
     /**
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveMapArgv(array $rest): array
@@ -169,12 +195,11 @@ final class Dispatcher
 
     private function defaultMapIndex(): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+        return $this->layout()->mapIndex();
     }
 
     /**
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveReviewArgv(array $rest): array
@@ -199,11 +224,6 @@ final class Dispatcher
     }
 
     /**
-     * Delegates to voku/agent-recall-compiler, then -- only for a successful
-     * `recall compile` -- appends a note that the compiled artifacts are
-     * written for review or harness ingestion, not consumed automatically by
-     * anything in this stack.
-     *
      * @param list<string> $rest
      */
     private function dispatchRecall(string $scriptName, array $rest): int
@@ -223,7 +243,6 @@ final class Dispatcher
      * the one active generated session id. Explicit session ids pass through.
      *
      * @param list<string> $rest
-     *
      * @return list<string>|null
      */
     private function resolveSessionArgv(array $rest): ?array
@@ -244,7 +263,7 @@ final class Dispatcher
             return $rest;
         }
 
-        $sessionRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        $sessionRoot = $this->layout()->sessionsRoot();
         if (!is_dir($sessionRoot)) {
             return $rest;
         }
@@ -284,16 +303,24 @@ final class Dispatcher
     }
 
     /**
-     * Defaults `recall compile --task <id>` to `--output-dir <recall-root>/<id>`
-     * when the caller didn't pass one.
+     * Defaults recall commands to the compact learning root and compile output
+     * to <recall-root>/<task-id> when those options were not supplied.
      *
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveRecallArgv(array $rest): array
     {
-        if (($rest[0] ?? null) !== 'compile') {
+        $command = $rest[0] ?? null;
+        if ($this->layout()->isCompact() && in_array($command, ['compile', 'log-outcome'], true) && !$this->hasOption($rest, 'root')) {
+            $learningRoot = $this->layout()->learningRoot();
+            if (is_string($learningRoot)) {
+                $rest[] = '--root';
+                $rest[] = $learningRoot;
+            }
+        }
+
+        if ($command !== 'compile') {
             return $rest;
         }
 
@@ -307,15 +334,24 @@ final class Dispatcher
             }
 
             $name = substr($token, 2);
+            if (str_contains($name, '=')) {
+                [$name, $inlineValue] = explode('=', $name, 2);
+                if ($name === 'output-dir') {
+                    return $rest;
+                }
+                if ($name === 'task' && $inlineValue !== '') {
+                    $taskId = $inlineValue;
+                }
+                continue;
+            }
+
             $hasValue = $i + 1 < $count && !str_starts_with($rest[$i + 1], '--');
             if ($name === 'output-dir') {
                 return $rest;
             }
-
             if ($name === 'task' && $hasValue) {
                 $taskId = $rest[$i + 1];
             }
-
             if ($hasValue) {
                 ++$i;
             }
@@ -328,14 +364,25 @@ final class Dispatcher
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
-    /**
-     * @param list<string> $rest
-     *
-     * @return list<string>
-     */
+    /** @param list<string> $rest */
     private function subArgv(string $scriptName, array $rest): array
     {
         return array_merge([$scriptName], $rest);
+    }
+
+    private function hasBoard(string $boardRoot): bool
+    {
+        $todo = rtrim($boardRoot, '/') . '/todo';
+
+        return is_file($todo . '/board.md')
+            || is_file($todo . '/kanban.config.json')
+            || (glob($todo . '/cards/*.md') ?: []) !== []
+            || (glob($todo . '/jira/*.md') ?: []) !== [];
+    }
+
+    private function layout(): ProjectLayout
+    {
+        return new ProjectLayout($this->rootPath);
     }
 
     private function printUsage(int $exitCode, string $unknownNamespace = ''): int
@@ -383,6 +430,10 @@ final class Dispatcher
                   Deterministic review helpers from voku/agent-recall-compiler.
           init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
           help    Show this help.
+
+        Repository layout:
+          Add `"layout": "compact"` to `.agent-loop/init.json` to keep workflow
+          state below `.agent-loop/`; the project/source root remains unchanged.
 
         Run a namespace with `help` for its own command list, e.g.:
           agent-loop edit help
