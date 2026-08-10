@@ -8,8 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Workflow\ExecutionContractStatus;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
-use voku\AgentSession\Session;
-use voku\AgentSession\SessionStore;
+use voku\AgentLoop\Workflow\TaskContractStore;
 
 final class ExecutionContractStoreTest extends TestCase
 {
@@ -30,7 +29,7 @@ final class ExecutionContractStoreTest extends TestCase
         }
     }
 
-    public function testReadyContractIsBoundToCurrentBriefRecallAndPromptSemantics(): void
+    public function testReadyContractIsBoundToCurrentContractRecallAndPromptSemantics(): void
     {
         $root = $this->root('ready');
 
@@ -49,7 +48,8 @@ final class ExecutionContractStoreTest extends TestCase
                 512,
                 JSON_THROW_ON_ERROR,
             );
-            self::assertSame(1, $metadata['work_brief_revision']);
+            self::assertSame(1, $metadata['contract_revision']);
+            self::assertArrayNotHasKey('work_brief_revision', $metadata);
             self::assertSame(str_repeat('a', 64), $metadata['recall_bundle_sha256']);
             self::assertSame(['coverage-mutation'], $metadata['prompt_ids']);
             self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $metadata['prompt_policy_sha256']);
@@ -96,7 +96,7 @@ final class ExecutionContractStoreTest extends TestCase
                 'Required mutation command is unavailable.',
                 ['composer.json has no mutation script', 'infection config is absent'],
                 'Verification',
-                'Approve a WorkBrief revision that removes or replaces the mutation requirement.',
+                'Revise the durable Contract to remove or replace the mutation requirement.',
             );
 
             $blocked = $store->inspect('TASK-4');
@@ -148,35 +148,25 @@ final class ExecutionContractStoreTest extends TestCase
         }
     }
 
-    private function fixture(string $root, string $taskId, int $level): Session
+    private function fixture(string $root, string $taskId, int $level): void
     {
-        $session = (new SessionStore())->create($root . '/session_plan', $taskId, by: 'lars');
-        file_put_contents($session->path . '/work-brief.json', json_encode([
-            'schema_version' => '1.0',
-            'task_id' => $taskId,
-            'goal' => 'Harden the parser.',
-            'scope' => ['src/Parser.php'],
-            'non_goals' => [],
-            'validation' => ['composer ci'],
-            'tags' => [],
-            'behavior_anchors' => [],
-            'operating_prompt_manifest' => 'skills/operational-prompting/operating-prompts.json',
-            'operating_prompts' => [[
+        $contracts = new TaskContractStore($root);
+        $contracts->create(
+            $taskId,
+            'Harden the parser.',
+            ['src/Parser.php'],
+            [],
+            ['composer ci'],
+            'lars',
+            tags: [],
+            behaviorAnchors: [],
+            operatingPromptManifest: 'skills/operational-prompting/operating-prompts.json',
+            operatingPrompts: [[
                 'id' => 'coverage-mutation',
                 'arguments' => ['minimum_percentage_points' => 10, 'mutation_command' => 'vendor/bin/infection'],
             ]],
-            'status' => 'approved',
-            'revision' => 1,
-            'created_at' => '2026-08-09T00:00:00+00:00',
-            'updated_at' => '2026-08-09T00:00:00+00:00',
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-        file_put_contents($session->path . '/approval.json', json_encode([
-            'schema_version' => '1.0',
-            'task_id' => $taskId,
-            'work_brief_revision' => 1,
-            'approved_by' => 'lars',
-            'approved_at' => '2026-08-09T00:00:01+00:00',
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        );
+        $contracts->approve($taskId, 'lars');
 
         $recall = $root . '/recall/' . $taskId;
         mkdir($recall, 0777, true);
@@ -186,7 +176,7 @@ final class ExecutionContractStoreTest extends TestCase
             'facts' => [[
                 'id' => 'operating-prompt.coverage-mutation',
                 'type' => 'operating_prompt',
-                'authority' => 'approved_session_brief',
+                'authority' => 'approved_contract',
                 'source_ref' => 'skills/operational-prompting/operating-prompts.json#coverage-mutation',
                 'scope' => ['src/Parser.php'],
                 'payload' => [
@@ -201,8 +191,6 @@ final class ExecutionContractStoreTest extends TestCase
                 ],
             ]],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-
-        return $session;
     }
 
     private function contract(): string
