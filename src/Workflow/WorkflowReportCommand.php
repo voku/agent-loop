@@ -209,7 +209,7 @@ final readonly class WorkflowReportCommand
      */
     private function scopeReport(?TaskContract $contract, array $changedFiles): array
     {
-        $scope = $contract?->scope ?? [];
+        $scope = $contract === null ? [] : $contract->scope;
         $outside = array_values(array_filter(
             $changedFiles,
             static fn (string $file): bool => !self::inScope($file, $scope),
