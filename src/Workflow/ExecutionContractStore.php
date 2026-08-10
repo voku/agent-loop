@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RelativePath;
@@ -334,7 +335,7 @@ final readonly class ExecutionContractStore
 
     private function activeSession(string $taskId): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
