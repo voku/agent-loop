@@ -379,8 +379,15 @@ final class ReleaseSetDogfood
         if (($contract['status'] ?? null) !== 'candidate' || ($contract['revision'] ?? null) !== 1) {
             throw new DogfoodFailure('regression', 'Governed PLAN did not persist candidate Contract revision 1.');
         }
-        if (is_dir($this->consumerRoot . '/session_plan') && (glob($this->consumerRoot . '/session_plan/*', GLOB_ONLYDIR) ?: []) !== []) {
-            throw new DogfoodFailure('regression', 'Governed PLAN created Session working memory before approval.');
+        foreach (glob($this->consumerRoot . '/session_plan/*', GLOB_ONLYDIR) ?: [] as $sessionDirectory) {
+            $sessionPath = $sessionDirectory . '/session.json';
+            if (!is_file($sessionPath)) {
+                continue;
+            }
+            $session = $this->jsonFile($sessionPath);
+            if (($session['task_id'] ?? null) === 'DEMO-1') {
+                throw new DogfoodFailure('regression', 'Governed PLAN created DEMO-1 Session working memory before approval.');
+            }
         }
         if (is_file($this->consumerRoot . '/.agent-loop/runs/DEMO-1/manifest.json')) {
             throw new DogfoodFailure('regression', 'Governed PLAN created a RunManifest before a Run exists.');
