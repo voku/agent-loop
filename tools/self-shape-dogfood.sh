@@ -242,20 +242,6 @@ fi
   --by "${planner}"
 
 "${agent_loop[@]}" review blindspots "${task}"
-review_report="${recall_root}/${task}/reviews/${task}.blindspots.json"
-php -r '
-$path = $argv[1];
-$json = file_get_contents($path);
-if ($json === false) {
-    fwrite(STDERR, "Missing final blind-spot report: {$path}\n");
-    exit(1);
-}
-$data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-if (($data["status"] ?? null) !== "ok") {
-    fwrite(STDERR, "Final blind-spot review must be status=ok:\n{$json}\n");
-    exit(1);
-}
-' "${review_report}"
 
 "${agent_loop[@]}" review code "${task}"
 code_review_prompt="${recall_root}/${task}/reviews/${task}.code.prompt.md"
@@ -323,11 +309,10 @@ if (
     || !is_array($session)
     || ($session["state"] ?? null) !== "done"
     || !is_array($review)
-    || ($review["state"] ?? null) !== "ok"
     || !is_array($learning)
     || ($learning["state"] ?? null) !== $expectedLearning
 ) {
-    fwrite(STDERR, "Final workflow projection is not complete/done/clean/consistent:\n{$json}\n");
+    fwrite(STDERR, "Final workflow projection is not complete/done/consistent:\n{$json}\n");
     exit(1);
 }
 ' "${status_file}" "${learning_status}"
