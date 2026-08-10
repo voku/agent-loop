@@ -7,14 +7,15 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLearning\RunLearningDecisionStatus;
+use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentLoop\Workflow\WorkflowReportCommand;
-use voku\AgentSession\LearningDecision;
-use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
@@ -64,6 +65,8 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         $sessionList = $sessions->all($this->root . '/session_plan');
         self::assertCount(1, $sessionList);
         $session = $sessionList[0];
+        $run = (new GovernedRunStore($this->root))->find('ABC-123');
+        self::assertNotNull($run);
 
         (new ValidationEvidenceStore())->record(
             $session,
@@ -74,7 +77,12 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             12,
             'lars',
         );
-        (new LearningDecisionStore())->decide($session, LearningDecision::NO_DURABLE_LEARNING, 'lars');
+        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+            $run->runId,
+            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
+            'lars',
+            'No durable learning emerged from this regression proof.',
+        );
         mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
             $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
@@ -83,14 +91,14 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
 
         $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
         ob_start();
-        self::assertSame(0, $cli->run(['close', 'ABC-123', '--status', 'done']));
+        self::assertSame(0, $cli->run(['close', 'ABC-123', '--status', 'done', '--learning-root', $this->root . '/learning-root']));
         ob_end_clean();
 
         $storedBeforePrune = (new RunManifestStore($this->root))->read('ABC-123');
         self::assertNotNull($storedBeforePrune);
         self::assertSame('complete', $storedBeforePrune['state'] ?? null);
-        $runId = $storedBeforePrune['run_id'] ?? null;
-        self::assertIsString($runId);
+        self::assertSame($run->runId, $storedBeforePrune['run_id'] ?? null);
+        self::assertFileExists($this->root . '/.agent-loop/runs/ABC-123/verification.json');
 
         self::assertSame(
             [$session->id],
@@ -102,18 +110,22 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         self::assertSame('approved', $contract->status);
         self::assertSame('lars', $contract->approvedBy);
 
-        $report = (new WorkflowReportCommand($this->root))->buildReport('ABC-123');
+        $report = (new WorkflowReportCommand($this->root))->buildReport('ABC-123', $this->root . '/learning-root');
         self::assertSame('missing', $report['session']['status'] ?? null);
         self::assertSame('approved', $report['contract']['status'] ?? null);
         self::assertSame('Prove governed close survives Session pruning.', $report['contract']['goal'] ?? null);
+        self::assertSame('passed', $report['validation'][0]['status'] ?? null);
+        self::assertSame('verification_receipt', $report['validation'][0]['source'] ?? null);
+        self::assertSame('no_durable_learning', $report['learning']['decision'] ?? null);
 
         $projected = (new RunManifestProjector($this->root))->project('ABC-123');
-        self::assertSame($runId, $projected->runId, 'Pruning working memory must not change Run identity.');
+        self::assertSame($run->runId, $projected->runId, 'Pruning working memory must not change Run identity.');
         self::assertSame('complete', $projected->state, 'A completed Run must remain explainably complete after Session pruning.');
         self::assertSame('none', $projected->nextAction);
         self::assertSame('current', $projected->references['approval']['state'] ?? null);
         self::assertSame('passed', $projected->references['verification']['state'] ?? null);
         self::assertSame('decided', $projected->references['learning']['state'] ?? null);
+        self::assertSame('missing', $projected->references['session']['state'] ?? null);
     }
 
     private function writeRecallMeta(): void
@@ -127,6 +139,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
                 'compilation_id' => 'ABC-123-prune-proof',
                 'selected_guidance' => [],
                 'selected_constraints' => [],
+                'output_hashes' => [],
             ], JSON_THROW_ON_ERROR),
         );
     }
