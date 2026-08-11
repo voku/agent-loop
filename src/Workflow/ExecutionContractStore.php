@@ -259,7 +259,7 @@ final readonly class ExecutionContractStore
             if (!is_array($payload)) {
                 continue;
             }
-            $id = $payload['id'] ?? null;
+            $id = $payload['prompt_id'] ?? null;
             $level = $payload['level'] ?? null;
             if (!is_string($id) || !is_int($level)) {
                 continue;
