@@ -247,7 +247,7 @@ final class InitCliTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.agent-loop/init.json');
         $config = json_decode((string) file_get_contents($this->root . '/.agent-loop/init.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame('compact', $config['layout']);
+        self::assertArrayNotHasKey('layout', $config);
         self::assertFileExists($this->root . '/.agent-loop/todo/board.md');
         self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
@@ -311,19 +311,15 @@ final class InitCliTest extends TestCase
         self::assertSame(0, $close['exit'], $close['output']);
     }
 
-    public function testScaffoldCanExplicitlyKeepLegacyLayout(): void
+    public function testScaffoldRejectsRemovedLegacyLayoutOption(): void
     {
         $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--layout=legacy']);
 
-        self::assertSame(0, $result['exit'], $result['output']);
-        $config = json_decode((string) file_get_contents($this->root . '/.agent-loop/init.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame('legacy', $config['layout']);
-        self::assertFileExists($this->root . '/todo/board.md');
-        self::assertFileExists($this->root . '/todo/cards/DEMO-1.md');
-        self::assertFileExists($this->root . '/tasks/DEMO-1.md');
-        self::assertDirectoryExists($this->root . '/session_plan');
-        self::assertDirectoryExists($this->root . '/infra/doc/agent-learning/findings');
-        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/todo');
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString('supported option is --dry-run', $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+        self::assertDirectoryDoesNotExist($this->root . '/todo');
+        self::assertDirectoryDoesNotExist($this->root . '/session_plan');
     }
 
     public function testScaffoldDryRunDoesNotWrite(): void
