@@ -1,9 +1,9 @@
 # Your first governed task
 
 This is the shortest supported path from an installed `agent-loop` to one
-reviewable task. The default repository layout is intentionally boring: local
-agent workflow state lives below one `.agent-loop/` directory instead of
-spreading package-specific directories across the project root.
+reviewable task. Repository-local agent workflow state lives below one
+`.agent-loop/` directory instead of spreading package-specific directories
+across the project root.
 
 ## 1. Bootstrap the repository
 
@@ -13,7 +13,7 @@ Run this from the root of an existing Composer project:
 vendor/bin/agent-loop init scaffold
 ```
 
-The default scaffold creates the compact layout:
+The scaffold creates the canonical layout:
 
 ```text
 .agent-loop/
@@ -34,15 +34,11 @@ Recall output, map indexes, run manifests, and edit bundles are created below
 `.agent-loop/edit` when those capabilities are used.
 
 Existing files are left untouched. Use `--dry-run` to inspect the scaffold
-without writing anything.
+without writing anything. There is no layout switch: `.agent-loop/` is the
+workflow-state root.
 
-`compact` is now the default even when `.agent-loop/init.json` does not contain
-a `layout` field. `--layout=compact` is therefore optional. `--layout=legacy`
-exists only for repositories that intentionally keep the historical top-level
-paths.
-
-For package/library repositories, this also means local workflow state can be
-kept out of Composer/Git archives with one rule:
+For package/library repositories, local workflow state can be kept out of
+Composer/Git archives with one rule:
 
 ```gitattributes
 /.agent-loop export-ignore
@@ -65,8 +61,8 @@ vendor/bin/agent-loop board card create PROJECT-1 \
   --status=Selected
 ```
 
-The board command now resolves `.agent-loop/todo/` by default. If the
-cross-package verifier should govern `PROJECT-1`, add the matching task file at
+The board command resolves `.agent-loop/todo/`. If the cross-package verifier
+should govern `PROJECT-1`, add the matching task file at
 `.agent-loop/tasks/PROJECT-1.md` with a top-level heading.
 
 ## 3. Plan, approve, and inspect context
@@ -137,7 +133,7 @@ execution boundary produced from the approved plan and selected guidance.
 ## 4. Use the map without another project-root directory
 
 For PHP projects, `agent-map` still scans the actual repository root. Only its
-generated state is compacted:
+generated state is stored below `.agent-loop/`:
 
 ```bash
 vendor/bin/agent-loop map build
@@ -145,8 +141,8 @@ vendor/bin/agent-loop map summary
 ```
 
 The defaults are `.agent-loop/map/php-symbols.json` and
-`.agent-loop/map/search.sqlite`; no `.agent-map/` directory is created unless
-you explicitly pass an old/custom path.
+`.agent-loop/map/search.sqlite`. Explicit agent-map path options remain
+available for genuinely custom locations.
 
 ## 5. Make and validate the change
 
@@ -194,18 +190,9 @@ reusable lesson.
 
 ## Upgrading an existing repository
 
-This default-path change is intentionally breaking. Existing state is **not**
-automatically copied, symlinked, or silently discovered from all historical
-locations. Either keep the old layout explicitly:
-
-```json
-{
-  "version": 1,
-  "layout": "legacy"
-}
-```
-
-or migrate repository-local state to the new canonical tree:
+This path change is intentionally breaking. Existing state is **not**
+automatically copied, symlinked, or discovered from historical locations.
+Migrate repository-local state once:
 
 ```text
 todo/                         -> .agent-loop/todo/
@@ -217,5 +204,5 @@ recall/                       -> .agent-loop/recall/
 ```
 
 After migration, run `vendor/bin/agent-loop verify` before deleting or ignoring
-the old directories. Explicit CLI path options continue to override all
-defaults.
+the old directories. Focused package CLI path options continue to allow
+explicit custom locations where needed.
