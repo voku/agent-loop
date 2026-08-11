@@ -18,7 +18,7 @@
     "php": "^8.3",
     "voku/agent-kanban": "0.2.*",
     "voku/agent-learning": "0.8.*",
-    "voku/agent-map": "^0.5.0",
+    "voku/agent-map": "^0.6.0",
     "voku/agent-recall-compiler": "^0.10.0",
     "voku/agent-session": "0.3.*"
   },
@@ -33,7 +33,6 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "voku\\AgentLoop\\PHPStan\\": "phpstan/",
       "voku\\AgentLoop\\Tests\\": "tests/"
     }
   },
