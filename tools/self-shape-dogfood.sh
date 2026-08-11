@@ -4,7 +4,7 @@ set -euo pipefail
 task='SELF-SHAPE'
 planner='agent-loop-self-shape'
 learning_root='infra/doc/agent-learning'
-recall_root="${learning_root}/recall-output"
+recall_root='.agent-loop/recall'
 base_ref="${GITHUB_BASE_REF:-main}"
 goal="${SELF_SHAPE_GOAL:-}"
 if [[ -z "${goal//[[:space:]]/}" ]]; then
