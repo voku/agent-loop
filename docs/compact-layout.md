@@ -1,14 +1,14 @@
 # Repository workflow-state layout
 
 `agent-loop` keeps repository-local workflow state below one `.agent-loop/`
-directory. This is the default layout.
+directory.
 
 The point is deliberately mundane: using several focused packages should not
 spray several unrelated-looking state directories across the repository root.
 The packages may have separate responsibilities; their local state still has
 one obvious home.
 
-## Default
+## Canonical layout
 
 For a new repository:
 
@@ -16,7 +16,7 @@ For a new repository:
 vendor/bin/agent-loop init scaffold
 ```
 
-This creates the compact state tree:
+This creates the workflow-state tree:
 
 ```text
 .agent-loop/
@@ -29,15 +29,6 @@ This creates the compact state tree:
   map/
   runs/
   edit/
-```
-
-`layout: compact` may still be written explicitly, but it is no longer needed:
-
-```json
-{
-  "version": 1,
-  "layout": "compact"
-}
 ```
 
 The directory is a **workflow-state root**, not the project root. PHP source,
@@ -53,8 +44,8 @@ including `board`, `session`, `recall`, `learn`, `map`, `verify`, `review`, and
 
 Older releases used several default paths such as `todo/`, `tasks/`,
 `session_plan/`, `infra/doc/agent-learning/`, `recall/`, and `.agent-map/`.
-Those locations are no longer the default and are not silently merged into the
-new state tree.
+Those locations are no longer auto-discovered or silently merged into the new
+state tree.
 
 The canonical mapping is:
 
@@ -68,25 +59,12 @@ recall/                       -> .agent-loop/recall/
 ```
 
 After moving existing state, run `agent-loop verify` before removing the old
-locations. Explicit CLI path options still override the defaults.
+locations. Focused package CLI options can still select a genuinely custom path
+explicitly.
 
-## Explicit legacy mode
-
-A repository that deliberately needs the historical paths can pin them:
-
-```json
-{
-  "version": 1,
-  "layout": "legacy"
-}
-```
-
-`legacy` is a compatibility mode. It is no longer what an absent `layout`
-field means.
-
-`agent-loop` does not automatically copy, symlink, or dual-write historical
-state. Doing so would hide ambiguous ownership and make a breaking migration
-look successful while two sources of truth quietly diverge.
+`agent-loop` does not automatically copy, symlink, dual-write, or maintain a
+legacy layout mode. Doing so would hide ambiguous ownership and leave two
+sources of truth quietly diverging.
 
 ## Host projections stay explicit
 
@@ -94,8 +72,8 @@ Client-specific projections such as `.codex/`, `.claude/`, `.agents/`, or
 `.github/agents/` are not workflow state. They are created only when their
 corresponding `init install-assets` / sync command is explicitly run.
 
-The default `.agent-loop/` layout does not create host projections merely
-because the repository uses `agent-loop`.
+Using `.agent-loop/` does not create host projections merely because the
+repository uses `agent-loop`.
 
 ## Library/package repositories
 
