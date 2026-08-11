@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use voku\AgentKanban\Cli\CliApplication;
-use voku\AgentLoop\ProjectLayout;
 
 /**
  * Creates the smallest local state needed for the governed workflow.
@@ -36,34 +35,17 @@ final readonly class InitScaffoldCommand
 
         $dryRun = $options['dryRun'];
         $root = rtrim($this->rootPath, '/');
-        $configPath = $root . '/.agent-loop/init.json';
-        $existingConfig = (new InitConfigLoader($root))->load('.agent-loop/init.json');
-        $layout = $options['layout'] ?? $existingConfig['layout'];
+        $stateRoot = $root . '/.agent-loop';
+        $configPath = $stateRoot . '/init.json';
+        $sessionsRoot = $stateRoot . '/sessions';
+        $learningRoot = $stateRoot . '/learning';
 
-        if (is_file($configPath) && $options['layout'] !== null && $existingConfig['layout'] !== $options['layout']) {
-            fwrite(
-                STDERR,
-                '[FAIL] init scaffold: existing .agent-loop/init.json uses layout '
-                . $existingConfig['layout']
-                . '; refusing to rewrite it as '
-                . $options['layout']
-                . ".\n",
-            );
-
-            return 1;
-        }
-
-        $this->ensureDirectory($root . '/.agent-loop', '.agent-loop', $dryRun);
+        $this->ensureDirectory($stateRoot, '.agent-loop', $dryRun);
         if (!is_file($configPath)) {
-            $config = "{\n  \"version\": 1,\n  \"layout\": \"{$layout}\"\n}\n";
-            $this->ensureFile($configPath, '.agent-loop/init.json', $config, $dryRun);
+            $this->ensureFile($configPath, '.agent-loop/init.json', "{\n  \"version\": 1\n}\n", $dryRun);
         } else {
             echo '[SKIP] .agent-loop/init.json already exists' . "\n";
         }
-
-        $stateRoot = $layout === 'compact' ? $root . '/.agent-loop' : $root;
-        $sessionsRoot = $layout === 'compact' ? $stateRoot . '/sessions' : $root . '/session_plan';
-        $learningRoot = $layout === 'compact' ? $stateRoot . '/learning' : $root . '/infra/doc/agent-learning';
 
         foreach ([
             [$stateRoot . '/todo/cards', $this->relative($root, $stateRoot . '/todo/cards')],
@@ -130,17 +112,7 @@ MD
             echo '[CREATE] ' . $cardDisplay . "\n";
         }
 
-        if (!$dryRun) {
-            $resolvedCompact = (new ProjectLayout($root))->isCompact();
-            $expectedCompact = $layout === 'compact';
-            if ($resolvedCompact !== $expectedCompact) {
-                fwrite(STDERR, "[FAIL] init scaffold: {$layout} layout config was not persisted correctly.\n");
-
-                return 1;
-            }
-        }
-
-        echo "\n[OK] init scaffold: minimal local workflow structure is ready ({$layout} layout).\n";
+        echo "\n[OK] init scaffold: minimal local workflow structure is ready.\n";
         echo "Next:\n";
         echo "  agent-loop board card show DEMO-1\n";
         echo "  agent-loop workflow plan DEMO-1 --by <actor> --file composer.json --goal \"Add a small validated change.\" --validation \"composer test\"\n";
@@ -150,12 +122,11 @@ MD
 
     /**
      * @param list<string> $tokens
-     * @return array{dryRun: bool, layout: 'legacy'|'compact'|null}
+     * @return array{dryRun: bool}
      */
     private function parse(array $tokens): array
     {
         $dryRun = false;
-        $layout = null;
 
         foreach ($tokens as $token) {
             if ($token === '--dry-run') {
@@ -163,23 +134,11 @@ MD
 
                 continue;
             }
-            if (str_starts_with($token, '--layout=')) {
-                $value = substr($token, strlen('--layout='));
-                if (!in_array($value, ['legacy', 'compact'], true)) {
-                    throw new \InvalidArgumentException('--layout must be legacy or compact.');
-                }
-                if ($layout !== null) {
-                    throw new \InvalidArgumentException('--layout may be provided only once.');
-                }
-                $layout = $value;
 
-                continue;
-            }
-
-            throw new \InvalidArgumentException('supported options are --dry-run and --layout=legacy|compact.');
+            throw new \InvalidArgumentException('supported option is --dry-run.');
         }
 
-        return ['dryRun' => $dryRun, 'layout' => $layout];
+        return ['dryRun' => $dryRun];
     }
 
     private function ensureDirectory(string $path, string $displayPath, bool $dryRun): void
