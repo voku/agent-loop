@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use JsonException;
 use Throwable;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
@@ -158,7 +159,7 @@ final readonly class WorkflowContextCommand
         if (!is_string($id) || $id === '') {
             return null;
         }
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         try {
             $session = (new SessionStore())->load($root, $id);
         } catch (Throwable) {
@@ -296,16 +297,17 @@ final readonly class WorkflowContextCommand
     /** @param list<string> $scope */
     private function addMap(WorkflowContextBudget $budget, array $scope): void
     {
-        $indexPath = rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+        $indexPath = (new ProjectLayout($this->rootPath))->mapIndex();
+        $relativeIndex = $this->relativePath($indexPath);
         if (!is_file($indexPath)) {
-            $budget->skip('agent-map: index missing (.agent-map/php-symbols.json)');
+            $budget->skip('agent-map: index missing (' . $relativeIndex . ')');
 
             return;
         }
         try {
             $index = (new IndexReader())->read($indexPath);
         } catch (Throwable) {
-            $budget->skip('agent-map: index invalid (.agent-map/php-symbols.json)');
+            $budget->skip('agent-map: index invalid (' . $relativeIndex . ')');
 
             return;
         }
@@ -328,7 +330,7 @@ final readonly class WorkflowContextCommand
                 continue;
             }
 
-            $budget->skip("agent-map: scope entry '{$path}' matched no file in the index (check the path, or that .agent-map/php-symbols.json is up to date)");
+            $budget->skip("agent-map: scope entry '{$path}' matched no file in the index (check the path, or that {$relativeIndex} is up to date)");
         }
     }
 
@@ -357,5 +359,15 @@ final readonly class WorkflowContextCommand
         }
 
         return (int) $value;
+    }
+
+    private function relativePath(string $path): string
+    {
+        $root = rtrim(str_replace('\\', '/', $this->rootPath), '/');
+        $normalized = str_replace('\\', '/', $path);
+
+        return str_starts_with($normalized, $root . '/')
+            ? substr($normalized, strlen($root) + 1)
+            : $normalized;
     }
 }
