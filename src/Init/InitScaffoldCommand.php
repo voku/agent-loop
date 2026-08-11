@@ -55,17 +55,12 @@ final readonly class InitScaffoldCommand
 
         $this->ensureDirectory($root . '/.agent-loop', '.agent-loop', $dryRun);
         if (!is_file($configPath)) {
-            $config = $layout === 'compact'
-                ? "{\n  \"version\": 1,\n  \"layout\": \"compact\"\n}\n"
-                : "{\n  \"version\": 1\n}\n";
+            $config = "{\n  \"version\": 1,\n  \"layout\": \"{$layout}\"\n}\n";
             $this->ensureFile($configPath, '.agent-loop/init.json', $config, $dryRun);
         } else {
             echo '[SKIP] .agent-loop/init.json already exists' . "\n";
         }
 
-        $layoutResolver = $layout === 'compact'
-            ? new ProjectLayout($root)
-            : null;
         $stateRoot = $layout === 'compact' ? $root . '/.agent-loop' : $root;
         $sessionsRoot = $layout === 'compact' ? $stateRoot . '/sessions' : $root . '/session_plan';
         $learningRoot = $layout === 'compact' ? $stateRoot . '/learning' : $root . '/infra/doc/agent-learning';
@@ -135,10 +130,14 @@ MD
             echo '[CREATE] ' . $cardDisplay . "\n";
         }
 
-        if ($layoutResolver instanceof ProjectLayout && !$layoutResolver->isCompact() && !$dryRun) {
-            fwrite(STDERR, "[FAIL] init scaffold: compact layout config was not persisted correctly.\n");
+        if (!$dryRun) {
+            $resolvedCompact = (new ProjectLayout($root))->isCompact();
+            $expectedCompact = $layout === 'compact';
+            if ($resolvedCompact !== $expectedCompact) {
+                fwrite(STDERR, "[FAIL] init scaffold: {$layout} layout config was not persisted correctly.\n");
 
-            return 1;
+                return 1;
+            }
         }
 
         echo "\n[OK] init scaffold: minimal local workflow structure is ready ({$layout} layout).\n";
