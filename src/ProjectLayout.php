@@ -8,28 +8,18 @@ use voku\AgentLoop\Init\InitConfigLoader;
 
 /**
  * Resolves repository-local workflow state without changing the project/source root.
- *
- * Compact layout is the default and keeps focused-package state below .agent-loop/.
- * Legacy layout remains available only when a repository selects it explicitly.
  */
 final readonly class ProjectLayout
 {
-    private const CONFIG_RELATIVE = '.agent-loop/init.json';
+    private const string CONFIG_RELATIVE = '.agent-loop/init.json';
 
     public function __construct(private string $projectRoot)
     {
     }
 
-    public function isCompact(): bool
-    {
-        return $this->config()['layout'] === 'compact';
-    }
-
     public function stateRoot(): string
     {
-        return $this->isCompact()
-            ? $this->projectRoot() . '/.agent-loop'
-            : $this->projectRoot();
+        return $this->projectRoot() . '/.agent-loop';
     }
 
     public function boardRoot(): string
@@ -44,25 +34,12 @@ final readonly class ProjectLayout
 
     public function sessionsRoot(): string
     {
-        return $this->isCompact()
-            ? $this->stateRoot() . '/sessions'
-            : $this->projectRoot() . '/session_plan';
+        return $this->stateRoot() . '/sessions';
     }
 
-    public function learningRoot(): ?string
+    public function learningRoot(): string
     {
-        if ($this->isCompact()) {
-            return $this->stateRoot() . '/learning';
-        }
-
-        foreach (['infra/doc/agent-learning', 'learning-root'] as $relativePath) {
-            $candidate = $this->projectRoot() . '/' . $relativePath;
-            if (is_dir($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
+        return $this->stateRoot() . '/learning';
     }
 
     public function recallRoot(): string
@@ -72,29 +49,17 @@ final readonly class ProjectLayout
             return PathResolver::join($this->projectRoot(), $configured);
         }
 
-        if ($this->isCompact()) {
-            return $this->stateRoot() . '/recall';
-        }
-
-        if (is_dir($this->projectRoot() . '/infra/doc/agent-learning')) {
-            return $this->projectRoot() . '/infra/doc/agent-learning/recall-output';
-        }
-
-        return $this->projectRoot() . '/recall';
+        return $this->stateRoot() . '/recall';
     }
 
     public function mapIndex(): string
     {
-        return $this->isCompact()
-            ? $this->stateRoot() . '/map/php-symbols.json'
-            : $this->projectRoot() . '/.agent-map/php-symbols.json';
+        return $this->stateRoot() . '/map/php-symbols.json';
     }
 
     public function mapSearchIndex(): string
     {
-        return $this->isCompact()
-            ? $this->stateRoot() . '/map/search.sqlite'
-            : $this->projectRoot() . '/.agent-map/search.sqlite';
+        return $this->stateRoot() . '/map/search.sqlite';
     }
 
     private function projectRoot(): string
@@ -105,7 +70,6 @@ final readonly class ProjectLayout
     /**
      * @return array{
      *     warnings: list<string>,
-     *     layout: 'legacy'|'compact',
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>
      * }
