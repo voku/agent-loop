@@ -33,9 +33,9 @@ final class WorkflowReportCommandTest extends TestCase
     {
         $this->writeApprovedBrief();
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
-        $this->write('recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
-        $this->write('recall/ABC-123/recall-log.draft.json', '{}');
-        $this->write('recall/ABC-123/reviews/ABC-123.blindspots.json', json_encode(['status' => 'warn'], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/recall-log.draft.json', '{}');
+        $this->write('.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json', json_encode(['status' => 'warn'], JSON_THROW_ON_ERROR));
         $this->write('.agent-loop/risks/ABC-123.accepted-risk.md', "# Accepted risk\n");
 
         $result = $this->runReport(['ABC-123', '--changed-file', 'src/Foo.php', '--changed-file', 'docs/Outside.md']);
@@ -74,7 +74,7 @@ final class WorkflowReportCommandTest extends TestCase
     {
         $this->writeApprovedBrief();
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
-        $session = (new SessionStore())->load($this->root . '/session_plan', basename($this->sessionPath));
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', basename($this->sessionPath));
         (new WorkBriefStore())->revise($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit tests/FooTest.php', 'vendor/bin/phpstan analyse src/Foo.php']);
 
         $result = $this->runReport(['ABC-123', '--format', 'json']);
@@ -110,7 +110,7 @@ final class WorkflowReportCommandTest extends TestCase
 
     private function writeApprovedBrief(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $this->sessionPath = $session->path;
         $briefs = new WorkBriefStore();
         $briefs->create(
@@ -136,7 +136,7 @@ final class WorkflowReportCommandTest extends TestCase
 
     private function writeValidation(int $revision, string $command, ValidationStatus $status, int $exitCode): void
     {
-        $session = (new SessionStore())->load($this->root . '/session_plan', basename($this->sessionPath));
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', basename($this->sessionPath));
         (new ValidationEvidenceStore())->record($session, $revision, $command, $status, $exitCode, 10, 'lars');
     }
 
