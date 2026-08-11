@@ -30,15 +30,23 @@ When the PHP repository is unfamiliar and the task does **not** identify a usefu
 vendor/bin/agent-loop map discover --limit=10
 ```
 
-Treat `discover` as evidence-backed orientation, not a subsystem oracle. It reports entrypoint candidates, hubs, orchestrators, type hubs, namespace coupling, directory coupling, file coupling, and uncertainty from the existing map. Namespace-less PHP is still navigable through directory/file coupling.
+Treat the inferred architecture as a navigation coordinate, not a subsystem oracle. Choose the smallest plausible region from the reported hierarchy and inspect it before switching to symbol queries:
 
-After discovery, narrow immediately with `query`, `related`, `callers`, `callees`, or bounded source reads. For a proposed shared-method change, use impact before widening the read set:
+```bash
+vendor/bin/agent-loop map discover --region=<label-or-id> --limit=10
+```
+
+The region drill-down is the bridge between repository-level orientation and concrete source navigation. It exposes the selected root-to-region path, bounded files, interface files, and boundary evidence. Namespace-less PHP remains first-class because directory and file structure are independent architecture signals.
+
+After the region is narrowed, use `query`, `related`, `callers`, `callees`, or bounded source reads. Do not repeat repository-wide discovery once a plausible region or concrete target is known.
+
+For a proposed shared-method change, use architecture-aware impact before widening the read set:
 
 ```bash
 vendor/bin/agent-loop map impact 'App\\Service\\Thing::run' --depth=2
 ```
 
-Dynamic or multiple-target paths remain uncertain. Do not repeat discovery after a concrete target is known merely to collect more context.
+Impact keeps exact node evidence and uncertainty while grouping propagation by inferred architecture region. Dynamic or multiple-target paths remain uncertain.
 
 Use `rg` only when the map cannot answer a literal/string/config/template question. Never dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite`.
 
