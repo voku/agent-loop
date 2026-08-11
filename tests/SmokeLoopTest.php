@@ -11,8 +11,7 @@ use voku\AgentLoop\Dispatcher;
 
 /**
  * End-to-end proof that `agent-loop` can drive task -> session -> recall ->
- * learn -> verify against tests/fixtures/basic-loop without any of the
- * underlying packages tripping over each other.
+ * learn -> verify against the compact repository-local workflow layout.
  *
  * @internal
  */
@@ -24,6 +23,9 @@ final class SmokeLoopTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-smoke-' . bin2hex(random_bytes(6));
         $this->copyDirectory(__DIR__ . '/fixtures/basic-loop', $this->root);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        rename($this->root . '/tasks', $this->root . '/.agent-loop/tasks');
+        rename($this->root . '/learning-root', $this->root . '/.agent-loop/learning');
     }
 
     protected function tearDown(): void
@@ -33,20 +35,15 @@ final class SmokeLoopTest extends TestCase
 
     public function testFullLoopReportsNoDrift(): void
     {
-        // session/recall/learn write straight to STDOUT (fwrite), not through
-        // PHP's output buffer, so only their exit codes are asserted here;
-        // their own packages cover output-text behavior in their own suites.
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester', '--root', $this->root . '/session_plan'])['exit'], 'session start');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester'])['exit'], 'session start');
 
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'recall', 'compile',
-            '--root', $this->root . '/learning-root',
             '--task', 'task.001',
             '--file', 'src/Signup.php',
-            '--output-dir', $this->root . '/recall/task.001',
         ])['exit'], 'recall compile');
 
-        self::assertSame(0, $this->dispatch(['agent-loop', 'learn', 'validate', '--root', $this->root . '/learning-root'])['exit'], 'learn validate');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'learn', 'validate'])['exit'], 'learn validate');
 
         $result = $this->dispatch(['agent-loop', 'verify']);
 
@@ -60,7 +57,7 @@ final class SmokeLoopTest extends TestCase
 
     public function testVerifyFailsWhenActiveSessionHasNoRecallBriefing(): void
     {
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester', '--root', $this->root . '/session_plan'])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester'])['exit']);
 
         $result = $this->dispatch(['agent-loop', 'verify']);
 
@@ -72,17 +69,15 @@ final class SmokeLoopTest extends TestCase
 
     public function testVerifyFailsWhenRecallOutputIsTamperedWith(): void
     {
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester', '--root', $this->root . '/session_plan'])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester'])['exit']);
 
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'recall', 'compile',
-            '--root', $this->root . '/learning-root',
             '--task', 'task.001',
             '--file', 'src/Signup.php',
-            '--output-dir', $this->root . '/recall/task.001',
         ])['exit']);
 
-        file_put_contents($this->root . '/recall/task.001/system.md', "tampered\n", FILE_APPEND);
+        file_put_contents($this->root . '/.agent-loop/recall/task.001/system.md', "tampered\n", FILE_APPEND);
 
         $result = $this->dispatch(['agent-loop', 'verify']);
 
@@ -94,7 +89,7 @@ final class SmokeLoopTest extends TestCase
     {
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'plan', 'task.001', '--by', 'tester',
-            '--learning-root', $this->root . '/learning-root', '--file', 'src/Signup.php',
+            '--file', 'src/Signup.php',
             '--goal', 'Keep completion evidence auditable.',
             '--validation', 'vendor/bin/phpunit tests/SignupTest.php',
         ])['exit']);
@@ -102,14 +97,14 @@ final class SmokeLoopTest extends TestCase
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'session', 'validation', 'record', 'task.001',
             '--brief-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
-            '--status', 'passed', '--exit-code', '0', '--duration-ms', '12', '--by', 'tester', '--root', $this->root . '/session_plan',
+            '--status', 'passed', '--exit-code', '0', '--duration-ms', '12', '--by', 'tester',
         ])['exit']);
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'session', 'learning', 'decide', 'task.001',
-            '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan',
+            '--status', 'no_durable_learning', '--by', 'tester',
         ])['exit']);
-        mkdir($this->root . '/recall/task.001/reviews', 0o775, true);
-        file_put_contents($this->root . '/recall/task.001/reviews/task.001.blindspots.json', json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR));
+        mkdir($this->root . '/.agent-loop/recall/task.001/reviews', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/recall/task.001/reviews/task.001.blindspots.json', json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR));
 
         $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
         self::assertSame(0, $context['exit']);
@@ -149,7 +144,7 @@ final class SmokeLoopTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::SELF_FIRST
+            RecursiveIteratorIterator::SELF_FIRST,
         );
 
         foreach ($iterator as $item) {
@@ -170,7 +165,7 @@ final class SmokeLoopTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
+            RecursiveIteratorIterator::CHILD_FIRST,
         );
 
         foreach ($iterator as $item) {
