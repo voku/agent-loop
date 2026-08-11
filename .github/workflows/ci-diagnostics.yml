@@ -60,7 +60,14 @@ jobs:
           path: build/phpunit-${{ matrix.php }}.xml
       - name: PHPStan
         if: success()
-        run: composer phpstan
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M --error-format=json > build/phpstan-${{ matrix.php }}.json
+      - name: Upload PHPStan result
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: phpstan-${{ matrix.php }}-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/phpstan-${{ matrix.php }}.json
       - name: Project PHPStan rules
         if: success()
         run: composer test:project-phpstan-rules
