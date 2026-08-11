@@ -63,7 +63,7 @@ final class SmokeLoopTest extends TestCase
 
         self::assertSame(1, $result['exit'], $result['output']);
         self::assertStringContainsString('[FAIL] recall: active session', $result['output']);
-        self::assertStringContainsString('has no compiled briefing', $result['output']);
+        self::assertStringContainsString('but no recall/ directory at', $result['output']);
         self::assertStringContainsString('[FAIL] agent-loop verify: drift detected, see above.', $result['output']);
     }
 
