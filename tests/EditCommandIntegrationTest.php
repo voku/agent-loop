@@ -92,7 +92,7 @@ final class EditCommandIntegrationTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertStringContainsString('Edit execution bundle prepared:', $output);
-        self::assertFileExists($this->root . '/.agent-map/php-symbols.json');
+        self::assertFileExists($this->root . '/.agent-loop/map/php-symbols.json');
         self::assertFileExists($this->root . '/.agent-loop/edit/EDIT-1/prompt.md');
         self::assertFileExists($this->root . '/.agent-loop/edit/EDIT-1/execution.json');
 
@@ -119,7 +119,6 @@ final class EditCommandIntegrationTest extends TestCase
             self::assertMatchesRegularExpression('/\Asha256:[a-f0-9]{64}\z/', $execution[$digestField]);
         }
 
-        // The answer sheet is part of the bundle, seeded from the plan the compiler just emitted.
         $resultJson = file_get_contents($this->root . '/.agent-loop/edit/EDIT-1/agent-result.json');
         self::assertIsString($resultJson);
         $result = json_decode($resultJson, true, 512, JSON_THROW_ON_ERROR);
