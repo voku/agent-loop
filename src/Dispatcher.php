@@ -7,6 +7,7 @@ namespace voku\AgentLoop;
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentMap\Cli\AgentMapApplication;
+use voku\AgentMap\Cli\DiscoveryCliApplication;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
@@ -115,15 +116,25 @@ final class Dispatcher
     }
 
     /**
-     * Delegates repository symbol-map commands to voku/agent-map while
-     * preserving agent-loop's root path for programmatic hosts. Callers can
-     * still override every default with normal agent-map options.
+     * Delegates repository map commands to the same two-stage router used by
+     * agent-map's binary while preserving agent-loop's root defaults.
      *
      * @param list<string> $rest
      */
     private function dispatchMap(string $scriptName, array $rest): int
     {
-        return (new AgentMapApplication())->run($this->subArgv($scriptName, $this->resolveMapArgv($rest)));
+        $argv = $this->subArgv($scriptName, $this->resolveMapArgv($rest));
+        $discovery = new DiscoveryCliApplication();
+        if ($discovery->supports($argv)) {
+            return $discovery->run($argv);
+        }
+
+        $status = (new AgentMapApplication())->run($argv);
+        if ($discovery->shouldAppendToGeneralHelp($argv)) {
+            echo $discovery->helpOverview();
+        }
+
+        return $status;
     }
 
     /**
@@ -370,11 +381,12 @@ final class Dispatcher
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
                   Working memory: per-task session plans (voku/agent-session).
-          map     <build|refresh|query|file|stale|summary|changed|related|stats|scope|callers|
-                  callees|context>
-                  Compact PHP repository symbol map (voku/agent-map). `build`
-                  writes the whole scope; `refresh` re-analyses only changed or
-                  new files and patches them into the existing index.
+          map     <build|refresh|discover|rank|impact|query|file|stale|summary|changed|related|
+                  stats|scope|callers|callees|context>
+                  Deterministic PHP repository map and architecture discovery
+                  (voku/agent-map). `build` writes the whole scope; `refresh`
+                  re-analyses only changed or new files and patches them into
+                  the existing index.
           memory  <validate|review>
                   MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
