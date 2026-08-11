@@ -22,7 +22,7 @@ final readonly class InitConfigLoader
     {
         $result = [
             'warnings' => [],
-            'layout' => 'legacy',
+            'layout' => 'compact',
             'paths' => [],
             'agents' => [],
         ];
