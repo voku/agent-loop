@@ -52,7 +52,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertStringContainsString('candidate Contract created', $output);
         self::assertNull((new RunManifestStore($this->root))->read('ABC-123'));
         self::assertNull((new GovernedRunStore($this->root))->find('ABC-123'));
-        self::assertSame([], (new SessionStore())->all($this->root . '/session_plan'));
+        self::assertSame([], (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
     }
 
     public function testApproveCanResumeCompilationAfterContractWasAlreadyApproved(): void
@@ -80,7 +80,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame(1, $recallCalls);
         self::assertStringContainsString('already approved; resuming Run preparation', $output);
 
-        $sessions = (new SessionStore())->all($this->root . '/session_plan');
+        $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');
         self::assertCount(1, $sessions);
         $run = (new GovernedRunStore($this->root))->find('ABC-123');
         self::assertNotNull($run);
@@ -105,7 +105,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame('approved', $contracts->load('ABC-123')->status);
         $firstRun = (new GovernedRunStore($this->root))->find('ABC-123');
         self::assertNotNull($firstRun);
-        self::assertCount(1, (new SessionStore())->all($this->root . '/session_plan'));
+        self::assertCount(1, (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
         self::assertSame('missing', $this->referenceState($this->manifest(), 'recall'));
 
         $second = new WorkflowApproveCommand(
@@ -122,7 +122,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         self::assertSame(0, $secondExit);
         self::assertSame($firstRun->runId, (new GovernedRunStore($this->root))->find('ABC-123')?->runId);
-        self::assertCount(1, (new SessionStore())->all($this->root . '/session_plan'));
+        self::assertCount(1, (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
         self::assertSame('compiled', $this->referenceState($this->manifest(), 'recall'));
     }
 
@@ -148,9 +148,9 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             'lars',
             'No durable learning from manifest transition fixture.',
         );
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
@@ -190,7 +190,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame(0, $command->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
 
-        $sessions = (new SessionStore())->all($this->root . '/session_plan');
+        $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');
         self::assertCount(1, $sessions);
 
         return $sessions[0];
@@ -198,11 +198,11 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
     private function writeRecallMeta(): void
     {
-        if (!is_dir($this->root . '/recall/ABC-123')) {
-            mkdir($this->root . '/recall/ABC-123', 0o775, true);
+        if (!is_dir($this->root . '/.agent-loop/recall/ABC-123')) {
+            mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
         }
         file_put_contents(
-            $this->root . '/recall/ABC-123/meta.json',
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',
