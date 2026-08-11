@@ -82,6 +82,32 @@ final class ExecutionContractStoreTest extends TestCase
         }
     }
 
+    public function testChangedSelectedPromptArgumentsMakeExistingContractStale(): void
+    {
+        $root = $this->root('prompt-policy-stale');
+
+        try {
+            $this->fixture($root, 'TASK-SEMANTICS', level: 2);
+            $store = new ExecutionContractStore($root);
+            $store->writeReady('TASK-SEMANTICS', 'lars', $this->contract());
+
+            $factsPath = $root . '/.agent-loop/recall/TASK-SEMANTICS/facts.json';
+            $facts = json_decode((string) file_get_contents($factsPath), true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($facts);
+            self::assertIsArray($facts['facts'] ?? null);
+            self::assertIsArray($facts['facts'][0] ?? null);
+            self::assertIsArray($facts['facts'][0]['payload'] ?? null);
+            $facts['facts'][0]['payload']['arguments']['minimum_percentage_points'] = 20;
+            file_put_contents($factsPath, json_encode($facts, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+            $inspection = $store->inspect('TASK-SEMANTICS');
+            self::assertSame('stale', $inspection['state']);
+            self::assertStringContainsString('prompt_policy_sha256', (string) ($inspection['reason'] ?? ''));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testBlockedAndRejectedAreExplicitEvidenceBackedStates(): void
     {
         $root = $this->root('blocked');
