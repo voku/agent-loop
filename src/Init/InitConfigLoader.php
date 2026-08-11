@@ -13,7 +13,6 @@ final readonly class InitConfigLoader
     /**
      * @return array{
      *     warnings: list<string>,
-     *     layout: 'legacy'|'compact',
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>
      * }
@@ -22,7 +21,6 @@ final readonly class InitConfigLoader
     {
         $result = [
             'warnings' => [],
-            'layout' => 'compact',
             'paths' => [],
             'agents' => [],
         ];
@@ -48,15 +46,6 @@ final readonly class InitConfigLoader
             $result['warnings'][] = '[WARN] init config: invalid JSON';
 
             return $result;
-        }
-
-        $layout = $decoded['layout'] ?? null;
-        if ($layout !== null) {
-            if (!is_string($layout) || !in_array($layout, ['legacy', 'compact'], true)) {
-                $result['warnings'][] = '[WARN] init config: layout must be legacy or compact';
-            } else {
-                $result['layout'] = $layout;
-            }
         }
 
         $paths = $decoded['paths'] ?? null;
