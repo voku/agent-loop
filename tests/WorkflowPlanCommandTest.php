@@ -36,7 +36,7 @@ final class WorkflowPlanCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
 
             $contract = (new TaskContractStore($root))->load('ABC-123');
             self::assertSame(TaskContract::CANDIDATE, $contract->status);
@@ -72,7 +72,7 @@ final class WorkflowPlanCommandTest extends TestCase
                 ['src/Foo.php', 'tests/FooTest.php'],
                 (new TaskContractStore($root))->load('ABC-123')->scope,
             );
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
 
             ob_start();
             $ephemeralExit = (new WorkflowPlanCommand($root))->run([
@@ -101,7 +101,7 @@ final class WorkflowPlanCommandTest extends TestCase
 
             self::assertSame(1, $exit);
             self::assertNull((new TaskContractStore($root))->find('ABC-123'));
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
@@ -124,7 +124,7 @@ final class WorkflowPlanCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
             $contract = $contracts->load('ABC-123');
             self::assertSame(2, $contract->revision);
             self::assertSame(TaskContract::CANDIDATE, $contract->status);
@@ -163,7 +163,7 @@ final class WorkflowPlanCommandTest extends TestCase
             self::assertSame(TaskContract::APPROVED, $contract->status);
             self::assertSame('lars', $contract->approvedBy);
 
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             self::assertFileDoesNotExist($sessions[0]->path . '/work-brief.json');
             self::assertFileDoesNotExist($sessions[0]->path . '/approval.json');
@@ -187,11 +187,11 @@ final class WorkflowPlanCommandTest extends TestCase
     {
         $root = $this->root('recall-input');
         $learningRoot = $root . '/learning';
-        mkdir($root . '/todo/cards', 0o775, true);
-        mkdir($root . '/.agent-map', 0o775, true);
+        mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
+        mkdir($root . '/.agent-loop/map', 0o775, true);
         mkdir($learningRoot, 0o775, true);
-        file_put_contents($root . '/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
-        file_put_contents($root . '/todo/cards/ABC-123.md', <<<'CARD'
+        file_put_contents($root . '/.agent-loop/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
+        file_put_contents($root . '/.agent-loop/todo/cards/ABC-123.md', <<<'CARD'
 # ABC-123: Keep the view reviewable
 
 - **Ticket:** ABC-123
@@ -206,8 +206,8 @@ final class WorkflowPlanCommandTest extends TestCase
 Use the existing view factory seam.
 CARD
 );
-        file_put_contents($root . '/.agent-map/php-symbols.json', '{}');
-        file_put_contents($root . '/.agent-map/search.sqlite', '');
+        file_put_contents($root . '/.agent-loop/map/php-symbols.json', '{}');
+        file_put_contents($root . '/.agent-loop/map/search.sqlite', '');
         file_put_contents($learningRoot . '/recall-documents.json', json_encode([
             'schema_version' => '1.0',
             'documents' => [],
@@ -231,7 +231,7 @@ CARD
             self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', $learningRoot]));
             ob_end_clean();
 
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             $contextPath = $sessions[0]->path . '/kanban-context.json';
             $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
@@ -242,8 +242,8 @@ CARD
                 '--task', 'ABC-123', '--task-brief', $recallInput,
                 '--document-manifest', $learningRoot . '/recall-documents.json',
                 '--kanban-context', $contextPath,
-                '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root,
-                '--map-search-index', $root . '/.agent-map/search.sqlite',
+                '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
+                '--map-search-index', $root . '/.agent-loop/map/search.sqlite',
             ]], $recallCalls);
         } finally {
             $this->removeDirectory($root);
@@ -265,7 +265,7 @@ CARD
 
             self::assertSame(7, $firstExit);
             self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             $firstRun = (new GovernedRunStore($root))->find('ABC-123');
             self::assertNotNull($firstRun);
@@ -279,7 +279,7 @@ CARD
             self::assertSame(0, $secondExit);
             self::assertStringContainsString('already approved; resuming Run preparation', $output);
             self::assertSame($firstRun->runId, (new GovernedRunStore($root))->find('ABC-123')?->runId);
-            self::assertCount(1, (new SessionStore())->all($root . '/session_plan'));
+            self::assertCount(1, (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
