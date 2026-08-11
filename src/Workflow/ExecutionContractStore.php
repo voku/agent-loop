@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
@@ -92,7 +93,7 @@ final readonly class ExecutionContractStore
                 'document' => $this->artifact($documentPath),
                 'created_by' => is_string($metadata['created_by'] ?? null) ? $metadata['created_by'] : null,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (RuntimeException | InvalidArgumentException $exception) {
             return $this->bindingReference($binding, 'invalid', [
                 'reason' => $exception->getMessage(),
                 'source' => $this->artifact($metadataPath),
@@ -233,6 +234,14 @@ final readonly class ExecutionContractStore
             ];
         }
 
+        $selectedPromptIds = [];
+        foreach ($selected as $selection) {
+            if (!is_array($selection) || !is_string($selection['id'] ?? null) || trim($selection['id']) === '') {
+                throw new RuntimeException('Approved work brief contains an invalid operating prompt selection.');
+            }
+            $selectedPromptIds[] = $selection['id'];
+        }
+
         $factsPath = $this->contractDirectory($taskId) . '/facts.json';
         if (!is_file($factsPath)) {
             return [
@@ -249,8 +258,8 @@ final readonly class ExecutionContractStore
             throw new RuntimeException('Recall facts.json requires a facts list.');
         }
 
+        /** @var array<string, array{prompt_id:string, level:1|2, arguments:array<mixed>, template_sha256:?string, source_ref:?string}> $promptFacts */
         $promptFacts = [];
-        $l2PromptIds = [];
         foreach ($facts as $fact) {
             if (!is_array($fact) || ($fact['type'] ?? null) !== 'operating_prompt') {
                 continue;
@@ -259,13 +268,35 @@ final readonly class ExecutionContractStore
             if (!is_array($payload)) {
                 continue;
             }
-            $id = $payload['prompt_id'] ?? null;
+            $promptId = $payload['prompt_id'] ?? null;
             $level = $payload['level'] ?? null;
-            if (!is_string($id) || !is_int($level)) {
-                continue;
+            if (!is_string($promptId) || trim($promptId) === '' || ($level !== 1 && $level !== 2)) {
+                throw new RuntimeException('Operating prompt fact has invalid prompt id or level.');
             }
-            $promptFacts[$id] = $payload;
-            if ($level >= 2) {
+            $promptFacts[$promptId] = [
+                'prompt_id' => $promptId,
+                'level' => $level,
+                'arguments' => is_array($payload['arguments'] ?? null) ? $payload['arguments'] : [],
+                'template_sha256' => is_string($payload['template_sha256'] ?? null) ? $payload['template_sha256'] : null,
+                'source_ref' => is_string($fact['source_ref'] ?? null) ? $fact['source_ref'] : null,
+            ];
+        }
+
+        $selectedPromptFacts = [];
+        $l2PromptIds = [];
+        foreach ($selectedPromptIds as $id) {
+            $promptFact = $promptFacts[$id] ?? null;
+            if ($promptFact === null) {
+                return [
+                    'owner' => 'agent-loop',
+                    'state' => 'pending_recall',
+                    'required' => true,
+                    'observation_mode' => 'checked',
+                    'reason' => 'Current recall bundle does not contain the approved operating prompt selection: ' . $id,
+                ];
+            }
+            $selectedPromptFacts[] = $promptFact;
+            if ($promptFact['level'] === 2) {
                 $l2PromptIds[] = $id;
             }
         }
@@ -279,31 +310,10 @@ final readonly class ExecutionContractStore
             ];
         }
 
-        $selectedPromptIds = [];
-        foreach ($selected as $selection) {
-            if (!is_array($selection) || !is_string($selection['id'] ?? null)) {
-                throw new RuntimeException('Approved work brief contains an invalid operating prompt selection.');
-            }
-            $selectedPromptIds[] = $selection['id'];
-        }
-
-        foreach ($selectedPromptIds as $id) {
-            if (!isset($promptFacts[$id])) {
-                return [
-                    'owner' => 'agent-loop',
-                    'state' => 'pending_recall',
-                    'required' => true,
-                    'observation_mode' => 'checked',
-                    'reason' => 'Current recall bundle does not contain the approved operating prompt selection: ' . $id,
-                ];
-            }
-        }
-
         $bundle = $factsDocument['bundle_sha256'] ?? null;
         if (!is_string($bundle) || preg_match('/\A[0-9a-f]{64}\z/', $bundle) !== 1) {
             throw new RuntimeException('Recall facts.json is missing a valid bundle_sha256.');
         }
-        $promptPolicy = $this->promptPolicyDigest($brief, $selectedPromptIds);
 
         return [
             'owner' => 'agent-loop',
@@ -312,9 +322,8 @@ final readonly class ExecutionContractStore
             'observation_mode' => 'checked',
             'work_brief_revision' => $revision,
             'recall_bundle_sha256' => $bundle,
-            'prompt_policy_sha256' => $promptPolicy,
-            'prompt_ids' => $selectedPromptIds,
-            'l2_prompt_ids' => array_values(array_unique($l2PromptIds)),
+            'prompt_policy_sha256' => hash('sha256', CanonicalJson::pretty(['prompts' => $selectedPromptFacts])),
+            'prompt_ids' => array_values(array_unique($l2PromptIds)),
         ];
     }
 
@@ -370,18 +379,6 @@ final readonly class ExecutionContractStore
         }
 
         return $value;
-    }
-
-    /** @param list<string> $selectedPromptIds */
-    private function promptPolicyDigest(array $brief, array $selectedPromptIds): string
-    {
-        return hash('sha256', CanonicalJson::compact([
-            'operating_prompt_manifest' => $brief['operating_prompt_manifest'] ?? null,
-            'operating_prompts' => array_values(array_map(
-                static fn (string $id): array => ['id' => $id],
-                $selectedPromptIds,
-            )),
-        ]));
     }
 
     private function contractDirectory(string $taskId): string
