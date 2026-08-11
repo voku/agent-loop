@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -32,7 +33,7 @@ final readonly class WorkflowStartCommand
             $session = $this->activeSession($taskId->value);
             if ($session === null) {
                 (new SessionStore())->create(
-                    rtrim($this->rootPath, '/') . '/session_plan',
+                    (new ProjectLayout($this->rootPath))->sessionsRoot(),
                     $taskId->value,
                     null,
                     $options['by'],
@@ -71,7 +72,7 @@ final readonly class WorkflowStartCommand
 
     private function activeSession(string $taskId): ?Session
     {
-        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($sessionsRoot)) {
             return null;
         }
