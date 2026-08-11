@@ -33,7 +33,8 @@ final class WorkflowCliTest extends TestCase
         $result = $this->runCli(['start', 'ABC-123']);
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('Unknown workflow command: start', $result['output']);
+        self::assertStringContainsString('Usage:', $result['output']);
+        self::assertStringNotContainsString('agent-loop workflow start', $result['output']);
     }
 
     public function testUnknownCommandExitsOne(): void
