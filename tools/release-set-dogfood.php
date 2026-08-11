@@ -291,7 +291,7 @@ final class ReleaseSetDogfood
             '--limit=5',
         ]);
         $this->assertContains($result->stdout, 'RetryPolicy', 'German behavior search result');
-        $this->assertContains($result->command[2] ?? '', 'Zeitüberschitung', 'unmodified German query argument');
+        $this->assertContains($result->command[2] ?? '', 'Zeitüberschreitung', 'unmodified German query argument');
     }
 
     private function discoverNoAnswer(): void
@@ -568,6 +568,7 @@ final class ReleaseSetDogfood
     }
 
     /**
+     * @param list<string> $command
      * @param list<int> $allowedExitCodes
      */
     private function mustRun(array $command, array $allowedExitCodes = [0]): CommandResult
