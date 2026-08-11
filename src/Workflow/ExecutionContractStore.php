@@ -403,7 +403,12 @@ final readonly class ExecutionContractStore
         return $sessions[0] ?? null;
     }
 
-    /** @param array<string, mixed> $binding @param array<string, mixed> $extra @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $binding
+     * @param array<string, mixed> $extra
+     *
+     * @return array<string, mixed>
+     */
     private function bindingReference(array $binding, string $state, array $extra = []): array
     {
         return [
