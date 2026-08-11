@@ -263,13 +263,13 @@ final class WorkflowCloseCommandTest extends TestCase
 
     private function breakVerifierForTask(): void
     {
-        mkdir($this->root . '/tasks', 0o775, true);
-        file_put_contents($this->root . '/tasks/ABC-123.md', '');
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/ABC-123.md', '');
     }
 
     private function sessionStatus(): SessionStatus
     {
-        return (new SessionStore())->load($this->root . '/session_plan', $this->sessionId)->status;
+        return (new SessionStore())->load($this->root . '/.agent-loop/sessions', $this->sessionId)->status;
     }
 
     /** @param array<string, mixed> $result */
@@ -285,13 +285,13 @@ final class WorkflowCloseCommandTest extends TestCase
     /** @param array<string, mixed> $meta */
     private function writeRecallMeta(array $meta = []): void
     {
-        mkdir($this->root . '/recall/ABC-123', 0o775, true);
-        file_put_contents($this->root . '/recall/ABC-123/meta.json', json_encode($meta, JSON_THROW_ON_ERROR));
+        mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/meta.json', json_encode($meta, JSON_THROW_ON_ERROR));
     }
 
     private function writeApprovedWorkBrief(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123');
         $this->sessionId = $session->id;
         $this->sessionPath = $session->path;
         $briefs = new WorkBriefStore();
@@ -312,10 +312,10 @@ final class WorkflowCloseCommandTest extends TestCase
 
     private function writeRawReviewReport(string $json): void
     {
-        if (!is_dir($this->root . '/recall/ABC-123/reviews')) {
-            mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        if (!is_dir($this->root . '/.agent-loop/recall/ABC-123/reviews')) {
+            mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         }
-        file_put_contents($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json', $json);
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json', $json);
     }
 
     private function removeDirectory(string $dir): void
