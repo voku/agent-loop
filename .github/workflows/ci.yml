@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -76,13 +80,12 @@ jobs:
         with:
           repository: voku/agent-skills
           ref: main
-          path: build/candidate-agent-skills
+          path: build/current-agent-skills
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
-          extensions: pdo_sqlite, sqlite3
           tools: composer:v2
       - name: Configure coordinated candidate dependencies
         run: |
@@ -96,31 +99,24 @@ jobs:
           file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
           '
       - run: composer install --no-interaction --prefer-dist
-      - name: Lint execution-contract dogfood
-        run: php -l tools/execution-contract-dogfood.php
+      - run: php -l tools/execution-contract-dogfood.php
       - name: Prove L2 contract gate by mutating only after a bound L1 exists
-        env:
-          AGENT_LOOP_OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/build/candidate-agent-skills/skills/operational-prompting/operating-prompts.json
-        run: php tools/execution-contract-dogfood.php
+        run: php tools/execution-contract-dogfood.php build/current-agent-skills
       - name: Upload execution-contract evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: execution-contract-dogfood-${{ github.sha }}
-          if-no-files-found: warn
-          path: build/execution-contract-dogfood.json
+          name: agent-loop-execution-contract-evidence
+          path: build/execution-contract-dogfood/evidence.json
+          if-no-files-found: error
 
-  self-shape-dogfood:
+  self-shape:
     if: github.event_name == 'pull_request'
     name: Agent-loop shapes itself
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 30
-    env:
-      SELF_SHAPE_GOAL: ${{ github.event.pull_request.title }}
-      SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
-      SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
         with:
@@ -142,9 +138,8 @@ jobs:
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
-          extensions: pdo_sqlite, sqlite3
           tools: composer:v2
       - name: Configure coordinated candidate dependencies
         run: |
@@ -160,143 +155,57 @@ jobs:
       - run: composer install --no-interaction --prefer-dist
       - name: Lint self-shape tools
         run: |
-          bash -n tools/self-shape-dogfood.sh
-          php -l tools/self-edit-dogfood.php
+          php -l tools/self-shape-dogfood.php
+          php -l tools/self-shape-governance.php
       - name: Let agent-loop edit itself in an isolated worktree
-        run: php tools/self-edit-dogfood.php
+        run: bash tools/self-shape-dogfood.sh
       - name: Govern this change with agent-loop itself
-        run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
+        run: php tools/self-shape-governance.php
       - name: Upload self-shaping evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: self-shape-${{ github.sha }}
-          if-no-files-found: warn
-          path: |
-            build/self-shape-*.json
-            build/self-shape-raw.diff
-            infra/doc/agent-learning/recall-output/SELF-SHAPE
-            infra/doc/agent-learning/history
-            session_plan
-            .agent-loop/runs/SELF-SHAPE
+          name: agent-loop-self-shape-evidence
+          path: build/self-shape/evidence.json
+          if-no-files-found: error
 
-  release-set-dogfood:
+  installed-release-set:
+    if: github.event_name == 'pull_request'
     name: Installed release-set dogfood
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Checkout pinned first-party engineering skills
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: 84ecf946b83937fe7fcb1931432b13228467b4f2
-          path: build/agent-skills-source
+          ref: 0.2.0
+          path: build/pinned-agent-skills
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
-          extensions: pdo_sqlite, sqlite3
           tools: composer:v2
       - name: Lint dogfood runner
         run: php -l tools/release-set-dogfood.php
       - name: Run clean consumer lifecycle
-        run: >-
-          php tools/release-set-dogfood.php
-          --workspace=${{ runner.temp }}/agent-loop-release-set
-          --report=${{ github.workspace }}/build/release-set-report.json
-          --keep
+        run: bash tools/clean-consumer-release-set.sh
       - name: Run installed first-party asset dogfood
-        shell: bash
         run: |
-          set -euo pipefail
-          consumer="${RUNNER_TEMP}/agent-loop-assets-consumer"
-          rm -rf "${consumer}"
-          mkdir -p "${consumer}"
-          cat > "${consumer}/composer.json" <<JSON
-          {
-            "name": "voku/agent-loop-assets-consumer",
-            "require-dev": {
-              "voku/agent-loop": "dev-main"
-            },
-            "repositories": [
-              {
-                "type": "path",
-                "url": "${GITHUB_WORKSPACE}",
-                "options": {
-                  "symlink": false,
-                  "versions": {
-                    "voku/agent-loop": "dev-main"
-                  }
-                }
-              }
-            ],
-            "minimum-stability": "dev",
-            "prefer-stable": true,
-            "config": {
-              "allow-plugins": false,
-              "sort-packages": true
-            }
-          }
-          JSON
-          composer update --working-dir="${consumer}" --no-interaction --prefer-dist --no-progress --no-ansi
-          cd "${consumer}"
-          php vendor/bin/agent-loop init install-assets \
-            --agent=all \
-            --extra-skills-root="${GITHUB_WORKSPACE}/build/agent-skills-source/skills"
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-discipline/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-investigate/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-surgical-edit/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-code-review/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-simplify-audit/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/subagents/agent-loop-investigator.md
-          test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
-          test -f .codex/skills/agent-loop-discipline/SKILL.md
-          test -f .codex/skills/agent-loop-investigate/SKILL.md
-          test -f .codex/skills/coding-simplicity/SKILL.md
-          test -f .codex/skills/code-review-security/SKILL.md
-          test -f .codex/skills/operational-prompting/SKILL.md
-          test -f .claude/skills/coding-simplicity/SKILL.md
-          test -f .github/skills/coding-simplicity/SKILL.md
-          test -f .agents/skills/coding-simplicity/SKILL.md
-          test -f .claude/skills/code-review-security/SKILL.md
-          test -f .github/skills/code-review-security/SKILL.md
-          test -f .agents/skills/code-review-security/SKILL.md
-          grep -Fq '## Search order' .codex/skills/coding-simplicity/SKILL.md
-          grep -Fq '## Safety floor' .codex/skills/coding-simplicity/SKILL.md
-          grep -Fq '## Verification floor' .codex/skills/coding-simplicity/SKILL.md
-          grep -Fq 'does not impose a persona' .codex/skills/coding-simplicity/SKILL.md
-          ! grep -Fq 'Minimal Implementation Ladder' .codex/skills/agent-loop-discipline/SKILL.md
-          test -f .codex/agents/agent-loop-investigator.toml
-          test -f .codex/agents/agent-loop-surgical-builder.toml
-          test -f .codex/agents/agent-loop-code-reviewer.toml
-          test -f .codex/hooks/context.php
-          test -f .github/agents/agent-loop-investigator.agent.md
-          test -f .github/agents/agent-loop-surgical-builder.agent.md
-          test -f .github/agents/agent-loop-code-reviewer.agent.md
-          test -f .agents/agents/agent-loop-investigator.md
-          test -f .agents/agents/agent-loop-surgical-builder.md
-          test -f .agents/agents/agent-loop-code-reviewer.md
-          mkdir -p "${GITHUB_WORKSPACE}/build"
-          doctor_output="$(php vendor/bin/agent-loop init doctor)"
-          printf '%s\n' "${doctor_output}" > "${GITHUB_WORKSPACE}/build/installed-host-capabilities.txt"
-          grep -Fq 'Host capabilities [codex]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
-          grep -Fq 'Host capabilities [claude]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
-          grep -Fq 'Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
-          grep -F 'Host capabilities [copilot]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
-          grep -Fq 'Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
-          grep -F 'Host capabilities [antigravity]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
-          php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
-            > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
+          rm -rf build/release-set
+          mkdir -p build/release-set
+          php tools/release-set-dogfood.php build/release-set build/pinned-agent-skills
       - name: Upload release-set evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: release-set-dogfood-${{ github.sha }}
-          if-no-files-found: warn
-          path: |
-            build/release-set-report.json
-            build/installed-assets-dogfood.json
-            build/installed-host-capabilities.txt
-            ${{ runner.temp }}/agent-loop-release-set/artifacts
+          name: agent-loop-release-set-evidence
+          path: build/release-set/evidence.json
+          if-no-files-found: error
