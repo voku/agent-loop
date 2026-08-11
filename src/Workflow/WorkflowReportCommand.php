@@ -347,7 +347,7 @@ final readonly class WorkflowReportCommand
 
         $root = (new ProjectLayout($this->rootPath))->learningRoot();
 
-        return is_string($root) && is_dir($root) ? rtrim($root, '/') : null;
+        return is_dir($root) ? rtrim($root, '/') : null;
     }
 
     private function loggedOutcomeCount(string $taskId, ?string $learningRoot): int
