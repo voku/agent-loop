@@ -189,7 +189,11 @@ final class WorkflowStartCommandTest extends TestCase
 
     private function root(): string
     {
-        return sys_get_temp_dir() . '/agent-loop-start-' . bin2hex(random_bytes(6));
+        $root = sys_get_temp_dir() . '/agent-loop-start-' . bin2hex(random_bytes(6));
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', "{\n  \"version\": 1,\n  \"layout\": \"legacy\"\n}\n");
+
+        return $root;
     }
 
     private function removeDirectory(string $dir): void
