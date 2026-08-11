@@ -7,6 +7,7 @@ namespace voku\AgentLoop;
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentMap\Cli\AgentMapApplication;
+use voku\AgentMap\Cli\DiscoveryCliApplication;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
@@ -20,7 +21,7 @@ use voku\AgentSession\SessionStore;
  * Unified entrypoint for the governed agentic-coding loop.
  *
  * Routes the first CLI argument to the matching library while keeping the
- * real project/source root separate from optional compact workflow state.
+ * real project/source root separate from repository-local workflow state.
  */
 final class Dispatcher
 {
@@ -117,10 +118,26 @@ final class Dispatcher
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
     }
 
-    /** @param list<string> $rest */
+    /**
+     * Delegates repository map commands to the same two-stage router used by
+     * agent-map's binary while preserving agent-loop's root defaults.
+     *
+     * @param list<string> $rest
+     */
     private function dispatchMap(string $scriptName, array $rest): int
     {
-        return (new AgentMapApplication())->run($this->subArgv($scriptName, $this->resolveMapArgv($rest)));
+        $argv = $this->subArgv($scriptName, $this->resolveMapArgv($rest));
+        $discovery = new DiscoveryCliApplication();
+        if ($discovery->supports($argv)) {
+            return $discovery->run($argv);
+        }
+
+        $status = (new AgentMapApplication())->run($argv);
+        if ($discovery->shouldAppendToGeneralHelp($argv)) {
+            echo $discovery->helpOverview();
+        }
+
+        return $status;
     }
 
     /**
@@ -193,9 +210,7 @@ final class Dispatcher
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
-    /**
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
     private function dispatchRecall(string $scriptName, array $rest): int
     {
         $exit = (new RecallCli())->run($this->subArgv($scriptName, $this->resolveRecallArgv($rest)));
@@ -380,11 +395,12 @@ final class Dispatcher
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
                   Working memory: per-task session plans (voku/agent-session).
-          map     <build|refresh|query|file|stale|summary|changed|related|stats|scope|callers|
-                  callees|context>
-                  Compact PHP repository symbol map (voku/agent-map). `build`
-                  writes the whole scope; `refresh` re-analyses only changed or
-                  new files and patches them into the existing index.
+          map     <build|refresh|discover|rank|impact|query|file|stale|summary|changed|related|
+                  stats|scope|callers|callees|context>
+                  Deterministic PHP repository map and architecture discovery
+                  (voku/agent-map). `build` writes the whole scope; `refresh`
+                  re-analyses only changed or new files and patches them into
+                  the existing index.
           memory  <validate|review>
                   MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
@@ -395,8 +411,8 @@ final class Dispatcher
           help    Show this help.
 
         Repository layout:
-          Add `"layout": "compact"` to `.agent-loop/init.json` to keep workflow
-          state below `.agent-loop/`; the project/source root remains unchanged.
+          Workflow state defaults to `.agent-loop/`; the project/source root remains unchanged.
+          Use `"layout": "legacy"` in `.agent-loop/init.json` only for explicit compatibility.
 
         Run a namespace with `help` for its own command list, e.g.:
           agent-loop edit help
