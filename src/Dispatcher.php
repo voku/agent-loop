@@ -65,12 +65,9 @@ final class Dispatcher
     /** @param list<string> $rest */
     private function dispatchLearn(string $scriptName, array $rest): int
     {
-        if ($this->layout()->isCompact() && !in_array($rest[0] ?? 'help', ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
-            $root = $this->layout()->learningRoot();
-            if (is_string($root)) {
-                $rest[] = '--root';
-                $rest[] = $root;
-            }
+        if (!in_array($rest[0] ?? 'help', ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
+            $rest[] = '--root';
+            $rest[] = $this->layout()->learningRoot();
         }
 
         return (new LearningCli())->run($this->subArgv($scriptName, $rest));
@@ -78,7 +75,7 @@ final class Dispatcher
 
     /**
      * Resolves task IDs accepted as ergonomic aliases by session commands to
-     * the one active generated session id, then injects the compact root when
+     * the one active generated session id, then injects the canonical root when
      * the caller did not choose one explicitly.
      *
      * @param list<string> $rest
@@ -90,7 +87,7 @@ final class Dispatcher
             return 1;
         }
 
-        if ($this->layout()->isCompact() && !$this->hasOption($resolved, 'root')) {
+        if (!$this->hasOption($resolved, 'root')) {
             $resolved[] = '--root';
             $resolved[] = $this->layout()->sessionsRoot();
         }
@@ -229,7 +226,7 @@ final class Dispatcher
         }
 
         $taskId = $rest[1] ?? '';
-        if (!preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) || str_contains($taskId, '..')) {
+        if (!$this->isSafeTaskId($taskId)) {
             return $rest;
         }
 
@@ -315,7 +312,7 @@ final class Dispatcher
     }
 
     /**
-     * Defaults recall commands to the compact learning root and compile output
+     * Defaults recall commands to the canonical learning root and compile output
      * to <recall-root>/<task-id> when those options were not supplied.
      *
      * @param list<string> $rest
@@ -324,12 +321,9 @@ final class Dispatcher
     private function resolveRecallArgv(array $rest): array
     {
         $command = $rest[0] ?? null;
-        if ($this->layout()->isCompact() && in_array($command, ['compile', 'log-outcome'], true) && !$this->hasOption($rest, 'root')) {
-            $learningRoot = $this->layout()->learningRoot();
-            if (is_string($learningRoot)) {
-                $rest[] = '--root';
-                $rest[] = $learningRoot;
-            }
+        if (in_array($command, ['compile', 'log-outcome'], true) && !$this->hasOption($rest, 'root')) {
+            $rest[] = '--root';
+            $rest[] = $this->layout()->learningRoot();
         }
 
         if ($command !== 'compile') {
@@ -369,11 +363,17 @@ final class Dispatcher
             }
         }
 
-        if ($taskId === null || trim($taskId) === '') {
+        if ($taskId === null || !$this->isSafeTaskId($taskId)) {
             return $rest;
         }
 
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
+    }
+
+    private function isSafeTaskId(string $taskId): bool
+    {
+        return preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) === 1
+            && !str_contains($taskId, '..');
     }
 
     /**
@@ -438,8 +438,7 @@ final class Dispatcher
           help    Show this help.
 
         Repository layout:
-          Workflow state defaults to `.agent-loop/`; the project/source root remains unchanged.
-          Use `"layout": "legacy"` in `.agent-loop/init.json` only for explicit compatibility.
+          Workflow state lives below `.agent-loop/`; the project/source root remains unchanged.
 
         Run a namespace with `help` for its own command list, e.g.:
           agent-loop edit help
