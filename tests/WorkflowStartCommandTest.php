@@ -38,7 +38,7 @@ final class WorkflowStartCommandTest extends TestCase
                 ['compile', '--root', 'infra/doc/agent-learning', '--task', 'ABC-123', '--file', 'src/Foo.php'],
             ], $recallCalls);
 
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             self::assertSame('ABC-123', $sessions[0]->taskId);
             self::assertSame('lars', $sessions[0]->claimedBy);
@@ -75,7 +75,7 @@ final class WorkflowStartCommandTest extends TestCase
                 ['compile', '--root', 'learn', '--task', 'ABC-123', '--file', 'a.php', '--file', 'b.php'],
             ], $recallCalls);
 
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             self::assertSame('abc', $sessions[0]->baseCommit);
         } finally {
@@ -103,7 +103,7 @@ final class WorkflowStartCommandTest extends TestCase
             self::assertSame(0, $command->run($args));
             ob_end_clean();
 
-            $sessionsBeforeRestart = (new SessionStore())->all($root . '/session_plan');
+            $sessionsBeforeRestart = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessionsBeforeRestart);
             $sessionId = $sessionsBeforeRestart[0]->id;
 
@@ -113,7 +113,7 @@ final class WorkflowStartCommandTest extends TestCase
 
             self::assertSame(0, $exit);
             self::assertCount(2, $recallCalls);
-            $sessionsAfterRestart = (new SessionStore())->all($root . '/session_plan');
+            $sessionsAfterRestart = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessionsAfterRestart);
             self::assertSame($sessionId, $sessionsAfterRestart[0]->id);
             self::assertStringContainsString("reusing active session {$sessionId}", $output);
@@ -126,8 +126,8 @@ final class WorkflowStartCommandTest extends TestCase
     {
         $root = $this->root();
         $store = new SessionStore();
-        $store->create($root . '/session_plan', 'ABC-123', by: 'first');
-        $store->create($root . '/session_plan', 'ABC-123', by: 'second');
+        $store->create($root . '/.agent-loop/sessions', 'ABC-123', by: 'first');
+        $store->create($root . '/.agent-loop/sessions', 'ABC-123', by: 'second');
         $recallCalls = 0;
         $command = new WorkflowStartCommand(
             $root,
@@ -145,7 +145,7 @@ final class WorkflowStartCommandTest extends TestCase
 
             self::assertSame(1, $exit);
             self::assertSame(0, $recallCalls);
-            self::assertCount(2, $store->all($root . '/session_plan'));
+            self::assertCount(2, $store->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
@@ -164,7 +164,7 @@ final class WorkflowStartCommandTest extends TestCase
             self::assertSame(1, $command->run(['ABC-123', '--by', 'lars']));
             ob_end_clean();
 
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
@@ -181,7 +181,7 @@ final class WorkflowStartCommandTest extends TestCase
             ob_end_clean();
 
             self::assertSame(8, $exit);
-            self::assertCount(1, (new SessionStore())->all($root . '/session_plan'));
+            self::assertCount(1, (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
