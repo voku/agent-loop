@@ -19,7 +19,16 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         yield 'investigator' => [
             'agent-loop-investigate',
             'agent-loop-investigator',
-            ['agent-loop map', 'real source', 'Read-only'],
+            [
+                'agent-loop map',
+                'map discover --region',
+                'map history coupling',
+                'map history claims',
+                'heuristic',
+                'clean Git checkpoint',
+                'real source',
+                'Read-only',
+            ],
         ];
         yield 'surgical builder' => [
             'agent-loop-surgical-edit',
@@ -53,6 +62,11 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         foreach ($invariants as $invariant) {
             self::assertStringContainsStringIgnoringCase($invariant, $skill, $skillName . ' misses role invariant: ' . $invariant);
             self::assertStringContainsStringIgnoringCase($invariant, $subagent, $subagentName . ' misses role invariant: ' . $invariant);
+        }
+
+        if ($skillName === 'agent-loop-investigate') {
+            self::assertStringContainsStringIgnoringCase('do not run `history observe` during investigation', $skill);
+            self::assertStringContainsStringIgnoringCase('do not run `map history observe` during investigation', $subagent);
         }
     }
 

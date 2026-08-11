@@ -50,7 +50,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         }
     }
 
-    public function testFixturePinsTheRecallOutputConventionUsedByTheGate(): void
+    public function testFixtureDoesNotOverrideCanonicalRecallRoot(): void
     {
         $fixture = dirname(__DIR__) . '/tests/fixtures/release-set-consumer/.agent-loop/init.json';
         mkdir($this->temporaryRoot . '/.agent-loop', 0o775, true);
@@ -59,7 +59,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         $config = (new InitConfigLoader($this->temporaryRoot))->load('.agent-loop/init.json');
 
         self::assertSame([], $config['warnings']);
-        self::assertSame('recall', $config['paths']['recall_root'] ?? null);
+        self::assertArrayNotHasKey('recall_root', $config['paths']);
     }
 
     public function testFixtureEditIsExactAndDeterministic(): void

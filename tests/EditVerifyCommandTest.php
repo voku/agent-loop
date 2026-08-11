@@ -147,7 +147,7 @@ final class EditVerifyCommandTest extends TestCase
     public function testVerificationDoesNotTouchTheSharedMapIndex(): void
     {
         $this->runEdit();
-        $shared = $this->root . '/.agent-map/php-symbols.json';
+        $shared = $this->root . '/.agent-loop/map/php-symbols.json';
         self::assertFileExists($shared);
         $before = (string) file_get_contents($shared);
 

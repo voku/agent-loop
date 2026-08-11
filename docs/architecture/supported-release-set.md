@@ -3,7 +3,7 @@
 Status: initial compatibility baseline for
 [agent-loop#20](https://github.com/voku/agent-loop/issues/20)  
 Recorded: 2026-08-06  
-Updated: 2026-08-07 (root package baseline raised to `0.12.0` for run manifest v1)
+Updated: 2026-08-10 (`agent-map` 0.5 / `agent-recall-compiler` 0.10 discovery stack)
 
 ## Purpose
 
@@ -20,13 +20,17 @@ gate must install and exercise.
 | `voku/agent-loop` | `0.12.0` | root package | joined workflow status, run manifest v1 projection, ephemeral experiments, package-owned agent assets, current lifecycle contract |
 | `voku/agent-kanban` | `0.2.1` | `0.2.*` | typed board API, safe card mutations, deterministic verification/JSON |
 | `voku/agent-session` | `0.3.0` | `0.3.*` | revisioned briefs/approvals, validation evidence, explicit ephemeral sessions |
-| `voku/agent-map` | `0.4.1` | `^0.4.0` | semantic map, incremental refresh, hybrid search and Unicode-safe query planning |
-| `voku/agent-recall-compiler` | `0.9.2` | `^0.9.0` | target-aware recall, map-search candidates, deterministic verification artifacts |
+| `voku/agent-map` | `0.5.0` | `^0.5.0` | semantic map, incremental refresh, hybrid search, evidence-backed `discover`/`rank`/`impact`, namespace/directory/file coupling |
+| `voku/agent-recall-compiler` | `0.10.0` | `^0.10.0` | target-aware recall, map-search candidates, bounded architecture-discovery fallback, deterministic verification artifacts |
 | `voku/agent-learning` | `0.8.12` | `0.8.*` | evidence-backed learning, outcome histories, deterministic maintenance/projections |
 
 The baseline is a test input, not a promise to freeze patch versions. A changed
 resolved version updates the recorded release-set result and must still satisfy
 the required capabilities.
+
+The `agent-map` 0.5 / recall 0.10 line crossed the installed clean-consumer gate
+on 2026-08-10 through agent-loop PR #58. That gate resolved the public package
+set through normal Composer resolution rather than path/dev fallbacks.
 
 ## Current Composer boundary
 
@@ -36,8 +40,8 @@ The root package currently requires:
 {
   "voku/agent-kanban": "0.2.*",
   "voku/agent-learning": "0.8.*",
-  "voku/agent-map": "^0.4.0",
-  "voku/agent-recall-compiler": "^0.9.0",
+  "voku/agent-map": "^0.5.0",
+  "voku/agent-recall-compiler": "^0.10.0",
   "voku/agent-session": "0.3.*"
 }
 ```
@@ -79,7 +83,10 @@ inventory needs at least these categories:
 | session brief/approval reference schema | `agent-session` | bind the run to the exact approved revision |
 | ephemeral session semantics | `agent-session` | keep experiments outside governed gates |
 | map/readiness/context reference schema | `agent-map` | bind repository evidence and recovery state |
+| map architecture-discovery semantics | `agent-map` | orient unfamiliar PHP work from graph evidence without inventing subsystem certainty; retain path structure when namespaces are absent |
+| map impact/ranking semantics | `agent-map` | bound reverse impact and one-hop importance while preserving relation evidence and uncertainty |
 | map-search candidate semantics | `agent-recall-compiler` + `agent-map` | preserve inferred/verified authority boundary |
+| recall architecture-discovery fact | `agent-recall-compiler` + `agent-map` | add query-less orientation only for tasks without explicit files/targets and refuse stale architecture evidence |
 | recall compilation reference schema | `agent-recall-compiler` | bind selected guidance and output hashes |
 | verification-plan/key schema | `agent-recall-compiler` | preserve public/private answer boundary |
 | edit verification result schema | `agent-loop` | bind execution to independent verdict |

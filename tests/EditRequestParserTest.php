@@ -55,7 +55,7 @@ final class EditRequestParserTest extends TestCase
         self::assertSame(PHP_BINARY, $first->runnerCommand);
         self::assertSame(['-r', 'echo stream_get_contents(STDIN);'], $first->runnerArguments);
         self::assertSame(30, $first->runnerTimeoutSeconds);
-        self::assertSame($this->root . '/.agent-map/php-symbols.json', $first->mapIndex);
+        self::assertSame($this->root . '/.agent-loop/map/php-symbols.json', $first->mapIndex);
         self::assertStringStartsWith($this->root . '/.agent-loop/edit/', $first->outputDirectory);
     }
 

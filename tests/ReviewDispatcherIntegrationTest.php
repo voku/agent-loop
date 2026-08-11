@@ -27,44 +27,41 @@ final class ReviewDispatcherIntegrationTest extends TestCase
 
     public function testReviewBlindspotsDefaultsToAgentLoopRecallLayout(): void
     {
-        $this->write('recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => []], JSON_THROW_ON_ERROR));
-        $this->write('recall/ABC-123/validation-plan.md', "PHPStan passed.\nreview blindspots ABC-123 checked.\nrecall-log.draft.json prepared.\n");
-        $this->write('recall/ABC-123/recall-log.draft.json', '{"outcome":"prepared"}');
+        $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => []], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/validation-plan.md', "PHPStan passed.\nreview blindspots ABC-123 checked.\nrecall-log.draft.json prepared.\n");
+        $this->write('.agent-loop/recall/ABC-123/recall-log.draft.json', '{"outcome":"prepared"}');
 
         $result = $this->dispatch(['agent-loop', 'review', 'blindspots', 'ABC-123']);
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('Review blindspots for ABC-123: ok', $result['output']);
-        self::assertFileExists($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.md');
-        self::assertFileExists($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json');
-        self::assertFileExists($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.prompt.md');
+        self::assertFileExists($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.md');
+        self::assertFileExists($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json');
+        self::assertFileExists($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.prompt.md');
     }
 
-    public function testReviewBlindspotsUsesTheLearningRootRecallOutputWhenPresent(): void
+    public function testReviewBlindspotsDoesNotAutoDiscoverHistoricalLearningRootRecallOutput(): void
     {
         mkdir($this->root . '/infra/doc/agent-learning/findings', 0o775, true);
         $this->write('infra/doc/agent-learning/recall-output/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => []], JSON_THROW_ON_ERROR));
-        $this->write('infra/doc/agent-learning/recall-output/ABC-123/validation-plan.md', "PHPStan passed.\nreview blindspots ABC-123 checked.\nrecall-log.draft.json prepared.\n");
-        $this->write('infra/doc/agent-learning/recall-output/ABC-123/recall-log.draft.json', '{"outcome":"prepared"}');
 
         $result = $this->dispatch(['agent-loop', 'review', 'blindspots', 'ABC-123']);
 
-        self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('Review blindspots for ABC-123: ok', $result['output']);
-        self::assertFileExists($this->root . '/infra/doc/agent-learning/recall-output/ABC-123/reviews/ABC-123.blindspots.json');
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertFileDoesNotExist($this->root . '/infra/doc/agent-learning/recall-output/ABC-123/reviews/ABC-123.blindspots.json');
     }
 
     public function testReviewCodeDefaultsToAgentLoopRecallLayout(): void
     {
-        $this->write('recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
-        $this->write('recall/ABC-123/validation-plan.md', "PHPUnit passed.\n");
+        $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/validation-plan.md', "PHPUnit passed.\n");
         $this->write('src/Foo.php', "<?php\n\ndeclare(strict_types=1);\n");
 
         $result = $this->dispatch(['agent-loop', 'review', 'code', 'ABC-123']);
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('Review code prompt for ABC-123', $result['output']);
-        $prompt = (string) file_get_contents($this->root . '/recall/ABC-123/reviews/ABC-123.code.prompt.md');
+        $prompt = (string) file_get_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.code.prompt.md');
         self::assertStringContainsString('src/Foo.php', $prompt);
         self::assertStringContainsString('L2 code review prompt for ABC-123', $prompt);
     }
