@@ -180,6 +180,32 @@ final class Dispatcher
         return false;
     }
 
+    /**
+     * @param list<string> $tokens
+     */
+    private function optionValue(array $tokens, string $name): ?string
+    {
+        $inlinePrefix = '--' . $name . '=';
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (str_starts_with($token, $inlinePrefix)) {
+                $value = substr($token, strlen($inlinePrefix));
+
+                return $value !== '' ? $value : null;
+            }
+            if ($token !== '--' . $name) {
+                continue;
+            }
+
+            $value = $tokens[$i + 1] ?? null;
+
+            return is_string($value) && $value !== '' && !str_starts_with($value, '--') ? $value : null;
+        }
+
+        return null;
+    }
+
     private function defaultMapIndex(): string
     {
         return $this->layout()->mapIndex();
@@ -226,6 +252,7 @@ final class Dispatcher
     /**
      * Resolves task IDs accepted as ergonomic aliases by session commands to
      * the one active generated session id. Explicit session ids pass through.
+     * Explicit --root participates in alias lookup before delegation.
      *
      * @param list<string> $rest
      * @return list<string>|null
@@ -248,7 +275,7 @@ final class Dispatcher
             return $rest;
         }
 
-        $sessionRoot = $this->layout()->sessionsRoot();
+        $sessionRoot = $this->optionValue($rest, 'root') ?? $this->layout()->sessionsRoot();
         if (!is_dir($sessionRoot)) {
             return $rest;
         }
