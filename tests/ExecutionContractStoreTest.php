@@ -39,12 +39,12 @@ final class ExecutionContractStoreTest extends TestCase
             $store = new ExecutionContractStore($root);
             $path = $store->writeReady('TASK-2', 'lars', $this->contract());
 
-            self::assertSame('recall/TASK-2/execution-contract.json', $path);
+            self::assertSame('.agent-loop/recall/TASK-2/execution-contract.json', $path);
             self::assertSame('ready', $store->inspect('TASK-2')['state']);
             $store->assertReadyForMutation('TASK-2');
 
             $metadata = json_decode(
-                (string) file_get_contents($root . '/recall/TASK-2/execution-contract.json'),
+                (string) file_get_contents($root . '/.agent-loop/recall/TASK-2/execution-contract.json'),
                 true,
                 512,
                 JSON_THROW_ON_ERROR,
@@ -68,7 +68,7 @@ final class ExecutionContractStoreTest extends TestCase
             $store = new ExecutionContractStore($root);
             $store->writeReady('TASK-3', 'lars', $this->contract());
 
-            $factsPath = $root . '/recall/TASK-3/facts.json';
+            $factsPath = $root . '/.agent-loop/recall/TASK-3/facts.json';
             $facts = json_decode((string) file_get_contents($factsPath), true, 512, JSON_THROW_ON_ERROR);
             $facts['bundle_sha256'] = str_repeat('b', 64);
             file_put_contents($factsPath, json_encode($facts, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
@@ -150,7 +150,7 @@ final class ExecutionContractStoreTest extends TestCase
 
     private function fixture(string $root, string $taskId, int $level): Session
     {
-        $session = (new SessionStore())->create($root . '/session_plan', $taskId, by: 'lars');
+        $session = (new SessionStore())->create($root . '/.agent-loop/sessions', $taskId, by: 'lars');
         file_put_contents($session->path . '/work-brief.json', json_encode([
             'schema_version' => '1.0',
             'task_id' => $taskId,
@@ -178,7 +178,7 @@ final class ExecutionContractStoreTest extends TestCase
             'approved_at' => '2026-08-09T00:00:01+00:00',
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
-        $recall = $root . '/recall/' . $taskId;
+        $recall = $root . '/.agent-loop/recall/' . $taskId;
         mkdir($recall, 0777, true);
         file_put_contents($recall . '/facts.json', json_encode([
             'schema_version' => '1.0',
