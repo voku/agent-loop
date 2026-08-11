@@ -33,6 +33,7 @@
   },
   "autoload-dev": {
     "psr-4": {
+      "voku\\AgentLoop\\PHPStan\\": "phpstan/",
       "voku\\AgentLoop\\Tests\\": "tests/"
     }
   },
