@@ -220,26 +220,26 @@ final class ReleaseSetDogfood
             'build',
             '--root=.',
             '--paths=src,tests',
-            '--out=.agent-map/php-symbols.json',
+            '--out=.agent-loop/map/php-symbols.json',
         ]);
         $this->mustRun([
             'vendor/bin/agent-map',
             'search-index',
             'build',
             '--root=.',
-            '--index=.agent-map/php-symbols.json',
-            '--database=.agent-map/search.sqlite',
+            '--index=.agent-loop/map/php-symbols.json',
+            '--database=.agent-loop/map/search.sqlite',
         ]);
         $this->mustRun([
             'vendor/bin/agent-map',
             'search-index',
             'doctor',
             '--root=.',
-            '--index=.agent-map/php-symbols.json',
-            '--database=.agent-map/search.sqlite',
+            '--index=.agent-loop/map/php-symbols.json',
+            '--database=.agent-loop/map/search.sqlite',
         ]);
-        $this->artifact($this->consumerRoot . '/.agent-map/php-symbols.json');
-        $this->artifact($this->consumerRoot . '/.agent-map/search.sqlite');
+        $this->artifact($this->consumerRoot . '/.agent-loop/map/php-symbols.json');
+        $this->artifact($this->consumerRoot . '/.agent-loop/map/search.sqlite');
     }
 
     private function discoverExact(): void
@@ -248,7 +248,7 @@ final class ReleaseSetDogfood
             'vendor/bin/agent-map',
             'scope',
             'Fixture\\RetryPolicy::delayMilliseconds',
-            '--index=.agent-map/php-symbols.json',
+            '--index=.agent-loop/map/php-symbols.json',
             '--format=json',
         ]);
         $decoded = $this->json($result->stdout, 'exact method scope');
@@ -269,8 +269,8 @@ final class ReleaseSetDogfood
             'search',
             'How is the delay before retrying a timed out request calculated?',
             '--root=.',
-            '--index=.agent-map/php-symbols.json',
-            '--database=.agent-map/search.sqlite',
+            '--index=.agent-loop/map/php-symbols.json',
+            '--database=.agent-loop/map/search.sqlite',
             '--format=json',
             '--limit=5',
         ]);
@@ -285,8 +285,8 @@ final class ReleaseSetDogfood
             'search',
             $query,
             '--root=.',
-            '--index=.agent-map/php-symbols.json',
-            '--database=.agent-map/search.sqlite',
+            '--index=.agent-loop/map/php-symbols.json',
+            '--database=.agent-loop/map/search.sqlite',
             '--format=json',
             '--limit=5',
         ]);
@@ -300,7 +300,7 @@ final class ReleaseSetDogfood
             'vendor/bin/agent-map',
             'query',
             'NonexistentQuantumLedger',
-            '--index=.agent-map/php-symbols.json',
+            '--index=.agent-loop/map/php-symbols.json',
             '--format=json',
         ]);
         if (str_contains($result->stdout, 'Fixture\\')) {
@@ -311,8 +311,8 @@ final class ReleaseSetDogfood
     private function scaffold(): void
     {
         $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold']);
-        $this->assertFile($this->consumerRoot . '/todo/cards/DEMO-1.md');
-        $this->assertFile($this->consumerRoot . '/tasks/DEMO-1.md');
+        $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
+        $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
     }
 
     private function ephemeralWorkflow(): void
@@ -396,7 +396,7 @@ final class ReleaseSetDogfood
         $status = $this->status('DEMO-1');
         $this->assertReferenceState($status, 'approval', 'current');
         $this->assertReferenceState($status, 'recall', 'compiled');
-        $this->artifact($this->consumerRoot . '/recall/DEMO-1/meta.json');
+        $this->artifact($this->consumerRoot . '/.agent-loop/recall/DEMO-1/meta.json');
     }
 
     private function governedExecute(): void
@@ -406,16 +406,16 @@ final class ReleaseSetDogfood
             'vendor/bin/agent-map',
             'refresh',
             '--root=.',
-            '--index=.agent-map/php-symbols.json',
-            '--out=.agent-map/php-symbols.json',
+            '--index=.agent-loop/map/php-symbols.json',
+            '--out=.agent-loop/map/php-symbols.json',
         ]);
         $this->mustRun([
             'vendor/bin/agent-map',
             'search-index',
             'refresh',
             '--root=.',
-            '--index=.agent-map/php-symbols.json',
-            '--database=.agent-map/search.sqlite',
+            '--index=.agent-loop/map/php-symbols.json',
+            '--database=.agent-loop/map/search.sqlite',
         ]);
         $this->mustRun([
             'vendor/bin/agent-loop',
@@ -426,7 +426,7 @@ final class ReleaseSetDogfood
             'release-set-gate',
         ]);
         $this->artifact($this->consumerRoot . '/src/RetryPolicy.php');
-        $this->artifact($this->consumerRoot . '/.agent-map/php-symbols.json');
+        $this->artifact($this->consumerRoot . '/.agent-loop/map/php-symbols.json');
     }
 
     private function governedValidate(): void
@@ -470,7 +470,7 @@ final class ReleaseSetDogfood
             'The deterministic blind-spot report was inspected by the release-set gate.',
         ]);
         $this->mustRun(['vendor/bin/agent-loop', 'review', 'blindspots', 'DEMO-1']);
-        $this->artifact($this->consumerRoot . '/recall/DEMO-1/reviews/DEMO-1.blindspots.json');
+        $this->artifact($this->consumerRoot . '/.agent-loop/recall/DEMO-1/reviews/DEMO-1.blindspots.json');
     }
 
     private function governedLearn(): void
@@ -568,6 +568,7 @@ final class ReleaseSetDogfood
     }
 
     /**
+     * @param list<string> $command
      * @param list<int> $allowedExitCodes
      */
     private function mustRun(array $command, array $allowedExitCodes = [0]): CommandResult
@@ -746,7 +747,7 @@ final class ReleaseSetDogfood
         $this->writeJson($this->consumerRoot . '/composer.json', $composer);
         file_put_contents(
             $this->consumerRoot . '/.gitignore',
-            "/vendor/\n/.agent-map/\n/.agent-loop/\nsession_plan/\n/recall/\n/infra/doc/agent-learning/history/\n",
+            "/vendor/\n/.agent-loop/\n",
         );
         file_put_contents($this->consumerRoot . '/tools/autoload-probe.php', $this->autoloadProbe());
     }
@@ -875,8 +876,6 @@ PHP;
         file_put_contents($this->reportPath, $this->canonicalJson($report));
 
         if (!$this->keepWorkspace && !$this->failed) {
-            // Keep the report wherever the caller requested it, but remove the
-            // potentially large consumer/vendor tree after a successful local run.
             if (!str_starts_with($this->reportPath, rtrim($this->workspace, '/') . '/')) {
                 $this->removeTree($this->workspace);
             }
