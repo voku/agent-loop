@@ -12,30 +12,9 @@ use voku\AgentLoop\ProjectLayout;
 /** @internal */
 final class ProjectLayoutTest extends TestCase
 {
-    public function testKeepsLegacyLayoutByDefault(): void
+    public function testUsesCompactLayoutByDefault(): void
     {
         $root = $this->root();
-
-        try {
-            $layout = new ProjectLayout($root);
-
-            self::assertFalse($layout->isCompact());
-            self::assertSame($root, $layout->boardRoot());
-            self::assertSame($root . '/tasks', $layout->tasksRoot());
-            self::assertSame($root . '/session_plan', $layout->sessionsRoot());
-            self::assertSame($root . '/recall', $layout->recallRoot());
-            self::assertSame($root . '/.agent-map/php-symbols.json', $layout->mapIndex());
-            self::assertSame($root . '/.agent-map/search.sqlite', $layout->mapSearchIndex());
-        } finally {
-            $this->remove($root);
-        }
-    }
-
-    public function testCompactsWorkflowStateBelowAgentLoopDirectory(): void
-    {
-        $root = $this->root();
-        mkdir($root . '/.agent-loop', 0o775, true);
-        file_put_contents($root . '/.agent-loop/init.json', "{\n  \"version\": 1,\n  \"layout\": \"compact\"\n}\n");
 
         try {
             $layout = new ProjectLayout($root);
@@ -49,6 +28,27 @@ final class ProjectLayoutTest extends TestCase
             self::assertSame($root . '/.agent-loop/recall', $layout->recallRoot());
             self::assertSame($root . '/.agent-loop/map/php-symbols.json', $layout->mapIndex());
             self::assertSame($root . '/.agent-loop/map/search.sqlite', $layout->mapSearchIndex());
+        } finally {
+            $this->remove($root);
+        }
+    }
+
+    public function testExplicitLegacyLayoutKeepsHistoricalPaths(): void
+    {
+        $root = $this->root();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', "{\n  \"version\": 1,\n  \"layout\": \"legacy\"\n}\n");
+
+        try {
+            $layout = new ProjectLayout($root);
+
+            self::assertFalse($layout->isCompact());
+            self::assertSame($root, $layout->boardRoot());
+            self::assertSame($root . '/tasks', $layout->tasksRoot());
+            self::assertSame($root . '/session_plan', $layout->sessionsRoot());
+            self::assertSame($root . '/recall', $layout->recallRoot());
+            self::assertSame($root . '/.agent-map/php-symbols.json', $layout->mapIndex());
+            self::assertSame($root . '/.agent-map/search.sqlite', $layout->mapSearchIndex());
         } finally {
             $this->remove($root);
         }
