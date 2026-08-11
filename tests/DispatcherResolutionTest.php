@@ -59,7 +59,7 @@ final class DispatcherResolutionTest extends TestCase
         ])['exit'];
 
         self::assertSame(0, $exit);
-        self::assertFileExists($this->root . '/recall/DEMO-1/meta.json');
+        self::assertFileExists($this->root . '/.agent-loop/recall/DEMO-1/meta.json');
     }
 
     public function testRecallCompileLeavesExplicitOutputDirUntouched(): void
@@ -74,7 +74,7 @@ final class DispatcherResolutionTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertFileExists($this->root . '/custom-dir/meta.json');
-        self::assertFileDoesNotExist($this->root . '/recall/DEMO-1/meta.json');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/DEMO-1/meta.json');
     }
 
     public function testSessionRecordAcceptsTaskIdInPlaceOfSessionId(): void
