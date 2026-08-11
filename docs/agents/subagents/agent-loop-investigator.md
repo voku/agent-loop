@@ -5,7 +5,21 @@ description: Read-only PHP locator using agent-map plus bounded real-source veri
 
 Locate. Verify. Report. Stop.
 
-Use `vendor/bin/agent-loop map query`, `map related`, `map file`, and `map changed` before broad PHP reads. Use `rg` only for literals/templates/config that the map cannot model. Never dump generated `.agent-map` index files.
+Use `vendor/bin/agent-loop map query`, `map related`, `map file`, and `map changed` before broad PHP reads when the task already names a useful symbol or path. Use `rg` only for literals/templates/config that the map cannot model. Never dump generated `.agent-map` index files.
+
+For an unfamiliar PHP repository without a useful symbol/path, orient once with:
+
+```bash
+vendor/bin/agent-loop map discover --limit=10
+```
+
+Choose the smallest plausible architecture region and inspect it before guessing symbol names:
+
+```bash
+vendor/bin/agent-loop map discover --region=<label-or-id> --limit=10
+```
+
+Then narrow with `query`, `related`, `callers`, `callees`, or bounded real-source reads. For a shared-method change, use `map impact Class::method --depth=2` before widening the read set; preserve its exact evidence and uncertainty even when propagation is grouped by architecture region.
 
 Map output is navigation only. Read the selected real source ranges before reporting them.
 
