@@ -121,13 +121,13 @@ final class ReleaseSetDogfood
     private function mapConsumerBoundary(): void
     {
         $this->mustRun([
-            'vendor/bin/agent-map', 'build', '--root=.', '--paths=src,tests', '--out=.agent-map/php-symbols.json',
+            'vendor/bin/agent-map', 'build', '--root=.', '--paths=src,tests', '--out=.agent-loop/map/php-symbols.json',
         ]);
         $this->mustRun([
-            'vendor/bin/agent-map', 'search-index', 'build', '--root=.', '--index=.agent-map/php-symbols.json', '--database=.agent-map/search.sqlite',
+            'vendor/bin/agent-map', 'search-index', 'build', '--root=.', '--index=.agent-loop/map/php-symbols.json', '--database=.agent-loop/map/search.sqlite',
         ]);
         $exact = $this->mustRun([
-            'vendor/bin/agent-map', 'scope', 'Fixture\\RetryPolicy::delayMilliseconds', '--index=.agent-map/php-symbols.json', '--format=json',
+            'vendor/bin/agent-map', 'scope', 'Fixture\\RetryPolicy::delayMilliseconds', '--index=.agent-loop/map/php-symbols.json', '--format=json',
         ]);
         $decoded = $this->json($exact['stdout'], 'agent-map exact scope');
         $target = $decoded['target'] ?? null;
@@ -141,20 +141,20 @@ final class ReleaseSetDogfood
         ] as $query) {
             $search = $this->mustRun([
                 'vendor/bin/agent-map', 'search', $query,
-                '--root=.', '--index=.agent-map/php-symbols.json', '--database=.agent-map/search.sqlite', '--format=json', '--limit=5',
+                '--root=.', '--index=.agent-loop/map/php-symbols.json', '--database=.agent-loop/map/search.sqlite', '--format=json', '--limit=5',
             ]);
             if (!str_contains($search['stdout'], 'RetryPolicy')) {
                 throw new ReleaseSetFailure('agent-map behavior search did not find RetryPolicy for query: ' . $query);
             }
         }
-        $this->artifact($this->consumerRoot . '/.agent-map/php-symbols.json');
+        $this->artifact($this->consumerRoot . '/.agent-loop/map/php-symbols.json');
     }
 
     private function scaffold(): void
     {
         $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold']);
-        $this->assertFile($this->consumerRoot . '/tasks/DEMO-1.md');
-        $this->assertFile($this->consumerRoot . '/todo/cards/DEMO-1.md');
+        $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
+        $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
     }
 
     private function ephemeral(): void
@@ -186,7 +186,7 @@ final class ReleaseSetDogfood
         if (($contract['status'] ?? null) !== 'candidate' || ($contract['revision'] ?? null) !== 1) {
             throw new ReleaseSetFailure('PLAN did not persist candidate Contract revision 1.');
         }
-        foreach (glob($this->consumerRoot . '/session_plan/*', GLOB_ONLYDIR) ?: [] as $directory) {
+        foreach (glob($this->consumerRoot . '/.agent-loop/sessions/*', GLOB_ONLYDIR) ?: [] as $directory) {
             $sessionFile = $directory . '/session.json';
             if (is_file($sessionFile) && ($this->jsonFile($sessionFile)['task_id'] ?? null) === 'DEMO-1') {
                 throw new ReleaseSetFailure('PLAN created pruneable Session state before approval.');
@@ -208,7 +208,7 @@ final class ReleaseSetDogfood
         $this->writeJson($this->artifactRoot . '/run-before-close.json', ['run_id' => $runId]);
         $this->artifact($this->consumerRoot . '/.agent-loop/runs/DEMO-1/run.json');
 
-        foreach (glob($this->consumerRoot . '/session_plan/*', GLOB_ONLYDIR) ?: [] as $directory) {
+        foreach (glob($this->consumerRoot . '/.agent-loop/sessions/*', GLOB_ONLYDIR) ?: [] as $directory) {
             if (is_file($directory . '/work-brief.json') || is_file($directory . '/approval.json') || is_file($directory . '/learning-decision.json')) {
                 throw new ReleaseSetFailure('Session contains removed durable authority artifacts.');
             }
@@ -219,10 +219,10 @@ final class ReleaseSetDogfood
     {
         $this->mustRun([PHP_BINARY, 'tools/apply-change.php']);
         $this->mustRun([
-            'vendor/bin/agent-map', 'refresh', '--root=.', '--index=.agent-map/php-symbols.json', '--out=.agent-map/php-symbols.json',
+            'vendor/bin/agent-map', 'refresh', '--root=.', '--index=.agent-loop/map/php-symbols.json', '--out=.agent-loop/map/php-symbols.json',
         ]);
         $this->mustRun([
-            'vendor/bin/agent-map', 'search-index', 'refresh', '--root=.', '--index=.agent-map/php-symbols.json', '--database=.agent-map/search.sqlite',
+            'vendor/bin/agent-map', 'search-index', 'refresh', '--root=.', '--index=.agent-loop/map/php-symbols.json', '--database=.agent-loop/map/search.sqlite',
         ]);
         // Recompile context after the actual edit while preserving the same Run.
         $before = $this->status('DEMO-1')['manifest']['run_id'] ?? null;
@@ -371,7 +371,7 @@ final class ReleaseSetDogfood
         ]);
         file_put_contents(
             $this->consumerRoot . '/.gitignore',
-            "/vendor/\n/.agent-map/\n/.agent-loop/\nsession_plan/\n/recall/\n/infra/doc/agent-learning/history/\n",
+            "/vendor/\n/.agent-loop/\n",
         );
     }
 
