@@ -1,10 +1,8 @@
 # Upgrading agent-loop
 
-## Repository-local state now defaults to `.agent-loop/`
+## Repository-local state moves to `.agent-loop/`
 
 This is an intentional breaking change across the coordinated `agent-*` stack.
-An absent `layout` field now means the compact layout.
-
 The canonical repository-local state tree is:
 
 ```text
@@ -44,23 +42,9 @@ After migration run:
 vendor/bin/agent-loop verify
 ```
 
-Do that before deleting historical directories.
-
-### Explicit legacy compatibility
-
-Repositories that intentionally keep the historical layout can pin it in
-`.agent-loop/init.json`:
-
-```json
-{
-  "version": 1,
-  "layout": "legacy"
-}
-```
-
-`legacy` is a compatibility mode, not the default. There is deliberately no
-automatic copy, symlink, fallback merge, or dual-write between historical and
-new state roots.
+Do that before deleting historical directories. There is no automatic copy,
+symlink, historical-path discovery, compatibility mode, fallback merge, or
+dual-write between old and new state roots.
 
 ### Package-specific defaults
 
@@ -73,7 +57,8 @@ The coordinated owning packages use the same repository-state convention:
   `.agent-loop/recall/<task-id>/`
 - `agent-map` -> `.agent-loop/map/`
 
-Explicit path options in those packages remain authoritative.
+Explicit path options in the focused packages remain authoritative when a
+repository genuinely needs a custom location.
 
 ### Composer/Git archives
 
@@ -90,5 +75,5 @@ exclude that tooling directory independently, for example:
 /tools/agent-loop export-ignore
 ```
 
-See `docs/quick-start.md` for the complete first-task workflow using the new
-default layout.
+See `docs/quick-start.md` for the complete first-task workflow using the
+canonical layout.
