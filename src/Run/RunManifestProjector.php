@@ -12,6 +12,7 @@ use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
@@ -68,8 +69,8 @@ final readonly class RunManifestProjector
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract),
             'approval' => $this->approvalReference($contract),
-            'map' => $this->fileReference('agent-map', '.agent-map/php-symbols.json', 'missing'),
-            'search_index' => $this->fileReference('agent-map', '.agent-map/search.sqlite', 'not_built'),
+            'map' => $this->fileReference('agent-map', '.agent-loop/map/php-symbols.json', 'missing'),
+            'search_index' => $this->fileReference('agent-map', '.agent-loop/map/search.sqlite', 'not_built'),
             'recall' => $this->recallReference($taskId, $disagreements),
             'execution_contract' => $this->executionContractReference($taskId),
             'edit' => $this->editReference($taskId),
@@ -105,7 +106,7 @@ final readonly class RunManifestProjector
      */
     private function sessionForTask(string $taskId, ?GovernedRun $run, array &$disagreements): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
@@ -156,7 +157,8 @@ final readonly class RunManifestProjector
      */
     private function boardReference(string $taskId, array &$disagreements): array
     {
-        $configPath = rtrim($this->rootPath, '/') . '/todo/kanban.config.json';
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
+        $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
         if (!is_file($configPath)) {
             return ['owner' => 'agent-kanban', 'state' => 'not_configured', 'observation_mode' => 'checked'];
         }
@@ -171,7 +173,7 @@ final readonly class RunManifestProjector
             ];
         }
         try {
-            $repository = new MarkdownCardRepository($this->rootPath, BoardConfig::fromJsonFile($configPath));
+            $repository = new MarkdownCardRepository($boardRoot, BoardConfig::fromJsonFile($configPath));
             if (!$repository->exists($cardId)) {
                 return [
                     'owner' => 'agent-kanban',
