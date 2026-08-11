@@ -9,9 +9,8 @@ use voku\AgentLoop\Init\InitConfigLoader;
 /**
  * Resolves repository-local workflow state without changing the project/source root.
  *
- * Legacy layout remains the default. Compact layout keeps focused-package state
- * below .agent-loop/ so a host library can exclude the complete workflow state
- * from distribution with one directory rule.
+ * Compact layout is the default and keeps focused-package state below .agent-loop/.
+ * Legacy layout remains available only when a repository selects it explicitly.
  */
 final readonly class ProjectLayout
 {
