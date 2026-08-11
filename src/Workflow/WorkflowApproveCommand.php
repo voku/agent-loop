@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -81,14 +82,16 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = '--kanban-context';
                 $recallArgs[] = $kanbanContext;
             }
-            $mapIndex = rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+
+            $layout = new ProjectLayout($this->rootPath);
+            $mapIndex = $layout->mapIndex();
             if (is_file($mapIndex)) {
                 $recallArgs[] = '--map-index';
                 $recallArgs[] = $mapIndex;
                 $recallArgs[] = '--map-root';
                 $recallArgs[] = $this->rootPath;
 
-                $mapSearchIndex = rtrim($this->rootPath, '/') . '/.agent-map/search.sqlite';
+                $mapSearchIndex = $layout->mapSearchIndex();
                 if (is_file($mapSearchIndex)) {
                     $recallArgs[] = '--map-search-index';
                     $recallArgs[] = $mapSearchIndex;
@@ -137,7 +140,7 @@ final readonly class WorkflowApproveCommand
         }
 
         return (new SessionStore())->create(
-            rtrim($this->rootPath, '/') . '/session_plan',
+            (new ProjectLayout($this->rootPath))->sessionsRoot(),
             $contract->taskId,
             null,
             $contract->plannedBy,
@@ -217,7 +220,7 @@ final readonly class WorkflowApproveCommand
 
     private function activeSession(string $taskId): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
