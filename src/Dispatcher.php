@@ -8,6 +8,7 @@ use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentMap\Cli\DiscoveryCliApplication;
+use voku\AgentMap\Cli\TemporalCliApplication;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
@@ -116,20 +117,29 @@ final class Dispatcher
     }
 
     /**
-     * Delegates repository map commands to the same two-stage router used by
-     * agent-map's binary while preserving agent-loop's root defaults.
+     * Delegates repository map commands to the same temporal/discovery/general
+     * router chain used by agent-map's binary while preserving agent-loop's
+     * root, map-index, and temporal-history defaults.
      *
      * @param list<string> $rest
      */
     private function dispatchMap(string $scriptName, array $rest): int
     {
         $argv = $this->subArgv($scriptName, $this->resolveMapArgv($rest));
+        $temporal = new TemporalCliApplication();
+        if ($temporal->supports($argv)) {
+            return $temporal->run($argv);
+        }
+
         $discovery = new DiscoveryCliApplication();
         if ($discovery->supports($argv)) {
             return $discovery->run($argv);
         }
 
         $status = (new AgentMapApplication())->run($argv);
+        if ($temporal->shouldAppendToGeneralHelp($argv)) {
+            echo $temporal->helpOverview();
+        }
         if ($discovery->shouldAppendToGeneralHelp($argv)) {
             echo $discovery->helpOverview();
         }
@@ -149,6 +159,10 @@ final class Dispatcher
             return $rest;
         }
 
+        if ($command === 'history') {
+            return $this->resolveHistoryArgv($rest);
+        }
+
         if ($command === 'build' || $command === 'refresh') {
             if (!$this->hasOption($rest, 'root')) {
                 $rest[] = '--root=' . rtrim($this->rootPath, '/');
@@ -161,6 +175,40 @@ final class Dispatcher
 
         if ($command !== 'build' && !$this->hasOption($rest, 'index')) {
             $rest[] = '--index=' . $this->defaultMapIndex();
+        }
+
+        return $rest;
+    }
+
+    /**
+     * `history diff` compares explicit maps and needs no defaults. Coupling and
+     * claims consume the current map plus Git history. Observe writes a compact
+     * snapshot at a clean Git checkpoint, while show is deliberately read-only
+     * and therefore receives only the history database default.
+     *
+     * @param list<string> $rest
+     *
+     * @return list<string>
+     */
+    private function resolveHistoryArgv(array $rest): array
+    {
+        $subcommand = $rest[1] ?? 'help';
+
+        if (in_array($subcommand, ['coupling', 'claims'], true)) {
+            if (!$this->hasOption($rest, 'index')) {
+                $rest[] = '--index=' . $this->defaultMapIndex();
+            }
+            if (!$this->hasOption($rest, 'root')) {
+                $rest[] = '--root=' . rtrim($this->rootPath, '/');
+            }
+        }
+
+        if ($subcommand === 'observe' && !$this->hasOption($rest, 'index')) {
+            $rest[] = '--index=' . $this->defaultMapIndex();
+        }
+
+        if (in_array($subcommand, ['observe', 'show'], true) && !$this->hasOption($rest, 'database')) {
+            $rest[] = '--database=' . $this->defaultHistoryDatabase();
         }
 
         return $rest;
@@ -181,6 +229,11 @@ final class Dispatcher
     private function defaultMapIndex(): string
     {
         return rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+    }
+
+    private function defaultHistoryDatabase(): string
+    {
+        return rtrim($this->rootPath, '/') . '/.agent-map/history.sqlite';
     }
 
     /**
@@ -381,12 +434,11 @@ final class Dispatcher
                   L2 meta-prompt compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
                   Working memory: per-task session plans (voku/agent-session).
-          map     <build|refresh|discover|rank|impact|query|file|stale|summary|changed|related|
+          map     <build|refresh|discover|rank|impact|history|query|file|stale|summary|changed|related|
                   stats|scope|callers|callees|context>
-                  Deterministic PHP repository map and architecture discovery
-                  (voku/agent-map). `build` writes the whole scope; `refresh`
-                  re-analyses only changed or new files and patches them into
-                  the existing index.
+                  Deterministic PHP repository map, architecture discovery, and
+                  temporal evidence (voku/agent-map). `build` writes the whole
+                  scope; `refresh` incrementally patches changed or new files.
           memory  <validate|review>
                   MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
