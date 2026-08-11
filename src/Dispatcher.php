@@ -7,6 +7,8 @@ namespace voku\AgentLoop;
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentMap\Cli\AgentMapApplication;
+use voku\AgentMap\Cli\DiscoveryCliApplication;
+use voku\AgentMap\Cli\TemporalCliApplication;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
@@ -16,7 +18,12 @@ use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
 
-/** Unified entrypoint for the governed agentic-coding loop. */
+/**
+ * Unified entrypoint for the governed agentic-coding loop.
+ *
+ * Delegated package CLIs keep their own commands while ProjectLayout owns the
+ * repository-local workflow-state defaults shared by the umbrella commands.
+ */
 final class Dispatcher
 {
     public function __construct(
@@ -37,10 +44,10 @@ final class Dispatcher
 
         return match ($namespace) {
             'edit' => (new EditCommand($this->rootPath))->run($rest),
-            'board' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, $rest)),
+            'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
-            'board:verify' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, ['verify'])),
-            'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
+            'board:verify' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
+            'learn' => $this->dispatchLearn($scriptName, $rest),
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
             'workflow' => $this->dispatchWorkflow($scriptName, $rest),
@@ -55,11 +62,27 @@ final class Dispatcher
     }
 
     /** @param list<string> $rest */
+    private function dispatchLearn(string $scriptName, array $rest): int
+    {
+        if (!in_array($rest[0] ?? 'help', ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
+            $rest[] = '--root';
+            $rest[] = $this->layout()->learningRoot();
+        }
+
+        return (new LearningCli())->run($this->subArgv($scriptName, $rest));
+    }
+
+    /** @param list<string> $rest */
     private function dispatchSession(string $scriptName, array $rest): int
     {
         $resolved = $this->resolveSessionArgv($rest);
         if ($resolved === null) {
             return 1;
+        }
+
+        if (!$this->hasOption($resolved, 'root')) {
+            $resolved[] = '--root';
+            $resolved[] = $this->layout()->sessionsRoot();
         }
 
         return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
@@ -80,10 +103,34 @@ final class Dispatcher
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
     }
 
-    /** @param list<string> $rest */
+    /**
+     * Preserve agent-map's temporal/discovery/general routing while keeping all
+     * derived state below the shared workspace root.
+     *
+     * @param list<string> $rest
+     */
     private function dispatchMap(string $scriptName, array $rest): int
     {
-        return (new AgentMapApplication())->run($this->subArgv($scriptName, $this->resolveMapArgv($rest)));
+        $argv = $this->subArgv($scriptName, $this->resolveMapArgv($rest));
+        $temporal = new TemporalCliApplication();
+        if ($temporal->supports($argv)) {
+            return $temporal->run($argv);
+        }
+
+        $discovery = new DiscoveryCliApplication();
+        if ($discovery->supports($argv)) {
+            return $discovery->run($argv);
+        }
+
+        $status = (new AgentMapApplication())->run($argv);
+        if ($temporal->shouldAppendToGeneralHelp($argv)) {
+            echo $temporal->helpOverview();
+        }
+        if ($discovery->shouldAppendToGeneralHelp($argv)) {
+            echo $discovery->helpOverview();
+        }
+
+        return $status;
     }
 
     /** @param list<string> $rest @return list<string> */
@@ -92,6 +139,10 @@ final class Dispatcher
         $command = $rest[0] ?? 'help';
         if (in_array($command, ['help', '--help', '-h', ''], true)) {
             return $rest;
+        }
+
+        if ($command === 'history') {
+            return $this->resolveHistoryArgv($rest);
         }
 
         if ($command === 'build' || $command === 'refresh') {
@@ -110,6 +161,31 @@ final class Dispatcher
         return $rest;
     }
 
+    /** @param list<string> $rest @return list<string> */
+    private function resolveHistoryArgv(array $rest): array
+    {
+        $subcommand = $rest[1] ?? 'help';
+
+        if (in_array($subcommand, ['coupling', 'claims'], true)) {
+            if (!$this->hasOption($rest, 'index')) {
+                $rest[] = '--index=' . $this->defaultMapIndex();
+            }
+            if (!$this->hasOption($rest, 'root')) {
+                $rest[] = '--root=' . rtrim($this->rootPath, '/');
+            }
+        }
+
+        if ($subcommand === 'observe' && !$this->hasOption($rest, 'index')) {
+            $rest[] = '--index=' . $this->defaultMapIndex();
+        }
+
+        if (in_array($subcommand, ['observe', 'show'], true) && !$this->hasOption($rest, 'database')) {
+            $rest[] = '--database=' . $this->defaultHistoryDatabase();
+        }
+
+        return $rest;
+    }
+
     /** @param list<string> $tokens */
     private function hasOption(array $tokens, string $name): bool
     {
@@ -122,9 +198,37 @@ final class Dispatcher
         return false;
     }
 
+    /** @param list<string> $tokens */
+    private function optionValue(array $tokens, string $name): ?string
+    {
+        $prefix = '--' . $name . '=';
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            if (str_starts_with($tokens[$i], $prefix)) {
+                $value = substr($tokens[$i], strlen($prefix));
+
+                return $value !== '' ? $value : null;
+            }
+            if ($tokens[$i] !== '--' . $name) {
+                continue;
+            }
+
+            $value = $tokens[$i + 1] ?? null;
+
+            return is_string($value) && $value !== '' && !str_starts_with($value, '--') ? $value : null;
+        }
+
+        return null;
+    }
+
     private function defaultMapIndex(): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+        return $this->layout()->mapIndex();
+    }
+
+    private function defaultHistoryDatabase(): string
+    {
+        return $this->layout()->mapHistoryDatabase();
     }
 
     /** @param list<string> $rest @return list<string> */
@@ -142,7 +246,7 @@ final class Dispatcher
         }
 
         $taskId = $rest[1] ?? '';
-        if (!preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) || str_contains($taskId, '..')) {
+        if (!$this->isSafeTaskId($taskId)) {
             return $rest;
         }
 
@@ -188,7 +292,7 @@ final class Dispatcher
             return $rest;
         }
 
-        $sessionRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        $sessionRoot = $this->optionValue($rest, 'root') ?? $this->layout()->sessionsRoot();
         if (!is_dir($sessionRoot)) {
             return $rest;
         }
@@ -230,42 +334,43 @@ final class Dispatcher
     /** @param list<string> $rest @return list<string> */
     private function resolveRecallArgv(array $rest): array
     {
-        if (($rest[0] ?? null) !== 'compile') {
+        $command = $rest[0] ?? null;
+        if (in_array($command, ['compile', 'log-outcome'], true) && !$this->hasOption($rest, 'root')) {
+            $rest[] = '--root';
+            $rest[] = $this->layout()->learningRoot();
+        }
+
+        if ($command !== 'compile') {
             return $rest;
         }
 
-        $taskId = null;
-        $count = count($rest);
-        for ($index = 1; $index < $count; ++$index) {
-            $token = $rest[$index];
-            if (!str_starts_with($token, '--')) {
-                continue;
-            }
-
-            $name = substr($token, 2);
-            $hasValue = $index + 1 < $count && !str_starts_with($rest[$index + 1], '--');
-            if ($name === 'output-dir') {
-                return $rest;
-            }
-            if ($name === 'task' && $hasValue) {
-                $taskId = $rest[$index + 1];
-            }
-            if ($hasValue) {
-                ++$index;
-            }
+        if ($this->hasOption($rest, 'output-dir')) {
+            return $rest;
         }
 
-        if ($taskId === null || trim($taskId) === '') {
+        $taskId = $this->optionValue($rest, 'task');
+        if ($taskId === null || !$this->isSafeTaskId($taskId)) {
             return $rest;
         }
 
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
+    private function isSafeTaskId(string $taskId): bool
+    {
+        return preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) === 1
+            && !str_contains($taskId, '..');
+    }
+
     /** @param list<string> $rest @return list<string> */
     private function subArgv(string $scriptName, array $rest): array
     {
         return array_merge([$scriptName], $rest);
+    }
+
+    private function layout(): ProjectLayout
+    {
+        return new ProjectLayout($this->rootPath);
     }
 
     private function printUsage(int $exitCode, string $unknownNamespace = ''): int
@@ -286,17 +391,22 @@ final class Dispatcher
                   Build or refresh the semantic map, compile target-aware recall,
                   and prepare or run one auditable edit execution bundle.
           board   <summary|render|lane|next-pull|card|external-sync>
-                  TODO Kanban board (voku/agent-kanban).
+                  TODO Kanban board (voku/agent-kanban). Use `board:verify` for
+                  the narrower kanban-board-only consistency check.
           verify  Cross-package consistency check for Contract, Run, Session,
                   Recall, board and Learning owner boundaries.
+          board:verify
+                  Verify only the kanban board projection.
           learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-transition>
                   Durable findings, proposals, guidance and history (voku/agent-learning).
           recall  <compile|log-outcome>
                   Deterministic context/replay compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|validation|prune>
                   Pruneable per-Run working memory and raw validation observations (voku/agent-session).
-          map     <build|refresh|query|file|stale|summary|changed|related|stats|scope|callers|callees|context>
-                  Compact PHP repository symbol map (voku/agent-map).
+          map     <build|refresh|discover|rank|impact|history|query|file|stale|summary|changed|related|
+                  stats|scope|callers|callees|context>
+                  Deterministic PHP repository map, architecture discovery, and
+                  temporal evidence (voku/agent-map).
           memory  <validate|review>
                   MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
@@ -305,6 +415,14 @@ final class Dispatcher
                   Deterministic review helpers from voku/agent-recall-compiler.
           init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
           help    Show this help.
+
+        Repository layout:
+          Workflow state lives below `.agent-loop/`; the project/source root remains unchanged.
+
+        Run a namespace with `help` for its own command list, e.g.:
+          agent-loop edit help
+          agent-loop learn help
+          agent-loop recall help
 
         TXT;
 
