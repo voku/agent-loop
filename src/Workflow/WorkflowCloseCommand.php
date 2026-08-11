@@ -9,6 +9,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\AgentLoopVerifier;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -367,7 +368,7 @@ final readonly class WorkflowCloseCommand
 
     private function sessionForRun(GovernedRun $run): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
