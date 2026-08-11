@@ -12,13 +12,8 @@ use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStore;
 
 /**
- * Covers `--strict`: tasks/ and session_plan/ are the baseline inputs
- * `agent-loop verify` exists to confirm, so a missing directory becomes a
- * [FAIL] under --strict instead of the default [SKIP]. An optional board and
- * the learning root stay skippable even in strict mode -- both are
- * documented, opt-in additions on top of that baseline loop (see
- * README.md), not something every repo using `agent-loop` is expected to
- * have wired up.
+ * Covers verifier behavior against the historical layout explicitly. Compact
+ * default coverage lives in CompactLayoutIntegrationTest / ProjectLayoutTest.
  *
  * @internal
  */
@@ -29,7 +24,8 @@ final class AgentLoopVerifierTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-verifier-' . bin2hex(random_bytes(6));
-        mkdir($this->root, 0o775, true);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', "{\n  \"version\": 1,\n  \"layout\": \"legacy\"\n}\n");
     }
 
     protected function tearDown(): void
@@ -87,7 +83,6 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[SKIP] sessions: 2026-08-06-experiment is ephemeral', $result['output']);
 
-        // Same shape, same missing briefing, but it claims to be governed work.
         $this->writeSession('2026-08-06-governed', 'TASK-2', ephemeral: false);
         $result = $this->verify([]);
         self::assertSame(1, $result['exit'], $result['output']);
@@ -116,11 +111,8 @@ final class AgentLoopVerifierTest extends TestCase
 
     public function testRecallRootAutoDetectionAndCurrentFallback(): void
     {
-        // 1. Create a tasks dir and a task file so checkTasks passes
         mkdir($this->root . '/tasks', 0o775, true);
         file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
-
-        // 2. Create session_plan with an active session for TASK-1
         mkdir($this->root . '/session_plan/2026-06-23-task-1', 0o775, true);
         $sessionData = [
             'id' => '2026-06-23-task-1',
@@ -133,7 +125,6 @@ final class AgentLoopVerifierTest extends TestCase
         ];
         file_put_contents($this->root . '/session_plan/2026-06-23-task-1/session.json', json_encode($sessionData));
 
-        // 3. Create a learning-root with recall-output/current/meta.json
         mkdir($this->root . '/infra/doc/agent-learning/recall-output/current', 0o775, true);
         $metaData = [
             'task_id' => 'TASK-1',
@@ -145,7 +136,6 @@ final class AgentLoopVerifierTest extends TestCase
         file_put_contents($this->root . '/infra/doc/agent-learning/recall-output/current/meta.json', json_encode($metaData));
         file_put_contents($this->root . '/infra/doc/agent-learning/recall-output/current/system.md', "# System Guidance");
 
-        // 4. Run verify in strict mode.
         $result = $this->verify(['--strict']);
 
         self::assertSame(0, $result['exit'], $result['output']);
@@ -185,7 +175,6 @@ final class AgentLoopVerifierTest extends TestCase
 
     /**
      * @param list<string> $tokens
-     *
      * @return array{exit: int, output: string}
      */
     private function verify(array $tokens): array
