@@ -47,7 +47,7 @@ final class DispatcherResolutionTest extends TestCase
         }
 
         self::assertSame(0, $exit);
-        self::assertSame([], $warnings, 'board must not warn when todo/board.md is absent');
+        self::assertSame([], $warnings, 'board must not warn when .agent-loop/todo/board.md is absent');
     }
 
     public function testBoardHelpExitsCleanlyInsteadOfUnknownSubcommand(): void
@@ -66,7 +66,7 @@ final class DispatcherResolutionTest extends TestCase
         ])['exit'];
 
         self::assertSame(0, $exit);
-        self::assertFileExists($this->root . '/recall/DEMO-1/meta.json');
+        self::assertFileExists($this->root . '/.agent-loop/recall/DEMO-1/meta.json');
     }
 
     public function testRecallCompileLeavesExplicitOutputDirUntouched(): void
@@ -81,12 +81,12 @@ final class DispatcherResolutionTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertFileExists($this->root . '/custom-dir/meta.json');
-        self::assertFileDoesNotExist($this->root . '/recall/DEMO-1/meta.json');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/DEMO-1/meta.json');
     }
 
     public function testSessionRecordAcceptsTaskIdInPlaceOfSessionId(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         $sessionId = $this->onlySessionId($sessionsRoot);
@@ -102,7 +102,7 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionCloseAcceptsTaskIdInPlaceOfSessionId(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         $sessionId = $this->onlySessionId($sessionsRoot);
@@ -116,7 +116,7 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionCompletionCommandsAcceptTaskIdInPlaceOfSessionId(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'validation', 'record', 'DEMO-1', '--brief-revision', '1', '--command', 'vendor/bin/phpunit', '--status', 'passed', '--exit-code', '0', '--root', $sessionsRoot])['exit']);
@@ -129,7 +129,7 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionRecordWithRealSessionIdStillWorksUnchanged(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         $sessionId = $this->onlySessionId($sessionsRoot);
@@ -143,7 +143,7 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionRecordWithUnknownIdStillFailsLikeBefore(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         mkdir($sessionsRoot, 0o775, true);
 
         $exit = $this->dispatch([
@@ -157,14 +157,13 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionRecordWithExactlyOneActiveSessionAmongMultipleResolvesIt(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         $sessionIds = $this->allSessionIds($sessionsRoot);
         self::assertCount(2, $sessionIds);
 
-        // Drop the first attempt, leaving exactly one active session for DEMO-1.
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
 
         $result = $this->dispatch([
@@ -182,7 +181,7 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionRecordWithMultipleActiveSessionsFailsClearly(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
@@ -199,7 +198,7 @@ final class DispatcherResolutionTest extends TestCase
 
     public function testSessionRecordWithMultipleNonActiveSessionsFailsClearly(): void
     {
-        $sessionsRoot = $this->root . '/session_plan';
+        $sessionsRoot = $this->root . '/custom/sessions';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
