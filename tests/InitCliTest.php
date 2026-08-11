@@ -107,10 +107,10 @@ final class InitCliTest extends TestCase
         $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold']);
         self::assertSame(0, $scaffold['exit'], $scaffold['output']);
         self::assertFileExists($this->root . '/.agent-loop/init.json');
-        self::assertFileExists($this->root . '/todo/cards/DEMO-1.md');
-        self::assertFileExists($this->root . '/tasks/DEMO-1.md');
-        self::assertDirectoryExists($this->root . '/session_plan');
-        self::assertDirectoryExists($this->root . '/infra/doc/agent-learning/findings');
+        self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
+        self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
+        self::assertDirectoryExists($this->root . '/.agent-loop/sessions');
+        self::assertDirectoryExists($this->root . '/.agent-loop/learning/findings');
 
         $plan = $this->dispatch([
             'agent-loop', 'workflow', 'plan', 'DEMO-1', '--by', 'tester',
@@ -138,19 +138,17 @@ final class InitCliTest extends TestCase
             '--exit-code', '0',
             '--duration-ms', '0',
             '--by', 'tester',
-            '--root', $this->root . '/session_plan',
         ]);
         self::assertSame(0, $validation['exit'], $validation['output']);
 
         $review = $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1']);
         self::assertSame(0, $review['exit'], $review['output']);
-        self::assertFileExists($this->root . '/infra/doc/agent-learning/recall-output/DEMO-1/reviews/DEMO-1.blindspots.json');
+        self::assertFileExists($this->root . '/.agent-loop/recall/DEMO-1/reviews/DEMO-1.blindspots.json');
 
         $checkpoint = $this->dispatch([
             'agent-loop', 'session', 'checkpoint', 'DEMO-1',
             '--title', 'Review',
             '--body', 'review blindspots DEMO-1 was checked.',
-            '--root', $this->root . '/session_plan',
         ]);
         self::assertSame(0, $checkpoint['exit'], $checkpoint['output']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1'])['exit']);
