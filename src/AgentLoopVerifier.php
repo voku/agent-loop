@@ -53,6 +53,7 @@ final class AgentLoopVerifier
         $options = $this->parseOptions($tokens);
         $strict = in_array('--strict', $tokens, true);
         $taskId = $options['task-id'];
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
 
         echo "agent-loop verify - cross-package consistency check\n\n";
         if ($taskId !== null) {
@@ -62,7 +63,7 @@ final class AgentLoopVerifier
         $results = [
             $this->checkPackagesWired(),
             $this->checkTasks($options['tasks-root'], $strict, $taskId),
-            $this->checkBoard(),
+            $this->checkBoard($boardRoot),
             $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict, $taskId),
             $this->checkLearningRoot($options['learning-root']),
         ];
@@ -83,12 +84,12 @@ final class AgentLoopVerifier
      */
     private function parseOptions(array $tokens): array
     {
-        $root = rtrim($this->rootPath, '/');
+        $layout = new ProjectLayout($this->rootPath);
         $options = [
-            'tasks-root' => $root . '/tasks',
-            'sessions-root' => $root . '/session_plan',
-            'recall-root' => null,
-            'learning-root' => null,
+            'tasks-root' => $layout->tasksRoot(),
+            'sessions-root' => $layout->sessionsRoot(),
+            'recall-root' => $layout->recallRoot(),
+            'learning-root' => $layout->learningRoot(),
             'task-id' => null,
         ];
 
@@ -101,25 +102,9 @@ final class AgentLoopVerifier
             }
         }
 
-        if ($options['learning-root'] === null) {
-            foreach ([$root . '/infra/doc/agent-learning', $root . '/learning-root'] as $candidate) {
-                if (is_dir($candidate)) {
-                    $options['learning-root'] = $candidate;
-
-                    break;
-                }
-            }
-        }
-
-        $options['recall-root'] ??= RecallOutputRoot::resolve($this->rootPath);
-
         return $options;
     }
 
-    /**
-     * Confirms every namespace the Dispatcher routes to still resolves to a
-     * loadable class, i.e. the command surface itself is intact.
-     */
     private function checkPackagesWired(): bool
     {
         $delegates = [
@@ -169,8 +154,6 @@ final class AgentLoopVerifier
             $content = (string) file_get_contents($file);
             $id = basename($file, '.md');
             if (trim($content) === '' || !preg_match('/^#\s+\S/m', $content)) {
-                // Scoped runs only fail on the target task's own file; an
-                // unrelated broken task file is someone else's drift.
                 if ($taskId === null || $id === $taskId) {
                     $broken[] = $file;
                 }
@@ -194,21 +177,21 @@ final class AgentLoopVerifier
         return true;
     }
 
-    private function checkBoard(): bool
+    private function checkBoard(string $boardRoot): bool
     {
-        $root = rtrim($this->rootPath, '/');
+        $root = rtrim($boardRoot, '/');
         $metadata = $root . '/todo/board.md';
         $config = $root . '/todo/kanban.config.json';
         $cards = array_merge(glob($root . '/todo/cards/*.md') ?: [], glob($root . '/todo/jira/*.md') ?: []);
         if (!is_file($metadata) && !is_file($config) && $cards === []) {
-            echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, todo/cards/, or todo/jira/\n";
+            echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, {$root}/todo/cards/, or {$root}/todo/jira/\n";
 
             return true;
         }
 
         ob_start();
         try {
-            $exit = (new CliApplication($this->rootPath))->run(['agent-loop', 'verify']);
+            $exit = (new CliApplication($boardRoot))->run(['agent-loop', 'verify']);
         } finally {
             $boardOutput = (string) ob_get_clean();
         }
@@ -258,11 +241,6 @@ final class AgentLoopVerifier
             }
 
             ++$activeCount;
-
-            // An experiment never claimed to be governed work: it has no approved brief and no
-            // briefing on purpose. Failing the repository-wide gate for it punishes every other
-            // session for someone trying a command out, which is how a correct gate becomes one
-            // people route around.
             if ($session->ephemeral) {
                 echo "[SKIP] sessions: {$session->id} is ephemeral; repository gates do not apply\n";
 
@@ -313,12 +291,6 @@ final class AgentLoopVerifier
         return true;
     }
 
-    /**
-     * Work briefs are additive for existing sessions. Once a session has one,
-     * however, its task id, revision, and current approval must be coherent.
-     * A candidate is valid while work is in progress; workflow close adds the
-     * stricter requirement that the current revision is approved.
-     */
     private function checkWorkBrief(Session $session): bool
     {
         $briefs = new WorkBriefStore();
@@ -349,11 +321,6 @@ final class AgentLoopVerifier
         return true;
     }
 
-    /**
-     * Recomputes the sha256 hashes a `recall compile` run recorded for its own
-     * output files and flags any output that was edited or regenerated out of
-     * band since.
-     */
     private function checkRecallStaleness(string $recallRoot, ?string $taskId): bool
     {
         if (!is_dir($recallRoot)) {
@@ -426,18 +393,6 @@ final class AgentLoopVerifier
         return $ok;
     }
 
-    /**
-     * Reports a missing-input SKIP, or -- under `--strict` -- a FAIL instead.
-     *
-     * Only checkTasks() and checkSessionsAndRecall() call this: a missing
-     * tasks/ or session_plan/ directory means the baseline premise this
-     * command exists to confirm (a task exists, a session is tracking it)
-     * doesn't hold. checkBoard()'s optional typed board source and checkLearningRoot()'s
-     * learning root stay unconditionally skippable even under --strict,
-     * since both are documented, opt-in additions on top of that baseline
-     * loop (see README.md), not something every repo using `agent-loop` is
-     * expected to have wired up.
-     */
     private function skipOrFail(string $label, string $detail, bool $strict): bool
     {
         if ($strict) {
@@ -454,7 +409,7 @@ final class AgentLoopVerifier
     private function checkLearningRoot(?string $learningRoot): bool
     {
         if ($learningRoot === null || !is_dir($learningRoot)) {
-            echo '[SKIP] learning root: no directory found (checked --learning-root, infra/doc/agent-learning, learning-root)' . "\n";
+            echo '[SKIP] learning root: no configured or detected directory found' . "\n";
 
             return true;
         }
@@ -483,27 +438,28 @@ final class AgentLoopVerifier
 
         Checks (each skips itself when its inputs are absent):
           - package delegates: board/learn/map/recall/session classes are installed
-          - tasks:    every *.md file under tasks/ parses (non-empty, has a heading)
-          - board:    typed kanban board verification (delegated to voku/agent-kanban)
-          - sessions: every non-closed session under session_plan/ points to a
+          - tasks:    every *.md task file in the resolved project layout parses
+                      (non-empty, has a heading)
+          - board:    typed kanban board verification at the resolved layout root
+                      (delegated to voku/agent-kanban)
+          - sessions: every non-closed session in the resolved layout points to a
                       known task id and has a compiled recall briefing
           - work brief: any session-local brief has coherent task, revision,
                         status, and approval metadata
-          - recall:   every recall/<task>/meta.json output_hashes entry still
+          - recall:   every resolved recall/<task>/meta.json output_hashes entry still
                       matches the file on disk (catches stale/edited briefings)
-          - learning: the learning root (findings/proposals/history) validates
+          - learning: the resolved learning root (findings/proposals/history) validates
 
         Options:
-          --tasks-root=PATH     Default: <root>/tasks
-          --sessions-root=PATH  Default: <root>/session_plan
-          --recall-root=PATH    Default: <root>/recall
-          --learning-root=PATH  Default: <root>/infra/doc/agent-learning or <root>/learning-root
-          --strict              Fail (instead of [SKIP]) when tasks/ or
-                                 session_plan/ is missing entirely. board and
-                                 the learning root stay
-                                 skippable even in strict mode -- both are
-                                 documented opt-in additions, not part of
-                                 the baseline task/session loop.
+          --tasks-root=PATH     Override the layout-resolved tasks root
+          --sessions-root=PATH  Override the layout-resolved sessions root
+          --recall-root=PATH    Override the layout-resolved recall root
+          --learning-root=PATH  Override the layout-resolved learning root
+          --strict              Fail (instead of [SKIP]) when tasks or session
+                                 state is missing entirely. board and the
+                                 learning root stay skippable even in strict
+                                 mode -- both are documented opt-in additions,
+                                 not part of the baseline task/session loop.
           --task-id=ID           Scope the tasks/sessions/recall checks to
                                  one task, so an unrelated task's stale
                                  recall draft or broken task file doesn't
