@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\AgentLoopVerifier;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\LearningDecisionStore;
@@ -265,7 +266,7 @@ final readonly class WorkflowCloseCommand
 
     private function checkWorkBriefGate(string $taskId): ?string
     {
-        $sessionsRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($sessionsRoot)) {
             echo "[FAIL] work brief: no active session found for task {$taskId}\n";
 
@@ -430,7 +431,7 @@ final readonly class WorkflowCloseCommand
 
     private function activeSession(string $taskId): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
@@ -444,14 +445,9 @@ final readonly class WorkflowCloseCommand
 
     private function learningRoot(): ?string
     {
-        foreach (['infra/doc/agent-learning', 'learning-root'] as $relative) {
-            $candidate = rtrim($this->rootPath, '/') . '/' . $relative;
-            if (is_dir($candidate)) {
-                return $candidate;
-            }
-        }
+        $root = (new ProjectLayout($this->rootPath))->learningRoot();
 
-        return null;
+        return is_dir($root) ? $root : null;
     }
 
     /**
