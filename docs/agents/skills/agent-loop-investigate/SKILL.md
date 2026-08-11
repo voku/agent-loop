@@ -1,6 +1,6 @@
 ---
 name: agent-loop-investigate
-description: Locate PHP definitions, callers, tests, and change sites with agent-map and bounded source reads. Read-only: report exact path/line/symbol evidence and do not propose or apply fixes.
+description: Locate PHP definitions, callers, tests, change sites, and evidence-backed temporal relationships with agent-map and bounded source reads. Read-only: report exact path/line/symbol evidence and do not propose or apply fixes.
 ---
 
 # Agent Loop Investigate
@@ -48,9 +48,32 @@ vendor/bin/agent-loop map impact 'App\\Service\\Thing::run' --depth=2
 
 Impact keeps exact node evidence and uncertainty while grouping propagation by inferred architecture region. Dynamic or multiple-target paths remain uncertain.
 
-Use `rg` only when the map cannot answer a literal/string/config/template question. Never dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite`.
+## Temporal Evidence
 
-Map output is navigation, not evidence. Read only the selected real source ranges before reporting a hit.
+Use temporal evidence only when the question is about change risk, recurring co-change, a suspected hidden relationship, or how an entity evolved. Do not pay for history on every locator task.
+
+Start with bounded Git co-change and explicit heuristic claims:
+
+```bash
+vendor/bin/agent-loop map history coupling --commits=100 --top=20
+vendor/bin/agent-loop map history claims --commits=100 --top=20 --min-ratio=0.6
+```
+
+`history coupling` is evidence. `history claims` is a heuristic navigation lead, never source truth or a refactoring instruction. Keep its supporting commit revisions and verify the current relationship through the map and real source before reporting a conclusion.
+
+When `.agent-map/history.sqlite` exists and the evolution of a known entity matters, inspect it directly:
+
+```bash
+vendor/bin/agent-loop map history show 'method:App\\Service\\Thing::run'
+```
+
+If explicit before/after map snapshots already exist, `map history diff --before=... --after=...` can expose structural lifecycle facts without guessing from Git text diffs.
+
+Do **not** run `history observe` during investigation or while tracked files are dirty. Recording history belongs at a clean Git checkpoint, post-merge/CI boundary, or another explicit reproducible state. Investigation reads temporal evidence; it does not manufacture a new observation just to answer the current question.
+
+Use `rg` only when the map cannot answer a literal/string/config/template question. Never dump `.agent-map/php-symbols.json`, `.agent-map/search.sqlite`, or `.agent-map/history.sqlite`.
+
+Map and temporal output are navigation/evidence, not a substitute for source verification. Read only the selected real source ranges before reporting a hit.
 
 ## Terminal Result Contract
 
@@ -76,7 +99,7 @@ STATUS: blocked
 UNKNOWN: <exact missing source/context>.
 ```
 
-Keep exact paths, line numbers, symbols, literals, and relevant caller relationships. No exploration diary. Never turn `no_match` into a guessed location.
+Keep exact paths, line numbers, symbols, literals, relevant caller relationships, and temporal revision evidence when used. No exploration diary. Never turn `no_match` into a guessed location.
 
 ## Escalation
 
