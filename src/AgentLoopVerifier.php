@@ -49,6 +49,7 @@ final class AgentLoopVerifier
         $options = $this->parseOptions($tokens);
         $strict = in_array('--strict', $tokens, true);
         $taskId = $options['task-id'];
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
 
         echo "agent-loop verify - cross-package consistency check\n\n";
         if ($taskId !== null) {
@@ -58,7 +59,7 @@ final class AgentLoopVerifier
         $results = [
             $this->checkPackagesWired(),
             $this->checkTasks($options['tasks-root'], $strict, $taskId),
-            $this->checkBoard(),
+            $this->checkBoard($boardRoot),
             $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict, $taskId),
             $this->checkLearningRoot($options['learning-root']),
         ];
@@ -78,12 +79,12 @@ final class AgentLoopVerifier
      */
     private function parseOptions(array $tokens): array
     {
-        $root = rtrim($this->rootPath, '/');
+        $layout = new ProjectLayout($this->rootPath);
         $options = [
-            'tasks-root' => $root . '/tasks',
-            'sessions-root' => $root . '/session_plan',
-            'recall-root' => null,
-            'learning-root' => null,
+            'tasks-root' => $layout->tasksRoot(),
+            'sessions-root' => $layout->sessionsRoot(),
+            'recall-root' => $layout->recallRoot(),
+            'learning-root' => $layout->learningRoot(),
             'task-id' => null,
         ];
 
@@ -95,17 +96,6 @@ final class AgentLoopVerifier
                 }
             }
         }
-
-        if ($options['learning-root'] === null) {
-            foreach ([$root . '/infra/doc/agent-learning', $root . '/learning-root'] as $candidate) {
-                if (is_dir($candidate)) {
-                    $options['learning-root'] = $candidate;
-                    break;
-                }
-            }
-        }
-
-        $options['recall-root'] ??= RecallOutputRoot::resolve($this->rootPath);
 
         return $options;
     }
@@ -182,21 +172,21 @@ final class AgentLoopVerifier
         return true;
     }
 
-    private function checkBoard(): bool
+    private function checkBoard(string $boardRoot): bool
     {
-        $root = rtrim($this->rootPath, '/');
+        $root = rtrim($boardRoot, '/');
         $metadata = $root . '/todo/board.md';
         $config = $root . '/todo/kanban.config.json';
         $cards = array_merge(glob($root . '/todo/cards/*.md') ?: [], glob($root . '/todo/jira/*.md') ?: []);
         if (!is_file($metadata) && !is_file($config) && $cards === []) {
-            echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, todo/cards/, or todo/jira/\n";
+            echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, {$root}/todo/cards/, or {$root}/todo/jira/\n";
 
             return true;
         }
 
         ob_start();
         try {
-            $exit = (new CliApplication($this->rootPath))->run(['agent-loop', 'verify']);
+            $exit = (new CliApplication($boardRoot))->run(['agent-loop', 'verify']);
         } finally {
             $boardOutput = (string) ob_get_clean();
         }
@@ -271,7 +261,7 @@ final class AgentLoopVerifier
     private function checkRecallCoverage(string $recallRoot, string $sessionId, string $taskId): bool
     {
         if (!is_dir($recallRoot)) {
-            echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) but no recall/ directory at {$recallRoot}\n";
+            echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) but no recall directory at {$recallRoot}\n";
 
             return false;
         }
@@ -419,7 +409,7 @@ final class AgentLoopVerifier
     private function checkLearningRoot(?string $learningRoot): bool
     {
         if ($learningRoot === null || !is_dir($learningRoot)) {
-            echo "[SKIP] learning root: no directory found (checked --learning-root, infra/doc/agent-learning, learning-root)\n";
+            echo '[SKIP] learning root: no configured or detected directory found' . "\n";
 
             return true;
         }
@@ -448,24 +438,23 @@ final class AgentLoopVerifier
 
         Checks (each skips itself when its inputs are absent):
           - package delegates: board/learn/map/recall/session/workflow classes are installed
-          - tasks:    every *.md file under tasks/ parses (non-empty, has a heading)
-          - board:    typed kanban board verification (delegated to voku/agent-kanban)
-          - sessions: every non-closed Session under session_plan/ points to a
-                      known task id and has a compiled Recall briefing
+          - tasks:    every *.md file under .agent-loop/tasks/ parses
+          - board:    typed kanban board verification under .agent-loop/todo/
+          - sessions: every non-closed Session under .agent-loop/sessions/ points
+                      to a known task id and has a compiled Recall briefing
           - governed Run: when a Session is attached to a Run, Run, Session and
                           approved Contract revision/digest must agree
-          - recall:   every recall/<task>/meta.json output_hashes entry still
-                      matches the file on disk
-          - learning: the learning root (findings/proposals/history) validates
+          - recall:   every .agent-loop/recall/<task>/meta.json output_hashes entry
+                      still matches the file on disk
+          - learning: .agent-loop/learning validates when present
 
         Options:
-          --tasks-root=PATH     Default: <root>/tasks
-          --sessions-root=PATH  Default: <root>/session_plan
-          --recall-root=PATH    Default: <root>/recall
-          --learning-root=PATH  Default: <root>/infra/doc/agent-learning or <root>/learning-root
-          --strict              Fail (instead of [SKIP]) when tasks/ or
-                                session_plan/ is missing entirely. Board and
-                                Learning remain optional.
+          --tasks-root=PATH     Default: <root>/.agent-loop/tasks
+          --sessions-root=PATH  Default: <root>/.agent-loop/sessions
+          --recall-root=PATH    Default: <root>/.agent-loop/recall
+          --learning-root=PATH  Default: <root>/.agent-loop/learning
+          --strict              Fail (instead of [SKIP]) when tasks or Sessions
+                                are missing entirely. Board and Learning remain optional.
           --task-id=ID          Scope tasks/sessions/recall checks to one task.
 
         TXT;
