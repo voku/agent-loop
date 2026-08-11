@@ -12,14 +12,13 @@ use voku\AgentLoop\ProjectLayout;
 /** @internal */
 final class ProjectLayoutTest extends TestCase
 {
-    public function testUsesCompactLayoutByDefault(): void
+    public function testUsesCanonicalLayoutByDefault(): void
     {
         $root = $this->root();
 
         try {
             $layout = new ProjectLayout($root);
 
-            self::assertTrue($layout->isCompact());
             self::assertSame($root . '/.agent-loop', $layout->stateRoot());
             self::assertSame($root . '/.agent-loop', $layout->boardRoot());
             self::assertSame($root . '/.agent-loop/tasks', $layout->tasksRoot());
@@ -33,7 +32,7 @@ final class ProjectLayoutTest extends TestCase
         }
     }
 
-    public function testExistingConfigWithoutLayoutStillUsesCompactDefault(): void
+    public function testExistingConfigWithoutLayoutUsesCanonicalPaths(): void
     {
         $root = $this->root();
         mkdir($root . '/.agent-loop', 0o775, true);
@@ -42,7 +41,6 @@ final class ProjectLayoutTest extends TestCase
         try {
             $layout = new ProjectLayout($root);
 
-            self::assertTrue($layout->isCompact());
             self::assertSame($root . '/.agent-loop/tasks', $layout->tasksRoot());
             self::assertSame($root . '/.agent-loop/sessions', $layout->sessionsRoot());
             self::assertSame($root . '/.agent-loop/learning', $layout->learningRoot());
@@ -51,34 +49,13 @@ final class ProjectLayoutTest extends TestCase
         }
     }
 
-    public function testExplicitLegacyLayoutKeepsHistoricalPaths(): void
-    {
-        $root = $this->root();
-        mkdir($root . '/.agent-loop', 0o775, true);
-        file_put_contents($root . '/.agent-loop/init.json', "{\n  \"version\": 1,\n  \"layout\": \"legacy\"\n}\n");
-
-        try {
-            $layout = new ProjectLayout($root);
-
-            self::assertFalse($layout->isCompact());
-            self::assertSame($root, $layout->boardRoot());
-            self::assertSame($root . '/tasks', $layout->tasksRoot());
-            self::assertSame($root . '/session_plan', $layout->sessionsRoot());
-            self::assertSame($root . '/recall', $layout->recallRoot());
-            self::assertSame($root . '/.agent-map/php-symbols.json', $layout->mapIndex());
-            self::assertSame($root . '/.agent-map/search.sqlite', $layout->mapSearchIndex());
-        } finally {
-            $this->remove($root);
-        }
-    }
-
-    public function testExplicitRecallRootStillWinsInCompactLayout(): void
+    public function testExplicitRecallRootStillWins(): void
     {
         $root = $this->root();
         mkdir($root . '/.agent-loop', 0o775, true);
         file_put_contents(
             $root . '/.agent-loop/init.json',
-            "{\n  \"version\": 1,\n  \"layout\": \"compact\",\n  \"paths\": {\n    \"recall_root\": \"custom/recall\"\n  }\n}\n",
+            "{\n  \"version\": 1,\n  \"paths\": {\n    \"recall_root\": \"custom/recall\"\n  }\n}\n",
         );
 
         try {
