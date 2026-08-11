@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -86,7 +87,7 @@ final readonly class WorkflowPlanCommand
 
     private function activeSession(string $taskId): ?Session
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
