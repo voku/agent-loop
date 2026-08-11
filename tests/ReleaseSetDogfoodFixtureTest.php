@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentLoop\ProjectLayout;
 
 final class ReleaseSetDogfoodFixtureTest extends TestCase
 {
@@ -50,16 +51,19 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         }
     }
 
-    public function testFixturePinsTheRecallOutputConventionUsedByTheGate(): void
+    public function testFixtureUsesTheDefaultCompactRecallConvention(): void
     {
         $fixture = dirname(__DIR__) . '/tests/fixtures/release-set-consumer/.agent-loop/init.json';
         mkdir($this->temporaryRoot . '/.agent-loop', 0o775, true);
         copy($fixture, $this->temporaryRoot . '/.agent-loop/init.json');
 
         $config = (new InitConfigLoader($this->temporaryRoot))->load('.agent-loop/init.json');
+        $layout = new ProjectLayout($this->temporaryRoot);
 
         self::assertSame([], $config['warnings']);
-        self::assertSame('recall', $config['paths']['recall_root'] ?? null);
+        self::assertSame('compact', $config['layout']);
+        self::assertArrayNotHasKey('recall_root', $config['paths']);
+        self::assertSame($this->temporaryRoot . '/.agent-loop/recall', $layout->recallRoot());
     }
 
     public function testFixtureEditIsExactAndDeterministic(): void
