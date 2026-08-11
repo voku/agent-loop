@@ -33,6 +33,24 @@ final class ProjectLayoutTest extends TestCase
         }
     }
 
+    public function testExistingConfigWithoutLayoutStillUsesCompactDefault(): void
+    {
+        $root = $this->root();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', "{\n  \"version\": 1\n}\n");
+
+        try {
+            $layout = new ProjectLayout($root);
+
+            self::assertTrue($layout->isCompact());
+            self::assertSame($root . '/.agent-loop/tasks', $layout->tasksRoot());
+            self::assertSame($root . '/.agent-loop/sessions', $layout->sessionsRoot());
+            self::assertSame($root . '/.agent-loop/learning', $layout->learningRoot());
+        } finally {
+            $this->remove($root);
+        }
+    }
+
     public function testExplicitLegacyLayoutKeepsHistoricalPaths(): void
     {
         $root = $this->root();
