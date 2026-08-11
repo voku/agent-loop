@@ -25,7 +25,6 @@ final class RunManifestProjectorTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-run-projector-' . bin2hex(random_bytes(4));
         mkdir($this->root, 0o775, true);
-        mkdir($this->root . '/learning-root', 0o775, true);
     }
 
     protected function tearDown(): void
@@ -116,12 +115,12 @@ final class RunManifestProjectorTest extends TestCase
         $contract = $contracts->approve('ABC-123', 'lars');
 
         $sessions = new SessionStore();
-        $session = $sessions->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session);
 
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/meta.json',
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',
@@ -133,10 +132,10 @@ final class RunManifestProjectorTest extends TestCase
             ], JSON_THROW_ON_ERROR),
         );
         file_put_contents(
-            $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => $reviewStatus], JSON_THROW_ON_ERROR),
         );
-        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
