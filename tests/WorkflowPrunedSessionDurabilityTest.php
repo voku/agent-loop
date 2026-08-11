@@ -62,7 +62,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         ob_end_clean();
 
         $sessions = new SessionStore();
-        $sessionList = $sessions->all($this->root . '/session_plan');
+        $sessionList = $sessions->all($this->root . '/.agent-loop/sessions');
         self::assertCount(1, $sessionList);
         $session = $sessionList[0];
         $run = (new GovernedRunStore($this->root))->find('ABC-123');
@@ -83,9 +83,9 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             'lars',
             'No durable learning emerged from this regression proof.',
         );
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
@@ -102,7 +102,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
 
         self::assertSame(
             [$session->id],
-            $sessions->prune($this->root . '/session_plan', 0, [SessionStatus::DONE]),
+            $sessions->prune($this->root . '/.agent-loop/sessions', 0, [SessionStatus::DONE]),
         );
         self::assertDirectoryDoesNotExist($session->path);
 
@@ -130,9 +130,9 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
 
     private function writeRecallMeta(): void
     {
-        mkdir($this->root . '/recall/ABC-123', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/meta.json',
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',
