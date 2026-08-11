@@ -55,10 +55,6 @@ final class DispatcherTest extends TestCase
 
     public function testBoardNamespaceRoutesToKanban(): void
     {
-        // No subcommand -> CliApplication prints its own usage and exits 0,
-        // proving the `board` namespace reached voku/agent-kanban. The help
-        // path is resolved before any board configuration is read, so it
-        // never touches the test working directory's filesystem.
         $dispatcher = new Dispatcher('.');
 
         ob_start();
@@ -148,22 +144,22 @@ final class DispatcherTest extends TestCase
             $this->assertRun(
                 ['agent-loop', 'map', 'build', '--paths=src'],
                 0,
-                ['Wrote 1 file(s),', $root . '/.agent-map/php-symbols.json'],
-                $root
+                ['Wrote 1 file(s),', $root . '/.agent-loop/map/php-symbols.json'],
+                $root,
             );
 
             $this->assertRun(
                 ['agent-loop', 'map', 'query', 'LoopMapService'],
                 0,
                 ['src/LoopMapService.php', 'class Demo\Loop\LoopMapService'],
-                $root
+                $root,
             );
 
             $this->assertRun(
                 ['agent-loop', 'map', 'discover', '--limit=5'],
                 0,
                 ['PHP architecture discovery', 'Architecture regions:'],
-                $root
+                $root,
             );
         } finally {
             $this->removeDirectory($root);
@@ -181,15 +177,13 @@ final class DispatcherTest extends TestCase
 
             file_put_contents($root . '/src/LoopMapSecond.php', $this->mapFixture('LoopMapSecond'));
 
-            // refresh both reads and writes: without the dispatcher's root/out defaults it would
-            // resolve them against the current working directory instead of the index it just read.
             $this->assertRun(['agent-loop', 'map', 'refresh'], 0, ['Refreshed 1 changed'], $root);
             $this->assertRun(['agent-loop', 'map', 'stale'], 0, ['OK'], $root);
             $this->assertRun(['agent-loop', 'map', 'query', 'LoopMapSecond'], 0, ['src/LoopMapSecond.php'], $root);
 
             self::assertStringContainsString(
                 'src/LoopMapSecond.php',
-                (string) file_get_contents($root . '/.agent-map/php-symbols.json'),
+                (string) file_get_contents($root . '/.agent-loop/map/php-symbols.json'),
             );
         } finally {
             $this->removeDirectory($root);
@@ -222,7 +216,7 @@ final class DispatcherTest extends TestCase
             ['agent-loop', 'memory', 'review'],
             0,
             ['MEMORY promotion review', 'Rows still needing promotion review: 1'],
-            $root
+            $root,
         );
     }
 
