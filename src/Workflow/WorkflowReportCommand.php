@@ -9,6 +9,7 @@ use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -59,7 +60,6 @@ final readonly class WorkflowReportCommand
 
     /**
      * @param list<string> $tokens
-     *
      * @return array{format: 'text'|'json', learningRoot: string|null, changedFiles: list<string>}
      */
     private function parse(array $tokens): array
@@ -103,7 +103,6 @@ final readonly class WorkflowReportCommand
 
     /**
      * @param list<string> $changedFiles
-     *
      * @return array<string, mixed>
      */
     public function buildReport(string $taskId, ?string $learningRoot = null, array $changedFiles = []): array
@@ -137,7 +136,7 @@ final readonly class WorkflowReportCommand
     /** @return list<Session> */
     private function sessionsFor(string $taskId): array
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return [];
         }
@@ -151,7 +150,6 @@ final readonly class WorkflowReportCommand
     /**
      * @param list<Session> $sessions
      * @param list<Session> $activeSessions
-     *
      * @return array{status: string, session: Session|null}
      */
     private function reportSession(array $sessions, array $activeSessions): array
@@ -201,7 +199,6 @@ final readonly class WorkflowReportCommand
 
     /**
      * @param list<string> $changedFiles
-     *
      * @return array{changed_files_supplied: bool, changed_files: list<string>, outside_approved_scope: list<string>}
      */
     private function scopeReport(?WorkBrief $brief, array $changedFiles): array
@@ -348,14 +345,9 @@ final readonly class WorkflowReportCommand
             return is_dir($explicit) ? rtrim($explicit, '/') : null;
         }
 
-        foreach (['infra/doc/agent-learning', 'learning-root'] as $relative) {
-            $candidate = rtrim($this->rootPath, '/') . '/' . $relative;
-            if (is_dir($candidate)) {
-                return $candidate;
-            }
-        }
+        $root = (new ProjectLayout($this->rootPath))->learningRoot();
 
-        return null;
+        return is_string($root) && is_dir($root) ? rtrim($root, '/') : null;
     }
 
     private function loggedOutcomeCount(string $taskId, ?string $learningRoot): int
