@@ -73,6 +73,7 @@ final class DispatcherResolutionTest extends TestCase
     public function testRecallCompileDoesNotDeriveOutputDirFromTraversalTaskId(): void
     {
         $method = new ReflectionMethod(Dispatcher::class, 'resolveRecallArgv');
+        /** @var list<string> $resolved */
         $resolved = $method->invoke(new Dispatcher($this->root), [
             'compile',
             '--task=../../outside',
@@ -80,11 +81,14 @@ final class DispatcherResolutionTest extends TestCase
             'src/Foo.php',
         ]);
 
-        self::assertIsArray($resolved);
         self::assertContains($this->root . '/.agent-loop/learning', $resolved);
         self::assertNotContains('--output-dir', $resolved);
-        self::assertFalse(
-            array_any($resolved, static fn (mixed $token): bool => is_string($token) && str_starts_with($token, '--output-dir=')),
+        self::assertSame(
+            [],
+            array_values(array_filter(
+                $resolved,
+                static fn (string $token): bool => str_starts_with($token, '--output-dir='),
+            )),
         );
     }
 
