@@ -37,7 +37,7 @@ final class WorkflowPlanCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             self::assertSame('ABC-123', $sessions[0]->taskId);
             self::assertSame('lars', $sessions[0]->claimedBy);
@@ -72,7 +72,7 @@ final class WorkflowPlanCommandTest extends TestCase
             ob_end_clean();
 
             self::assertSame(0, $exit);
-            $sessions = (new SessionStore())->all($root . '/session_plan');
+            $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             self::assertTrue($sessions[0]->ephemeral);
             self::assertSame(
@@ -98,7 +98,7 @@ final class WorkflowPlanCommandTest extends TestCase
             ob_end_clean();
 
             self::assertSame(1, $exit);
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
             $this->removeDirectory($root);
         }
@@ -107,7 +107,7 @@ final class WorkflowPlanCommandTest extends TestCase
     public function testPlanRevisesExistingBriefWithoutStartingAnotherSession(): void
     {
         $root = $this->root('revise');
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
+        $session = (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123');
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
         $briefs->approve($session, 'lars');
@@ -122,7 +122,7 @@ final class WorkflowPlanCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
-            self::assertCount(1, (new SessionStore())->all($root . '/session_plan'));
+            self::assertCount(1, (new SessionStore())->all($root . '/.agent-loop/sessions'));
             $brief = $briefs->load($session);
             self::assertSame(2, $brief->revision);
             self::assertSame(WorkBriefStatus::CANDIDATE, $brief->status);
@@ -137,7 +137,7 @@ final class WorkflowPlanCommandTest extends TestCase
     public function testApprovePersistsApprovalAndDelegatesRecall(): void
     {
         $root = $this->root('approve');
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
+        $session = (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123');
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
         /** @var list<list<string>> $recallCalls */
@@ -172,11 +172,11 @@ final class WorkflowPlanCommandTest extends TestCase
     {
         $root = $this->root('recall-input');
         $learningRoot = $root . '/learning';
-        mkdir($root . '/todo/cards', 0o775, true);
-        mkdir($root . '/.agent-map', 0o775, true);
+        mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
+        mkdir($root . '/.agent-loop/map', 0o775, true);
         mkdir($learningRoot, 0o775, true);
-        file_put_contents($root . '/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
-        file_put_contents($root . '/todo/cards/ABC-123.md', <<<'CARD'
+        file_put_contents($root . '/.agent-loop/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
+        file_put_contents($root . '/.agent-loop/todo/cards/ABC-123.md', <<<'CARD'
 # ABC-123: Keep the view reviewable
 
 - **Ticket:** ABC-123
@@ -194,14 +194,14 @@ Use the existing view factory seam.
 Touch only src/Foo.php and its focused test.
 CARD
 );
-        file_put_contents($root . '/.agent-map/php-symbols.json', '{}');
-        file_put_contents($root . '/.agent-map/search.sqlite', '');
+        file_put_contents($root . '/.agent-loop/map/php-symbols.json', '{}');
+        file_put_contents($root . '/.agent-loop/map/search.sqlite', '');
         file_put_contents($learningRoot . '/recall-documents.json', json_encode([
             'schema_version' => '1.0',
             'documents' => [],
         ], JSON_THROW_ON_ERROR));
 
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
+        $session = (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123');
         (new WorkBriefStore())->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
         /** @var list<list<string>> $recallCalls */
         $recallCalls = [];
@@ -226,8 +226,8 @@ CARD
                 '--task', 'ABC-123', '--task-brief', $session->path . '/work-brief.json',
                 '--document-manifest', $learningRoot . '/recall-documents.json',
                 '--kanban-context', $contextPath,
-                '--map-index', $root . '/.agent-map/php-symbols.json', '--map-root', $root,
-                '--map-search-index', $root . '/.agent-map/search.sqlite',
+                '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
+                '--map-search-index', $root . '/.agent-loop/map/search.sqlite',
             ]], $recallCalls);
         } finally {
             $this->removeDirectory($root);
@@ -237,7 +237,7 @@ CARD
     public function testApproveCanResumeRecallAfterCompilationFailure(): void
     {
         $root = $this->root('resume');
-        $session = (new SessionStore())->create($root . '/session_plan', 'ABC-123');
+        $session = (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123');
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
 

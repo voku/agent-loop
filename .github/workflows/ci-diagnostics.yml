@@ -1,0 +1,76 @@
+name: CI diagnostics
+
+on:
+  pull_request:
+
+concurrency:
+  group: ci-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout candidate agent-session
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-session
+          ref: main
+          path: build/candidate-agent-session
+          persist-credentials: false
+      - name: Checkout candidate agent-recall-compiler
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-recall-compiler
+          ref: main
+          path: build/candidate-agent-recall-compiler
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+      - name: Configure coordinated candidate dependencies
+        run: |
+          php -r '
+          $path = "composer.json";
+          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+          $data["repositories"] = [
+              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
+              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
+          ];
+          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
+          '
+      - run: composer install --no-interaction --prefer-dist
+      - name: Composer metadata
+        run: composer validate --strict
+      - name: PHPUnit
+        run: vendor/bin/phpunit --log-junit=build/phpunit-${{ matrix.php }}.xml
+      - name: Upload PHPUnit result
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: phpunit-${{ matrix.php }}-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/phpunit-${{ matrix.php }}.xml
+      - name: PHPStan
+        if: success()
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M --error-format=json > build/phpstan-${{ matrix.php }}.json
+      - name: Upload PHPStan result
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: phpstan-${{ matrix.php }}-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/phpstan-${{ matrix.php }}.json
+      - name: Project PHPStan rules
+        if: success()
+        run: composer test:project-phpstan-rules
+      - name: Discipline dogfood
+        if: success()
+        run: composer dogfood:discipline

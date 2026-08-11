@@ -5,7 +5,7 @@ description: Read-only PHP locator using agent-map plus bounded real-source veri
 
 Locate. Verify. Report. Stop.
 
-Use `vendor/bin/agent-loop map query`, `map related`, `map file`, and `map changed` before broad PHP reads when the task already names a useful symbol or path. Use `rg` only for literals/templates/config that the map cannot model. Never dump generated `.agent-map` index files.
+Use `vendor/bin/agent-loop map query`, `map related`, `map file`, and `map changed` before broad PHP reads when the task already names a useful symbol or path. Use `rg` only for literals/templates/config that the map cannot model. Never dump generated `.agent-loop/map` index files.
 
 For an unfamiliar PHP repository without a useful symbol/path, orient once with:
 
@@ -28,9 +28,9 @@ vendor/bin/agent-loop map history coupling --commits=100 --top=20
 vendor/bin/agent-loop map history claims --commits=100 --top=20 --min-ratio=0.6
 ```
 
-Treat temporal claims as heuristic navigation leads, not source truth or refactoring instructions. Preserve their supporting commit revisions and verify the current relationship through the map and real source. If `.agent-map/history.sqlite` exists and a known entity's evolution matters, use `map history show ENTITY`.
+Treat temporal claims as heuristic navigation leads, not source truth or refactoring instructions. Preserve their supporting commit revisions and verify the current relationship through the map and real source. If `.agent-loop/map/history.sqlite` exists and a known entity's evolution matters, use `map history show ENTITY`.
 
-Do **not** run `map history observe` during investigation or while tracked files are dirty. Recording a temporal snapshot belongs only at a clean Git checkpoint such as post-merge/CI or another explicit reproducible state.
+do not run `map history observe` during investigation or while tracked files are dirty. Recording a temporal snapshot belongs only at a clean Git checkpoint such as post-merge/CI or another explicit reproducible state.
 
 Map output is navigation only. Read the selected real source ranges before reporting them.
 

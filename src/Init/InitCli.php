@@ -68,7 +68,7 @@ final readonly class InitCli
           sync-subagents Sync repo-managed subagents into a client target directory.
           sync-hooks     Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
           sync-githooks  Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
-          scaffold       Create the minimum local workflow structure and a DEMO-1 task.
+          scaffold       Create the minimum local workflow structure below .agent-loop/ and a DEMO-1 task.
         TXT;
 
         if ($unknownCommand === '') {

@@ -36,7 +36,6 @@ final readonly class ExecutionContractDogfood
             $this->runCommand([
                 PHP_BINARY, 'bin/agent-loop', 'workflow', 'plan', self::TASK,
                 '--by', 'dogfood-planner',
-                '--learning-root', 'infra/doc/agent-learning',
                 '--file', self::SOURCE,
                 '--goal', 'Change the self-edit probe from 100 + input to 101 + input without widening scope.',
                 '--non-goal', 'Do not modify any file except the self-edit probe.',
@@ -49,10 +48,9 @@ final readonly class ExecutionContractDogfood
             $this->runCommand([
                 PHP_BINARY, 'bin/agent-loop', 'workflow', 'approve', self::TASK,
                 '--by', 'dogfood-approver',
-                '--learning-root', 'infra/doc/agent-learning',
             ], $worktree);
 
-            $system = $this->read($worktree . '/infra/doc/agent-learning/recall-output/' . self::TASK . '/system.md');
+            $system = $this->read($worktree . '/.agent-loop/recall/' . self::TASK . '/system.md');
             if (!str_contains($system, '## L2 Operational Prompt Construction')) {
                 throw new ExecutionContractDogfoodFailure('Approved recall did not compile an L2 construction contract.');
             }
@@ -169,7 +167,6 @@ MD
             'edit',
             self::TARGET,
             '--task=' . self::TASK,
-            '--recall-root=infra/doc/agent-learning',
             '--map-paths=tests/fixtures/self-shape',
             '--phpstan-memory-limit=512M',
             '--runner=mechanical',

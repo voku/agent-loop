@@ -19,8 +19,7 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-recall-superseder-' . bin2hex(random_bytes(4));
-        mkdir($this->root);
-        mkdir($this->root . '/learning-root');
+        mkdir($this->root . '/.agent-loop/learning', 0o775, true);
     }
 
     protected function tearDown(): void
@@ -30,12 +29,12 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
 
     public function testNewApprovalArchivesPreviousRecallBeforeCompilationStarts(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         (new WorkBriefStore())->create($session, 'New task scope.', ['src/New.php'], [], ['vendor/bin/phpunit']);
 
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/meta.json',
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',
@@ -43,7 +42,7 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
             ], JSON_THROW_ON_ERROR),
         );
         file_put_contents(
-            $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
@@ -59,9 +58,9 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
         self::assertSame(7, $exit);
         self::assertSame('lars', (new WorkBriefStore())->approval($session)?->approvedBy);
         self::assertStringContainsString('superseded recall output archived', $output);
-        self::assertDirectoryDoesNotExist($this->root . '/recall/ABC-123');
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/recall/ABC-123');
 
-        $archives = glob($this->root . '/recall/ABC-123.superseded-*', GLOB_ONLYDIR) ?: [];
+        $archives = glob($this->root . '/.agent-loop/recall/ABC-123.superseded-*', GLOB_ONLYDIR) ?: [];
         self::assertCount(1, $archives);
         self::assertFileExists($archives[0] . '/meta.json');
         self::assertFileExists($archives[0] . '/reviews/ABC-123.blindspots.json');

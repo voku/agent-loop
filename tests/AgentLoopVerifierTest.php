@@ -12,13 +12,10 @@ use voku\AgentSession\SessionStore;
 use voku\AgentSession\WorkBriefStore;
 
 /**
- * Covers `--strict`: tasks/ and session_plan/ are the baseline inputs
- * `agent-loop verify` exists to confirm, so a missing directory becomes a
- * [FAIL] under --strict instead of the default [SKIP]. An optional board and
- * the learning root stay skippable even in strict mode -- both are
- * documented, opt-in additions on top of that baseline loop (see
- * README.md), not something every repo using `agent-loop` is expected to
- * have wired up.
+ * Covers `--strict`: `.agent-loop/tasks/` and `.agent-loop/sessions/` are the
+ * baseline inputs `agent-loop verify` exists to confirm, so a missing directory
+ * becomes a [FAIL] under --strict instead of the default [SKIP]. An optional
+ * board and learning root stay skippable even in strict mode.
  *
  * @internal
  */
@@ -60,9 +57,9 @@ final class AgentLoopVerifierTest extends TestCase
 
     public function testStrictModeStillSkipsBoardAndLearningRootOnceTasksAndSessionsExist(): void
     {
-        mkdir($this->root . '/tasks', 0o775, true);
-        file_put_contents($this->root . '/tasks/DEMO-1.md', "# Demo task\n\nBody.\n");
-        mkdir($this->root . '/session_plan', 0o775, true);
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/DEMO-1.md', "# Demo task\n\nBody.\n");
+        mkdir($this->root . '/.agent-loop/sessions', 0o775, true);
 
         $result = $this->verify(['--strict']);
 
@@ -78,16 +75,15 @@ final class AgentLoopVerifierTest extends TestCase
      */
     public function testAnEphemeralSessionIsSkippedWhileGovernedWorkStillFailsTheSameGate(): void
     {
-        mkdir($this->root . '/tasks', 0o775, true);
-        file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
-        file_put_contents($this->root . '/tasks/TASK-2.md', "# TASK-2: Test Task\n\nBody.\n");
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
+        file_put_contents($this->root . '/.agent-loop/tasks/TASK-2.md', "# TASK-2: Test Task\n\nBody.\n");
 
         $this->writeSession('2026-08-06-experiment', 'TASK-1', ephemeral: true);
         $result = $this->verify([]);
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[SKIP] sessions: 2026-08-06-experiment is ephemeral', $result['output']);
 
-        // Same shape, same missing briefing, but it claims to be governed work.
         $this->writeSession('2026-08-06-governed', 'TASK-2', ephemeral: false);
         $result = $this->verify([]);
         self::assertSame(1, $result['exit'], $result['output']);
@@ -97,9 +93,9 @@ final class AgentLoopVerifierTest extends TestCase
 
     private function writeSession(string $id, string $taskId, bool $ephemeral): void
     {
-        mkdir($this->root . '/session_plan/' . $id, 0o775, true);
+        mkdir($this->root . '/.agent-loop/sessions/' . $id, 0o775, true);
         file_put_contents(
-            $this->root . '/session_plan/' . $id . '/session.json',
+            $this->root . '/.agent-loop/sessions/' . $id . '/session.json',
             json_encode([
                 'schema_version' => '1.0',
                 'id' => $id,
@@ -114,38 +110,24 @@ final class AgentLoopVerifierTest extends TestCase
         );
     }
 
-    public function testRecallRootAutoDetectionAndCurrentFallback(): void
+    public function testCompactRecallRootIsTheOnlyDefault(): void
     {
-        // 1. Create a tasks dir and a task file so checkTasks passes
-        mkdir($this->root . '/tasks', 0o775, true);
-        file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/TASK-1.md', "# TASK-1: Test Task\n\nBody.\n");
 
-        // 2. Create session_plan with an active session for TASK-1
-        mkdir($this->root . '/session_plan/2026-06-23-task-1', 0o775, true);
-        $sessionData = [
-            'id' => '2026-06-23-task-1',
-            'task_id' => 'TASK-1',
-            'status' => 'active',
-            'claimed_by' => 'test-agent',
-            'base_commit' => 'abcdef',
-            'created_at' => '2026-06-23T10:00:00+02:00',
-            'checkpoints' => []
-        ];
-        file_put_contents($this->root . '/session_plan/2026-06-23-task-1/session.json', json_encode($sessionData));
+        $this->writeSession('2026-06-23-task-1', 'TASK-1', ephemeral: false);
 
-        // 3. Create a learning-root with recall-output/current/meta.json
-        mkdir($this->root . '/infra/doc/agent-learning/recall-output/current', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/TASK-1', 0o775, true);
         $metaData = [
             'task_id' => 'TASK-1',
             'compilation_id' => 'compilation.TASK-1.123456',
             'output_hashes' => [
-                'system.md' => hash('sha256', "# System Guidance")
-            ]
+                'system.md' => hash('sha256', '# System Guidance'),
+            ],
         ];
-        file_put_contents($this->root . '/infra/doc/agent-learning/recall-output/current/meta.json', json_encode($metaData));
-        file_put_contents($this->root . '/infra/doc/agent-learning/recall-output/current/system.md', "# System Guidance");
+        file_put_contents($this->root . '/.agent-loop/recall/TASK-1/meta.json', json_encode($metaData));
+        file_put_contents($this->root . '/.agent-loop/recall/TASK-1/system.md', '# System Guidance');
 
-        // 4. Run verify in strict mode.
         $result = $this->verify(['--strict']);
 
         self::assertSame(0, $result['exit'], $result['output']);
@@ -155,8 +137,8 @@ final class AgentLoopVerifierTest extends TestCase
 
     public function testVerifyRecognizesTypedBoardMetadata(): void
     {
-        mkdir($this->root . '/todo/cards', 0o775, true);
-        file_put_contents($this->root . '/todo/board.md', "# Board Metadata\n\n- **Project prefix:** `ABC`\n- **Done count:** 0\n");
+        mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/todo/board.md', "# Board Metadata\n\n- **Project prefix:** `ABC`\n- **Done count:** 0\n");
 
         $result = $this->verify([]);
 
@@ -166,16 +148,16 @@ final class AgentLoopVerifierTest extends TestCase
 
     public function testVerifyFailsForApprovedBriefWithoutMatchingApprovalMetadata(): void
     {
-        mkdir($this->root . '/tasks', 0o775, true);
-        file_put_contents($this->root . '/tasks/TASK-1.md', "# TASK-1\n");
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'TASK-1');
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/TASK-1.md', "# TASK-1\n");
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'TASK-1');
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep the scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
         $briefs->approve($session, 'lars');
         unlink($session->path . '/approval.json');
 
-        mkdir($this->root . '/recall/TASK-1', 0o775, true);
-        file_put_contents($this->root . '/recall/TASK-1/meta.json', '{}');
+        mkdir($this->root . '/.agent-loop/recall/TASK-1', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/recall/TASK-1/meta.json', '{}');
 
         $result = $this->verify(['--strict']);
 
@@ -205,7 +187,7 @@ final class AgentLoopVerifierTest extends TestCase
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST
+            RecursiveIteratorIterator::CHILD_FIRST,
         );
 
         foreach ($iterator as $item) {

@@ -26,8 +26,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-transition-manifest-' . bin2hex(random_bytes(4));
-        mkdir($this->root);
-        mkdir($this->root . '/learning-root');
+        mkdir($this->root . '/.agent-loop/learning', 0o775, true);
     }
 
     protected function tearDown(): void
@@ -86,7 +85,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
     public function testFailedCompilationLeavesAnApprovedManifestThatTheSameCommandCanResume(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
 
@@ -136,9 +135,9 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         );
         (new LearningDecisionStore())->decide($session, LearningDecision::NO_DURABLE_LEARNING, 'lars');
         $this->writeRecallMeta();
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
@@ -161,7 +160,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
     private function createApprovedSession(): Session
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $briefs = new WorkBriefStore();
         $briefs->create($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit']);
         $briefs->approve($session, 'lars');
@@ -171,11 +170,11 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
     private function writeRecallMeta(): void
     {
-        if (!is_dir($this->root . '/recall/ABC-123')) {
-            mkdir($this->root . '/recall/ABC-123', 0o775, true);
+        if (!is_dir($this->root . '/.agent-loop/recall/ABC-123')) {
+            mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
         }
         file_put_contents(
-            $this->root . '/recall/ABC-123/meta.json',
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',

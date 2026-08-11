@@ -21,22 +21,8 @@ use voku\AgentSession\SessionStore;
 /**
  * Unified entrypoint for the governed agentic-coding loop.
  *
- * Routes the first CLI argument to the matching library:
- *  - `board`  -> voku/agent-kanban (CliApplication)
- *  - `verify` -> voku/agent-loop (AgentLoopVerifier; cross-package consistency check)
- *  - `workflow` -> voku/agent-loop (plan/approve/start/status/report/close orchestration)
- *  - `map` -> voku/agent-map (PHP repository symbol map)
- *  - `edit` -> voku/agent-loop (target-aware map + recall + runner orchestration)
- *  - `board:verify` -> voku/agent-kanban (CliApplication `verify`; kanban board source only)
- *  - `learn`  -> voku/agent-learning (Cli)
- *  - `recall` -> voku/agent-recall-compiler (Cli)
- *  - `session` -> voku/agent-session (Cli)
- *  - `memory` -> voku/agent-loop (MemoryPromotionAnalyzer)
- *  - `review` -> voku/agent-recall-compiler (review reports and L2 prompts)
- *
- * Each delegated library CLI expects the script name at argv[0] and its own
- * command at argv[1], so those namespaces are re-prefixed before delegation.
- * Workflow orchestration itself uses focused-package PHP APIs where they exist.
+ * Delegated package CLIs keep their own commands while ProjectLayout owns the
+ * repository-local workflow-state defaults shared by the umbrella commands.
  */
 final class Dispatcher
 {
@@ -45,9 +31,7 @@ final class Dispatcher
     ) {
     }
 
-    /**
-     * @param list<string> $argv
-     */
+    /** @param list<string> $argv */
     public function run(array $argv): int
     {
         if (MemoryLimit::shouldRaise((string) ini_get('memory_limit'))) {
@@ -60,10 +44,10 @@ final class Dispatcher
 
         return match ($namespace) {
             'edit' => (new EditCommand($this->rootPath))->run($rest),
-            'board' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, $rest)),
+            'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
-            'board:verify' => (new CliApplication($this->rootPath))->run($this->subArgv($scriptName, ['verify'])),
-            'learn' => (new LearningCli())->run($this->subArgv($scriptName, $rest)),
+            'board:verify' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
+            'learn' => $this->dispatchLearn($scriptName, $rest),
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'session' => $this->dispatchSession($scriptName, $rest),
             'workflow' => $this->dispatchWorkflow($scriptName, $rest),
@@ -77,18 +61,28 @@ final class Dispatcher
         };
     }
 
-    /**
-     * Resolves `session record|checkpoint|close|claim|show <id>` and
-     * `session brief <action> <id>`, then delegates to voku/agent-session,
-     * unless task-id resolution reports an ambiguous match.
-     *
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
+    private function dispatchLearn(string $scriptName, array $rest): int
+    {
+        if (!in_array($rest[0] ?? 'help', ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
+            $rest[] = '--root';
+            $rest[] = $this->layout()->learningRoot();
+        }
+
+        return (new LearningCli())->run($this->subArgv($scriptName, $rest));
+    }
+
+    /** @param list<string> $rest */
     private function dispatchSession(string $scriptName, array $rest): int
     {
         $resolved = $this->resolveSessionArgv($rest);
         if ($resolved === null) {
             return 1;
+        }
+
+        if (!$this->hasOption($resolved, 'root')) {
+            $resolved[] = '--root';
+            $resolved[] = $this->layout()->sessionsRoot();
         }
 
         return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
@@ -103,23 +97,15 @@ final class Dispatcher
         ))->run($rest);
     }
 
-    /**
-     * Delegates review commands to voku/agent-recall-compiler, where the L2
-     * prompt/review feature lives. When the caller does not pass --output-dir,
-     * use the same resolved recall root as `recall compile` so the standard
-     * workflow stays: recall compile -> review blindspots/code.
-     *
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
     private function dispatchReview(string $scriptName, array $rest): int
     {
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
     }
 
     /**
-     * Delegates repository map commands to the same temporal/discovery/general
-     * router chain used by agent-map's binary while preserving agent-loop's
-     * root, map-index, and temporal-history defaults.
+     * Preserve agent-map's current temporal/discovery/general routing while
+     * keeping all derived state below the shared workspace root.
      *
      * @param list<string> $rest
      */
@@ -149,7 +135,6 @@ final class Dispatcher
 
     /**
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveMapArgv(array $rest): array
@@ -181,13 +166,7 @@ final class Dispatcher
     }
 
     /**
-     * `history diff` compares explicit maps and needs no defaults. Coupling and
-     * claims consume the current map plus Git history. Observe writes a compact
-     * snapshot at a clean Git checkpoint, while show is deliberately read-only
-     * and therefore receives only the history database default.
-     *
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveHistoryArgv(array $rest): array
@@ -226,19 +205,39 @@ final class Dispatcher
         return false;
     }
 
+    /** @param list<string> $tokens */
+    private function optionValue(array $tokens, string $name): ?string
+    {
+        $prefix = '--' . $name . '=';
+        $count = count($tokens);
+        for ($i = 0; $i < $count; ++$i) {
+            if (str_starts_with($tokens[$i], $prefix)) {
+                $value = substr($tokens[$i], strlen($prefix));
+                return $value !== '' ? $value : null;
+            }
+            if ($tokens[$i] !== '--' . $name) {
+                continue;
+            }
+
+            $value = $tokens[$i + 1] ?? null;
+            return is_string($value) && $value !== '' && !str_starts_with($value, '--') ? $value : null;
+        }
+
+        return null;
+    }
+
     private function defaultMapIndex(): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-map/php-symbols.json';
+        return $this->layout()->mapIndex();
     }
 
     private function defaultHistoryDatabase(): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-map/history.sqlite';
+        return $this->layout()->mapHistoryDatabase();
     }
 
     /**
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveReviewArgv(array $rest): array
@@ -255,21 +254,14 @@ final class Dispatcher
         }
 
         $taskId = $rest[1] ?? '';
-        if (!preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) || str_contains($taskId, '..')) {
+        if (!$this->isSafeTaskId($taskId)) {
             return $rest;
         }
 
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
-    /**
-     * Delegates to voku/agent-recall-compiler, then -- only for a successful
-     * `recall compile` -- appends a note that the compiled artifacts are
-     * written for review or harness ingestion, not consumed automatically by
-     * anything in this stack.
-     *
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
     private function dispatchRecall(string $scriptName, array $rest): int
     {
         $exit = (new RecallCli())->run($this->subArgv($scriptName, $this->resolveRecallArgv($rest)));
@@ -283,11 +275,7 @@ final class Dispatcher
     }
 
     /**
-     * Resolves task IDs accepted as ergonomic aliases by session commands to
-     * the one active generated session id. Explicit session ids pass through.
-     *
      * @param list<string> $rest
-     *
      * @return list<string>|null
      */
     private function resolveSessionArgv(array $rest): ?array
@@ -308,7 +296,7 @@ final class Dispatcher
             return $rest;
         }
 
-        $sessionRoot = rtrim($this->rootPath, '/') . '/session_plan';
+        $sessionRoot = $this->optionValue($rest, 'root') ?? $this->layout()->sessionsRoot();
         if (!is_dir($sessionRoot)) {
             return $rest;
         }
@@ -316,7 +304,6 @@ final class Dispatcher
         $store = new SessionStore();
         try {
             $store->load($sessionRoot, $candidate);
-
             return $rest;
         } catch (\RuntimeException) {
             // Keep resolving the candidate as a task id below.
@@ -338,68 +325,59 @@ final class Dispatcher
 
         if (count($activeSessions) !== 1) {
             echo "[ERROR] Multiple sessions found for task {$candidate}. Pass the generated session id explicitly.\n";
-
             return null;
         }
 
         $tokens[$positionalIndex] = $activeSessions[0]->id;
-
         return array_merge([$command], $tokens);
     }
 
     /**
-     * Defaults `recall compile --task <id>` to `--output-dir <recall-root>/<id>`
-     * when the caller didn't pass one.
-     *
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function resolveRecallArgv(array $rest): array
     {
-        if (($rest[0] ?? null) !== 'compile') {
+        $command = $rest[0] ?? null;
+        if (in_array($command, ['compile', 'log-outcome'], true) && !$this->hasOption($rest, 'root')) {
+            $rest[] = '--root';
+            $rest[] = $this->layout()->learningRoot();
+        }
+
+        if ($command !== 'compile') {
             return $rest;
         }
 
-        $taskId = null;
-        $count = count($rest);
-
-        for ($i = 1; $i < $count; ++$i) {
-            $token = $rest[$i];
-            if (!str_starts_with($token, '--')) {
-                continue;
-            }
-
-            $name = substr($token, 2);
-            $hasValue = $i + 1 < $count && !str_starts_with($rest[$i + 1], '--');
-            if ($name === 'output-dir') {
-                return $rest;
-            }
-
-            if ($name === 'task' && $hasValue) {
-                $taskId = $rest[$i + 1];
-            }
-
-            if ($hasValue) {
-                ++$i;
-            }
+        if ($this->hasOption($rest, 'output-dir')) {
+            return $rest;
         }
 
-        if ($taskId === null || trim($taskId) === '') {
+        $taskId = $this->optionValue($rest, 'task');
+        if ($taskId === null || !$this->isSafeTaskId($taskId)) {
             return $rest;
         }
 
         return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
     }
 
+    private function isSafeTaskId(string $taskId): bool
+    {
+        return preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $taskId) === 1
+            && !str_contains($taskId, '..');
+    }
+
     /**
      * @param list<string> $rest
-     *
      * @return list<string>
      */
     private function subArgv(string $scriptName, array $rest): array
     {
         return array_merge([$scriptName], $rest);
+    }
+
+    private function layout(): ProjectLayout
+    {
+        return new ProjectLayout($this->rootPath);
     }
 
     private function printUsage(int $exitCode, string $unknownNamespace = ''): int
@@ -447,6 +425,9 @@ final class Dispatcher
                   Deterministic review helpers from voku/agent-recall-compiler.
           init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
           help    Show this help.
+
+        Repository layout:
+          Workflow state lives below `.agent-loop/`; the project/source root remains unchanged.
 
         Run a namespace with `help` for its own command list, e.g.:
           agent-loop edit help

@@ -246,11 +246,16 @@ final class InitCliTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.agent-loop/init.json');
-        self::assertFileExists($this->root . '/todo/board.md');
-        self::assertFileExists($this->root . '/todo/cards/DEMO-1.md');
-        self::assertFileExists($this->root . '/tasks/DEMO-1.md');
-        self::assertDirectoryExists($this->root . '/session_plan');
-        self::assertDirectoryExists($this->root . '/infra/doc/agent-learning/findings');
+        $config = json_decode((string) file_get_contents($this->root . '/.agent-loop/init.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertArrayNotHasKey('layout', $config);
+        self::assertFileExists($this->root . '/.agent-loop/todo/board.md');
+        self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
+        self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
+        self::assertDirectoryExists($this->root . '/.agent-loop/sessions');
+        self::assertDirectoryExists($this->root . '/.agent-loop/learning/findings');
+        self::assertDirectoryDoesNotExist($this->root . '/todo');
+        self::assertDirectoryDoesNotExist($this->root . '/tasks');
+        self::assertDirectoryDoesNotExist($this->root . '/session_plan');
         self::assertStringContainsString('board card show DEMO-1', $result['output']);
 
         $show = $this->dispatch(['agent-loop', 'board', 'card', 'show', 'DEMO-1']);
@@ -276,20 +281,20 @@ final class InitCliTest extends TestCase
         $validation = $this->dispatch([
             'agent-loop', 'session', 'validation', 'record', 'DEMO-1', '--brief-revision', '1',
             '--command', 'composer test', '--status', 'passed', '--exit-code', '0', '--duration-ms', '0', '--by', 'tester',
-            '--root', $this->root . '/session_plan',
         ]);
         self::assertSame(0, $validation['exit'], $validation['output']);
 
         $review = $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1']);
         self::assertSame(0, $review['exit'], $review['output']);
-        self::assertFileExists($this->root . '/infra/doc/agent-learning/recall-output/DEMO-1/reviews/DEMO-1.blindspots.json');
+        $reviewPath = $this->root . '/.agent-loop/recall/DEMO-1/reviews/DEMO-1.blindspots.json';
+        self::assertFileExists($reviewPath);
 
-        $checkpoint = $this->dispatch(['agent-loop', 'session', 'checkpoint', 'DEMO-1', '--title', 'Review', '--body', 'review blindspots DEMO-1 was checked.', '--root', $this->root . '/session_plan']);
+        $checkpoint = $this->dispatch(['agent-loop', 'session', 'checkpoint', 'DEMO-1', '--title', 'Review', '--body', 'review blindspots DEMO-1 was checked.']);
         self::assertSame(0, $checkpoint['exit'], $checkpoint['output']);
 
         $review = $this->dispatch(['agent-loop', 'review', 'blindspots', 'DEMO-1']);
         self::assertSame(0, $review['exit'], $review['output']);
-        $reportJson = file_get_contents($this->root . '/infra/doc/agent-learning/recall-output/DEMO-1/reviews/DEMO-1.blindspots.json');
+        $reportJson = file_get_contents($reviewPath);
         self::assertNotFalse($reportJson);
         $report = json_decode($reportJson, true, 512, JSON_THROW_ON_ERROR);
         $findingIds = array_column($report['findings'], 'id');
@@ -299,11 +304,21 @@ final class InitCliTest extends TestCase
             'Expected the recorded checkpoint to satisfy the review-checkpoint marker. Findings: ' . $reportJson,
         );
 
-        $learning = $this->dispatch(['agent-loop', 'session', 'learning', 'decide', 'DEMO-1', '--status', 'no_durable_learning', '--by', 'tester', '--root', $this->root . '/session_plan']);
+        $learning = $this->dispatch(['agent-loop', 'session', 'learning', 'decide', 'DEMO-1', '--status', 'no_durable_learning', '--by', 'tester']);
         self::assertSame(0, $learning['exit'], $learning['output']);
 
         $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'DEMO-1', '--status', 'done']);
         self::assertSame(0, $close['exit'], $close['output']);
+    }
+
+    public function testScaffoldRejectsRemovedLegacyLayoutOption(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--layout=legacy']);
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+        self::assertDirectoryDoesNotExist($this->root . '/todo');
+        self::assertDirectoryDoesNotExist($this->root . '/session_plan');
     }
 
     public function testScaffoldDryRunDoesNotWrite(): void
