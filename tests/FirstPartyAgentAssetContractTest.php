@@ -19,7 +19,7 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         yield 'investigator' => [
             'agent-loop-investigate',
             'agent-loop-investigator',
-            ['agent-loop map', 'real source', 'Read-only'],
+            ['agent-loop map', 'map discover --region', 'real source', 'Read-only'],
         ];
         yield 'surgical builder' => [
             'agent-loop-surgical-edit',
