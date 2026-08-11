@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RelativePath;
@@ -258,20 +259,14 @@ final readonly class ExecutionContractStore
             if (!is_array($payload)) {
                 continue;
             }
-            $promptId = $payload['prompt_id'] ?? null;
+            $id = $payload['id'] ?? null;
             $level = $payload['level'] ?? null;
-            if (!is_string($promptId) || ($level !== 1 && $level !== 2)) {
-                throw new RuntimeException('Operating prompt fact has invalid prompt id or level.');
+            if (!is_string($id) || !is_int($level)) {
+                continue;
             }
-            $promptFacts[] = [
-                'prompt_id' => $promptId,
-                'level' => $level,
-                'arguments' => is_array($payload['arguments'] ?? null) ? $payload['arguments'] : [],
-                'template_sha256' => is_string($payload['template_sha256'] ?? null) ? $payload['template_sha256'] : null,
-                'source_ref' => is_string($fact['source_ref'] ?? null) ? $fact['source_ref'] : null,
-            ];
-            if ($level === 2) {
-                $l2PromptIds[] = $promptId;
+            $promptFacts[$id] = $payload;
+            if ($level >= 2) {
+                $l2PromptIds[] = $id;
             }
         }
 
@@ -283,10 +278,32 @@ final readonly class ExecutionContractStore
                 'observation_mode' => 'checked',
             ];
         }
-        $bundleSha = $factsDocument['bundle_sha256'] ?? null;
-        if (!is_string($bundleSha) || preg_match('/^[a-f0-9]{64}$/', $bundleSha) !== 1) {
-            throw new RuntimeException('Recall facts.json requires a canonical bundle_sha256.');
+
+        $selectedPromptIds = [];
+        foreach ($selected as $selection) {
+            if (!is_array($selection) || !is_string($selection['id'] ?? null)) {
+                throw new RuntimeException('Approved work brief contains an invalid operating prompt selection.');
+            }
+            $selectedPromptIds[] = $selection['id'];
         }
+
+        foreach ($selectedPromptIds as $id) {
+            if (!isset($promptFacts[$id])) {
+                return [
+                    'owner' => 'agent-loop',
+                    'state' => 'pending_recall',
+                    'required' => true,
+                    'observation_mode' => 'checked',
+                    'reason' => 'Current recall bundle does not contain the approved operating prompt selection: ' . $id,
+                ];
+            }
+        }
+
+        $bundle = $factsDocument['bundle_sha256'] ?? null;
+        if (!is_string($bundle) || preg_match('/\A[0-9a-f]{64}\z/', $bundle) !== 1) {
+            throw new RuntimeException('Recall facts.json is missing a valid bundle_sha256.');
+        }
+        $promptPolicy = $this->promptPolicyDigest($brief, $selectedPromptIds);
 
         return [
             'owner' => 'agent-loop',
@@ -294,11 +311,10 @@ final readonly class ExecutionContractStore
             'required' => true,
             'observation_mode' => 'checked',
             'work_brief_revision' => $revision,
-            'recall_bundle_sha256' => $bundleSha,
-            'prompt_policy_sha256' => hash('sha256', CanonicalJson::pretty(['prompts' => $promptFacts])),
-            'prompt_ids' => $l2PromptIds,
-            'brief_source' => $this->artifact($briefPath),
-            'recall_source' => $this->artifact($factsPath),
+            'recall_bundle_sha256' => $bundle,
+            'prompt_policy_sha256' => $promptPolicy,
+            'prompt_ids' => $selectedPromptIds,
+            'l2_prompt_ids' => array_values(array_unique($l2PromptIds)),
         ];
     }
 
@@ -307,51 +323,23 @@ final readonly class ExecutionContractStore
     {
         $binding = $this->currentBinding($taskId);
         if (($binding['state'] ?? null) !== 'resolved' || ($binding['required'] ?? false) !== true) {
-            throw new RuntimeException('Task ' . $taskId . ' has no current approved L2 prompt binding to contract.');
+            throw new RuntimeException(sprintf(
+                'Task %s does not have a current approved L2 prompt policy plus compiled recall bundle.',
+                $taskId,
+            ));
         }
 
         return $binding;
     }
 
-    /**
-     * @param array<string, mixed> $binding
-     * @param array<string, mixed> $extra
-     * @return array<string, mixed>
-     */
-    private function bindingReference(array $binding, string $state, array $extra = []): array
+    /** @return list<string> */
+    private function stringList(mixed $value): array
     {
-        return array_merge([
-            'owner' => 'agent-loop',
-            'state' => $state,
-            'required' => true,
-            'observation_mode' => 'checked',
-            'work_brief_revision' => $binding['work_brief_revision'],
-            'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
-            'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
-            'prompt_ids' => $binding['prompt_ids'],
-        ], $extra);
-    }
-
-    private function activeSession(string $taskId): ?Session
-    {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
-        if (!is_dir($root)) {
-            return null;
-        }
-        $matches = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($matches) > 1) {
-            throw new RuntimeException('Multiple active sessions exist for governed task ' . $taskId . '.');
+        if (!is_array($value)) {
+            return [];
         }
 
-        return $matches[0] ?? null;
-    }
-
-    private function contractDirectory(string $taskId): string
-    {
-        return rtrim(RecallOutputRoot::resolve($this->rootPath), '/') . '/' . $taskId;
+        return array_values(array_filter($value, static fn (mixed $item): bool => is_string($item) && trim($item) !== ''));
     }
 
     /** @return array<string, mixed> */
@@ -373,38 +361,73 @@ final readonly class ExecutionContractStore
         return $decoded;
     }
 
-    /** @param array<string, mixed> $data */
-    private function requiredString(array $data, string $key, string $path): string
+    /** @param array<string, mixed> $document */
+    private function requiredString(array $document, string $key, string $source): string
     {
-        $value = $data[$key] ?? null;
+        $value = $document[$key] ?? null;
         if (!is_string($value) || trim($value) === '') {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
+            throw new RuntimeException($source . ' requires non-empty string ' . $key . '.');
         }
 
-        return trim($value);
+        return $value;
     }
 
-    /** @return list<string> */
-    private function stringList(mixed $value): array
+    /** @param list<string> $selectedPromptIds */
+    private function promptPolicyDigest(array $brief, array $selectedPromptIds): string
     {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        return array_values(array_filter($value, 'is_string'));
+        return hash('sha256', CanonicalJson::compact([
+            'operating_prompt_manifest' => $brief['operating_prompt_manifest'] ?? null,
+            'operating_prompts' => array_values(array_map(
+                static fn (string $id): array => ['id' => $id],
+                $selectedPromptIds,
+            )),
+        ]));
     }
 
-    /** @return array<string, mixed> */
+    private function contractDirectory(string $taskId): string
+    {
+        return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+    }
+
+    private function activeSession(string $taskId): ?Session
+    {
+        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        if (!is_dir($sessionsRoot)) {
+            return null;
+        }
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($sessionsRoot),
+            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
+        ));
+        if (count($sessions) > 1) {
+            throw new RuntimeException('Multiple active sessions found for task ' . $taskId . '.');
+        }
+
+        return $sessions[0] ?? null;
+    }
+
+    /** @param array<string, mixed> $binding @param array<string, mixed> $extra @return array<string, mixed> */
+    private function bindingReference(array $binding, string $state, array $extra = []): array
+    {
+        return [
+            'owner' => 'agent-loop',
+            'state' => $state,
+            'required' => true,
+            'observation_mode' => 'checked',
+            'work_brief_revision' => $binding['work_brief_revision'] ?? null,
+            'recall_bundle_sha256' => $binding['recall_bundle_sha256'] ?? null,
+            'prompt_policy_sha256' => $binding['prompt_policy_sha256'] ?? null,
+            'prompt_ids' => $binding['prompt_ids'] ?? [],
+            ...$extra,
+        ];
+    }
+
+    /** @return array{path: string, sha256: string|null} */
     private function artifact(string $path): array
     {
-        $sha = hash_file('sha256', $path);
-        if ($sha === false) {
-            throw new RuntimeException('Unable to hash artifact: ' . $path);
-        }
-
         return [
             'path' => RelativePath::fromRoot($this->rootPath, $path),
-            'sha256' => 'sha256:' . $sha,
+            'sha256' => is_file($path) ? hash_file('sha256', $path) ?: null : null,
         ];
     }
 
@@ -412,7 +435,7 @@ final readonly class ExecutionContractStore
     {
         $actor = trim($actor);
         if ($actor === '') {
-            throw new RuntimeException('Execution contract requires a non-empty actor.');
+            throw new RuntimeException('Execution contract actor must not be empty.');
         }
 
         return $actor;
