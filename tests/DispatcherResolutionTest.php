@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use ReflectionMethod;
 use voku\AgentLoop\Dispatcher;
 
 /**
@@ -67,6 +68,24 @@ final class DispatcherResolutionTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertFileExists($this->root . '/.agent-loop/recall/DEMO-1/meta.json');
+    }
+
+    public function testRecallCompileDoesNotDeriveOutputDirFromTraversalTaskId(): void
+    {
+        $method = new ReflectionMethod(Dispatcher::class, 'resolveRecallArgv');
+        $resolved = $method->invoke(new Dispatcher($this->root), [
+            'compile',
+            '--task=../../outside',
+            '--file',
+            'src/Foo.php',
+        ]);
+
+        self::assertIsArray($resolved);
+        self::assertContains($this->root . '/.agent-loop/learning', $resolved);
+        self::assertNotContains('--output-dir', $resolved);
+        self::assertFalse(
+            array_any($resolved, static fn (mixed $token): bool => is_string($token) && str_starts_with($token, '--output-dir=')),
+        );
     }
 
     public function testRecallCompileLeavesExplicitOutputDirUntouched(): void
