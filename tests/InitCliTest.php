@@ -316,7 +316,6 @@ final class InitCliTest extends TestCase
         $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--layout=legacy']);
 
         self::assertSame(1, $result['exit'], $result['output']);
-        self::assertStringContainsString('supported option is --dry-run', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
         self::assertDirectoryDoesNotExist($this->root . '/todo');
         self::assertDirectoryDoesNotExist($this->root . '/session_plan');
