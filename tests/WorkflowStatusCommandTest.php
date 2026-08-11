@@ -66,7 +66,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('workflow approve ABC-123', $this->statusText('ABC-123'));
 
         $contract = $contracts->approve('ABC-123', 'lars');
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session);
         $approved = $this->statusText('ABC-123');
         self::assertStringContainsString('Contract:', $approved);
@@ -77,15 +77,14 @@ final class WorkflowStatusCommandTest extends TestCase
         $this->writeRecall();
         self::assertStringContainsString('review blindspots ABC-123', $this->statusText('ABC-123'));
 
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
         self::assertStringContainsString('workflow learn ABC-123', $this->statusText('ABC-123'));
 
-        mkdir($this->root . '/learning-root', 0o775, true);
-        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
@@ -96,7 +95,7 @@ final class WorkflowStatusCommandTest extends TestCase
 
     public function testEphemeralSessionIsExperimentAndAsksToBeClosed(): void
     {
-        $session = (new SessionStore())->create($this->root . '/session_plan', 'ABC-123', by: 'lars', ephemeral: true);
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars', ephemeral: true);
 
         $out = $this->statusText('ABC-123');
 
@@ -107,8 +106,8 @@ final class WorkflowStatusCommandTest extends TestCase
 
     public function testUnreadableReviewBlocksStatusInsteadOfMasqueradingAsProgress(): void
     {
-        mkdir($this->root . '/recall/ABC-123/reviews', 0o775, true);
-        file_put_contents($this->root . '/recall/ABC-123/reviews/ABC-123.blindspots.json', '{');
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json', '{');
 
         [$exit, $out] = $this->statusOf('ABC-123');
 
@@ -146,9 +145,9 @@ final class WorkflowStatusCommandTest extends TestCase
 
     private function writeRecall(): void
     {
-        mkdir($this->root . '/recall/ABC-123', 0o775, true);
+        mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
         file_put_contents(
-            $this->root . '/recall/ABC-123/meta.json',
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
             json_encode([
                 'task_id' => 'ABC-123',
                 'compilation_id' => 'status-fixture',
