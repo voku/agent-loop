@@ -564,17 +564,24 @@ final class ReleaseSetDogfood
         if (!is_dir($source)) {
             throw new ReleaseSetFailure('Fixture directory is missing: ' . $source);
         }
+
+        $source = rtrim($source, '/\\');
+        $destination = rtrim($destination, '/\\');
         $this->mkdir($destination);
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
             RecursiveIteratorIterator::SELF_FIRST,
         ) as $item) {
-            $target = $destination . '/' . $item->getSubPathname();
+            $relativePath = substr($item->getPathname(), strlen($source) + 1);
+            $target = $destination . DIRECTORY_SEPARATOR . $relativePath;
             if ($item->isDir()) {
                 $this->mkdir($target);
-            } else {
-                $this->mkdir(dirname($target));
-                copy($item->getPathname(), $target);
+                continue;
+            }
+
+            $this->mkdir(dirname($target));
+            if (!copy($item->getPathname(), $target)) {
+                throw new ReleaseSetFailure('Unable to copy fixture path: ' . $item->getPathname());
             }
         }
     }
