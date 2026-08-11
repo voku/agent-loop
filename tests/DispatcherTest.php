@@ -92,7 +92,7 @@ final class DispatcherTest extends TestCase
             $this->assertRun(
                 ['agent-loop', 'map', 'build', '--paths=src'],
                 0,
-                ['Wrote 1 file(s),', $root . '/.agent-map/php-symbols.json'],
+                ['Wrote 1 file(s),', $root . '/.agent-loop/map/php-symbols.json'],
                 $root,
             );
             $this->assertRun(
