@@ -31,7 +31,7 @@ final class TemporalDispatcherTest extends TestCase
             ob_end_clean();
             self::assertSame(0, $build);
 
-            $map = $directory . '/.agent-map/php-symbols.json';
+            $map = $directory . '/.agent-loop/map/php-symbols.json';
             $before = $directory . '/before.json';
             self::assertFileExists($map);
             self::assertTrue(copy($map, $before));
@@ -61,7 +61,7 @@ final class TemporalDispatcherTest extends TestCase
     public function testHistoryShowUsesLoopHistoryDatabaseWithoutInjectingMapIndex(): void
     {
         $directory = $this->temporaryDirectory();
-        $agentMap = $directory . '/.agent-map';
+        $agentMap = $directory . '/.agent-loop/map';
         self::assertTrue(mkdir($agentMap, 0o775, true));
         $database = $agentMap . '/history.sqlite';
         $entityId = 'method:App\\Foo::run';
