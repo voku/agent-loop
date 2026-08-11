@@ -15,7 +15,7 @@ use voku\AgentLoop\Dispatcher;
 final class DispatcherTest extends TestCase
 {
     /**
-     * @param list<string>          $argv
+     * @param list<string>            $argv
      * @param non-empty-list<string> $expectedNeedles
      */
     private function assertRun(array $argv, int $expectedExit, array $expectedNeedles, string $root = '.'): void
@@ -118,10 +118,14 @@ final class DispatcherTest extends TestCase
 
     public function testMapNamespaceRoutesToAgentMapCli(): void
     {
-        $this->assertRun(['agent-loop', 'map', 'help'], 0, ['agent-map - compact PHP symbol maps', 'agent-map query']);
+        $this->assertRun(
+            ['agent-loop', 'map', 'help'],
+            0,
+            ['agent-map - compact PHP symbol maps', 'agent-map query', 'Architecture discovery:', 'discover'],
+        );
     }
 
-    public function testMapBuildAndQueryUseDispatcherRootDefaults(): void
+    public function testMapBuildQueryAndDiscoverUseDispatcherRootDefaults(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-map-' . bin2hex(random_bytes(6));
         mkdir($root . '/src', 0o775, true);
@@ -152,6 +156,13 @@ final class DispatcherTest extends TestCase
                 ['agent-loop', 'map', 'query', 'LoopMapService'],
                 0,
                 ['src/LoopMapService.php', 'class Demo\Loop\LoopMapService'],
+                $root
+            );
+
+            $this->assertRun(
+                ['agent-loop', 'map', 'discover', '--limit=5'],
+                0,
+                ['PHP architecture discovery', 'Architecture regions:'],
                 $root
             );
         } finally {
