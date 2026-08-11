@@ -50,10 +50,20 @@ jobs:
       - name: Composer metadata
         run: composer validate --strict
       - name: PHPUnit
-        run: composer test
+        run: vendor/bin/phpunit --log-junit=build/phpunit-${{ matrix.php }}.xml
+      - name: Upload PHPUnit result
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: phpunit-${{ matrix.php }}-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/phpunit-${{ matrix.php }}.xml
       - name: PHPStan
+        if: success()
         run: composer phpstan
       - name: Project PHPStan rules
+        if: success()
         run: composer test:project-phpstan-rules
       - name: Discipline dogfood
+        if: success()
         run: composer dogfood:discipline
