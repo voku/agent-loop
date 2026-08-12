@@ -1,0 +1,16 @@
+{
+    "name": "voku/agent-loop-tool-slop-scan",
+    "type": "project",
+    "license": "MIT",
+    "description": "Isolated tool project: slop-scan cannot share a Composer project with agent-map (Simple-PHP-Code-Parser ^0.21 vs ^0.22).",
+    "require": {
+        "voku/slop-scan": "^0.1.4"
+    },
+    "config": {
+        "allow-plugins": false,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        }
+    }
+}

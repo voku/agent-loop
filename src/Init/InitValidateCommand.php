@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 final readonly class InitValidateCommand
 {
@@ -24,14 +25,14 @@ final readonly class InitValidateCommand
             return 1;
         }
 
-        $kind = InitAssetKind::fromCli($this->readOptionValue($tokens, 'kind'));
+        $kind = InitAssetKind::fromCli(OptionTokens::value($tokens, 'kind'));
         if ($kind === null) {
             fwrite(\STDERR, "Missing or invalid required option: --kind\n");
 
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load($this->readOptionValue($tokens, 'config'));
+        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
@@ -196,7 +197,7 @@ final readonly class InitValidateCommand
      */
     private function parseOptionalAgent(InitAssetKind $kind, array $tokens, array $configAgents): ?string
     {
-        $agentValue = $this->readOptionValue($tokens, 'agent');
+        $agentValue = OptionTokens::value($tokens, 'agent');
         if ($agentValue === null) {
             return null;
         }
@@ -223,7 +224,7 @@ final readonly class InitValidateCommand
     {
         $overrides = [];
         foreach (['skills-root', 'subagents-root', 'hooks-root', 'tools-root'] as $option) {
-            $value = $this->readOptionValue($tokens, $option);
+            $value = OptionTokens::value($tokens, $option);
             if ($value !== null) {
                 $overrides[$option] = $value;
             }
@@ -257,30 +258,6 @@ final readonly class InitValidateCommand
                 }
 
                 ++$i;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
             }
         }
 

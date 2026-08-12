@@ -8,4 +8,9 @@
 /.agent-loop/
 .DS_Store
 composer.lock
+!/tools/*/composer.lock
 /infra/doc/agent-learning/history/
+/tools/*/vendor/
+/.slop-scan.cache.json
+/var/
+/build-slop-report.json

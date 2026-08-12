@@ -49,7 +49,10 @@ function decodeOutput(array $result, string $case): array
     try {
         $decoded = json_decode($result['stdout'], true, 64, JSON_THROW_ON_ERROR);
     } catch (JsonException $exception) {
-        throw new RuntimeException(sprintf('%s returned invalid JSON: %s', $case, $exception->getMessage()));
+        throw new RuntimeException(
+            sprintf('%s returned invalid JSON: %s', $case, $exception->getMessage()),
+            previous: $exception,
+        );
     }
 
     if (!is_array($decoded)) {

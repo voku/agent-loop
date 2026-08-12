@@ -2,6 +2,88 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `voku/itp-context` is a runtime dependency, and `src/Context/ArchitectureRules.php`
+  declares four rules with the `Rule` attribute on the symbols they constrain:
+  `ProjectLayout` owns every state path, Workflow calls typed package APIs,
+  generated evidence is never approval, and external evidence tools stay
+  optional. Each names the check that catches the next violation, each was
+  violated at least once by a change that passed review, and `composer ci` runs
+  `context:validate`.
+- A `slop-scan` CI job reviews the candidate against `slop-baseline.json` using
+  `slop-scan.config.json`, so the gate fails on findings a change adds rather
+  than on the repository's existing history. `composer review:slop` runs the
+  same check locally. It installs from `tools/slop-scan` because 0.1.4 cannot
+  co-resolve with `agent-map` and 0.1.5 is untagged.
+
+### Changed
+
+- `voku\AgentLoop\Cli\OptionTokens` owns argv option parsing. Twelve commands
+  carried a private copy of the same loop, ten byte for byte — including one
+  added in this release. `slop-scan` reported the cluster; the extraction
+  removed 13 duplicated methods across 12 files. `value()` now resolves to the
+  first non-empty occurrence, which differs from the old single-value copies
+  only for a repeated option whose first value is empty — an input none of
+  those commands accept.
+
+### Fixed
+
+- The isolated tool projects pin `config.platform.php` to this package's lowest
+  supported PHP. Their lock files had been resolved on 8.4 and pulled
+  `symfony/string` 8.1, which requires PHP >= 8.4.1, so CI on 8.3 could not
+  install the tooling at all. A test now fails when a tool project stops
+  pinning, or pins a PHP this package does not support.
+- `RuntimeException` raised for invalid dogfood JSON now carries the
+  `JsonException` as `previous`, and three `@param mixed $value` annotations
+  that only repeated the native signature are gone. Both were `slop-scan`
+  findings.
+
+### Added
+
+- The real-issue acceptance model in `docs/agents/dogfood/real-issue-acceptance.md`:
+  candidate pre-screen, freeze, three separate evidence planes (`agent-map`
+  structure, `voku/itp-context` architecture intent, `voku/slop-scan` candidate
+  delta), regression before implementation, project-native gates as the
+  correctness authority, and a per-tool usefulness ledger in `LEARN`. It maps
+  onto the existing governed phases and adds no lifecycle state.
+- `init tools` probes the external evidence tools `itp-context` and `slop-scan`
+  beside `rg`, `git`, `php`, `composer` and `docker` — none of which this
+  package installs either. A project-local installation (`vendor/bin` or an
+  isolated `tools/` project) is preferred over an ambient PATH build, the
+  reported path is the one to invoke, and an absent tool is information rather
+  than a warning. `agent-loop-l2-context` and `agent-loop-code-review` route to
+  the planes when the inventory reports them.
+- `RealIssueEvidenceToolBoundaryTest` keeps the installation boundary
+  executable: `voku/itp-context` and `voku/slop-scan` are invoked from isolated
+  tool projects, not declared as dependencies of this package. The
+  Simple-PHP-Code-Parser conflict that used to force this (`^0.22` against
+  `^0.21`) is resolved by `slop-scan` 0.1.5; the boundary now rests on the PHP
+  8.3+ floor, on keeping agent tooling out of consumers' dependency trees, and
+  on neither tool having earned a place inside a gate yet.
+
+- `init sync-tools` installs the isolated evidence tool projects from
+  package-owned templates in `docs/agents/tools/`, following the existing
+  `sync-*` contract: managed entries in a target manifest, `--dry-run`,
+  `--force` and `--adopt-existing`, stale managed entries removed, unmanaged
+  targets refused. It writes project files and never runs Composer — that
+  reaches the network and picks versions, so the command names it instead.
+- Isolated tool projects `tools/itp-context/` and `tools/slop-scan/`, pinned by
+  their committed lock files, so the documented installation boundary is
+  executed rather than described. `tools/slop-scan/slop-scan.php` works around
+  `voku/slop-scan` 0.1.4 resolving its autoloader at a path that exists only in
+  a standalone checkout.
+
+### Fixed
+
+- `init tools` reported the `agent-map` index from the pre-consolidation
+  `.agent-map/php-symbols.json` while `ProjectLayout` had moved it to
+  `.agent-loop/map/php-symbols.json`, so a built index was reported as never
+  built and a configured `state_root` was ignored. The probe now asks the
+  layout owner for both the location and how to display it.
+
 ## 0.15.0 - 2026-08-12
 
 The pre-1.0 semantic reset (#19). Ownership moves to the packages that can

@@ -1,0 +1,16 @@
+{
+    "name": "voku/agent-loop-tool-itp-context",
+    "type": "project",
+    "license": "MIT",
+    "description": "Isolated tool project: itp-context architecture-intent evidence, kept out of the package dependencies.",
+    "require": {
+        "voku/itp-context": "^0.3.0"
+    },
+    "config": {
+        "allow-plugins": false,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        }
+    }
+}

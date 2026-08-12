@@ -89,7 +89,6 @@ final readonly class GitHookConfig
     }
 
     /**
-     * @param mixed $value
      * @return list<string>
      */
     private static function stringList(mixed $value): array
@@ -109,7 +108,6 @@ final readonly class GitHookConfig
     }
 
     /**
-     * @param mixed $value
      * @return list<array{name: string, command: string, optional: bool, per_file: bool}>
      */
     private static function checks(mixed $value): array
@@ -140,7 +138,6 @@ final readonly class GitHookConfig
     }
 
     /**
-     * @param mixed $value
      * @return list<array{pattern: string, message: string}>
      */
     private static function forbiddenPatterns(mixed $value): array

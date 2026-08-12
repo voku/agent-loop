@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use ItpContext\Attribute\Rule;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\AgentLoopVerifier;
 use voku\AgentLoop\ProjectLayout;
@@ -22,6 +24,7 @@ use voku\AgentSession\ValidationEvidence;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
 
+#[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
 final readonly class WorkflowCloseCommand
 {
     public function __construct(private string $rootPath)

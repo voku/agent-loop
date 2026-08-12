@@ -1,0 +1,43 @@
+{
+    "ignores": [
+        "**/vendor/**",
+        "**/build/**",
+        "**/var/**",
+        "**/.agent-loop/**"
+    ],
+    "rules": {
+        "php.magic-numbers": {
+            "enabled": false
+        },
+        "php.directory-fanout-hotspot": {
+            "enabled": false
+        }
+    },
+    "ignoreErrors": [
+        {
+            "ruleId": "php.misleading-phpdoc-types",
+            "paths": [
+                "src/Init/InitPathsCommand.php",
+                "src/Workflow/WorkflowManifestCommand.php",
+                "src/Workflow/WorkflowStatusCommand.php",
+                "phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php"
+            ]
+        },
+        {
+            "ruleId": "php.pass-through-wrappers",
+            "paths": [
+                "tests/fixtures/**"
+            ]
+        },
+        {
+            "ruleId": "php.error-swallowing",
+            "paths": [
+                "tools/agent-discipline-dogfood.php"
+            ]
+        }
+    ],
+    "scan": {
+        "cacheFile": ".slop-scan.cache.json",
+        "baselineFile": "slop-baseline.json"
+    }
+}

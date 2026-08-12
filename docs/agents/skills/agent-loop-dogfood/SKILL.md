@@ -18,6 +18,20 @@ Use this skill when changing agent guidance, hooks, recall, edit orchestration, 
 6. If clean model A/B execution is unavailable, use an already-observed baseline from the same task or review and label that limitation explicitly.
 7. Change one guidance/runtime mechanism after each failure and rerun the affected case.
 
+## Real Issues
+
+A guidance, context, prompting, review or learning change is accepted against a
+real issue, not only against a synthetic case written beside it. Use
+`docs/agents/dogfood/real-issue-acceptance.md` for that protocol: candidate
+pre-screen, freeze, the three evidence planes (`agent-map` structure,
+`itp-context` architecture intent, `slop-scan` candidate delta), regression
+before implementation, project-native gates as the correctness authority, and
+the per-tool usefulness ledger.
+
+External evidence tools run from isolated tool projects: `init sync-tools`
+writes them, `init tools` reports where they were found. Do not add them to this
+package's dependencies to make a run easier.
+
 ## Metrics
 
 Record only observable values:
@@ -52,7 +66,12 @@ Keep the candidate only when all are true:
 2. no additional unrequested behavior, dependency, abstraction, or configuration is introduced;
 3. at least one human-attention or context metric improves on a non-trivial case;
 4. trivial tasks do not gain mandatory ceremony;
-5. observed failures are reflected in the guidance or runtime, not merely explained away.
+5. observed failures are reflected in the guidance or runtime, not merely explained away;
+6. the report states, per external tool used, whether it materially helped, abstained, missed
+   required context, or produced noise.
+
+Installing and invoking a tool is not evidence that it improved the run.
+Presence is not usefulness.
 
 A green installer test is not enough. Guidance changes merge only after an
 observable behavioral result supports the reason the guidance exists.

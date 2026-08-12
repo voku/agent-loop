@@ -230,3 +230,39 @@ jobs:
             build/installed-assets-dogfood.json
             build/installed-host-capabilities.txt
             ${{ runner.temp }}/agent-loop-release-set/artifacts
+
+  slop-scan:
+    name: Deterministic slop review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      # slop-scan cannot share this package's Composer project: 0.1.4 requires
+      # Simple-PHP-Code-Parser ^0.21 against agent-map's ^0.22, and the 0.1.5
+      # release that resolves it has no tag yet. The isolated tool project is
+      # how it runs until then.
+      - name: Install the isolated slop-scan tool project
+        run: composer install --no-interaction --prefer-dist --working-dir=tools/slop-scan
+      - name: Review the candidate against the committed baseline
+        run: php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --lint
+      - name: Report the findings this change would add
+        if: always()
+        run: |
+          php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --json \
+            > "${GITHUB_WORKSPACE}/build-slop-report.json" || true
+      - name: Upload slop-scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slop-scan-${{ github.sha }}
+          if-no-files-found: warn
+          path: build-slop-report.json

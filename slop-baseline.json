@@ -1,0 +1,463 @@
+{
+    "metadata": {
+        "schemaVersion": 1,
+        "kind": "baseline",
+        "tool": {
+            "name": "slop-scan-php",
+            "version": "0.1.0"
+        },
+        "configHash": "976f75b83abea03d648a2bc73d2a30ef0a312ed60d38fafb292f6a0dcaf84beb",
+        "findingFingerprintVersion": 1
+    },
+    "summary": {
+        "findingCount": 13
+    },
+    "findings": [
+        {
+            "ruleId": "php.type-escape-hotspots",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found file with concentrated type escape patterns",
+            "why": "Many mixed types and casts in one file usually indicate type friction at that boundary.",
+            "suggestedAction": "Tighten the data contract or isolate the conversion boundary into a smaller, named adapter.",
+            "confidence": "medium",
+            "evidence": [
+                "mixed-types=3",
+                "casts=5",
+                "total=8"
+            ],
+            "score": 8,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowContextCommand.php",
+                    "line": 1,
+                    "column": 1
+                }
+            ],
+            "path": "src/Workflow/WorkflowContextCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "748301ec2b6d39d8d96c7fb7cb2b1de40217fd6059cde500f637bdfb7d214079",
+                        "path": "src/Workflow/WorkflowContextCommand.php",
+                        "line": 1,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.type-escape-hotspots",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found file with concentrated type escape patterns",
+            "why": "Many mixed types and casts in one file usually indicate type friction at that boundary.",
+            "suggestedAction": "Tighten the data contract or isolate the conversion boundary into a smaller, named adapter.",
+            "confidence": "medium",
+            "evidence": [
+                "mixed-types=3",
+                "casts=4",
+                "total=7"
+            ],
+            "score": 7,
+            "locations": [
+                {
+                    "path": "src/GitHooks/GitHookConfig.php",
+                    "line": 1,
+                    "column": 1
+                }
+            ],
+            "path": "src/GitHooks/GitHookConfig.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "f7ffccdb16a9b54b25d33c1c3b507cb1955ff6c240ee1384cdc429655f9d73d1",
+                        "path": "src/GitHooks/GitHookConfig.php",
+                        "line": 1,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.type-escape-hotspots",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found file with concentrated type escape patterns",
+            "why": "Many mixed types and casts in one file usually indicate type friction at that boundary.",
+            "suggestedAction": "Tighten the data contract or isolate the conversion boundary into a smaller, named adapter.",
+            "confidence": "medium",
+            "evidence": [
+                "mixed-types=3",
+                "casts=2",
+                "total=5"
+            ],
+            "score": 5,
+            "locations": [
+                {
+                    "path": "src/Edit/Verify/VerificationBundle.php",
+                    "line": 1,
+                    "column": 1
+                }
+            ],
+            "path": "src/Edit/Verify/VerificationBundle.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "628d64b4a2f4def281afeaa38f07000661296046ba27f307d952e0a1769bfbae",
+                        "path": "src/Edit/Verify/VerificationBundle.php",
+                        "line": 1,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=null"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/AgentGuidance/AgentDisciplineHook.php",
+                    "line": 289,
+                    "column": 1
+                }
+            ],
+            "path": "src/AgentGuidance/AgentDisciplineHook.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "4341d2fa0b574298b2852efcb6493a93eb281e83f7be7166ef5502833bfcad35",
+                        "path": "src/AgentGuidance/AgentDisciplineHook.php",
+                        "line": 289,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=false"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/AgentLoopVerifier.php",
+                    "line": 214,
+                    "column": 1
+                }
+            ],
+            "path": "src/AgentLoopVerifier.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "b5220371dc447c27f373b5a005306193c86f101cf28de793a713c0335d5ac91e",
+                        "path": "src/AgentLoopVerifier.php",
+                        "line": 214,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=false"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/AgentLoopVerifier.php",
+                    "line": 413,
+                    "column": 1
+                }
+            ],
+            "path": "src/AgentLoopVerifier.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "b47001a885dad6b2045e795240c6a3f3a65791f8ef1c8c76fb6d52a1f9b3316e",
+                        "path": "src/AgentLoopVerifier.php",
+                        "line": 413,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=null"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Init/InitStatusCommand.php",
+                    "line": 267,
+                    "column": 1
+                }
+            ],
+            "path": "src/Init/InitStatusCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "23a23e7a3cf8fe646f3a2ec43b0f4ca1b1910dfda0639ab2259a1e3853d8f3fa",
+                        "path": "src/Init/InitStatusCommand.php",
+                        "line": 267,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=null"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 129,
+                    "column": 1
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "888a487034da2bb72197ddb0a8467d50881cf7b8212cd1c31cb706330c35f067",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 129,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=null"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowCloseCommand.php",
+                    "line": 365,
+                    "column": 1
+                }
+            ],
+            "path": "src/Workflow/WorkflowCloseCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "399e3acb35b5b423e6bdaabed8a1896936d182f439f0a41ed2431ab88af239e0",
+                        "path": "src/Workflow/WorkflowCloseCommand.php",
+                        "line": 365,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=null"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowContextCommand.php",
+                    "line": 165,
+                    "column": 1
+                }
+            ],
+            "path": "src/Workflow/WorkflowContextCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "3fb2c1f0ef5e8c3107b4e12ef43539b2761633e448eca4953c361d0b5166ec63",
+                        "path": "src/Workflow/WorkflowContextCommand.php",
+                        "line": 165,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=false"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowContextCommand.php",
+                    "line": 211,
+                    "column": 1
+                }
+            ],
+            "path": "src/Workflow/WorkflowContextCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "0691a4d3bb3cf5681ff9aabcd653443a3ec5bc9203d35c9e471aafc10d1c79ae",
+                        "path": "src/Workflow/WorkflowContextCommand.php",
+                        "line": 211,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=null"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowKanbanContextWriter.php",
+                    "line": 34,
+                    "column": 1
+                }
+            ],
+            "path": "src/Workflow/WorkflowKanbanContextWriter.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "644289b6d4f1ac1cbd34dc54934ed472f15994ed1806ad1d895019e5ce899547",
+                        "path": "src/Workflow/WorkflowKanbanContextWriter.php",
+                        "line": 34,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.clone-cluster",
+            "family": "duplication",
+            "severity": "medium",
+            "scope": "repo",
+            "message": "Found near-duplicate PHP function bodies",
+            "why": "Near-identical bodies across multiple functions often come from copy-paste evolution.",
+            "suggestedAction": "Review whether the shared logic should move into one helper or a clearer abstraction.",
+            "confidence": "medium",
+            "evidence": [
+                "name=layout"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Dispatcher.php",
+                    "line": 401,
+                    "column": 1
+                },
+                {
+                    "path": "src/Workflow/AcceptedRiskWriter.php",
+                    "line": 43,
+                    "column": 1
+                }
+            ],
+            "path": null,
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "efced0577892dff0b5dbf22bc1528bd19334173c85d40693510455a53fe74612",
+                        "path": "src/Dispatcher.php",
+                        "line": 401,
+                        "column": 1
+                    },
+                    {
+                        "fingerprint": "44484d78f25d3a83764f40b7d02073e95ee1708fa17fe716aacc07c9148f3352",
+                        "path": "src/Workflow/AcceptedRiskWriter.php",
+                        "line": 43,
+                        "column": 1
+                    }
+                ]
+            }
+        }
+    ]
+}

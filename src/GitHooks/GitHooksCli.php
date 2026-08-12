@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\GitHooks;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 /**
  * Entry point the installed `pre-commit` and `commit-msg` hooks call.
@@ -42,7 +43,7 @@ final readonly class GitHooksCli
      */
     private function runPreCommit(array $tokens): int
     {
-        $config = GitHookConfig::load($this->rootPath, $this->readOptionValue($tokens, 'config'));
+        $config = GitHookConfig::load($this->rootPath, OptionTokens::value($tokens, 'config'));
 
         return (new PreCommitRunner($this->rootPath, $config))->run();
     }
@@ -72,7 +73,7 @@ final readonly class GitHooksCli
             return 1;
         }
 
-        $config = GitHookConfig::load($this->rootPath, $this->readOptionValue($tokens, 'config'));
+        $config = GitHookConfig::load($this->rootPath, OptionTokens::value($tokens, 'config'));
 
         if ($config->skipMergeCommits) {
             $output = [];
@@ -102,30 +103,6 @@ final readonly class GitHooksCli
         echo "Use --no-verify only when the message is genuinely self-explanatory.\n";
 
         return 1;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
-            }
-        }
-
-        return null;
     }
 
     private function printUsage(int $exitCode, string $unknownCommand = ''): int

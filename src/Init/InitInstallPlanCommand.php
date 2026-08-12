@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 final readonly class InitInstallPlanCommand
 {
@@ -18,14 +19,14 @@ final readonly class InitInstallPlanCommand
             return 1;
         }
 
-        $profile = $this->readOptionValue($tokens, 'profile');
+        $profile = OptionTokens::value($tokens, 'profile');
         if (!in_array($profile, ['wsl2', 'linux', 'windows', 'powershell'], true)) {
             fwrite(\STDERR, 'Unknown profile: ' . ($profile ?? '') . "\n");
 
             return 1;
         }
 
-        $requestedAgent = $this->readOptionValue($tokens, 'agent');
+        $requestedAgent = OptionTokens::value($tokens, 'agent');
         if ($requestedAgent === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
 
@@ -142,28 +143,6 @@ final readonly class InitInstallPlanCommand
                 }
 
                 ++$i;
-            }
-        }
-
-        return null;
-    }
-
-    /** @param list<string> $tokens */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
             }
         }
 

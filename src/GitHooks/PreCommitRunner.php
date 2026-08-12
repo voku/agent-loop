@@ -14,7 +14,7 @@ namespace voku\AgentLoop\GitHooks;
  */
 final readonly class PreCommitRunner
 {
-    /** Placeholder a configured command uses for the current batch of staged files. */
+    /** The token a configured command uses for the current batch of staged files. */
     private const string FILES_PLACEHOLDER = '{files}';
 
     public function __construct(
