@@ -56,7 +56,93 @@ final class InitToolsCommandTest extends TestCase
         $cache = json_decode((string) file_get_contents($this->root . '/.agent-loop/tool-inventory.json'), true);
         self::assertIsArray($cache);
         self::assertTrue($cache['tools']['rg']['available']);
-        self::assertSame(['rg', 'git', 'php', 'composer', 'docker'], array_keys($cache['tools']));
+        self::assertSame(
+            ['rg', 'git', 'php', 'composer', 'docker', 'itp-context', 'slop-scan'],
+            array_keys($cache['tools']),
+        );
+    }
+
+    public function testExternalEvidenceToolIsFoundInAnIsolatedToolProject(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+        $this->makeProjectFile('tools/slop-scan/vendor/bin/slop-scan.php');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString(
+            '[OK] slop-scan: available (' . $this->root . '/tools/slop-scan/vendor/bin/slop-scan.php)',
+            $result['output'],
+        );
+    }
+
+    public function testExternalEvidenceToolIsFoundInTheProjectVendorBin(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+        $this->makeProjectFile('vendor/bin/itp-context-query');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString(
+            '[OK] itp-context: available (' . $this->root . '/vendor/bin/itp-context-query)',
+            $result['output'],
+        );
+    }
+
+    public function testPinnedProjectInstallationWinsOverAnAmbientPathBuild(): void
+    {
+        $this->makeFakeExecutable('slop-scan');
+        putenv('PATH=' . $this->fakeBinDir);
+        $this->makeProjectFile('tools/slop-scan/vendor/bin/slop-scan.php');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString(
+            '[OK] slop-scan: available (' . $this->root . '/tools/slop-scan/vendor/bin/slop-scan.php)',
+            $result['output'],
+            'a repository that pinned the tool meant that version, not whichever build is ambient',
+        );
+    }
+
+    public function testExternalEvidenceToolFallsBackToPath(): void
+    {
+        $this->makeFakeExecutable('slop-scan');
+        putenv('PATH=' . $this->fakeBinDir);
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString('[OK] slop-scan: available (' . $this->fakeBinDir . '/slop-scan)', $result['output']);
+    }
+
+    public function testMissingExternalEvidenceToolIsReportedWithoutWarning(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString('[INFO] itp-context: not installed (external evidence tool)', $result['output']);
+        self::assertStringContainsString('[INFO] slop-scan: not installed (external evidence tool)', $result['output']);
+        self::assertStringNotContainsString('[WARN] slop-scan', $result['output']);
+    }
+
+    public function testCacheWrittenBeforeAToolWasKnownIsReprobed(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/tool-inventory.json',
+            (string) json_encode([
+                'generated_at' => date(\DATE_ATOM),
+                'max_age_seconds' => 3600,
+                'tools' => ['rg' => ['available' => false, 'path' => null]],
+                'agent_map_index' => ['present' => false, 'path' => '.agent-map/php-symbols.json', 'age_seconds' => null],
+            ]),
+        );
+        $this->makeProjectFile('tools/slop-scan/vendor/bin/slop-scan.php');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString('cache: refreshed', $result['output']);
+        self::assertStringContainsString('[OK] slop-scan: available', $result['output']);
     }
 
     public function testProbeReportsMissingToolAsWarning(): void
@@ -74,10 +160,25 @@ final class InitToolsCommandTest extends TestCase
 
         $result = $this->runTools([]);
 
-        self::assertStringContainsString('[INFO] agent-map index: not built (.agent-map/php-symbols.json)', $result['output']);
+        self::assertStringContainsString('[INFO] agent-map index: not built (.agent-loop/map/php-symbols.json)', $result['output']);
     }
 
     public function testProbeReportsPresentAgentMapIndex(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+        mkdir($this->root . '/.agent-loop/map', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/map/php-symbols.json', '{}');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString('[INFO] agent-map index: present (.agent-loop/map/php-symbols.json,', $result['output']);
+    }
+
+    /**
+     * The probe kept its own literal for the map index and answered from the
+     * pre-consolidation location, so a built index was reported as never built.
+     */
+    public function testBuiltMapIndexIsFoundWhereTheLayoutOwnerPutsIt(): void
     {
         putenv('PATH=' . $this->fakeBinDir);
         mkdir($this->root . '/.agent-map', 0o775, true);
@@ -85,7 +186,27 @@ final class InitToolsCommandTest extends TestCase
 
         $result = $this->runTools([]);
 
-        self::assertStringContainsString('[INFO] agent-map index: present (.agent-map/php-symbols.json,', $result['output']);
+        self::assertStringContainsString(
+            '[INFO] agent-map index: not built',
+            $result['output'],
+            'the retired location is not the map index',
+        );
+    }
+
+    public function testMapIndexFollowsAConfiguredStateRoot(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            (string) json_encode(['paths' => ['state_root' => 'custom-state']]),
+        );
+        mkdir($this->root . '/custom-state/map', 0o775, true);
+        file_put_contents($this->root . '/custom-state/map/php-symbols.json', '{}');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString('[INFO] agent-map index: present (custom-state/map/php-symbols.json,', $result['output']);
     }
 
     public function testFreshCacheIsReusedWithoutReprobing(): void
@@ -173,6 +294,19 @@ final class InitToolsCommandTest extends TestCase
         $output = (string) ob_get_clean();
 
         return ['exit' => $exit, 'output' => $output];
+    }
+
+    /** An installed binary inside the project, as Composer would place it. */
+    private function makeProjectFile(string $relativePath): void
+    {
+        $path = $this->root . '/' . $relativePath;
+        $directory = dirname($path);
+        if (!is_dir($directory)) {
+            mkdir($directory, 0o775, true);
+        }
+
+        file_put_contents($path, "#!/usr/bin/env php\n");
+        chmod($path, 0o755);
     }
 
     private function makeFakeExecutable(string $name): void

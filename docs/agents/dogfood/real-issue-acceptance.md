@@ -125,19 +125,37 @@ metadata against moving branch state even when the source SHA is pinned.
 
 ## Tool capability discovery
 
-Discover each plane independently and record the observed state. One tool being
-absent does not degrade another.
+`init tools` probes all three planes and caches the result:
 
-| Tool | States |
-|---|---|
-| `agent-map` | `AVAILABLE` / `DEGRADED` / `UNAVAILABLE` |
-| `itp-context` | `CONFIGURED` / `NOT_CONFIGURED` / `INVALID` |
-| `slop-scan` | `AVAILABLE` / `DEGRADED` / `UNAVAILABLE` |
+```bash
+vendor/bin/agent-loop init tools
+```
+
+It reports whether an `agent-map` index exists, and where `itp-context` and
+`slop-scan` are installed — a project-local installation (`vendor/bin` or an
+isolated `tools/` project) wins over an ambient PATH build, because a pinned
+tool is the version the repository meant. Invoke each tool at the reported
+path; do not assume one.
+
+Availability is not the whole state. Record both:
+
+| Tool | States | Answered by |
+|---|---|---|
+| `agent-map` | `AVAILABLE` / `DEGRADED` / `UNAVAILABLE` | `init tools` |
+| `itp-context` | `AVAILABLE` / `UNAVAILABLE` | `init tools` |
+| `itp-context` | `CONFIGURED` / `NOT_CONFIGURED` / `INVALID` | running `itp-context-validate` / `-export` |
+| `slop-scan` | `AVAILABLE` / `DEGRADED` / `UNAVAILABLE` | `init tools` |
+
+An installed binary says nothing about whether the repository declared anything
+for it to read. Only running the tool answers that.
 
 `NOT_CONFIGURED` is a legitimate result. A repository that has never declared
 architecture rules has no `itp-context` evidence, and the run records exactly
 that. Do not add annotations to a consumer repository so the report can claim
 the tool was used. That measures the annotation, not the tool.
+
+One tool being absent does not degrade another. An absent external tool is
+reported as information, not as a warning about a broken setup.
 
 ## Where the planes attach
 
@@ -302,16 +320,24 @@ re-run with better keywords.
 
 ## Product boundary
 
-`voku/itp-context` and `voku/slop-scan` stay outside this package's
-`composer.json` until real runs repeatedly prove a stable integration seam. The
-promotion targets, if that evidence arrives, are narrow:
+"Should the workflow know about these tools" and "should this package depend on
+them" are different questions, and they have different answers.
 
-- `itp-context` as an optional Recall/context provider;
-- `slop-scan` as an optional deterministic review-observation provider.
+| Level | Answer | Where |
+|---|---|---|
+| Discovery — report whether the tool is installed, and where | **yes** | `init tools`, beside `rg`, `git` and `docker`, which this package also does not install |
+| Guidance — tell an agent when the plane is worth using | **yes** | `agent-loop-l2-context`, `agent-loop-code-review`, `agent-loop-dogfood` |
+| Composer dependency | **no** | blocked by the parser conflict above, and by the PHP 8.3+ floor |
+| Product integration — a Recall context provider, a review-observation provider | **not yet** | needs repeated runs proving a stable seam |
 
-`tests/RealIssueEvidenceToolBoundaryTest.php` keeps the current answer
-executable, so promoting either tool is a deliberate change to the boundary
-rather than a dependency that arrived quietly.
+Discovery and guidance cost nothing when the tool is absent: the probe reports
+it, the skills say so, and the run records one plane it did not have. That is
+the same deal `rg` already gets.
+
+The last row is the one that needs evidence rather than enthusiasm, because it
+is the one that puts an external tool inside a gate. `tests/RealIssueEvidenceToolBoundaryTest.php`
+keeps the dependency answer executable, so promoting either tool stays a
+deliberate change rather than one that arrives quietly.
 
 ## Recorded runs
 

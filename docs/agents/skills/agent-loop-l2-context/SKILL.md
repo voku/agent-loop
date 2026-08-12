@@ -173,12 +173,37 @@ vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 120
 ```
 
 Run `init tools` first (it caches its result, so this is cheap even when run
-at the start of most sessions): it reports whether `rg` is available and
-whether an `agent-map` index already exists, so you are not guessing or
-re-discovering that from scratch every time. The default
+at the start of most sessions): it reports whether `rg` is available, whether
+an `agent-map` index already exists, and whether the external evidence tools
+`itp-context` and `slop-scan` are installed, so you are not guessing or
+re-discovering that from scratch every time. Invoke an external tool at the
+path the inventory reports; `agent-loop` does not install it, so its location
+depends on how the project set it up. The default
 `.agent-loop/map/php-symbols.json` is generated navigation state and must be
 ignored by the host repository. The context command reports a missing,
 invalid, or budget-omitted map section instead of silently rebuilding it.
+
+## Architecture Intent Evidence
+
+`map` answers what the code is. When `init tools` reports `itp-context` as
+available, it answers why selected code is constrained: architecture rules,
+owners, `refs`, and `verified_by` metadata declared by the project.
+
+```bash
+<reported-path>/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
+<reported-path>/itp-context-query var/itp-context --text='<task concepts>'
+```
+
+Keep the two kinds of evidence apart in the context you carry forward:
+
+- a structural fact says the code exists and is called from here;
+- a rule says the project declared an intent. **It is not proof that the
+  current source complies with it**, and `verified_by` names a check to run,
+  not a check that passed.
+
+A repository with no declared rules is a normal repository. Record that the
+plane is absent and move on; do not annotate somebody's code so a run can say
+it used the tool.
 
 ## Direct Edit Routing
 

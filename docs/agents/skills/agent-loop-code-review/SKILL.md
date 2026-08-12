@@ -16,6 +16,26 @@ Own the review workflow, not the engineering handbook.
 5. Persist/report the lens result without turning it into workflow approval. `review blindspots` remains a separate deterministic process/evidence check.
 6. Read-only. Do not apply fixes during review.
 
+## Optional Deterministic Observation
+
+When `init tools` reports `slop-scan` as available, it can supply heuristic
+findings alongside the lens. Scan the base and the candidate with the same
+configuration and report the **delta**, in a machine-readable format:
+
+```bash
+<reported-path> scan . --json --ignore 'vendor/**'
+```
+
+- existing repository slop is not a finding against this diff; the change owns
+  new findings, resolved findings and changed fingerprints;
+- a heuristic hit is an observation, not a verdict: promote it to
+  `STATUS: findings` only when you can state the defect and the concrete fix
+  from the real source;
+- no score threshold decides a review outcome.
+
+The tool is an input to the dominant lens. It does not replace it, does not add
+a second lens, and its absence does not block a review.
+
 If no applicable engineering lens is available:
 
 ```text

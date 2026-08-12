@@ -21,10 +21,38 @@ final readonly class InitToolsCommand
      */
     private const array KNOWN_TOOLS = ['rg', 'git', 'php', 'composer', 'docker'];
 
+    /**
+     * External agent-facing evidence tools. They are deliberately not
+     * dependencies of this package, so a bare PATH probe would report the
+     * layout that `docs/agents/dogfood/real-issue-acceptance.md` recommends as
+     * "missing". Look where a project actually installs them.
+     *
+     * Project-local locations win over PATH: a repository that pinned the tool
+     * meant that version, not whichever build happens to be ambient.
+     *
+     * `available` answers only whether the binary can be executed. Whether the
+     * repository has anything for it to read is answered by running the tool.
+     *
+     * @var array<string, array{project_paths: list<string>, path_names: list<string>}>
+     */
+    private const array EXTERNAL_EVIDENCE_TOOLS = [
+        'itp-context' => [
+            'project_paths' => [
+                'vendor/bin/itp-context-query',
+                'tools/agent-loop/vendor/bin/itp-context-query',
+            ],
+            'path_names' => ['itp-context-query'],
+        ],
+        'slop-scan' => [
+            'project_paths' => [
+                'vendor/bin/slop-scan.php',
+                'tools/slop-scan/vendor/bin/slop-scan.php',
+            ],
+            'path_names' => ['slop-scan'],
+        ],
+    ];
 
     private const int DEFAULT_MAX_AGE_SECONDS = 3600;
-
-    private const string DEFAULT_MAP_INDEX_PATH = '.agent-map/php-symbols.json';
 
     public function __construct(private string $rootPath)
     {
@@ -53,7 +81,10 @@ final readonly class InitToolsCommand
         $refresh = in_array('--refresh', $tokens, true);
 
         $cached = $this->readCache($cachePath);
-        $useCache = !$refresh && $cached !== null && $this->isFresh($cached, $maxAge);
+        $useCache = !$refresh
+            && $cached !== null
+            && $this->isFresh($cached, $maxAge)
+            && $this->coversEveryKnownTool($cached);
 
         $report = $useCache ? $cached : $this->probe($maxAge);
         if (!$useCache) {
@@ -77,8 +108,17 @@ final readonly class InitToolsCommand
             $tools[$tool] = ['available' => $path !== null, 'path' => $path];
         }
 
-        $mapIndexPath = self::DEFAULT_MAP_INDEX_PATH;
-        $absoluteMapIndexPath = $this->resolvePath($mapIndexPath);
+        foreach (self::EXTERNAL_EVIDENCE_TOOLS as $tool => $candidates) {
+            $path = $this->resolveExternalTool($candidates);
+            $tools[$tool] = ['available' => $path !== null, 'path' => $path];
+        }
+
+        // The layout owner spells this path, and renders it. A second literal
+        // here reported the pre-consolidation location and told agents an
+        // existing index was never built.
+        $layout = new ProjectLayout($this->rootPath);
+        $absoluteMapIndexPath = $layout->mapIndex();
+        $mapIndexPath = $layout->display($absoluteMapIndexPath);
         $mapIndexPresent = is_file($absoluteMapIndexPath);
         $mapIndexAge = $mapIndexPresent ? (time() - (int) filemtime($absoluteMapIndexPath)) : null;
 
@@ -92,6 +132,28 @@ final readonly class InitToolsCommand
                 'age_seconds' => $mapIndexAge,
             ],
         ];
+    }
+
+    /**
+     * @param array{project_paths: list<string>, path_names: list<string>} $candidates
+     */
+    private function resolveExternalTool(array $candidates): ?string
+    {
+        foreach ($candidates['project_paths'] as $relativePath) {
+            $candidate = $this->resolvePath($relativePath);
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        foreach ($candidates['path_names'] as $name) {
+            $candidate = $this->resolveBinary($name);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function resolveBinary(string $name): ?string
@@ -143,6 +205,23 @@ final readonly class InitToolsCommand
     }
 
     /**
+     * A cache written before a tool was known says nothing about that tool.
+     * Reusing it would report a missing plane that is actually installed.
+     *
+     * @param array{generated_at: string, max_age_seconds: int, tools: array<string, array{available: bool, path: ?string}>, agent_map_index: array{present: bool, path: string, age_seconds: ?int}} $cached
+     */
+    private function coversEveryKnownTool(array $cached): bool
+    {
+        foreach ([...self::KNOWN_TOOLS, ...array_keys(self::EXTERNAL_EVIDENCE_TOOLS)] as $tool) {
+            if (!array_key_exists($tool, $cached['tools'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param array{generated_at: string, max_age_seconds: int, tools: array<string, array{available: bool, path: ?string}>, agent_map_index: array{present: bool, path: string, age_seconds: ?int}} $cached
      */
     private function isFresh(array $cached, int $maxAge): bool
@@ -181,8 +260,16 @@ final readonly class InitToolsCommand
     {
         $lines = [];
         foreach ($report['tools'] as $name => $info) {
-            $lines[] = $info['available']
-                ? InitCheckResult::ok($name . ': available (' . $info['path'] . ')')->render()
+            if ($info['available']) {
+                $lines[] = InitCheckResult::ok($name . ': available (' . $info['path'] . ')')->render();
+
+                continue;
+            }
+
+            // An absent external tool is a legitimate state, not a broken setup:
+            // it reports one evidence plane the run will not have.
+            $lines[] = array_key_exists($name, self::EXTERNAL_EVIDENCE_TOOLS)
+                ? InitCheckResult::info($name . ': not installed (external evidence tool)')->render()
                 : InitCheckResult::warn($name . ': not found in PATH')->render();
         }
 
@@ -320,6 +407,11 @@ final readonly class InitToolsCommand
         Probes whether rg, git, php, composer, and docker are reachable in PATH,
         and whether an agent-map index exists, then caches the result so agents
         do not have to re-probe availability at the start of every session.
+
+        Also probes the external evidence tools itp-context and slop-scan, which
+        this package does not install: a project-local installation (vendor/bin
+        or an isolated tools/ project) is preferred over an ambient PATH build.
+        Use the reported path to invoke them; absence is a legitimate state.
 
         Options:
           --refresh       Force a re-probe even if the cache is still fresh.

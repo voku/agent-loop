@@ -12,12 +12,27 @@ All notable changes to this project will be documented in this file.
   delta), regression before implementation, project-native gates as the
   correctness authority, and a per-tool usefulness ledger in `LEARN`. It maps
   onto the existing governed phases and adds no lifecycle state.
+- `init tools` probes the external evidence tools `itp-context` and `slop-scan`
+  beside `rg`, `git`, `php`, `composer` and `docker` — none of which this
+  package installs either. A project-local installation (`vendor/bin` or an
+  isolated `tools/` project) is preferred over an ambient PATH build, the
+  reported path is the one to invoke, and an absent tool is information rather
+  than a warning. `agent-loop-l2-context` and `agent-loop-code-review` route to
+  the planes when the inventory reports them.
 - `RealIssueEvidenceToolBoundaryTest` keeps the installation boundary
   executable: `voku/itp-context` and `voku/slop-scan` are invoked from isolated
   tool projects, not declared as dependencies of this package. `agent-map`
   requires Simple-PHP-Code-Parser ^0.22 and `slop-scan` requires ^0.21, so a
   single tool project cannot resolve both, and neither constraint is relaxed to
   hide that.
+
+### Fixed
+
+- `init tools` reported the `agent-map` index from the pre-consolidation
+  `.agent-map/php-symbols.json` while `ProjectLayout` had moved it to
+  `.agent-loop/map/php-symbols.json`, so a built index was reported as never
+  built and a configured `state_root` was ignored. The probe now asks the
+  layout owner for both the location and how to display it.
 
 ## 0.15.0 - 2026-08-12
 
