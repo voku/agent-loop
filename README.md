@@ -149,6 +149,30 @@ Hook commands must call a script inside the client's own directory
 (`php .codex/hooks/<name>.php`, `php .claude/hooks/<name>.php`); validation
 rejects anything else so a bundle cannot point at an unmanaged path.
 
+## External evidence tools
+
+Two agent-facing tools sit outside this package and stay outside it:
+[`voku/itp-context`](https://github.com/voku/itp-context) reports declared
+architecture intent, and [`voku/slop-scan`](https://github.com/voku/slop-scan)
+reports heuristic findings about a candidate diff. Both require PHP 8.3+, which
+a library under test must not be forced to adopt, so each gets its own small
+Composer project:
+
+```bash
+vendor/bin/agent-loop init sync-tools
+composer install --working-dir=tools/slop-scan
+vendor/bin/agent-loop init tools --refresh
+```
+
+`sync-tools` writes the project files and stops there — Composer reaches the
+network and picks versions, so running it stays your decision. `init tools`
+then reports where each tool was found, the same way it reports `rg` and
+`docker`; an absent tool is information, not a broken setup.
+
+How the planes are used, and what "helped" has to mean before a tool earns
+trust, is in
+[the real-issue acceptance model](docs/agents/dogfood/real-issue-acceptance.md).
+
 ## Package-owned Git hooks
 
 `post-merge` and `post-checkout` keep the agent-map index in step with the working

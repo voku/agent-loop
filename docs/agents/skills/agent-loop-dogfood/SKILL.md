@@ -28,7 +28,8 @@ pre-screen, freeze, the three evidence planes (`agent-map` structure,
 before implementation, project-native gates as the correctness authority, and
 the per-tool usefulness ledger.
 
-External evidence tools run from isolated tool projects. Do not add them to this
+External evidence tools run from isolated tool projects: `init sync-tools`
+writes them, `init tools` reports where they were found. Do not add them to this
 package's dependencies to make a run easier.
 
 ## Metrics

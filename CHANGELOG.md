@@ -27,6 +27,12 @@ All notable changes to this project will be documented in this file.
   8.3+ floor, on keeping agent tooling out of consumers' dependency trees, and
   on neither tool having earned a place inside a gate yet.
 
+- `init sync-tools` installs the isolated evidence tool projects from
+  package-owned templates in `docs/agents/tools/`, following the existing
+  `sync-*` contract: managed entries in a target manifest, `--dry-run`,
+  `--force` and `--adopt-existing`, stale managed entries removed, unmanaged
+  targets refused. It writes project files and never runs Composer — that
+  reaches the network and picks versions, so the command names it instead.
 - Isolated tool projects `tools/itp-context/` and `tools/slop-scan/`, pinned by
   their committed lock files, so the documented installation boundary is
   executed rather than described. `tools/slop-scan/slop-scan.php` works around

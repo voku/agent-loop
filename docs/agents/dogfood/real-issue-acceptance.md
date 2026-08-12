@@ -76,6 +76,20 @@ tools/
     └── composer.lock
 ```
 
+`init sync-tools` writes exactly that layout from package-owned templates in
+`docs/agents/tools/`:
+
+```bash
+vendor/bin/agent-loop init sync-tools
+composer install --working-dir=tools/slop-scan
+vendor/bin/agent-loop init tools --refresh
+```
+
+It writes project files and never runs Composer: resolving dependencies reaches
+the network and picks versions, which belongs to the operator who can see the
+result. An unmanaged tool project already in the target is refused rather than
+overwritten, with `--force` and `--adopt-existing` as the explicit ways through.
+
 This repository installs both that way, so the pattern is executed rather than
 described. A repository that needs `agent-loop` itself as development tooling
 adds `tools/agent-loop/` beside them, and `itp-context` may share that project
