@@ -2,6 +2,65 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.15.0 - 2026-08-12
+
+The pre-1.0 semantic reset (#19). Ownership moves to the packages that can
+actually keep each promise, and every breaking change here deletes a
+demonstrated contradiction rather than expressing a preference.
+
+Requires agent-session ^0.5.0, agent-learning ^0.10.0 and
+agent-recall-compiler ^0.11.0. There is no compatibility shim anywhere in this
+release: a wrong path or a stale artifact fails loudly instead of being guessed
+at.
+
+### Changed
+
+- **Breaking:** PLAN is durable before a Session exists. `workflow plan` writes
+  a Contract and creates no Session and no Run. APPROVE binds that exact
+  approved revision to a governed Run with its own `run_id`, so Run identity is
+  never derived from Session identity.
+- **Breaking:** a governed Run records the durable Learning repository it is
+  governed against. `close`, `learn`, `report` and the Run projection read that
+  binding, and a `--learning-root` that disagrees is refused rather than
+  silently reading a different repository. Previously close gated on the
+  caller's flag while the projection it then wrote re-derived the location from
+  the layout default — close reported success while the durable manifest it
+  produced in the same command said the Learning decision was missing, and that
+  contradiction outlived Session pruning.
+- **Breaking:** repository-local workflow state lives under `.agent-loop/`, and
+  `ProjectLayout` is the only thing that resolves a state path. `state_root`
+  moves the whole tree; `sessions_root`, `learning_root` and `recall_root`
+  override one branch each, via `.agent-loop/init.json`.
+- **Breaking:** `workflow status`, `context` and `report` render from the
+  durable Contract and owner artifacts instead of Session-held state; the
+  pre-Contract workflow shortcuts and `workflow start` are removed.
+- **Breaking:** the CLI exposes only pruneable Session commands. Durable
+  approval and Learning close-out are owned by `agent-loop` and
+  `agent-learning`.
+- `close` reports which gate failed. Gate details were collected and then
+  discarded, so a caller saw `gates failed` with every gate printed `[OK]`, and
+  the Contract-binding refusal reached only STDERR.
+
+### Added
+
+- `agent-loop init paths [--format=text|json]` reports where this project keeps
+  its workflow state, so an agent can ask instead of assuming `.agent-loop/`.
+- L2 execution contracts are governed end to end, and the gate proving it now
+  requires anchors only the current Contract could supply rather than the
+  recipe template's own scaffolding.
+- Consumes agent-map 0.5 discovery, 0.6 architecture discovery and 0.7 temporal
+  evidence.
+
+### Upgrading
+
+See `UPGRADING.md`. Run artifacts written before this release are rejected by
+name; re-run `workflow approve` to re-prepare the Run against the same approved
+Contract revision. Durable Contracts, verification receipts and Learning
+decisions are untouched.
+
+Note: 0.14.0 was prepared but never released; its content is superseded by this
+release.
+
 ## 0.13.0 - 2026-08-07
 
 - Pre-commit checks are declared by type instead of by command line:
