@@ -1,109 +1,111 @@
 # Upgrading agent-loop
 
-## A governed Run records the Learning root it is governed against
+Pre-1.0. Breaking changes are deliberate and there are no compatibility
+fallbacks: a wrong path or a stale artifact fails loudly instead of being
+guessed at.
 
-`.agent-loop/runs/<task>/run.json` now carries a required `learning_root`
-field. It is written by `workflow approve`, from that command's resolved
-`--learning-root`, and it is the only place `workflow close`, `workflow learn`,
-`workflow report` and the Run projection look for that Run's durable Learning
-close-out.
+To see where your project actually keeps its state, ask:
 
-Before this change the close gate read the caller-supplied `--learning-root`
-while the durable Run projection re-derived the location from the layout
-default. A project whose Learning repository is not at `.agent-loop/learning`
-could therefore close successfully and still produce a manifest saying
-`learning: missing` with `state: incomplete` — the durable evidence contradicted
-the gate that produced it, and the contradiction survived Session pruning.
+```bash
+vendor/bin/agent-loop init paths            # human
+vendor/bin/agent-loop init paths --format=json   # agents and scripts
+```
 
-`--learning-root` is still accepted on `close`, `learn` and `report`, but a
-value that disagrees with the Run's binding is now refused instead of silently
-reading a different repository. `workflow plan` still accepts the option and
-ignores it: PLAN owns no Learning state.
+Do not hardcode `.agent-loop/` anywhere. It is the default, not the contract.
 
-### Migration
+---
 
-Run artifacts written before this change have no `learning_root` and are
-rejected with a message naming the file and the missing field. There is no
-compatibility fallback on purpose: guessing the location is exactly the
-behavior being removed. Re-run `agent-loop workflow approve <task-id> --by
-<actor> --learning-root <path>` to re-prepare the Run for the same approved
-Contract revision; the durable Contract, verification receipt and Learning
-decision are untouched.
+## Workflow state is configurable
 
-## Repository-local state moves to `.agent-loop/`
+`ProjectLayout` owns every state path. Override any of them in
+`.agent-loop/init.json`:
 
-This is an intentional breaking change across the coordinated `agent-*` stack.
-The canonical repository-local state tree is:
+```json
+{
+  "version": 1,
+  "paths": {
+    "state_root": "var/agent-state",
+    "learning_root": "infra/doc/agent-learning"
+  }
+}
+```
+
+| Key | Default | Moves |
+| --- | --- | --- |
+| `state_root` | `.agent-loop` | the whole tree at once |
+| `sessions_root` | `<state_root>/sessions` | pruneable working memory |
+| `learning_root` | `<state_root>/learning` | durable Learning close-out |
+| `recall_root` | `<state_root>/recall` | compiled briefings |
+
+Relative values resolve against the project root; absolute values are used
+as-is, so a Learning repository can live outside the repo. Everything else
+(`runs/`, `contracts/`, `edit/`, `risks/`, `tasks/`, `map/`) follows
+`state_root`.
+
+**Action:** if you previously relied on `recall_root` only, nothing changes. If
+your project keeps state somewhere non-default, set `state_root` once instead
+of passing path flags on every command.
+
+## A governed Run records its Learning root
+
+`.agent-loop/runs/<task>/run.json` now requires a `learning_root` field, written
+by `workflow approve` from its resolved `--learning-root`. `close`, `learn`,
+`report` and the Run projection all read it from there, and a `--learning-root`
+that disagrees with the Run is refused rather than silently reading a different
+repository.
+
+**Action:** Run artifacts written before this change are rejected by name. Re-run
+`agent-loop workflow approve <task-id> --by <actor> --learning-root <path>` to
+re-prepare the Run against the same approved Contract revision. The durable
+Contract, verification receipt and Learning decision are untouched.
+
+`workflow plan` still accepts `--learning-root` and ignores it — PLAN owns no
+Learning state.
+
+## Repository-local state lives under one root
 
 ```text
 .agent-loop/
-  init.json
-  todo/
-  tasks/
-  sessions/
-  recall/
-  learning/
-  map/
-  runs/
-  edit/
+  init.json  todo/  tasks/  sessions/  recall/  learning/  map/  runs/  edit/
 ```
 
-The project/source root does not move. Source code, tests, Composer files,
-templates, and other project files stay where they are.
+Source code, tests and Composer files do not move.
 
-### Migration mapping
+**Action:** move old state explicitly, then verify before deleting anything.
 
 ```text
-todo/                         -> .agent-loop/todo/
-tasks/                        -> .agent-loop/tasks/
-session_plan/                 -> .agent-loop/sessions/
-infra/doc/agent-learning/     -> .agent-loop/learning/
-recall/                       -> .agent-loop/recall/
-.agent-map/                   -> .agent-loop/map/
+todo/                      -> .agent-loop/todo/
+tasks/                     -> .agent-loop/tasks/
+session_plan/              -> .agent-loop/sessions/
+infra/doc/agent-learning/  -> .agent-loop/learning/
+recall/                    -> .agent-loop/recall/
+.agent-map/                -> .agent-loop/map/
 ```
-
-Move durable/session state explicitly. `agent-map` output is derived state, so
-rebuilding `.agent-loop/map/` is also valid and often preferable to moving the
-old `.agent-map/` directory.
-
-After migration run:
 
 ```bash
 vendor/bin/agent-loop verify
 ```
 
-Do that before deleting historical directories. There is no automatic copy,
-symlink, historical-path discovery, compatibility mode, fallback merge, or
-dual-write between old and new state roots.
+`.agent-loop/map/` is derived state — rebuilding it is usually better than
+moving `.agent-map/`. There is no copy, symlink, dual-write or historical-path
+discovery between old and new roots.
 
-### Package-specific defaults
+Owning packages follow the same convention: `agent-kanban` → `todo/`,
+`agent-session` → `sessions/`, `agent-learning` → `learning/`,
+`agent-recall-compiler` → `learning/` and `recall/<task-id>/`, `agent-map` →
+`map/`.
 
-The coordinated owning packages use the same repository-state convention:
-
-- `agent-kanban` -> `.agent-loop/todo/`
-- `agent-session` -> `.agent-loop/sessions/`
-- `agent-learning` -> `.agent-loop/learning/`
-- `agent-recall-compiler` -> `.agent-loop/learning/` and
-  `.agent-loop/recall/<task-id>/`
-- `agent-map` -> `.agent-loop/map/`
-
-Explicit path options in the focused packages remain authoritative when a
-repository genuinely needs a custom location.
-
-### Composer/Git archives
-
-Library repositories can exclude all workflow state with one archive rule:
+## Keeping state out of releases
 
 ```gitattributes
 /.agent-loop export-ignore
 ```
 
-If `agent-loop` itself is installed through a separate nested Composer project,
-exclude that tooling directory independently, for example:
+If `agent-loop` is installed as a separate nested Composer project so it stays
+out of your library's own dependencies, exclude that directory too:
 
 ```gitattributes
 /tools/agent-loop export-ignore
 ```
 
-See `docs/quick-start.md` for the complete first-task workflow using the
-canonical layout.
+See `docs/quick-start.md` for the first-task walkthrough.

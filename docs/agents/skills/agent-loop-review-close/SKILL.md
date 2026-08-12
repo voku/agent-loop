@@ -55,7 +55,8 @@ use `--strict` to turn baseline skips into failures:
 vendor/bin/agent-loop verify --strict
 ```
 
-`--strict` fails when `tasks/` or `session_plan/` is missing entirely.
+`--strict` fails when the tasks or sessions root is missing entirely.
+Run `agent-loop init paths` to see where this project keeps them.
 Use it in expected-complete repos; omit it when the repo only wires part
 of the stack.
 

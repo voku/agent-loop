@@ -201,10 +201,10 @@ jobs:
           path: |
             build/self-shape-*.json
             build/self-shape-raw.diff
-            infra/doc/agent-learning/recall-output/SELF-SHAPE
-            infra/doc/agent-learning/history
-            session_plan
+            .agent-loop/recall/SELF-SHAPE
             .agent-loop/runs/SELF-SHAPE
+            .agent-loop/sessions
+            infra/doc/agent-learning/history
 
   release-set-dogfood:
     name: Installed release-set dogfood

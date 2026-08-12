@@ -176,7 +176,7 @@ Run `init tools` first (it caches its result, so this is cheap even when run
 at the start of most sessions): it reports whether `rg` is available and
 whether an `agent-map` index already exists, so you are not guessing or
 re-discovering that from scratch every time. The default
-`.agent-map/php-symbols.json` is generated navigation state and must be
+`.agent-loop/map/php-symbols.json` is generated navigation state and must be
 ignored by the host repository. The context command reports a missing,
 invalid, or budget-omitted map section instead of silently rebuilding it.
 
