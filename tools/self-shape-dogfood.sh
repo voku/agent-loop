@@ -4,7 +4,9 @@ set -euo pipefail
 task='SELF-SHAPE'
 planner='agent-loop-self-shape'
 learning_root='infra/doc/agent-learning'
-recall_root="${learning_root}/recall-output"
+# Resolved from the product after APPROVE: agent-loop owns where Recall output
+# lives, so the harness must not assert a second, hardcoded location for it.
+recall_root=''
 base_ref="${GITHUB_BASE_REF:-main}"
 goal="${SELF_SHAPE_GOAL:-Govern and validate the current agent-loop diff through agent-loop itself.}"
 approval_actor="${SELF_SHAPE_APPROVER:-ci-self-shape-approval-fixture}"
@@ -102,6 +104,17 @@ plan+=(
 "${agent_loop[@]}" workflow approve "${task}" \
   --by "${approval_actor}" \
   --learning-root "${learning_root}"
+
+recall_root="$("${agent_loop[@]}" workflow report "${task}" --format json --learning-root "${learning_root}" | php -r '
+$data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+$meta = $data["recall"]["meta_path"] ?? null;
+if (!is_string($meta) || $meta === "") { exit(1); }
+echo dirname($meta, 2);
+')"
+if [[ -z "${recall_root}" ]]; then
+  echo 'Unable to resolve the Recall output root from agent-loop.' >&2
+  exit 1
+fi
 
 status_before="$("${agent_loop[@]}" workflow status "${task}" --format json)"
 run_id="$(php -r '
