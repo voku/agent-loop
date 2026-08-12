@@ -20,6 +20,7 @@ final readonly class InitCli
             'help', '--help', '-h', '' => $this->printUsage(0),
             'doctor' => (new InitDoctorCommand($this->rootPath))->run($rest),
             'status' => (new InitStatusCommand($this->rootPath))->run($rest),
+            'paths' => (new InitPathsCommand($this->rootPath))->run($rest),
             'tools' => (new InitToolsCommand($this->rootPath))->run($rest),
             'validate' => (new InitValidateCommand($this->rootPath))->run($rest),
             'install-plan' => (new InitInstallPlanCommand())->run($rest),
@@ -43,6 +44,7 @@ final readonly class InitCli
         Usage:
           agent-loop init help
           agent-loop init doctor [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
+          agent-loop init paths [--format=text|json]
           agent-loop init status [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
@@ -59,6 +61,7 @@ final readonly class InitCli
         Commands:
           help           Show init help.
           doctor         Diagnose local setup and repo-managed agent asset hints.
+          paths          Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
           status         Show resolved init sources, aliases, and target manifests (read-only).
           tools          Probe and cache CLI tool availability (rg, git, php, composer, docker, agent-map index).
           validate       Validate repo-managed agent asset definitions.

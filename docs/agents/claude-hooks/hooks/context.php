@@ -6,11 +6,25 @@ use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 
 $repositoryRoot = dirname(__DIR__, 2);
 $autoload = $repositoryRoot . '/vendor/autoload.php';
-$classFile = $repositoryRoot . '/src/AgentGuidance/AgentDisciplineHook.php';
+$sourceRoot = $repositoryRoot . '/src';
 if (is_file($autoload)) {
     require $autoload;
-} elseif (is_file($classFile)) {
-    require $classFile;
+} elseif (is_dir($sourceRoot)) {
+    // Running from a checkout with no installed dependencies. Register the
+    // package's own PSR-4 root rather than requiring one class by hand: a
+    // hand-maintained list silently breaks the hook the moment the hook gains
+    // a collaborator, and the hook is what injects context into every session.
+    spl_autoload_register(static function (string $class) use ($sourceRoot): void {
+        $prefix = 'voku\\AgentLoop\\';
+        if (!str_starts_with($class, $prefix)) {
+            return;
+        }
+        $relative = str_replace('\\', '/', substr($class, strlen($prefix)));
+        $file = $sourceRoot . '/' . $relative . '.php';
+        if (is_file($file)) {
+            require $file;
+        }
+    });
 } else {
     fwrite(STDERR, "agent-loop hook runtime is unavailable.\n");
     exit(1);

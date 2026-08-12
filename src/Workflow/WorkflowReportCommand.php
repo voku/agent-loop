@@ -426,7 +426,8 @@ final readonly class WorkflowReportCommand
     /** @return array{recorded: bool, path: string} */
     private function acceptedRiskReport(string $taskId): array
     {
-        $relative = '.agent-loop/risks/' . $taskId . '.accepted-risk.md';
+        $writer = new AcceptedRiskWriter($this->rootPath);
+        $relative = $writer->relativePath($taskId);
 
         return ['recorded' => is_file(rtrim($this->rootPath, '/') . '/' . $relative), 'path' => $relative];
     }

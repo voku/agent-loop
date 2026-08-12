@@ -11,6 +11,7 @@ use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentSession\Session;
+use voku\AgentLoop\ProjectLayout;
 
 final class GovernedRunStore
 {
@@ -104,7 +105,7 @@ final class GovernedRunStore
 
     public function path(string $taskId): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-loop/runs/' . $taskId . '/run.json';
+        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/run.json';
     }
 
     private function write(GovernedRun $run): void

@@ -10,6 +10,7 @@ use JsonException;
 use RuntimeException;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentSession\Session;
+use voku\AgentLoop\ProjectLayout;
 
 final class RunVerificationReceiptStore
 {
@@ -96,7 +97,7 @@ final class RunVerificationReceiptStore
 
     public function path(string $taskId): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-loop/runs/' . $taskId . '/verification.json';
+        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/verification.json';
     }
 
     private function write(RunVerificationReceipt $receipt): void

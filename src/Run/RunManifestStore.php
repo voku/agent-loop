@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Run;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\ProjectLayout;
 
 final readonly class RunManifestStore
 {
@@ -15,7 +16,7 @@ final readonly class RunManifestStore
 
     public function path(string $taskId): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-loop/runs/' . $taskId . '/manifest.json';
+        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/manifest.json';
     }
 
     public function write(RunManifest $manifest): string

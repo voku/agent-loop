@@ -314,7 +314,7 @@ final readonly class WorkflowCloseCommand
 
     private function checkEditVerificationGate(string $taskId): ?string
     {
-        $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
+        $bundle = (new ProjectLayout($this->rootPath))->editBundle($taskId);
         if (!is_dir($bundle)) {
             echo "[OK] edit verification: no edit bundle for {$taskId}\n";
 

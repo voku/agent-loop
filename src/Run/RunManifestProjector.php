@@ -64,13 +64,14 @@ final readonly class RunManifestProjector
             }
         }
 
+        $layout = new ProjectLayout($this->rootPath);
         $references = [
             'board' => $this->boardReference($taskId, $disagreements),
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract),
             'approval' => $this->approvalReference($contract),
-            'map' => $this->fileReference('agent-map', '.agent-loop/map/php-symbols.json', 'missing'),
-            'search_index' => $this->fileReference('agent-map', '.agent-loop/map/search.sqlite', 'not_built'),
+            'map' => $this->fileReference('agent-map', $layout->mapIndex(), 'missing'),
+            'search_index' => $this->fileReference('agent-map', $layout->mapSearchIndex(), 'not_built'),
             'recall' => $this->recallReference($taskId, $disagreements),
             'execution_contract' => $this->executionContractReference($taskId),
             'edit' => $this->editReference($taskId),
@@ -334,7 +335,7 @@ final readonly class RunManifestProjector
     /** @return array<string, mixed> */
     private function editReference(string $taskId): array
     {
-        $directory = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->editBundle($taskId);
         if (!is_dir($directory)) {
             return ['owner' => 'agent-loop', 'state' => 'none', 'observation_mode' => 'checked'];
         }
@@ -462,11 +463,15 @@ final readonly class RunManifestProjector
     }
 
     /** @return array<string, mixed> */
-    private function fileReference(string $owner, string $relativePath, string $missingState): array
+    private function fileReference(string $owner, string $path, string $missingState): array
     {
-        $path = rtrim($this->rootPath, '/') . '/' . ltrim($relativePath, '/');
         if (!is_file($path)) {
-            return ['owner' => $owner, 'state' => $missingState, 'observation_mode' => 'checked', 'path' => $relativePath];
+            return [
+                'owner' => $owner,
+                'state' => $missingState,
+                'observation_mode' => 'checked',
+                'path' => RelativePath::fromRoot($this->rootPath, $path),
+            ];
         }
 
         return [

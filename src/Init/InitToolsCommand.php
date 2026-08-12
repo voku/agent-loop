@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use voku\AgentLoop\ProjectLayout;
+
 /**
  * Probes whether common CLI tools are reachable in PATH and caches the result,
  * so agents do not have to re-probe availability at the start of every session.
@@ -19,7 +21,6 @@ final readonly class InitToolsCommand
      */
     private const array KNOWN_TOOLS = ['rg', 'git', 'php', 'composer', 'docker'];
 
-    private const string DEFAULT_CACHE_PATH = '.agent-loop/tool-inventory.json';
 
     private const int DEFAULT_MAX_AGE_SECONDS = 3600;
 
@@ -47,7 +48,7 @@ final readonly class InitToolsCommand
             return 1;
         }
 
-        $cachePath = $this->resolvePath($this->readOptionValue($tokens, 'cache') ?? self::DEFAULT_CACHE_PATH);
+        $cachePath = $this->resolveCachePath($this->readOptionValue($tokens, 'cache'));
         $maxAge = $this->readMaxAge($tokens);
         $refresh = in_array('--refresh', $tokens, true);
 
@@ -216,6 +217,14 @@ final readonly class InitToolsCommand
         }
 
         return (int) round($seconds / 86400) . 'd';
+    }
+
+    /** An explicit --cache wins; otherwise the layout owner decides where the inventory lives. */
+    private function resolveCachePath(?string $explicit): string
+    {
+        return $explicit === null
+            ? (new ProjectLayout($this->rootPath))->toolInventory()
+            : $this->resolvePath($explicit);
     }
 
     private function resolvePath(string $path): string

@@ -9,6 +9,7 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\ProjectLayout;
 
 final class TaskContractStore
 {
@@ -172,7 +173,7 @@ final class TaskContractStore
 
     public function path(string $taskId): string
     {
-        return rtrim($this->rootPath, '/') . '/.agent-loop/contracts/' . $taskId . '/contract.json';
+        return (new ProjectLayout($this->rootPath))->contractPath($taskId);
     }
 
     private function archive(TaskContract $contract): void

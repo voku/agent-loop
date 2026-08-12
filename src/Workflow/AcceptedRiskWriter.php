@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\ProjectLayout;
 
 /**
  * Records a human override of the workflow close gates.
@@ -26,12 +27,22 @@ final readonly class AcceptedRiskWriter
 
     public function relativePath(string $taskId): string
     {
-        return '.agent-loop/risks/' . $taskId . '.accepted-risk.md';
+        return $this->layout()->display($this->absolutePath($taskId, 'md'));
     }
 
     public function relativeJsonPath(string $taskId): string
     {
-        return '.agent-loop/risks/' . $taskId . '.accepted-risk.json';
+        return $this->layout()->display($this->absolutePath($taskId, 'json'));
+    }
+
+    private function absolutePath(string $taskId, string $extension): string
+    {
+        return $this->layout()->risksRoot() . '/' . $taskId . '.accepted-risk.' . $extension;
+    }
+
+    private function layout(): ProjectLayout
+    {
+        return new ProjectLayout($this->rootPath);
     }
 
     /**
@@ -40,7 +51,7 @@ final readonly class AcceptedRiskWriter
      */
     public function write(string $taskId, string $reason, string $acceptedBy, array $failures = []): string
     {
-        $dir = rtrim($this->rootPath, '/') . '/.agent-loop/risks';
+        $dir = $this->layout()->risksRoot();
         if (!is_dir($dir) && !mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new RuntimeException('Could not create accepted-risk directory: ' . $dir);
         }
