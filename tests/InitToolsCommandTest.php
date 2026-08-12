@@ -88,6 +88,20 @@ final class InitToolsCommandTest extends TestCase
         );
     }
 
+    /** Installing the tool in its own directory is the layout an actual run produced. */
+    public function testExternalEvidenceToolIsFoundInItsOwnToolProject(): void
+    {
+        putenv('PATH=' . $this->fakeBinDir);
+        $this->makeProjectFile('tools/itp-context/vendor/bin/itp-context-query');
+
+        $result = $this->runTools([]);
+
+        self::assertStringContainsString(
+            '[OK] itp-context: available (' . $this->root . '/tools/itp-context/vendor/bin/itp-context-query)',
+            $result['output'],
+        );
+    }
+
     public function testPinnedProjectInstallationWinsOverAnAmbientPathBuild(): void
     {
         $this->makeFakeExecutable('slop-scan');

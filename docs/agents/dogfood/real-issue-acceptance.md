@@ -51,15 +51,25 @@ agent-loop -> agent-map 0.7.0  -> voku/simple-php-code-parser ^0.22
 ```
 
 Do not relax either constraint to make one tool project resolve. The correct
-shape is two isolated tool projects in the repository under test:
+shape is one isolated tool project per tool in the repository under test:
 
 ```text
 tools/
-├── agent-loop/
-│   └── composer.json     # voku/agent-loop + voku/itp-context
+├── itp-context/
+│   ├── composer.json     # voku/itp-context
+│   └── composer.lock     # pinned: which version produced this run's evidence
 └── slop-scan/
-    └── composer.json     # voku/slop-scan alone, or a pinned slop-scan PHAR
+    ├── composer.json     # voku/slop-scan alone, or a pinned slop-scan PHAR
+    └── composer.lock
 ```
+
+This repository installs both that way, so the pattern is executed rather than
+described. A repository that needs `agent-loop` itself as development tooling
+adds `tools/agent-loop/` beside them, and `itp-context` may share that project
+because their constraints do not conflict.
+
+Commit the lock files and ignore the vendor directories: the lock is the
+evidence of which tool version produced a finding.
 
 Both tools require PHP 8.3+. Isolation is what keeps that requirement off a
 library that still advertises PHP 7 support, and keeps agent tooling out of the
@@ -74,17 +84,18 @@ release archives:
 See `docs/compact-layout.md` for the same boundary applied to workflow state.
 
 Binaries therefore live in the tool project, not in the repository's own
-`vendor/`:
+`vendor/`. A repository that already depends on one of these packages directly
+uses its own `vendor/bin/` instead. Ask `init tools` for the path that exists
+rather than assuming one.
 
-```text
-tools/agent-loop/vendor/bin/agent-loop
-tools/agent-loop/vendor/bin/itp-context-validate
-tools/slop-scan/vendor/bin/slop-scan.php
-```
-
-A repository that already depends on one of these packages directly uses its own
-`vendor/bin/` instead. Resolve the path from the installation that exists; do
-not assume one.
+`voku/slop-scan` 0.1.4 has one wrinkle here: its bin resolves the autoloader as
+`__DIR__ . '/../vendor/autoload.php'`, which exists only in a standalone
+checkout. Installed as a Composer dependency it exits with "Composer autoload
+file not found", ignoring the location Composer already published in
+`$GLOBALS['_composer_autoload_path']`. The upstream README documents the PHAR,
+which is why the Composer path went unnoticed. `tools/slop-scan/slop-scan.php`
+is a three-line runner around that, and should be deleted once the bin honors
+the global.
 
 ## Candidate pre-screen
 
@@ -256,6 +267,13 @@ Report the comparison, not a single number:
 - changed fingerprints;
 - findings inside the changed production region.
 
+Separating changed fingerprints from new findings is not bookkeeping. An
+occurrence fingerprint in 0.1.4 covers the line number, so inserting lines
+above an untouched block retires its fingerprint and mints a new one. A raw
+new-versus-resolved count therefore over-reports on any diff that grows a file.
+Match new against resolved by rule, path and the source line's content before
+concluding anything: an identical line that moved is not a finding.
+
 Two rules govern what that comparison may do:
 
 > Existing repository slop is not a failure of the candidate. The agent owns the
@@ -341,11 +359,53 @@ deliberate change rather than one that arrives quietly.
 
 ## Recorded runs
 
-The first consumer-repository pilot is tracked in
-[agent-loop#66](https://github.com/voku/agent-loop/issues/66) against
+### Consumer-repository pilot
+
+Tracked in [agent-loop#66](https://github.com/voku/agent-loop/issues/66) against
 `voku/Simple-PHP-Code-Parser`: a historical issue was replayed at its frozen
 pre-fix commit, the production file that the later fix changed appeared in the
 top structural results, and a real gap in Recall's Composer-dependency evidence
 became a regression-first change in `voku/agent-recall-compiler` rather than a
 note in a report. That run also produced the `dev-branch#SHA` provenance rule
 recorded under [Freeze](#freeze).
+
+### First self-run of the evidence planes
+
+Both tools were installed and run against the change that introduced this
+document. Per-tool result, in the ledger's terms:
+
+**`slop-scan`: helped, after correction.** 366 findings on the base, 368 on the
+candidate. Raw fingerprint comparison said 10 new and 8 resolved; content
+matching reduced that to **two** genuinely new findings and zero resolved. Both
+are `weak` `php.magic-numbers` in test code — `3600` in a cache fixture that
+mirrors the command's own default, and `512`, the depth argument `json_decode`
+requires before its flags. Neither is a defect, no project policy gates that
+rule, and inventing a named constant to quiet a heuristic would have been the
+wrong fix. The other eight pairs were identical lines that moved, including the
+`php.clone-cluster` hit on `readOptionValue`, which is duplicated across nine
+`Init` commands **on the base too**. That cluster is pre-existing repository
+slop, so it belongs to a future task, not to this diff.
+
+**`itp-context`: abstained, correctly.** `NOT_CONFIGURED`. Export produced zero
+context documents, query matched nothing, and summarizing a heavily documented
+class returned only its heading. The state is also permanent for this package
+rather than an oversight: rule enums implement `RuleIdentifier` from the tool,
+so declaring rules in `src/` would make `voku/itp-context` a runtime dependency
+of the library — the boundary this document exists to hold. `ProjectLayout`'s
+"nothing else may spell a state location" is exactly the kind of intent the
+tool encodes, and a violation of it shipped anyway, so the value is real; it is
+simply not collectable here at an acceptable price.
+
+**The run also produced two tool findings**, both recorded above rather than
+worked around silently: the Composer-install autoload bug in `slop-scan` 0.1.4,
+and the line-sensitivity of its occurrence fingerprints. Neither was visible
+from reading the packages. Both appeared within minutes of actually running
+them, which is the argument for the ledger.
+
+**And one harness finding.** The first comparison scanned the base with
+`--ignore 'tools/**'` and the candidate without it, which manufactured 22 new
+findings in dogfood runners that were sitting unchanged on the base. "Same
+configuration" above is not a formality: a changed ignore set produces a delta
+that looks exactly like a regression. Re-run the base whenever the scan
+arguments change, and treat a suspiciously large delta as a harness bug before
+treating it as a code problem.

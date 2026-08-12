@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
   single tool project cannot resolve both, and neither constraint is relaxed to
   hide that.
 
+- Isolated tool projects `tools/itp-context/` and `tools/slop-scan/`, pinned by
+  their committed lock files, so the documented installation boundary is
+  executed rather than described. `tools/slop-scan/slop-scan.php` works around
+  `voku/slop-scan` 0.1.4 resolving its autoloader at a path that exists only in
+  a standalone checkout.
+
 ### Fixed
 
 - `init tools` reported the `agent-map` index from the pre-consolidation

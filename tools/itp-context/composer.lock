@@ -1,0 +1,86 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "05d9a5bfa14a29f5beab174a5feef209",
+    "packages": [
+        {
+            "name": "voku/itp-context",
+            "version": "0.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/voku/itp-context.git",
+                "reference": "785a61d9ec8cb0eb9a868908a97314ec4b69c173"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/voku/itp-context/zipball/785a61d9ec8cb0eb9a868908a97314ec4b69c173",
+                "reference": "785a61d9ec8cb0eb9a868908a97314ec4b69c173",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.3.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^11.5"
+            },
+            "bin": [
+                "bin/itp-context-summarize",
+                "bin/itp-context-validate",
+                "bin/itp-context-generate",
+                "bin/itp-context-export",
+                "bin/itp-context-query"
+            ],
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "ItpContext\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Lars Moelleken",
+                    "email": "lars@moelleken.org",
+                    "homepage": "https://www.moelleken.org/"
+                }
+            ],
+            "description": "Architecture context attributes, inline enum rule definitions, validation and summarization helpers for PHP projects.",
+            "homepage": "https://github.com/voku/itp-context",
+            "keywords": [
+                "Context",
+                "architecture",
+                "attribute",
+                "enum",
+                "php",
+                "rule",
+                "rules"
+            ],
+            "support": {
+                "issues": "https://github.com/voku/itp-context/issues",
+                "source": "https://github.com/voku/itp-context"
+            },
+            "time": "2026-05-18T10:38:21+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {},
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
+}

@@ -39,6 +39,7 @@ final readonly class InitToolsCommand
         'itp-context' => [
             'project_paths' => [
                 'vendor/bin/itp-context-query',
+                'tools/itp-context/vendor/bin/itp-context-query',
                 'tools/agent-loop/vendor/bin/itp-context-query',
             ],
             'path_names' => ['itp-context-query'],
