@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 final readonly class InitInstallAssetsCommand
 {
@@ -22,7 +23,7 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
 
-        $requestedAgent = $this->readOptionValue($tokens, 'agent');
+        $requestedAgent = OptionTokens::value($tokens, 'agent');
         if ($requestedAgent === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
 
@@ -50,7 +51,7 @@ final readonly class InitInstallAssetsCommand
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $codexHooksRoot = $packageRoot . '/docs/agents/codex-hooks';
         $claudeHooksRoot = $packageRoot . '/docs/agents/claude-hooks';
-        $extraSkillRoots = $this->readOptionValues($tokens, 'extra-skills-root');
+        $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
         $installsSubagents = $agent->isAll()
             || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
         $hookAgents = $agent->isAll()
@@ -184,45 +185,4 @@ final readonly class InitInstallAssetsCommand
         return null;
     }
 
-    /** @param list<string> $tokens */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $values = $this->readOptionValues($tokens, $name);
-
-        return $values[0] ?? null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @return list<string>
-     */
-    private function readOptionValues(array $tokens, string $name): array
-    {
-        $values = [];
-        $prefix = '--' . $name . '=';
-        $count = count($tokens);
-        for ($i = 0; $i < $count; ++$i) {
-            $token = $tokens[$i];
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-                if ($value !== '') {
-                    $values[] = $value;
-                }
-
-                continue;
-            }
-
-            if ($token !== '--' . $name) {
-                continue;
-            }
-
-            $candidate = $tokens[$i + 1] ?? null;
-            if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                $values[] = $candidate;
-                ++$i;
-            }
-        }
-
-        return $values;
-    }
 }

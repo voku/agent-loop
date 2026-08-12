@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use ItpContext\Attribute\Rule;
+use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -14,6 +17,8 @@ use voku\AgentLoop\ProjectLayout;
  * are read-only diagnostics of repo-managed agent assets and never write files.
  * InitToolsCommand's whole purpose is to write a small, gitignored cache file.
  */
+#[Rule(ArchitectureRules::ExternalToolsStayOptional)]
+#[Rule(ArchitectureRules::SingleStatePathOwner)]
 final readonly class InitToolsCommand
 {
     /**
@@ -77,7 +82,7 @@ final readonly class InitToolsCommand
             return 1;
         }
 
-        $cachePath = $this->resolveCachePath($this->readOptionValue($tokens, 'cache'));
+        $cachePath = $this->resolveCachePath(OptionTokens::value($tokens, 'cache'));
         $maxAge = $this->readMaxAge($tokens);
         $refresh = in_array('--refresh', $tokens, true);
 
@@ -365,33 +370,9 @@ final readonly class InitToolsCommand
     /**
      * @param list<string> $tokens
      */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
     private function readMaxAge(array $tokens): int
     {
-        $value = $this->readOptionValue($tokens, 'max-age');
+        $value = OptionTokens::value($tokens, 'max-age');
         if ($value === null || !ctype_digit($value)) {
             return self::DEFAULT_MAX_AGE_SECONDS;
         }

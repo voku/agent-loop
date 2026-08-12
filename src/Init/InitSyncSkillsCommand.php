@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\PathResolver;
 
 final readonly class InitSyncSkillsCommand
@@ -27,12 +28,12 @@ final readonly class InitSyncSkillsCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load($this->readOptionValue($tokens, 'config'));
+        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
 
-        $agentValue = $this->readOptionValue($tokens, 'agent');
+        $agentValue = OptionTokens::value($tokens, 'agent');
         if ($agentValue === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
 
@@ -52,7 +53,7 @@ final readonly class InitSyncSkillsCommand
         }
 
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
-        $requestedSkillRoots = $this->readOptionValues($tokens, 'skills-root');
+        $requestedSkillRoots = OptionTokens::values($tokens, 'skills-root');
         $skillRoots = $requestedSkillRoots === []
             ? [$paths->absoluteSkillsRoot()]
             : array_values(array_unique(array_map(
@@ -70,9 +71,9 @@ final readonly class InitSyncSkillsCommand
             }
         }
 
-        $dryRun = $this->hasFlag($tokens, 'dry-run');
-        $force = $this->hasFlag($tokens, 'force');
-        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
+        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
         $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
@@ -332,14 +333,6 @@ final readonly class InitSyncSkillsCommand
     /**
      * @param list<string> $tokens
      */
-    private function hasFlag(array $tokens, string $name): bool
-    {
-        return in_array('--' . $name, $tokens, true);
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'config', 'skills-root'];
@@ -367,50 +360,6 @@ final readonly class InitSyncSkillsCommand
         }
 
         return null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $values = $this->readOptionValues($tokens, $name);
-
-        return $values[0] ?? null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @return list<string>
-     */
-    private function readOptionValues(array $tokens, string $name): array
-    {
-        $values = [];
-        $prefix = '--' . $name . '=';
-        $count = count($tokens);
-        for ($i = 0; $i < $count; ++$i) {
-            $token = $tokens[$i];
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-                if ($value !== '') {
-                    $values[] = $value;
-                }
-
-                continue;
-            }
-
-            if ($token !== '--' . $name) {
-                continue;
-            }
-
-            $candidate = $tokens[$i + 1] ?? null;
-            if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                $values[] = $candidate;
-                ++$i;
-            }
-        }
-
-        return $values;
     }
 
     /**

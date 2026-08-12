@@ -6,6 +6,38 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `voku/itp-context` is a runtime dependency, and `src/Context/ArchitectureRules.php`
+  declares four rules with the `Rule` attribute on the symbols they constrain:
+  `ProjectLayout` owns every state path, Workflow calls typed package APIs,
+  generated evidence is never approval, and external evidence tools stay
+  optional. Each names the check that catches the next violation, each was
+  violated at least once by a change that passed review, and `composer ci` runs
+  `context:validate`.
+- A `slop-scan` CI job reviews the candidate against `slop-baseline.json` using
+  `slop-scan.config.json`, so the gate fails on findings a change adds rather
+  than on the repository's existing history. `composer review:slop` runs the
+  same check locally. It installs from `tools/slop-scan` because 0.1.4 cannot
+  co-resolve with `agent-map` and 0.1.5 is untagged.
+
+### Changed
+
+- `voku\AgentLoop\Cli\OptionTokens` owns argv option parsing. Twelve commands
+  carried a private copy of the same loop, ten byte for byte — including one
+  added in this release. `slop-scan` reported the cluster; the extraction
+  removed 13 duplicated methods across 12 files. `value()` now resolves to the
+  first non-empty occurrence, which differs from the old single-value copies
+  only for a repeated option whose first value is empty — an input none of
+  those commands accept.
+
+### Fixed
+
+- `RuntimeException` raised for invalid dogfood JSON now carries the
+  `JsonException` as `previous`, and three `@param mixed $value` annotations
+  that only repeated the native signature are gone. Both were `slop-scan`
+  findings.
+
+### Added
+
 - The real-issue acceptance model in `docs/agents/dogfood/real-issue-acceptance.md`:
   candidate pre-screen, freeze, three separate evidence planes (`agent-map`
   structure, `voku/itp-context` architecture intent, `voku/slop-scan` candidate

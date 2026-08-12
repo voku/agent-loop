@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 final readonly class InitSyncHooksCommand
 {
@@ -27,12 +28,12 @@ final readonly class InitSyncHooksCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load($this->readOptionValue($tokens, 'config'));
+        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
 
-        $agentValue = $this->readOptionValue($tokens, 'agent');
+        $agentValue = OptionTokens::value($tokens, 'agent');
         if ($agentValue === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
 
@@ -58,9 +59,9 @@ final readonly class InitSyncHooksCommand
         }
 
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $overrides);
-        $dryRun = $this->hasFlag($tokens, 'dry-run');
-        $force = $this->hasFlag($tokens, 'force');
-        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
+        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
         if ($agent->canonicalName() === 'claude') {
             return $this->syncClaudeHooks($paths, $dryRun, $force, $adoptExisting);
@@ -407,17 +408,9 @@ final readonly class InitSyncHooksCommand
      */
     private function readPathOverrides(array $tokens): array
     {
-        $value = $this->readOptionValue($tokens, 'hooks-root');
+        $value = OptionTokens::value($tokens, 'hooks-root');
 
         return $value === null ? [] : ['hooks-root' => $value];
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function hasFlag(array $tokens, string $name): bool
-    {
-        return in_array('--' . $name, $tokens, true);
     }
 
     /**
@@ -446,30 +439,6 @@ final readonly class InitSyncHooksCommand
                 }
 
                 ++$i;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
             }
         }
 

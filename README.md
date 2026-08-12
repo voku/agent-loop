@@ -149,28 +149,47 @@ Hook commands must call a script inside the client's own directory
 (`php .codex/hooks/<name>.php`, `php .claude/hooks/<name>.php`); validation
 rejects anything else so a bundle cannot point at an unmanaged path.
 
-## External evidence tools
+## Architecture rules
 
-Two agent-facing tools sit outside this package and stay outside it:
-[`voku/itp-context`](https://github.com/voku/itp-context) reports declared
-architecture intent, and [`voku/slop-scan`](https://github.com/voku/slop-scan)
-reports heuristic findings about a candidate diff. Both require PHP 8.3+, which
-a library under test must not be forced to adopt, so each gets its own small
-Composer project:
+`src/Context/ArchitectureRules.php` declares the intent a reader cannot recover
+from the code: which class owns state paths, what Workflow may call, that
+generated evidence is not approval, and that external tools stay optional. Each
+rule names the check that catches the next violation, and every one of them was
+violated at least once by a change that passed review — that is the bar for
+adding another.
+
+```bash
+composer context:validate
+vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
+vendor/bin/itp-context-query var/itp-context --text='state path'
+```
+
+`composer ci` runs the validation. [`voku/itp-context`](https://github.com/voku/itp-context)
+is a real dependency because the rules implement its contract; it needs only
+PHP 8.3+, which this package already requires.
+
+## Deterministic slop review
+
+[`voku/slop-scan`](https://github.com/voku/slop-scan) reports heuristic findings
+about a candidate diff. It cannot share this package's Composer project — 0.1.4
+requires Simple-PHP-Code-Parser `^0.21` against `agent-map`'s `^0.22` — so it
+runs from an isolated tool project that `init sync-tools` writes:
 
 ```bash
 vendor/bin/agent-loop init sync-tools
 composer install --working-dir=tools/slop-scan
-vendor/bin/agent-loop init tools --refresh
+composer review:slop
 ```
 
-`sync-tools` writes the project files and stops there — Composer reaches the
-network and picks versions, so running it stays your decision. `init tools`
-then reports where each tool was found, the same way it reports `rg` and
-`docker`; an absent tool is information, not a broken setup.
+`slop-scan.config.json` disables the rules that are noise here and
+`slop-baseline.json` records what existed when the gate went in, so CI fails on
+what a change *adds* rather than on the repository's history. A heuristic
+finding is an observation, not a verdict: promote one to a blocker only when you
+can state the defect from the real source.
 
-How the planes are used, and what "helped" has to mean before a tool earns
-trust, is in
+`init tools` reports where both tools were found, the same way it reports `rg`
+and `docker`; an absent tool is information, not a broken setup. How the planes
+are used, and what "helped" has to mean before a tool earns trust, is in
 [the real-issue acceptance model](docs/agents/dogfood/real-issue-acceptance.md).
 
 ## Package-owned Git hooks

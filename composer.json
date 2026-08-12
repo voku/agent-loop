@@ -20,7 +20,8 @@
     "voku/agent-learning": "^0.10.0",
     "voku/agent-map": "^0.7.0",
     "voku/agent-recall-compiler": "^0.11.0",
-    "voku/agent-session": "^0.5.0"
+    "voku/agent-session": "^0.5.0",
+    "voku/itp-context": "^0.3.0"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",
@@ -44,6 +45,8 @@
     "test": "phpunit",
     "phpstan": "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M",
     "test:project-phpstan-rules": "bash tools/project-phpstan-rules.sh",
+    "context:validate": "itp-context-validate 'voku\\AgentLoop\\Context\\ArchitectureRules'",
+    "review:slop": "php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --lint",
     "dogfood:discipline": "php tools/agent-discipline-dogfood.php",
     "dogfood:self-shape": "bash tools/self-shape-dogfood.sh",
     "ci": [
@@ -51,6 +54,7 @@
       "@test",
       "@phpstan",
       "@test:project-phpstan-rules",
+      "@context:validate",
       "@dogfood:discipline"
     ]
   },

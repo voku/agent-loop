@@ -325,6 +325,13 @@ Two rules govern what that comparison may do:
 
 > A heuristic finding is not automatically a correctness failure.
 
+This repository has since made that project-policy decision for itself:
+`slop-scan.config.json` disables the two rules that fire as noise here,
+`slop-baseline.json` records the findings that existed when the gate was
+introduced, and CI fails on anything the candidate adds on top. Pre-existing
+debt stays visible in the baseline rather than being deleted or silently
+suppressed, which is the same rule stated from the other side.
+
 `CLOSE` may be blocked by a `slop-scan` finding only when project policy makes
 that rule a gate, or when review confirms the new finding is a real defect that
 violates the Contract. There is no invented score threshold; `slop <= 4.7`
@@ -385,19 +392,32 @@ re-run with better keywords.
 "Should the workflow know about these tools" and "should this package depend on
 them" are different questions, and they have different answers.
 
-| Level | Answer | Where |
-|---|---|---|
-| Discovery — report whether the tool is installed, and where | **yes** | `init tools`, beside `rg`, `git` and `docker`, which this package also does not install |
-| Guidance — tell an agent when the plane is worth using | **yes** | `agent-loop-l2-context`, `agent-loop-code-review`, `agent-loop-dogfood` |
-| Composer dependency | **no** | see below |
-| Product integration — a Recall context provider, a review-observation provider | **not yet** | needs repeated runs proving a stable seam |
+The two tools ended up on opposite sides of the dependency line, for reasons
+that are worth keeping straight.
 
-The dependency answer used to be arithmetic: the parser constraints could not
-co-resolve. `slop-scan` 0.1.5 removes that, so the answer is now a judgment
-rather than a fact, and it still holds — a `require-dev` entry would put an
-external tool one `composer.json` edit away from a gate, on the strength of a
-single run. Revisit it when repeated runs have earned the last row, not because
-the blocker that used to make the decision for us disappeared.
+| | `itp-context` | `slop-scan` |
+|---|---|---|
+| Discovery via `init tools` | yes | yes |
+| Guidance in the skills | yes | yes |
+| Composer dependency | **`require`** | **no** |
+| Runs in CI | `composer ci` → `context:validate` | its own job, from `tools/slop-scan` |
+
+`itp-context` had to become a real dependency the moment this repository
+declared rules of its own: `ArchitectureRules` implements the package's
+`RuleIdentifier`, and `src/` carries its `Rule` attribute, so the rules cannot
+exist without it. It requires only PHP >= 8.3, which this package already
+requires, so nothing downstream changes.
+
+`slop-scan` cannot be one yet — not as a judgment, as arithmetic. 0.1.4 requires
+Simple-PHP-Code-Parser `^0.21` against `agent-map`'s `^0.22`, and the 0.1.5
+release that moves to `^0.22.2` has no Git tag, so Packagist still serves 0.1.4.
+CI installs the isolated tool project instead. When the tag lands, that becomes
+a judgment again, and the question to ask is whether a deterministic heuristic
+scanner belongs in the same resolution graph as the product — not whether it
+finally fits.
+
+Both are still optional at runtime. An absent tool remains one evidence plane a
+run does not have.
 
 Discovery and guidance cost nothing when the tool is absent: the probe reports
 it, the skills say so, and the run records one plane it did not have. That is
@@ -437,15 +457,23 @@ wrong fix. The other eight pairs were identical lines that moved, including the
 `Init` commands **on the base too**. That cluster is pre-existing repository
 slop, so it belongs to a future task, not to this diff.
 
-**`itp-context`: abstained, correctly.** `NOT_CONFIGURED`. Export produced zero
-context documents, query matched nothing, and summarizing a heavily documented
-class returned only its heading. The state is also permanent for this package
-rather than an oversight: rule enums implement `RuleIdentifier` from the tool,
-so declaring rules in `src/` would make `voku/itp-context` a runtime dependency
-of the library — the boundary this document exists to hold. `ProjectLayout`'s
-"nothing else may spell a state location" is exactly the kind of intent the
-tool encodes, and a violation of it shipped anyway, so the value is real; it is
-simply not collectable here at an acceptable price.
+**`itp-context`: abstained, correctly — then was adopted.** The first run
+reported `NOT_CONFIGURED`: zero exported documents, no query matches, and
+summarizing a heavily documented class returned only its heading. That was the
+honest state of a repository with no declared rules, and the run recorded it
+instead of manufacturing one.
+
+The repository has since declared four, because the abstention itself was the
+argument: `ProjectLayout`'s "nothing else may spell a state location" is exactly
+the intent the tool encodes, and a violation of it shipped anyway — `init tools`
+reported a built map index as never built. `src/Context/ArchitectureRules.php`
+now carries that rule and three others, each naming the check that would catch
+the next violation, and the package moved into `require` because declaring rules
+means implementing its `RuleIdentifier`.
+
+The bar for adding a rule is deliberately high: every one of the four was
+violated at least once by a change that passed review. A rule nobody has broken
+is a comment.
 
 **The run also produced two tool findings**, both recorded above rather than
 worked around silently: the Composer-install autoload bug in `slop-scan`, and

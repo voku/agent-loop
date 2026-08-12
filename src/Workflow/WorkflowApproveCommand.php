@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use ItpContext\Attribute\Rule;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
@@ -16,6 +18,8 @@ use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
+#[Rule(ArchitectureRules::TypedPackageApisInsideWorkflow)]
+#[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
 final readonly class WorkflowApproveCommand
 {
     /** @param callable(list<string>): int $recallRunner */

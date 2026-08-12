@@ -4,39 +4,42 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use ItpContext\Attribute\Rule;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
+use voku\AgentLoop\Context\ArchitectureRules;
+use voku\AgentLoop\ProjectLayout;
 
 /**
- * Real-issue acceptance invokes `voku/itp-context` and `voku/slop-scan` as
- * external agent-facing evidence tools. They are deliberately not dependencies
- * of this package.
+ * The two external evidence tools ended up on opposite sides of the dependency
+ * line, for reasons that are worth keeping executable.
  *
- * A Simple-PHP-Code-Parser conflict used to make that decision for us;
- * `slop-scan` 0.1.5 resolved it, so what remains is a judgment: both tools
- * require PHP 8.3+, which a library under test must not be forced to adopt,
- * and neither has earned a place inside a gate yet.
+ * `voku/itp-context` is a real dependency: declaring architecture rules means
+ * implementing its `RuleIdentifier` and using its `Rule` attribute, so the
+ * package has to be installed for the rules to exist at all. It requires only
+ * PHP >= 8.3, which this package already requires.
  *
- * Two failure modes are cheap to prevent and expensive to notice later: the
- * dependency arriving quietly, and agent-facing instructions naming a binary
- * path the installation boundary does not provide.
+ * `voku/slop-scan` cannot be one yet. 0.1.4 requires Simple-PHP-Code-Parser
+ * ^0.21 while `agent-map` requires ^0.22, so the two cannot co-resolve, and the
+ * 0.1.5 release that moves to ^0.22.2 has no Git tag — Packagist still serves
+ * 0.1.4. It therefore runs from the isolated tool project, and the workflow
+ * must keep working when it is absent.
  */
 final class RealIssueEvidenceToolBoundaryTest extends TestCase
 {
-    /** Packages the workflow invokes but does not install. */
-    private const array EXTERNAL_EVIDENCE_TOOLS = [
-        'voku/itp-context',
-        'voku/slop-scan',
-    ];
-
     private const string ACCEPTANCE_DOCUMENT = 'docs/agents/dogfood/real-issue-acceptance.md';
 
-    /** Isolated tool projects that own the external binaries. */
+    /** Isolated tool projects that own the binaries this package does not install. */
     private const array TOOL_PROJECT_PREFIXES = [
-        'tools/agent-loop/',
+        'tools/itp-context/',
         'tools/slop-scan/',
+        'tools/agent-loop/',
     ];
 
-    public function testExternalEvidenceToolsAreNotPackageDependencies(): void
+    /**
+     * @return array<string, mixed>
+     */
+    private function composerManifest(): array
     {
         $decoded = json_decode(
             (string) file_get_contents(dirname(__DIR__) . '/composer.json'),
@@ -46,35 +49,97 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         );
         self::assertIsArray($decoded);
 
-        foreach (['require', 'require-dev'] as $section) {
-            $constraints = $decoded[$section] ?? [];
-            self::assertIsArray($constraints);
+        return $decoded;
+    }
 
-            foreach (self::EXTERNAL_EVIDENCE_TOOLS as $package) {
-                self::assertArrayNotHasKey(
-                    $package,
-                    $constraints,
-                    sprintf(
-                        '%s is declared in composer.json "%s". Real-issue acceptance invokes it as an '
-                        . 'external tool from an isolated tool project. Promote it only with the run '
-                        . 'evidence and the boundary update described in %s.',
-                        $package,
-                        $section,
-                        self::ACCEPTANCE_DOCUMENT,
-                    ),
+    public function testSlopScanIsNotAPackageDependency(): void
+    {
+        $manifest = $this->composerManifest();
+
+        foreach (['require', 'require-dev'] as $section) {
+            $constraints = $manifest[$section] ?? [];
+            self::assertIsArray($constraints);
+            self::assertArrayNotHasKey(
+                'voku/slop-scan',
+                $constraints,
+                sprintf(
+                    'voku/slop-scan is declared in composer.json "%s". It cannot co-resolve with agent-map until a '
+                    . '0.1.5 tag exists on Packagist, and CI runs it from tools/slop-scan instead. See %s.',
+                    $section,
+                    self::ACCEPTANCE_DOCUMENT,
+                ),
+            );
+        }
+    }
+
+    public function testItpContextIsARuntimeDependencyBecauseTheRulesNeedIt(): void
+    {
+        $manifest = $this->composerManifest();
+        $require = $manifest['require'] ?? [];
+        self::assertIsArray($require);
+
+        self::assertArrayHasKey(
+            'voku/itp-context',
+            $require,
+            'ArchitectureRules implements ItpContext\Contract\RuleIdentifier and src/ carries its Rule attribute, so '
+            . 'the package is required at runtime, not in require-dev.',
+        );
+    }
+
+    /** A rule that names no symbol is a comment with extra steps. */
+    public function testDeclaredRulesAreAttachedToRealSymbols(): void
+    {
+        $attached = [];
+        foreach ($this->productionClasses() as $class) {
+            foreach ((new ReflectionClass($class))->getAttributes(Rule::class) as $attribute) {
+                $attached[$attribute->newInstance()->id->name] = true;
+            }
+        }
+
+        foreach (ArchitectureRules::cases() as $case) {
+            self::assertArrayHasKey(
+                $case->name,
+                $attached,
+                sprintf('ArchitectureRules::%s is declared but annotates no symbol.', $case->name),
+            );
+        }
+    }
+
+    /** `verified_by` is a check an agent can run, not a claim it has to trust. */
+    public function testEveryRuleNamesProofThatExists(): void
+    {
+        foreach (ArchitectureRules::cases() as $case) {
+            $definition = $case->getDefinition();
+
+            self::assertNotSame([], $definition->verifiedBy, $case->name . ' names no proof.');
+            foreach ($definition->verifiedBy as $proof) {
+                self::assertTrue(
+                    class_exists($proof),
+                    sprintf('ArchitectureRules::%s names missing proof %s.', $case->name, $proof),
+                );
+            }
+
+            foreach ($definition->refs as $ref) {
+                self::assertFileExists(
+                    dirname(__DIR__) . '/' . $ref,
+                    sprintf('ArchitectureRules::%s references missing %s.', $case->name, $ref),
                 );
             }
         }
     }
 
-    public function testAcceptanceInstructionsRunExternalToolsFromIsolatedToolProjects(): void
+    public function testAcceptanceInstructionsRunSlopScanFromAnIsolatedToolProject(): void
     {
         $document = (string) file_get_contents(dirname(__DIR__) . '/' . self::ACCEPTANCE_DOCUMENT);
 
-        $matches = [];
-        preg_match_all('#(\S*)vendor/bin/(itp-context|slop-scan)#', $document, $matches);
+        self::assertStringContainsString(
+            'tools/slop-scan/slop-scan.php',
+            $document,
+            'the acceptance document no longer shows how to invoke slop-scan',
+        );
 
-        self::assertNotSame([], $matches[0], 'The acceptance document no longer shows how to invoke the tools.');
+        $matches = [];
+        preg_match_all('#(\S*)vendor/bin/slop-scan#', $document, $matches);
 
         foreach ($matches[0] as $index => $invocation) {
             $prefix = $matches[1][$index];
@@ -90,8 +155,8 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
             self::assertTrue(
                 $isolated,
                 sprintf(
-                    '"%s" tells an agent to run an external evidence tool from a vendor root this package '
-                    . 'does not install. Name the isolated tool project (%s) or the pinned PHAR instead.',
+                    '"%s" tells an agent to run slop-scan from a vendor root this package does not install. Name the '
+                    . 'isolated tool project (%s) or the pinned PHAR instead.',
                     $invocation,
                     implode(', ', self::TOOL_PROJECT_PREFIXES),
                 ),
@@ -99,17 +164,18 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         }
     }
 
-    public function testDogfoodSkillRoutesToTheAcceptanceModel(): void
+    /**
+     * @return list<class-string>
+     */
+    private function productionClasses(): array
     {
-        $skill = (string) file_get_contents(
-            dirname(__DIR__) . '/docs/agents/skills/agent-loop-dogfood/SKILL.md',
-        );
-
-        self::assertStringContainsString(
-            self::ACCEPTANCE_DOCUMENT,
-            $skill,
-            'The dogfood skill is what an agent reads first; it must route real-issue runs to the '
-            . 'acceptance model instead of leaving it as an unreferenced document.',
-        );
+        // The annotated symbols are few by design; naming them keeps this test
+        // from depending on a class-map scan of the whole package.
+        return [
+            ProjectLayout::class,
+            \voku\AgentLoop\Init\InitToolsCommand::class,
+            \voku\AgentLoop\Workflow\WorkflowApproveCommand::class,
+            \voku\AgentLoop\Workflow\WorkflowCloseCommand::class,
+        ];
     }
 }

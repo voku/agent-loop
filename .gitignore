@@ -12,3 +12,5 @@ composer.lock
 /infra/doc/agent-learning/history/
 /tools/*/vendor/
 /.slop-scan.cache.json
+/var/
+/build-slop-report.json

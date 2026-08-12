@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 /**
  * Installs the package-owned Git hooks into a host repository and points Git at them.
@@ -71,7 +72,7 @@ final readonly class InitSyncGitHooksCommand
             return 1;
         }
 
-        $hooksDir = trim($this->readOptionValue($tokens, 'hooks-dir') ?? self::DEFAULT_HOOKS_DIR, '/');
+        $hooksDir = trim(OptionTokens::value($tokens, 'hooks-dir') ?? self::DEFAULT_HOOKS_DIR, '/');
         if ($hooksDir === '' || str_starts_with($hooksDir, '/') || str_contains($hooksDir, '..')) {
             fwrite(\STDERR, "The --hooks-dir value must be a relative path inside the repository.\n");
 
@@ -79,9 +80,9 @@ final readonly class InitSyncGitHooksCommand
         }
 
         $targetRoot = $this->rootPath . '/' . $hooksDir;
-        $dryRun = $this->hasFlag($tokens, 'dry-run');
-        $force = $this->hasFlag($tokens, 'force');
-        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
+        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
         try {
             $manifest = InitSyncManifest::load($targetRoot, 'githooks', 'git');
@@ -187,7 +188,7 @@ final readonly class InitSyncGitHooksCommand
      */
     private function applyGitConfiguration(array $tokens, string $hooksDir, bool $dryRun): int
     {
-        if ($this->hasFlag($tokens, 'skip-git-config')) {
+        if (OptionTokens::hasFlag($tokens, 'skip-git-config')) {
             echo '[INFO] sync githooks: left core.hooksPath and commit.template untouched (--skip-git-config).' . "\n";
 
             return 0;
@@ -201,7 +202,7 @@ final readonly class InitSyncGitHooksCommand
 
         $settings = ['core.hooksPath' => $hooksDir];
 
-        $commitTemplate = $this->readOptionValue($tokens, 'commit-template');
+        $commitTemplate = OptionTokens::value($tokens, 'commit-template');
         if ($commitTemplate !== null) {
             if (!is_file($this->rootPath . '/' . ltrim($commitTemplate, '/'))) {
                 echo '[FAIL] sync githooks: commit template not found: ' . $commitTemplate . "\n";
@@ -239,12 +240,12 @@ final readonly class InitSyncGitHooksCommand
     private function renderEnvironment(array $tokens): string
     {
         $values = [
-            'AGENT_LOOP_CONTAINER_SERVICE' => $this->readOptionValue($tokens, 'container-service') ?? '',
-            'AGENT_LOOP_CONTAINER_IMAGE' => $this->readOptionValue($tokens, 'container-image') ?? '',
-            'AGENT_LOOP_CONTAINER_WORKDIR' => $this->readOptionValue($tokens, 'container-workdir') ?? '',
-            'AGENT_LOOP_CONTAINER_USER' => $this->readOptionValue($tokens, 'container-user') ?? '',
-            'AGENT_LOOP_MAP_INDEX' => $this->readOptionValue($tokens, 'map-index') ?? '',
-            'AGENT_LOOP_MAP_SEARCH_DATABASE' => $this->readOptionValue($tokens, 'map-search-database') ?? '',
+            'AGENT_LOOP_CONTAINER_SERVICE' => OptionTokens::value($tokens, 'container-service') ?? '',
+            'AGENT_LOOP_CONTAINER_IMAGE' => OptionTokens::value($tokens, 'container-image') ?? '',
+            'AGENT_LOOP_CONTAINER_WORKDIR' => OptionTokens::value($tokens, 'container-workdir') ?? '',
+            'AGENT_LOOP_CONTAINER_USER' => OptionTokens::value($tokens, 'container-user') ?? '',
+            'AGENT_LOOP_MAP_INDEX' => OptionTokens::value($tokens, 'map-index') ?? '',
+            'AGENT_LOOP_MAP_SEARCH_DATABASE' => OptionTokens::value($tokens, 'map-search-database') ?? '',
         ];
 
         $lines = [
@@ -272,38 +273,6 @@ final readonly class InitSyncGitHooksCommand
         if (file_put_contents($filePath, $content) === false) {
             throw new InvalidArgumentException('Unable to write file: ' . $filePath);
         }
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function hasFlag(array $tokens, string $name): bool
-    {
-        return in_array('--' . $name, $tokens, true);
     }
 
     /**

@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
+use voku\AgentLoop\Cli\OptionTokens;
 
 /**
  * Installs the package-owned isolated tool projects into a host repository.
@@ -43,7 +44,7 @@ final readonly class InitSyncToolsCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load($this->readOptionValue($tokens, 'config'));
+        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
@@ -63,7 +64,7 @@ final readonly class InitSyncToolsCommand
             return 0;
         }
 
-        $toolsDir = trim($this->readOptionValue($tokens, 'tools-dir') ?? self::DEFAULT_TOOLS_DIR, '/');
+        $toolsDir = trim(OptionTokens::value($tokens, 'tools-dir') ?? self::DEFAULT_TOOLS_DIR, '/');
         if ($toolsDir === '' || str_contains($toolsDir, '..')) {
             fwrite(\STDERR, "The --tools-dir value must be a relative path inside the repository.\n");
 
@@ -71,9 +72,9 @@ final readonly class InitSyncToolsCommand
         }
 
         $targetRoot = rtrim($this->rootPath, '/') . '/' . $toolsDir;
-        $dryRun = $this->hasFlag($tokens, 'dry-run');
-        $force = $this->hasFlag($tokens, 'force');
-        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
+        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
         try {
             $manifest = InitSyncManifest::load($targetRoot, 'tools', 'evidence');
@@ -271,43 +272,11 @@ final readonly class InitSyncToolsCommand
     private function readPathOverrides(array $tokens): array
     {
         $overrides = [];
-        $value = $this->readOptionValue($tokens, 'tools-root');
+        $value = OptionTokens::value($tokens, 'tools-root');
         if ($value !== null) {
             $overrides['tools-root'] = $value;
         }
 
         return $overrides;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function hasFlag(array $tokens, string $name): bool
-    {
-        return in_array('--' . $name, $tokens, true);
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
-            }
-        }
-
-        return null;
     }
 }

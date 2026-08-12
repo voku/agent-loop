@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\Cli\OptionTokens;
 
 final readonly class InitSyncSubagentsCommand
 {
@@ -24,12 +25,12 @@ final readonly class InitSyncSubagentsCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load($this->readOptionValue($tokens, 'config'));
+        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
 
-        $agentValue = $this->readOptionValue($tokens, 'agent');
+        $agentValue = OptionTokens::value($tokens, 'agent');
         if ($agentValue === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
 
@@ -49,9 +50,9 @@ final readonly class InitSyncSubagentsCommand
         }
 
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
-        $dryRun = $this->hasFlag($tokens, 'dry-run');
-        $force = $this->hasFlag($tokens, 'force');
-        $adoptExisting = $this->hasFlag($tokens, 'adopt-existing');
+        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
         $agents = $agent->isAll() ? ['codex', 'claude', 'copilot', 'antigravity'] : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
@@ -261,17 +262,9 @@ final readonly class InitSyncSubagentsCommand
      */
     private function readPathOverrides(array $tokens): array
     {
-        $value = $this->readOptionValue($tokens, 'subagents-root');
+        $value = OptionTokens::value($tokens, 'subagents-root');
 
         return $value === null ? [] : ['subagents-root' => $value];
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function hasFlag(array $tokens, string $name): bool
-    {
-        return in_array('--' . $name, $tokens, true);
     }
 
     /**
@@ -300,30 +293,6 @@ final readonly class InitSyncSubagentsCommand
                 }
 
                 ++$i;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param list<string> $tokens
-     */
-    private function readOptionValue(array $tokens, string $name): ?string
-    {
-        $prefix = '--' . $name . '=';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-
-                return $value === '' ? null : $value;
-            }
-
-            if ($token === '--' . $name) {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (is_string($candidate) && !str_starts_with($candidate, '--')) {
-                    return $candidate;
-                }
             }
         }
 

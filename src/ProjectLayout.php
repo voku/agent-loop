@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
+use ItpContext\Attribute\Rule;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Init\InitConfigLoader;
 
 /**
@@ -17,6 +19,7 @@ use voku\AgentLoop\Init\InitConfigLoader;
  *
  * `describe()` exists so a coding agent can ask instead of hardcoding.
  */
+#[Rule(ArchitectureRules::SingleStatePathOwner)]
 final readonly class ProjectLayout
 {
     private const string CONFIG_RELATIVE = '.agent-loop/init.json';
