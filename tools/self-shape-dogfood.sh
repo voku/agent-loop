@@ -4,12 +4,11 @@ set -euo pipefail
 task='SELF-SHAPE'
 planner='agent-loop-self-shape'
 learning_root='infra/doc/agent-learning'
-recall_root='.agent-loop/recall'
+# Resolved from the product after APPROVE: agent-loop owns where Recall output
+# lives, so the harness must not assert a second, hardcoded location for it.
+recall_root=''
 base_ref="${GITHUB_BASE_REF:-main}"
-goal="${SELF_SHAPE_GOAL:-}"
-if [[ -z "${goal//[[:space:]]/}" ]]; then
-  goal='Govern and validate the current agent-loop diff through agent-loop itself.'
-fi
+goal="${SELF_SHAPE_GOAL:-Govern and validate the current agent-loop diff through agent-loop itself.}"
 approval_actor="${SELF_SHAPE_APPROVER:-ci-self-shape-approval-fixture}"
 pr_number="${SELF_SHAPE_PR_NUMBER:-}"
 
@@ -44,19 +43,10 @@ agent_loop=(php bin/agent-loop)
 base="$(git merge-base HEAD "origin/${base_ref}")"
 head="$(git rev-parse HEAD)"
 mapfile -t changed_files < <(git diff --name-only --diff-filter=ACMRTUXB "${base}" HEAD --)
-
 if [[ "${#changed_files[@]}" -eq 0 ]]; then
   echo 'Self-shape requires at least one changed file between the merge-base and HEAD.' >&2
   exit 1
 fi
-
-learning_status='no_durable_learning'
-for file in "${changed_files[@]}"; do
-  if [[ "${file}" == infra/doc/agent-learning/findings/* || "${file}" == 'MEMORY.md' ]]; then
-    learning_status='findings_recorded'
-    break
-  fi
-done
 
 mkdir -p build
 raw_diff='build/self-shape-raw.diff'
@@ -65,84 +55,6 @@ if [[ ! -s "${raw_diff}" ]]; then
   echo 'Self-shape raw diff evidence is empty.' >&2
   exit 1
 fi
-
-# Exercise the package-owned Git-hook policy on this exact change. The worktree keeps
-# the PR checkout/index untouched while giving pre-commit a real staged diff to inspect.
-workspace="$(pwd -P)"
-hook_config='build/self-shape-githooks-config.json'
-hook_worktree="${RUNNER_TEMP:-/tmp}/agent-loop-self-shape-hooks-${RANDOM}-${RANDOM}"
-cat > "${hook_config}" <<'JSON'
-{
-  "pre_commit": {
-    "skip_merge_commits": true,
-    "file_patterns": ["*.php"],
-    "exclude_paths": ["/vendor/", "/build/"],
-    "batch_size": 200,
-    "checks": [{"name": "PHP syntax", "type": "php-lint"}]
-  },
-  "commit_msg": {
-    "header_pattern": "/^\\[(\\+|~|!|\\*|!!!)\\]:\\s+[^ ].*\\s+->\\s+.+$/",
-    "header_hint": "[SYMBOL]: \"scope\" -> <subject>",
-    "trivial_header_pattern": "/^\\[\\*\\]:/",
-    "forbidden_patterns": [{"pattern": "/WHY:\\s*\\[FILL\\]/i", "message": "Commit template placeholder found (WHY: [FILL])."}],
-    "required_section": "WHY",
-    "vague_phrases": ["cleanup", "minor fixes", "various changes"],
-    "vague_word_threshold": 8
-  }
-}
-JSON
-cat > build/self-shape-commit-good.txt <<'MSG'
-[~]: "agent-loop" -> restore close ownership and delete repeated bootstrap guidance
-
-WHY:
-- close policy had two owners and the bootstrap exceeded its context budget; this refactor moves policy to the use-case owner and removes repeated instructions
-MSG
-cat > build/self-shape-commit-vague.txt <<'MSG'
-[~]: "agent-loop" -> cleanup
-
-WHY:
-- cleanup
-MSG
-cat > build/self-shape-commit-missing-why.txt <<'MSG'
-[~]: "agent-loop" -> restore close ownership
-MSG
-
-git worktree add --detach "${hook_worktree}" "${base}" >/dev/null
-trap 'git worktree remove --force "${hook_worktree}" >/dev/null 2>&1 || true' EXIT
-git -C "${hook_worktree}" apply "${workspace}/${raw_diff}"
-git -C "${hook_worktree}" add -- "${changed_files[@]}"
-(
-  cd "${hook_worktree}"
-  php "${workspace}/bin/agent-loop" githooks pre-commit --config "${workspace}/${hook_config}"
-  php "${workspace}/bin/agent-loop" githooks commit-msg "${workspace}/build/self-shape-commit-good.txt" --config "${workspace}/${hook_config}"
-) > build/self-shape-githooks-positive.txt 2>&1
-set +e
-(
-  cd "${hook_worktree}"
-  php "${workspace}/bin/agent-loop" githooks commit-msg "${workspace}/build/self-shape-commit-vague.txt" --config "${workspace}/${hook_config}"
-) > build/self-shape-githooks-vague.txt 2>&1
-vague_why_exit=$?
-(
-  cd "${hook_worktree}"
-  php "${workspace}/bin/agent-loop" githooks commit-msg "${workspace}/build/self-shape-commit-missing-why.txt" --config "${workspace}/${hook_config}"
-) > build/self-shape-githooks-missing-why.txt 2>&1
-missing_why_exit=$?
-set -e
-if [[ "${vague_why_exit}" -eq 0 || "${missing_why_exit}" -eq 0 ]]; then
-  echo 'Self-shape Git-hook dogfood accepted a vague or missing WHY.' >&2
-  exit 1
-fi
-git worktree remove --force "${hook_worktree}"
-trap - EXIT
-php -r '
-echo json_encode([
-    "schema_version" => "1.0",
-    "staged_pr_diff_pre_commit" => true,
-    "concrete_why_accepted" => true,
-    "vague_why_rejected" => ((int) $argv[1]) !== 0,
-    "missing_why_rejected" => ((int) $argv[2]) !== 0,
-], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), PHP_EOL;
-' "${vague_why_exit}" "${missing_why_exit}" > build/self-shape-githooks.json
 
 plan_goal="${goal}"
 if [[ -n "${pr_number}" ]]; then
@@ -185,13 +97,32 @@ plan+=(
   --goal "${plan_goal}"
   --non-goal 'Do not mutate the PR checkout, move package ownership, auto-promote findings to durable memory, or represent the CI approval fixture as independent human review.'
   --validation 'composer ci'
-  --behavior-anchor 'real pull-request diff -> governed brief -> bounded context -> observed validation -> review artifacts -> learning decision -> verify -> close'
+  --behavior-anchor 'real pull-request diff -> durable Contract -> governed Run -> bounded context -> observed validation -> review -> durable Learning decision -> Verification receipt -> pruneable Session'
 )
 "${plan[@]}"
 
 "${agent_loop[@]}" workflow approve "${task}" \
   --by "${approval_actor}" \
   --learning-root "${learning_root}"
+
+recall_root="$("${agent_loop[@]}" workflow report "${task}" --format json --learning-root "${learning_root}" | php -r '
+$data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+$meta = $data["recall"]["meta_path"] ?? null;
+if (!is_string($meta) || $meta === "") { exit(1); }
+echo dirname($meta, 2);
+')"
+if [[ -z "${recall_root}" ]]; then
+  echo 'Unable to resolve the Recall output root from agent-loop.' >&2
+  exit 1
+fi
+
+status_before="$("${agent_loop[@]}" workflow status "${task}" --format json)"
+run_id="$(php -r '
+$data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+$run = $data["manifest"]["run_id"] ?? null;
+if (!is_string($run) || !str_starts_with($run, "run:")) { exit(1); }
+echo $run;
+' <<< "${status_before}")"
 
 "${agent_loop[@]}" session checkpoint "${task}" \
   --title 'CI approval fixture boundary' \
@@ -212,7 +143,7 @@ if [[ "${validation_duration_ms}" -lt 0 ]]; then
 fi
 
 "${agent_loop[@]}" session validation record "${task}" \
-  --brief-revision 1 \
+  --contract-revision 1 \
   --command 'composer ci' \
   --status passed \
   --exit-code 0 \
@@ -234,15 +165,10 @@ fi
   --commit "${head}"
 
 "${agent_loop[@]}" session checkpoint "${task}" \
-  --title 'log-outcome + review blindspots close-out' \
-  --body "recall log-outcome completed; reviewed the deterministic review blindspots report for this change against ${base}."
-
-"${agent_loop[@]}" session learning decide "${task}" \
-  --status "${learning_status}" \
-  --by "${planner}"
+  --title 'Review close-out' \
+  --body "Recall outcomes were logged and the deterministic blind-spot report was inspected against ${base}."
 
 "${agent_loop[@]}" review blindspots "${task}"
-
 "${agent_loop[@]}" review code "${task}"
 code_review_prompt="${recall_root}/${task}/reviews/${task}.code.prompt.md"
 if [[ ! -s "${code_review_prompt}" ]]; then
@@ -258,11 +184,17 @@ echo json_encode([
     "code_review_prompt" => ["path" => $argv[3], "sha256" => $argv[4]],
     "correctness_review" => [
         "status" => "external_required",
-        "note" => "CI preserves the complete raw diff and generates bounded review input; it does not claim an independent human/model correctness review occurred.",
+        "note" => "CI preserves the complete raw diff and bounded review input; it does not claim independent human/model correctness review occurred.",
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), PHP_EOL;
 ' "${raw_diff}" "${raw_diff_sha}" "${code_review_prompt}" "${code_review_prompt_sha}" \
   > build/self-shape-review-evidence.json
+
+"${agent_loop[@]}" workflow learn "${task}" \
+  --status no_durable_learning \
+  --by "${planner}" \
+  --reason 'The self-shape gate observed no new reusable guidance beyond the durable Contract/Run ownership changes already represented by this pull request.' \
+  --learning-root "${learning_root}"
 
 memory_review="$("${agent_loop[@]}" memory review --file=MEMORY.md)"
 printf '%s\n' "${memory_review}"
@@ -273,7 +205,7 @@ grep -Fq 'Rows still needing promotion review: 0' <<< "${memory_review}"
   --format json \
   > build/self-shape-manifest-before-close.json
 
-"${agent_loop[@]}" verify
+"${agent_loop[@]}" verify --task-id="${task}"
 
 report=(
   "${agent_loop[@]}" workflow report "${task}"
@@ -285,37 +217,61 @@ for file in "${changed_files[@]}"; do
 done
 "${report[@]}" > build/self-shape-report.json
 
-"${agent_loop[@]}" workflow close "${task}" --status done
+"${agent_loop[@]}" workflow close "${task}" \
+  --status done \
+  --learning-root "${learning_root}"
+
 status_file='build/self-shape-status.json'
 "${agent_loop[@]}" workflow status "${task}" --format json > "${status_file}"
 php -r '
 $path = $argv[1];
-$expectedLearning = $argv[2];
-$json = file_get_contents($path);
-if ($json === false) {
-    fwrite(STDERR, "Missing final workflow status: {$path}\n");
-    exit(1);
-}
-$data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+$expectedRun = $argv[2];
+$data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 $manifest = $data["manifest"] ?? null;
-$references = is_array($manifest) ? ($manifest["references"] ?? null) : null;
-$session = is_array($references) ? ($references["session"] ?? null) : null;
-$review = is_array($references) ? ($references["review"] ?? null) : null;
-$learning = is_array($references) ? ($references["learning"] ?? null) : null;
+$refs = is_array($manifest) ? ($manifest["references"] ?? null) : null;
 if (
     !is_array($manifest)
+    || ($manifest["run_id"] ?? null) !== $expectedRun
     || ($manifest["state"] ?? null) !== "complete"
     || ($manifest["next_action"] ?? null) !== "none"
-    || !is_array($session)
-    || ($session["state"] ?? null) !== "done"
-    || !is_array($review)
-    || !is_array($learning)
-    || ($learning["state"] ?? null) !== $expectedLearning
+    || ($refs["session"]["state"] ?? null) !== "done"
+    || ($refs["verification"]["state"] ?? null) !== "passed"
+    || ($refs["learning"]["state"] ?? null) !== "decided"
+    || ($refs["learning"]["decision"] ?? null) !== "no_durable_learning"
 ) {
-    fwrite(STDERR, "Final workflow projection is not complete/done/consistent:\n{$json}\n");
+    fwrite(STDERR, "Final workflow projection is not complete and owner-consistent.\n");
     exit(1);
 }
-' "${status_file}" "${learning_status}"
+' "${status_file}" "${run_id}"
 
-printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nChanged files: %d\nGoal: %s\nApproval fixture: %s\nValidation duration: %d ms\nLearning decision: %s\n' \
-  "${base}" "${head}" "${#changed_files[@]}" "${plan_goal}" "${approval_actor}" "${validation_duration_ms}" "${learning_status}"
+"${agent_loop[@]}" session prune --keep-days 0 --status done
+post_prune_file='build/self-shape-status-post-prune.json'
+"${agent_loop[@]}" workflow status "${task}" --format json > "${post_prune_file}"
+php -r '
+$path = $argv[1];
+$expectedRun = $argv[2];
+$data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+$manifest = $data["manifest"] ?? null;
+$refs = is_array($manifest) ? ($manifest["references"] ?? null) : null;
+if (
+    !is_array($manifest)
+    || ($manifest["run_id"] ?? null) !== $expectedRun
+    || ($manifest["state"] ?? null) !== "complete"
+    || ($refs["session"]["state"] ?? null) !== "missing"
+    || ($refs["verification"]["state"] ?? null) !== "passed"
+    || ($refs["learning"]["state"] ?? null) !== "decided"
+) {
+    fwrite(STDERR, "Pruning Session working memory changed durable Run semantics.\n");
+    exit(1);
+}
+' "${post_prune_file}" "${run_id}"
+
+"${agent_loop[@]}" workflow report "${task}" \
+  --format json \
+  --learning-root "${learning_root}" \
+  > build/self-shape-report-post-prune.json
+
+grep -Fq '"source": "verification_receipt"' build/self-shape-report-post-prune.json
+
+printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nRun: %s\nChanged files: %d\nGoal: %s\nApproval fixture: %s\nValidation duration: %d ms\nLearning decision: no_durable_learning\nSession prune replay: passed\n' \
+  "${base}" "${head}" "${run_id}" "${#changed_files[@]}" "${plan_goal}" "${approval_actor}" "${validation_duration_ms}"

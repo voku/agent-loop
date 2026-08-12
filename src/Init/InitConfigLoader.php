@@ -50,7 +50,19 @@ final readonly class InitConfigLoader
 
         $paths = $decoded['paths'] ?? null;
         if (is_array($paths)) {
-            foreach (['skills_root', 'subagents_root', 'codex_hooks_root', 'tools_root', 'recall_root'] as $key) {
+            foreach ([
+                'skills_root',
+                'subagents_root',
+                'codex_hooks_root',
+                'tools_root',
+                // Workflow state locations. state_root moves the whole tree at
+                // once; the rest override one branch of it independently, which
+                // is what a project that grew its own conventions actually needs.
+                'state_root',
+                'sessions_root',
+                'learning_root',
+                'recall_root',
+            ] as $key) {
                 $value = $paths[$key] ?? null;
                 if (is_string($value) && $value !== '') {
                     $result['paths'][$key] = $value;

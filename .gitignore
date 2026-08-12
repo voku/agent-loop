@@ -3,7 +3,9 @@
 /.phpunit.result.cache
 /.idea/
 /coverage/
+/build/
 /.agent-map/
 /.agent-loop/
 .DS_Store
 composer.lock
+/infra/doc/agent-learning/history/

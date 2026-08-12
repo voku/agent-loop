@@ -63,6 +63,37 @@ final readonly class ExecutionContractDogfood
                 }
             }
 
+            // Everything asserted above ships with the recipe template, so a
+            // compiler that emitted pure boilerplate would pass it. L2 is a
+            // meta-prompt: it tells the agent to build L1 from "exact project
+            // anchors already supported by recall evidence". That instruction is
+            // only honest if the briefing actually handed over carries those
+            // anchors, so assert against the files approve tells you to pass in.
+            $briefing = $system . "\n" . $this->read(
+                $worktree . '/.agent-loop/recall/' . self::TASK . '/validation-plan.md',
+            );
+            $projectSpecific = [
+                'task id' => self::TASK,
+                'approved scope' => self::SOURCE,
+                'contract goal' => 'without widening scope',
+                'declared non-goal' => 'Do not modify any file except the self-edit probe.',
+                'required validation' => 'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
+            ];
+            $absent = [];
+            foreach ($projectSpecific as $label => $needle) {
+                if (!str_contains($briefing, $needle)) {
+                    $absent[] = $label . ' (' . $needle . ')';
+                }
+            }
+            if ($absent !== []) {
+                throw new ExecutionContractDogfoodFailure(
+                    'Compiled briefing is generic: it carries the recipe template but not this project\'s '
+                    . implode(', ', $absent)
+                    . '. An L2 meta-prompt that says "use exact project anchors" cannot be honoured '
+                    . 'when the briefing handed to the agent never states them.',
+                );
+            }
+
             $missing = $this->status($worktree);
             if (($missing['manifest']['references']['execution_contract']['state'] ?? null) !== 'missing') {
                 throw new ExecutionContractDogfoodFailure('Approved L2 task must expose a missing execution-contract gate before implementation.');

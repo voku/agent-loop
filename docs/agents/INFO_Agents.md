@@ -136,7 +136,7 @@ vendor/bin/agent-loop map file <path>
 vendor/bin/agent-loop map changed --base=<ref>
 ```
 
-Query the index, then inspect selected real source. Never dump `.agent-map/php-symbols.json` or `.agent-map/search.sqlite` into a prompt.
+Query the index, then inspect selected real source. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
 
 ## Dogfood contract
 

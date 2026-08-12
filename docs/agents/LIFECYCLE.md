@@ -39,8 +39,8 @@ vendor/bin/agent-map query "D3"                       # exact-ish symbol lookup
 vendor/bin/agent-map search "Wie werden Anträge storniert?" --semantic
 ```
 
-- **Preconditions:** a built index (`.agent-map/php-symbols.json`); the derived
-  search index (`.agent-map/search.sqlite`) only for `search`.
+- **Preconditions:** a built index (`.agent-loop/map/php-symbols.json`); the derived
+  search index (`.agent-loop/map/search.sqlite`) only for `search`.
 - **Produces:** nothing durable. Discovery is read-only by design.
 - **Failure:** a stale index reports staleness rather than answering from it.
 - **Recovery:** `agent-map refresh`, then `agent-map search-index refresh`.
@@ -57,7 +57,8 @@ vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <path> \
   --goal "..." --validation "..." [--tag <label>] [--behavior-anchor <text>] [--ephemeral]
 ```
 
-- **Produces:** `session_plan/<session-id>/` (working memory), work brief
+- **Produces:** a Session under the project's sessions root (working memory;
+  `agent-loop init paths`), work brief
   revision 1 in state `candidate`, and a refreshed run projection under
   `.agent-loop/runs/<task-id>/manifest.json`.
 - **State:** task-local and mutable. Sessions are working memory, not evidence.
@@ -87,8 +88,8 @@ vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 - **Superseding:** approving a new revision archives any previous canonical
   recall directory instead of letting old metadata or reviews masquerade as
   evidence for the new brief.
-- **Automatic context:** when `.agent-map/php-symbols.json` exists it is passed
-  as `--map-index`, and `.agent-map/search.sqlite` as `--map-search-index`, so
+- **Automatic context:** when `.agent-loop/map/php-symbols.json` exists it is passed
+  as `--map-index`, and `.agent-loop/map/search.sqlite` as `--map-search-index`, so
   the briefing carries map facts and ranked candidates without the host
   orchestrating anything.
 - **Failure:** approving a revision that has since been revised is refused. If
@@ -102,8 +103,8 @@ Usually part of APPROVE. Standalone:
 
 ```bash
 vendor/bin/agent-recall-compiler compile --root <learning-root> --task <task-id> \
-  --map-index .agent-map/php-symbols.json --map-root "$PWD" \
-  --map-search-index .agent-map/search.sqlite --document-manifest <manifest>
+  --map-index .agent-loop/map/php-symbols.json --map-root "$PWD" \
+  --map-search-index .agent-loop/map/search.sqlite --document-manifest <manifest>
 ```
 
 - **Binding:** every artifact records the map snapshot it was compiled against.

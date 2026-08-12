@@ -104,8 +104,8 @@ final class Dispatcher
     }
 
     /**
-     * Preserve agent-map's current temporal/discovery/general routing while
-     * keeping all derived state below the shared workspace root.
+     * Preserve agent-map's temporal/discovery/general routing while keeping all
+     * derived state below the shared workspace root.
      *
      * @param list<string> $rest
      */
@@ -134,8 +134,11 @@ final class Dispatcher
     }
 
     /**
+
      * @param list<string> $rest
+
      * @return list<string>
+
      */
     private function resolveMapArgv(array $rest): array
     {
@@ -152,7 +155,6 @@ final class Dispatcher
             if (!$this->hasOption($rest, 'root')) {
                 $rest[] = '--root=' . rtrim($this->rootPath, '/');
             }
-
             if (!$this->hasOption($rest, 'out')) {
                 $rest[] = '--out=' . $this->defaultMapIndex();
             }
@@ -166,8 +168,11 @@ final class Dispatcher
     }
 
     /**
+
      * @param list<string> $rest
+
      * @return list<string>
+
      */
     private function resolveHistoryArgv(array $rest): array
     {
@@ -213,6 +218,7 @@ final class Dispatcher
         for ($i = 0; $i < $count; ++$i) {
             if (str_starts_with($tokens[$i], $prefix)) {
                 $value = substr($tokens[$i], strlen($prefix));
+
                 return $value !== '' ? $value : null;
             }
             if ($tokens[$i] !== '--' . $name) {
@@ -220,6 +226,7 @@ final class Dispatcher
             }
 
             $value = $tokens[$i + 1] ?? null;
+
             return is_string($value) && $value !== '' && !str_starts_with($value, '--') ? $value : null;
         }
 
@@ -237,8 +244,11 @@ final class Dispatcher
     }
 
     /**
+
      * @param list<string> $rest
+
      * @return list<string>
+
      */
     private function resolveReviewArgv(array $rest): array
     {
@@ -275,6 +285,10 @@ final class Dispatcher
     }
 
     /**
+     * Resolve task IDs accepted as ergonomic aliases by Session commands to
+     * the one active Session id. Durable Contract/Learning operations are not
+     * Session commands and therefore have no compatibility aliases here.
+     *
      * @param list<string> $rest
      * @return list<string>|null
      */
@@ -284,7 +298,7 @@ final class Dispatcher
         $tokens = array_slice($rest, 1);
         $positionalIndex = match ($command) {
             'record', 'checkpoint', 'close', 'claim', 'show' => 0,
-            'brief', 'validation', 'learning' => 1,
+            'validation' => 1,
             default => null,
         };
         if ($positionalIndex === null || !isset($tokens[$positionalIndex])) {
@@ -304,9 +318,10 @@ final class Dispatcher
         $store = new SessionStore();
         try {
             $store->load($sessionRoot, $candidate);
+
             return $rest;
         } catch (\RuntimeException) {
-            // Keep resolving the candidate as a task id below.
+            // Resolve the candidate as a task id below.
         }
 
         $matchingSessions = array_values(array_filter(
@@ -325,16 +340,21 @@ final class Dispatcher
 
         if (count($activeSessions) !== 1) {
             echo "[ERROR] Multiple sessions found for task {$candidate}. Pass the generated session id explicitly.\n";
+
             return null;
         }
 
         $tokens[$positionalIndex] = $activeSessions[0]->id;
+
         return array_merge([$command], $tokens);
     }
 
     /**
+
      * @param list<string> $rest
+
      * @return list<string>
+
      */
     private function resolveRecallArgv(array $rest): array
     {
@@ -367,8 +387,11 @@ final class Dispatcher
     }
 
     /**
+
      * @param list<string> $rest
+
      * @return list<string>
+
      */
     private function subArgv(string $scriptName, array $rest): array
     {
@@ -398,29 +421,26 @@ final class Dispatcher
                   Build or refresh the semantic map, compile target-aware recall,
                   and prepare or run one auditable edit execution bundle.
           board   <summary|render|lane|next-pull|card|external-sync>
-                  TODO Kanban board (voku/agent-kanban). `card show|create|
-                  update|move|claim|release|archive|restore` operate on a
-                  single card; `external-sync` needs
-                  --provider-class=<FQCN> implementing ExternalIssueProvider.
-          verify  Cross-package consistency check: tasks, board, sessions,
-                  recall outputs, and the learning root (voku/agent-loop).
-                  Each check skips itself when its inputs are absent. Run
-                  `board:verify` for the narrower kanban-board-only check.
+                  TODO Kanban board (voku/agent-kanban). Use `board:verify` for
+                  the narrower kanban-board-only consistency check.
+          verify  Cross-package consistency check for Contract, Run, Session,
+                  Recall, board and Learning owner boundaries.
+          board:verify
+                  Verify only the kanban board projection.
           learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-transition>
-                  Findings, proposals, and decision history (voku/agent-learning).
+                  Durable findings, proposals, guidance and history (voku/agent-learning).
           recall  <compile|log-outcome>
-                  L2 meta-prompt compilation (voku/agent-recall-compiler).
-          session <start|claim|checkpoint|record|close|list|show|brief|validation|learning|prune>
-                  Working memory: per-task session plans (voku/agent-session).
+                  Deterministic context/replay compilation (voku/agent-recall-compiler).
+          session <start|claim|checkpoint|record|close|list|show|validation|prune>
+                  Pruneable per-Run working memory and raw validation observations (voku/agent-session).
           map     <build|refresh|discover|rank|impact|history|query|file|stale|summary|changed|related|
                   stats|scope|callers|callees|context>
                   Deterministic PHP repository map, architecture discovery, and
-                  temporal evidence (voku/agent-map). `build` writes the whole
-                  scope; `refresh` incrementally patches changed or new files.
+                  temporal evidence (voku/agent-map).
           memory  <validate|review>
                   MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
-                  Gated workflow orchestration commands.
+                  Durable governed workflow orchestration commands.
           review  <blindspots|code>
                   Deterministic review helpers from voku/agent-recall-compiler.
           init    Setup, diagnostics, install plans, and repo-managed agent asset validation.

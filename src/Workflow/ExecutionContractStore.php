@@ -6,15 +6,11 @@ namespace voku\AgentLoop\Workflow;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
-use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RelativePath;
-use voku\AgentSession\Session;
-use voku\AgentSession\SessionStore;
 
 final readonly class ExecutionContractStore
 {
@@ -35,6 +31,8 @@ final readonly class ExecutionContractStore
                 'state' => 'not_required',
                 'required' => false,
                 'observation_mode' => 'checked',
+                'contract_revision' => $binding['contract_revision'] ?? null,
+                'contract_source' => $binding['contract_source'] ?? null,
             ];
         }
 
@@ -54,7 +52,7 @@ final readonly class ExecutionContractStore
 
             foreach ([
                 'task_id' => $taskId,
-                'work_brief_revision' => $binding['work_brief_revision'],
+                'contract_revision' => $binding['contract_revision'],
                 'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
                 'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             ] as $key => $expected) {
@@ -93,7 +91,7 @@ final readonly class ExecutionContractStore
                 'document' => $this->artifact($documentPath),
                 'created_by' => is_string($metadata['created_by'] ?? null) ? $metadata['created_by'] : null,
             ]);
-        } catch (RuntimeException | InvalidArgumentException $exception) {
+        } catch (RuntimeException $exception) {
             return $this->bindingReference($binding, 'invalid', [
                 'reason' => $exception->getMessage(),
                 'source' => $this->artifact($metadataPath),
@@ -112,9 +110,10 @@ final readonly class ExecutionContractStore
         $metadataPath = $directory . '/execution-contract.json';
         $this->atomicWrite($documentPath, $document->content);
         $this->atomicWrite($metadataPath, CanonicalJson::pretty([
-            'schema_version' => '1.0',
+            'schema_version' => '2.0',
+            'kind' => 'execution_contract',
             'task_id' => $taskId,
-            'work_brief_revision' => $binding['work_brief_revision'],
+            'contract_revision' => $binding['contract_revision'],
             'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
             'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             'prompt_ids' => $binding['prompt_ids'],
@@ -140,10 +139,14 @@ final readonly class ExecutionContractStore
         if ($status === ExecutionContractStatus::READY) {
             throw new RuntimeException('writeStopped requires blocked or rejected status.');
         }
+
         $binding = $this->requireResolvedL2Binding($taskId);
         $reason = trim($reason);
         $minimumContractChange = trim($minimumContractChange);
-        $evidence = array_values(array_unique(array_filter(array_map('trim', $evidence), static fn (string $item): bool => $item !== '')));
+        $evidence = array_values(array_unique(array_filter(
+            array_map('trim', $evidence),
+            static fn (string $item): bool => $item !== '',
+        )));
         if ($reason === '' || $minimumContractChange === '' || $evidence === []) {
             throw new RuntimeException('Blocked/rejected execution contracts require reason, evidence, and minimum contract change.');
         }
@@ -152,9 +155,10 @@ final readonly class ExecutionContractStore
         $this->makeDirectory($directory);
         $metadataPath = $directory . '/execution-contract.json';
         $this->atomicWrite($metadataPath, CanonicalJson::pretty([
-            'schema_version' => '1.0',
+            'schema_version' => '2.0',
+            'kind' => 'execution_contract',
             'task_id' => $taskId,
-            'work_brief_revision' => $binding['work_brief_revision'],
+            'contract_revision' => $binding['contract_revision'],
             'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
             'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
             'prompt_ids' => $binding['prompt_ids'],
@@ -189,57 +193,37 @@ final readonly class ExecutionContractStore
     /** @return array<string, mixed> */
     private function currentBinding(string $taskId): array
     {
-        $session = $this->activeSession($taskId);
-        if (!$session instanceof Session) {
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        if (!$contract instanceof TaskContract) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'not_applicable',
                 'required' => false,
                 'observation_mode' => 'checked',
-                'reason' => 'No active governed session exists for this task.',
+                'reason' => 'No durable Task Contract exists for this task.',
             ];
         }
-
-        $briefPath = $session->path . '/work-brief.json';
-        $approvalPath = $session->path . '/approval.json';
-        if (!is_file($briefPath) || !is_file($approvalPath)) {
+        if ($contract->status !== TaskContract::APPROVED) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'pending_approval',
                 'required' => false,
                 'observation_mode' => 'checked',
-                'reason' => 'Current governed session is not approved yet.',
-            ];
-        }
-        $brief = $this->decodeJson($briefPath);
-        $approval = $this->decodeJson($approvalPath);
-        $revision = $brief['revision'] ?? null;
-        if (!is_int($revision) || ($brief['status'] ?? null) !== 'approved' || ($approval['work_brief_revision'] ?? null) !== $revision) {
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'pending_approval',
-                'required' => false,
-                'observation_mode' => 'checked',
-                'reason' => 'Work brief and approval do not seal the same current revision.',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
+                'reason' => 'Current Task Contract revision is not approved.',
             ];
         }
 
-        $selected = $brief['operating_prompts'] ?? [];
-        if (!is_array($selected) || $selected === []) {
+        if ($contract->operatingPrompts === []) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'resolved',
                 'required' => false,
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
             ];
-        }
-
-        $selectedPromptIds = [];
-        foreach ($selected as $selection) {
-            if (!is_array($selection) || !is_string($selection['id'] ?? null) || trim($selection['id']) === '') {
-                throw new RuntimeException('Approved work brief contains an invalid operating prompt selection.');
-            }
-            $selectedPromptIds[] = $selection['id'];
         }
 
         $factsPath = $this->contractDirectory($taskId) . '/facts.json';
@@ -249,17 +233,20 @@ final readonly class ExecutionContractStore
                 'state' => 'pending_recall',
                 'required' => true,
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
                 'reason' => 'Approved prompt policy exists but recall facts have not been compiled.',
             ];
         }
+
         $factsDocument = $this->decodeJson($factsPath);
         $facts = $factsDocument['facts'] ?? null;
         if (!is_array($facts)) {
             throw new RuntimeException('Recall facts.json requires a facts list.');
         }
 
-        /** @var array<string, array{prompt_id:string, level:1|2, arguments:array<mixed>, template_sha256:?string, source_ref:?string}> $promptFacts */
         $promptFacts = [];
+        $l2PromptIds = [];
         foreach ($facts as $fact) {
             if (!is_array($fact) || ($fact['type'] ?? null) !== 'operating_prompt') {
                 continue;
@@ -270,34 +257,18 @@ final readonly class ExecutionContractStore
             }
             $promptId = $payload['prompt_id'] ?? null;
             $level = $payload['level'] ?? null;
-            if (!is_string($promptId) || trim($promptId) === '' || ($level !== 1 && $level !== 2)) {
+            if (!is_string($promptId) || ($level !== 1 && $level !== 2)) {
                 throw new RuntimeException('Operating prompt fact has invalid prompt id or level.');
             }
-            $promptFacts[$promptId] = [
+            $promptFacts[] = [
                 'prompt_id' => $promptId,
                 'level' => $level,
                 'arguments' => is_array($payload['arguments'] ?? null) ? $payload['arguments'] : [],
                 'template_sha256' => is_string($payload['template_sha256'] ?? null) ? $payload['template_sha256'] : null,
                 'source_ref' => is_string($fact['source_ref'] ?? null) ? $fact['source_ref'] : null,
             ];
-        }
-
-        $selectedPromptFacts = [];
-        $l2PromptIds = [];
-        foreach ($selectedPromptIds as $id) {
-            $promptFact = $promptFacts[$id] ?? null;
-            if ($promptFact === null) {
-                return [
-                    'owner' => 'agent-loop',
-                    'state' => 'pending_recall',
-                    'required' => true,
-                    'observation_mode' => 'checked',
-                    'reason' => 'Current recall bundle does not contain the approved operating prompt selection: ' . $id,
-                ];
-            }
-            $selectedPromptFacts[] = $promptFact;
-            if ($promptFact['level'] === 2) {
-                $l2PromptIds[] = $id;
+            if ($level === 2) {
+                $l2PromptIds[] = $promptId;
             }
         }
 
@@ -307,12 +278,14 @@ final readonly class ExecutionContractStore
                 'state' => 'resolved',
                 'required' => false,
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
+                'contract_source' => $this->artifact($contract->path),
             ];
         }
 
-        $bundle = $factsDocument['bundle_sha256'] ?? null;
-        if (!is_string($bundle) || preg_match('/\A[0-9a-f]{64}\z/', $bundle) !== 1) {
-            throw new RuntimeException('Recall facts.json is missing a valid bundle_sha256.');
+        $bundleSha = $factsDocument['bundle_sha256'] ?? null;
+        if (!is_string($bundleSha) || preg_match('/^[a-f0-9]{64}$/', $bundleSha) !== 1) {
+            throw new RuntimeException('Recall facts.json requires a canonical bundle_sha256.');
         }
 
         return [
@@ -320,10 +293,12 @@ final readonly class ExecutionContractStore
             'state' => 'resolved',
             'required' => true,
             'observation_mode' => 'checked',
-            'work_brief_revision' => $revision,
-            'recall_bundle_sha256' => $bundle,
-            'prompt_policy_sha256' => hash('sha256', CanonicalJson::pretty(['prompts' => $selectedPromptFacts])),
+            'contract_revision' => $contract->revision,
+            'recall_bundle_sha256' => $bundleSha,
+            'prompt_policy_sha256' => hash('sha256', CanonicalJson::pretty(['prompts' => $promptFacts])),
             'prompt_ids' => array_values(array_unique($l2PromptIds)),
+            'contract_source' => $this->artifact($contract->path),
+            'recall_source' => $this->artifact($factsPath),
         ];
     }
 
@@ -332,23 +307,35 @@ final readonly class ExecutionContractStore
     {
         $binding = $this->currentBinding($taskId);
         if (($binding['state'] ?? null) !== 'resolved' || ($binding['required'] ?? false) !== true) {
-            throw new RuntimeException(sprintf(
-                'Task %s does not have a current approved L2 prompt policy plus compiled recall bundle.',
-                $taskId,
-            ));
+            throw new RuntimeException('Task ' . $taskId . ' has no current approved L2 prompt binding to contract.');
         }
 
         return $binding;
     }
 
-    /** @return list<string> */
-    private function stringList(mixed $value): array
+    /**
+     * @param array<string, mixed> $binding
+     * @param array<string, mixed> $extra
+     * @return array<string, mixed>
+     */
+    private function bindingReference(array $binding, string $state, array $extra = []): array
     {
-        if (!is_array($value)) {
-            return [];
-        }
+        return array_merge([
+            'owner' => 'agent-loop',
+            'state' => $state,
+            'required' => true,
+            'observation_mode' => 'checked',
+            'contract_revision' => $binding['contract_revision'],
+            'recall_bundle_sha256' => $binding['recall_bundle_sha256'],
+            'prompt_policy_sha256' => $binding['prompt_policy_sha256'],
+            'prompt_ids' => $binding['prompt_ids'],
+            'contract_source' => $binding['contract_source'],
+        ], $extra);
+    }
 
-        return array_values(array_filter($value, static fn (mixed $item): bool => is_string($item) && trim($item) !== ''));
+    private function contractDirectory(string $taskId): string
+    {
+        return rtrim(RecallOutputRoot::resolve($this->rootPath), '/') . '/' . $taskId;
     }
 
     /** @return array<string, mixed> */
@@ -370,74 +357,72 @@ final readonly class ExecutionContractStore
         return $decoded;
     }
 
-    /** @param array<string, mixed> $document */
-    private function requiredString(array $document, string $key, string $source): string
+    /** @param array<string, mixed> $data */
+    private function requiredString(array $data, string $key, string $path): string
     {
-        $value = $document[$key] ?? null;
+        $value = $data[$key] ?? null;
         if (!is_string($value) || trim($value) === '') {
-            throw new RuntimeException($source . ' requires non-empty string ' . $key . '.');
+            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
         }
 
-        return $value;
+        return trim($value);
     }
 
-    private function contractDirectory(string $taskId): string
+    /** @return list<string> */
+    private function stringList(mixed $value): array
     {
-        return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
-    }
-
-    private function activeSession(string $taskId): ?Session
-    {
-        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
-        if (!is_dir($sessionsRoot)) {
-            return null;
-        }
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($sessionsRoot),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($sessions) > 1) {
-            throw new RuntimeException('Multiple active sessions found for task ' . $taskId . '.');
+        if (!is_array($value)) {
+            return [];
         }
 
-        return $sessions[0] ?? null;
+        $items = [];
+        foreach ($value as $item) {
+            if (is_string($item) && trim($item) !== '') {
+                $items[] = trim($item);
+            }
+        }
+
+        return $items;
     }
 
-    /**
-     * @param array<string, mixed> $binding
-     * @param array<string, mixed> $extra
-     *
-     * @return array<string, mixed>
-     */
-    private function bindingReference(array $binding, string $state, array $extra = []): array
-    {
-        return [
-            'owner' => 'agent-loop',
-            'state' => $state,
-            'required' => true,
-            'observation_mode' => 'checked',
-            'work_brief_revision' => $binding['work_brief_revision'] ?? null,
-            'recall_bundle_sha256' => $binding['recall_bundle_sha256'] ?? null,
-            'prompt_policy_sha256' => $binding['prompt_policy_sha256'] ?? null,
-            'prompt_ids' => $binding['prompt_ids'] ?? [],
-            ...$extra,
-        ];
-    }
-
-    /** @return array{path: string, sha256: string|null} */
+    /** @return array{path: string, sha256: string} */
     private function artifact(string $path): array
     {
+        if (!is_file($path)) {
+            throw new RuntimeException('Referenced artifact does not exist: ' . $path);
+        }
+        $sha = hash_file('sha256', $path);
+        if ($sha === false) {
+            throw new RuntimeException('Unable to hash artifact: ' . $path);
+        }
+
         return [
             'path' => RelativePath::fromRoot($this->rootPath, $path),
-            'sha256' => is_file($path) ? hash_file('sha256', $path) ?: null : null,
+            'sha256' => 'sha256:' . $sha,
         ];
+    }
+
+    private function makeDirectory(string $path): void
+    {
+        if (!is_dir($path) && !mkdir($path, 0o775, true) && !is_dir($path)) {
+            throw new RuntimeException('Unable to create directory: ' . $path);
+        }
+    }
+
+    private function atomicWrite(string $path, string $contents): void
+    {
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, $contents) === false || !rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new RuntimeException('Unable to write execution contract artifact: ' . $path);
+        }
     }
 
     private function actor(string $actor): string
     {
         $actor = trim($actor);
         if ($actor === '') {
-            throw new RuntimeException('Execution contract actor must not be empty.');
+            throw new RuntimeException('Execution contract requires a non-empty actor.');
         }
 
         return $actor;
@@ -445,36 +430,13 @@ final readonly class ExecutionContractStore
 
     private function nullableTrim(?string $value): ?string
     {
-        if ($value === null) {
-            return null;
-        }
-        $value = trim($value);
+        $value = $value === null ? null : trim($value);
 
         return $value === '' ? null : $value;
     }
 
     private function now(): string
     {
-        return (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM);
-    }
-
-    private function makeDirectory(string $path): void
-    {
-        if (!is_dir($path) && !mkdir($path, 0777, true) && !is_dir($path)) {
-            throw new RuntimeException('Unable to create execution contract directory: ' . $path);
-        }
-    }
-
-    private function atomicWrite(string $path, string $contents): void
-    {
-        $this->makeDirectory(dirname($path));
-        $temporary = $path . '.tmp-' . bin2hex(random_bytes(6));
-        if (file_put_contents($temporary, $contents) === false) {
-            throw new RuntimeException('Unable to write temporary execution contract artifact: ' . $temporary);
-        }
-        if (!rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new RuntimeException('Unable to atomically publish execution contract artifact: ' . $path);
-        }
+        return (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
     }
 }

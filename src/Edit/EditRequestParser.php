@@ -119,7 +119,9 @@ final readonly class EditRequestParser
         $mapIndex = isset($values['map-index'])
             ? $this->resolvePath($realProjectRoot, $values['map-index'])
             : $layout->mapIndex();
-        $outputDirectory = $this->resolvePath($realProjectRoot, $values['output-dir'] ?? '.agent-loop/edit/' . $taskId);
+        $outputDirectory = isset($values['output-dir'])
+            ? $this->resolvePath($realProjectRoot, $values['output-dir'])
+            : $layout->editBundle($taskId);
         $mapPaths = $this->splitList($values['map-paths'] ?? '.');
         $phpStanConfiguration = isset($values['phpstan-config']) && trim($values['phpstan-config']) !== ''
             ? trim($values['phpstan-config'])

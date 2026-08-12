@@ -7,11 +7,11 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowReportCommand;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
-use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowReportCommandTest extends TestCase
 {
@@ -31,7 +31,7 @@ final class WorkflowReportCommandTest extends TestCase
 
     public function testTextReportProjectsCurrentTaskArtifacts(): void
     {
-        $this->writeApprovedBrief();
+        $this->writeApprovedContract();
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
         $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
         $this->write('.agent-loop/recall/ABC-123/recall-log.draft.json', '{}');
@@ -42,46 +42,78 @@ final class WorkflowReportCommandTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Workflow report: ABC-123', $result['output']);
-        self::assertStringContainsString('Work brief: approved revision 1 (approved by lars)', $result['output']);
+        self::assertStringContainsString('Contract: approved revision 1 (approved by lars)', $result['output']);
         self::assertStringContainsString('Behavior anchors: request -> FooService -> persisted state', $result['output']);
-        self::assertStringContainsString('Changed files outside approved scope: docs/Outside.md', $result['output']);
-        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/FooTest.php (exit 0', $result['output']);
+        self::assertStringContainsString('Changed files outside Contract scope: docs/Outside.md', $result['output']);
+        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/FooTest.php via session (exit 0', $result['output']);
+        self::assertStringContainsString('Verification receipt: missing', $result['output']);
         self::assertStringContainsString('Recall: present, outcome draft present', $result['output']);
         self::assertStringContainsString('Review: warn', $result['output']);
         self::assertStringContainsString('Accepted risk: recorded at .agent-loop/risks/ABC-123.accepted-risk.md', $result['output']);
     }
 
-    public function testJsonReportSeparatesMissingAndStaleEvidence(): void
+    public function testJsonReportSeparatesMissingAndCurrentEvidence(): void
     {
-        $this->writeApprovedBrief();
+        $this->writeApprovedContract();
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
 
         $result = $this->runReport(['ABC-123', '--format', 'json']);
 
         self::assertSame(0, $result['exit']);
         $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('2.0', $report['schema_version']);
         self::assertSame('ABC-123', $report['task_id']);
-        self::assertSame('approved', $report['work_brief']['status']);
-        self::assertSame(['request -> FooService -> persisted state'], $report['work_brief']['behavior_anchors']);
+        self::assertSame('approved', $report['contract']['status']);
+        self::assertSame(['request -> FooService -> persisted state'], $report['contract']['behavior_anchors']);
         self::assertSame('passed', $report['validation'][0]['status']);
+        self::assertSame(1, $report['validation'][0]['contract_revision']);
+        self::assertSame('session', $report['validation'][0]['source']);
         self::assertSame('missing', $report['validation'][1]['status']);
         self::assertFalse($report['scope']['changed_files_supplied']);
+        self::assertSame('missing', $report['verification']['status']);
         self::assertSame('missing', $report['recall']['status']);
         self::assertSame('unavailable', $report['learning']['status']);
+        self::assertArrayNotHasKey('work_brief', $report);
     }
 
-    public function testJsonReportMarksEvidenceForSupersededBriefAsStale(): void
+    public function testJsonReportMarksEvidenceForSupersededContractAsStale(): void
     {
-        $this->writeApprovedBrief();
+        $this->writeApprovedContract();
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
-        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', basename($this->sessionPath));
-        (new WorkBriefStore())->revise($session, 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit tests/FooTest.php', 'vendor/bin/phpstan analyse src/Foo.php']);
+        $contracts = new TaskContractStore($this->root);
+        $contracts->revise(
+            'ABC-123',
+            'Keep the task scope reviewable.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit tests/FooTest.php', 'vendor/bin/phpstan analyse src/Foo.php'],
+            'lars',
+            behaviorAnchors: ['request -> FooService -> persisted state'],
+        );
 
         $result = $this->runReport(['ABC-123', '--format', 'json']);
         $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
 
         self::assertSame('stale', $report['validation'][0]['status']);
-        self::assertSame(2, $report['validation'][0]['work_brief_revision']);
+        self::assertSame(2, $report['validation'][0]['contract_revision']);
+        self::assertArrayNotHasKey('work_brief_revision', $report['validation'][0]);
+        self::assertSame('candidate', $report['contract']['status']);
+    }
+
+    public function testContractRemainsInspectableWithoutSessionWorkingMemory(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('ABC-123', 'Durable intent.', ['src/Foo.php'], [], ['composer ci'], 'lars');
+        $contracts->approve('ABC-123', 'lars');
+
+        $result = $this->runReport(['ABC-123', '--format', 'json']);
+        $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $result['exit']);
+        self::assertSame('missing', $report['session']['status']);
+        self::assertSame('approved', $report['contract']['status']);
+        self::assertSame('Durable intent.', $report['contract']['goal']);
+        self::assertSame('missing', $report['validation'][0]['status']);
     }
 
     public function testInvalidInputDoesNotWriteArtifacts(): void
@@ -95,9 +127,11 @@ final class WorkflowReportCommandTest extends TestCase
     }
 
     /**
+
      * @param list<string> $args
-     *
+
      * @return array{exit: int, output: string}
+
      */
     private function runReport(array $args): array
     {
@@ -108,21 +142,22 @@ final class WorkflowReportCommandTest extends TestCase
         return ['exit' => $exit, 'output' => $output];
     }
 
-    private function writeApprovedBrief(): void
+    private function writeApprovedContract(): void
     {
-        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
-        $this->sessionPath = $session->path;
-        $briefs = new WorkBriefStore();
-        $briefs->create(
-            $session,
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
             'Keep the task scope reviewable.',
             ['src/Foo.php'],
             ['Do not add a memory layer.'],
             ['vendor/bin/phpunit tests/FooTest.php', 'vendor/bin/phpstan analyse src/Foo.php'],
-            [],
-            ['request -> FooService -> persisted state'],
+            'lars',
+            behaviorAnchors: ['request -> FooService -> persisted state'],
         );
-        $briefs->approve($session, 'lars');
+        $contracts->approve('ABC-123', 'lars');
+
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
+        $this->sessionPath = $session->path;
     }
 
     private function write(string $relative, string $content): void
@@ -144,7 +179,9 @@ final class WorkflowReportCommandTest extends TestCase
     private function files(): array
     {
         $files = [];
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS)) as $file) {
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
+        ) as $file) {
             $files[] = $file->getPathname();
         }
         sort($files);
@@ -158,7 +195,10 @@ final class WorkflowReportCommandTest extends TestCase
             return;
         }
 
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $item) {
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        ) as $item) {
             $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
         }
         rmdir($path);

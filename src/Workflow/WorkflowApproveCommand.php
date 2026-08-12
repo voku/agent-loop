@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
-use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStatus;
-use voku\AgentSession\WorkBriefStore;
 
 final readonly class WorkflowApproveCommand
 {
@@ -36,43 +36,40 @@ final readonly class WorkflowApproveCommand
         }
 
         try {
-            $session = $this->activeSession($taskId->value);
-            $briefs = new WorkBriefStore();
-            $brief = $briefs->find($session);
-            if ($brief === null) {
-                throw new RuntimeException('Active session has no work brief: ' . $session->id);
-            }
-            $approval = $briefs->approval($session);
-            $alreadyApproved = $brief->status === WorkBriefStatus::APPROVED
-                && $approval !== null
-                && $approval->workBriefRevision === $brief->revision;
+            $contracts = new TaskContractStore($this->rootPath);
+            $contract = $contracts->load($taskId->value);
+            $alreadyApproved = $contract->status === TaskContract::APPROVED;
 
             if (!$alreadyApproved) {
-                $briefs->approve($session, $options['by']);
-                echo "[OK] workflow approve: work brief revision approved for {$taskId->value}\n";
+                $contract = $contracts->approve($taskId->value, $options['by']);
+                echo "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
 
                 $archive = (new WorkflowRecallOutputSuperseder($this->rootPath))->archiveIfPresent($taskId->value);
                 if ($archive !== null) {
                     echo "[OK] workflow approve: superseded recall output archived at {$archive}\n";
                 }
             } else {
-                echo "[OK] workflow approve: current work brief revision was already approved; resuming recall compilation\n";
+                echo "[OK] workflow approve: current Contract revision was already approved; resuming Run preparation\n";
             }
+
+            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
+            $session = $this->prepareSession($contract);
+            $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
+            $recallInput = $this->writeGovernedRecallInput($run, $contract);
+            echo "[OK] workflow approve: governed Run {$run->runId} prepared for Contract revision {$contract->revision}\n";
+            echo "[OK] workflow approve: working Session {$session->id} attached to governed Run {$run->runId}\n";
+            echo '[OK] workflow approve: governed Run bound to durable Learning root '
+                . PathResolver::relativeTo($this->rootPath, WorkflowLearningRoot::forRun($this->rootPath, $run)) . "\n";
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
-            echo "[OK] workflow approve: approved-state manifest refreshed at {$manifestPath}\n";
+            echo "[OK] workflow approve: approved-state Run projection refreshed at {$manifestPath}\n";
 
-            $briefPath = $session->path . '/work-brief.json';
-            if (!is_file($briefPath)) {
-                throw new RuntimeException('Approved session has no work-brief.json: ' . $session->id);
-            }
-            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
             $recallArgs = [
                 'compile', '--root', $learningRoot,
                 '--task', $taskId->value,
-                '--task-brief', $briefPath,
+                '--task-brief', $recallInput,
             ];
-            $operatingPromptManifest = $this->operatingPromptManifest($briefPath);
+            $operatingPromptManifest = $this->operatingPromptManifest($contract);
             if ($operatingPromptManifest !== null) {
                 $recallArgs[] = '--operating-prompt-manifest';
                 $recallArgs[] = $operatingPromptManifest;
@@ -96,9 +93,6 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = '--map-root';
                 $recallArgs[] = $this->rootPath;
 
-                // The derived search index is a cache: a repository that never built one gets the
-                // same briefing as before, and one that did gets ranked candidates for a brief that
-                // names no exact target yet.
                 $mapSearchIndex = $layout->mapSearchIndex();
                 if (is_file($mapSearchIndex)) {
                     $recallArgs[] = '--map-search-index';
@@ -109,15 +103,15 @@ final readonly class WorkflowApproveCommand
             if ($exit !== 0) {
                 fwrite(
                     STDERR,
-                    "[FAIL] workflow approve: work brief remains approved, but recall compilation failed. Rerun the same workflow approve command after fixing the compiler input.\n",
+                    "[FAIL] workflow approve: Contract and governed Run remain resumable, but recall compilation failed. Rerun the same workflow approve command after fixing compiler input.\n",
                 );
 
                 return $exit;
             }
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
-            echo "[OK] workflow approve: work brief approved and recall compiled for {$taskId->value}\n";
-            echo "[OK] workflow approve: compiled-state manifest refreshed at {$manifestPath}\n";
+            echo "[OK] workflow approve: Contract approved and governed Recall compiled for {$taskId->value}\n";
+            echo "[OK] workflow approve: compiled-state Run projection refreshed at {$manifestPath}\n";
 
             return 0;
         } catch (RuntimeException $exception) {
@@ -131,7 +125,7 @@ final readonly class WorkflowApproveCommand
         } catch (Throwable $exception) {
             fwrite(
                 STDERR,
-                '[FAIL] workflow approve: state may have changed, but run-manifest refresh or preparation failed: '
+                '[FAIL] workflow approve: durable Contract may be approved, but Run preparation failed: '
                 . $exception->getMessage()
                 . "\n[ACTION REQUIRED] Inspect agent-loop workflow status {$taskId->value} --format=json and rerun workflow approve after repair.\n",
             );
@@ -140,40 +134,55 @@ final readonly class WorkflowApproveCommand
         }
     }
 
-    /**
-     * Return the explicitly approved prompt manifest, resolved relative to the
-     * project root. The work brief owns selection policy; the compiler owns the
-     * manifest semantics.
-     */
-    private function operatingPromptManifest(string $briefPath): ?string
+    private function prepareSession(TaskContract $contract): Session
     {
-        $contents = file_get_contents($briefPath);
-        if ($contents === false) {
-            throw new RuntimeException('Unable to read approved work brief: ' . $briefPath);
-        }
-        try {
-            $brief = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('Invalid approved work-brief JSON: ' . $exception->getMessage(), 0, $exception);
-        }
-        if (!is_array($brief)) {
-            throw new RuntimeException('Approved work brief must decode to an object.');
+        $existing = $this->activeSession($contract->taskId);
+        if ($existing !== null) {
+            return $existing;
         }
 
-        $prompts = $brief['operating_prompts'] ?? [];
-        if (!is_array($prompts)) {
-            throw new RuntimeException('Approved work brief operating_prompts must be a list.');
+        return (new SessionStore())->create(
+            (new ProjectLayout($this->rootPath))->sessionsRoot(),
+            $contract->taskId,
+            null,
+            $contract->plannedBy,
+            $contract->baseCommit,
+        );
+    }
+
+    private function writeGovernedRecallInput(GovernedRun $run, TaskContract $contract): string
+    {
+        $path = dirname($run->path) . '/recall-input.json';
+        $input = [
+            'schema_version' => '1.0',
+            'kind' => 'governed_recall_input',
+            'run_id' => $run->runId,
+            'contract' => [
+                'path' => '../../contracts/' . $contract->taskId . '/contract.json',
+                'sha256' => $run->contractSource['sha256'],
+                'revision' => $contract->revision,
+            ],
+        ];
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, CanonicalJson::pretty($input)) === false || !rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new RuntimeException('Unable to persist governed Recall input: ' . $path);
         }
-        if ($prompts === []) {
+
+        return $path;
+    }
+
+    private function operatingPromptManifest(TaskContract $contract): ?string
+    {
+        if ($contract->operatingPrompts === []) {
             return null;
         }
-
-        $manifest = $brief['operating_prompt_manifest'] ?? null;
-        if (!is_string($manifest) || trim($manifest) === '') {
+        $manifest = $contract->operatingPromptManifest;
+        if ($manifest === null) {
             throw new RuntimeException('Approved operating prompts require operating_prompt_manifest.');
         }
 
-        $resolved = PathResolver::join($this->rootPath, trim($manifest));
+        $resolved = PathResolver::join($this->rootPath, $manifest);
         if (!is_file($resolved)) {
             throw new RuntimeException('Approved operating prompt manifest not found: ' . $resolved);
         }
@@ -211,17 +220,20 @@ final readonly class WorkflowApproveCommand
         return ['by' => $by, 'learningRoot' => $learningRoot];
     }
 
-    private function activeSession(string $taskId): Session
+    private function activeSession(string $taskId): ?Session
     {
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
-        $sessions = is_dir($root) ? array_values(array_filter(
+        if (!is_dir($root)) {
+            return null;
+        }
+        $sessions = array_values(array_filter(
             (new SessionStore())->all($root),
             static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        )) : [];
-        if (count($sessions) !== 1) {
-            throw new RuntimeException("Expected exactly one active session for {$taskId}.");
+        ));
+        if (count($sessions) > 1) {
+            throw new RuntimeException("Multiple active Sessions found for {$taskId}.");
         }
 
-        return $sessions[0];
+        return $sessions[0] ?? null;
     }
 }

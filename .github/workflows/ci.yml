@@ -4,10 +4,6 @@ on:
   push:
   pull_request:
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -16,36 +12,13 @@ jobs:
         php: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@v6
-      - name: Checkout candidate agent-session
-        uses: actions/checkout@v6
         with:
-          repository: voku/agent-session
-          ref: main
-          path: build/candidate-agent-session
-          persist-credentials: false
-      - name: Checkout candidate agent-recall-compiler
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-recall-compiler
-          ref: main
-          path: build/candidate-agent-recall-compiler
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
-      - name: Configure coordinated candidate dependencies
-        run: |
-          php -r '
-          $path = "composer.json";
-          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-          $data["repositories"] = [
-              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
-          ];
-          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
-          '
       - run: composer install --no-interaction --prefer-dist
       - run: composer ci
 
@@ -61,20 +34,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Checkout candidate agent-session
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-session
-          ref: main
-          path: build/candidate-agent-session
-          persist-credentials: false
-      - name: Checkout candidate agent-recall-compiler
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-recall-compiler
-          ref: main
-          path: build/candidate-agent-recall-compiler
-          persist-credentials: false
       - name: Checkout current first-party operational prompt catalog
         uses: actions/checkout@v6
         with:
@@ -84,21 +43,10 @@ jobs:
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.3'
           coverage: none
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
-      - name: Configure coordinated candidate dependencies
-        run: |
-          php -r '
-          $path = "composer.json";
-          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-          $data["repositories"] = [
-              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
-          ];
-          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
-          '
       - run: composer install --no-interaction --prefer-dist
       - name: Lint execution-contract dogfood
         run: php -l tools/execution-contract-dogfood.php
@@ -108,19 +56,19 @@ jobs:
         run: php tools/execution-contract-dogfood.php
       - name: Upload execution-contract evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: execution-contract-dogfood-${{ github.sha }}
           if-no-files-found: warn
           path: build/execution-contract-dogfood.json
 
-  self-shape:
+  self-shape-dogfood:
     if: github.event_name == 'pull_request'
     name: Agent-loop shapes itself
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       SELF_SHAPE_GOAL: ${{ github.event.pull_request.title }}
       SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
@@ -130,37 +78,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Checkout candidate agent-session
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-session
-          ref: main
-          path: build/candidate-agent-session
-          persist-credentials: false
-      - name: Checkout candidate agent-recall-compiler
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-recall-compiler
-          ref: main
-          path: build/candidate-agent-recall-compiler
-          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.3'
           coverage: none
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
-      - name: Configure coordinated candidate dependencies
-        run: |
-          php -r '
-          $path = "composer.json";
-          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-          $data["repositories"] = [
-              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.3.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.10.999"]]],
-          ];
-          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
-          '
       - run: composer install --no-interaction --prefer-dist
       - name: Lint self-shape tools
         run: |
@@ -172,7 +95,7 @@ jobs:
         run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
       - name: Upload self-shaping evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: self-shape-${{ github.sha }}
           if-no-files-found: warn
@@ -180,21 +103,17 @@ jobs:
             build/self-shape-*.json
             build/self-shape-raw.diff
             .agent-loop/recall/SELF-SHAPE
-            .agent-loop/learning/history
-            .agent-loop/sessions
             .agent-loop/runs/SELF-SHAPE
+            .agent-loop/sessions
+            infra/doc/agent-learning/history
 
-  installed-release-set:
-    if: github.event_name == 'pull_request'
+  release-set-dogfood:
     name: Installed release-set dogfood
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
           persist-credentials: false
       - name: Checkout pinned first-party engineering skills
         uses: actions/checkout@v6
@@ -205,10 +124,11 @@ jobs:
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.3'
           coverage: none
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
       - name: Lint dogfood runner
         run: php -l tools/release-set-dogfood.php
       - name: Run clean consumer lifecycle
@@ -301,7 +221,7 @@ jobs:
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: release-set-dogfood-${{ github.sha }}
           if-no-files-found: warn

@@ -54,11 +54,12 @@ final class CompactLayoutIntegrationTest extends TestCase
             '--file', 'composer.json', '--goal', 'Prove compact layout.', '--validation', 'composer test',
         ]);
         self::assertSame(0, $plan['exit'], $plan['output']);
-        self::assertNotSame([], glob($this->root . '/.agent-loop/sessions/*') ?: []);
+        self::assertSame([], glob($this->root . '/.agent-loop/sessions/*') ?: []);
         self::assertDirectoryDoesNotExist($this->root . '/session_plan');
 
         $approve = $this->dispatch(['agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'tester']);
         self::assertSame(0, $approve['exit'], $approve['output']);
+        self::assertNotSame([], glob($this->root . '/.agent-loop/sessions/*') ?: []);
         self::assertFileExists($this->root . '/.agent-loop/recall/DEMO-1/meta.json');
 
         $verify = $this->dispatch(['agent-loop', 'verify']);

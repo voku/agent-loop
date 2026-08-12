@@ -11,19 +11,20 @@ use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
+use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Workflow\ExecutionContractStore;
+use voku\AgentLoop\Workflow\TaskContract;
+use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
-use voku\AgentSession\Approval;
-use voku\AgentSession\LearningDecisionStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBrief;
-use voku\AgentSession\WorkBriefStore;
 
 /**
- * Reads the current owning-package artifacts and builds one task-scoped
- * projection. It does not repair, rewrite, or reinterpret the source state.
+ * Read-only projection of one governed task across package-owned artifacts.
+ * Session state may disappear after close; durable run state must not.
  */
 final readonly class RunManifestProjector
 {
@@ -35,41 +36,53 @@ final readonly class RunManifestProjector
     {
         /** @var list<array{code: string, owner: string, message: string}> $disagreements */
         $disagreements = [];
-        $session = $this->sessionForTask($taskId, $disagreements);
-        $briefStore = new WorkBriefStore();
-        $brief = $session === null ? null : $briefStore->find($session);
-        $approval = $session === null ? null : $briefStore->approval($session);
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        $run = (new GovernedRunStore($this->rootPath))->find($taskId);
+        $session = $this->sessionForTask($taskId, $run, $disagreements);
 
-        if ($brief !== null && $approval !== null && $approval->workBriefRevision !== $brief->revision) {
-            $disagreements[] = [
-                'code' => 'approval.revision_mismatch',
-                'owner' => 'agent-session',
-                'message' => sprintf(
-                    'Approval references work-brief revision %d while the current revision is %d.',
-                    $approval->workBriefRevision,
-                    $brief->revision,
-                ),
-            ];
+        if ($run !== null && $contract !== null) {
+            if ($run->contractRevision !== $contract->revision) {
+                $disagreements[] = [
+                    'code' => 'run.contract_revision_mismatch',
+                    'owner' => 'agent-loop',
+                    'message' => sprintf(
+                        'Run %s references Contract revision %d while current revision is %d.',
+                        $run->runId,
+                        $run->contractRevision,
+                        $contract->revision,
+                    ),
+                ];
+            } else {
+                $hash = hash_file('sha256', $contract->path);
+                if ($hash === false || !hash_equals($run->contractSource['sha256'], 'sha256:' . $hash)) {
+                    $disagreements[] = [
+                        'code' => 'run.contract_digest_mismatch',
+                        'owner' => 'agent-loop',
+                        'message' => 'Governed Run Contract digest does not match the current Contract artifact.',
+                    ];
+                }
+            }
         }
 
         $layout = new ProjectLayout($this->rootPath);
         $references = [
             'board' => $this->boardReference($taskId, $disagreements),
-            'session' => $this->sessionReference($session),
-            'work_brief' => $this->workBriefReference($session, $brief),
-            'approval' => $this->approvalReference($session, $brief, $approval),
-            'map' => $this->fileReference('agent-map', RelativePath::fromRoot($this->rootPath, $layout->mapIndex()), 'missing'),
-            'search_index' => $this->fileReference('agent-map', RelativePath::fromRoot($this->rootPath, $layout->mapSearchIndex()), 'not_built'),
+            'session' => $this->sessionReference($session, $run),
+            'contract' => $this->contractReference($contract),
+            'approval' => $this->approvalReference($contract),
+            'map' => $this->fileReference('agent-map', $layout->mapIndex(), 'missing'),
+            'search_index' => $this->fileReference('agent-map', $layout->mapSearchIndex(), 'not_built'),
             'recall' => $this->recallReference($taskId, $disagreements),
+            'execution_contract' => $this->executionContractReference($taskId),
             'edit' => $this->editReference($taskId),
-            'verification' => $this->verificationReference($taskId, $disagreements),
+            'verification' => $this->verificationReference($taskId, $run, $disagreements),
             'review' => $this->reviewReference($taskId, $disagreements),
-            'learning' => $this->learningReference($session),
+            'learning' => $this->learningReference($run, $disagreements),
             'outcome_lineage' => [
                 'owner' => 'agent-learning',
-                'state' => 'contract_pending',
-                'observation_mode' => 'unknown',
-                'reason' => 'Run-linked immutable outcome inspection is tracked in voku/agent-learning#10.',
+                'state' => $run === null ? 'run_missing' : 'run_bound',
+                'observation_mode' => 'checked',
+                'run_id' => $run?->runId,
             ],
         ];
 
@@ -78,57 +91,65 @@ final readonly class RunManifestProjector
             static fn (array $left, array $right): int => strcmp($left['code'], $right['code']),
         );
 
-        $mode = $session === null ? 'legacy_inferred' : ($session->ephemeral ? 'ephemeral' : 'governed');
-        $runId = $session === null ? 'task:' . $taskId . ':legacy' : 'session:' . $session->id;
-        $state = $this->overallState($session, $brief, $references, $disagreements);
-        $nextAction = $this->nextAction($taskId, $session, $brief, $references, $disagreements);
+        $ephemeral = $session !== null && $session->ephemeral;
+        $mode = $ephemeral ? 'ephemeral' : ($run !== null ? 'governed' : ($contract !== null ? 'planned' : 'legacy_inferred'));
+        $runId = $ephemeral
+            ? 'session:' . $session->id
+            : ($run !== null ? $run->runId : ($contract !== null ? 'task:' . $taskId . ':planned' : 'task:' . $taskId . ':legacy'));
+        $state = $this->overallState($session, $contract, $run, $references, $disagreements);
+        $nextAction = $this->nextAction($taskId, $session, $contract, $run, $references, $disagreements);
 
         return new RunManifest($taskId, $runId, $mode, $state, $references, $disagreements, $nextAction);
     }
 
-    /** @param list<array{code: string, owner: string, message: string}> $disagreements */
-    private function sessionForTask(string $taskId, array &$disagreements): ?Session
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     */
+    private function sessionForTask(string $taskId, ?GovernedRun $run, array &$disagreements): ?Session
     {
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return null;
         }
+        $store = new SessionStore();
+        if ($run !== null) {
+            try {
+                $session = $store->load($root, $run->sessionId);
+                if ($session->taskId !== $taskId) {
+                    $disagreements[] = [
+                        'code' => 'session.task_mismatch',
+                        'owner' => 'agent-session',
+                        'message' => 'Run-bound Session belongs to another task.',
+                    ];
+
+                    return null;
+                }
+
+                return $session;
+            } catch (Throwable) {
+                return null;
+            }
+        }
 
         $matches = array_values(array_filter(
-            (new SessionStore())->all($root),
+            $store->all($root),
             static fn (Session $session): bool => $session->taskId === $taskId,
         ));
         $active = array_values(array_filter(
             $matches,
             static fn (Session $session): bool => !$session->status->isClosed(),
         ));
-
         if (count($active) > 1) {
             $disagreements[] = [
                 'code' => 'session.multiple_active',
                 'owner' => 'agent-session',
-                'message' => sprintf('Task %s has %d active sessions; the run identity is ambiguous.', $taskId, count($active)),
+                'message' => sprintf('Task %s has %d active Sessions.', $taskId, count($active)),
             ];
 
             return null;
         }
-        if ($active !== []) {
-            return $active[0];
-        }
-        if ($matches === []) {
-            return null;
-        }
 
-        usort(
-            $matches,
-            static function (Session $left, Session $right): int {
-                $updatedAt = strcmp($left->updatedAt, $right->updatedAt);
-
-                return $updatedAt !== 0 ? $updatedAt : strcmp($left->id, $right->id);
-            },
-        );
-
-        return $matches[count($matches) - 1];
+        return $active[0] ?? null;
     }
 
     /**
@@ -140,13 +161,8 @@ final readonly class RunManifestProjector
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
         $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
         if (!is_file($configPath)) {
-            return [
-                'owner' => 'agent-kanban',
-                'state' => 'not_configured',
-                'observation_mode' => 'checked',
-            ];
+            return ['owner' => 'agent-kanban', 'state' => 'not_configured', 'observation_mode' => 'checked'];
         }
-
         try {
             $cardId = CardId::fromString($taskId);
         } catch (ValidationException) {
@@ -157,12 +173,8 @@ final readonly class RunManifestProjector
                 'config' => $this->artifact($configPath),
             ];
         }
-
         try {
-            $repository = new MarkdownCardRepository(
-                $boardRoot,
-                BoardConfig::fromJsonFile($configPath),
-            );
+            $repository = new MarkdownCardRepository($boardRoot, BoardConfig::fromJsonFile($configPath));
             if (!$repository->exists($cardId)) {
                 return [
                     'owner' => 'agent-kanban',
@@ -172,7 +184,6 @@ final readonly class RunManifestProjector
                     'config' => $this->artifact($configPath),
                 ];
             }
-
             $card = $repository->load($cardId);
 
             return [
@@ -193,23 +204,19 @@ final readonly class RunManifestProjector
                 'message' => $exception->getMessage(),
             ];
 
-            return [
-                'owner' => 'agent-kanban',
-                'state' => 'invalid',
-                'observation_mode' => 'checked',
-                'config' => $this->artifact($configPath),
-            ];
+            return ['owner' => 'agent-kanban', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
     }
 
     /** @return array<string, mixed> */
-    private function sessionReference(?Session $session): array
+    private function sessionReference(?Session $session, ?GovernedRun $run): array
     {
         if ($session === null) {
             return [
                 'owner' => 'agent-session',
                 'state' => 'missing',
                 'observation_mode' => 'checked',
+                'expected_session_id' => $run?->sessionId,
             ];
         }
 
@@ -226,58 +233,45 @@ final readonly class RunManifestProjector
     }
 
     /** @return array<string, mixed> */
-    private function workBriefReference(?Session $session, ?WorkBrief $brief): array
+    private function contractReference(?TaskContract $contract): array
     {
-        if ($session === null) {
-            return [
-                'owner' => 'agent-session',
-                'state' => 'unavailable',
-                'observation_mode' => 'checked',
-            ];
-        }
-        if ($brief === null) {
-            return [
-                'owner' => 'agent-session',
-                'state' => 'missing',
-                'observation_mode' => 'checked',
-            ];
+        if ($contract === null) {
+            return ['owner' => 'agent-loop', 'state' => 'missing', 'observation_mode' => 'checked'];
         }
 
         return [
-            'owner' => 'agent-session',
-            'state' => $brief->status->value,
+            'owner' => 'agent-loop',
+            'state' => $contract->status,
             'observation_mode' => 'checked',
-            'revision' => $brief->revision,
-            'source' => $this->artifact($brief->path),
+            'revision' => $contract->revision,
+            'goal' => $contract->goal,
+            'source' => $this->artifact($contract->path),
         ];
     }
 
     /** @return array<string, mixed> */
-    private function approvalReference(?Session $session, ?WorkBrief $brief, ?Approval $approval): array
+    private function approvalReference(?TaskContract $contract): array
     {
-        if ($session === null || $brief === null) {
-            return [
-                'owner' => 'agent-session',
-                'state' => 'unavailable',
-                'observation_mode' => 'checked',
-            ];
+        if ($contract === null) {
+            return ['owner' => 'agent-loop', 'state' => 'unavailable', 'observation_mode' => 'checked'];
         }
-        if ($approval === null) {
+        if ($contract->status !== TaskContract::APPROVED || $contract->approvedBy === null || $contract->approvedAt === null) {
             return [
-                'owner' => 'agent-session',
+                'owner' => 'agent-loop',
                 'state' => 'missing',
                 'observation_mode' => 'checked',
+                'contract_revision' => $contract->revision,
             ];
         }
 
         return [
-            'owner' => 'agent-session',
-            'state' => $approval->workBriefRevision === $brief->revision ? 'current' : 'superseded',
+            'owner' => 'agent-loop',
+            'state' => 'current',
             'observation_mode' => 'checked',
-            'work_brief_revision' => $approval->workBriefRevision,
-            'approved_by' => $approval->approvedBy,
-            'approved_at' => $approval->approvedAt,
-            'source' => $this->artifact($approval->path),
+            'contract_revision' => $contract->revision,
+            'approved_by' => $contract->approvedBy,
+            'approved_at' => $contract->approvedAt,
+            'source' => $this->artifact($contract->path),
         ];
     }
 
@@ -297,30 +291,18 @@ final readonly class RunManifestProjector
                 'path' => RecallOutputRoot::relativeTo($this->rootPath, $metaPath),
             ];
         }
-
         try {
             $meta = $this->decodeJson($metaPath);
         } catch (RuntimeException $exception) {
-            $disagreements[] = [
-                'code' => 'recall.meta_invalid',
-                'owner' => 'agent-recall-compiler',
-                'message' => $exception->getMessage(),
-            ];
+            $disagreements[] = ['code' => 'recall.meta_invalid', 'owner' => 'agent-recall-compiler', 'message' => $exception->getMessage()];
 
-            return [
-                'owner' => 'agent-recall-compiler',
-                'state' => 'invalid',
-                'observation_mode' => 'checked',
-                'source' => $this->artifact($metaPath),
-            ];
+            return ['owner' => 'agent-recall-compiler', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
-
-        $metaTaskId = $meta['task_id'] ?? null;
-        if (is_string($metaTaskId) && $metaTaskId !== $taskId) {
+        if (is_string($meta['task_id'] ?? null) && $meta['task_id'] !== $taskId) {
             $disagreements[] = [
                 'code' => 'recall.task_mismatch',
                 'owner' => 'agent-recall-compiler',
-                'message' => sprintf('Recall metadata belongs to task %s, not %s.', $metaTaskId, $taskId),
+                'message' => 'Recall metadata belongs to another task.',
             ];
         }
 
@@ -332,24 +314,31 @@ final readonly class RunManifestProjector
             'bundle_sha256' => is_string($meta['bundle_sha256'] ?? null) ? $meta['bundle_sha256'] : null,
             'snapshot_sha256' => is_string($meta['snapshot_sha256'] ?? null) ? $meta['snapshot_sha256'] : null,
             'source' => $this->artifact($metaPath),
-            'compilation_receipt' => is_file($directory . '/compilation-receipt.json')
-                ? $this->artifact($directory . '/compilation-receipt.json')
-                : null,
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function executionContractReference(string $taskId): array
+    {
+        try {
+            return (new ExecutionContractStore($this->rootPath))->inspect($taskId);
+        } catch (Throwable $exception) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'invalid',
+                'observation_mode' => 'checked',
+                'reason' => $exception->getMessage(),
+            ];
+        }
     }
 
     /** @return array<string, mixed> */
     private function editReference(string $taskId): array
     {
-        $directory = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->editBundle($taskId);
         if (!is_dir($directory)) {
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'none',
-                'observation_mode' => 'checked',
-            ];
+            return ['owner' => 'agent-loop', 'state' => 'none', 'observation_mode' => 'checked'];
         }
-
         $artifacts = [];
         foreach (['request.json', 'execution.json', 'agent-result.json'] as $file) {
             $path = $directory . '/' . $file;
@@ -371,59 +360,34 @@ final readonly class RunManifestProjector
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      * @return array<string, mixed>
      */
-    private function verificationReference(string $taskId, array &$disagreements): array
+    private function verificationReference(string $taskId, ?GovernedRun $run, array &$disagreements): array
     {
-        $bundle = rtrim($this->rootPath, '/') . '/.agent-loop/edit/' . $taskId;
-        if (!is_dir($bundle)) {
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'not_required',
-                'observation_mode' => 'checked',
-            ];
-        }
-
-        $path = $bundle . '/verification-result.json';
-        if (!is_file($path)) {
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'missing',
-                'observation_mode' => 'checked',
-                'path' => RelativePath::fromRoot($this->rootPath, $path),
-            ];
-        }
-
-        try {
-            $data = $this->decodeJson($path);
-        } catch (RuntimeException $exception) {
-            $disagreements[] = [
-                'code' => 'verification.result_invalid',
-                'owner' => 'agent-loop',
-                'message' => $exception->getMessage(),
-            ];
+        $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId);
+        if ($receipt !== null) {
+            if ($run !== null && $receipt->runId !== $run->runId) {
+                $disagreements[] = [
+                    'code' => 'verification.run_mismatch',
+                    'owner' => 'agent-loop',
+                    'message' => 'Verification receipt belongs to another Run.',
+                ];
+            }
 
             return [
                 'owner' => 'agent-loop',
-                'state' => 'invalid',
+                'state' => $receipt->verdict === 'satisfied' ? 'passed' : 'failed',
                 'observation_mode' => 'checked',
-                'source' => $this->artifact($path),
+                'run_id' => $receipt->runId,
+                'contract_revision' => $receipt->contractRevision,
+                'source_session_id' => $receipt->sourceSessionId,
+                'source' => $this->artifact($receipt->path),
             ];
-        }
-
-        $status = $data['status'] ?? null;
-        if (!is_string($status) || $status === '') {
-            $disagreements[] = [
-                'code' => 'verification.status_missing',
-                'owner' => 'agent-loop',
-                'message' => 'verification-result.json has no non-empty status.',
-            ];
-            $status = 'invalid';
         }
 
         return [
             'owner' => 'agent-loop',
-            'state' => $status,
+            'state' => 'pending_close',
             'observation_mode' => 'checked',
-            'source' => $this->artifact($path),
+            'path' => RelativePath::fromRoot($this->rootPath, (new RunVerificationReceiptStore($this->rootPath))->path($taskId)),
         ];
     }
 
@@ -437,7 +401,7 @@ final readonly class RunManifestProjector
         $report = $reader->read($taskId);
         if (!$report['exists']) {
             return [
-                'owner' => 'agent-loop',
+                'owner' => 'agent-recall-compiler',
                 'state' => 'missing',
                 'observation_mode' => 'checked',
                 'path' => $reader->relativePath($taskId),
@@ -446,73 +410,74 @@ final readonly class RunManifestProjector
         if ($report['invalid']) {
             $disagreements[] = [
                 'code' => 'review.report_invalid',
-                'owner' => 'agent-loop',
+                'owner' => 'agent-recall-compiler',
                 'message' => $reader->relativePath($taskId) . ' is not a valid blind-spot report.',
             ];
 
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'invalid',
-                'observation_mode' => 'checked',
-                'source' => $this->artifact($reader->absolutePath($taskId)),
-            ];
+            return ['owner' => 'agent-recall-compiler', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
 
         return [
-            'owner' => 'agent-loop',
+            'owner' => 'agent-recall-compiler',
             'state' => $report['status'],
             'observation_mode' => 'checked',
             'source' => $this->artifact($reader->absolutePath($taskId)),
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function learningReference(?Session $session): array
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return array<string, mixed>
+     */
+    private function learningReference(?GovernedRun $run, array &$disagreements): array
     {
-        if ($session === null) {
-            return [
-                'owner' => 'agent-session',
-                'state' => 'unavailable',
-                'observation_mode' => 'checked',
-            ];
+        if ($run === null) {
+            return ['owner' => 'agent-learning', 'state' => 'unavailable', 'observation_mode' => 'checked'];
         }
-
-        $decision = (new LearningDecisionStore())->find($session);
-        if ($decision === null) {
-            return [
-                'owner' => 'agent-session',
-                'state' => 'missing',
-                'observation_mode' => 'checked',
+        try {
+            $root = WorkflowLearningRoot::forRun($this->rootPath, $run);
+            $decision = (new RunLearningDecisionStore($root))->find($run->runId);
+        } catch (Throwable $exception) {
+            $disagreements[] = [
+                'code' => 'learning.unreadable',
+                'owner' => 'agent-learning',
+                'message' => $exception->getMessage(),
             ];
+
+            return ['owner' => 'agent-learning', 'state' => 'invalid', 'observation_mode' => 'checked'];
+        }
+        if ($decision === null) {
+            return ['owner' => 'agent-learning', 'state' => 'missing', 'observation_mode' => 'checked', 'run_id' => $run->runId];
         }
 
         return [
-            'owner' => 'agent-session',
-            'state' => $decision->decision->value,
+            'owner' => 'agent-learning',
+            'state' => 'decided',
+            'decision' => $decision->decision->value,
             'observation_mode' => 'checked',
+            'run_id' => $decision->runId,
             'decided_by' => $decision->decidedBy,
             'decided_at' => $decision->decidedAt,
-            'source' => $this->artifact($session->path . '/learning-decision.json'),
+            'source' => $this->artifact($decision->path),
         ];
     }
 
     /** @return array<string, mixed> */
-    private function fileReference(string $owner, string $relativePath, string $missingState): array
+    private function fileReference(string $owner, string $path, string $missingState): array
     {
-        $path = rtrim($this->rootPath, '/') . '/' . ltrim($relativePath, '/');
         if (!is_file($path)) {
             return [
                 'owner' => $owner,
                 'state' => $missingState,
                 'observation_mode' => 'checked',
-                'path' => $relativePath,
+                'path' => RelativePath::fromRoot($this->rootPath, $path),
             ];
         }
 
         return [
             'owner' => $owner,
             'state' => 'present',
-            'observation_mode' => 'legacy_path_reference',
+            'observation_mode' => 'checked',
             'source' => $this->artifact($path),
         ];
     }
@@ -521,27 +486,26 @@ final readonly class RunManifestProjector
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
-    private function overallState(?Session $session, ?WorkBrief $brief, array $references, array $disagreements): string
-    {
+    private function overallState(
+        ?Session $session,
+        ?TaskContract $contract,
+        ?GovernedRun $run,
+        array $references,
+        array $disagreements,
+    ): string {
         if ($disagreements !== []) {
             return 'blocked';
         }
-        if ($session === null) {
-            return 'incomplete';
-        }
-        if ($session->ephemeral) {
+        if ($session !== null && $session->ephemeral) {
             return 'experiment';
         }
-        if ($brief === null || $brief->status->value !== 'approved') {
+        if ($contract === null || $contract->status !== TaskContract::APPROVED || $run === null) {
             return 'incomplete';
         }
         if (($references['recall']['state'] ?? null) !== 'compiled') {
             return 'incomplete';
         }
-        if (($references['verification']['state'] ?? null) === 'missing') {
-            return 'incomplete';
-        }
-        if (in_array($references['verification']['state'] ?? null, ['failed', 'invalid'], true)) {
+        if (in_array($references['execution_contract']['state'] ?? null, ['blocked', 'rejected', 'invalid', 'stale'], true)) {
             return 'blocked';
         }
         if (($references['review']['state'] ?? null) === 'fail') {
@@ -550,11 +514,14 @@ final readonly class RunManifestProjector
         if (in_array($references['review']['state'] ?? null, ['missing', 'invalid'], true)) {
             return 'incomplete';
         }
-        if (($references['learning']['state'] ?? null) === 'missing') {
+        if (($references['learning']['state'] ?? null) !== 'decided') {
             return 'incomplete';
         }
-        if ($session->status->isClosed()) {
-            return 'complete';
+        if (($references['verification']['state'] ?? null) === 'failed') {
+            return 'blocked';
+        }
+        if (($references['verification']['state'] ?? null) === 'passed') {
+            return $session === null || $session->status->isClosed() ? 'complete' : 'ready_to_close';
         }
 
         return 'ready_to_close';
@@ -564,40 +531,52 @@ final readonly class RunManifestProjector
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
-    private function nextAction(string $taskId, ?Session $session, ?WorkBrief $brief, array $references, array $disagreements): string
-    {
+    private function nextAction(
+        string $taskId,
+        ?Session $session,
+        ?TaskContract $contract,
+        ?GovernedRun $run,
+        array $references,
+        array $disagreements,
+    ): string {
         if ($disagreements !== []) {
             return 'agent-loop workflow manifest ' . $taskId . ' --format=json';
         }
-        if ($session === null) {
-            return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
-        }
-        if ($session->ephemeral) {
+        if ($session !== null && $session->ephemeral) {
             return 'agent-loop session close ' . $session->id . ' --status dropped';
         }
-        if ($brief === null || $brief->status->value !== 'approved') {
+        if ($contract === null) {
+            return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
+        }
+        if ($contract->status !== TaskContract::APPROVED || $run === null) {
             return 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>';
         }
         if (($references['recall']['state'] ?? null) !== 'compiled') {
             return 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>';
         }
-        if (in_array($references['verification']['state'] ?? null, ['missing', 'failed', 'invalid'], true)) {
-            return 'agent-loop edit verify --bundle=.agent-loop/edit/' . $taskId;
+        if (in_array($references['execution_contract']['state'] ?? null, ['missing', 'pending_recall'], true)) {
+            return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
+        }
+        if (in_array($references['execution_contract']['state'] ?? null, ['blocked', 'rejected', 'invalid', 'stale'], true)) {
+            return 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
         if (in_array($references['review']['state'] ?? null, ['missing', 'invalid', 'fail'], true)) {
             return 'agent-loop review blindspots ' . $taskId;
         }
-        if (($references['learning']['state'] ?? null) === 'missing') {
-            return 'agent-loop session learning decide ' . $session->id . ' --by <actor> --status findings_recorded';
+        if (($references['learning']['state'] ?? null) !== 'decided') {
+            return 'agent-loop workflow learn ' . $taskId . ' --status no_durable_learning --by <actor> --reason "..."';
         }
-        if ($session->status->isClosed()) {
+        if (($references['verification']['state'] ?? null) !== 'passed') {
+            return 'agent-loop workflow close ' . $taskId . ' --status done';
+        }
+        if ($session === null || $session->status->isClosed()) {
             return 'none';
         }
 
         return 'agent-loop workflow close ' . $taskId . ' --status done';
     }
 
-    /** @return array<string, mixed> */
+    /** @return array{path: string, sha256: string} */
     private function artifact(string $path): array
     {
         if (!is_file($path)) {
@@ -608,10 +587,7 @@ final readonly class RunManifestProjector
             throw new RuntimeException('Unable to hash referenced artifact: ' . $path);
         }
 
-        return [
-            'path' => RelativePath::fromRoot($this->rootPath, $path),
-            'sha256' => 'sha256:' . $sha,
-        ];
+        return ['path' => RelativePath::fromRoot($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
     }
 
     /** @return array<string, mixed> */
@@ -621,7 +597,6 @@ final readonly class RunManifestProjector
         if ($contents === false) {
             throw new RuntimeException('Unable to read JSON artifact: ' . $path);
         }
-
         try {
             $decoded = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {

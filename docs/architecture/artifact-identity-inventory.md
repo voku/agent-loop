@@ -13,14 +13,14 @@ read it.
 | --- | --- | --- | --- | --- |
 | Task/card ID | `agent-kanban` when a card exists; otherwise orchestrator input | card metadata and filename, or CLI task argument | durable work-item identity | ad hoc tasks and card-backed tasks are not represented through one explicit run reference |
 | Card revision | `agent-kanban` | SHA-256 `CardRevision` derived from card content | exact board-state revision | not yet linked into joined workflow status/run identity |
-| Session ID | `agent-session` | `session_plan/<session-id>/session.json` | task-local working-session identity | consumers locate it through directory and task-resolution conventions |
+| Session ID | `agent-session` | `<sessions_root>/<session-id>/session.json` | task-local working-session identity | consumers resolve `sessions_root` through `ProjectLayout` (`agent-loop init paths`) |
 | Session kind | `agent-session` | `session.json` `ephemeral` flag | governed versus experiment semantics | not yet exposed as part of one external run reference |
 | Work-brief revision | `agent-session` | `work-brief.json` and history | exact candidate/approved scope revision | not collected with map/recall/edit identities |
 | Approval | `agent-session` | `approval.json` | human approval bound to one brief revision | joined state must verify the referenced revision remains current |
 | Validation evidence identity | `agent-session` | `validation-evidence.jsonl` | actual command execution bound to a brief revision | later runs can see evidence as stale, but the cross-package run has no single reference to the required records |
-| Map schema and digest | `agent-map` | `.agent-map/php-symbols.json` or TOON equivalent | canonical repository-fact snapshot | orchestration passes paths and reconstructs readiness/snapshot identity |
+| Map schema and digest | `agent-map` | `.agent-loop/map/php-symbols.json` or TOON equivalent | canonical repository-fact snapshot | orchestration passes paths and reconstructs readiness/snapshot identity |
 | Map analysis fingerprint | `agent-map` | canonical map metadata | semantic-analysis configuration/source identity | not collected with the brief and compilation in one projection |
-| Search-index snapshot | `agent-map` | `.agent-map/search.sqlite` metadata | derived retrieval cache identity | optional state is forwarded only when the file exists; readiness/degradation are not one product contract |
+| Search-index snapshot | `agent-map` | `.agent-loop/map/search.sqlite` metadata | derived retrieval cache identity | optional state is forwarded only when the file exists; readiness/degradation are not one product contract |
 | Context source slice | `agent-map` | `EditContextPlan`/rendered recall facts | current source range plus source hash | exact context is bound to map/source, but task-level and inferred navigation results do not yet share one public reference contract |
 | Compilation ID | `agent-recall-compiler` | recall artifacts and immutable selection/outcome lineage | one deterministic recall compilation | not explicitly linked to an orchestrator-owned run identity |
 | Recall bundle | `agent-recall-compiler` | `recall.bundle.json` | canonical replayable briefing input/result | consumer locates it through output directory conventions |

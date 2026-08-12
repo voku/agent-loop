@@ -7,6 +7,7 @@ namespace voku\AgentLoop\AgentGuidance;
 use JsonException;
 use RuntimeException;
 use UnexpectedValueException;
+use voku\AgentLoop\ProjectLayout;
 
 final readonly class AgentDisciplineHook
 {
@@ -210,7 +211,7 @@ final readonly class AgentDisciplineHook
 
     private function workflowResumeHint(): string
     {
-        $runsRoot = $this->repositoryRoot . '/.agent-loop/runs';
+        $runsRoot = (new ProjectLayout($this->repositoryRoot))->runsRoot();
         if (!is_dir($runsRoot)) {
             return '';
         }

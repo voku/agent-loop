@@ -1,0 +1,68 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Workflow;
+
+final readonly class TaskContract
+{
+    public const string CANDIDATE = 'candidate';
+    public const string APPROVED = 'approved';
+    public const string SUPERSEDED = 'superseded';
+
+    /**
+     * @param list<string> $scope
+     * @param list<string> $nonGoals
+     * @param list<string> $validation
+     * @param list<string> $tags
+     * @param list<string> $behaviorAnchors
+     * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
+     */
+    public function __construct(
+        public string $taskId,
+        public string $goal,
+        public array $scope,
+        public array $nonGoals,
+        public array $validation,
+        public string $status,
+        public int $revision,
+        public string $createdAt,
+        public string $updatedAt,
+        public string $path,
+        public string $plannedBy,
+        public ?string $baseCommit = null,
+        public array $tags = [],
+        public array $behaviorAnchors = [],
+        public ?string $operatingPromptManifest = null,
+        public array $operatingPrompts = [],
+        public ?string $approvedBy = null,
+        public ?string $approvedAt = null,
+    ) {
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return [
+            'schema_version' => '1.0',
+            'kind' => 'task_contract',
+            'task_id' => $this->taskId,
+            'goal' => $this->goal,
+            'scope' => $this->scope,
+            'non_goals' => $this->nonGoals,
+            'validation' => $this->validation,
+            'tags' => $this->tags,
+            'behavior_anchors' => $this->behaviorAnchors,
+            'operating_prompt_manifest' => $this->operatingPromptManifest,
+            'operating_prompts' => $this->operatingPrompts,
+            'status' => $this->status,
+            'revision' => $this->revision,
+            'planned_by' => $this->plannedBy,
+            'base_commit' => $this->baseCommit,
+            'approved_by' => $this->approvedBy,
+            'approved_at' => $this->approvedAt,
+            'created_at' => $this->createdAt,
+            'updated_at' => $this->updatedAt,
+        ];
+    }
+}

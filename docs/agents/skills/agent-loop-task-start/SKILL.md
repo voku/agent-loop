@@ -98,7 +98,7 @@ costs minutes, a refresh after a normal branch switch costs seconds. Keep
 `--paths` on directories - PHPStan disables its result cache when it is handed
 individual files, so a file-list scope pays the full cost every single time.
 
-The default `.agent-map/` output is generated navigation state. Confirm it is
+The map output (`agent-loop init paths` reports `map_root`) is generated navigation state. Confirm it is
 ignored; never force-add the index. `workflow context` reads an existing index
 but never builds one itself.
 

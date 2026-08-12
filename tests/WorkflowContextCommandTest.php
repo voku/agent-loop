@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\WorkBriefStore;
 
 final class WorkflowContextCommandTest extends TestCase
 {
@@ -23,13 +23,21 @@ final class WorkflowContextCommandTest extends TestCase
         mkdir($this->root . '/.agent-loop/recall/ABC-123', 0777, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nnamespace Demo; final class Foo { public function run(): void {} }\n");
 
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
+            'Render a compact context.',
+            ['src/Foo.php'],
+            ['No source bodies.'],
+            ['vendor/bin/phpunit tests/FooTest.php'],
+            'lars',
+        );
+        $contracts->approve('ABC-123', 'lars');
+
         $sessions = new SessionStore();
         $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', 'context', 'lars');
         $sessions->appendRecord($session, 'decision', 'Keep output bounded', 'Do not load source bodies.');
         $sessions->addCheckpoint($session, 'Map available', 'Indexed source symbols.');
-        $briefs = new WorkBriefStore();
-        $briefs->create($session, 'Render a compact context.', ['src/Foo.php'], ['No source bodies.'], ['vendor/bin/phpunit tests/FooTest.php']);
-        $briefs->approve($session, 'lars');
 
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/meta.json', json_encode([
             'schema_version' => '1.0',
@@ -48,8 +56,7 @@ final class WorkflowContextCommandTest extends TestCase
 
     public function testContextCombinesExistingArtifactsWithoutMutation(): void
     {
-        $sessionPath = $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json';
-        $before = hash_file('sha256', $sessionPath);
+        $before = hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json');
         ob_start();
         $exit = (new WorkflowContextCommand($this->root))->run(['ABC-123']);
         $output = (string) ob_get_clean();
@@ -58,7 +65,7 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertStringContainsString('Render a compact context.', $output);
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
         self::assertStringContainsString('Demo\\Foo', $output);
-        self::assertSame($before, hash_file('sha256', $sessionPath));
+        self::assertSame($before, hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json'));
     }
 
     public function testContextReportsOmissionsAndMissingMap(): void
@@ -73,7 +80,7 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertSame(1, substr_count($rendered, '[SKIP] agent-map: index missing'));
     }
 
-    public function testContextUsesNavigationFactsFromRecallBundleBeforeMapFallback(): void
+    public function testContextUsesNavigationFactsFromRecallBundleBeforeLegacyMap(): void
     {
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', json_encode([
             'schema_version' => '1.0',

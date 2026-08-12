@@ -83,6 +83,29 @@ function copyFile(string $source, string $target): void
     }
 }
 
+/**
+ * Stages the package's real source tree.
+ *
+ * Copying a hand-picked class list would make this dogfood assert only that the
+ * hook's dependencies have not changed since someone last edited this file. The
+ * hook resolves classes through the package PSR-4 root, so the fixture has to
+ * provide that root, not a curated subset of it.
+ */
+function copyTree(string $source, string $target): void
+{
+    if (!is_dir($target) && !mkdir($target, 0o775, true) && !is_dir($target)) {
+        throw new RuntimeException('Unable to create dogfood directory: ' . $target);
+    }
+    foreach (scandir($source) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $from = $source . '/' . $entry;
+        $to = $target . '/' . $entry;
+        is_dir($from) ? copyTree($from, $to) : copyFile($from, $to);
+    }
+}
+
 function writeFile(string $target, string $content): void
 {
     $directory = dirname($target);
@@ -195,10 +218,7 @@ try {
         $repositoryRoot . '/docs/agents/skills/agent-loop-discipline/SKILL.md',
         $workspace . '/.codex/skills/agent-loop-discipline/SKILL.md',
     );
-    copyFile(
-        $repositoryRoot . '/src/AgentGuidance/AgentDisciplineHook.php',
-        $workspace . '/src/AgentGuidance/AgentDisciplineHook.php',
-    );
+    copyTree($repositoryRoot . '/src', $workspace . '/src');
     copyFile(
         $repositoryRoot . '/docs/agents/codex-hooks/hooks.json',
         $workspace . '/.codex/hooks.json',
