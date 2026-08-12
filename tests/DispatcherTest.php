@@ -11,7 +11,10 @@ use voku\AgentLoop\Dispatcher;
 
 final class DispatcherTest extends TestCase
 {
-    /** @param list<string> $argv @param non-empty-list<string> $expectedNeedles */
+    /**
+     * @param list<string>           $argv
+     * @param non-empty-list<string> $expectedNeedles
+     */
     private function assertRun(array $argv, int $expectedExit, array $expectedNeedles, string $root = '.'): void
     {
         $dispatcher = new Dispatcher($root);

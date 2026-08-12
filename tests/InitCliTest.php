@@ -192,7 +192,13 @@ final class InitCliTest extends TestCase
         self::assertSame(1, $this->dispatch(['agent-loop', 'init', 'install-plan', '--profile=wsl2', '--agent=nope'])['exit']);
     }
 
-    /** @param list<string> $argv @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $argv
+
+     * @return array{exit: int, output: string}
+
+     */
     private function dispatch(array $argv): array
     {
         $dispatcher = new Dispatcher($this->root);

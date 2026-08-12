@@ -133,7 +133,13 @@ final class Dispatcher
         return $status;
     }
 
-    /** @param list<string> $rest @return list<string> */
+    /**
+
+     * @param list<string> $rest
+
+     * @return list<string>
+
+     */
     private function resolveMapArgv(array $rest): array
     {
         $command = $rest[0] ?? 'help';
@@ -161,7 +167,13 @@ final class Dispatcher
         return $rest;
     }
 
-    /** @param list<string> $rest @return list<string> */
+    /**
+
+     * @param list<string> $rest
+
+     * @return list<string>
+
+     */
     private function resolveHistoryArgv(array $rest): array
     {
         $subcommand = $rest[1] ?? 'help';
@@ -231,7 +243,13 @@ final class Dispatcher
         return $this->layout()->mapHistoryDatabase();
     }
 
-    /** @param list<string> $rest @return list<string> */
+    /**
+
+     * @param list<string> $rest
+
+     * @return list<string>
+
+     */
     private function resolveReviewArgv(array $rest): array
     {
         $command = $rest[0] ?? null;
@@ -331,7 +349,13 @@ final class Dispatcher
         return array_merge([$command], $tokens);
     }
 
-    /** @param list<string> $rest @return list<string> */
+    /**
+
+     * @param list<string> $rest
+
+     * @return list<string>
+
+     */
     private function resolveRecallArgv(array $rest): array
     {
         $command = $rest[0] ?? null;
@@ -362,7 +386,13 @@ final class Dispatcher
             && !str_contains($taskId, '..');
     }
 
-    /** @param list<string> $rest @return list<string> */
+    /**
+
+     * @param list<string> $rest
+
+     * @return list<string>
+
+     */
     private function subArgv(string $scriptName, array $rest): array
     {
         return array_merge([$scriptName], $rest);

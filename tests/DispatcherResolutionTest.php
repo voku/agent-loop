@@ -219,7 +219,13 @@ final class DispatcherResolutionTest extends TestCase
         self::assertStringContainsString('Multiple sessions found for task DEMO-1', $result['output']);
     }
 
-    /** @param list<string> $argv @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $argv
+
+     * @return array{exit: int, output: string}
+
+     */
     private function dispatch(array $argv): array
     {
         $dispatcher = new Dispatcher($this->root);

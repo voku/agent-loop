@@ -128,7 +128,7 @@ final readonly class WorkflowContextCommand
         }
         $hasBundleNavigation = $this->addRecall($budget, $taskId);
         if (!$hasBundleNavigation) {
-            $this->addMap($budget, is_array($contract['scope'] ?? null) ? $contract['scope'] : []);
+            $this->addMap($budget, $this->stringList($contract['scope'] ?? null));
         }
         $budget->section('Required validation');
         foreach ($report['validation'] as $validation) {
@@ -359,6 +359,16 @@ final readonly class WorkflowContextCommand
         }
 
         return (int) $value;
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter($value, static fn (mixed $item): bool => is_string($item)));
     }
 
     private function relativePath(string $path): string

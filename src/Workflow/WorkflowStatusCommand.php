@@ -247,7 +247,13 @@ final readonly class WorkflowStatusCommand
         return is_string($value) && $value !== '' ? $prefix . $value : $fallback;
     }
 
-    /** @param list<string> $tokens @return 'text'|'json' */
+    /**
+
+     * @param list<string> $tokens
+
+     * @return 'text'|'json'
+
+     */
     private function parseFormat(array $tokens): string
     {
         $format = 'text';

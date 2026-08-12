@@ -62,7 +62,13 @@ final class WorkflowCliTest extends TestCase
         self::assertSame(1, $this->runCli(['status', '../bad'])['exit']);
     }
 
-    /** @param list<string> $args @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $args
+
+     * @return array{exit: int, output: string}
+
+     */
     private function runCli(array $args): array
     {
         $cli = new WorkflowCli(sys_get_temp_dir(), static fn (array $argv): int => 0);

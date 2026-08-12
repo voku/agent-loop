@@ -260,28 +260,22 @@ final class AgentLoopVerifier
 
     private function checkRecallCoverage(string $recallRoot, string $sessionId, string $taskId): bool
     {
-        if (!is_dir($recallRoot)) {
-            echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) but no recall directory at {$recallRoot}\n";
-
-            return false;
-        }
-
         $metaFile = rtrim($recallRoot, '/') . '/' . $taskId . '/meta.json';
-        if (!is_file($metaFile)) {
-            $currentMetaFile = rtrim($recallRoot, '/') . '/current/meta.json';
-            if (is_file($currentMetaFile)) {
-                $decoded = json_decode((string) file_get_contents($currentMetaFile), true);
-                if (is_array($decoded) && isset($decoded['task_id']) && $decoded['task_id'] === $taskId) {
-                    return true;
-                }
-            }
-
-            echo "[FAIL] recall: active session {$sessionId} has no compiled briefing at {$metaFile}\n";
-
-            return false;
+        if (is_file($metaFile)) {
+            return true;
         }
 
-        return true;
+        $currentMetaFile = rtrim($recallRoot, '/') . '/current/meta.json';
+        if (is_file($currentMetaFile)) {
+            $decoded = json_decode((string) file_get_contents($currentMetaFile), true);
+            if (is_array($decoded) && isset($decoded['task_id']) && $decoded['task_id'] === $taskId) {
+                return true;
+            }
+        }
+
+        echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) has no compiled briefing at {$metaFile}\n";
+
+        return false;
     }
 
     /**
