@@ -65,10 +65,16 @@ final readonly class ProjectLayout
         return $this->stateRoot() . '/runs';
     }
 
-    /** Everything durable about one governed Run lives under this directory. */
+    /** Everything durable about one current governed Run lives under this directory. */
     public function runRoot(string $taskId): string
     {
         return $this->runsRoot() . '/' . $taskId;
+    }
+
+    /** Superseded governed Runs remain durable and addressable by their original task. */
+    public function runHistoryRoot(string $taskId): string
+    {
+        return $this->runsRoot() . '/.history/' . $taskId;
     }
 
     public function contractsRoot(): string
