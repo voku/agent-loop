@@ -12,6 +12,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentSession\Session;
+use voku\AgentSession\SessionStore;
 
 final class GovernedRunStore
 {
@@ -44,7 +45,30 @@ final class GovernedRunStore
 
         $existing = $this->find($contract->taskId);
         if ($existing !== null) {
-            if ($existing->contractRevision !== $contract->revision || $existing->contractSource !== $contractSource) {
+            $sameContract = $existing->contractRevision === $contract->revision
+                && $existing->contractSource === $contractSource;
+            if ($sameContract) {
+                if ($existing->sessionId !== $session->id) {
+                    throw new RuntimeException(sprintf(
+                        'Existing governed Run %s is bound to Session %s, not %s.',
+                        $existing->runId,
+                        $existing->sessionId,
+                        $session->id,
+                    ));
+                }
+                if ($existing->learningRoot !== $learningRootReference) {
+                    throw new RuntimeException(sprintf(
+                        'Existing governed Run %s is governed against Learning root %s, not %s.',
+                        $existing->runId,
+                        $existing->learningRoot ?? 'the project-configured location',
+                        $learningRootReference ?? 'the project-configured location',
+                    ));
+                }
+
+                return $existing;
+            }
+
+            if ($contract->revision <= $existing->contractRevision) {
                 throw new RuntimeException(sprintf(
                     'Existing governed Run %s is bound to Contract revision %d; current approved revision is %d.',
                     $existing->runId,
@@ -52,36 +76,26 @@ final class GovernedRunStore
                     $contract->revision,
                 ));
             }
-            if ($existing->sessionId !== $session->id) {
+            if ($existing->sessionId === $session->id) {
                 throw new RuntimeException(sprintf(
-                    'Existing governed Run %s is bound to Session %s, not %s.',
+                    'Cannot supersede governed Run %s with Contract revision %d while reusing its Session %s.',
                     $existing->runId,
-                    $existing->sessionId,
+                    $contract->revision,
                     $session->id,
                 ));
             }
-            if ($existing->learningRoot !== $learningRootReference) {
-                throw new RuntimeException(sprintf(
-                    'Existing governed Run %s is governed against Learning root %s, not %s.',
-                    $existing->runId,
-                    $existing->learningRoot ?? 'the project-configured location',
-                    $learningRootReference ?? 'the project-configured location',
-                ));
-            }
+            $this->assertSupersededSessionIsClosed($existing);
 
-            return $existing;
+            return $this->replaceSupersededRun(
+                $existing,
+                $contract,
+                $contractSource,
+                $session,
+                $learningRootReference,
+            );
         }
 
-        $run = new GovernedRun(
-            'run:' . $contract->taskId . ':' . bin2hex(random_bytes(8)),
-            $contract->taskId,
-            $contract->revision,
-            $contractSource,
-            $session->id,
-            $learningRootReference,
-            (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
-            $this->path($contract->taskId),
-        );
+        $run = $this->newRun($contract, $contractSource, $session, $learningRootReference);
         $this->write($run);
 
         return $run;
@@ -106,6 +120,155 @@ final class GovernedRunStore
         return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/run.json';
     }
 
+    /** @param array{path: string, sha256: string} $contractSource */
+    private function newRun(
+        TaskContract $contract,
+        array $contractSource,
+        Session $session,
+        ?string $learningRootReference,
+    ): GovernedRun {
+        return new GovernedRun(
+            'run:' . $contract->taskId . ':' . bin2hex(random_bytes(8)),
+            $contract->taskId,
+            $contract->revision,
+            $contractSource,
+            $session->id,
+            $learningRootReference,
+            (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
+            $this->path($contract->taskId),
+        );
+    }
+
+    private function assertSupersededSessionIsClosed(GovernedRun $run): void
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $sessions = new SessionStore();
+        if (!$sessions->exists($layout->sessionsRoot(), $run->sessionId)) {
+            return;
+        }
+
+        $session = $sessions->load($layout->sessionsRoot(), $run->sessionId);
+        if (!$session->status->isClosed()) {
+            throw new RuntimeException(sprintf(
+                'Cannot supersede governed Run %s while its Session %s is %s. Close or drop the Session first.',
+                $run->runId,
+                $session->id,
+                $session->status->value,
+            ));
+        }
+    }
+
+    /** @param array{path: string, sha256: string} $contractSource */
+    private function replaceSupersededRun(
+        GovernedRun $existing,
+        TaskContract $contract,
+        array $contractSource,
+        Session $session,
+        ?string $learningRootReference,
+    ): GovernedRun {
+        $replacement = $this->newRun($contract, $contractSource, $session, $learningRootReference);
+        $archiveDirectory = $this->archive($existing);
+
+        try {
+            $this->writeSupersession($archiveDirectory . '/supersession.json', $existing, $replacement, $contract);
+            $this->write($replacement);
+        } catch (RuntimeException $exception) {
+            $this->restoreArchive($archiveDirectory, dirname($existing->path), $exception);
+            throw $exception;
+        }
+
+        return $replacement;
+    }
+
+    private function archive(GovernedRun $run): string
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $archiveRoot = $layout->runHistoryRoot($run->taskId);
+        if (!is_dir($archiveRoot) && !mkdir($archiveRoot, 0o775, true) && !is_dir($archiveRoot)) {
+            throw new RuntimeException('Unable to create governed Run history directory: ' . $archiveRoot);
+        }
+
+        $runPathSegment = preg_replace('/[^A-Za-z0-9._-]+/', '-', $run->runId);
+        if (!is_string($runPathSegment) || trim($runPathSegment, '-.') === '') {
+            throw new RuntimeException('Unable to derive archive path from governed Run id: ' . $run->runId);
+        }
+        $archiveDirectory = $archiveRoot . '/' . trim($runPathSegment, '-');
+        if (file_exists($archiveDirectory)) {
+            throw new RuntimeException('Governed Run archive already exists: ' . $archiveDirectory);
+        }
+
+        $currentDirectory = dirname($run->path);
+        if (!rename($currentDirectory, $archiveDirectory)) {
+            throw new RuntimeException(sprintf(
+                'Unable to archive governed Run %s from %s to %s.',
+                $run->runId,
+                $currentDirectory,
+                $archiveDirectory,
+            ));
+        }
+
+        return $archiveDirectory;
+    }
+
+    private function restoreArchive(string $archiveDirectory, string $currentDirectory, RuntimeException $cause): void
+    {
+        if (is_dir($currentDirectory)) {
+            $entries = array_values(array_diff(scandir($currentDirectory) ?: [], ['.', '..']));
+            if ($entries !== [] || !rmdir($currentDirectory)) {
+                throw new RuntimeException(
+                    'Unable to restore superseded governed Run after replacement failure because the current Run directory is not empty: '
+                    . $currentDirectory,
+                    0,
+                    $cause,
+                );
+            }
+        }
+        if (!rename($archiveDirectory, $currentDirectory)) {
+            throw new RuntimeException(
+                'Unable to restore superseded governed Run after replacement failure: ' . $archiveDirectory,
+                0,
+                $cause,
+            );
+        }
+
+        $supersessionPath = $currentDirectory . '/supersession.json';
+        if (is_file($supersessionPath) && !unlink($supersessionPath)) {
+            throw new RuntimeException(
+                'Governed Run was restored after replacement failure, but supersession metadata could not be removed: '
+                . $supersessionPath,
+                0,
+                $cause,
+            );
+        }
+    }
+
+    private function writeSupersession(
+        string $path,
+        GovernedRun $existing,
+        GovernedRun $replacement,
+        TaskContract $contract,
+    ): void {
+        $document = [
+            'schema_version' => '1.0',
+            'kind' => 'governed_run_supersession',
+            'task_id' => $existing->taskId,
+            'superseded_run_id' => $existing->runId,
+            'replacement_run_id' => $replacement->runId,
+            'superseded_contract_revision' => $existing->contractRevision,
+            'replacement_contract_revision' => $replacement->contractRevision,
+            'approved_by' => $contract->approvedBy,
+            'approved_at' => $contract->approvedAt,
+            'recorded_at' => (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
+        ];
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, CanonicalJson::pretty($document)) === false || !rename($tmp, $path)) {
+            if (is_file($tmp) && !unlink($tmp)) {
+                throw new RuntimeException('Unable to remove temporary governed Run supersession artifact: ' . $tmp);
+            }
+            throw new RuntimeException('Unable to write governed Run supersession artifact: ' . $path);
+        }
+    }
+
     private function write(GovernedRun $run): void
     {
         $directory = dirname($run->path);
@@ -114,7 +277,9 @@ final class GovernedRunStore
         }
         $tmp = $run->path . '.tmp.' . bin2hex(random_bytes(6));
         if (file_put_contents($tmp, CanonicalJson::pretty($run->toArray())) === false || !rename($tmp, $run->path)) {
-            @unlink($tmp);
+            if (is_file($tmp) && !unlink($tmp)) {
+                throw new RuntimeException('Unable to remove temporary governed Run artifact: ' . $tmp);
+            }
             throw new RuntimeException('Unable to write governed Run artifact: ' . $run->path);
         }
     }
