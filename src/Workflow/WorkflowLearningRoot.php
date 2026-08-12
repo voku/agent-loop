@@ -31,7 +31,9 @@ final class WorkflowLearningRoot
      */
     public static function forRun(string $rootPath, GovernedRun $run): string
     {
-        return PathResolver::join($rootPath, $run->learningRoot);
+        return $run->learningRoot === null
+            ? (new ProjectLayout($rootPath))->learningRoot()
+            : PathResolver::join($rootPath, $run->learningRoot);
     }
 
     /**
@@ -51,7 +53,7 @@ final class WorkflowLearningRoot
             throw new RuntimeException(sprintf(
                 'Governed Run %s is bound to Learning root %s; --learning-root %s would gate against different durable evidence.',
                 $run->runId,
-                $run->learningRoot,
+                PathResolver::relativeTo($rootPath, $bound),
                 PathResolver::relativeTo($rootPath, $requested),
             ));
         }

@@ -58,7 +58,8 @@ final readonly class WorkflowApproveCommand
             $recallInput = $this->writeGovernedRecallInput($run, $contract);
             echo "[OK] workflow approve: governed Run {$run->runId} prepared for Contract revision {$contract->revision}\n";
             echo "[OK] workflow approve: working Session {$session->id} attached to governed Run {$run->runId}\n";
-            echo "[OK] workflow approve: governed Run bound to durable Learning root {$run->learningRoot}\n";
+            echo '[OK] workflow approve: governed Run bound to durable Learning root '
+                . PathResolver::relativeTo($this->rootPath, WorkflowLearningRoot::forRun($this->rootPath, $run)) . "\n";
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
             echo "[OK] workflow approve: approved-state Run projection refreshed at {$manifestPath}\n";

@@ -54,6 +54,14 @@ by `workflow approve` from its resolved `--learning-root`. `close`, `learn`,
 that disagrees with the Run is refused rather than silently reading a different
 repository.
 
+The value is a **project-relative path, or `null`** — never absolute. A
+checkout sits at a different absolute path on every machine, so an absolute
+path would make a completed Run unexplainable after a clone. `null` means the
+Learning repository lives outside the project and its location is owned by
+`paths.learning_root` in `.agent-loop/init.json`, re-resolved on every read.
+Consequently an out-of-project Learning root must be configured; passing one
+per command is refused, because nothing durable could record it portably.
+
 **Action:** Run artifacts written before this change are rejected by name. Re-run
 `agent-loop workflow approve <task-id> --by <actor> --learning-root <path>` to
 re-prepare the Run against the same approved Contract revision. The durable

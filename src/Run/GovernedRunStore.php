@@ -9,9 +9,9 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentSession\Session;
-use voku\AgentLoop\ProjectLayout;
 
 final class GovernedRunStore
 {
@@ -20,7 +20,8 @@ final class GovernedRunStore
     }
 
     /**
-     * @param string $learningRoot absolute path of the durable Learning repository this Run is governed against
+     * @param string $learningRoot absolute path of the durable Learning repository this Run is governed against.
+     *                             What gets persisted is a portable reference to it, never this absolute path.
      */
     public function prepare(TaskContract $contract, Session $session, string $learningRoot): GovernedRun
     {
@@ -30,10 +31,7 @@ final class GovernedRunStore
         if ($session->taskId !== $contract->taskId) {
             throw new RuntimeException('Session task does not match approved Contract task.');
         }
-        $learningRootReference = PathResolver::relativeTo($this->rootPath, rtrim($learningRoot, '/'));
-        if (trim($learningRootReference) === '') {
-            throw new RuntimeException('A governed Run requires a durable Learning root.');
-        }
+        $learningRootReference = $this->portableLearningRoot($learningRoot);
 
         $contractHash = hash_file('sha256', $contract->path);
         if ($contractHash === false) {
@@ -66,8 +64,8 @@ final class GovernedRunStore
                 throw new RuntimeException(sprintf(
                     'Existing governed Run %s is governed against Learning root %s, not %s.',
                     $existing->runId,
-                    $existing->learningRoot,
-                    $learningRootReference,
+                    $existing->learningRoot ?? 'the project-configured location',
+                    $learningRootReference ?? 'the project-configured location',
                 ));
             }
 
@@ -156,10 +154,56 @@ final class GovernedRunStore
             $revision,
             ['path' => $sourcePath, 'sha256' => $sourceHash],
             $this->requiredString($data, 'session_id', $path),
-            $this->requiredString($data, 'learning_root', $path),
+            $this->optionalLearningRoot($data, $path),
             $this->requiredString($data, 'prepared_at', $path),
             $path,
         );
+    }
+
+    /**
+     * A Learning repository inside the project is recorded project-relative, which survives a clone.
+     * One outside the project has no portable path, so the Run records that its location is
+     * configuration-owned and re-resolves it through ProjectLayout on every read.
+     */
+    private function portableLearningRoot(string $learningRoot): ?string
+    {
+        $normalized = rtrim(str_replace('\\', '/', $learningRoot), '/');
+        if ($normalized === '') {
+            throw new RuntimeException('A governed Run requires a durable Learning root.');
+        }
+
+        $reference = PathResolver::relativeTo($this->rootPath, $normalized);
+        if (!PathResolver::isAbsolute($reference)) {
+            return $reference;
+        }
+
+        $configured = (new ProjectLayout($this->rootPath))->learningRoot();
+        if (rtrim(str_replace('\\', '/', $configured), '/') !== $normalized) {
+            throw new RuntimeException(sprintf(
+                'Learning root %s is outside the project and is not the configured one, so no governed Run could '
+                . 'record it portably. Set paths.learning_root in .agent-loop/init.json instead of passing it per command.',
+                $normalized,
+            ));
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function optionalLearningRoot(array $data, string $path): ?string
+    {
+        if (!array_key_exists('learning_root', $data)) {
+            throw new RuntimeException($path . ' requires non-empty learning_root.');
+        }
+        $value = $data['learning_root'];
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value) || trim($value) === '' || PathResolver::isAbsolute($value)) {
+            throw new RuntimeException($path . ' learning_root must be a project-relative path or null.');
+        }
+
+        return trim($value);
     }
 
     /** @param array<string, mixed> $data */
