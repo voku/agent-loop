@@ -1,0 +1,10 @@
+{
+    "version": 1,
+    "kind": "tools",
+    "agent": "evidence",
+    "entries": [
+        "itp-context/composer.json",
+        "slop-scan/composer.json",
+        "slop-scan/slop-scan.php"
+    ]
+}

@@ -128,6 +128,55 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         }
     }
 
+    /**
+     * A tool project is resolved on one machine and installed on every other
+     * one. Without a pinned platform, Composer locks whatever the author's PHP
+     * allows: a lock generated on 8.4 pulled symfony/string 8.1, which requires
+     * PHP >= 8.4.1, and CI could no longer install the tool on 8.3 — the
+     * version this package itself supports.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function toolProjects(): iterable
+    {
+        $root = dirname(__DIR__);
+        foreach (glob($root . '/tools/*/composer.json') ?: [] as $manifest) {
+            yield basename(dirname($manifest)) => [$manifest];
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('toolProjects')]
+    public function testToolProjectsResolveAgainstTheLowestSupportedPhp(string $manifestPath): void
+    {
+        $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertIsArray($manifest);
+
+        $platform = $manifest['config']['platform']['php'] ?? null;
+        self::assertIsString(
+            $platform,
+            sprintf(
+                '%s does not pin config.platform.php, so its lock file depends on whichever PHP generated it.',
+                $manifestPath,
+            ),
+        );
+
+        $require = $this->composerManifest()['require'] ?? [];
+        self::assertIsArray($require);
+        $packagePhp = $require['php'] ?? '';
+        self::assertIsString($packagePhp);
+
+        $lowestSupported = ltrim($packagePhp, '^~>= ');
+        if ($lowestSupported === '') {
+            self::fail('this package declares no PHP constraint to pin against');
+        }
+
+        self::assertStringStartsWith(
+            $lowestSupported,
+            $platform,
+            sprintf('%s pins a different PHP than this package supports (%s).', $manifestPath, $packagePhp),
+        );
+    }
+
     public function testAcceptanceInstructionsRunSlopScanFromAnIsolatedToolProject(): void
     {
         $document = (string) file_get_contents(dirname(__DIR__) . '/' . self::ACCEPTANCE_DOCUMENT);

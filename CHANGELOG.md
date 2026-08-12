@@ -31,6 +31,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The isolated tool projects pin `config.platform.php` to this package's lowest
+  supported PHP. Their lock files had been resolved on 8.4 and pulled
+  `symfony/string` 8.1, which requires PHP >= 8.4.1, so CI on 8.3 could not
+  install the tooling at all. A test now fails when a tool project stops
+  pinning, or pins a PHP this package does not support.
 - `RuntimeException` raised for invalid dogfood JSON now carries the
   `JsonException` as `previous`, and three `@param mixed $value` annotations
   that only repeated the native signature are gone. Both were `slop-scan`

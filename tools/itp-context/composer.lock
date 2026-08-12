@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "05d9a5bfa14a29f5beab174a5feef209",
+    "content-hash": "85df8811557de7afe2aa5c20a4c1192d",
     "packages": [
         {
             "name": "voku/itp-context",
@@ -82,5 +82,8 @@
     "prefer-lowest": false,
     "platform": {},
     "platform-dev": {},
+    "platform-overrides": {
+        "php": "8.3.0"
+    },
     "plugin-api-version": "2.6.0"
 }

@@ -98,6 +98,13 @@ because their constraints do not conflict.
 Commit the lock files and ignore the vendor directories: the lock is the
 evidence of which tool version produced a finding.
 
+Pin `config.platform.php` in each tool project to the **lowest** PHP the
+repository under test supports. A lock is resolved on one machine and installed
+on every other one: without the pin, Composer locks whatever the author's PHP
+allows, and a lock generated on 8.4 here pulled `symfony/string` 8.1, which
+requires PHP >= 8.4.1. CI on 8.3 then could not install the tool at all — the
+tooling became unusable on the version the package itself supports.
+
 Both tools require PHP 8.3+. Isolation is what keeps that requirement off a
 library that still advertises PHP 7 support, and keeps agent tooling out of the
 dependency tree of the package's own consumers. Keep the tool projects out of
