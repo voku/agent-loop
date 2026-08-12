@@ -9,9 +9,12 @@ use PHPUnit\Framework\TestCase;
 /**
  * Real-issue acceptance invokes `voku/itp-context` and `voku/slop-scan` as
  * external agent-facing evidence tools. They are deliberately not dependencies
- * of this package: `agent-map` requires Simple-PHP-Code-Parser ^0.22 while
- * `slop-scan` requires ^0.21, and both tools require PHP 8.3+, which a library
- * under test must not be forced to adopt.
+ * of this package.
+ *
+ * A Simple-PHP-Code-Parser conflict used to make that decision for us;
+ * `slop-scan` 0.1.5 resolved it, so what remains is a judgment: both tools
+ * require PHP 8.3+, which a library under test must not be forced to adopt,
+ * and neither has earned a place inside a gate yet.
  *
  * Two failure modes are cheap to prevent and expensive to notice later: the
  * dependency arriving quietly, and agent-facing instructions naming a binary

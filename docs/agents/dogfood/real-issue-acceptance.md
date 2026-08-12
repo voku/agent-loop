@@ -43,15 +43,28 @@ context.
 Neither external tool is a dependency of `voku/agent-loop`, and a dogfood run
 must not make it one. They are invoked by the workflow, not welded into it.
 
-They also cannot share one Composer project today. The conflict is real:
+Until recently they could not even share a Composer project with `agent-map`:
 
 ```text
-agent-loop -> agent-map 0.7.0  -> voku/simple-php-code-parser ^0.22
-              slop-scan 0.1.4  -> voku/simple-php-code-parser ^0.21.0
+agent-map 0.7.0 -> voku/simple-php-code-parser ^0.22
+slop-scan 0.1.4 -> voku/simple-php-code-parser ^0.21.0
 ```
 
-Do not relax either constraint to make one tool project resolve. The correct
-shape is one isolated tool project per tool in the repository under test:
+**That conflict is resolved upstream.** `slop-scan` 0.1.5 moves to
+`^0.22.2`, and `agent-map 0.7.0` plus `slop-scan` now co-resolve on
+`simple-php-code-parser 0.22.2` — verified with a resolver dry run, not
+inferred from the constraint strings. Note what that does and does not change:
+a resolvable graph is a reason the isolation is no longer *forced*, not
+evidence that merging is *better*. The reasons that survive are the ones that
+were never about resolution:
+
+- do not raise the supported PHP version of the library under test — both tools
+  require PHP 8.3+, and a package like `simple-mysqli` still advertises PHP 7;
+- do not leak agent tooling into the dependency tree of the package's consumers;
+- pin each tool independently, so a run's evidence names one tool version.
+
+So the shape below stays, with one isolated tool project per tool in the
+repository under test:
 
 ```text
 tools/
@@ -88,14 +101,22 @@ Binaries therefore live in the tool project, not in the repository's own
 uses its own `vendor/bin/` instead. Ask `init tools` for the path that exists
 rather than assuming one.
 
-`voku/slop-scan` 0.1.4 has one wrinkle here: its bin resolves the autoloader as
+`voku/slop-scan` has one wrinkle here: its bin resolves the autoloader as
 `__DIR__ . '/../vendor/autoload.php'`, which exists only in a standalone
 checkout. Installed as a Composer dependency it exits with "Composer autoload
 file not found", ignoring the location Composer already published in
 `$GLOBALS['_composer_autoload_path']`. The upstream README documents the PHAR,
-which is why the Composer path went unnoticed. `tools/slop-scan/slop-scan.php`
-is a three-line runner around that, and should be deleted once the bin honors
-the global.
+which is why the Composer path went unnoticed — and the 0.1.5 parser bump makes
+that path more attractive, so the bug matters more now, not less. Still present
+on `main` as of this run. `tools/slop-scan/slop-scan.php` is a three-line runner
+around it, and should be deleted once the bin honors the global.
+
+`tools/slop-scan/composer.json` stays on `^0.1.4` because **0.1.5 is not
+installable**: the version exists in the upstream changelog and on `main`, but
+no `0.1.5` Git tag has been pushed, so Packagist still serves 0.1.4 and
+`composer require voku/slop-scan:^0.1.5` fails to resolve. Pin the tag when it
+lands; do not paper over a missing release with `dev-main`, per
+[Freeze](#freeze).
 
 ## Candidate pre-screen
 
@@ -251,13 +272,18 @@ step is review evidence, not a replacement for it.
 
 ### REVIEW: the slop-scan delta
 
-Scan the frozen base before mutation and the candidate afterwards, with the same
-configuration, and prefer a machine-readable format because the output is
-evidence rather than prose:
+The tool compares two checkouts itself. Use `delta`, not two `scan` runs and a
+hand-rolled diff — that mistake was made once already in this repository:
 
 ```bash
-tools/slop-scan/vendor/bin/slop-scan.php scan . --json --ignore 'vendor/**'
+tools/slop-scan/slop-scan.php delta <frozen-base-checkout> . \
+  --json --ignore 'vendor/**' --ignore 'tools/*/vendor/**'
 ```
+
+`delta` also accepts `--base-report`/`--head-report` when the scans already
+exist, and `--fail-on=<statuses>` when a project has decided to gate on the
+comparison. That flag is the mechanism for the project-policy exception below;
+it is not a default.
 
 Report the comparison, not a single number:
 
@@ -267,12 +293,16 @@ Report the comparison, not a single number:
 - changed fingerprints;
 - findings inside the changed production region.
 
-Separating changed fingerprints from new findings is not bookkeeping. An
-occurrence fingerprint in 0.1.4 covers the line number, so inserting lines
-above an untouched block retires its fingerprint and mints a new one. A raw
-new-versus-resolved count therefore over-reports on any diff that grows a file.
-Match new against resolved by rule, path and the source line's content before
-concluding anything: an identical line that moved is not a finding.
+Separating changed fingerprints from new findings is not bookkeeping, and
+`delta` will not do it for you. An occurrence fingerprint covers the line
+number, so inserting lines above an untouched block retires its fingerprint and
+mints a new one. `delta` reports those as `added` and `resolved` — verified
+against both 0.1.4 and 0.1.5, which return identical counts for this
+repository's diff. A raw `added` count therefore over-reports on any diff that
+grows a file. Match `added` against `resolved` by rule, path and the source
+line's content before concluding anything: an identical line that moved is not
+a finding. This is also why `--fail-on=added` is an opt-in project decision
+rather than a sensible default.
 
 Two rules govern what that comparison may do:
 
@@ -345,8 +375,15 @@ them" are different questions, and they have different answers.
 |---|---|---|
 | Discovery — report whether the tool is installed, and where | **yes** | `init tools`, beside `rg`, `git` and `docker`, which this package also does not install |
 | Guidance — tell an agent when the plane is worth using | **yes** | `agent-loop-l2-context`, `agent-loop-code-review`, `agent-loop-dogfood` |
-| Composer dependency | **no** | blocked by the parser conflict above, and by the PHP 8.3+ floor |
+| Composer dependency | **no** | see below |
 | Product integration — a Recall context provider, a review-observation provider | **not yet** | needs repeated runs proving a stable seam |
+
+The dependency answer used to be arithmetic: the parser constraints could not
+co-resolve. `slop-scan` 0.1.5 removes that, so the answer is now a judgment
+rather than a fact, and it still holds — a `require-dev` entry would put an
+external tool one `composer.json` edit away from a gate, on the strength of a
+single run. Revisit it when repeated runs have earned the last row, not because
+the blocker that used to make the decision for us disappeared.
 
 Discovery and guidance cost nothing when the tool is absent: the probe reports
 it, the skills say so, and the run records one plane it did not have. That is
@@ -397,10 +434,21 @@ tool encodes, and a violation of it shipped anyway, so the value is real; it is
 simply not collectable here at an acceptable price.
 
 **The run also produced two tool findings**, both recorded above rather than
-worked around silently: the Composer-install autoload bug in `slop-scan` 0.1.4,
-and the line-sensitivity of its occurrence fingerprints. Neither was visible
-from reading the packages. Both appeared within minutes of actually running
-them, which is the argument for the ledger.
+worked around silently: the Composer-install autoload bug in `slop-scan`, and
+the line-sensitivity of its occurrence fingerprints. Neither was visible from
+reading the packages. Both appeared within minutes of actually running them,
+which is the argument for the ledger.
+
+**And one finding about the agent.** The comparison above was hand-rolled from
+two `scan` runs, and `slop-scan` has shipped a `delta` command since 0.1.4.
+Reading a tool's README is not the same as reading its command list. The
+protocol now names `delta` directly.
+
+**Re-checked against `slop-scan` 0.1.5.** Same conclusion: 371 findings on the
+base and 373 on the candidate under the newer rule set, and `delta` returns the
+same 10 added / 8 resolved, so the two weak magic-numbers remain the whole
+delta. The re-check is in this record because "the tool was updated" is a
+reason to re-run the comparison, not a reason to assume the result moved.
 
 **And one harness finding.** The first comparison scanned the base with
 `--ignore 'tools/**'` and the candidate without it, which manufactured 22 new

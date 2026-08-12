@@ -21,10 +21,11 @@ All notable changes to this project will be documented in this file.
   the planes when the inventory reports them.
 - `RealIssueEvidenceToolBoundaryTest` keeps the installation boundary
   executable: `voku/itp-context` and `voku/slop-scan` are invoked from isolated
-  tool projects, not declared as dependencies of this package. `agent-map`
-  requires Simple-PHP-Code-Parser ^0.22 and `slop-scan` requires ^0.21, so a
-  single tool project cannot resolve both, and neither constraint is relaxed to
-  hide that.
+  tool projects, not declared as dependencies of this package. The
+  Simple-PHP-Code-Parser conflict that used to force this (`^0.22` against
+  `^0.21`) is resolved by `slop-scan` 0.1.5; the boundary now rests on the PHP
+  8.3+ floor, on keeping agent tooling out of consumers' dependency trees, and
+  on neither tool having earned a place inside a gate yet.
 
 - Isolated tool projects `tools/itp-context/` and `tools/slop-scan/`, pinned by
   their committed lock files, so the documented installation boundary is

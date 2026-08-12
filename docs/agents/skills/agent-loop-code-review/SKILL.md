@@ -19,12 +19,15 @@ Own the review workflow, not the engineering handbook.
 ## Optional Deterministic Observation
 
 When `init tools` reports `slop-scan` as available, it can supply heuristic
-findings alongside the lens. Scan the base and the candidate with the same
-configuration and report the **delta**, in a machine-readable format:
+findings alongside the lens. Ask it for the delta between the base and the
+candidate — do not hand-roll one from two `scan` runs:
 
 ```bash
-<reported-path> scan . --json --ignore 'vendor/**'
+<reported-path> delta <base-checkout> . --json --ignore 'vendor/**'
 ```
+
+Its `added` count includes findings whose only change is a line number, so
+match `added` against `resolved` by rule, path and line content first.
 
 - existing repository slop is not a finding against this diff; the change owns
   new findings, resolved findings and changed fingerprints;
