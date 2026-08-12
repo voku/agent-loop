@@ -16,44 +16,11 @@ jobs:
         php: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@v6
-      - name: Checkout candidate agent-session
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-session
-          ref: reset/pruneable-working-memory
-          path: build/candidate-agent-session
-          persist-credentials: false
-      - name: Checkout candidate agent-recall-compiler
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-recall-compiler
-          ref: reset/governed-contract-run-binding
-          path: build/candidate-agent-recall-compiler
-          persist-credentials: false
-      - name: Checkout candidate agent-learning
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-learning
-          ref: reset/durable-run-learning
-          path: build/candidate-agent-learning
-          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
-      - name: Configure coordinated candidate dependencies
-        run: |
-          php -r '
-          $path = "composer.json";
-          $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-          $data["repositories"] = [
-              ["type" => "path", "url" => "build/candidate-agent-session", "options" => ["symlink" => false, "versions" => ["voku/agent-session" => "0.5.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-recall-compiler", "options" => ["symlink" => false, "versions" => ["voku/agent-recall-compiler" => "0.11.999"]]],
-              ["type" => "path", "url" => "build/candidate-agent-learning", "options" => ["symlink" => false, "versions" => ["voku/agent-learning" => "0.10.999"]]],
-          ];
-          file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
-          '
       - run: composer install --no-interaction --prefer-dist
       - name: Composer metadata
         run: composer validate --strict
