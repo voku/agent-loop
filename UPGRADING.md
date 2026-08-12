@@ -1,5 +1,35 @@
 # Upgrading agent-loop
 
+## A governed Run records the Learning root it is governed against
+
+`.agent-loop/runs/<task>/run.json` now carries a required `learning_root`
+field. It is written by `workflow approve`, from that command's resolved
+`--learning-root`, and it is the only place `workflow close`, `workflow learn`,
+`workflow report` and the Run projection look for that Run's durable Learning
+close-out.
+
+Before this change the close gate read the caller-supplied `--learning-root`
+while the durable Run projection re-derived the location from the layout
+default. A project whose Learning repository is not at `.agent-loop/learning`
+could therefore close successfully and still produce a manifest saying
+`learning: missing` with `state: incomplete` — the durable evidence contradicted
+the gate that produced it, and the contradiction survived Session pruning.
+
+`--learning-root` is still accepted on `close`, `learn` and `report`, but a
+value that disagrees with the Run's binding is now refused instead of silently
+reading a different repository. `workflow plan` still accepts the option and
+ignores it: PLAN owns no Learning state.
+
+### Migration
+
+Run artifacts written before this change have no `learning_root` and are
+rejected with a message naming the file and the missing field. There is no
+compatibility fallback on purpose: guessing the location is exactly the
+behavior being removed. Re-run `agent-loop workflow approve <task-id> --by
+<actor> --learning-root <path>` to re-prepare the Run for the same approved
+Contract revision; the durable Contract, verification receipt and Learning
+decision are untouched.
+
 ## Repository-local state moves to `.agent-loop/`
 
 This is an intentional breaking change across the coordinated `agent-*` stack.

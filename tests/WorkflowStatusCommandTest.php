@@ -67,7 +67,7 @@ final class WorkflowStatusCommandTest extends TestCase
 
         $contract = $contracts->approve('ABC-123', 'lars');
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
-        $run = (new GovernedRunStore($this->root))->prepare($contract, $session);
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
         $approved = $this->statusText('ABC-123');
         self::assertStringContainsString('Contract:', $approved);
         self::assertStringContainsString('revision 1', $approved);
@@ -158,7 +158,13 @@ final class WorkflowStatusCommandTest extends TestCase
         );
     }
 
-    /** @param list<string> $options @return array{0: int, 1: string} */
+    /**
+
+     * @param list<string> $options
+
+     * @return array{0: int, 1: string}
+
+     */
     private function statusOf(string $taskId, array $options = []): array
     {
         ob_start();

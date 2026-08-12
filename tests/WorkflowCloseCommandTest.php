@@ -112,6 +112,7 @@ final class WorkflowCloseCommandTest extends TestCase
             $current->validation,
             'lars',
         );
+        $contracts->approve('ABC-123', 'lars');
 
         $result = $this->runClose();
 
@@ -212,7 +213,13 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertStringContainsString('Use agent-loop session close directly', $result['output']);
     }
 
-    /** @param list<string> $args @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $args
+
+     * @return array{exit: int, output: string}
+
+     */
     private function runClose(array $args = [
         'ABC-123', '--status', 'done', '--learning-root', '__DEFAULT__',
     ]): array {
@@ -242,7 +249,7 @@ final class WorkflowCloseCommandTest extends TestCase
 
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $this->sessionId = $session->id;
-        $run = (new GovernedRunStore($this->root))->prepare($contract, $session);
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/learning-root');
         $this->runId = $run->runId;
 
         (new ValidationEvidenceStore())->record(

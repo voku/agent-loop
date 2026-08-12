@@ -24,7 +24,7 @@ final readonly class WorkflowLearningCommand
             $options = $this->parse(array_slice($args, 1));
             $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
                 ?? throw new InvalidArgumentException('No governed Run exists for task ' . $taskId->value . '.');
-            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
+            $learningRoot = WorkflowLearningRoot::assertRunBinding($this->rootPath, $run, $options['learningRoot']);
             $decision = (new RunLearningDecisionStore($learningRoot))->record(
                 $run->runId,
                 $options['status'],

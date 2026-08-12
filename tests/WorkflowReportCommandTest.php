@@ -126,7 +126,13 @@ final class WorkflowReportCommandTest extends TestCase
         self::assertSame($before, $this->files());
     }
 
-    /** @param list<string> $args @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $args
+
+     * @return array{exit: int, output: string}
+
+     */
     private function runReport(array $args): array
     {
         ob_start();

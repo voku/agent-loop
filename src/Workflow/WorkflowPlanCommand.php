@@ -141,8 +141,8 @@ final readonly class WorkflowPlanCommand
                     break;
                 case '--learning-root':
                 case '--root':
-                    // Kept as accepted PLAN syntax while Recall still receives its root at APPROVE.
-                    WorkflowLearningRoot::resolve($this->rootPath, $value);
+                    // Accepted but unused: PLAN owns no Learning state. The governed
+                    // Run binds its durable Learning root at APPROVE instead.
                     break;
                 case '--file':
                     $files[] = $value;

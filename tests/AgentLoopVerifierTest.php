@@ -121,7 +121,7 @@ final class AgentLoopVerifierTest extends TestCase
         $contracts = new TaskContractStore($this->root);
         $contract = $contracts->create('TASK-1', 'Keep the scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
         $approved = $contracts->approve('TASK-1', 'lars');
-        (new GovernedRunStore($this->root))->prepare($approved, $session);
+        (new GovernedRunStore($this->root))->prepare($approved, $session, $this->root . '/learning-root');
 
         mkdir($this->root . '/.agent-loop/recall/TASK-1', 0o775, true);
         file_put_contents($this->root . '/.agent-loop/recall/TASK-1/meta.json', json_encode(['output_hashes' => []], JSON_THROW_ON_ERROR));
@@ -165,7 +165,13 @@ final class AgentLoopVerifierTest extends TestCase
         mkdir($this->root . '/.agent-loop/sessions/' . $id . '/checkpoints', 0o775, true);
     }
 
-    /** @param list<string> $tokens @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $tokens
+
+     * @return array{exit: int, output: string}
+
+     */
     private function verify(array $tokens): array
     {
         ob_start();

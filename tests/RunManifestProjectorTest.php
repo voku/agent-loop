@@ -116,7 +116,7 @@ final class RunManifestProjectorTest extends TestCase
 
         $sessions = new SessionStore();
         $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
-        $run = (new GovernedRunStore($this->root))->prepare($contract, $session);
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
 
         mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(

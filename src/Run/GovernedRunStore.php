@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentSession\Session;
 
@@ -17,13 +18,20 @@ final class GovernedRunStore
     {
     }
 
-    public function prepare(TaskContract $contract, Session $session): GovernedRun
+    /**
+     * @param string $learningRoot absolute path of the durable Learning repository this Run is governed against
+     */
+    public function prepare(TaskContract $contract, Session $session, string $learningRoot): GovernedRun
     {
         if ($contract->status !== TaskContract::APPROVED) {
             throw new RuntimeException('A governed Run requires an approved Contract.');
         }
         if ($session->taskId !== $contract->taskId) {
             throw new RuntimeException('Session task does not match approved Contract task.');
+        }
+        $learningRootReference = PathResolver::relativeTo($this->rootPath, rtrim($learningRoot, '/'));
+        if (trim($learningRootReference) === '') {
+            throw new RuntimeException('A governed Run requires a durable Learning root.');
         }
 
         $contractHash = hash_file('sha256', $contract->path);
@@ -53,6 +61,14 @@ final class GovernedRunStore
                     $session->id,
                 ));
             }
+            if ($existing->learningRoot !== $learningRootReference) {
+                throw new RuntimeException(sprintf(
+                    'Existing governed Run %s is governed against Learning root %s, not %s.',
+                    $existing->runId,
+                    $existing->learningRoot,
+                    $learningRootReference,
+                ));
+            }
 
             return $existing;
         }
@@ -63,6 +79,7 @@ final class GovernedRunStore
             $contract->revision,
             $contractSource,
             $session->id,
+            $learningRootReference,
             (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
             $this->path($contract->taskId),
         );
@@ -138,6 +155,7 @@ final class GovernedRunStore
             $revision,
             ['path' => $sourcePath, 'sha256' => $sourceHash],
             $this->requiredString($data, 'session_id', $path),
+            $this->requiredString($data, 'learning_root', $path),
             $this->requiredString($data, 'prepared_at', $path),
             $path,
         );

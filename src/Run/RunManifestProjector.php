@@ -94,7 +94,7 @@ final readonly class RunManifestProjector
         $mode = $ephemeral ? 'ephemeral' : ($run !== null ? 'governed' : ($contract !== null ? 'planned' : 'legacy_inferred'));
         $runId = $ephemeral
             ? 'session:' . $session->id
-            : ($run?->runId ?? ($contract !== null ? 'task:' . $taskId . ':planned' : 'task:' . $taskId . ':legacy'));
+            : ($run !== null ? $run->runId : ($contract !== null ? 'task:' . $taskId . ':planned' : 'task:' . $taskId . ':legacy'));
         $state = $this->overallState($session, $contract, $run, $references, $disagreements);
         $nextAction = $this->nextAction($taskId, $session, $contract, $run, $references, $disagreements);
 
@@ -434,7 +434,7 @@ final readonly class RunManifestProjector
             return ['owner' => 'agent-learning', 'state' => 'unavailable', 'observation_mode' => 'checked'];
         }
         try {
-            $root = WorkflowLearningRoot::resolve($this->rootPath, null);
+            $root = WorkflowLearningRoot::forRun($this->rootPath, $run);
             $decision = (new RunLearningDecisionStore($root))->find($run->runId);
         } catch (Throwable $exception) {
             $disagreements[] = [

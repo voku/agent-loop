@@ -46,7 +46,17 @@ final readonly class WorkflowCloseCommand
             }
             $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
                 ?? throw new RuntimeException('Successful close requires a governed Run.');
-            $this->assertRunContractBinding($run, $contract);
+
+            // Checked before the bypassable gates: accepted risk may waive missing
+            // evidence, but it may never close a Run against a Contract revision
+            // the Run was not approved for.
+            $binding = $this->runContractBindingFailure($run, $contract);
+            if ($binding !== null) {
+                echo "[FAIL] workflow close: {$binding}\n";
+                echo "[FAIL] workflow close: accepted risk cannot waive Contract binding; session was not closed.\n";
+
+                return 1;
+            }
 
             $executionContract = (new ExecutionContractStore($this->rootPath))->inspect($taskId->value);
             $executionContractState = is_string($executionContract['state'] ?? null) ? $executionContract['state'] : 'invalid';
@@ -73,12 +83,14 @@ final readonly class WorkflowCloseCommand
                 throw new RuntimeException('Governed Run Session is missing before final verification evidence was persisted.');
             }
 
-            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
+            $learningRoot = WorkflowLearningRoot::assertRunBinding($this->rootPath, $run, $options['learningRoot']);
             $validation = $this->validationSnapshot($contract, $session);
             $failures = $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']);
-            $failed = $failures !== [];
-            if ($failed && $options['acceptRisk'] === null) {
-                echo "[FAIL] workflow close: gates failed; Session was not closed.\n";
+            foreach ($failures as $failure) {
+                echo "[FAIL] {$failure['gate']}: {$failure['detail']}\n";
+            }
+            if ($failures !== [] && $options['acceptRisk'] === null) {
+                echo "[FAIL] workflow close: gates failed; session was not closed.\n";
 
                 return 1;
             }
@@ -127,7 +139,7 @@ final readonly class WorkflowCloseCommand
     }
 
     /**
-     * @param array{detail: string|null, obligations: list<array{command: string, status: string, exit_code: int|null, executed_at: string|null, recorded_by: string|null, duration_ms: int|null}>} $validation
+     * @param string|null $validationDetail why Contract validation is unsatisfied, or null when every obligation passed
      * @return list<array{gate: string, detail: string}>
      */
     private function runGates(
@@ -141,7 +153,6 @@ final readonly class WorkflowCloseCommand
         foreach ([
             'recall' => $this->checkRecallGate($contract->taskId),
             'review' => $this->checkReviewGate($contract->taskId),
-            'task_contract' => $this->checkTaskContractGate($contract, $run),
             'validation' => $validationDetail,
             'recall_outcomes' => $this->checkRecallOutcomeGate($contract->taskId, $learningRoot),
             'learning_decision' => $this->checkLearningDecisionGate($run, $learningRoot),
@@ -171,8 +182,6 @@ final readonly class WorkflowCloseCommand
             ));
             $latest = $matching === [] ? null : $matching[count($matching) - 1];
             if ($latest?->status !== ValidationStatus::PASSED) {
-                $status = $latest === null ? 'missing' : $latest->status->value;
-                echo "[FAIL] validation: {$status} evidence for {$command} (Contract revision {$contract->revision})\n";
                 $missing[] = $command . ' (' . ($latest === null ? 'no evidence' : $latest->status->value) . ')';
             } else {
                 echo "[OK] validation: {$command} (exit {$latest->exitCode}, Contract revision {$contract->revision})\n";
@@ -193,20 +202,6 @@ final readonly class WorkflowCloseCommand
         ];
     }
 
-    private function checkTaskContractGate(TaskContract $contract, GovernedRun $run): ?string
-    {
-        try {
-            $this->assertRunContractBinding($run, $contract);
-        } catch (RuntimeException $exception) {
-            echo '[FAIL] task contract: ' . $exception->getMessage() . "\n";
-
-            return $exception->getMessage();
-        }
-        echo "[OK] task contract: approved revision {$contract->revision} bound to {$run->runId}\n";
-
-        return null;
-    }
-
     private function checkRecallGate(string $taskId): ?string
     {
         $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
@@ -217,8 +212,6 @@ final readonly class WorkflowCloseCommand
             return null;
         }
 
-        echo "[FAIL] recall: missing {$relative}\n";
-
         return 'missing ' . $relative;
     }
 
@@ -228,18 +221,12 @@ final readonly class WorkflowCloseCommand
         $relative = $reader->relativePath($taskId);
         $report = $reader->read($taskId);
         if (!$report['exists']) {
-            echo "[FAIL] review: missing {$relative}\n";
-
             return 'missing blind-spot report ' . $relative;
         }
         if ($report['invalid']) {
-            echo "[FAIL] review: blindspot report JSON is invalid or missing status\n";
-
             return 'invalid blind-spot report ' . $relative;
         }
         if ($report['status'] === 'fail') {
-            echo "[FAIL] review: blindspot report status is fail\n";
-
             return 'blind-spot report status is fail';
         }
         echo "[OK] review: found {$relative} with status {$report['status']}\n";
@@ -251,9 +238,7 @@ final readonly class WorkflowCloseCommand
     {
         $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
         if ($decision === null) {
-            echo "[FAIL] learning decision: no durable Run learning conclusion exists\n";
-
-            return 'missing durable Run learning decision';
+            return 'missing durable Run learning conclusion';
         }
         echo "[OK] learning decision: {$decision->decision->value} by {$decision->decidedBy}\n";
 
@@ -384,15 +369,17 @@ final readonly class WorkflowCloseCommand
         return $session;
     }
 
-    private function assertRunContractBinding(GovernedRun $run, TaskContract $contract): void
+    private function runContractBindingFailure(GovernedRun $run, TaskContract $contract): ?string
     {
         if ($run->taskId !== $contract->taskId || $run->contractRevision !== $contract->revision) {
-            throw new RuntimeException('Governed Run is not bound to the current Task Contract revision.');
+            return 'Governed Run is not bound to the current Task Contract revision.';
         }
         $hash = hash_file('sha256', $contract->path);
         if ($hash === false || !hash_equals($run->contractSource['sha256'], 'sha256:' . $hash)) {
-            throw new RuntimeException('Governed Run Contract digest is stale.');
+            return 'Governed Run Contract digest is stale.';
         }
+
+        return null;
     }
 
     /**

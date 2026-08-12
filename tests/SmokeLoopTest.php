@@ -137,7 +137,13 @@ final class SmokeLoopTest extends TestCase
         self::assertFileExists($this->root . '/.agent-loop/runs/task.001/verification.json');
     }
 
-    /** @param list<string> $argv @return array{exit: int, output: string} */
+    /**
+
+     * @param list<string> $argv
+
+     * @return array{exit: int, output: string}
+
+     */
     private function dispatch(array $argv): array
     {
         $dispatcher = new Dispatcher($this->root);

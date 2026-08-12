@@ -10,6 +10,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLearning\LearningRepositoryValidator;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
@@ -137,7 +138,7 @@ final readonly class WorkflowReportCommand
     /** @return list<Session> */
     private function sessionsFor(string $taskId): array
     {
-        $root = rtrim($this->rootPath, '/') . '/session_plan';
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
         if (!is_dir($root)) {
             return [];
         }
@@ -275,21 +276,21 @@ final readonly class WorkflowReportCommand
             $receiptObligation = null;
             if ($receipt !== null && $receipt->contractRevision === $contract->revision) {
                 foreach ($receipt->obligations as $obligation) {
-                    if (($obligation['command'] ?? null) === $command) {
+                    if ($obligation['command'] === $command) {
                         $receiptObligation = $obligation;
                         break;
                     }
                 }
             }
-            if (is_array($receiptObligation)) {
-                $status = ($receiptObligation['status'] ?? null) === 'passed' ? 'passed' : 'failed';
+            if ($receiptObligation !== null) {
+                $status = $receiptObligation['status'] === 'passed' ? 'passed' : 'failed';
                 $result[] = [
                     'command' => $command,
                     'contract_revision' => $contract->revision,
                     'status' => $status,
-                    'exit_code' => is_int($receiptObligation['exit_code'] ?? null) ? $receiptObligation['exit_code'] : null,
-                    'duration_ms' => is_int($receiptObligation['duration_ms'] ?? null) ? $receiptObligation['duration_ms'] : null,
-                    'executed_at' => is_string($receiptObligation['executed_at'] ?? null) ? $receiptObligation['executed_at'] : null,
+                    'exit_code' => $receiptObligation['exit_code'],
+                    'duration_ms' => $receiptObligation['duration_ms'],
+                    'executed_at' => $receiptObligation['executed_at'],
                     'source' => 'verification_receipt',
                 ];
                 continue;
@@ -357,7 +358,7 @@ final readonly class WorkflowReportCommand
             'meta_path' => $relative,
             'task_files' => $taskFiles,
             'outcome_draft' => is_file(dirname($path) . '/recall-log.draft.json'),
-            'logged_outcomes' => $this->loggedOutcomeCount($taskId, $this->resolveLearningRoot($learningRoot)),
+            'logged_outcomes' => $this->loggedOutcomeCount($taskId, $this->resolveLearningRoot($taskId, $learningRoot)),
         ];
     }
 
@@ -372,7 +373,7 @@ final readonly class WorkflowReportCommand
     /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int, decision: string|null, run_id: string|null} */
     private function learningReport(string $taskId, ?string $learningRoot): array
     {
-        $root = $this->resolveLearningRoot($learningRoot);
+        $root = $this->resolveLearningRoot($taskId, $learningRoot);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $decision = $root === null || $run === null ? null : (new RunLearningDecisionStore($root))->find($run->runId);
         if ($root === null) {
@@ -430,20 +431,21 @@ final readonly class WorkflowReportCommand
         return ['recorded' => is_file(rtrim($this->rootPath, '/') . '/' . $relative), 'path' => $relative];
     }
 
-    private function resolveLearningRoot(?string $explicit): ?string
+    /**
+     * The report never invents a Learning location, and never attributes another
+     * repository's decision to this Run: a governed Run reads from the root it is
+     * bound to, and an explicit override that disagrees is refused rather than
+     * silently substituted. A root that does not exist stays null so the report
+     * says "unavailable" instead of "invalid".
+     */
+    private function resolveLearningRoot(string $taskId, ?string $explicit): ?string
     {
-        if ($explicit !== null) {
-            return is_dir($explicit) ? rtrim($explicit, '/') : null;
-        }
+        $run = (new GovernedRunStore($this->rootPath))->find($taskId);
+        $candidate = $run === null
+            ? WorkflowLearningRoot::resolve($this->rootPath, $explicit)
+            : WorkflowLearningRoot::assertRunBinding($this->rootPath, $run, $explicit);
 
-        foreach (['infra/doc/agent-learning', 'learning-root'] as $relative) {
-            $candidate = rtrim($this->rootPath, '/') . '/' . $relative;
-            if (is_dir($candidate)) {
-                return $candidate;
-            }
-        }
-
-        return null;
+        return is_dir($candidate) ? rtrim($candidate, '/') : null;
     }
 
     private function loggedOutcomeCount(string $taskId, ?string $learningRoot): int

@@ -58,7 +58,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             },
         );
         ob_start();
-        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars', '--learning-root', $this->root . '/learning-root']));
         ob_end_clean();
 
         $sessions = new SessionStore();
