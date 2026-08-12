@@ -1,0 +1,325 @@
+# Real-issue acceptance
+
+Proving that a capability exists is not proving that it helped somebody fix a
+real problem. Self-shape and release-set dogfood keep lifecycle, packaging and
+deterministic invariants honest, but a synthetic task tends to confirm exactly
+the behavior it was written beside.
+
+Real-issue acceptance answers the harsher question:
+
+> Given a real issue *before the fix is known*, did the installed workflow find
+> the useful project context, construct a project-specific execution contract,
+> expose missing evidence, and reach a verified fix without inventing work?
+
+This document defines the acceptance model. It does not define a second
+lifecycle: every artifact below is written by the governed workflow that
+already exists in `docs/agents/skills/agent-loop-workflow/SKILL.md`.
+
+## Three evidence planes
+
+A run has three different kinds of evidence, and they must stay distinguishable.
+
+| Plane | Question it answers | Tool | Installed as |
+|---|---|---|---|
+| Structure | what code exists, where it is, what calls it | `voku/agent-map` | runtime dependency of `agent-loop` |
+| Intent | why the selected code is constrained: architecture rules, owners, refs, proof metadata | `voku/itp-context` | external tool |
+| Candidate quality | whether the candidate introduced explainable low-quality patterns | `voku/slop-scan` | external tool |
+
+The planes complement each other and none of them substitutes for another:
+
+- `agent-map` reports structural facts. A structural fact is not an intent.
+- `itp-context` reports declared architecture intent. **A rule is guidance
+  evidence, not proof that current source complies with it.**
+- `slop-scan` is a deterministic heuristic scanner over the candidate. It is
+  deliberately downstream of implementation, and **a heuristic finding is not
+  automatically a correctness failure.**
+
+`itp-context` is designed for a small number of high-signal annotations. Coating
+a repository in attributes to raise a coverage number produces noise, not
+context.
+
+## Installation boundary
+
+Neither external tool is a dependency of `voku/agent-loop`, and a dogfood run
+must not make it one. They are invoked by the workflow, not welded into it.
+
+They also cannot share one Composer project today. The conflict is real:
+
+```text
+agent-loop -> agent-map 0.7.0  -> voku/simple-php-code-parser ^0.22
+              slop-scan 0.1.4  -> voku/simple-php-code-parser ^0.21.0
+```
+
+Do not relax either constraint to make one tool project resolve. The correct
+shape is two isolated tool projects in the repository under test:
+
+```text
+tools/
+├── agent-loop/
+│   └── composer.json     # voku/agent-loop + voku/itp-context
+└── slop-scan/
+    └── composer.json     # voku/slop-scan alone, or a pinned slop-scan PHAR
+```
+
+Both tools require PHP 8.3+. Isolation is what keeps that requirement off a
+library that still advertises PHP 7 support, and keeps agent tooling out of the
+dependency tree of the package's own consumers. Keep the tool projects out of
+release archives:
+
+```gitattributes
+/tools/agent-loop export-ignore
+/tools/slop-scan export-ignore
+```
+
+See `docs/compact-layout.md` for the same boundary applied to workflow state.
+
+Binaries therefore live in the tool project, not in the repository's own
+`vendor/`:
+
+```text
+tools/agent-loop/vendor/bin/agent-loop
+tools/agent-loop/vendor/bin/itp-context-validate
+tools/slop-scan/vendor/bin/slop-scan.php
+```
+
+A repository that already depends on one of these packages directly uses its own
+`vendor/bin/` instead. Resolve the path from the installation that exists; do
+not assume one.
+
+## Candidate pre-screen
+
+Before installing anything, record the answer to each hard condition:
+
+```text
+REAL_ISSUE
+NO_EXISTING_IMPLEMENTATION
+CURRENTLY_REPRODUCIBLE
+ACTIONABLE_DELTA_REMAINS
+```
+
+When the run replays a historical issue to evaluate discovery, also record:
+
+```text
+FIX_NOT_ALREADY_FULLY_DISCLOSED
+```
+
+Any hard condition that fails stops the run there. A stopped pre-screen is a
+valid result and costs nothing; a run that continues past a failed condition
+produces evidence about a problem that was not the stated problem.
+
+## Freeze
+
+Persist before any production mutation:
+
+- issue URL/number and the issue body or a faithful digest;
+- base commit SHA;
+- dependency and tool versions, including the two external tools;
+- runtime versions;
+- the project gates that are expected to pass;
+- the baseline reproduction.
+
+For an acceptance replay, check out the exact Git commit and inject that
+checkout as a Composer `path` repository, then archive the generated
+`composer.lock`. `dev-branch#SHA` is not immutable evidence: Composer resolves
+metadata against moving branch state even when the source SHA is pinned.
+
+## Tool capability discovery
+
+Discover each plane independently and record the observed state. One tool being
+absent does not degrade another.
+
+| Tool | States |
+|---|---|
+| `agent-map` | `AVAILABLE` / `DEGRADED` / `UNAVAILABLE` |
+| `itp-context` | `CONFIGURED` / `NOT_CONFIGURED` / `INVALID` |
+| `slop-scan` | `AVAILABLE` / `DEGRADED` / `UNAVAILABLE` |
+
+`NOT_CONFIGURED` is a legitimate result. A repository that has never declared
+architecture rules has no `itp-context` evidence, and the run records exactly
+that. Do not add annotations to a consumer repository so the report can claim
+the tool was used. That measures the annotation, not the tool.
+
+## Where the planes attach
+
+The run uses the existing governed phases. Nothing below adds a state.
+
+```text
+PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+                      |          |            |           |          |         |
+                 agent-map   provenance   regression   project   slop-scan   tool
+                itp-context   retained      first       gates      delta    ledger
+```
+
+### CONTEXT: structure before intent
+
+Run `agent-map` from the problem statement only. Feeding it any knowledge of the
+eventual fix invalidates the discovery result for this run.
+
+Record:
+
+- symbols found;
+- candidate files and their source fingerprints;
+- relevant tests;
+- irrelevant hits;
+- missing context.
+
+Then use `itp-context` when the repository already has it configured:
+
+```bash
+tools/agent-loop/vendor/bin/itp-context-validate 'Project\Context\ArchitectureRules'
+tools/agent-loop/vendor/bin/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
+tools/agent-loop/vendor/bin/itp-context-query var/itp-context --text='<issue concepts>'
+```
+
+The package ships `itp-context-summarize`, `itp-context-validate`,
+`itp-context-generate`, `itp-context-export` and `itp-context-query`. Export
+writes one markdown file per annotated symbol with `rule_ids`, `owners`, `refs`
+and `verified_by` frontmatter; query selects by rule id, owner, text and the
+other exported fields.
+
+Record separately from the structural evidence:
+
+- selected rule IDs;
+- annotated symbols, owners, refs, `verified_by`;
+- rules that were useful;
+- rules that were irrelevant;
+- architecture context that was missing.
+
+### CONTRACT: keep provenance
+
+Recall builds the execution contract from the issue, the structural evidence,
+the architecture evidence when present, and project-native docs/config. Do not
+flatten those into one undifferentiated context blob. The persisted L1 keeps the
+existing five-part shape, and its `Context` section keeps the two sources apart:
+
+```markdown
+## Goal
+## Context
+  - repository facts
+  - architecture constraints
+## Constraints
+## Verification
+## Done When
+```
+
+Package presence still does not invent a command, and a `verified_by` reference
+is a claim to check, not a passed check.
+
+### IMPLEMENT: regression first
+
+For a deterministic defect: reproduce, write the regression test, and prove it
+fails on the frozen base. No failing test means no production fix.
+
+Then make the smallest demonstrated change. An architecture rule may constrain
+the implementation; a bugfix does not casually rewrite the rule that constrains
+it.
+
+### VALIDATE: project gates are the correctness authority
+
+Run the repository's own gates first — tests, PHPStan at the configured level,
+lint/style, Composer validation, package-specific checks. Everything after this
+step is review evidence, not a replacement for it.
+
+### REVIEW: the slop-scan delta
+
+Scan the frozen base before mutation and the candidate afterwards, with the same
+configuration, and prefer a machine-readable format because the output is
+evidence rather than prose:
+
+```bash
+tools/slop-scan/vendor/bin/slop-scan.php scan . --json --ignore 'vendor/**'
+```
+
+Report the comparison, not a single number:
+
+- new findings;
+- resolved findings;
+- unchanged findings;
+- changed fingerprints;
+- findings inside the changed production region.
+
+Two rules govern what that comparison may do:
+
+> Existing repository slop is not a failure of the candidate. The agent owns the
+> delta.
+
+> A heuristic finding is not automatically a correctness failure.
+
+`CLOSE` may be blocked by a `slop-scan` finding only when project policy makes
+that rule a gate, or when review confirms the new finding is a real defect that
+violates the Contract. There is no invented score threshold; `slop <= 4.7`
+would be fake precision, not quality.
+
+### REVIEW: two separate passes
+
+Run them as two passes, because they fail differently:
+
+1. **Correctness** — how could this change still be functionally wrong? Use the
+   tests, the source, the Contract, and any architecture rules that apply.
+2. **Simplification/slop** — what did the agent add that can be deleted? Did
+   `slop-scan` identify a real regression? Did a small task grow an abstraction
+   it does not need?
+
+### LEARN: the tool usefulness ledger
+
+Every run evaluates the tools, not only the fix:
+
+```text
+agent-map:    useful hits / misses / irrelevant hits
+itp-context:  applicable rules / useful rules / missing expected intent / irrelevant context
+slop-scan:    useful candidate findings / false or noisy findings / missed review concern
+```
+
+Presence is not usefulness. None of these inferences are allowed:
+
+```text
+itp-context was installed  -> useful
+slop-scan returned zero    -> clean code
+agent-map returned a file  -> good context
+```
+
+Only a repeatable observed failure becomes a Finding, through the normal
+learning boundary in `docs/workflow/learning-boundary.md`. One good-looking run
+promotes nothing.
+
+### CLOSE
+
+`CLOSE` keeps its existing authority: the approved Contract, project
+verification, review, and the learning decision. The external tools contribute
+evidence to those gates. They do not become new sources of lifecycle authority.
+
+## Report success condition
+
+A real-issue dogfood report is incomplete unless it states, per tool, whether it
+materially helped, abstained, missed required context, or produced noise.
+
+> Installing and invoking a tool is not evidence that it improved the run.
+
+A miss is a finding even when every unit test for the tool is green, and the
+benchmark is not repaired after seeing the oracle: when the pre-fix map result
+missed the region the verified fix actually needed, that result is recorded, not
+re-run with better keywords.
+
+## Product boundary
+
+`voku/itp-context` and `voku/slop-scan` stay outside this package's
+`composer.json` until real runs repeatedly prove a stable integration seam. The
+promotion targets, if that evidence arrives, are narrow:
+
+- `itp-context` as an optional Recall/context provider;
+- `slop-scan` as an optional deterministic review-observation provider.
+
+`tests/RealIssueEvidenceToolBoundaryTest.php` keeps the current answer
+executable, so promoting either tool is a deliberate change to the boundary
+rather than a dependency that arrived quietly.
+
+## Recorded runs
+
+The first consumer-repository pilot is tracked in
+[agent-loop#66](https://github.com/voku/agent-loop/issues/66) against
+`voku/Simple-PHP-Code-Parser`: a historical issue was replayed at its frozen
+pre-fix commit, the production file that the later fix changed appeared in the
+top structural results, and a real gap in Recall's Composer-dependency evidence
+became a regression-first change in `voku/agent-recall-compiler` rather than a
+note in a report. That run also produced the `dev-branch#SHA` provenance rule
+recorded under [Freeze](#freeze).

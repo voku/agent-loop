@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- The real-issue acceptance model in `docs/agents/dogfood/real-issue-acceptance.md`:
+  candidate pre-screen, freeze, three separate evidence planes (`agent-map`
+  structure, `voku/itp-context` architecture intent, `voku/slop-scan` candidate
+  delta), regression before implementation, project-native gates as the
+  correctness authority, and a per-tool usefulness ledger in `LEARN`. It maps
+  onto the existing governed phases and adds no lifecycle state.
+- `RealIssueEvidenceToolBoundaryTest` keeps the installation boundary
+  executable: `voku/itp-context` and `voku/slop-scan` are invoked from isolated
+  tool projects, not declared as dependencies of this package. `agent-map`
+  requires Simple-PHP-Code-Parser ^0.22 and `slop-scan` requires ^0.21, so a
+  single tool project cannot resolve both, and neither constraint is relaxed to
+  hide that.
+
 ## 0.15.0 - 2026-08-12
 
 The pre-1.0 semantic reset (#19). Ownership moves to the packages that can

@@ -502,6 +502,7 @@ Never report a command as passed unless it ran and its exit code was observed.
 - [Cross-package lifecycle](docs/agents/LIFECYCLE.md)
 - [Learning and durable-memory boundary](docs/workflow/learning-boundary.md)
 - [First-party discipline dogfood report](docs/agents/dogfood/2026-08-07-first-party-discipline.md)
+- [Real-issue acceptance model](docs/agents/dogfood/real-issue-acceptance.md)
 - [Upstream mechanism mapping and notices](docs/agents/THIRD_PARTY_NOTICES.md)
 
 ## Scheduled execution
