@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use voku\AgentLoop\PathResolver;
+
 final readonly class InitConfigLoader
 {
     public function __construct(private string $rootPath)
@@ -14,7 +16,8 @@ final readonly class InitConfigLoader
      * @return array{
      *     warnings: list<string>,
      *     paths: array<string, string>,
-     *     agents: array<string, array<string, string>>
+     *     agents: array<string, array<string, string>>,
+     *     recall: array{document_manifests: list<string>}
      * }
      */
     public function load(?string $configPath): array
@@ -23,6 +26,7 @@ final readonly class InitConfigLoader
             'warnings' => [],
             'paths' => [],
             'agents' => [],
+            'recall' => ['document_manifests' => []],
         ];
 
         if ($configPath === null || trim($configPath) === '') {
@@ -88,6 +92,35 @@ final readonly class InitConfigLoader
                 if ($normalizedAgentConfig !== []) {
                     $result['agents'][strtolower($agentName)] = $normalizedAgentConfig;
                 }
+            }
+        }
+
+        $recall = $decoded['recall'] ?? null;
+        if ($recall !== null && !is_array($recall)) {
+            $result['warnings'][] = '[WARN] init config: recall must be an object';
+        } elseif (is_array($recall) && array_key_exists('document_manifests', $recall)) {
+            $manifests = $recall['document_manifests'];
+            if (!is_array($manifests)) {
+                $result['warnings'][] = '[WARN] init config: recall.document_manifests must be an array';
+            } else {
+                foreach ($manifests as $manifest) {
+                    if (!is_string($manifest) || trim($manifest) === '') {
+                        $result['warnings'][] = '[WARN] init config: recall.document_manifests must contain only non-empty strings';
+
+                        continue;
+                    }
+
+                    $manifest = str_replace('\\', '/', trim($manifest));
+                    if (PathResolver::isAbsolute($manifest) || in_array('..', explode('/', $manifest), true)) {
+                        $result['warnings'][] = '[WARN] init config: recall document manifest must stay inside the project: ' . $manifest;
+
+                        continue;
+                    }
+
+                    $result['recall']['document_manifests'][] = $manifest;
+                }
+                $result['recall']['document_manifests'] = array_values(array_unique($result['recall']['document_manifests']));
+                sort($result['recall']['document_manifests'], SORT_STRING);
             }
         }
 

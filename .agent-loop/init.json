@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "recall": {
+    "document_manifests": [
+      "docs/agents/recall-documents.json"
+    ]
+  }
+}

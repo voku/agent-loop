@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop;
 
 use ItpContext\Attribute\Rule;
+use RuntimeException;
 use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Init\InitConfigLoader;
 
@@ -132,6 +133,36 @@ final readonly class ProjectLayout
         return $this->stateRoot() . '/githooks.json';
     }
 
+    /** @return list<string> */
+    public function recallDocumentManifests(): array
+    {
+        $config = $this->config();
+        if ($config['warnings'] !== []) {
+            throw new RuntimeException(implode("\n", $config['warnings']));
+        }
+
+        $projectRoot = realpath($this->projectRoot());
+        if ($projectRoot === false) {
+            throw new RuntimeException('Project root cannot be resolved: ' . $this->projectRoot());
+        }
+        $projectPrefix = rtrim(str_replace('\\', '/', $projectRoot), '/') . '/';
+        $manifests = [];
+        foreach ($config['recall']['document_manifests'] as $path) {
+            $configured = PathResolver::join($this->projectRoot(), $path);
+            $resolved = realpath($configured);
+            if ($resolved === false || !is_file($resolved)) {
+                throw new RuntimeException('Configured recall document manifest not found: ' . $this->display($configured));
+            }
+            $resolved = str_replace('\\', '/', $resolved);
+            if (!str_starts_with($resolved, $projectPrefix)) {
+                throw new RuntimeException('Configured recall document manifest escapes the project: ' . $this->display($configured));
+            }
+            $manifests[] = $resolved;
+        }
+
+        return array_values(array_unique($manifests));
+    }
+
     public function configPath(): string
     {
         return $this->projectRoot() . '/' . self::CONFIG_RELATIVE;
@@ -200,7 +231,8 @@ final readonly class ProjectLayout
      * @return array{
      *     warnings: list<string>,
      *     paths: array<string, string>,
-     *     agents: array<string, array<string, string>>
+     *     agents: array<string, array<string, string>>,
+     *     recall: array{document_manifests: list<string>}
      * }
      */
     private function config(): array

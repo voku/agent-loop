@@ -5,7 +5,8 @@
 /coverage/
 /build/
 /.agent-map/
-/.agent-loop/
+/.agent-loop/*
+!/.agent-loop/init.json
 .DS_Store
 composer.lock
 !/tools/*/composer.lock
