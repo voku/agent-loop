@@ -24,6 +24,7 @@ final class TaskContractStore
      * @param list<string> $tags
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
+     * @param list<string> $acceptanceCriteria
      */
     public function create(
         string $taskId,
@@ -37,6 +38,7 @@ final class TaskContractStore
         array $behaviorAnchors = [],
         ?string $operatingPromptManifest = null,
         array $operatingPrompts = [],
+        array $acceptanceCriteria = [],
     ): TaskContract {
         if ($this->find($taskId) !== null) {
             throw new RuntimeException('Task ' . $taskId . ' already has a Contract. Use revise instead.');
@@ -59,6 +61,7 @@ final class TaskContractStore
             $behaviorAnchors,
             $operatingPromptManifest,
             $operatingPrompts,
+            $acceptanceCriteria,
         );
         $this->write($contract);
 
@@ -72,6 +75,7 @@ final class TaskContractStore
      * @param list<string> $tags
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
+     * @param list<string> $acceptanceCriteria
      */
     public function revise(
         string $taskId,
@@ -85,6 +89,7 @@ final class TaskContractStore
         array $behaviorAnchors = [],
         ?string $operatingPromptManifest = null,
         array $operatingPrompts = [],
+        array $acceptanceCriteria = [],
     ): TaskContract {
         $previous = $this->load($taskId);
         $this->archive($previous);
@@ -105,6 +110,7 @@ final class TaskContractStore
             $behaviorAnchors,
             $operatingPromptManifest,
             $operatingPrompts,
+            $acceptanceCriteria,
         );
         $this->write($contract);
 
@@ -145,6 +151,7 @@ final class TaskContractStore
             $contract->operatingPrompts,
             $by,
             $now,
+            $contract->acceptanceCriteria,
         );
         $this->write($approved);
 
@@ -199,6 +206,7 @@ final class TaskContractStore
             $contract->operatingPrompts,
             $contract->approvedBy,
             $contract->approvedAt,
+            $contract->acceptanceCriteria,
         );
         $this->atomicWrite($superseded->path, CanonicalJson::pretty($superseded->toArray()));
     }
@@ -210,6 +218,7 @@ final class TaskContractStore
      * @param list<string> $tags
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
+     * @param list<string> $acceptanceCriteria
      */
     private function newContract(
         string $taskId,
@@ -227,6 +236,7 @@ final class TaskContractStore
         array $behaviorAnchors,
         ?string $operatingPromptManifest,
         array $operatingPrompts,
+        array $acceptanceCriteria,
     ): TaskContract {
         $goal = trim($goal);
         $plannedBy = trim($plannedBy);
@@ -242,6 +252,7 @@ final class TaskContractStore
         $validation = $this->normalizedLines($validation);
         $tags = $this->normalizedLines($tags);
         $behaviorAnchors = $this->normalizedLines($behaviorAnchors);
+        $acceptanceCriteria = $this->normalizedLines($acceptanceCriteria);
         if ($scope === []) {
             throw new RuntimeException('A Contract requires at least one scope path.');
         }
@@ -272,6 +283,7 @@ final class TaskContractStore
             $behaviorAnchors,
             $operatingPromptManifest,
             $operatingPrompts,
+            acceptanceCriteria: $acceptanceCriteria,
         );
     }
 
@@ -307,6 +319,7 @@ final class TaskContractStore
         $scope = $this->listField($data, 'scope', $path, true);
         $nonGoals = $this->listField($data, 'non_goals', $path);
         $validation = $this->listField($data, 'validation', $path, true);
+        $acceptanceCriteria = $this->listField($data, 'acceptance_criteria', $path);
         $tags = $this->listField($data, 'tags', $path);
         $behaviorAnchors = $this->listField($data, 'behavior_anchors', $path);
         $operatingPrompts = $this->operatingPromptsField($data, $path);
@@ -342,6 +355,7 @@ final class TaskContractStore
             $operatingPrompts,
             $approvedBy,
             $approvedAt,
+            $acceptanceCriteria,
         );
     }
 
