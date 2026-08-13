@@ -90,7 +90,7 @@ final class RepositoryHealthCli
 
     /**
      * @param array<string, mixed> $evidence
-     * @return array{repository: string, status: 'healthy'|'skip'|'suspicious', composer: bool, renovate_expected: bool, fork: bool|null, findings: list<string>}
+     * @return array{repository: string, status: 'configured'|'healthy'|'skip'|'suspicious', composer: bool, renovate_expected: bool, fork: bool|null, findings: list<string>}
      */
     public function classify(array $evidence): array
     {
@@ -130,7 +130,7 @@ final class RepositoryHealthCli
         }
 
         return compact('repository', 'composer', 'fork') + [
-            'status' => $findings === [] ? 'healthy' : 'suspicious',
+            'status' => $findings !== [] ? 'suspicious' : ($active ? 'healthy' : 'configured'),
             'renovate_expected' => true,
             'findings' => $findings,
         ];
@@ -145,6 +145,8 @@ final class RepositoryHealthCli
         A document may describe one repository or contain a `repositories` list.
         Peer adoption (>=75% across at least three comparable repositories) is
         treated as evidence that Renovate is expected, so absence can be detected.
+        `configured` means the repository-side setup looks correct but no bot
+        activity was included in the evidence yet.
 
         TXT;
     }
