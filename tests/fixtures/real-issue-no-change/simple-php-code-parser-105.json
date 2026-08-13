@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "repository": "voku/Simple-PHP-Code-Parser",
+    "issue": 105,
+    "run_id": 31659131414,
+    "artifact_id": 9165527643,
+    "artifact_sha256": "0a4661684f4179bb2e6d4637aa93844af1ef102559bb57c83e22768e07dea35a",
+    "target_commit": "93867be39e3222a3243115b50808deb44501ce59",
+    "upstream_commit": "5025da610fa7c5d538847d8a58478d9513aae5fa"
+  },
+  "expected_decision": "NO_PRODUCTION_CHANGE_REQUIRED",
+  "evidence": {
+    "ranked_test": "method:voku\\tests\\ParserEntryPointsTest::testGetAstResolvesNamesAndKeepsFilePositions",
+    "existing_capability": "method:voku\\SimplePhpParser\\Parsers\\PhpCodeParser::getAstFromString",
+    "relation": "calls",
+    "focused_tests_green": true,
+    "documented": true,
+    "production_mutation_required": false
+  }
+}
