@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use RuntimeException;
-
 final class PromptPrimitivesDogfoodFailure extends RuntimeException
 {
 }
