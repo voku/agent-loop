@@ -53,6 +53,7 @@ final readonly class WorkflowPlanCommand
                     $options['behaviorAnchors'],
                     $options['operatingPromptManifest'],
                     $options['operatingPrompts'],
+                    $options['acceptanceCriteria'],
                 );
                 $action = 'created';
             } else {
@@ -68,6 +69,7 @@ final readonly class WorkflowPlanCommand
                     $options['behaviorAnchors'],
                     $options['operatingPromptManifest'],
                     $options['operatingPrompts'],
+                    $options['acceptanceCriteria'],
                 );
                 $action = 'revised';
             }
@@ -104,7 +106,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null}
+     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null}
      */
     private function parse(array $tokens): array
     {
@@ -114,6 +116,7 @@ final readonly class WorkflowPlanCommand
         $scope = [];
         $nonGoals = [];
         $validation = [];
+        $acceptanceCriteria = [];
         $tags = [];
         $behaviorAnchors = [];
         $operatingPromptManifest = null;
@@ -123,7 +126,7 @@ final readonly class WorkflowPlanCommand
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -158,6 +161,9 @@ final readonly class WorkflowPlanCommand
                     break;
                 case '--validation':
                     $validation[] = $value;
+                    break;
+                case '--acceptance':
+                    $acceptanceCriteria[] = $value;
                     break;
                 case '--tag':
                     $tags[] = $value;
@@ -211,6 +217,7 @@ final readonly class WorkflowPlanCommand
             'scope' => $scope === [] ? $files : $scope,
             'nonGoals' => $nonGoals,
             'validation' => $validation,
+            'acceptanceCriteria' => $acceptanceCriteria,
             'tags' => $tags,
             'behaviorAnchors' => $behaviorAnchors,
             'operatingPromptManifest' => $operatingPromptManifest,
