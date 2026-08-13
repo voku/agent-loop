@@ -39,7 +39,8 @@
     }
   },
   "bin": [
-    "bin/agent-loop"
+    "bin/agent-loop",
+    "bin/agent-loop-repo-health"
   ],
   "scripts": {
     "test": "phpunit",
