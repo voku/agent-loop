@@ -332,7 +332,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 165,
+                    "line": 171,
                     "column": 1
                 }
             ],
@@ -341,9 +341,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "3fb2c1f0ef5e8c3107b4e12ef43539b2761633e448eca4953c361d0b5166ec63",
+                        "fingerprint": "f4c1b6c5f21ba1b1cbf680f72c2f589d718fd6140717bd3ea603138266abe3dc",
                         "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 165,
+                        "line": 171,
                         "column": 1
                     }
                 ]
@@ -365,7 +365,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 211,
+                    "line": 217,
                     "column": 1
                 }
             ],
@@ -374,9 +374,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "0691a4d3bb3cf5681ff9aabcd653443a3ec5bc9203d35c9e471aafc10d1c79ae",
+                        "fingerprint": "716bc0a95604e612fddf271df7819369e17cb2d1f7ca2a52020a3ec83d021c43",
                         "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 211,
+                        "line": 217,
                         "column": 1
                     }
                 ]

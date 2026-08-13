@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
@@ -31,6 +32,10 @@ final class WorkflowContextCommandTest extends TestCase
             ['No source bodies.'],
             ['vendor/bin/phpunit tests/FooTest.php'],
             'lars',
+            acceptanceCriteria: [
+                'The coding agent can see the required outcome.',
+                'Required validation survives unverified context pressure.',
+            ],
         );
         $contracts->approve('ABC-123', 'lars');
 
@@ -63,6 +68,8 @@ final class WorkflowContextCommandTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertStringContainsString('Render a compact context.', $output);
+        self::assertStringContainsString('Acceptance criteria (required, not proof):', $output);
+        self::assertStringContainsString('The coding agent can see the required outcome.', $output);
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
         self::assertStringContainsString('Demo\\Foo', $output);
         self::assertSame($before, hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json'));
@@ -138,6 +145,24 @@ final class WorkflowContextCommandTest extends TestCase
 
         self::assertStringContainsString('Keep the context bounded (READY / Selected)', implode("\n", $context['lines']));
         self::assertStringContainsString('Next: Inspect the sealed facts.', implode("\n", $context['lines']));
+    }
+
+    public function testContextBudgetPrefersContractObligationsOverUnverifiedCandidates(): void
+    {
+        $budget = new WorkflowContextBudget(3, 1000);
+        $budget->add('acceptance', 'Required outcome');
+        $budget->add('candidate_navigation', 'ranked lead');
+        $budget->add('candidate_context', 'expanded candidate');
+        $budget->add('validation', 'composer test');
+        $budget->finish();
+
+        self::assertContains('Required outcome', $budget->lines());
+        self::assertContains('composer test', $budget->lines());
+        self::assertNotContains('ranked lead', $budget->lines());
+        self::assertNotContains('expanded candidate', $budget->lines());
+        self::assertSame(1, $budget->omitted()['candidate_navigation'] ?? 0);
+        self::assertSame(1, $budget->omitted()['candidate_context'] ?? 0);
+        self::assertStringContainsString('Omitted:', implode("\n", $budget->lines()));
     }
 
     private function removeDirectory(string $path): void

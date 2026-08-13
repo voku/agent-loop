@@ -39,7 +39,7 @@ final readonly class WorkflowRankedMapContextExpander
             return;
         }
 
-        $budget->section('Candidate map leads (ranked, unverified)');
+        $budget->add('candidate_navigation', 'Candidate map leads (ranked, unverified):');
         foreach ($results as $offset => $result) {
             $budget->add('candidate_navigation', $this->leadLine($offset + 1, $result));
         }
@@ -99,7 +99,7 @@ final readonly class WorkflowRankedMapContextExpander
                 }
                 foreach ($callees as $callee) {
                     if (!$addedSection) {
-                        $budget->section('Candidate structural context (unverified)');
+                        $budget->add('candidate_context', 'Candidate structural context (unverified):');
                         $addedSection = true;
                     }
                     $budget->add('candidate_context', sprintf(
@@ -127,7 +127,7 @@ final readonly class WorkflowRankedMapContextExpander
             }
 
             if (!$addedSection) {
-                $budget->section('Candidate structural context (unverified)');
+                $budget->add('candidate_context', 'Candidate structural context (unverified):');
                 $addedSection = true;
             }
             $budget->add('candidate_context', sprintf('  rank %d seed %s', $offset + 1, $target));
