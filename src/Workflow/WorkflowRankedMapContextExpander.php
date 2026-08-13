@@ -75,12 +75,8 @@ final readonly class WorkflowRankedMapContextExpander
         $addedSection = false;
         $expanded = 0;
         foreach ($results as $offset => $result) {
-            if ($expanded >= self::MAX_METHOD_SEEDS) {
-                break;
-            }
             $symbolId = is_string($result['symbol_id'] ?? null) ? $result['symbol_id'] : '';
-            $path = is_string($result['file_path'] ?? null) ? $result['file_path'] : '';
-            if (!str_starts_with($symbolId, 'method:') || $this->looksLikeTestPath($path)) {
+            if (!str_starts_with($symbolId, 'method:')) {
                 continue;
             }
 
@@ -89,6 +85,39 @@ final readonly class WorkflowRankedMapContextExpander
                 $budget->skip('agent-map candidate expansion: unresolved method seed ' . $symbolId);
                 continue;
             }
+
+            if ($this->looksLikeTestPath($method->file->path)) {
+                $callees = [];
+                foreach ($index->outgoing($method->id, 'calls') as $relation) {
+                    foreach ($relation->targetIds as $targetId) {
+                        $callee = $index->resolvedMethodById($targetId);
+                        if ($callee === null || $this->looksLikeTestPath($callee->file->path)) {
+                            continue;
+                        }
+                        $callees[$callee->id] = $callee;
+                    }
+                }
+                foreach ($callees as $callee) {
+                    if (!$addedSection) {
+                        $budget->section('Candidate structural context (unverified)');
+                        $addedSection = true;
+                    }
+                    $budget->add('candidate_context', sprintf(
+                        '  rank %d test evidence calls %s — %s:%d-%d',
+                        $offset + 1,
+                        $callee->owner->fqn . '::' . $callee->method->name,
+                        $callee->file->path,
+                        $callee->method->lineStart,
+                        $callee->method->lineEnd,
+                    ));
+                }
+
+                continue;
+            }
+            if ($expanded >= self::MAX_METHOD_SEEDS) {
+                continue;
+            }
+
             $target = $method->owner->fqn . '::' . $method->method->name;
             try {
                 $plan = $planner->plan($index, $target, $policy);
