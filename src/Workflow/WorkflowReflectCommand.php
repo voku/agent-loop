@@ -65,13 +65,9 @@ final readonly class WorkflowReflectCommand
     private function state(string $taskId): string
     {
         if ($this->stateResolver !== null) {
-            if (!is_callable($this->stateResolver)) {
-                throw new InvalidArgumentException('Workflow reflection state resolver is not callable.');
-            }
-
             $state = ($this->stateResolver)($taskId);
-            if (!is_string($state) || $state === '') {
-                throw new InvalidArgumentException('Workflow reflection state resolver returned an invalid state.');
+            if ($state === '') {
+                throw new InvalidArgumentException('Workflow reflection state resolver returned an empty state.');
             }
 
             return $state;
