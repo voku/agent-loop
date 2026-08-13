@@ -1,0 +1,50 @@
+name: Acceptance criteria candidate dogfood
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout agent-loop candidate
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout agent-recall-compiler acceptance support
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-recall-compiler
+          ref: d3b1aca48c40cc9b9de36cd0f8ca6aa0d430baeb
+          path: build/candidate-agent-recall-compiler
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Lint acceptance dogfood runner
+        run: php -l tools/acceptance-criteria-dogfood.php
+
+      - name: Run installed governed acceptance lifecycle
+        run: >-
+          php tools/acceptance-criteria-dogfood.php
+          --recall-root=${{ github.workspace }}/build/candidate-agent-recall-compiler
+          --workspace=${{ runner.temp }}/agent-loop-acceptance-criteria
+          --report=${{ github.workspace }}/build/acceptance-criteria-dogfood.json
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-criteria-candidate-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/acceptance-criteria-dogfood.json
