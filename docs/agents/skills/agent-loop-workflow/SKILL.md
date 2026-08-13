@@ -1,6 +1,6 @@
 ---
 name: agent-loop-workflow
-description: Use the governed agent-loop state machine for planning, approval, bounded context, L2 execution contracts, implementation evidence, review, learning decisions, verification, and safe closure.
+description: Use the governed agent-loop state machine for planning, approval, bounded context, L2 execution contracts, implementation evidence, review, learning decisions, verification, safe closure, and optional post-task reflection.
 ---
 
 # Agent Loop Workflow
@@ -19,6 +19,10 @@ plan beside it.
 ```text
 PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 ```
+
+Reflection is deliberately **not** another lifecycle phase. It is a read-only
+reasoning surface available only once normal completion evidence reaches
+`ready_to_close` or `complete`.
 
 | Phase | Required evidence before leaving | Route |
 |---|---|---|
@@ -42,6 +46,7 @@ Transitions are evidence-driven, not optimistic:
 - validation fails because implementation is wrong -> `IMPLEMENT`;
 - validation exposes missing scope or product intent -> `PLAN`;
 - correctness review finds a defect -> `IMPLEMENT`, then repeat validation/review;
+- task reflection returns `RETURN_TO_REVIEW` -> the task was not actually complete; route the concrete gap back through REVIEW/IMPLEMENT/PLAN as appropriate;
 - a reusable finding exists -> remain in `LEARN` until it is recorded truthfully;
 - a proposal is never self-approved by an agent;
 - failed verification -> repair the missing gate, do not jump to `CLOSE`;
@@ -59,7 +64,10 @@ Transitions are evidence-driven, not optimistic:
 8. Record validation against the current brief revision.
 9. Review blind spots, the complete raw diff, and complexity separately when needed.
 10. Record recall outcomes, evidence-backed operating-prompt outcomes, and an explicit learning decision.
-11. Run cross-package verification, inspect the workflow report, and close only when every required gate passes.
+11. Run cross-package verification and inspect the workflow report.
+12. At `ready_to_close`, optionally run task reflection when extra scrutiny is useful; `RETURN_TO_REVIEW` routes back instead of closing.
+13. Close only when every required gate passes.
+14. After successful close, optionally run project reflection and report one highest-leverage future investment or `nothing worthwhile`; never create follow-up work automatically.
 
 Do not ask the human to run reads, edits, tests, or reports that the available
 tools can run. Human interaction is reserved for approval, genuine ambiguity,
@@ -96,6 +104,36 @@ vendor/bin/agent-loop workflow plan <task-id> \
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
+
+## Built-in L1 Control Prompts
+
+`agent-loop` also ships context-independent controls in
+`resources/operating-prompts.json`. Select them through the same approved
+operating-prompt policy rather than inventing another control path.
+
+Checkpoint autonomy requires an explicit anchor supplied by the caller:
+
+```bash
+--operating-prompt-manifest vendor/voku/agent-loop/resources/operating-prompts.json \
+--operating-prompt '{"id":"checkpoint-autonomy","arguments":{"anchor_point":"each independently verifiable repository step"}}'
+```
+
+At each anchor, inspect current scope, evidence, validation, blockers, and the
+done condition. If the checkpoint passes and no real human-only gate exists,
+record a concise session checkpoint and continue automatically. Never fabricate
+a human/self approval record.
+
+Momentum reuses still-valid current understanding instead of restarting discovery:
+
+```bash
+--operating-prompt '{"id":"momentum","arguments":{}}'
+```
+
+Reuse files, symbols, commands, constraints, decisions, and evidence aggressively;
+revalidate authority, freshness, repository scope, and assumptions mechanically.
+Both built-in controls are L1-only and do not require an L2 construction pass by
+themselves. A separately selected L2 engineering recipe keeps its normal contract
+gate.
 
 The L2 construction pass creates one repository-grounded L1 document with exactly:
 
@@ -174,14 +212,45 @@ For an active governed task, mutating `agent-loop edit` runners (`command`, `mec
 
 - Planning records a candidate brief; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments.
 - Re-planning invalidates approval and validation evidence for the old revision.
-- `workflow context`, `status`, and `report` are read-only.
+- `workflow context`, `status`, `report`, and `reflect` are read-only.
 - `workflow context` never rebuilds recall or a map.
 - `workflow report` does not run Git; pass observed changed paths explicitly.
+- `workflow reflect` emits a deterministic context-light prompt only when the run is `ready_to_close` or `complete`; it does not call a model or mutate workflow state.
 - `workflow close --status done` requires the current approval, exact validation evidence, recall outcomes, blind-spot review, learning decision, passing verification, and any required current L2 execution contract.
 - `--accept-risk` may override only the existing explicitly bypassable close gates; it never bypasses a required L2 execution contract.
 - Recall files are not silently injected into an agent.
 - Findings are not durable memory until reviewed and promoted.
 - One task has one active session; resume it rather than creating parallel state.
+
+## Optional Reflection
+
+Reflection answers a different question from REVIEW and LEARN:
+
+```text
+REVIEW             = Is this task actually complete/correct?
+LEARN              = What observed knowledge should potentially survive this task?
+TASK REFLECTION    = With more time in this completed task, what extra depth or missed opportunity matters?
+PROJECT REFLECTION = What future investment became visible through doing this work?
+```
+
+Task reflection is most useful at `ready_to_close`:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+```
+
+If it returns `RETURN_TO_REVIEW`, treat that as evidence that the completion bar
+was false and route the concrete gap back through the existing lifecycle before
+close. Otherwise the suggested deepening is optional.
+
+After successful close, project reflection may surface one future investment:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
+```
+
+Do not turn reflection into a mandatory gate, durable learning approval, or an
+automatic issue/backlog generator. `nothing worthwhile` is a valid result.
 
 The L2 briefing labels claims `VERIFIED`, `INFERRED`, `ASSUMED`, `BLOCKED`, or
 `CONTRADICTED`. Model explanations and review comments remain hypotheses until
@@ -267,7 +336,13 @@ vendor/bin/agent-loop session learning decide <task-id> \
   --by <actor> \
   --reason "No reusable finding from this bounded task."
 
+# Optional before close when deeper scrutiny is useful:
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+
 vendor/bin/agent-loop workflow close <task-id> --status done
+
+# Optional after close when the work exposed a meaningful future investment:
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
 ## Guidance Changes
