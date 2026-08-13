@@ -7,8 +7,8 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentLoop\Run\CanonicalJson;
-use voku\AgentLoop\Run\GovernedRunManifestProjector;
 use voku\AgentLoop\Run\RunManifest;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 
 /** Read-only lifecycle view built from package-owned artifacts. */
@@ -24,7 +24,7 @@ final readonly class WorkflowStatusCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $format = $this->parseFormat(array_slice($args, 1));
-            $manifest = (new GovernedRunManifestProjector($this->rootPath))->project($taskId->value);
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
             $storage = (new RunManifestStore($this->rootPath))->status($manifest);
 
             if ($format === 'json') {

@@ -9,8 +9,8 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
-use voku\AgentLoop\Run\GovernedRunManifestProjector;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowStatusCommand;
@@ -116,9 +116,42 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('review.report_invalid', $out);
     }
 
+    public function testMalformedExecutionContractEvidenceRemainsObservable(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
+            'Keep malformed L2 evidence observable.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'lars',
+            operatingPromptManifest: 'skills/operational-prompting/operating-prompts.json',
+            operatingPrompts: [[
+                'id' => 'coverage-mutation',
+                'arguments' => [],
+            ]],
+        );
+        $contracts->approve('ABC-123', 'lars');
+
+        mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', '{');
+
+        [$exit, $output] = $this->statusOf('ABC-123', ['--format=json']);
+        $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $exit);
+        self::assertSame('incomplete', $status['manifest']['state'] ?? null);
+        self::assertSame('invalid', $status['manifest']['references']['execution_contract']['state'] ?? null);
+        self::assertStringContainsString(
+            'Invalid JSON artifact',
+            (string) ($status['manifest']['references']['execution_contract']['reason'] ?? ''),
+        );
+    }
+
     public function testJsonStatusReportsPersistedProjectionFreshness(): void
     {
-        $projector = new GovernedRunManifestProjector($this->root);
+        $projector = new RunManifestProjector($this->root);
         $store = new RunManifestStore($this->root);
         $store->write($projector->project('ABC-123'));
 
