@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "prompts": [
+    {
+      "id": "checkpoint-autonomy",
+      "level": 1,
+      "template": "Work the approved task in bounded steps using {{anchor_point}} as the checkpoint boundary. At each checkpoint, inspect current scope, evidence, relevant validation, blockers, and the task's current done condition. If the checkpoint passes and no genuine human-only gate is required, record a concise checkpoint and continue automatically. Stop for human input only when approval, missing product intent, irreversible action, explicit risk ownership, or a scope/policy change requires it. Continue until the approved done condition and workflow close gates are satisfied; do not stop merely because there is useful progress to report."
+    },
+    {
+      "id": "momentum",
+      "level": 1,
+      "template": "Use the momentum and current context from the work already completed. Do not restart discovery from scratch. Reuse files, symbols, patterns, tests, commands, constraints, decisions, and evidence that are still relevant to the next logical scope. Re-check anything whose authority, freshness, repository scope, or assumptions may have changed. Fresh conversational understanding may guide navigation but must not override current project or workflow evidence. Continue from the strongest validated point already reached instead of repeating completed work."
+    }
+  ]
+}
