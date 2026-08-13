@@ -6,6 +6,12 @@ namespace voku\AgentLoop\Workflow;
 
 final class WorkflowContextBudget
 {
+    /** @var array<string, true> */
+    private const array UNVERIFIED_CATEGORIES = [
+        'candidate_navigation' => true,
+        'candidate_context' => true,
+    ];
+
     /** @var list<string> */
     private array $lines = [];
     /** @var list<string> */
@@ -28,7 +34,7 @@ final class WorkflowContextBudget
     public function add(string $category, string $line): void
     {
         $lineBytes = strlen($line) + 1;
-        if (count($this->lines) >= $this->maxLines || $this->bytes + $lineBytes > $this->maxBytes) {
+        if (!$this->fits($lineBytes) && !$this->reclaimUnverifiedFor($category, $lineBytes)) {
             $this->omitted[$category] = ($this->omitted[$category] ?? 0) + 1;
 
             return;
@@ -52,10 +58,7 @@ final class WorkflowContextBudget
             $requiredBytes = array_sum(array_map(static fn (string $line): int => strlen($line) + 1, $required));
             $removedAny = false;
             while ($this->lines !== [] && (count($this->lines) + count($required) > $this->maxLines || $this->bytes + $requiredBytes > $this->maxBytes)) {
-                $removedCategory = array_pop($this->lineCategories);
-                $removed = array_pop($this->lines);
-                $this->bytes -= strlen((string) $removed) + 1;
-                $this->omitted[$removedCategory ?? 'context line'] = ($this->omitted[$removedCategory ?? 'context line'] ?? 0) + 1;
+                $this->dropLine($this->leastAuthoritativeLineIndex());
                 $removedAny = true;
             }
         } while ($removedAny);
@@ -84,6 +87,49 @@ final class WorkflowContextBudget
         return $this->skipped;
     }
 
+    private function fits(int $lineBytes): bool
+    {
+        return count($this->lines) < $this->maxLines && $this->bytes + $lineBytes <= $this->maxBytes;
+    }
+
+    private function reclaimUnverifiedFor(string $category, int $lineBytes): bool
+    {
+        if (isset(self::UNVERIFIED_CATEGORIES[$category])) {
+            return false;
+        }
+        for ($index = count($this->lines) - 1; $index >= 0 && !$this->fits($lineBytes); --$index) {
+            if (isset(self::UNVERIFIED_CATEGORIES[$this->lineCategories[$index]])) {
+                $this->dropLine($index);
+            }
+        }
+
+        return $this->fits($lineBytes);
+    }
+
+    private function leastAuthoritativeLineIndex(): int
+    {
+        for ($index = count($this->lines) - 1; $index >= 0; --$index) {
+            if (isset(self::UNVERIFIED_CATEGORIES[$this->lineCategories[$index]])) {
+                return $index;
+            }
+        }
+
+        return count($this->lines) - 1;
+    }
+
+    private function dropLine(int $index): void
+    {
+        if (!isset($this->lines[$index])) {
+            return;
+        }
+        $line = $this->lines[$index];
+        $category = $this->lineCategories[$index] ?? 'context line';
+        $this->bytes -= strlen($line) + 1;
+        $this->omitted[$category] = ($this->omitted[$category] ?? 0) + 1;
+        array_splice($this->lines, $index, 1);
+        array_splice($this->lineCategories, $index, 1);
+    }
+
     /** @return list<string> */
     private function requiredLines(): array
     {
@@ -100,5 +146,4 @@ final class WorkflowContextBudget
 
         return $required;
     }
-
 }
