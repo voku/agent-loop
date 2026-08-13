@@ -172,7 +172,7 @@ final readonly class WorkflowReportCommand
     }
 
     /**
-     * @return array{status: string, revision: int|null, goal: string|null, behavior_anchors: list<string>, scope: list<string>, non_goals: list<string>, path: string|null, approval: array{revision: int|null, by: string|null, at: string|null}}
+     * @return array{status: string, revision: int|null, goal: string|null, acceptance_criteria: list<string>, behavior_anchors: list<string>, scope: list<string>, non_goals: list<string>, path: string|null, approval: array{revision: int|null, by: string|null, at: string|null}}
      */
     private function contractReport(?TaskContract $contract): array
     {
@@ -181,6 +181,7 @@ final readonly class WorkflowReportCommand
                 'status' => 'missing',
                 'revision' => null,
                 'goal' => null,
+                'acceptance_criteria' => [],
                 'behavior_anchors' => [],
                 'scope' => [],
                 'non_goals' => [],
@@ -193,6 +194,7 @@ final readonly class WorkflowReportCommand
             'status' => $contract->status,
             'revision' => $contract->revision,
             'goal' => $contract->goal,
+            'acceptance_criteria' => $contract->acceptanceCriteria,
             'behavior_anchors' => $contract->behaviorAnchors,
             'scope' => $contract->scope,
             'non_goals' => $contract->nonGoals,
@@ -505,6 +507,9 @@ final readonly class WorkflowReportCommand
         } else {
             $approval = $contract['approval']['by'] === null ? 'not approved' : 'approved by ' . $contract['approval']['by'];
             echo sprintf("Contract: %s revision %d (%s)\n", $contract['status'], $contract['revision'], $approval);
+            if ($contract['acceptance_criteria'] !== []) {
+                echo 'Acceptance criteria (required, not proof): ' . implode('; ', $contract['acceptance_criteria']) . "\n";
+            }
             if ($contract['behavior_anchors'] !== []) {
                 echo 'Behavior anchors: ' . implode('; ', $contract['behavior_anchors']) . "\n";
             }

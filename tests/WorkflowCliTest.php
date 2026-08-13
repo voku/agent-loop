@@ -15,6 +15,7 @@ final class WorkflowCliTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('agent-loop workflow plan', $result['output']);
+        self::assertStringContainsString('--acceptance <text>', $result['output']);
         self::assertStringContainsString('agent-loop workflow approve', $result['output']);
         self::assertStringContainsString('agent-loop workflow reflect', $result['output']);
         self::assertStringContainsString('agent-loop workflow learn', $result['output']);

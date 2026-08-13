@@ -1,13 +1,13 @@
 ---
 name: agent-loop-task-start
-description: Start a governed agent-loop task in the current repository, create session working memory, approve a sealed work brief, and compile deterministic recall/L2 context.
+description: Start a governed agent-loop task in the current repository, define and approve a sealed task Contract, create session working memory, and compile deterministic recall/L2 context.
 ---
 
 # Agent Loop Task Start
 
 Use this skill when beginning a task in a repository that has `agent-loop`
-installed and you need to open a governed workflow, create session working
-memory, approve a scoped work brief, and compile a recall briefing from that
+installed and you need to define durable task intent, approve that exact
+revision, create session working memory, and compile a recall briefing from the
 sealed input before editing code.
 
 ## Fast Path
@@ -22,19 +22,44 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --file <path-to-file-2> \
   --goal "Implement the approved task." \
   --non-goal "Do not widen the task without a revised brief." \
+  --acceptance "The required user-visible outcome remains present." \
   --validation "vendor/bin/phpunit tests/FocusedTest.php"
 ```
 
-`workflow plan` starts session working memory and creates a candidate work
-brief. It intentionally does **not** compile recall yet. A named human must
-approve the exact revision before
-implementation. Inspect the result immediately:
+`workflow plan` creates or revises a candidate Contract. It deliberately creates
+neither a Session nor a Run and does **not** compile recall yet. A named human
+must approve the exact revision before implementation; approval prepares the
+governed Run/Session and compiles Recall from that sealed Contract. Inspect the
+result immediately:
 
 ```bash
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 vendor/bin/agent-loop workflow status <task-id>
 ```
+
+## Preserve Acceptance Intent
+
+Use repeatable `--acceptance` values for outcomes the completed task must still
+make true. Keep them distinct from the other Contract fields:
+
+- **acceptance criterion** = a required outcome or condition from the task;
+- **validation command** = an executable observation used to measure reality;
+- **behavior anchor** = the concrete runtime/request/consumer seam that should be
+  inspected when behavior changes.
+
+For example, `"installed agent guidance mentions the new control"` is an
+acceptance criterion; `composer ci` is validation; `SessionStart -> injected
+agent-loop-discipline` is a behavior anchor.
+
+Criteria are durable task intent, **not evidence that they passed**. Do not add a
+checkbox/status merely because a criterion exists. Review the criteria against
+actual evidence before treating the task as complete.
+
+Do not infer acceptance criteria from issue prose inside deterministic commands.
+When a requirement matters to completion, make it explicit at PLAN time so it
+survives approval, Recall, status, and review rather than depending on chat
+memory.
 
 ## Historical Context Preflight
 
@@ -79,7 +104,8 @@ trying to summarize the whole repository. Do not pass every file.
 
 The initial `--file` values become the approved scope unless explicit
 `--scope` values replace them. A later plan revision clears approval, so obtain
-a new approval before working outside the current scope.
+a new approval before working outside the current scope or changing required
+acceptance intent.
 
 ## Optional Map Preflight
 
@@ -142,8 +168,8 @@ After compiling, read or pass them into your workflow manually.
 This skill owns:
 
 - the opening step of a governed agent-loop task in a consuming repository
-- choosing a task id, actor, learning root, file scope, non-goals, and validation commands
-- understanding that `workflow plan` creates a candidate brief and `workflow approve` compiles recall from its approved revision
+- choosing a task id, actor, file scope, non-goals, explicit acceptance criteria, behavior anchors, and validation commands
+- understanding that `workflow plan` creates/revises a candidate Contract and `workflow approve` creates the governed working state and compiles Recall from its approved revision
 - obtaining human approval before implementation and inspecting the bounded context
 - inspecting initial state with `workflow status` and `verify`
 
