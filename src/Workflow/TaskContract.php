@@ -17,6 +17,8 @@ final readonly class TaskContract
      * @param list<string> $tags
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
+     * @param list<string> $acceptanceCriteria Required outcomes from the approved task definition.
+     *        Their presence is not evidence that they are satisfied.
      */
     public function __construct(
         public string $taskId,
@@ -37,6 +39,7 @@ final readonly class TaskContract
         public array $operatingPrompts = [],
         public ?string $approvedBy = null,
         public ?string $approvedAt = null,
+        public array $acceptanceCriteria = [],
     ) {
     }
 
@@ -51,6 +54,7 @@ final readonly class TaskContract
             'scope' => $this->scope,
             'non_goals' => $this->nonGoals,
             'validation' => $this->validation,
+            'acceptance_criteria' => $this->acceptanceCriteria,
             'tags' => $this->tags,
             'behavior_anchors' => $this->behaviorAnchors,
             'operating_prompt_manifest' => $this->operatingPromptManifest,
