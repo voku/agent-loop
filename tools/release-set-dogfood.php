@@ -62,6 +62,7 @@ final class ReleaseSetDogfood
             $this->writeConsumerFiles();
 
             $this->step('install.resolve', fn () => $this->install());
+            $this->step('install.focused-binaries', fn () => $this->focusedPackageBinaries());
             $this->step('map.consumer-boundary', fn () => $this->mapConsumerBoundary());
             $this->step('workflow.scaffold', fn () => $this->scaffold());
             $this->step('workflow.ephemeral', fn () => $this->ephemeral());
@@ -116,6 +117,20 @@ final class ReleaseSetDogfood
             }
         }
         $this->artifact($this->consumerRoot . '/composer.lock');
+    }
+
+    private function focusedPackageBinaries(): void
+    {
+        foreach ([
+            'agent-kanban',
+            'agent-session',
+            'agent-map',
+            'agent-recall-compiler',
+            'agent-learning',
+            'agent-loop',
+        ] as $binary) {
+            $this->mustRun(['vendor/bin/' . $binary, 'help']);
+        }
     }
 
     private function mapConsumerBoundary(): void
