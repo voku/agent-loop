@@ -17,11 +17,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout exact agent-recall-compiler candidate
+      - name: Checkout minimum agent-recall-compiler release
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: eb70b1ba84cb1028cc6dd31a6f2c263554606713
+          ref: 0.11.1
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
 
