@@ -109,8 +109,8 @@ final class AcceptanceCriteriaDogfood
         }
 
         $facts = $this->jsonFile('.agent-loop/recall/' . self::TASK_ID . '/facts.json');
-        $criteria = $this->findAcceptanceCriteria($facts);
-        $this->assertSame(self::CRITERIA, $criteria, 'Recall facts criteria');
+        $criteria = $this->taskContextAcceptanceCriteria($facts);
+        $this->assertSame(self::CRITERIA, $criteria, 'Recall task-context criteria');
     }
 
     private function assertWorkflowProjections(): void
@@ -138,23 +138,37 @@ final class AcceptanceCriteriaDogfood
         $this->assertNoFakeAcceptanceStatus($reportContract, 'workflow report Contract');
     }
 
-    /** @param array<string, mixed> $data */
-    private function findAcceptanceCriteria(array $data): mixed
+    /** @param array<string, mixed> $factsDocument */
+    private function taskContextAcceptanceCriteria(array $factsDocument): mixed
     {
-        if (array_key_exists('acceptance_criteria', $data)) {
-            return $data['acceptance_criteria'];
-        }
-        foreach ($data as $value) {
-            if (!is_array($value)) {
-                continue;
-            }
-            $found = $this->findAcceptanceCriteria($value);
-            if ($found !== null) {
-                return $found;
-            }
+        $facts = $factsDocument['facts'] ?? null;
+        if (!is_array($facts)) {
+            throw new AcceptanceCriteriaDogfoodFailure('Recall facts.json misses the facts list.');
         }
 
-        return null;
+        $matches = [];
+        foreach ($facts as $fact) {
+            if (!is_array($fact)) {
+                continue;
+            }
+            if (($fact['id'] ?? null) !== 'task.' . self::TASK_ID || ($fact['type'] ?? null) !== 'task_context') {
+                continue;
+            }
+            $matches[] = $fact;
+        }
+        if (count($matches) !== 1) {
+            throw new AcceptanceCriteriaDogfoodFailure(sprintf(
+                'Expected exactly one canonical task-context fact, found %d.',
+                count($matches),
+            ));
+        }
+
+        $payload = $matches[0]['payload'] ?? null;
+        if (!is_array($payload)) {
+            throw new AcceptanceCriteriaDogfoodFailure('Canonical task-context fact misses payload.');
+        }
+
+        return $payload['acceptance_criteria'] ?? null;
     }
 
     /** @param array<string, mixed> $data */
@@ -174,7 +188,7 @@ final class AcceptanceCriteriaDogfood
             'type' => 'project',
             'require-dev' => [
                 'voku/agent-loop' => 'dev-main',
-                'voku/agent-recall-compiler' => '0.11.999',
+                'voku/agent-recall-compiler' => '0.11.2',
             ],
             'repositories' => [
                 [
@@ -190,7 +204,7 @@ final class AcceptanceCriteriaDogfood
                     'url' => str_replace('\\', '/', $this->recallRoot),
                     'options' => [
                         'symlink' => false,
-                        'versions' => ['voku/agent-recall-compiler' => '0.11.999'],
+                        'versions' => ['voku/agent-recall-compiler' => '0.11.2'],
                     ],
                 ],
             ],
