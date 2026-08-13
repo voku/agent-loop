@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLoop\Init\InitPathsCommand;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -92,6 +93,71 @@ final class ProjectLayoutOwnershipTest extends TestCase
         self::assertSame($this->root . '/infra/doc/agent-learning', $layout->learningRoot());
         self::assertSame('infra/doc/agent-learning', $layout->display($layout->learningRoot()));
         self::assertSame('.agent-loop/runs', $layout->display($layout->runsRoot()));
+    }
+
+    public function testProjectRecallDocumentManifestsArePortableAndDeterministic(): void
+    {
+        mkdir($this->root . '/docs/agents', 0o775, true);
+        mkdir($this->root . '/modules/payments', 0o775, true);
+        touch($this->root . '/docs/agents/recall-documents.json');
+        touch($this->root . '/modules/payments/recall-documents.json');
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'version' => 1,
+                'recall' => [
+                    'document_manifests' => [
+                        'modules/payments/recall-documents.json',
+                        'docs/agents/recall-documents.json',
+                        'docs/agents/recall-documents.json',
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        self::assertSame([
+            $this->root . '/docs/agents/recall-documents.json',
+            $this->root . '/modules/payments/recall-documents.json',
+        ], (new ProjectLayout($this->root))->recallDocumentManifests());
+    }
+
+    public function testProjectRecallDocumentManifestCannotEscapeTheProject(): void
+    {
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'version' => 1,
+                'recall' => ['document_manifests' => ['../shared/policy.json']],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('recall document manifest must stay inside the project');
+
+        (new ProjectLayout($this->root))->recallDocumentManifests();
+    }
+
+    public function testProjectRecallDocumentManifestCannotEscapeThroughSymlink(): void
+    {
+        $outside = sys_get_temp_dir() . '/agent-loop-policy-' . bin2hex(random_bytes(4)) . '.json';
+        file_put_contents($outside, '{}');
+        symlink($outside, $this->root . '/linked-policy.json');
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'version' => 1,
+                'recall' => ['document_manifests' => ['linked-policy.json']],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('recall document manifest escapes the project');
+
+            (new ProjectLayout($this->root))->recallDocumentManifests();
+        } finally {
+            unlink($outside);
+        }
     }
 
     public function testAnAbsoluteOverrideOutsideTheProjectIsKeptAbsolute(): void

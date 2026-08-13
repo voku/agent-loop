@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "documents": [
+    {
+      "id": "adr.agent-loop-pre-1.0-compatibility",
+      "type": "adr",
+      "source": "policies/pre-1.0-compatibility.md",
+      "scope": [],
+      "tags": [
+        "breaking-changes",
+        "compatibility",
+        "dependencies"
+      ],
+      "max_chars": 4000
+    }
+  ]
+}

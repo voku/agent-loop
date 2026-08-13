@@ -92,6 +92,11 @@ vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
   as `--map-index`, and `.agent-loop/map/search.sqlite` as `--map-search-index`, so
   the briefing carries map facts and ranked candidates without the host
   orchestrating anything.
+- **Project policy:** every manifest listed in
+  `.agent-loop/init.json` under `recall.document_manifests` is passed as
+  `--document-manifest`. Existing manifest scope and tag matching decides which
+  policies reach this task; a configured missing or unsafe path blocks approval
+  completion while leaving the governed Run resumable.
 - **Failure:** approving a revision that has since been revised is refused. If
   compilation fails after approval, the approval remains valid and the same
   command resumes compilation without approving identical scope twice.

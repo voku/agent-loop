@@ -34,11 +34,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Checkout current first-party operational prompt catalog
+      - name: Checkout pinned first-party operational prompt catalog
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: main
+          ref: 54267ea604d7fad1fa3806affa4f888902e1f8e0
           path: build/candidate-agent-skills
           persist-credentials: false
       - uses: shivammathur/setup-php@v2

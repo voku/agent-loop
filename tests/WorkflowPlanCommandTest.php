@@ -189,7 +189,16 @@ final class WorkflowPlanCommandTest extends TestCase
         $learningRoot = $root . '/learning';
         mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
         mkdir($root . '/.agent-loop/map', 0o775, true);
+        mkdir($root . '/docs/agents', 0o775, true);
         mkdir($learningRoot, 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'version' => 1,
+            'recall' => ['document_manifests' => ['docs/agents/recall-documents.json']],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($root . '/docs/agents/recall-documents.json', json_encode([
+            'schema_version' => '1.0',
+            'documents' => [],
+        ], JSON_THROW_ON_ERROR));
         file_put_contents($root . '/.agent-loop/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
         file_put_contents($root . '/.agent-loop/todo/cards/ABC-123.md', <<<'CARD'
 # ABC-123: Keep the view reviewable
@@ -240,6 +249,7 @@ CARD
             self::assertSame([[
                 'compile', '--root', $learningRoot,
                 '--task', 'ABC-123', '--task-brief', $recallInput,
+                '--document-manifest', $root . '/docs/agents/recall-documents.json',
                 '--document-manifest', $learningRoot . '/recall-documents.json',
                 '--kanban-context', $contextPath,
                 '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
@@ -280,6 +290,43 @@ CARD
             self::assertStringContainsString('already approved; resuming Run preparation', $output);
             self::assertSame($firstRun->runId, (new GovernedRunStore($root))->find('ABC-123')?->runId);
             self::assertCount(1, (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testApproveRejectsMissingConfiguredRecallDocumentManifestBeforeCompilation(): void
+    {
+        $root = $this->root('missing-project-policy');
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'version' => 1,
+            'recall' => ['document_manifests' => ['docs/agents/missing.json']],
+        ], JSON_THROW_ON_ERROR));
+        (new TaskContractStore($root))->create(
+            'ABC-123',
+            'Reject silently missing review policy.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'lars',
+        );
+        $recallCalled = false;
+        $command = new WorkflowApproveCommand(
+            $root,
+            static function (array $argv) use (&$recallCalled): int {
+                $recallCalled = true;
+
+                return 0;
+            },
+        );
+
+        try {
+            ob_start();
+            self::assertSame(1, $command->run(['ABC-123', '--by', 'lars']));
+            ob_end_clean();
+
+            self::assertFalse($recallCalled);
         } finally {
             $this->removeDirectory($root);
         }

@@ -42,7 +42,7 @@ final readonly class ExecutionContractDogfood
                 '--validation', 'php -l ' . self::SOURCE,
                 '--validation', 'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
                 '--operating-prompt-manifest', $this->operatingPromptManifest,
-                '--operating-prompt', '{"id":"multi-pass-correctness-simplify","arguments":{}}',
+                '--operating-prompt', '{"id":"breaking-change-review","arguments":{}}',
             ], $worktree);
 
             $this->runCommand([
@@ -54,7 +54,7 @@ final readonly class ExecutionContractDogfood
             if (!str_contains($system, '## L2 Operational Prompt Construction')) {
                 throw new ExecutionContractDogfoodFailure('Approved recall did not compile an L2 construction contract.');
             }
-            if (!str_contains($system, 'multi-pass-correctness-simplify')) {
+            if (!str_contains($system, 'breaking-change-review')) {
                 throw new ExecutionContractDogfoodFailure('Approved recall lost the selected operating-prompt recipe.');
             }
             foreach (['**Goal**', '**Context**', '**Constraints**', '**Verification**', '**Done When**'] as $section) {
@@ -78,6 +78,7 @@ final readonly class ExecutionContractDogfood
                 'contract goal' => 'without widening scope',
                 'declared non-goal' => 'Do not modify any file except the self-edit probe.',
                 'required validation' => 'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
+                'project compatibility policy' => 'compatibility is therefore not the default goal',
             ];
             $absent = [];
             foreach ($projectSpecific as $label => $needle) {
@@ -117,16 +118,16 @@ final readonly class ExecutionContractDogfood
 Change `tests/fixtures/self-shape/SelfEditProbe.php` from `100 + input` to `101 + input` and change nothing else.
 
 ## Context
-The approved WorkBrief scopes the task to `tests/fixtures/self-shape/SelfEditProbe.php`. The selected L2 recipe requires implementation, correctness review, then simplification against current repository evidence.
+The approved WorkBrief scopes the task to `tests/fixtures/self-shape/SelfEditProbe.php`. The selected L2 recipe requires a compatibility review against the repo-owned pre-1.0 policy. This private fixture change alters no public contract and has no dependent package or consumer to migrate.
 
 ## Constraints
-Keep the method signature and public behavior outside the requested constant change unchanged. Do not modify unrelated files or add abstractions.
+Keep the method signature and public behavior outside the requested constant change unchanged. Do not modify unrelated files, add abstractions, or add a compatibility layer where no compatibility contract exists.
 
 ## Verification
-Run `php -l tests/fixtures/self-shape/SelfEditProbe.php`. Run `vendor/bin/phpunit tests/ExecutionContractStoreTest.php`. Inspect Git changed-file evidence and require exactly the approved source file.
+Run `php -l tests/fixtures/self-shape/SelfEditProbe.php`. Run `vendor/bin/phpunit tests/ExecutionContractStoreTest.php`. Inspect Git changed-file evidence and require exactly the approved source file. Confirm the diff adds no alias, adapter, fallback, or dependency change.
 
 ## Done When
-The probe contains exactly one `return 101 + $input;`, no `return 100 + $input;` remains, the exact verification commands pass, and Git reports no unrelated changed source file.
+The probe contains exactly one `return 101 + $input;`, no `return 100 + $input;` remains, the exact verification commands pass, Git reports no unrelated changed source file, and no compatibility layer was added for the private fixture.
 MD
             );
 
@@ -159,6 +160,8 @@ MD
             $report = [
                 'schema_version' => '1.0',
                 'task_id' => self::TASK,
+                'operating_prompt' => 'breaking-change-review',
+                'project_policy' => 'docs/agents/policies/pre-1.0-compatibility.md',
                 'pre_contract_state' => 'missing',
                 'pre_contract_mutation_exit' => $blockedEdit['exit_code'],
                 'pre_contract_source_sha256' => hash('sha256', $sourceBefore),

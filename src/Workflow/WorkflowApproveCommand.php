@@ -78,8 +78,13 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = '--operating-prompt-manifest';
                 $recallArgs[] = $operatingPromptManifest;
             }
-            $documentManifest = rtrim($learningRoot, '/') . '/recall-documents.json';
-            if (is_file($documentManifest)) {
+            $layout = new ProjectLayout($this->rootPath);
+            $documentManifests = $layout->recallDocumentManifests();
+            $learningDocumentManifest = rtrim($learningRoot, '/') . '/recall-documents.json';
+            if (is_file($learningDocumentManifest) && !in_array($learningDocumentManifest, $documentManifests, true)) {
+                $documentManifests[] = $learningDocumentManifest;
+            }
+            foreach ($documentManifests as $documentManifest) {
                 $recallArgs[] = '--document-manifest';
                 $recallArgs[] = $documentManifest;
             }
@@ -89,7 +94,6 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = $kanbanContext;
             }
 
-            $layout = new ProjectLayout($this->rootPath);
             $mapIndex = $layout->mapIndex();
             if (is_file($mapIndex)) {
                 $recallArgs[] = '--map-index';

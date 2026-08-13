@@ -47,6 +47,31 @@ vendor/bin/agent-loop board card show DEMO-1
 
 See [Your first governed task](docs/quick-start.md) for the complete first run.
 
+## Project-scoped review policy
+
+`.agent-loop/init.json` can register Git-tracked recall document manifests:
+
+```json
+{
+  "version": 1,
+  "recall": {
+    "document_manifests": ["docs/agents/recall-documents.json"]
+  }
+}
+```
+
+Each manifest uses the existing recall document schema. Empty `scope` applies a
+document project-wide; path prefixes and tags narrow it to a directory, module,
+or task taxonomy. Governed approval passes these manifests to Recall
+automatically. Missing, malformed, absolute, or project-escaping configured
+paths fail visibly instead of silently dropping review policy.
+
+This repository registers its own pre-1.0 compatibility decision in
+[`docs/agents/recall-documents.json`](docs/agents/recall-documents.json). The
+reusable `breaking-change-review` L2 recipe can turn the applicable policy and
+current task evidence into a project-specific review without treating backward
+compatibility or breakage as a universal default.
+
 ## First-party agent discipline
 
 `agent-loop` ships its own reviewed agent behavior. It does not download RTK,
