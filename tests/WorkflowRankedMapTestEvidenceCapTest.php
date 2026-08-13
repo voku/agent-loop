@@ -22,7 +22,43 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-ranked-test-cap-' . bin2hex(random_bytes(8));
+        mkdir($this->root . '/src', 0777, true);
+        mkdir($this->root . '/tests', 0777, true);
         mkdir($this->root . '/.agent-loop/map', 0777, true);
+
+        file_put_contents($this->root . '/src/Noise.php', <<<'PHP'
+<?php
+namespace Demo;
+
+final class Noise
+{
+    public function one(): void {}
+    public function two(): void {}
+    public function three(): void {}
+    public function four(): void {}
+}
+PHP);
+        file_put_contents($this->root . '/src/Leaf.php', <<<'PHP'
+<?php
+namespace Demo;
+
+final class Leaf
+{
+    public function read(): void {}
+}
+PHP);
+        file_put_contents($this->root . '/tests/LeafTest.php', <<<'PHP'
+<?php
+namespace Demo;
+
+final class LeafTest
+{
+    public function testRead(): void
+    {
+        (new Leaf())->read();
+    }
+}
+PHP);
 
         $noiseMethods = [
             new MethodEntry('one', 'public', 6, 6, reconciliationStatus: 'confirmed'),
@@ -31,19 +67,14 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
             new MethodEntry('four', 'public', 9, 9, reconciliationStatus: 'confirmed'),
         ];
         $noise = new SymbolEntry('class', 'Noise', 'Demo\\Noise', 4, 10, $noiseMethods, reconciliationStatus: 'confirmed');
-        $leafMethod = new MethodEntry('read', 'public', 14, 14, reconciliationStatus: 'confirmed');
-        $leaf = new SymbolEntry('class', 'Leaf', 'Demo\\Leaf', 12, 15, [$leafMethod], reconciliationStatus: 'confirmed');
+        $leafMethod = new MethodEntry('read', 'public', 6, 6, reconciliationStatus: 'confirmed');
+        $leaf = new SymbolEntry('class', 'Leaf', 'Demo\\Leaf', 4, 7, [$leafMethod], reconciliationStatus: 'confirmed');
         $testMethod = new MethodEntry('testRead', 'public', 6, 9, reconciliationStatus: 'confirmed');
         $test = new SymbolEntry('class', 'LeafTest', 'Demo\\LeafTest', 4, 10, [$testMethod], reconciliationStatus: 'confirmed');
 
-        $productionFile = new FileEntry(
-            'src/Fixture.php',
-            'sha256:production-fixture',
-            'Demo',
-            [$noise, $leaf],
-            'analysed',
-        );
-        $testFile = new FileEntry('tests/LeafTest.php', 'sha256:test-fixture', 'Demo', [$test], 'analysed');
+        $productionFile = $this->file('src/Noise.php', [$noise]);
+        $leafFile = $this->file('src/Leaf.php', [$leaf]);
+        $testFile = $this->file('tests/LeafTest.php', [$test]);
         $relation = RelationEntry::create(
             sourceId: $test->methodId($testMethod),
             kind: 'calls',
@@ -58,7 +89,7 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
             schemaVersion: '2.0',
             root: $this->root,
             backend: 'phpstan+simple-parser',
-            files: [$productionFile, $testFile],
+            files: [$productionFile, $leafFile, $testFile],
             relations: [$relation],
             fingerprint: new AnalysisFingerprint('2.2.0', 'sha256:config', 'sha256:lock', 'sha256:fixture-map'),
         ), $this->root . '/.agent-loop/map/php-symbols.json');
@@ -66,13 +97,7 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (array_reverse(glob($this->root . '/{,.}*', GLOB_BRACE) ?: []) as $path) {
-            if (basename($path) === '.' || basename($path) === '..') {
-                continue;
-            }
-            is_dir($path) ? $this->removeDirectory($path) : unlink($path);
-        }
-        @rmdir($this->root);
+        $this->removeDirectory($this->root);
     }
 
     public function testTestEvidenceStillExpandsAfterProductionSeedCap(): void
@@ -83,10 +108,10 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
                 'status' => 'ranked',
                 'map_snapshot' => 'sha256:fixture-map',
                 'results' => [
-                    $this->candidate('method:Demo\\Noise::one', 'src/Fixture.php', 6),
-                    $this->candidate('method:Demo\\Noise::two', 'src/Fixture.php', 7),
-                    $this->candidate('method:Demo\\Noise::three', 'src/Fixture.php', 8),
-                    $this->candidate('method:Demo\\Noise::four', 'src/Fixture.php', 9),
+                    $this->candidate('method:Demo\\Noise::one', 'src/Noise.php', 6),
+                    $this->candidate('method:Demo\\Noise::two', 'src/Noise.php', 7),
+                    $this->candidate('method:Demo\\Noise::three', 'src/Noise.php', 8),
+                    $this->candidate('method:Demo\\Noise::four', 'src/Noise.php', 9),
                     $this->candidate('method:Demo\\LeafTest::testRead', 'tests/LeafTest.php', 6),
                 ],
             ],
@@ -99,6 +124,15 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
         self::assertStringNotContainsString('rank 4 seed Demo\\Noise::four', $rendered);
         self::assertStringContainsString('rank 5 test evidence calls Demo\\Leaf::read', $rendered);
         self::assertStringNotContainsString('rank 5 seed Demo\\LeafTest::testRead', $rendered);
+    }
+
+    /** @param list<SymbolEntry> $symbols */
+    private function file(string $path, array $symbols): FileEntry
+    {
+        $hash = hash_file('sha256', $this->root . '/' . $path);
+        self::assertIsString($hash);
+
+        return new FileEntry($path, 'sha256:' . $hash, 'Demo', $symbols, 'analysed');
     }
 
     /** @return array<string, mixed> */
@@ -114,6 +148,9 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
 
     private function removeDirectory(string $path): void
     {
+        if (!is_dir($path)) {
+            return;
+        }
         foreach (scandir($path) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
