@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "source": {
+    "repository": "voku/agent-loop",
+    "pull_request": 33,
+    "base_commit": "33602400fdf1a9e90eee6f47c524a5a9bed243da",
+    "head_commit": "8cc8f1c836357e316b062ae3d9370297ec32aaa5",
+    "merge_commit": "dd6c4c2b6d9d4bc773c319fd92e193c0207e23f6"
+  },
+  "upstreams": {
+    "JuliusBrussee/caveman": "14d4f2e21a16b573373ca24698cd6bd3db75bf52",
+    "DietrichGebert/ponytail": "2ed6c52c9d7e5e56942508591085fd45dea277d3",
+    "aaddrick/attention-control": "3c8a2a8a38f163aa85ad325812b5ce3ba330ad27"
+  },
+  "representative_decisions": [
+    {"mechanism": "caveman_builder_terminal_outcomes", "decision": "ADAPT"},
+    {"mechanism": "lossy_memory_compression", "decision": "REJECT"},
+    {"mechanism": "ponytail_minimal_code_ladder", "decision": "ALREADY"},
+    {"mechanism": "cross_repository_shortcut_debt_ledger", "decision": "DEFER"},
+    {"mechanism": "attention_resume_state", "decision": "ADAPT"},
+    {"mechanism": "reader_specific_adhd_assumptions", "decision": "REJECT"}
+  ]
+}
