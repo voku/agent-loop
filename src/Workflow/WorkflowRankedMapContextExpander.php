@@ -52,6 +52,12 @@ final readonly class WorkflowRankedMapContextExpander
             return;
         }
 
+        if ($index->fingerprint === null) {
+            $budget->skip('agent-map candidate expansion: current map has no source fingerprint');
+
+            return;
+        }
+
         $recallSnapshot = is_string($payload['map_snapshot'] ?? null) ? trim($payload['map_snapshot']) : '';
         $currentSnapshot = $index->fingerprint->sourceDigest;
         if ($recallSnapshot === '' || $currentSnapshot === '' || $recallSnapshot !== $currentSnapshot) {
