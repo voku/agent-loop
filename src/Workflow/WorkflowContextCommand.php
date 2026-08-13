@@ -269,6 +269,10 @@ final readonly class WorkflowContextCommand
 
                 continue;
             }
+            if ($fact['type'] === 'navigation_candidates') {
+                (new WorkflowRankedMapContextExpander($this->rootPath))->add($budget, $fact);
+                continue;
+            }
             if ($fact['type'] === 'navigation_status') {
                 $scope = is_array($fact['scope'] ?? null) ? implode(', ', $fact['scope']) : 'unknown';
                 $status = is_string($fact['payload']['status'] ?? null) ? $fact['payload']['status'] : 'unavailable';
