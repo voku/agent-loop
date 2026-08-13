@@ -85,7 +85,7 @@ final class RepositoryHealthCli
             }
         }
 
-        return array_any($results, static fn (array $result): bool => $result['status'] === 'suspicious') ? 1 : 0;
+        return in_array('suspicious', array_column($results, 'status'), true) ? 1 : 0;
     }
 
     /**
@@ -139,7 +139,7 @@ final class RepositoryHealthCli
     private function usage(): string
     {
         return <<<'TXT'
-        agent-loop repo-health EVIDENCE.json [--format=text|json]
+        agent-loop-repo-health EVIDENCE.json [--format=text|json]
 
         Classify dependency-automation evidence collected by a host workflow.
         A document may describe one repository or contain a `repositories` list.
