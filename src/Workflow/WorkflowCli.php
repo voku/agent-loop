@@ -28,6 +28,7 @@ final readonly class WorkflowCli
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
+            'reflect' => (new WorkflowReflectCommand($this->rootPath, $this->recallRunner))->run($rest),
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
             default => $this->unknown($command),
@@ -39,7 +40,7 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
+  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path|@agent-loop> --operating-prompt <json> ...] [--base-commit <sha>]
   agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
@@ -47,6 +48,7 @@ Usage:
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
+  agent-loop workflow reflect <task-id> [--scope project|task]
   agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>] [--learning-root <path>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>] [--learning-root <path>]
 
@@ -58,8 +60,15 @@ Commands:
   manifest  Inspect or atomically persist the cross-package Run projection.
   context   Render bounded read-only context from the durable Contract and current owner artifacts.
   report    Show an auditable task/Run completion report.
+  reflect   Emit a context-light project/task future-work prompt only after the task is review-ready or complete; never mutates workflow state.
   learn     Record the durable Run Learning close-out through agent-learning.
   close     Close the governed Run through safety gates and preserve durable close evidence.
+
+Built-in L1 control prompts:
+  Use `--operating-prompt-manifest @agent-loop` with explicit selections from the bundled manifest.
+  `checkpoint-autonomy` requires `{"anchor_point":"..."}` and self-checks bounded steps without fabricating human approval.
+  `momentum` reuses still-valid fresh context while revalidating authority/freshness instead of restarting discovery.
+  Both may be selected together because they are context-independent L1 controls; they do not create an L2 execution-contract construction pass.
 
 Governed flow:
   PLAN -> APPROVE/PREPARE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
