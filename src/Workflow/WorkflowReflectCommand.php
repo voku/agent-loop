@@ -6,7 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
-use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\GovernedRunManifestProjector;
 
 final readonly class WorkflowReflectCommand
 {
@@ -73,6 +73,6 @@ final readonly class WorkflowReflectCommand
             return $state;
         }
 
-        return (new RunManifestProjector($this->rootPath))->project($taskId)->state;
+        return (new GovernedRunManifestProjector($this->rootPath))->project($taskId)->state;
     }
 }
