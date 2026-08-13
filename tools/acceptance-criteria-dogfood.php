@@ -92,8 +92,12 @@ final class AcceptanceCriteriaDogfood
     private function assertContract(string $expectedStatus): void
     {
         $contract = $this->jsonFile('.agent-loop/contracts/' . self::TASK_ID . '/contract.json');
-        $this->assertSame(self::CRITERIA, $contract['acceptance_criteria'] ?? null, 'persisted Contract criteria');
-        $this->assertSame($expectedStatus, $contract['status'] ?? null, 'persisted Contract status');
+        $this->assertCriteria($contract, 'persisted Contract');
+
+        $status = $contract['status'] ?? null;
+        if (!is_string($status) || $status !== $expectedStatus) {
+            throw new AcceptanceCriteriaDogfoodFailure('persisted Contract status mismatch.');
+        }
         $this->assertNoFakeAcceptanceStatus($contract, 'persisted Contract');
     }
 
@@ -110,7 +114,9 @@ final class AcceptanceCriteriaDogfood
 
         $facts = $this->jsonFile('.agent-loop/recall/' . self::TASK_ID . '/facts.json');
         $criteria = $this->taskContextAcceptanceCriteria($facts);
-        $this->assertSame(self::CRITERIA, $criteria, 'Recall task-context criteria');
+        if ($criteria !== self::CRITERIA) {
+            throw new AcceptanceCriteriaDogfoodFailure('Recall task-context criteria mismatch.');
+        }
     }
 
     private function assertWorkflowProjections(): void
@@ -123,7 +129,7 @@ final class AcceptanceCriteriaDogfood
         if (!is_array($contract)) {
             throw new AcceptanceCriteriaDogfoodFailure('workflow status misses Contract reference.');
         }
-        $this->assertSame(self::CRITERIA, $contract['acceptance_criteria'] ?? null, 'workflow status criteria');
+        $this->assertCriteria($contract, 'workflow status Contract');
         $this->assertNoFakeAcceptanceStatus($contract, 'workflow status Contract');
 
         $reportResult = $this->runCommand([
@@ -134,12 +140,15 @@ final class AcceptanceCriteriaDogfood
         if (!is_array($reportContract)) {
             throw new AcceptanceCriteriaDogfoodFailure('workflow report misses Contract projection.');
         }
-        $this->assertSame(self::CRITERIA, $reportContract['acceptance_criteria'] ?? null, 'workflow report criteria');
+        $this->assertCriteria($reportContract, 'workflow report Contract');
         $this->assertNoFakeAcceptanceStatus($reportContract, 'workflow report Contract');
     }
 
-    /** @param array<string, mixed> $factsDocument */
-    private function taskContextAcceptanceCriteria(array $factsDocument): mixed
+    /**
+     * @param array<string, mixed> $factsDocument
+     * @return list<string>
+     */
+    private function taskContextAcceptanceCriteria(array $factsDocument): array
     {
         $facts = $factsDocument['facts'] ?? null;
         if (!is_array($facts)) {
@@ -168,7 +177,37 @@ final class AcceptanceCriteriaDogfood
             throw new AcceptanceCriteriaDogfoodFailure('Canonical task-context fact misses payload.');
         }
 
-        return $payload['acceptance_criteria'] ?? null;
+        return $this->criteriaFrom($payload, 'Canonical task-context fact');
+    }
+
+    /** @param array<string, mixed> $data */
+    private function assertCriteria(array $data, string $label): void
+    {
+        if ($this->criteriaFrom($data, $label) !== self::CRITERIA) {
+            throw new AcceptanceCriteriaDogfoodFailure($label . ' criteria mismatch.');
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return list<string>
+     */
+    private function criteriaFrom(array $data, string $label): array
+    {
+        $criteria = $data['acceptance_criteria'] ?? null;
+        if (!is_array($criteria)) {
+            throw new AcceptanceCriteriaDogfoodFailure($label . ' misses acceptance_criteria.');
+        }
+
+        $result = [];
+        foreach ($criteria as $criterion) {
+            if (!is_string($criterion)) {
+                throw new AcceptanceCriteriaDogfoodFailure($label . ' contains a non-string acceptance criterion.');
+            }
+            $result[] = $criterion;
+        }
+
+        return $result;
     }
 
     /** @param array<string, mixed> $data */
@@ -260,8 +299,12 @@ final class AcceptanceCriteriaDogfood
         if (!is_file($path)) {
             throw new AcceptanceCriteriaDogfoodFailure('Missing file: ' . $relativePath);
         }
+        $content = file_get_contents($path);
+        if (!is_string($content)) {
+            throw new AcceptanceCriteriaDogfoodFailure('Unable to read file: ' . $relativePath);
+        }
 
-        return (string) file_get_contents($path);
+        return $content;
     }
 
     /** @return array<string, mixed> */
@@ -285,13 +328,6 @@ final class AcceptanceCriteriaDogfood
     {
         if (!str_contains($haystack, $needle)) {
             throw new AcceptanceCriteriaDogfoodFailure($label . ' misses: ' . $needle);
-        }
-    }
-
-    private function assertSame(mixed $expected, mixed $actual, string $label): void
-    {
-        if ($expected !== $actual) {
-            throw new AcceptanceCriteriaDogfoodFailure($label . ' mismatch: ' . json_encode($actual));
         }
     }
 
