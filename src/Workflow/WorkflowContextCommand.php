@@ -120,6 +120,12 @@ final readonly class WorkflowContextCommand
                     $budget->add('contract', '  ' . $nonGoal);
                 }
             }
+            if ($contract['acceptance_criteria'] !== []) {
+                $budget->section('Acceptance criteria (required, not proof)');
+                foreach ($contract['acceptance_criteria'] as $criterion) {
+                    $budget->add('acceptance', '  ' . $criterion);
+                }
+            }
         }
 
         $session = $this->session($taskId, $report['session']['id'] ?? null);
