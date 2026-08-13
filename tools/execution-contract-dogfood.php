@@ -78,7 +78,7 @@ final readonly class ExecutionContractDogfood
                 'contract goal' => 'without widening scope',
                 'declared non-goal' => 'Do not modify any file except the self-edit probe.',
                 'required validation' => 'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
-                'project compatibility policy' => 'Backward compatibility is therefore not the default goal',
+                'project compatibility policy' => 'compatibility is therefore not the default goal',
             ];
             $absent = [];
             foreach ($projectSpecific as $label => $needle) {
