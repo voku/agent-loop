@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentMap\Context\EditContextPlanner;
@@ -43,13 +44,16 @@ final readonly class WorkflowRankedMapContextExpander
             $budget->add('candidate_navigation', $this->leadLine($offset + 1, $result));
         }
 
-        $index = $this->currentMap($budget);
-        if ($index === null) {
+        try {
+            $index = $this->currentMap();
+        } catch (RuntimeException $exception) {
+            $budget->skip('agent-map candidate expansion: ' . $exception->getMessage());
+
             return;
         }
 
         $recallSnapshot = is_string($payload['map_snapshot'] ?? null) ? trim($payload['map_snapshot']) : '';
-        $currentSnapshot = $index->fingerprint?->sourceDigest ?? '';
+        $currentSnapshot = $index->fingerprint->sourceDigest;
         if ($recallSnapshot === '' || $currentSnapshot === '' || $recallSnapshot !== $currentSnapshot) {
             $budget->skip(sprintf(
                 'agent-map candidate expansion: map snapshot mismatch (recall %s, current %s)',
@@ -117,20 +121,17 @@ final readonly class WorkflowRankedMapContextExpander
         }
     }
 
-    private function currentMap(WorkflowContextBudget $budget): ?AgentMapIndex
+    private function currentMap(): AgentMapIndex
     {
         $path = (new ProjectLayout($this->rootPath))->mapIndex();
         if (!is_file($path)) {
-            $budget->skip('agent-map candidate expansion: index missing (' . $this->relativePath($path) . ')');
-
-            return null;
+            throw new RuntimeException('index missing (' . $this->relativePath($path) . ')');
         }
+
         try {
             return (new IndexReader())->read($path);
-        } catch (Throwable) {
-            $budget->skip('agent-map candidate expansion: index invalid (' . $this->relativePath($path) . ')');
-
-            return null;
+        } catch (Throwable $exception) {
+            throw new RuntimeException('index invalid (' . $this->relativePath($path) . ')', 0, $exception);
         }
     }
 
