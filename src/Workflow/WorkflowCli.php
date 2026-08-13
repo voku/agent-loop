@@ -28,6 +28,7 @@ final readonly class WorkflowCli
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
+            'reflect' => (new WorkflowReflectCommand($this->rootPath, $this->recallRunner))->run($rest),
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
             default => $this->unknown($command),
@@ -47,6 +48,7 @@ Usage:
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
   agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
+  agent-loop workflow reflect <task-id> [--scope project|task]
   agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>] [--learning-root <path>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>] [--learning-root <path>]
 
@@ -58,8 +60,17 @@ Commands:
   manifest  Inspect or atomically persist the cross-package Run projection.
   context   Render bounded read-only context from the durable Contract and current owner artifacts.
   report    Show an auditable task/Run completion report.
+  reflect   Emit a context-light project/task future-work prompt only after the task is review-ready or complete; never mutates workflow state.
   learn     Record the durable Run Learning close-out through agent-learning.
   close     Close the governed Run through safety gates and preserve durable close evidence.
+
+Built-in L1 control prompts:
+  Source checkout manifest: `resources/operating-prompts.json`.
+  Composer consumer manifest: `vendor/voku/agent-loop/resources/operating-prompts.json`.
+  `checkpoint-autonomy` requires `{"anchor_point":"..."}` and self-checks bounded steps without fabricating human approval.
+  `momentum` reuses still-valid fresh context while revalidating authority/freshness instead of restarting discovery.
+  Select either or both through the normal `--operating-prompt-manifest` + `--operating-prompt` Contract policy.
+  They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
 Governed flow:
   PLAN -> APPROVE/PREPARE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
