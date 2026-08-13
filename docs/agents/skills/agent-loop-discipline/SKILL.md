@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Keep governed agent-* work resumable, map-first, deterministic in workflow state, exact in evidence, and gated by the current execution contract when L2 policy is selected. Use for agent-loop workflow, navigation, delegation, review routing, and guidance changes. Engineering implementation rules belong to loadable agent-skills, not this session bootstrap.
+description: Keep governed agent-* work resumable, map-first, deterministic in workflow state, exact in evidence, and gated by the current execution contract when L2 policy is selected. Use for agent-loop workflow, navigation, delegation, review routing, prompt controls, and guidance changes. Engineering implementation rules belong to loadable agent-skills, not this session bootstrap.
 ---
 
 # Agent Loop Discipline
@@ -28,7 +28,16 @@ vendor/bin/agent-loop workflow status <task-id> --format=json
 
 A SessionStart/SubagentStart resume hint is navigation only. Resolve multiple unfinished tasks from the request and repository context; never infer approval, contract readiness, validation, review, learning, product intent, or a next command from a hint.
 
-Human gates are limited to WorkBrief approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, contract construction from approved evidence, and reports remain agent work.
+Human gates are limited to WorkBrief approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, contract construction from approved evidence, reports, and agent-owned checkpoints remain agent work.
+
+## Prompt Controls
+
+When the approved WorkBrief explicitly selects the bundled L1 controls, apply them without inventing new workflow authority:
+
+- `checkpoint-autonomy`: at the supplied explicit anchor, inspect scope, evidence, relevant validation, blockers, and the current done condition. If the checkpoint passes and no real human-only gate is present, record a concise session checkpoint and continue automatically. Never persist a synthetic human/self approval.
+- `momentum`: reuse still-valid files, symbols, commands, constraints, decisions, and evidence from the work already completed. Re-check authority, freshness, repository scope, and assumptions when they may have changed instead of restarting discovery from scratch.
+
+Both controls use the normal approved operating-prompt policy. They are L1-only and do not create an L2 execution-contract gate by themselves. Explicit L2 engineering policy, when separately selected, keeps its normal contract gate.
 
 ## Navigate Before Editing
 
@@ -128,5 +137,21 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Code,
 ## Validation And Close
 
 Run the narrowest proof first, then the gates required by the WorkBrief and L1 Verification section. Claim a pass only after observing its result. Stop when approved behavior is satisfied and all required gates are closed; do not manufacture follow-up work.
+
+At `ready_to_close`, task reflection is optional when deeper scrutiny is useful:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+```
+
+`RETURN_TO_REVIEW` means the completion bar was not actually met: route the concrete gap back through REVIEW/IMPLEMENT/PLAN as appropriate before closing. Otherwise optional extra depth remains optional.
+
+After successful close, project reflection may be used when the completed work exposed a meaningful future investment:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
+```
+
+Report at most one highest-leverage direction or that nothing worthwhile emerged. Reflection is read-only, is not a close gate, does not approve learning, and does not create follow-up work automatically.
 
 `workflow close --status done` requires any selected L2 contract to remain current and `ready`. `--accept-risk` never bypasses that boundary.
