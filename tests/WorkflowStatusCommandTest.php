@@ -144,7 +144,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertSame('incomplete', $status['manifest']['state'] ?? null);
         self::assertSame('invalid', $status['manifest']['references']['execution_contract']['state'] ?? null);
         self::assertStringContainsString(
-            'Invalid JSON in',
+            'Invalid JSON artifact',
             (string) ($status['manifest']['references']['execution_contract']['reason'] ?? ''),
         );
     }
