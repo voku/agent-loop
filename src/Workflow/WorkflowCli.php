@@ -40,7 +40,7 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path|@agent-loop> --operating-prompt <json> ...] [--base-commit <sha>]
+  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
   agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
@@ -65,10 +65,12 @@ Commands:
   close     Close the governed Run through safety gates and preserve durable close evidence.
 
 Built-in L1 control prompts:
-  Use `--operating-prompt-manifest @agent-loop` with explicit selections from the bundled manifest.
+  Source checkout manifest: `resources/operating-prompts.json`.
+  Composer consumer manifest: `vendor/voku/agent-loop/resources/operating-prompts.json`.
   `checkpoint-autonomy` requires `{"anchor_point":"..."}` and self-checks bounded steps without fabricating human approval.
   `momentum` reuses still-valid fresh context while revalidating authority/freshness instead of restarting discovery.
-  Both may be selected together because they are context-independent L1 controls; they do not create an L2 execution-contract construction pass.
+  Select either or both through the normal `--operating-prompt-manifest` + `--operating-prompt` Contract policy.
+  They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
 Governed flow:
   PLAN -> APPROVE/PREPARE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
