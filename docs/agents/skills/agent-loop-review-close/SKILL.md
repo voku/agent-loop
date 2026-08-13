@@ -1,6 +1,6 @@
 ---
 name: agent-loop-review-close
-description: Review, verify, and close an agent-loop task safely after implementation, including blind-spot review, strict verification, and explicit accepted-risk handling.
+description: Review, verify, and close an agent-loop task safely after implementation, including blind-spot review, strict verification, explicit accepted-risk handling, and optional read-only reflection around the close boundary.
 ---
 
 # Agent Loop Review Close
@@ -20,10 +20,18 @@ vendor/bin/agent-loop recall log-outcome --root <learning-root> --draft recall/<
 vendor/bin/agent-loop session learning decide <task-id> --status no_durable_learning --by <actor>
 vendor/bin/agent-loop verify
 vendor/bin/agent-loop workflow report <task-id> --changed-file <path>
+
+# Optional at ready_to_close when extra task scrutiny is useful:
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+
 vendor/bin/agent-loop workflow close <task-id> --status done
+
+# Optional after close when the work exposed a meaningful future investment:
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
-Do not skip required evidence or reorder the close gates.
+Do not skip required evidence or reorder the close gates. Reflection is not one
+of those gates.
 
 ## Blind-Spot Review
 
@@ -59,6 +67,42 @@ vendor/bin/agent-loop verify --strict
 Run `agent-loop init paths` to see where this project keeps them.
 Use it in expected-complete repos; omit it when the repo only wires part
 of the stack.
+
+## Optional Reflection
+
+Reflection is read-only and available only when the governed run is
+`ready_to_close` or `complete`.
+
+Task reflection asks whether extra time on the just-completed task exposes
+additional depth or a missed completion requirement:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+```
+
+If the result is `RETURN_TO_REVIEW`, do not close. The completion bar was false;
+route the concrete gap back through REVIEW/IMPLEMENT/PLAN as the existing
+workflow requires. Otherwise the suggested deepening remains optional.
+
+Project reflection asks what future investment became visible through doing the
+work:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
+```
+
+Use it after successful close when useful. Report one highest-leverage direction
+or `nothing worthwhile`. Do not automatically create issues, findings, durable
+learning, or follow-up work from the answer.
+
+Keep the boundaries explicit:
+
+```text
+REVIEW             = Is this task actually complete/correct?
+LEARN              = What observed knowledge should potentially survive this task?
+TASK REFLECTION    = What extra depth or missed opportunity is worth examining?
+PROJECT REFLECTION = What future investment became visible through the work?
+```
 
 ## Close
 
@@ -122,6 +166,9 @@ Closing a task with `workflow close` is not an approval of durable learning.
 Findings and learning candidates remain review inputs. Only reviewed decisions
 become durable guidance. See `docs/workflow/learning-boundary.md`.
 
+Reflection is separate again: it neither approves learning nor becomes learning
+merely because it produced an interesting idea.
+
 ## Validation
 
 - Blind-spot review report exists under `<recall-root>/<task-id>/reviews/`
@@ -130,7 +177,9 @@ become durable guidance. See `docs/workflow/learning-boundary.md`.
 - an explicit session learning decision exists
 - `vendor/bin/agent-loop verify` passes (or accepted risk is explicit and named)
 - `vendor/bin/agent-loop workflow report <task-id>` shows no unaccepted scope or evidence gap
+- optional task reflection returning `RETURN_TO_REVIEW` is resolved before close
 - `vendor/bin/agent-loop workflow close <task-id> --status done` succeeds
+- optional project reflection remains post-completion and read-only
 
 ## Skill Boundary
 
@@ -140,6 +189,7 @@ This skill owns:
 - understanding the verify gate and its `--strict` mode
 - understanding accepted-risk as an explicit, named, last-resort path
 - knowing that close is not durable learning approval
+- keeping optional task/project reflection separate from close authority
 
 This skill does not own:
 
@@ -152,4 +202,6 @@ This skill does not own:
 - "Close this agent-loop task."
 - "Run the review/verify gate."
 - "Can I mark this done?"
+- "What did we miss before closing?"
+- "What future investment did this work expose?"
 - "Accept the risk and close."
