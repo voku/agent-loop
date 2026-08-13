@@ -40,7 +40,7 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
+  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
   agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
@@ -53,7 +53,7 @@ Usage:
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>] [--learning-root <path>]
 
 Commands:
-  plan      Create or revise a durable candidate Contract. PLAN creates no Session and no Run.
+  plan      Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
   approve   Approve the exact Contract revision, prepare/resume its governed Run and working Session, then compile Run-bound Recall.
   contract  Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
   status    Show the read-only cross-package Run projection and one next action.
