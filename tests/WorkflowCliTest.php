@@ -16,8 +16,11 @@ final class WorkflowCliTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('agent-loop workflow plan', $result['output']);
         self::assertStringContainsString('agent-loop workflow approve', $result['output']);
+        self::assertStringContainsString('agent-loop workflow reflect', $result['output']);
         self::assertStringContainsString('agent-loop workflow learn', $result['output']);
         self::assertStringContainsString('agent-loop workflow close', $result['output']);
+        self::assertStringContainsString('checkpoint-autonomy', $result['output']);
+        self::assertStringContainsString('momentum', $result['output']);
         self::assertStringNotContainsString('agent-loop workflow start', $result['output']);
         self::assertStringContainsString('session start --ephemeral', $result['output']);
     }
@@ -44,7 +47,7 @@ final class WorkflowCliTest extends TestCase
 
     public function testGovernedCommandsWithoutTaskIdFail(): void
     {
-        foreach (['plan', 'approve', 'contract', 'status', 'manifest', 'context', 'report', 'learn', 'close'] as $command) {
+        foreach (['plan', 'approve', 'contract', 'status', 'manifest', 'context', 'report', 'reflect', 'learn', 'close'] as $command) {
             self::assertSame(1, $this->runCli([$command])['exit'], $command);
         }
     }
@@ -63,11 +66,8 @@ final class WorkflowCliTest extends TestCase
     }
 
     /**
-
      * @param list<string> $args
-
      * @return array{exit: int, output: string}
-
      */
     private function runCli(array $args): array
     {
