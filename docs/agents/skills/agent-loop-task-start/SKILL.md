@@ -79,6 +79,30 @@ start`, recall compile, current repository inspection, or validation. If ctx
 material affects a finding, cite it as bounded `agent_history_reference`
 evidence with inspected IDs and a summary; do not paste raw transcripts.
 
+## Existing Work Preflight
+
+**Inspect overlap before invention.** Before designing a new implementation for a
+non-trivial task, use repository/tracker history when the host exposes it and
+parallel or prior work is plausible.
+
+1. Search a bounded set of open and recent merged/closed work for the same task,
+   behavior, owner surface, or intended acceptance outcome.
+2. Classify each relevant candidate as already landed, active, superseded or
+   abandoned, or materially independent. An open PR is not correctness evidence.
+3. Select the strongest existing candidate and try to **falsify it** against the
+   current approved acceptance criteria, current source, deterministic tests,
+   CI/runtime evidence, and known regressions.
+4. If it already satisfies or nearly satisfies the task, reuse, repair, rebase,
+   merge, or close superseded work instead of creating a competing implementation.
+5. Create a new competing implementation only when evidence shows the existing
+   candidate cannot satisfy the current contract or addresses a materially
+   different problem.
+
+Do not block implementation merely because external history is unavailable.
+Record that overlap is unknown and continue from current repository evidence.
+Do not turn this preflight into a new lifecycle state, benchmark service, or
+requirement to inspect unrelated repository history.
+
 ## Task ID
 
 Use the ticket or issue id from your board (e.g. `ABC-123`, `PROJ-42`).
@@ -169,6 +193,7 @@ This skill owns:
 
 - the opening step of a governed agent-loop task in a consuming repository
 - choosing a task id, actor, file scope, non-goals, explicit acceptance criteria, behavior anchors, and validation commands
+- checking bounded prior/parallel work when the host exposes relevant history, and falsifying the strongest existing candidate before creating a competing implementation
 - understanding that `workflow plan` creates/revises a candidate Contract and `workflow approve` creates the governed working state and compiles Recall from its approved revision
 - obtaining human approval before implementation and inspecting the bounded context
 - inspecting initial state with `workflow status` and `verify`
