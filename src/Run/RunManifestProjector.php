@@ -245,6 +245,7 @@ final readonly class RunManifestProjector
             'observation_mode' => 'checked',
             'revision' => $contract->revision,
             'goal' => $contract->goal,
+            'acceptance_criteria' => $contract->acceptanceCriteria,
             'source' => $this->artifact($contract->path),
         ];
     }
