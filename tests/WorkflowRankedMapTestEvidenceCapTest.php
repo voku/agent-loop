@@ -83,11 +83,11 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
                 'status' => 'ranked',
                 'map_snapshot' => 'sha256:fixture-map',
                 'results' => [
-                    $this->result('method:Demo\\Noise::one', 'src/Fixture.php', 6),
-                    $this->result('method:Demo\\Noise::two', 'src/Fixture.php', 7),
-                    $this->result('method:Demo\\Noise::three', 'src/Fixture.php', 8),
-                    $this->result('method:Demo\\Noise::four', 'src/Fixture.php', 9),
-                    $this->result('method:Demo\\LeafTest::testRead', 'tests/LeafTest.php', 6),
+                    $this->candidate('method:Demo\\Noise::one', 'src/Fixture.php', 6),
+                    $this->candidate('method:Demo\\Noise::two', 'src/Fixture.php', 7),
+                    $this->candidate('method:Demo\\Noise::three', 'src/Fixture.php', 8),
+                    $this->candidate('method:Demo\\Noise::four', 'src/Fixture.php', 9),
+                    $this->candidate('method:Demo\\LeafTest::testRead', 'tests/LeafTest.php', 6),
                 ],
             ],
         ]);
@@ -102,7 +102,7 @@ final class WorkflowRankedMapTestEvidenceCapTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function result(string $symbolId, string $path, int $line): array
+    private function candidate(string $symbolId, string $path, int $line): array
     {
         return [
             'symbol_id' => $symbolId,
