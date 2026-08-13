@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "source_pr": "voku/Simple-PHP-Code-Parser#99",
+  "target_base": "27e504550c1689706429df390d89ddef97ff1fb9",
+  "target_head": "cf3f4c8e3a6679c2ef6529109d7f4f0492a4bfdf",
+  "upstream_repository": "BrianHenryIE/Simple-PHP-Code-Parser",
+  "upstream_commits": [
+    "c5e6275cc2c685cdc00cec7af0da9ee5a5b69014",
+    "b572272b111372d1709bceb027deeb341061e24e",
+    "d7db905e4ce183b0a945f7b9808844dfa3922641"
+  ],
+  "production_mutation_required": true,
+  "preserve_package_identity": true,
+  "preserve_namespace": true
+}
