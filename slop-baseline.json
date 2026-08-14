@@ -431,7 +431,7 @@
             "locations": [
                 {
                     "path": "src/Dispatcher.php",
-                    "line": 416,
+                    "line": 417,
                     "column": 1
                 },
                 {
@@ -447,7 +447,7 @@
                     {
                         "fingerprint": "a1b1b896bcca368a27f00fd99776e47757b9b6dbb9276c2312e03e25dc1be8be",
                         "path": "src/Dispatcher.php",
-                        "line": 416,
+                        "line": 417,
                         "column": 1
                     },
                     {
