@@ -123,28 +123,30 @@ final readonly class RunManifestProjector
                 return null;
             }
 
+            $session = null;
             try {
                 $session = $store->load($root, $run->sessionId);
-                if ($session->taskId !== $taskId) {
-                    $disagreements[] = [
-                        'code' => 'session.task_mismatch',
-                        'owner' => 'agent-session',
-                        'message' => 'Run-bound Session belongs to another task.',
-                    ];
-
-                    return null;
-                }
-
-                return $session;
             } catch (Throwable $exception) {
                 $disagreements[] = [
                     'code' => 'session.unreadable',
                     'owner' => 'agent-session',
                     'message' => $exception->getMessage(),
                 ];
+            }
+            if ($session === null) {
+                return null;
+            }
+            if ($session->taskId !== $taskId) {
+                $disagreements[] = [
+                    'code' => 'session.task_mismatch',
+                    'owner' => 'agent-session',
+                    'message' => 'Run-bound Session belongs to another task.',
+                ];
 
                 return null;
             }
+
+            return $session;
         }
 
         $matches = array_values(array_filter(
