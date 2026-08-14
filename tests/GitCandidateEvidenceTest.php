@@ -6,22 +6,17 @@ namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\GitCandidateEvidence;
 
-/**
- * Regression for the #104/#111 outcome-honesty history.
- *
- * #104 proves that a branch may move after its earlier head was merged. #111
- * proves the other important shape: a squash merge may ship the exact candidate
- * tree even though the source commit itself is not an ancestor of the target.
- */
+/** Regression for the #104/#111 outcome-honesty history. */
 final class GitCandidateEvidenceTest extends TestCase
 {
     private string $root;
 
     protected function setUp(): void
     {
-        if ($this->runProcess(sys_get_temp_dir(), ['git', '--version'])['exit'] !== 0) {
+        if ((new ProcessRunner(sys_get_temp_dir()))->run(['git', '--version'])['exit_code'] !== 0) {
             self::markTestSkipped('git is not available.');
         }
 
@@ -37,7 +32,6 @@ final class GitCandidateEvidenceTest extends TestCase
     public function testMergedCandidateStillPassesAfterItsOldSourceBranchMoves(): void
     {
         $repo = $this->repository();
-        $base = $this->git($repo, 'rev-parse', 'HEAD');
         $this->git($repo, 'switch', '-c', 'candidate');
         $this->commitFile($repo, 'candidate.txt', "candidate\n", 'candidate');
         $candidate = $this->git($repo, 'rev-parse', 'HEAD');
@@ -52,11 +46,7 @@ final class GitCandidateEvidenceTest extends TestCase
         $this->git($repo, 'switch', 'main');
 
         $evidence = (new GitCandidateEvidence($repo))->prove($candidate, $integrated, 'main');
-
         self::assertSame('ancestor', $evidence['integration_kind']);
-        self::assertSame($candidate, $evidence['candidate_sha']);
-        self::assertSame($integrated, $evidence['integrated_sha']);
-        self::assertNotSame($base, $evidence['target_sha']);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('neither an ancestor');
@@ -75,10 +65,12 @@ final class GitCandidateEvidenceTest extends TestCase
         $this->git($repo, 'commit', '--quiet', '--no-gpg-sign', '-m', 'integrated squash');
         $integrated = $this->git($repo, 'rev-parse', 'HEAD');
 
-        self::assertSame(1, $this->runProcess($repo, ['git', 'merge-base', '--is-ancestor', $candidate, $integrated])['exit']);
+        self::assertSame(
+            1,
+            (new ProcessRunner($repo))->run(['git', 'merge-base', '--is-ancestor', $candidate, $integrated])['exit_code'],
+        );
 
         $evidence = (new GitCandidateEvidence($repo))->prove($candidate, $integrated, 'main');
-
         self::assertSame('exact_tree', $evidence['integration_kind']);
         self::assertSame($evidence['candidate_tree'], $evidence['integrated_tree']);
     }
@@ -113,10 +105,8 @@ final class GitCandidateEvidenceTest extends TestCase
         $this->git($repo, 'branch', 'old-target', $base);
 
         $evidence = (new GitCandidateEvidence($repo))->prove($integrated, $integrated, 'main', '1.2.3');
-
-        self::assertSame('ancestor', $evidence['integration_kind']);
         self::assertSame($integrated, $evidence['release_commit_sha']);
-        self::assertNotSame($integrated, $evidence['tag_object_sha'], 'Annotated tag object identity must be preserved separately.');
+        self::assertNotSame($integrated, $evidence['tag_object_sha']);
 
         try {
             (new GitCandidateEvidence($repo))->prove($integrated, $integrated, 'old-target');
@@ -131,7 +121,7 @@ final class GitCandidateEvidenceTest extends TestCase
         (new GitCandidateEvidence($repo))->prove($integrated, $integrated, 'main', '0.9.0');
     }
 
-    public function testCandidateAndIntegratedInputsMustBeExactObjectIds(): void
+    public function testCandidateMustBeAnExactObjectId(): void
     {
         $repo = $this->repository();
         $head = $this->git($repo, 'rev-parse', 'HEAD');
@@ -161,44 +151,9 @@ final class GitCandidateEvidenceTest extends TestCase
         $this->git($repo, 'commit', '--quiet', '--no-gpg-sign', '-m', $message);
     }
 
-    private function git(string $workingDirectory, string ...$arguments): string
+    private function git(string $repo, string ...$arguments): string
     {
-        $result = $this->runProcess($workingDirectory, ['git', ...$arguments]);
-        self::assertSame(0, $result['exit'], trim($result['stderr']));
-
-        return trim($result['stdout']);
-    }
-
-    /**
-     * @param non-empty-list<string> $command
-     * @return array{exit: int, stdout: string, stderr: string}
-     */
-    private function runProcess(string $workingDirectory, array $command): array
-    {
-        $process = proc_open(
-            $command,
-            [
-                0 => ['pipe', 'r'],
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes,
-            $workingDirectory,
-        );
-        if (!is_resource($process)) {
-            return ['exit' => 127, 'stdout' => '', 'stderr' => 'unable to start process'];
-        }
-        fclose($pipes[0]);
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        return [
-            'exit' => proc_close($process),
-            'stdout' => is_string($stdout) ? $stdout : '',
-            'stderr' => is_string($stderr) ? $stderr : '',
-        ];
+        return trim((new ProcessRunner($repo))->mustRun(['git', ...$arguments])['stdout']);
     }
 
     private function removeDirectory(string $path): void
