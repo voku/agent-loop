@@ -1,0 +1,32 @@
+{
+    "id": "finding.2026-08-14.999429",
+    "task_id": "GH-18",
+    "session": "2026-08-14-outcome-honesty",
+    "created_at": "2026-08-14T13:10:00+02:00",
+    "created_by": "voku",
+    "scope": [
+        "tools/self-shape-dogfood.php"
+    ],
+    "observation": "Two defects in the self-shape runner are invisible in CI and only appear when a run is repeated over existing state. The runner pinned `--contract-revision 1` when recording its validation observation. That is correct on a fresh CI checkout, where the Contract is always at revision 1, and wrong the moment a Contract is revised: the observation attaches to a superseded revision and `workflow close` then reports '[FAIL] validation: validation evidence missing or not passed for: composer ci (no evidence)' with nothing naming the revision as the cause. Separately, a run that fails part-way leaves its governed Session active, and every later run then dies at '[FAIL] workflow plan: Cannot revise Contract for SELF-SHAPE while a governed Session is active.' The runner offers no recovery; the operator has to know that `session close <id> --status dropped` is the way out.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "`workflow status SELF-SHAPE --format json` reported references.contract.revision 2 while the runner recorded its observation against revision 1. The close gate's message named the command, not the revision, so the cause was only found by reading the manifest."
+        },
+        {
+            "type": "test_result",
+            "command": "composer dogfood:self-shape",
+            "summary": "First attempt aborted on an unrelated composer.lock error; the next two attempts failed immediately on the leftover active Session, one per stale session, until each was closed by hand."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "After reading the approved revision from workflow status instead of assuming it, the full run passed end to end: 'Self-shape dogfood: PASSED', including workflow close and the post-prune projection replay."
+        }
+    ],
+    "hypothesis": "A constant that is right in the only environment a gate normally runs in will not be questioned. CI always starts from a fresh checkout, so revision 1 was true every time it mattered, and the assumption survived precisely because the dogfood never ran twice over the same state.",
+    "validated_conclusion": "A runner asks the workflow for durable identity rather than assuming it; a value that CI always makes true is an assumption, not a fact. When a gate refuses evidence, its message names the property that failed to match - a revision, a compilation - and not only the command, or the failure is diagnosed by reading manifests by hand.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

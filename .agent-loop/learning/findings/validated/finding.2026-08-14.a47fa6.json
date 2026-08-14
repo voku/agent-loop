@@ -1,0 +1,33 @@
+{
+    "id": "finding.2026-08-14.a47fa6",
+    "task_id": "GH-18",
+    "session": "2026-08-14-outcome-honesty",
+    "created_at": "2026-08-14T13:15:00+02:00",
+    "created_by": "voku",
+    "scope": [
+        ".agent-loop/learning/proposals"
+    ],
+    "observation": "Reading this task's compiled briefing showed that a selected guidance record can deliver no rule at all. proposal.2026-08-14.004 was selected into the governed context on scope overlap, and its Directive block reads in full: 'phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php and tools/project-phpstan-rules.sh'. That is the canonical-home field, pasted into the slot where the rule belongs, and it names a file renamed to .php in 0.16.0. proposal.2026-08-14.011 has a correct directive but its scope still lists tools/self-shape-dogfood.sh, so it is selected by a path that no longer exists. Nothing rejects either: the proposal validator checks structure, and a path-shaped directive is structurally fine.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": ".agent-loop/learning/proposals/approved/proposal.2026-08-14.004.json",
+            "line": 2,
+            "summary": "Under 'Selected Active Guidance' in the compiled briefing, this proposal's Directive code block contains only the two file paths from its canonical-home field."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Both records name .sh files renamed to .php by release 0.16.0. Scope overlap therefore matched tools/ for a rule whose own scope entry is stale, which is how an empty directive reached a governed context."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Judged honestly at close-out: 004 irrelevant, 011 not_used - the first negative signals in this project's outcome history, both traceable to record quality rather than to the rules themselves."
+        }
+    ],
+    "hypothesis": "The proposal writer validates that fields are present and well-formed, not that a directive says something a reader could act on. A rename then breaks scope and canonical-home references silently, because nothing re-checks a stored path against the repository.",
+    "validated_conclusion": "A guidance record whose directive is a path, or whose scope names a file that no longer exists, is a defect in the record and not evidence about the rule. Renaming a file that guidance references leaves that guidance stale in both directions - what it points at and what selects it - so a rename has to sweep stored guidance, or selection quietly degrades.",
+    "confidence": "medium",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
