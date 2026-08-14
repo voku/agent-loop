@@ -11,9 +11,11 @@
     "src/Workflow/WorkflowApproveCommand.php",
     "src/Init/InitInstallAssetsCommand.php",
     "src/Init/InitSyncGitHooksCommand.php",
+    "src/Init/InitDoctorCommand.php",
+    "src/GitWorkTree.php",
     "src/GitHooks/PreCommitRunner.php"
   ],
-  "observation": "The repository used the word dogfood for three different evidence strengths. The installed release-set asset gate proves skills/hooks are projected, while the self-shape runner compiles Recall but explicitly withholds guidance judgement because it never reads system.md. The quick-start built agent-map only after workflow approve even though approve is the point that compiles Recall from map files that already exist. Separately, package-owned Git hooks could be installed but this repository had no tracked .agent-loop/githooks.json, so pre-commit reported no configured checks; GitHub API/connector commits cannot execute local Git hooks in any case. These are capability/ordering boundaries, not model reluctance.",
+  "observation": "The repository used the word dogfood for three different evidence strengths. The installed release-set asset gate proves skills/hooks are projected, while the self-shape runner compiles Recall but explicitly withholds guidance judgement because it never reads system.md. The quick-start built agent-map only after workflow approve even though approve is the point that compiles Recall from map files that already exist. Separately, package-owned Git hooks could be installed but this repository had no tracked .agent-loop/githooks.json, so pre-commit reported no configured checks; init doctor also did not distinguish a tracked policy/template from Git actually being configured to use them. GitHub API/connector commits cannot execute local Git hooks in any case. These are capability/ordering boundaries, not model reluctance.",
   "evidence": [
     {
       "type": "manual_verification",
@@ -29,12 +31,17 @@
     },
     {
       "type": "test_result",
-      "command": "GitHub Actions PR #124 initial candidate runs",
-      "summary": "Acceptance-criteria and prompt-primitives candidate dogfoods passed, the governed L2 execution-contract dogfood passed, and installed release-set dogfood passed independently. Their separate green results demonstrate that these gates exercise different capability planes rather than one end-to-end agent-host behavior."
+      "command": "InitDoctorCommandTest::testDoctorDistinguishesTrackedGitIntegrationFromActivation",
+      "summary": "The regression creates a real Git repository with tracked hook policy and .gitmessage. Doctor first warns while core.hooksPath/commit.template are unset, then reports both integrations active after repository-local Git configuration is applied."
+    },
+    {
+      "type": "test_result",
+      "command": "GitHub Actions PR #124 candidate runs",
+      "summary": "Acceptance-criteria and prompt-primitives candidate dogfoods, governed L2 execution-contract dogfood, installed release-set dogfood, and deterministic slop review run independently. Their separate results demonstrate that these gates exercise different capability planes rather than one end-to-end agent-host behavior."
     }
   ],
   "hypothesis": "Agent workflow integrations appear unused when installation, deterministic compilation, host consumption, and local Git execution are treated as one implicit bootstrap. A mechanism cannot affect an agent before the host loads it, Recall cannot consume a map built after compilation, and local Git hooks cannot run in a GitHub API write path.",
-  "validated_conclusion": "Classify dogfood evidence as installer, deterministic lifecycle, or agent-host behavior before making claims. For agent-host runs, project skills before starting the clean session; build map/search evidence before workflow approval; select L2 recipes in the approved Contract and distinguish compilation from actual system.md consumption. Track project hook policy when local hooks are expected, and mark hooks not_exercised when the host writes through an API that bypasses local Git.",
+  "validated_conclusion": "Classify dogfood evidence as installer, deterministic lifecycle, or agent-host behavior before making claims. For agent-host runs, project skills before starting the clean session; build map/search evidence before workflow approval; select L2 recipes in the approved Contract and distinguish compilation from actual system.md consumption. Track project hook policy when local hooks are expected, have init diagnostics report tracked-but-inactive Git integration, and mark hooks not_exercised when the host writes through an API that bypasses local Git.",
   "confidence": "high",
   "validation_status": "validated",
   "status": "validated",
