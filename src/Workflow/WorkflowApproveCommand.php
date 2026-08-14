@@ -15,8 +15,6 @@ use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
-use voku\AgentSession\Session;
-use voku\AgentSession\SessionStore;
 
 #[Rule(ArchitectureRules::TypedPackageApisInsideWorkflow)]
 #[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
@@ -56,14 +54,15 @@ final readonly class WorkflowApproveCommand
                 echo "[OK] workflow approve: current Contract revision was already approved; resuming Run preparation\n";
             }
 
-            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
-            $session = $this->prepareSession($contract);
+            $layout = new ProjectLayout($this->rootPath);
+            $learningRoot = $layout->learningRoot();
+            $session = (new WorkflowSessionResolver($this->rootPath))->prepare($contract);
             $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
             $recallInput = $this->writeGovernedRecallInput($run, $contract);
             echo "[OK] workflow approve: governed Run {$run->runId} prepared for Contract revision {$contract->revision}\n";
             echo "[OK] workflow approve: working Session {$session->id} attached to governed Run {$run->runId}\n";
             echo '[OK] workflow approve: governed Run bound to durable Learning root '
-                . PathResolver::relativeTo($this->rootPath, WorkflowLearningRoot::forRun($this->rootPath, $run)) . "\n";
+                . PathResolver::relativeTo($this->rootPath, $run->learningRoot($this->rootPath)) . "\n";
 
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
             echo "[OK] workflow approve: approved-state Run projection refreshed at {$manifestPath}\n";
@@ -78,7 +77,6 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = '--operating-prompt-manifest';
                 $recallArgs[] = $operatingPromptManifest;
             }
-            $layout = new ProjectLayout($this->rootPath);
             $documentManifests = $layout->recallDocumentManifests();
             $learningDocumentManifest = rtrim($learningRoot, '/') . '/recall-documents.json';
             if (is_file($learningDocumentManifest) && !in_array($learningDocumentManifest, $documentManifests, true)) {
@@ -142,22 +140,6 @@ final readonly class WorkflowApproveCommand
         }
     }
 
-    private function prepareSession(TaskContract $contract): Session
-    {
-        $existing = $this->activeSession($contract->taskId);
-        if ($existing !== null) {
-            return $existing;
-        }
-
-        return (new SessionStore())->create(
-            (new ProjectLayout($this->rootPath))->sessionsRoot(),
-            $contract->taskId,
-            null,
-            $contract->plannedBy,
-            $contract->baseCommit,
-        );
-    }
-
     private function writeGovernedRecallInput(GovernedRun $run, TaskContract $contract): string
     {
         $path = dirname($run->path) . '/recall-input.json';
@@ -200,48 +182,28 @@ final readonly class WorkflowApproveCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string|null}
+     * @return array{by: string}
      */
     private function parse(array $tokens): array
     {
         $by = null;
-        $learningRoot = null;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--by', '--learning-root', '--root'], true) || !isset($tokens[$index + 1])) {
-                throw new InvalidArgumentException('--by is required.');
+            if ($token !== '--by') {
+                throw new InvalidArgumentException('Unknown option: ' . $token);
             }
-            $value = trim($tokens[++$index]);
-            if ($value === '') {
-                throw new InvalidArgumentException($token . ' requires a non-empty value.');
+            if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
+                throw new InvalidArgumentException('--by requires a value.');
             }
-            if ($token === '--by') {
-                $by = $value;
-            } else {
-                $learningRoot = $value;
+            $by = trim($tokens[++$index]);
+            if ($by === '') {
+                throw new InvalidArgumentException('--by requires a non-empty value.');
             }
         }
         if ($by === null) {
             throw new InvalidArgumentException('--by is required.');
         }
 
-        return ['by' => $by, 'learningRoot' => $learningRoot];
-    }
-
-    private function activeSession(string $taskId): ?Session
-    {
-        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
-        if (!is_dir($root)) {
-            return null;
-        }
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($sessions) > 1) {
-            throw new RuntimeException("Multiple active Sessions found for {$taskId}.");
-        }
-
-        return $sessions[0] ?? null;
+        return ['by' => $by];
     }
 }

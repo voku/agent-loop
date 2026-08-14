@@ -8,9 +8,6 @@ use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use Throwable;
-use voku\AgentLoop\ProjectLayout;
-use voku\AgentSession\Session;
-use voku\AgentSession\SessionStore;
 
 /**
  * Creates or revises durable candidate Contract state.
@@ -33,7 +30,7 @@ final readonly class WorkflowPlanCommand
             $contracts = new TaskContractStore($this->rootPath);
             $existing = $contracts->find($taskId->value);
 
-            if ($existing !== null && $this->activeSession($taskId->value) !== null) {
+            if ($existing !== null && (new WorkflowSessionResolver($this->rootPath))->active($taskId->value) !== null) {
                 throw new RuntimeException(
                     'Cannot revise Contract for ' . $taskId->value
                     . ' while a governed Session is active. Finish or drop that Run before changing durable intent.',
@@ -87,23 +84,6 @@ final readonly class WorkflowPlanCommand
         return 0;
     }
 
-    private function activeSession(string $taskId): ?Session
-    {
-        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
-        if (!is_dir($root)) {
-            return null;
-        }
-        $matches = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId && !$session->status->isClosed(),
-        ));
-        if (count($matches) > 1) {
-            throw new RuntimeException('Multiple active Sessions exist for task ' . $taskId . '.');
-        }
-
-        return $matches[0] ?? null;
-    }
-
     /**
      * @param list<string> $tokens
      * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null}
@@ -126,7 +106,7 @@ final readonly class WorkflowPlanCommand
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -141,11 +121,6 @@ final readonly class WorkflowPlanCommand
             switch ($token) {
                 case '--by':
                     $by = $value;
-                    break;
-                case '--learning-root':
-                case '--root':
-                    // Accepted but unused: PLAN owns no Learning state. The governed
-                    // Run binds its durable Learning root at APPROVE instead.
                     break;
                 case '--file':
                     $files[] = $value;
