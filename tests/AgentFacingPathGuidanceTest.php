@@ -215,7 +215,11 @@ final class AgentFacingPathGuidanceTest extends TestCase
         self::assertStringContainsString("\$this->agentLoopRoot . '/composer.json'", $promptHarness);
         self::assertStringContainsString("'voku/agent-recall-compiler' => \$recallConstraint", $promptHarness);
         self::assertStringContainsString("'voku/agent-recall-compiler' => \$recallVersion", $promptHarness);
-        self::assertStringNotContainsString('0.11.999', $promptHarness);
+        self::assertDoesNotMatchRegularExpression(
+            "/'voku\/agent-recall-compiler'\s*=>\s*'\d+\.\d+\.\d+'/'",
+            $promptHarness,
+            'Prompt dogfood must derive both the Recall constraint and path-repository version from candidate composer.json.',
+        );
     }
 
     public function testSelfShapeEvidenceUploadCoversPathsTheHarnessActuallyWrites(): void
