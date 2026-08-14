@@ -299,7 +299,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowCloseCommand.php",
-                    "line": 407,
+                    "line": 420,
                     "column": 1
                 }
             ],
@@ -308,9 +308,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "34e8fa47240191a3c44c0c2ebe86a881c1149960dd2761c73405bd922b8ccffd",
+                        "fingerprint": "80b70cf785cb878e56589520d260fbaee9640549dfb0a5b76db70b0991481a9a",
                         "path": "src/Workflow/WorkflowCloseCommand.php",
-                        "line": 407,
+                        "line": 420,
                         "column": 1
                     }
                 ]
