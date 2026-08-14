@@ -15,14 +15,25 @@ final class InitSyncInstructionsCommandTest extends TestCase
 {
     private string $root;
 
+    /** @var array<string, string|false> */
+    private array $environment = [];
+
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-sync-instructions-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
+
+        foreach (['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR'] as $name) {
+            $this->environment[$name] = getenv($name);
+            putenv($name);
+        }
     }
 
     protected function tearDown(): void
     {
+        foreach ($this->environment as $name => $value) {
+            $value === false ? putenv($name) : putenv($name . '=' . $value);
+        }
         $this->removeDirectory($this->root);
     }
 
