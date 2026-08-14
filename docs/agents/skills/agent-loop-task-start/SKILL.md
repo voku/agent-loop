@@ -7,7 +7,7 @@ description: Start a governed agent-loop task in the current repository, define 
 
 Use this skill when beginning a task in a repository that has `agent-loop`
 installed and you need to define durable task intent, approve that exact
-revision, create session working memory, and compile a recall briefing from the
+revision, create session working memory, and compile a Recall briefing from the
 sealed input before editing code.
 
 ## Fast Path
@@ -26,7 +26,7 @@ vendor/bin/agent-loop workflow plan <task-id> \
 ```
 
 `workflow plan` creates or revises a candidate Contract. It deliberately creates
-neither a Session nor a Run and does **not** compile recall yet. A named human
+neither a Session nor a Run and does **not** compile Recall yet. A named human
 must approve the exact revision before implementation; approval prepares the
 governed Run/Session and compiles Recall from that sealed Contract. Inspect the
 result immediately:
@@ -73,10 +73,11 @@ ctx search "<task / module / error / command>"
 ctx show event <ctx-event-id> --window 5
 ```
 
-Use ctx as historical source material only. It does not replace `workflow
-start`, recall compile, current repository inspection, or validation. If ctx
-material affects a finding, cite it as bounded `agent_history_reference`
-evidence with inspected IDs and a summary; do not paste raw transcripts.
+Use ctx as historical source material only. It does not replace `workflow plan`,
+`workflow approve`, current Recall artifacts, current repository inspection, or
+validation. If ctx material affects a finding, cite it as bounded
+`agent_history_reference` evidence with inspected IDs and a summary; do not paste
+raw transcripts.
 
 ## Existing Work Preflight
 
@@ -106,7 +107,7 @@ requirement to inspect unrelated repository history.
 
 Use the ticket or issue id from your board (e.g. `ABC-123`, `PROJ-42`).
 If no external id exists, choose a stable local id such as `LOCAL-001` and
-keep it for the life of the task — do not generate a new one on each run.
+keep it for the life of the task. Do not generate a new one on each run.
 Ask the host workflow or board if you are unsure what id to use.
 
 ## Choosing Files
@@ -144,12 +145,12 @@ vendor/bin/agent-loop map stale
 Build the whole scope once and keep it current with `map refresh`, which
 re-analyses only changed or new files: a full rebuild of a large repository
 costs minutes, a refresh after a normal branch switch costs seconds. Keep
-`--paths` on directories - PHPStan disables its result cache when it is handed
+`--paths` on directories. PHPStan disables its result cache when it is handed
 individual files, so a file-list scope pays the full cost every single time.
 
-The map output (`agent-loop init paths` reports `map_root`) is generated navigation state. Confirm it is
-ignored; never force-add the index. `workflow context` reads an existing index
-but never builds one itself.
+The map output (`agent-loop init paths` reports `map_root`) is generated
+navigation state. Confirm it is ignored; never force-add the index. `workflow
+context` reads an existing index but never builds one itself.
 
 ## Validation After Start
 
@@ -158,33 +159,40 @@ vendor/bin/agent-loop workflow status <task-id>
 vendor/bin/agent-loop verify
 ```
 
-`workflow status` confirms the session, recall, brief, and approval state.
+`workflow status` confirms the Session, Run, Recall, Contract, and approval state.
 `verify` confirms cross-package consistency from the start.
 
 ## Lower-Level Fallback
 
-Use this only when you need direct control over session and recall separately:
+Use this only when you intentionally need direct control over Session and Recall
+outside the governed PLAN/APPROVE path:
 
 ```bash
 vendor/bin/agent-loop session start --task <task-id> --by <actor> --base-commit "$(git rev-parse HEAD)"
 vendor/bin/agent-loop recall compile \
-  --root <learning-root-path> \
   --task <task-id> \
   --file <path-to-file-1> \
   --file <path-to-file-2>
 ```
 
-`session start` prints a date-prefixed session id on its first line.
-`recall compile` without `--output-dir` writes to `recall/<task-id>/`
-automatically, which is where `agent-loop verify`'s recall-coverage check
-expects to find it.
+`session start` prints a date-prefixed session id on its first line. The Loop
+`recall compile` wrapper resolves the configured Learning and Recall roots; do
+not hardcode them. Inspect the project layout when you need the physical paths:
+
+```bash
+vendor/bin/agent-loop init paths --format=json
+```
+
+Without an explicit output override, Recall artifacts live below the configured
+`<recall-root>/<task-id>/`.
 
 ## Recall Output Is Not Auto-Injected
 
-`recall compile` writes files (`system.md`, `validation-plan.md`,
-`recall-log.draft.json`, `meta.json`) under `recall/<task-id>/`.
-These artifacts are not automatically passed into any coding agent.
-After compiling, read or pass them into your workflow manually.
+`recall compile` writes deterministic artifacts such as `system.md`,
+`validation-plan.md`, `recall-log.draft.json`, and `meta.json` below the configured
+`<recall-root>/<task-id>/`. These artifacts are not automatically passed into a
+coding agent by the standalone compiler. The governed Loop workflow and any
+external harness must explicitly consume them.
 
 ## Skill Boundary
 

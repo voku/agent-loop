@@ -1,18 +1,16 @@
 ---
 name: agent-loop-learning-boundary
-description: Handle reusable knowledge that surfaces during a task — capture findings, move them through the proposal pipeline, and respect the boundary between workflow evidence and durable guidance.
+description: Handle reusable knowledge that surfaces during a task, record honest Recall outcomes, close the governed Run learning decision, and keep findings separate from reviewed durable guidance.
 ---
 
 # Agent Loop Learning Boundary
 
-Use this skill after implementation and before a governed close when the work
-surfaced something reusable, or after close when a reviewed proposal needs
-follow-up:
-a pattern that should not be rediscovered, a constraint that blocked progress
-and will block again, or a rule that should survive past this session.
+Use this skill after implementation and review, before a governed close, when the
+Run must record its learning outcome. The task may have produced reusable
+findings, a follow-up, or no durable learning at all.
 
-The boundary is simple: **findings are not durable memory.** This skill exists
-to prevent an agent from crossing that boundary silently.
+The boundary is simple: **findings are not durable memory.** A Run learning
+close-out records what happened; it does not approve future guidance.
 
 `ctx` may provide historical evidence for a finding, but it is not another
 memory system. Treat ctx hits as raw local session material until inspected and
@@ -20,216 +18,202 @@ checked against current repository evidence.
 
 ## Fast Path
 
-Before `workflow close --status done`, log only truthful recall outcomes and
-record an explicit session learning decision:
+First resolve repository-owned paths instead of guessing them:
 
-Log the outcome against the learning root:
+```bash
+vendor/bin/agent-loop init paths --format=json
+```
+
+After actual implementation and validation, complete the Recall outcome draft and
+append it through the Loop wrapper. The wrapper resolves the configured Learning
+root automatically:
 
 ```bash
 vendor/bin/agent-loop recall log-outcome \
-  --root <learning-root> \
-  --draft recall/<task-id>/recall-log.draft.json \
+  --draft <recall-root>/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
+```
 
+Then record the governed **Run learning decision**:
+
+```bash
 vendor/bin/agent-loop workflow learn <task-id> \
   --status findings_recorded|no_durable_learning|follow_up_required \
   --by <actor> \
   --reason "<bounded reason>"
 ```
 
-`recall-log.draft.json` is produced by `recall compile` (or `workflow plan`)
-under `recall/<task-id>/`. Use the same `<task-id>` you planned. These commands
-record task outcomes; neither approves durable guidance.
+In the governed workflow, Recall is compiled by `workflow approve`, not by
+`workflow plan`. `workflow plan` only creates or revises candidate Contract
+intent. The Recall draft therefore exists only after Recall has actually been
+compiled for the task.
 
-Validate the learning root to confirm no drift:
-
-```bash
-vendor/bin/agent-loop learn validate --root <learning-root>
-```
-
-If the repository maintains a `MEMORY.md` promotion queue, run the human
-review command:
+Validate the configured learning root:
 
 ```bash
-vendor/bin/agent-loop memory review --file=MEMORY.md
+vendor/bin/agent-loop learn validate
 ```
 
-The memory review command reports entries that need promotion review. It does
-not edit `MEMORY.md` itself. Promotion remains a manual human edit.
+Neither `recall log-outcome` nor `workflow learn` approves durable guidance.
+`workflow close --status done` requires the Run learning decision to be present.
 
 ## The Boundary Rule
 
-```
-finding → proposal → reviewed decision → durable guidance
+```text
+finding -> proposal -> reviewed decision -> durable guidance
 ```
 
 Each arrow is a gate:
 
-- A **finding** is an observation from the task. It is not a rule.
-- A **proposal** is a structured candidate derived from a finding. It is still
-  not a rule.
-- A **reviewed decision** is a proposal approved by a named actor with
-  `learn proposal-approve --by <actor>`. It becomes durable guidance only
-  after that gate.
-- Nothing in the `agent-loop` CLI auto-promotes findings or proposals to
-  durable guidance.
+- A **finding** is an evidence-backed observation from work. It is not a rule.
+- A **proposal** is a structured candidate derived from one or more findings. It
+  is still not a rule.
+- A **reviewed decision** requires the owning learning workflow and a named human
+  actor where approval is required.
+- Durable guidance becomes authoritative only after that governed handoff.
 
-Closing a task with `workflow close --status done` requires a learning decision
-but does not promote anything.
-Running `review blindspots` does not promote anything. Recording session
-checkpoints does not promote anything.
+Closing a Run does not promote a finding. `review blindspots`, Session
+checkpoints, Recall compilation, and prompt construction do not promote anything
+either.
 
-## When a Finding Exists
+## When Findings Were Recorded
 
-If the task produced a finding worth carrying forward, log it then validate
-the root:
+If the task produced one or more durable-learning candidates, make the Recall
+outcome truthful, validate the Learning root, and reference the resulting finding
+IDs in the Run decision:
 
 ```bash
 vendor/bin/agent-loop recall log-outcome \
-  --root <learning-root> \
-  --draft recall/<task-id>/recall-log.draft.json \
+  --draft <recall-root>/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
 
-vendor/bin/agent-loop learn validate --root <learning-root>
+vendor/bin/agent-loop learn validate
+
+vendor/bin/agent-loop workflow learn <task-id> \
+  --status findings_recorded \
+  --finding <finding-id> \
+  --by <actor> \
+  --reason "<what was learned and where the evidence lives>"
 ```
 
-`recall-log.draft.json` is the file `recall compile` (or `workflow plan`) writes
-under `recall/<task-id>/`. If you ran `workflow plan <task-id>`, the draft is
-already at that path.
-
-If the host repo uses the proposal pipeline, validate the candidate:
+If the host repository uses the proposal pipeline, validate the candidate with
+the owning `learn` CLI rather than editing approval state by hand:
 
 ```bash
 vendor/bin/agent-loop learn proposal-validate \
-  --proposal proposals/candidate/proposal.001.json
+  --proposal <learning-root>/proposals/candidate/proposal.001.json
 ```
 
-Do not approve proposals yourself. Approval requires a named human actor:
+When a proposal genuinely requires approval, the approving actor must be the
+real named human gate required by that command. Do not invent a self-approval to
+keep automation moving.
+
+## When There Is No Durable Learning
+
+A local fix that teaches nothing reusable does **not** justify a manufactured
+finding. It still requires an explicit Run learning decision:
 
 ```bash
-vendor/bin/agent-loop learn proposal-approve \
-  --by <human-actor> \
-  --root <learning-root> \
-  proposal.001
+vendor/bin/agent-loop workflow learn <task-id> \
+  --status no_durable_learning \
+  --by <actor> \
+  --reason "The evidence was task-local and adds no reusable guidance."
 ```
 
-The proposal argument is the bare filename without path or `.json`. A file at
-`<learning-root>/proposals/candidate/proposal.001.json` has ID `proposal.001`.
+Use `no_durable_learning` when, for example:
 
-`--by` must name a person, not an agent. An agent recording its own approval
-is not a reviewed gate.
+- the behavior is one-off or entirely local;
+- the reusable rule already exists in authoritative guidance;
+- the observation depends on transient repository state;
+- no evidence-backed recurring pattern emerged.
+
+Do not interpret “no durable learning” as permission to skip the workflow learning
+close-out entirely.
+
+## Follow-up Required
+
+If the Run uncovered a concrete learning or ownership action that cannot safely be
+completed inside the current Contract, record the real reference rather than
+silently widening scope:
+
+```bash
+vendor/bin/agent-loop workflow learn <task-id> \
+  --status follow_up_required \
+  --follow-up <issue-or-task-ref> \
+  --by <actor> \
+  --reason "<why this cannot be closed as an in-scope finding>"
+```
 
 ## ctx Evidence Handoff
 
-When a ctx result materially supports, challenges, or explains a finding,
-record it as bounded `agent_history_reference` evidence when the host learning
-root supports that evidence type:
+When a ctx result materially supports, challenges, or explains a finding, record
+it as bounded `agent_history_reference` evidence when the Learning schema supports
+that evidence type. Inspect the referenced event/session first, retain only the
+necessary identifiers and summary, and never copy raw transcripts or
+secret-shaped strings into findings.
 
-```json
-{
-  "type": "agent_history_reference",
-  "source": "ctx",
-  "ctx_session_id": "ses_or_uuid",
-  "ctx_event_id": "evt_or_uuid",
-  "query": "task module error command",
-  "retrieved_at": "2026-07-05T12:00:00+02:00",
-  "summary": "Bounded reviewed summary of what the inspected event showed.",
-  "verification_status": "inspected"
-}
-```
+## Guidance Evaluation
 
-Use `verification_status=inspected` only after opening the event or session.
-Use `found`, `rejected`, or `stale` for search bookkeeping that should not
-count as validation-heavy support. Never copy raw transcripts or secret-shaped
-strings into findings.
-
-## When Not To Capture A Finding
-
-Not every task produces a finding worth carrying forward. Skip the learning
-step when:
-
-- the fix was purely local and will not recur
-- the pattern already exists in `docs/agents/`, `README.md`, or the learning
-  root
-- the observation is only valid for this repo's specific state
-- the task was a one-off that should not influence future agent behavior
-
-Check existing guidance before adding a new entry:
+When existing learning guidance may have drifted, evaluate it read-only:
 
 ```bash
-vendor/bin/agent-loop learn guidance-evaluate --root <learning-root>
+vendor/bin/agent-loop learn guidance-evaluate
 ```
 
-If the lesson is already there, skip the capture step entirely.
+This does not create findings, modify proposals, or approve durable guidance.
 
 ## MEMORY.md Promotion
 
-If the repository maintains a `MEMORY.md` queue:
+If the repository maintains a `MEMORY.md` promotion queue:
 
 ```bash
 vendor/bin/agent-loop memory review --file=MEMORY.md
 ```
 
-This command reports rows that appear ready for promotion. It does not
-approve, rewrite, or auto-promote them. A human reads the report and edits
-`MEMORY.md` directly.
-
-Do not add raw task output, session logs, or unreviewed proposals to
-`MEMORY.md`.
-
-## Guidance Evaluation
-
-To confirm existing learning root guidance is still coherent after the task:
-
-```bash
-vendor/bin/agent-loop learn guidance-evaluate --root <learning-root>
-```
-
-This is a read-only check. It does not write findings, modify proposals, or
-change durable guidance.
+This reports promotion candidates. It does not edit `MEMORY.md` or approve them.
+Do not place raw task output, Session logs, or unreviewed proposals into durable
+memory.
 
 ## What These Commands Do Not Do
 
-- None of the `learn`, `recall`, `memory`, or `review` commands call an LLM.
-- None of them auto-approve durable guidance.
-- None of them replace human review of findings.
-- `review blindspots` writes reports; it does not promote learning.
-- `recall log-outcome` records evidence; it does not create durable rules.
-- `memory review` reads the queue; it does not edit `MEMORY.md`.
+- None of the deterministic `learn`, `recall`, `memory`, or `review` commands is
+  evidence that implementation succeeded merely because it ran.
+- Recall outcome logging does not create or approve durable rules.
+- Run learning close-out does not promote proposals.
+- Blind-spot review does not promote learning.
+- Memory review does not edit durable memory.
 
 ## Skill Boundary
 
 This skill owns:
 
-- the outcome and learning-decision step before `agent-loop-review-close` when reusable knowledge surfaces
-- the rule that findings are not durable memory
-- the `recall log-outcome` → `learn validate` → optional proposal pipeline
-- the human promotion gate for `MEMORY.md`
-- when to skip the learning step entirely
+- honest Recall outcome logging after the work was actually exercised;
+- the required governed Run learning decision before close;
+- the distinction between findings, proposals, reviewed decisions, and durable guidance;
+- choosing `findings_recorded`, `no_durable_learning`, or `follow_up_required` from evidence rather than ceremony.
 
 This skill does not own:
 
-- starting a task (see `agent-loop-task-start`)
-- recording progress during a task (see `agent-loop-task-progress`)
-- review and close (see `agent-loop-review-close`)
-- developing `agent-loop` itself (see `agent-learning` in this repo)
+- starting a task (see `agent-loop-task-start`);
+- progress/checkpoints during implementation (see `agent-loop-task-progress`);
+- engineering review and final close (see `agent-loop-review-close`);
+- Recall-specific CLI semantics (see the installed `agent-recall-consumer` skill);
+- developing `agent-loop` itself (see `agent-learning` in this repository).
 
 ## Validation
 
-- `vendor/bin/agent-loop learn validate --root <learning-root>` exits without
-  error
-- `vendor/bin/agent-loop learn guidance-evaluate --root <learning-root>` runs
-  cleanly
-- no proposals were self-approved by the agent
-- `MEMORY.md` (if it exists) was not edited by the agent without explicit
-  instruction
+Before close:
+
+- the Recall outcome reflects actual application/use rather than default optimism;
+- `vendor/bin/agent-loop learn validate` exits successfully;
+- exactly one truthful Run learning decision exists for the current close-out state;
+- no proposal or durable memory entry was self-approved merely to satisfy the workflow.
 
 ## Example Triggers
 
-- "This should become portable guidance."
 - "Capture what we learned from this task."
-- "Is this finding ready to promote?"
-- "Log the outcome after closing."
-- "Should this go into MEMORY.md?"
+- "Record no durable learning and close cleanly."
+- "This should become portable guidance."
+- "Is this finding ready for a proposal?"

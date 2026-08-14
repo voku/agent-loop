@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use ReflectionClass;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentRecallCompiler\Cli as RecallCli;
 
 final readonly class InitInstallAssetsCommand
 {
@@ -47,7 +49,13 @@ final readonly class InitInstallAssetsCommand
         }
 
         $packageRoot = dirname(__DIR__, 2);
-        $skillsRoot = $packageRoot . '/docs/agents/skills';
+        try {
+            $skillRoots = $this->firstPartySkillRoots($packageRoot);
+        } catch (InvalidArgumentException $exception) {
+            fwrite(\STDERR, $exception->getMessage() . "\n");
+
+            return 1;
+        }
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $codexHooksRoot = $packageRoot . '/docs/agents/codex-hooks';
         $claudeHooksRoot = $packageRoot . '/docs/agents/claude-hooks';
@@ -58,10 +66,12 @@ final readonly class InitInstallAssetsCommand
             ? ['codex', 'claude']
             : (in_array($agent->canonicalName(), ['codex', 'claude'], true) ? [$agent->canonicalName()] : []);
 
-        if (!is_dir($skillsRoot)) {
-            fwrite(\STDERR, 'Bundled skills root is missing: ' . $skillsRoot . "\n");
+        foreach ($skillRoots as $skillRoot) {
+            if (!is_dir($skillRoot)) {
+                fwrite(\STDERR, 'First-party skills root is missing: ' . $skillRoot . "\n");
 
-            return 1;
+                return 1;
+            }
         }
         if ($installsSubagents && !is_dir($subagentsRoot)) {
             fwrite(\STDERR, 'Bundled subagents root is missing: ' . $subagentsRoot . "\n");
@@ -81,8 +91,10 @@ final readonly class InitInstallAssetsCommand
         $forwarded = $this->forwardedTokens($tokens);
         $skillArguments = [
             '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
-            '--skills-root=' . $skillsRoot,
         ];
+        foreach ($skillRoots as $skillRoot) {
+            $skillArguments[] = '--skills-root=' . $skillRoot;
+        }
         foreach ($extraSkillRoots as $extraSkillRoot) {
             $skillArguments[] = '--skills-root=' . $extraSkillRoot;
         }
@@ -129,14 +141,28 @@ final readonly class InitInstallAssetsCommand
         }
 
         $sourceDescription = $extraSkillRoots === []
-            ? 'package-owned guidance'
-            : 'package-owned guidance plus ' . count($extraSkillRoots) . ' explicit local skill source(s)';
+            ? 'first-party package guidance'
+            : 'first-party package guidance plus ' . count($extraSkillRoots) . ' explicit local skill source(s)';
 
         echo $dryRun
             ? '[DRY-RUN] install assets: ' . $sourceDescription . ' validated; no files written.' . "\n"
             : '[OK] install assets: installed ' . $sourceDescription . ' without downloading remote code.' . "\n";
 
         return 0;
+    }
+
+    /** @return list<string> */
+    private function firstPartySkillRoots(string $packageRoot): array
+    {
+        $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
+        if (!is_string($recallFile)) {
+            throw new InvalidArgumentException('Unable to resolve the installed agent-recall-compiler package path.');
+        }
+
+        return [
+            $packageRoot . '/docs/agents/skills',
+            dirname($recallFile, 2) . '/skills',
+        ];
     }
 
     /**
@@ -184,5 +210,4 @@ final readonly class InitInstallAssetsCommand
 
         return null;
     }
-
 }

@@ -1,22 +1,28 @@
 ---
 name: agent-loop-review-close
-description: Review, verify, and close an agent-loop task safely after implementation, including blind-spot review, strict verification, explicit accepted-risk handling, and optional read-only reflection around the close boundary.
+description: Review, verify, and close an agent-loop task safely after implementation, including blind-spot review, strict verification, truthful Recall outcomes, governed Run learning close-out, accepted-risk boundaries, and optional reflection.
 ---
 
 # Agent Loop Review Close
 
-Use this skill when implementation is done or nearly done and the task needs to
-be reviewed, verified, and closed in a governed way.
+Use this skill when implementation is done or nearly done and the governed Run
+needs evidence, review, learning close-out, verification, and final close.
 
 ## Fast Path
 
-Record execution evidence, review, outcomes, and the learning decision before
-verify/report/close:
+Resolve project-owned paths first when a physical artifact path is needed:
+
+```bash
+vendor/bin/agent-loop init paths --format=json
+```
+
+Then record real execution evidence, review, Recall outcomes, and the Run learning
+decision before verify/report/close:
 
 ```bash
 vendor/bin/agent-loop session validation record <task-id> --contract-revision <n> --command "<Contract command>" --status passed --exit-code 0 --by <actor>
 vendor/bin/agent-loop review blindspots <task-id>
-vendor/bin/agent-loop recall log-outcome --root <learning-root> --draft recall/<task-id>/recall-log.draft.json --by <actor> --commit <sha>
+vendor/bin/agent-loop recall log-outcome --draft <recall-root>/<task-id>/recall-log.draft.json --by <actor> --commit <sha>
 vendor/bin/agent-loop workflow learn <task-id> --status no_durable_learning --by <actor> --reason "No reusable finding from this bounded task."
 vendor/bin/agent-loop verify --task-id=<task-id>
 vendor/bin/agent-loop workflow report <task-id> --changed-file <path>
@@ -31,8 +37,8 @@ vendor/bin/agent-loop workflow status <task-id> --expect complete
 vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
-Do not skip required evidence or reorder the close gates. Reflection is not one
-of those gates.
+Do not invent passing evidence simply to satisfy the order. Reflection is not one
+more completion gate.
 
 ## Blind-Spot Review
 
@@ -40,70 +46,71 @@ of those gates.
 vendor/bin/agent-loop review blindspots <task-id>
 ```
 
-This is a deterministic check, not an LLM call. It writes Markdown/JSON
-reports under `<recall-root>/<task-id>/reviews/` using task, session, and recall
-artifacts as context. It warns when session notes do not show that
-`review blindspots` itself was checked.
+This deterministic Recall review writes Markdown/JSON reports below the
+configured `<recall-root>/<task-id>/reviews/`. It uses current task/Run/Session
+and Recall artifacts; the report is evidence for review, not human approval and
+not durable-learning approval.
 
-Review output is not human approval. It does not approve code. It does not
-approve durable learning. Human review remains required.
+## Validation Evidence
+
+The Contract owns the required validation command strings. A close only accepts
+passing evidence recorded against the **current Contract revision** and the exact
+command text:
+
+```bash
+vendor/bin/agent-loop session validation record <task-id> \
+  --contract-revision <n> \
+  --command "<exact Contract validation command>" \
+  --status passed \
+  --exit-code 0 \
+  --by <actor>
+```
+
+Record a pass only after observing the command result. Re-planning creates a new
+Contract revision; stale evidence for an older revision does not satisfy it.
 
 ## Verify
+
+Task-scoped verification:
+
+```bash
+vendor/bin/agent-loop verify --task-id=<task-id>
+```
+
+Repository-wide verification remains available as:
 
 ```bash
 vendor/bin/agent-loop verify
 ```
 
-Checks cross-package consistency: sessions, recall coverage, board, and
-learning state. Each check prints `[OK]`, `[SKIP]`, or `[FAIL]`.
-
-In CI or repos where all parts of the stack are expected to be present,
-use `--strict` to turn baseline skips into failures:
-
-```bash
-vendor/bin/agent-loop verify --strict
-```
-
-`--strict` fails when the tasks or sessions root is missing entirely.
-Run `agent-loop init paths` to see where this project keeps them.
-Use it in expected-complete repos; omit it when the repo only wires part
-of the stack.
+Use `--strict` where all expected roots/components must exist rather than being
+allowed to skip. `agent-loop init paths --format=json` is the authority for
+configured project roots.
 
 ## Optional Reflection
 
-Reflection is read-only and available only when the governed run is
+Reflection is read-only and available only when the governed Run is
 `ready_to_close` or `complete`.
 
-Task reflection asks whether extra time on the just-completed task exposes
-additional depth or a missed completion requirement:
+Task reflection asks whether extra scrutiny exposes a real missed completion
+requirement:
 
 ```bash
 vendor/bin/agent-loop workflow reflect <task-id> --scope task
 ```
 
-If the result is `RETURN_TO_REVIEW`, do not close. The completion bar was false;
-route the concrete gap back through REVIEW/IMPLEMENT/PLAN as the existing
-workflow requires. Otherwise the suggested deepening remains optional.
+If it returns `RETURN_TO_REVIEW`, do not close. Route the concrete gap back
+through REVIEW/IMPLEMENT/PLAN as appropriate. Otherwise the suggested deepening
+remains optional.
 
-Project reflection asks what future investment became visible through doing the
-work:
+Project reflection asks what future investment became visible through the work:
 
 ```bash
 vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
-Use it after successful close when useful. Report one highest-leverage direction
-or `nothing worthwhile`. Do not automatically create issues, findings, durable
-learning, or follow-up work from the answer.
-
-Keep the boundaries explicit:
-
-```text
-REVIEW             = Is this task actually complete/correct?
-LEARN              = What observed knowledge should potentially survive this task?
-TASK REFLECTION    = What extra depth or missed opportunity is worth examining?
-PROJECT REFLECTION = What future investment became visible through the work?
-```
+Use it after successful close when worthwhile. It does not automatically create
+issues, findings, durable guidance, or follow-up work.
 
 ## Close
 
@@ -111,92 +118,98 @@ PROJECT REFLECTION = What future investment became visible through the work?
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-`workflow close` is gated: it requires an approved current Contract, passing
-evidence for every required command in that exact Contract revision, recall
-metadata and explicit outcomes for selected guidance, a blind-spot review,
-an explicit learning decision, and a passing `verify` before accepting
-`--status done`. If the gate is not satisfied, the command exits with an error
-describing what is missing.
+Before ordinary successful close, the code requires at least:
 
-`workflow report` is the read-only handoff view. Pass each observed changed
-path with `--changed-file`; it deliberately does not run Git or infer scope.
+- the current durable Task Contract is approved;
+- the governed Run is bound to that exact Contract revision;
+- any selected L2 execution contract is current and `ready` (or not required);
+- Recall metadata exists;
+- blind-spot review exists and is not failing;
+- each Contract validation obligation has passing current-revision evidence;
+- selected Recall guidance/constraints have explicit outcomes when required;
+- the durable Run learning conclusion exists;
+- an existing edit bundle has passed `agent-loop edit verify`;
+- task verification passes.
+
+`workflow report` is the read-only handoff view. Pass observed changed files with
+repeatable `--changed-file`; it deliberately does not run Git or infer scope.
 
 ## Accepted Risk
 
-If verify fails or a gate is not satisfied and you need to close anyway,
-accepted risk is explicit and written to disk:
+Accepted risk is a named waiver for the **bypassable evidence gates**, not a
+universal “make it green” switch:
 
 ```bash
 vendor/bin/agent-loop workflow close <task-id> \
   --status done \
-  --accept-risk "Manual review by Lars for urgent legacy hotfix." \
-  --accept-risk-by "lars"
+  --accept-risk "<specific understood risk>" \
+  --accept-risk-by "<named actor>"
 ```
 
-Both are required: an override without a named owner is an anonymous decision,
-which is the thing the record exists to prevent. The record names who overrode
-it, why, and every gate that was failing at that moment - including which
-validation evidence was missing - in `.agent-loop/risks/<task-id>.accepted-risk.md`
-and a machine-readable `.json` beside it.
+Both values are required. The resulting record is written below the configured
+`<risks-root>/` and names the actor, reason, and gates that were failing at the
+time of close.
 
-`workflow close` also gates on the edit bundle: if `.agent-loop/edit/<task-id>/`
-exists, it must contain a `verification-result.json` with status `passed` from
-`agent-loop edit verify`. A task that never ran `edit` has no bundle and is not
-asked for one; a bundle that exists but was never verified blocks the close.
+Two authority gates are explicitly **not bypassable** by accepted risk:
 
-Never use `--accept-risk` as a lazy bypass. It is for situations where
-the risk is real, understood, and explicitly owned by a named actor.
-If verification fails and the root cause is not understood, fix it first.
+1. the governed Run must still be bound to the current approved Contract revision;
+2. when L2 policy is selected, the execution contract must still be current and
+   `ready` (`not_required` is valid when no L2 contract is required).
+
+If either fails, re-plan/re-approve or repair the execution contract. Do not use
+accepted risk to change what was approved.
+
+## Edit Bundle Boundary
+
+If an edit bundle exists below the configured `<edit-root>/<task-id>/`, close
+requires its `verification-result.json` to report `passed`. A task that never ran
+`agent-loop edit` has no edit bundle and is not required to invent one. A bundle
+that exists but was never successfully verified blocks ordinary close and is
+recorded explicitly if a named actor accepts that bypassable risk.
 
 ## When Verification Fails
 
-1. Read the `[FAIL]` output to understand what is missing.
-2. Fix the underlying issue (re-plan/approve scope, run the missing command,
-   record exact validation evidence, log outcomes, or resolve session state).
-3. Record a checkpoint explaining the resolution:
+1. Read the exact failing gate and evidence reference.
+2. Fix the underlying issue: re-plan/approve changed scope, satisfy the execution
+   contract, run and record the missing validation, log Recall outcomes, record
+   the Run learning decision, verify an edit bundle, or repair Session/Run state.
+3. Record a concise checkpoint when the resolution matters for resumability:
    ```bash
    vendor/bin/agent-loop session checkpoint <task-id> --title "Verify fix" --body "..."
    ```
-4. Re-run `verify` to confirm it passes.
-5. If the failure is understood and fixing it is not feasible before the
-   deadline, accept risk explicitly with `--accept-risk` and a named actor.
+4. Re-run task verification.
+5. Use accepted risk only for a remaining bypassable gate whose concrete risk is
+   understood and explicitly owned.
 
 ## Close Is Not Durable Learning Approval
 
-Closing a task with `workflow close` is not an approval of durable learning.
-Findings and learning candidates remain review inputs. Only reviewed decisions
-become durable guidance. See `docs/workflow/learning-boundary.md`.
+`workflow close` consumes the Run learning decision but does not approve durable
+guidance. Findings/proposals remain governed learning inputs. See the installed
+`agent-loop-learning-boundary` skill.
 
 Reflection is separate again: it neither approves learning nor becomes learning
 merely because it produced an interesting idea.
 
 ## Validation
 
-- Blind-spot review report exists under `<recall-root>/<task-id>/reviews/`
-- required validation evidence is passed and matches the current Contract revision
-- selected guidance has explicit, truthful recall outcomes
-- an explicit session learning decision exists
-- `vendor/bin/agent-loop verify` passes (or accepted risk is explicit and named)
-- `vendor/bin/agent-loop workflow report <task-id>` shows no unaccepted scope or evidence gap
-- optional task reflection returning `RETURN_TO_REVIEW` is resolved before close
-- `vendor/bin/agent-loop workflow close <task-id> --status done` succeeds
-- optional project reflection remains post-completion and read-only
+Before claiming completion:
+
+- blind-spot review exists below `<recall-root>/<task-id>/reviews/` and is not failing;
+- every required validation obligation has observed passing evidence for the current Contract revision;
+- selected Recall guidance has explicit truthful outcomes;
+- an explicit durable **Run learning decision** exists;
+- `vendor/bin/agent-loop verify --task-id=<task-id>` passes, unless a named actor explicitly accepts only bypassable remaining gates;
+- `workflow report` shows no unaccepted scope/evidence gap;
+- any task reflection `RETURN_TO_REVIEW` is resolved;
+- `workflow close <task-id> --status done` succeeds;
+- `workflow status <task-id> --expect complete` succeeds.
 
 ## Skill Boundary
 
-This skill owns:
-
-- the review and close step of a governed agent-loop task in a consuming repo
-- understanding the verify gate and its `--strict` mode
-- understanding accepted-risk as an explicit, named, last-resort path
-- knowing that close is not durable learning approval
-- keeping optional task/project reflection separate from close authority
-
-This skill does not own:
-
-- the task opening step (see `agent-loop-task-start`)
-- recall compilation and L2 context (see `agent-loop-l2-context`)
-- developing `agent-loop` itself
+This skill owns review/evidence/final-close mechanics. It does not own task
+planning (`agent-loop-task-start`), Recall-specific command semantics
+(`agent-recall-consumer`), or durable-learning promotion
+(`agent-loop-learning-boundary`).
 
 ## Example Triggers
 
@@ -204,5 +217,4 @@ This skill does not own:
 - "Run the review/verify gate."
 - "Can I mark this done?"
 - "What did we miss before closing?"
-- "What future investment did this work expose?"
-- "Accept the risk and close."
+- "Accept this specific risk and close."

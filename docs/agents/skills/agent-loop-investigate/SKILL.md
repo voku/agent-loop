@@ -61,7 +61,7 @@ vendor/bin/agent-loop map history claims --commits=100 --top=20 --min-ratio=0.6
 
 `history coupling` is evidence. `history claims` is a heuristic navigation lead, never source truth or a refactoring instruction. Keep its supporting commit revisions and verify the current relationship through the map and real source before reporting a conclusion.
 
-When `.agent-loop/map/history.sqlite` exists and the evolution of a known entity matters, inspect it directly:
+When the configured map history database exists and the evolution of a known entity matters, inspect it through the wrapper rather than opening the database directly:
 
 ```bash
 vendor/bin/agent-loop map history show 'method:App\\Service\\Thing::run'
@@ -69,11 +69,17 @@ vendor/bin/agent-loop map history show 'method:App\\Service\\Thing::run'
 
 If explicit before/after map snapshots already exist, `map history diff --before=... --after=...` can expose structural lifecycle facts without guessing from Git text diffs.
 
-do not run `history observe` during investigation or while tracked files are dirty. Recording history belongs at a clean Git checkpoint, post-merge/CI boundary, or another explicit reproducible state. Investigation reads temporal evidence; it does not manufacture a new observation just to answer the current question.
+Do not run `history observe` during investigation or while tracked files are dirty. Recording history belongs at a clean Git checkpoint, post-merge/CI boundary, or another explicit reproducible state. Investigation reads temporal evidence; it does not manufacture a new observation just to answer the current question.
 
-Use `rg` only when the map cannot answer a literal/string/config/template question. Never dump `.agent-loop/map/php-symbols.json`, `.agent-loop/map/search.sqlite`, or `.agent-loop/map/history.sqlite`.
+When a physical map path is needed, ask the project layout:
 
-Map and temporal output are navigation/evidence, not a substitute for source verification. Read only the selected real source ranges before reporting a hit.
+```bash
+vendor/bin/agent-loop init paths --format=json
+```
+
+Never dump the generated symbol index, search database, or history database. Map and temporal output are navigation/evidence, not a substitute for source verification. Read only the selected real source ranges before reporting a hit.
+
+Use `rg` only when the map cannot answer a literal/string/config/template question.
 
 ## Terminal Result Contract
 

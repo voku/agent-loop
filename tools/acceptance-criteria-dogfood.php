@@ -220,12 +220,13 @@ final class AcceptanceCriteriaDogfood
 
     private function writeConsumerComposer(): void
     {
+        $recallVersion = $this->recallMinimumRelease();
         $this->writeJson($this->consumerRoot . '/composer.json', [
             'name' => 'voku/acceptance-criteria-dogfood-consumer',
             'type' => 'project',
             'require-dev' => [
                 'voku/agent-loop' => 'dev-main',
-                'voku/agent-recall-compiler' => '0.11.5',
+                'voku/agent-recall-compiler' => $recallVersion,
             ],
             'repositories' => [
                 [
@@ -241,7 +242,7 @@ final class AcceptanceCriteriaDogfood
                     'url' => str_replace('\\', '/', $this->recallRoot),
                     'options' => [
                         'symlink' => false,
-                        'versions' => ['voku/agent-recall-compiler' => '0.11.5'],
+                        'versions' => ['voku/agent-recall-compiler' => $recallVersion],
                     ],
                 ],
             ],
@@ -249,6 +250,25 @@ final class AcceptanceCriteriaDogfood
             'prefer-stable' => true,
             'config' => ['allow-plugins' => false, 'sort-packages' => true],
         ]);
+    }
+
+    private function recallMinimumRelease(): string
+    {
+        $composerPath = rtrim($this->agentLoopRoot, '/\\') . '/composer.json';
+        if (!is_file($composerPath)) {
+            throw new AcceptanceCriteriaDogfoodFailure('Candidate agent-loop composer.json is missing.');
+        }
+        $composer = $this->json((string) file_get_contents($composerPath), 'candidate agent-loop composer.json');
+        $require = $composer['require'] ?? null;
+        if (!is_array($require)) {
+            throw new AcceptanceCriteriaDogfoodFailure('Candidate agent-loop composer.json misses require.');
+        }
+        $constraint = $require['voku/agent-recall-compiler'] ?? null;
+        if (!is_string($constraint) || preg_match('/^\^(\d+\.\d+\.\d+)$/', $constraint, $matches) !== 1) {
+            throw new AcceptanceCriteriaDogfoodFailure('Candidate Recall constraint is not an exact caret semver floor.');
+        }
+
+        return $matches[1];
     }
 
     /**
