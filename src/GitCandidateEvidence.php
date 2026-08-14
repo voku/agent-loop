@@ -82,7 +82,7 @@ final readonly class GitCandidateEvidence
                 ['rev-parse', '--verify', '--end-of-options', $tagRef],
                 'release tag object',
             );
-            $releaseCommitSha = $this->commit($tagRef, 'release tag');
+            $releaseCommitSha = $this->commit($tagObjectSha, 'release tag object');
             if (!$this->isAncestor($integratedSha, $releaseCommitSha)) {
                 throw new RuntimeException(sprintf(
                     'Release tag %s resolves to %s, which does not contain integrated commit %s.',
