@@ -7,7 +7,7 @@ When this router is projected into a host instruction file, the content between 
 
 For non-trivial coding, review, debugging, or repository-maintenance tasks:
 
-- Start with `vendor/bin/agent-loop init status`. If expected skills, subagents, hooks, or tools are missing, use `vendor/bin/agent-loop init doctor` and fix the setup instead of silently bypassing it.
+- At the start of a fresh agent session, or when the agent-loop setup is unknown, run `vendor/bin/agent-loop init status` once. If expected skills, subagents, hooks, or tools are missing, use `vendor/bin/agent-loop init doctor` and fix the setup instead of silently bypassing it. Do not repeat bootstrap diagnostics once the current session has established the setup.
 - Use the installed `agent-loop-*` skills and `agent-recall-consumer` when their descriptions match the task. Do not recreate their procedures as ad-hoc prompt text.
 - Use `agent-map` for bounded source discovery before broad reads. When map-backed Recall matters, build or refresh the map and search index before `workflow approve`, because approval compiles Recall from evidence that already exists.
 - When a task has a durable Contract or task id, inspect `vendor/bin/agent-loop workflow status <task-id> --format=json` before mutation and continue from persisted state rather than conversational memory.
