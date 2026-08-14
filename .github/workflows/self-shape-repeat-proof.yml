@@ -1,0 +1,53 @@
+name: Self-shape repeat-run proof
+
+on:
+  push:
+    branches:
+      - agent/self-shape-repeat-run
+
+permissions:
+  contents: read
+
+jobs:
+  repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SELF_SHAPE_GOAL: Make self-shape repeatable over governed state
+      SELF_SHAPE_APPROVER: voku
+      SELF_SHAPE_PR_NUMBER: '119'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Capture guidance-gap technique
+        run: |
+          mkdir -p build
+          php bin/agent-loop prompt guidance-gaps > build/guidance-gaps.prompt.md
+          grep -Fq 'implementation-notes.html' build/guidance-gaps.prompt.md
+          grep -Fq 'HUMAN_DECISION_REQUIRED' build/guidance-gaps.prompt.md
+      - name: Run the same governed self-shape task twice over retained durable state
+        run: |
+          php tools/self-shape-dogfood.php --base-ref=main
+          php tools/self-shape-dogfood.php --base-ref=main
+      - name: Upload dogfood evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-shape-repeat-proof-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/guidance-gaps.prompt.md
+            build/self-shape-*.json
+            .agent-loop/contracts/SELF-SHAPE
+            .agent-loop/runs/SELF-SHAPE
+            .agent-loop/recall/SELF-SHAPE
+            .agent-loop/sessions
