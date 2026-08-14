@@ -88,7 +88,9 @@ final readonly class WorkflowContextCommand
         return compact('format', 'maxLines', 'maxBytes');
     }
 
-    /** @return array{schema_version: string, task_id: string, lines: list<string>, omitted: array<string, int>, skipped: list<string>} */
+    /**
+     * @return array{schema_version: string, task_id: string, lines: list<string>, omitted: array<string, int>, skipped: list<string>}
+     */
     public function build(string $taskId, int $maxLines, int $maxBytes): array
     {
         $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId);

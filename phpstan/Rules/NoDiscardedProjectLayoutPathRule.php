@@ -44,12 +44,14 @@ final class NoDiscardedProjectLayoutPathRule implements Rule
     }
 
     /**
-     * @param Expression $node
-     *
      * @return list<\PHPStan\Rules\RuleError>
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        if (!$node instanceof Expression) {
+            return [];
+        }
+
         $call = $node->expr;
         if (
             !$call instanceof MethodCall

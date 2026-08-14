@@ -23,19 +23,21 @@ final class NoCollapsedPhpDocTagsRule implements Rule
     }
 
     /**
-     * @param ClassMethod $node
-     *
      * @return list<\PHPStan\Rules\RuleError>
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        if (!$node instanceof ClassMethod) {
+            return [];
+        }
+
         $comment = $node->getDocComment();
         if ($comment === null) {
             return [];
         }
 
         foreach (preg_split('/\R/', $comment->getText()) ?: [] as $line) {
-            if (preg_match('/^\s*\*\s*@(param|return|var|throws|template)\b.*\s@(param|return|var|throws|template)\b/', $line) === 1) {
+            if (preg_match('/@(param|return|var|throws|template)\b[^\r\n]*\s@(param|return|var|throws|template)\b/', $line) === 1) {
                 return [RuleErrorBuilder::message(
                     'PHPDoc contract tags must be on separate lines; a later tag on the same line is parsed as description text.',
                 )->identifier('agentLoop.phpDoc.collapsedTags')->build()];

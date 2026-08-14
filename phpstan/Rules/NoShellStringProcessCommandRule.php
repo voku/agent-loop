@@ -24,12 +24,14 @@ final class NoShellStringProcessCommandRule implements Rule
     }
 
     /**
-     * @param FuncCall $node
-     *
      * @return list<\PHPStan\Rules\RuleError>
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        if (!$node instanceof FuncCall) {
+            return [];
+        }
+
         $namespace = $scope->getNamespace();
         $command = $node->getArgs()[0]->value ?? null;
         if (

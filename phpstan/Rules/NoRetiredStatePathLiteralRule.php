@@ -30,12 +30,14 @@ final class NoRetiredStatePathLiteralRule implements Rule
     }
 
     /**
-     * @param String_ $node
-     *
      * @return list<\PHPStan\Rules\RuleError>
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        if (!$node instanceof String_) {
+            return [];
+        }
+
         $namespace = $scope->getNamespace();
         if (
             $namespace === null

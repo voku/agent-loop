@@ -21,7 +21,7 @@ expected_errors=(
   'Workflow commands must not accept --learning-root.'
   'Production code must not name retired state root infra/doc/agent-learning.'
   'proc_open must receive an argv array, not shell-shaped command text.'
-  'Child PHP commands must place -n immediately after PHP_BINARY.'
+  'Child PHP commands must place -n immediately after PHP_BINARY'
   'ProjectLayout::learningRoot() result is discarded.'
   'PHPDoc contract tags must be on separate lines.'
 )
