@@ -61,7 +61,7 @@ final class AgentLoopVerifier
             $this->checkTasks($options['tasks-root'], $strict, $taskId),
             $this->checkBoard($boardRoot, $taskId),
             $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict, $taskId),
-            $this->checkLearningRoot($options['learning-root']),
+            $this->checkLearningRoot($options['learning-root']) && ($taskId === null || $this->checkTaskScopeIdentity($taskId)),
         ];
 
         $passed = !in_array(false, $results, true);
@@ -167,13 +167,9 @@ final class AgentLoopVerifier
             return false;
         }
 
-        if ($taskId !== null && !in_array($taskId, $ids, true)) {
-            echo "[FAIL] tasks: task {$taskId} does not exist at {$tasksRoot}/{$taskId}.md\n";
-
-            return false;
-        }
-
-        echo '[OK] tasks: ' . ($taskId !== null ? "task {$taskId} parsed" : count($ids) . ' task file(s) parsed: ' . implode(', ', $ids)) . "\n";
+        echo '[OK] tasks: ' . ($taskId !== null && in_array($taskId, $ids, true)
+            ? "task {$taskId} parsed"
+            : count($ids) . ' task file(s) parsed' . ($taskId === null ? ': ' . implode(', ', $ids) : ' as optional references')) . "\n";
 
         return true;
     }
@@ -516,8 +512,22 @@ final class AgentLoopVerifier
           --learning-root=PATH  Default: <root>/.agent-loop/learning
           --strict              Fail (instead of [SKIP]) when tasks or Sessions
                                 are missing entirely. Board and Learning remain optional.
-          --task-id=ID          Scope tasks/sessions/recall checks to one task.
+          --task-id=ID          Scope task-local board/Session/Recall checks. Requires
+                                exact task Markdown or a durable Contract.
 
         TXT;
+    }
+
+    private function checkTaskScopeIdentity(string $taskId): bool
+    {
+        if (in_array($taskId, $this->taskIds, true) || (new TaskContractStore($this->rootPath))->find($taskId) !== null) {
+            echo "[OK] task scope: {$taskId} has an exact task Markdown or durable Contract\n";
+
+            return true;
+        }
+
+        echo "[FAIL] task scope: {$taskId} has no exact task Markdown or durable Contract\n";
+
+        return false;
     }
 }

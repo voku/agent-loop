@@ -56,17 +56,37 @@ final class AgentLoopVerifierTest extends TestCase
 
         self::assertSame(1, $result['exit'], $result['output']);
         self::assertStringContainsString(
-            '[FAIL] tasks: task ABC-2 does not exist at ' . $this->root . '/.agent-loop/tasks/ABC-2.md',
+            '[FAIL] task scope: ABC-2 has no exact task Markdown or durable Contract',
             $result['output'],
         );
     }
 
-    public function testTaskScopeKeepsAnAbsentOptionalTaskStoreSkippable(): void
+    public function testTaskScopeWithoutAnyExactIdentityFailsEvenWhenTaskStoreIsAbsent(): void
     {
         $result = $this->verify(['--task-id=ABC-2']);
 
-        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertSame(1, $result['exit'], $result['output']);
         self::assertStringContainsString('[SKIP] tasks: no directory at', $result['output']);
+        self::assertStringContainsString('[FAIL] task scope: ABC-2 has no exact task Markdown or durable Contract', $result['output']);
+    }
+
+    public function testDurableContractIdentifiesScopedTaskWithoutOptionalTaskMarkdown(): void
+    {
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/ABC-1.md', "# ABC-1\n");
+        (new TaskContractStore($this->root))->create(
+            'ABC-2',
+            'Prove durable task identity.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'lars',
+        );
+
+        $result = $this->verify(['--task-id=ABC-2']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[OK] task scope: ABC-2 has an exact task Markdown or durable Contract', $result['output']);
     }
 
     public function testStrictModeStillSkipsBoardAndLearningRootOnceTasksAndSessionsExist(): void
