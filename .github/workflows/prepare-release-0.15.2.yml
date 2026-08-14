@@ -1,0 +1,16 @@
+name: Prepare 0.15.2 changelog
+
+on:
+  push:
+    branches:
+      - agent/release-0.15.2
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe release-prep workflow
+        run: echo release-prep-ok
