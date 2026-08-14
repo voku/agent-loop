@@ -74,6 +74,7 @@ final readonly class InitDoctorCommand
             $this->checkPhpVersion(),
             ...$this->checkComposer(),
             $this->checkGit(),
+            ...$this->checkLocalGitIntegration(),
             ...$this->checkStrayDerivedState(),
             ...$this->checkMakefiles(),
             InitCheckResult::info('skills-root: ' . $paths->skillsRoot()),
@@ -179,6 +180,38 @@ final readonly class InitDoctorCommand
         return GitWorkTree::detected(rtrim($this->rootPath, '/'))
             ? InitCheckResult::ok('Git: working tree detected')
             : InitCheckResult::warn('Git: no working tree detected');
+    }
+
+    /**
+     * A tracked project policy or template is inert until Git points at the
+     * package-owned hook directory/template. Surface that split explicitly:
+     * source presence is not activation.
+     *
+     * @return list<InitCheckResult>
+     */
+    private function checkLocalGitIntegration(): array
+    {
+        $root = rtrim($this->rootPath, '/');
+        if (!GitWorkTree::detected($root)) {
+            return [];
+        }
+
+        $results = [];
+        if (is_file($root . '/.agent-loop/githooks.json')) {
+            $hooksPath = GitWorkTree::configValue($root, 'core.hooksPath');
+            $results[] = $hooksPath === null || $hooksPath === ''
+                ? InitCheckResult::warn('Git hooks: project policy exists but core.hooksPath is unset; run init sync-githooks')
+                : InitCheckResult::ok('Git hooks: core.hooksPath=' . $hooksPath);
+        }
+
+        if (is_file($root . '/.gitmessage')) {
+            $template = GitWorkTree::configValue($root, 'commit.template');
+            $results[] = $template === null || $template === ''
+                ? InitCheckResult::warn('Commit template: .gitmessage exists but commit.template is unset; run init sync-githooks --commit-template=.gitmessage')
+                : InitCheckResult::ok('Commit template: commit.template=' . $template);
+        }
+
+        return $results;
     }
 
     /**
