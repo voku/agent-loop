@@ -58,5 +58,7 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('implementation-notes.html', $promptPrimitives);
         self::assertStringContainsString('HUMAN_DECISION_REQUIRED', $promptPrimitives);
         self::assertStringContainsString('does not automatically edit docs or skills', $promptPrimitives);
+        self::assertStringContainsString('agent-loop prompt future-work --scope project', $promptPrimitives);
+        self::assertStringContainsString('Inside a governed Run, prefer `workflow reflect`', $promptPrimitives);
     }
 }
