@@ -200,7 +200,7 @@ final readonly class RunManifestProjector
                 'revision' => $card->revision->toString(),
                 'lane' => $card->lane->toString(),
                 'status' => $card->status->toString(),
-                'source' => $this->artifact($card->sourceFile),
+                'source' => $this->artifact(rtrim($boardRoot, '/') . '/' . $card->sourceFile),
                 'configuration' => $configuration,
             ];
         } catch (Throwable $exception) {

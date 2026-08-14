@@ -61,6 +61,14 @@ final class AgentLoopVerifierTest extends TestCase
         );
     }
 
+    public function testTaskScopeKeepsAnAbsentOptionalTaskStoreSkippable(): void
+    {
+        $result = $this->verify(['--task-id=ABC-2']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[SKIP] tasks: no directory at', $result['output']);
+    }
+
     public function testStrictModeStillSkipsBoardAndLearningRootOnceTasksAndSessionsExist(): void
     {
         mkdir($this->root . '/.agent-loop/tasks', 0o775, true);

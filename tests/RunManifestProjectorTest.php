@@ -71,6 +71,7 @@ MD
         self::assertSame('linked', $manifest->references['board']['state']);
         self::assertSame('READY', $manifest->references['board']['lane']);
         self::assertSame('Selected', $manifest->references['board']['status']);
+        self::assertSame('.agent-loop/todo/cards/ABC-123.md', $manifest->references['board']['source']['path']);
         self::assertSame('metadata', $manifest->references['board']['configuration']['mode']);
         self::assertSame(
             '.agent-loop/todo/board.md',

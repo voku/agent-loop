@@ -35,7 +35,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Task-scoped `verify` now requires the exact task to exist and filters
+- Task-scoped `verify` now requires the exact task when task files exist and filters
   `agent-kanban` failures to that task while retaining board-wide failures, so a
   missing task cannot pass and unrelated task-local drift cannot block it.
 - Run projection now resolves board context through `agent-kanban`'s canonical

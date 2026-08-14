@@ -16,7 +16,7 @@ PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEA
 1. Reuse the stable task id and inspect `workflow status` before mutation.
 2. Resume its active session; never create a parallel active session.
 3. Mutating work requires the approved Contract.
-4. When that brief selects L2 policy, mutation also requires a current `ready` execution contract bound to its revision and recall bundle.
+4. If it selects L2 policy, mutation also requires a current `ready` execution contract bound to its revision and recall bundle.
 5. Scope or policy drift returns to PLAN. Changed recall invalidates an L2 contract and returns to CONTRACT.
 6. Use `agent-loop-workflow` for phase-specific mechanics and evidence requirements.
 

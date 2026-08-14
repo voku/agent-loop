@@ -135,23 +135,11 @@ final class AgentLoopVerifier
     private function checkTasks(string $tasksRoot, bool $strict, ?string $taskId): bool
     {
         if (!is_dir($tasksRoot)) {
-            if ($taskId !== null) {
-                echo "[FAIL] tasks: task {$taskId} does not exist at {$tasksRoot}/{$taskId}.md\n";
-
-                return false;
-            }
-
             return $this->skipOrFail('tasks', "no directory at {$tasksRoot}", $strict);
         }
 
         $files = glob($tasksRoot . '/*.md') ?: [];
         if ($files === []) {
-            if ($taskId !== null) {
-                echo "[FAIL] tasks: task {$taskId} does not exist at {$tasksRoot}/{$taskId}.md\n";
-
-                return false;
-            }
-
             return $this->skipOrFail('tasks', "{$tasksRoot} has no *.md task files", $strict);
         }
 
@@ -231,10 +219,9 @@ final class AgentLoopVerifier
 
     private function checkScopedBoardOutput(string $boardOutput, string $taskId): bool
     {
-        try {
-            $decoded = json_decode($boardOutput, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $exception) {
-            echo "[FAIL] board: agent-kanban returned unreadable verification JSON: {$exception->getMessage()}\n";
+        $decoded = json_decode($boardOutput, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            echo '[FAIL] board: agent-kanban returned unreadable verification JSON: ' . json_last_error_msg() . "\n";
 
             return false;
         }
