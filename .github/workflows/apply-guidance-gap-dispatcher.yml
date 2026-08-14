@@ -1,0 +1,54 @@
+name: Apply guidance-gap prompt delegation
+
+on:
+  push:
+    branches: ['agent/guidance-gap-prompt']
+    paths:
+      - '.github/workflows/apply-guidance-gap-dispatcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/guidance-gap-prompt
+
+      - name: Patch dispatcher and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/Dispatcher.php')
+          text = path.read_text()
+
+          route_old = "            'recall' => $this->dispatchRecall($scriptName, $rest),\n            'session' => $this->dispatchSession($scriptName, $rest),"
+          route_new = "            'recall' => $this->dispatchRecall($scriptName, $rest),\n            'prompt' => $this->dispatchRecall($scriptName, ['prompt', ...$rest]),\n            'session' => $this->dispatchSession($scriptName, $rest),"
+          if text.count(route_old) != 1:
+              raise SystemExit('dispatcher route anchor mismatch')
+          text = text.replace(route_old, route_new, 1)
+
+          help_old = "          recall  <compile|log-outcome>\n                  Deterministic context/replay compilation (voku/agent-recall-compiler).\n          session <start|claim|checkpoint|record|close|list|show|validation|prune>"
+          help_new = "          recall  <compile|log-outcome>\n                  Deterministic context/replay compilation (voku/agent-recall-compiler).\n          prompt  <future-work|guidance-gaps>\n                  Explicit Recall-owned prompt helpers; `guidance-gaps` is opt-in and never a default workflow stage.\n          session <start|claim|checkpoint|record|close|list|show|validation|prune>"
+          if text.count(help_old) != 1:
+              raise SystemExit('dispatcher help anchor mismatch')
+          text = text.replace(help_old, help_new, 1)
+
+          example_old = "          agent-loop recall help\n"
+          example_new = "          agent-loop recall help\n          agent-loop prompt guidance-gaps\n"
+          if text.count(example_old) != 1:
+              raise SystemExit('dispatcher example anchor mismatch')
+          text = text.replace(example_old, example_new, 1)
+
+          path.write_text(text)
+          PY
+          rm .github/workflows/apply-guidance-gap-dispatcher.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Dispatcher.php .github/workflows/apply-guidance-gap-dispatcher.yml
+          git commit -m 'Expose Recall prompt helpers at top level'
+          git push origin HEAD:agent/guidance-gap-prompt
