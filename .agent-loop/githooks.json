@@ -1,0 +1,13 @@
+{
+  "pre_commit": {
+    "file_patterns": ["*.php"],
+    "exclude_paths": ["/vendor/"],
+    "batch_size": 200,
+    "checks": [
+      {"name": "PHP syntax", "type": "php-lint"}
+    ]
+  },
+  "commit_msg": {
+    "header_hint": "Use a concrete summary that names the change, not a vague placeholder."
+  }
+}
