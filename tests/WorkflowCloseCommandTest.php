@@ -100,6 +100,66 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertFileDoesNotExist($this->verificationReceipt());
     }
 
+    public function testCloseAcceptsSelectedGuidanceWhoseAbsentOutcomeWasDeclared(): void
+    {
+        // A Run that compiled guidance it never consulted has nothing truthful
+        // to say about it, and every bucket it could pick moves a promotion or
+        // retirement gate. What this gate owns is that the silence was
+        // deliberate, so a declared withholding closes and the case above -
+        // guidance that simply never appears - still does not.
+        $this->writeRecallMeta([
+            'task_id' => 'ABC-123',
+            'compilation_id' => 'compilation.abc.002',
+            'selected_guidance' => ['G-002'],
+        ]);
+        $this->writeReviewReport(['status' => 'ok']);
+        $this->writeSelectionEvent('compilation.abc.002', 'G-002', 'This runner never reads the compiled briefing.');
+
+        $result = $this->runClose();
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('0 judged, 1 withheld with a stated reason', $result['output']);
+    }
+
+    public function testCloseStillRefusesAnEmptyWithheldReason(): void
+    {
+        $this->writeRecallMeta([
+            'task_id' => 'ABC-123',
+            'compilation_id' => 'compilation.abc.003',
+            'selected_guidance' => ['G-003'],
+        ]);
+        $this->writeReviewReport(['status' => 'ok']);
+        $this->writeSelectionEvent('compilation.abc.003', 'G-003', '   ');
+
+        $result = $this->runClose();
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('missing explicit recall outcome for: G-003', $result['output']);
+    }
+
+    private function writeSelectionEvent(string $compilationId, string $guidanceId, string $withheldReason): void
+    {
+        $history = $this->root . '/.agent-loop/learning/history';
+        if (!is_dir($history)) {
+            mkdir($history, 0o775, true);
+        }
+        file_put_contents($history . '/recall-selections.jsonl', json_encode([
+            'schema_version' => '1.0',
+            'id' => 'recall-selection.2026-08-14.001',
+            'compilation_id' => $compilationId,
+            'task_id' => 'ABC-123',
+            'guidance_id' => $guidanceId,
+            'guidance_type' => 'memory',
+            'eligible' => true,
+            'selected' => true,
+            'selection_reason' => 'scope_overlap',
+            'exclusion_reason' => null,
+            'task_files' => [],
+            'recorded_at' => '2026-08-14T00:00:00+00:00',
+            'outcome_withheld_reason' => $withheldReason,
+        ], JSON_THROW_ON_ERROR) . "\n", FILE_APPEND);
+    }
+
     public function testCloseRejectsRunBoundToSupersededContractRevision(): void
     {
         $contracts = new TaskContractStore($this->root);
