@@ -18,6 +18,9 @@ use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
 use voku\AgentLoop\Dogfood\SelfShapeEvidence;
+use voku\AgentLoop\Dogfood\SelfShapeRunRecovery;
+use voku\AgentLoop\ProjectLayout;
+use voku\AgentSession\SessionStore;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
@@ -65,6 +68,16 @@ $git = static fn (array $arguments): string => trim($runner->mustRun(['git', ...
 // without one. agent-loop needs mbstring, which `-n` removes, so applying the
 // rule here replaced an ambient-configuration risk with a hard failure.
 $loop = static fn (array $arguments): array => $runner->mustRun([PHP_BINARY, 'bin/agent-loop', ...$arguments]);
+
+$sessionToDrop = (new SelfShapeRunRecovery())->sessionToDrop(
+    (new SessionStore())->all((new ProjectLayout($root))->sessionsRoot()),
+    TASK,
+    PLANNER,
+);
+if ($sessionToDrop !== null) {
+    echo '[WARN] self-shape: dropping abandoned governed Session ' . $sessionToDrop . PHP_EOL;
+    $loop(['session', 'close', $sessionToDrop, '--status', 'dropped']);
+}
 
 $base = $git(['merge-base', 'HEAD', 'origin/' . $options['base-ref']]);
 $head = $git(['rev-parse', 'HEAD']);

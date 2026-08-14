@@ -159,7 +159,7 @@ final readonly class WorkflowApproveCommand
         return (new SessionStore())->create(
             (new ProjectLayout($this->rootPath))->sessionsRoot(),
             $contract->taskId,
-            null,
+            sprintf('%s-r%d-%s', $contract->taskId, $contract->revision, bin2hex(random_bytes(4))),
             $contract->plannedBy,
             $contract->baseCommit,
         );
