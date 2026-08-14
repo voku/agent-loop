@@ -23,14 +23,15 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           path = Path('slop-baseline.json')
           text = path.read_text()
-          old = '"path": "src/Dispatcher.php",\n                    "line": 416,\n                    "column": 1'
-          new = '"path": "src/Dispatcher.php",\n                    "line": 417,\n                    "column": 1'
-          count = text.count(old)
+          pattern = re.compile(r'("path": "src/Dispatcher\.php",\n\s*"line": )416(,\n\s*"column": 1)')
+          updated, count = pattern.subn(r'\g<1>417\g<2>', text)
           if count != 2:
               raise SystemExit(f'expected exactly 2 Dispatcher baseline occurrences, found {count}')
-          path.write_text(text.replace(old, new))
+          path.write_text(updated)
           PY
           rm .github/workflows/refresh-guidance-gap-slop-baseline.yml
           git config user.name 'github-actions[bot]'
