@@ -29,7 +29,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-pruned-run-' . bin2hex(random_bytes(5));
         mkdir($this->root, 0o775, true);
-        mkdir($this->root . '/learning-root', 0o775, true);
+        mkdir($this->root . '/.agent-loop/learning', 0o775, true);
     }
 
     protected function tearDown(): void
@@ -58,7 +58,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             },
         );
         ob_start();
-        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars', '--learning-root', $this->root . '/learning-root']));
+        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
 
         $sessions = new SessionStore();
@@ -77,7 +77,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             12,
             'lars',
         );
-        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
@@ -91,7 +91,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
 
         $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
         ob_start();
-        self::assertSame(0, $cli->run(['close', 'ABC-123', '--status', 'done', '--learning-root', $this->root . '/learning-root']));
+        self::assertSame(0, $cli->run(['close', 'ABC-123', '--status', 'done']));
         ob_end_clean();
 
         $storedBeforePrune = (new RunManifestStore($this->root))->read('ABC-123');
@@ -110,7 +110,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         self::assertSame('approved', $contract->status);
         self::assertSame('lars', $contract->approvedBy);
 
-        $report = (new WorkflowReportCommand($this->root))->buildReport('ABC-123', $this->root . '/learning-root');
+        $report = (new WorkflowReportCommand($this->root))->buildReport('ABC-123');
         self::assertSame('missing', $report['session']['status'] ?? null);
         self::assertSame('approved', $report['contract']['status'] ?? null);
         self::assertSame('Prove governed close survives Session pruning.', $report['contract']['goal'] ?? null);

@@ -82,7 +82,7 @@ final class GovernedRunLearningBindingTest extends TestCase
         (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/other-root');
     }
 
-    public function testReportRefusesAnExplicitLearningRootThatDisagreesWithTheRun(): void
+    public function testReportRejectsRemovedLearningRootOption(): void
     {
         $this->prepareRun($this->root . '/learning-root');
         mkdir($this->root . '/other-root', 0o775, true);

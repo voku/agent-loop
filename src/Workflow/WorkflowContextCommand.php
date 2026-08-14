@@ -31,7 +31,7 @@ final readonly class WorkflowContextCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
-            $context = $this->build($taskId->value, $options['learningRoot'], $options['maxLines'], $options['maxBytes']);
+            $context = $this->build($taskId->value, $options['maxLines'], $options['maxBytes']);
             if ($options['format'] === 'json') {
                 echo json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
             } else {
@@ -52,17 +52,16 @@ final readonly class WorkflowContextCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{format: 'text'|'json', learningRoot: string|null, maxLines: int, maxBytes: int}
+     * @return array{format: 'text'|'json', maxLines: int, maxBytes: int}
      */
     private function parse(array $tokens): array
     {
         $format = 'text';
-        $learningRoot = null;
         $maxLines = 120;
         $maxBytes = 12000;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--format', '--learning-root', '--max-lines', '--max-bytes'], true)) {
+            if (!in_array($token, ['--format', '--max-lines', '--max-bytes'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
@@ -74,7 +73,6 @@ final readonly class WorkflowContextCommand
             }
             match ($token) {
                 '--format' => $format = $value,
-                '--learning-root' => $learningRoot = $value,
                 '--max-lines' => $maxLines = $this->positive($value, '--max-lines'),
                 '--max-bytes' => $maxBytes = $this->positive($value, '--max-bytes'),
             };
@@ -87,13 +85,15 @@ final readonly class WorkflowContextCommand
         }
 
         /** @var 'text'|'json' $format */
-        return compact('format', 'learningRoot', 'maxLines', 'maxBytes');
+        return compact('format', 'maxLines', 'maxBytes');
     }
 
-    /** @return array{schema_version: string, task_id: string, lines: list<string>, omitted: array<string, int>, skipped: list<string>} */
-    public function build(string $taskId, ?string $learningRoot, int $maxLines, int $maxBytes): array
+    /**
+     * @return array{schema_version: string, task_id: string, lines: list<string>, omitted: array<string, int>, skipped: list<string>}
+     */
+    public function build(string $taskId, int $maxLines, int $maxBytes): array
     {
-        $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId, $learningRoot);
+        $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId);
         $budget = new WorkflowContextBudget($maxLines, $maxBytes);
         $budget->add('header', 'Task: ' . $taskId);
         $budget->add('header', 'Run: ' . ($report['run_id'] ?? 'missing'));

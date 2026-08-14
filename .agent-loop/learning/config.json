@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "project_root": "../../..",
+  "project_root": "../..",
   "constraint_generation_dir": "constraint-generation",
   "active_constraints_dir": "constraints/active",
   "learning_policy": {

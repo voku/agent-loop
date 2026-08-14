@@ -56,7 +56,7 @@ final readonly class WorkflowApproveCommand
                 echo "[OK] workflow approve: current Contract revision was already approved; resuming Run preparation\n";
             }
 
-            $learningRoot = WorkflowLearningRoot::resolve($this->rootPath, $options['learningRoot']);
+            $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
             $session = $this->prepareSession($contract);
             $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
             $recallInput = $this->writeGovernedRecallInput($run, $contract);
@@ -200,32 +200,30 @@ final readonly class WorkflowApproveCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, learningRoot: string|null}
+     * @return array{by: string}
      */
     private function parse(array $tokens): array
     {
         $by = null;
-        $learningRoot = null;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--by', '--learning-root', '--root'], true) || !isset($tokens[$index + 1])) {
-                throw new InvalidArgumentException('--by is required.');
+            if ($token !== '--by') {
+                throw new InvalidArgumentException('Unknown option: ' . $token);
+            }
+            if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
+                throw new InvalidArgumentException('--by requires a value.');
             }
             $value = trim($tokens[++$index]);
             if ($value === '') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
-            if ($token === '--by') {
-                $by = $value;
-            } else {
-                $learningRoot = $value;
-            }
+            $by = $value;
         }
         if ($by === null) {
             throw new InvalidArgumentException('--by is required.');
         }
 
-        return ['by' => $by, 'learningRoot' => $learningRoot];
+        return ['by' => $by];
     }
 
     private function activeSession(string $taskId): ?Session

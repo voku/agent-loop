@@ -24,6 +24,7 @@ final class WorkflowCliTest extends TestCase
         self::assertStringContainsString('momentum', $result['output']);
         self::assertStringNotContainsString('agent-loop workflow start', $result['output']);
         self::assertStringContainsString('session start --ephemeral', $result['output']);
+        self::assertStringNotContainsString('--learning-root', $result['output']);
     }
 
     public function testHelpAliasesExitZero(): void
@@ -44,6 +45,23 @@ final class WorkflowCliTest extends TestCase
     public function testUnknownCommandExitsOne(): void
     {
         self::assertSame(1, $this->runCli(['nope'])['exit']);
+    }
+
+    public function testWorkflowCommandsRejectProjectLearningRootOverrides(): void
+    {
+        $commands = [
+            ['plan', 'ABC-123', '--by', 'planner', '--learning-root', 'alternate'],
+            ['approve', 'ABC-123', '--by', 'reviewer', '--learning-root', 'alternate'],
+            ['context', 'ABC-123', '--learning-root', 'alternate'],
+            ['report', 'ABC-123', '--learning-root', 'alternate'],
+            ['learn', 'ABC-123', '--status', 'no_durable_learning', '--by', 'planner', '--reason', 'none', '--learning-root', 'alternate'],
+            ['close', 'ABC-123', '--status', 'done', '--learning-root', 'alternate'],
+            ['plan', 'ABC-123', '--by', 'planner', '--root', 'alternate'],
+        ];
+
+        foreach ($commands as $command) {
+            self::assertSame(1, $this->runCli($command)['exit'], implode(' ', $command));
+        }
     }
 
     public function testGovernedCommandsWithoutTaskIdFail(): void

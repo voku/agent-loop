@@ -27,8 +27,8 @@ fi
 repo_root="$(agent_loop_hooks_repo_root)" || exit 0
 cd "$repo_root" || exit 0
 
-index_path="${AGENT_LOOP_MAP_INDEX:-.agent-map/php-symbols.json}"
-search_database="${AGENT_LOOP_MAP_SEARCH_DATABASE:-.agent-map/search.sqlite}"
+index_path="${AGENT_LOOP_MAP_INDEX:-.agent-loop/map/php-symbols.json}"
+search_database="${AGENT_LOOP_MAP_SEARCH_DATABASE:-.agent-loop/map/search.sqlite}"
 if [[ ! -f "$index_path" ]]; then
     exit 0
 fi

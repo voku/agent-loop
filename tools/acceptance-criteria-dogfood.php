@@ -43,7 +43,6 @@ final class AcceptanceCriteriaDogfood
             $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
                 '--by', 'ci-approval-fixture',
-                '--learning-root', '.agent-loop/learning',
             ]);
             $this->assertContract('approved');
             $this->assertRecall();
@@ -79,7 +78,6 @@ final class AcceptanceCriteriaDogfood
         $this->runCommand([
             'vendor/bin/agent-loop', 'workflow', 'plan', self::TASK_ID,
             '--by', 'acceptance-dogfood',
-            '--learning-root', '.agent-loop/learning',
             '--file', 'composer.json',
             '--goal', 'Prove required outcomes survive the installed governed workflow.',
             '--acceptance', self::CRITERIA[0],

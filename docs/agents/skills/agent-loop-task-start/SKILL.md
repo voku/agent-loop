@@ -17,7 +17,6 @@ Prefer the governed Contract path:
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \
   --by <actor> \
-  --learning-root <learning-root-path> \
   --file <path-to-file-1> \
   --file <path-to-file-2> \
   --goal "Implement the approved task." \

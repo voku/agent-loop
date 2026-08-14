@@ -219,6 +219,27 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertArrayNotHasKey('suppressOutput', $output);
     }
 
+    public function testUnboundedMapDumpUsesTheConfiguredProjectLayout(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-layout-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($root . '/.agent-loop', 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $root . '/.agent-loop/init.json',
+            $this->json(['version' => 1, 'paths' => ['state_root' => 'var/agent-state']]),
+        ));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->preToolUseOutput($this->json([
+                'hook_event_name' => 'PreToolUse',
+                'tool_input' => ['command' => 'cat var/agent-state/map/php-symbols.json'],
+            ]));
+
+            self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
     public function testMalformedPayloadFailsWithContext(): void
     {
         $this->expectException(UnexpectedValueException::class);

@@ -27,7 +27,7 @@ final class WorkflowCloseCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-close-' . bin2hex(random_bytes(4));
         mkdir($this->root, 0o775, true);
-        mkdir($this->root . '/learning-root', 0o775, true);
+        mkdir($this->root . '/.agent-loop/learning', 0o775, true);
         $this->prepareGovernedRun();
     }
 
@@ -164,7 +164,6 @@ final class WorkflowCloseCommandTest extends TestCase
             'ABC-123', '--status', 'done',
             '--accept-risk', 'Manual review.',
             '--accept-risk-by', 'lars',
-            '--learning-root', $this->root . '/learning-root',
         ]);
 
         self::assertSame(0, $result['exit'], $result['output']);
@@ -178,7 +177,6 @@ final class WorkflowCloseCommandTest extends TestCase
         $result = $this->runClose([
             'ABC-123', '--status', 'done',
             '--accept-risk', 'Manual review.',
-            '--learning-root', $this->root . '/learning-root',
         ]);
 
         self::assertSame(1, $result['exit']);
@@ -220,13 +218,8 @@ final class WorkflowCloseCommandTest extends TestCase
      * @return array{exit: int, output: string}
 
      */
-    private function runClose(array $args = [
-        'ABC-123', '--status', 'done', '--learning-root', '__DEFAULT__',
-    ]): array {
-        if (($key = array_search('__DEFAULT__', $args, true)) !== false) {
-            $args[$key] = $this->root . '/learning-root';
-        }
-
+    private function runClose(array $args = ['ABC-123', '--status', 'done']): array
+    {
         ob_start();
         $exit = (new WorkflowCloseCommand($this->root))->run($args);
         $output = (string) ob_get_clean();
@@ -249,7 +242,7 @@ final class WorkflowCloseCommandTest extends TestCase
 
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $this->sessionId = $session->id;
-        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/learning-root');
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
         $this->runId = $run->runId;
 
         (new ValidationEvidenceStore())->record(
@@ -261,7 +254,7 @@ final class WorkflowCloseCommandTest extends TestCase
             10,
             'lars',
         );
-        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',

@@ -86,7 +86,7 @@ final readonly class WorkflowCloseCommand
                 throw new RuntimeException('Governed Run Session is missing before final verification evidence was persisted.');
             }
 
-            $learningRoot = WorkflowLearningRoot::assertRunBinding($this->rootPath, $run, $options['learningRoot']);
+            $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
             $validation = $this->validationSnapshot($contract, $session);
             $failures = $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']);
             foreach ($failures as $failure) {
@@ -387,17 +387,16 @@ final readonly class WorkflowCloseCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{status: string, acceptRisk: string|null, acceptRiskBy: string|null, learningRoot: string|null}
+     * @return array{status: string, acceptRisk: string|null, acceptRiskBy: string|null}
      */
     private function parse(array $tokens): array
     {
         $status = null;
         $risk = null;
         $riskBy = null;
-        $learningRoot = null;
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--status', '--accept-risk', '--accept-risk-by', '--learning-root'], true)) {
+            if (!in_array($token, ['--status', '--accept-risk', '--accept-risk-by'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -411,7 +410,6 @@ final readonly class WorkflowCloseCommand
                 '--status' => $status = $value,
                 '--accept-risk' => $risk = $value,
                 '--accept-risk-by' => $riskBy = $value,
-                '--learning-root' => $learningRoot = $value,
             };
         }
         if ($status === null) {
@@ -422,7 +420,6 @@ final readonly class WorkflowCloseCommand
             'status' => $status,
             'acceptRisk' => $risk,
             'acceptRiskBy' => $riskBy,
-            'learningRoot' => $learningRoot,
         ];
     }
 }

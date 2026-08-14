@@ -52,6 +52,7 @@ final class GovernedRunPortabilityTest extends TestCase
 
     public function testCompletedRunStaysCompleteAfterTheProjectIsRelocated(): void
     {
+        $this->writeConfig(['learning_root' => 'learning-root']);
         $this->completeGovernedRun('learning-root');
         $expected = (new GovernedRunStore($this->root))->find('ABC-123');
         self::assertNotNull($expected);
@@ -130,7 +131,7 @@ final class GovernedRunPortabilityTest extends TestCase
             return 0;
         });
         ob_start();
-        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars', '--learning-root', $absoluteLearningRoot]));
+        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
 
         $session = (new SessionStore())->all($this->root . '/.agent-loop/sessions')[0];
@@ -152,7 +153,7 @@ final class GovernedRunPortabilityTest extends TestCase
 
         $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
         ob_start();
-        $exit = $cli->run(['close', 'ABC-123', '--status', 'done', '--learning-root', $absoluteLearningRoot]);
+        $exit = $cli->run(['close', 'ABC-123', '--status', 'done']);
         $output = (string) ob_get_clean();
         self::assertSame(0, $exit, $output);
 

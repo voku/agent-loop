@@ -19,7 +19,6 @@ final class WorkflowDurableContractTest extends TestCase
             $exit = (new WorkflowPlanCommand($root))->run([
                 'ABC-123',
                 '--by', 'lars',
-                '--learning-root', 'learn',
                 '--file', 'src/Foo.php',
                 '--goal', 'Keep the approved task boundary durable.',
                 '--non-goal', 'Do not make Session durable.',
@@ -29,7 +28,7 @@ final class WorkflowDurableContractTest extends TestCase
             ob_end_clean();
 
             self::assertSame(0, $exit);
-            self::assertSame([], (new SessionStore())->all($root . '/session_plan'));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
 
             $contractPath = $root . '/.agent-loop/contracts/ABC-123/contract.json';
             self::assertFileExists($contractPath);

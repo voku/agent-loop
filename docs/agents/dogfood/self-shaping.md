@@ -12,7 +12,7 @@ The self-shape lifecycle is intentionally observational. It may exercise a trans
 
 ## Evidence chain
 
-The validated source findings live under `infra/doc/agent-learning/findings/validated/`:
+The validated source findings live under `.agent-loop/learning/findings/validated/`:
 
 - `finding.2026-08-07.001`: internal workflow orchestration through focused-package CLIs duplicated argv, path, default, and failure knowledge that typed package APIs already owned;
 - `finding.2026-08-07.002`: repository-under-development and installed-consumer execution have different binary entrypoints and must be tested separately;

@@ -44,7 +44,6 @@ final class PromptPrimitivesDogfood
             $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
                 '--by', self::APPROVER,
-                '--learning-root', '.agent-loop/learning',
             ]);
             $this->assertCompiledControls();
             $this->validate();
@@ -62,7 +61,6 @@ final class PromptPrimitivesDogfood
                 '--status', 'no_durable_learning',
                 '--by', self::PLANNER,
                 '--reason', 'The candidate dogfood exercised existing prompt-control semantics without producing a new durable rule.',
-                '--learning-root', '.agent-loop/learning',
             ]);
             $this->runCommand(['vendor/bin/agent-loop', 'verify', '--task-id=' . self::TASK_ID]);
             $this->assertState('ready_to_close');
@@ -75,7 +73,6 @@ final class PromptPrimitivesDogfood
             $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'close', self::TASK_ID,
                 '--status', 'done',
-                '--learning-root', '.agent-loop/learning',
             ]);
             $this->assertState('complete');
 
@@ -110,7 +107,6 @@ final class PromptPrimitivesDogfood
         $this->runCommand([
             'vendor/bin/agent-loop', 'workflow', 'plan', self::TASK_ID,
             '--by', self::PLANNER,
-            '--learning-root', '.agent-loop/learning',
             '--file', 'composer.json',
             '--goal', 'Prove checkpoint autonomy, momentum, and post-task reflection through one installed governed workflow.',
             '--non-goal', 'Do not create a new lifecycle phase, synthetic human approval, or automatic follow-up task.',

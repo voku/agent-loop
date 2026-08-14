@@ -7,10 +7,15 @@
 /.agent-map/
 /.agent-loop/*
 !/.agent-loop/init.json
+!/.agent-loop/learning/
+!/.agent-loop/learning/config.json
+!/.agent-loop/learning/findings/
+!/.agent-loop/learning/findings/validated/
+!/.agent-loop/learning/findings/validated/*.json
 .DS_Store
 composer.lock
 !/tools/*/composer.lock
-/infra/doc/agent-learning/history/
+/.agent-loop/learning/history/
 /tools/*/vendor/
 /.slop-scan.cache.json
 /var/

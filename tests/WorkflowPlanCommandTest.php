@@ -23,7 +23,6 @@ final class WorkflowPlanCommandTest extends TestCase
             $exit = (new WorkflowPlanCommand($root))->run([
                 'ABC-123',
                 '--by', 'lars',
-                '--learning-root', 'learn',
                 '--file', 'src/Foo.php',
                 '--goal', 'Keep scope reviewable.',
                 '--scope', 'src/Foo.php',
@@ -61,7 +60,7 @@ final class WorkflowPlanCommandTest extends TestCase
         try {
             ob_start();
             $exit = (new WorkflowPlanCommand($root))->run([
-                'ABC-123', '--by', 'lars', '--root', 'learn',
+                'ABC-123', '--by', 'lars',
                 '--file', 'src/Foo.php', '--file', 'tests/FooTest.php',
                 '--goal', 'Keep scope reviewable.', '--validation', 'vendor/bin/phpunit',
             ]);
@@ -76,7 +75,7 @@ final class WorkflowPlanCommandTest extends TestCase
 
             ob_start();
             $ephemeralExit = (new WorkflowPlanCommand($root))->run([
-                'EXP-1', '--by', 'lars', '--root', 'learn',
+                'EXP-1', '--by', 'lars',
                 '--file', 'src/Foo.php', '--goal', 'Experiment.', '--validation', 'vendor/bin/phpunit', '--ephemeral',
             ]);
             ob_end_clean();
@@ -94,7 +93,7 @@ final class WorkflowPlanCommandTest extends TestCase
         try {
             ob_start();
             $exit = (new WorkflowPlanCommand($root))->run([
-                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+                'ABC-123', '--by', 'lars',
                 '--file', 'src/Foo.php', '--goal', 'Goal',
             ]);
             ob_end_clean();
@@ -117,7 +116,7 @@ final class WorkflowPlanCommandTest extends TestCase
         try {
             ob_start();
             $exit = (new WorkflowPlanCommand($root))->run([
-                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+                'ABC-123', '--by', 'lars',
                 '--file', 'src/Foo.php', '--file', 'tests/FooTest.php',
                 '--goal', 'Expanded scope.', '--validation', 'vendor/bin/phpunit tests/FooTest.php',
             ]);
@@ -155,7 +154,7 @@ final class WorkflowPlanCommandTest extends TestCase
 
         try {
             ob_start();
-            $exit = $command->run(['ABC-123', '--by', 'lars', '--learning-root', 'learn']);
+            $exit = $command->run(['ABC-123', '--by', 'lars']);
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
@@ -175,7 +174,7 @@ final class WorkflowPlanCommandTest extends TestCase
             $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
             self::assertFileExists($recallInput);
             self::assertSame([
-                ['compile', '--root', 'learn', '--task', 'ABC-123', '--task-brief', $recallInput],
+                ['compile', '--root', $root . '/.agent-loop/learning', '--task', 'ABC-123', '--task-brief', $recallInput],
             ], $recallCalls);
             self::assertStringContainsString('governed Run', $output);
         } finally {
@@ -186,7 +185,7 @@ final class WorkflowPlanCommandTest extends TestCase
     public function testApproveBuildsRecallInputFromOwnedArtifacts(): void
     {
         $root = $this->root('recall-input');
-        $learningRoot = $root . '/learning';
+        $learningRoot = $root . '/.agent-loop/learning';
         mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
         mkdir($root . '/.agent-loop/map', 0o775, true);
         mkdir($root . '/docs/agents', 0o775, true);
@@ -237,7 +236,7 @@ CARD
 
         try {
             ob_start();
-            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', $learningRoot]));
+            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars']));
             ob_end_clean();
 
             $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
@@ -269,7 +268,7 @@ CARD
         try {
             ob_start();
             $firstExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 7))->run([
-                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+                'ABC-123', '--by', 'lars',
             ]);
             ob_end_clean();
 
@@ -282,7 +281,7 @@ CARD
 
             ob_start();
             $secondExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 0))->run([
-                'ABC-123', '--by', 'lars', '--learning-root', 'learn',
+                'ABC-123', '--by', 'lars',
             ]);
             $output = (string) ob_get_clean();
 

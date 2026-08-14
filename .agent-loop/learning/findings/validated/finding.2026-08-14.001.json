@@ -1,0 +1,33 @@
+{
+  "id": "finding.2026-08-14.001",
+  "task_id": "HISTORY-EDIT-DOGFOOD-001",
+  "session": "2026-08-14-history-extraction",
+  "created_at": "2026-08-14T03:30:00+02:00",
+  "created_by": "history-review",
+  "scope": [
+    "src/Edit/CommandEditRunner.php",
+    "src/Edit/MechanicalEditRunner.php",
+    "src/Edit/WorkingTreeSnapshotter.php",
+    "src/Edit/Verify/CommandRunner.php",
+    "src/Edit/Verify/ObjectiveGateRunner.php",
+    "tests/CommandEditRunnerTest.php",
+    "tests/EditCommandIntegrationTest.php"
+  ],
+  "observation": "The target-aware edit dogfood behind PR #17 exposed several failures at one process boundary: a shell-shaped runner made argv ambiguous, undrained stderr could block the child, proc_close could lose the already-observed exit code, and repository-local PHP configuration leaked warnings into child validation. The final implementation moved general runner commands to argv arrays, drained stdout and stderr, preserved the observed exit result, and treated child PHP as a hermetic executable. A review of the current tree found two later PHP lint entrypoints that again invoke PHP_BINARY without -n, showing that the hermeticity part was learned operationally but not enforced structurally.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "GitHub PR #17 records the shell-free runner, concurrent stdout/stderr draining, timeout handling, non-zero exit preservation, source-hash verification, and repository-content trust boundary as regression-covered outcomes of the real edit orchestration run."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "The saved work-history evidence records that child PHP required -n after ambient php.ini stderr noise contaminated the edit dogfood result. Current source inspection found PHP_BINARY lint commands without -n in MechanicalEditRunner and ObjectiveGateRunner, proving recurrence after the original run."
+    }
+  ],
+  "hypothesis": "A subprocess boundary that accepts shell text or inherits ambient PHP configuration is not deterministic enough to be validation evidence. The defect recurs because process execution has several call sites and code review has to remember the same low-level constraints each time.",
+  "validated_conclusion": "Use argv arrays for proc_open unless a separately named API explicitly executes a human-approved shell command. When PHP_BINARY is the child executable, pass -n before the PHP operation so repository validation cannot depend on ambient php.ini. Drain both output streams and preserve the observed child exit result. Enforce the mechanically detectable parts with project PHPStan rules.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

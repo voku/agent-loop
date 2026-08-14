@@ -14,3 +14,27 @@ services:
     class: voku\AgentLoop\PHPStan\Rules\NoFocusedPackageCliInWorkflowRule
     tags:
       - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoWorkflowLearningRootOptionRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoRetiredStatePathLiteralRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoShellStringProcessCommandRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\PhpChildProcessMustDisableIniRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoDiscardedProjectLayoutPathRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoCollapsedPhpDocTagsRule
+    tags:
+      - phpstan.rules.rule
