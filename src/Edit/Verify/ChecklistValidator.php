@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit\Verify;
 
+use voku\AgentLoop\PathResolver;
+
 /**
  * Checks that every checklist obligation was answered with evidence that actually exists.
  *
@@ -61,14 +63,38 @@ final readonly class ChecklistValidator
         if (isset($known[$reference])) {
             return true;
         }
-        if (is_file($bundle->directory . '/' . ltrim($reference, '/'))) {
-            return true;
+
+        return $this->resolvesInside($bundle->directory, $reference)
+            || $this->resolvesInside($projectRoot, $reference);
+    }
+
+    /**
+     * A reference resolves only to a file that really sits under the bundle or the
+     * project - the three categories this validator claims to accept.
+     *
+     * The bare `is_file($reference)` fallback that used to close this method accepted
+     * any readable path on the machine, so `/etc/hostname` "resolved" and a required
+     * `human_review` item passed on evidence belonging to no task at all. Relative
+     * references climbing out with `..` are refused for the same reason.
+     */
+    private function resolvesInside(string $base, string $reference): bool
+    {
+        $realBase = realpath($base);
+        if ($realBase === false) {
+            return false;
         }
-        if (is_file($projectRoot . '/' . ltrim($reference, '/'))) {
-            return true;
+        $realBase = rtrim(str_replace('\\', '/', $realBase), '/');
+
+        $candidate = PathResolver::isAbsolute($reference)
+            ? $reference
+            : $realBase . '/' . ltrim($reference, '/');
+
+        $resolved = realpath($candidate);
+        if ($resolved === false || !is_file($resolved)) {
+            return false;
         }
 
-        return is_file($reference);
+        return str_starts_with(str_replace('\\', '/', $resolved), $realBase . '/');
     }
 
     /**

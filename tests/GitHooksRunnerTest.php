@@ -201,7 +201,10 @@ final class GitHooksRunnerTest extends TestCase
                 return ['output' => [], 'exit' => 1];
             }
 
-            return ['output' => $stagedFiles, 'exit' => 0];
+            // The runner asks Git for `-z` output, so the stub answers in that shape:
+            // one NUL-terminated record per path, which `exec()` reports as one line
+            // because it contains no newline.
+            return ['output' => [implode("\0", $stagedFiles) . "\0"], 'exit' => 0];
         };
     }
 }

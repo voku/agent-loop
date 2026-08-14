@@ -91,7 +91,8 @@ final readonly class GitHooksCli
             return 1;
         }
 
-        $violations = (new CommitMessageValidator($config))->validate($message);
+        $cleanup = GitCommitCleanup::fromRepository($this->rootPath);
+        $violations = (new CommitMessageValidator($config, $cleanup))->validate($message);
         if ($violations === []) {
             return 0;
         }

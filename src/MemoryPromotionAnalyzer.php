@@ -285,19 +285,25 @@ final class MemoryPromotionAnalyzer
     }
 
     /**
+     * Splits one Markdown table row into its cells.
+     *
+     * The delimiters are exactly one pipe at each end and every unescaped pipe
+     * between them. `trim($line, '|')` ate *runs* of pipes instead, so a row whose
+     * first or last cell is empty - `| Paths | rule ||`, ordinary GitHub-flavoured
+     * Markdown - lost that column and the whole MEMORY file was rejected as
+     * malformed. An escaped `\|` is content, not a delimiter, for the same reason.
+     *
      * @return list<string>
      */
     private function parseMarkdownTableRow(string $line): array
     {
-        if (!str_starts_with($line, '|') || !str_ends_with($line, '|')) {
+        if (strlen($line) < 2 || !str_starts_with($line, '|') || !str_ends_with($line, '|')) {
             return [];
         }
 
-        $trimmed = trim(trim($line), '|');
-
         return array_map(
-            static fn (string $part): string => trim($part),
-            explode('|', $trimmed)
+            static fn (string $part): string => trim(str_replace('\\|', '|', $part)),
+            preg_split('/(?<!\\\\)\|/', substr($line, 1, -1)) ?: [],
         );
     }
 

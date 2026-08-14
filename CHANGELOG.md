@@ -4,6 +4,74 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- `commit-msg` now judges the message Git will store instead of the file the
+  hook is handed. At hook time that file still carries Git's comment block, the
+  `commit.template` `init sync-githooks` installs, and the editor's leading blank
+  lines. Matching forbidden patterns against it meant the template's own
+  `WHY: [FILL]` guide line tripped the rule it exists to explain - blocking every
+  commit with text the committer could not remove - and a message starting one
+  blank line low was reported as having an empty header.
+- What Git will store is now read from `commit.cleanup` and
+  `core.commentString`/`core.commentChar` rather than assumed. New
+  `GitCommitCleanup` owns the question. Assuming `strip` and `#` was wrong in both
+  directions: under `commit.cleanup=whitespace` Git stores the commentary a
+  stripping rule would have skipped, and under `core.commentChar=;` a `#` line is
+  content Git keeps while the `;` line is the one it drops. `verbatim` and
+  `scissors` are modelled too. The configured comment string is used verbatim,
+  trailing space included: `core.commentString = "; "` makes `; comment` a comment
+  and leaves `;not-a-comment` as content Git stores.
+- Which of `core.commentChar` and `core.commentString` applies is now decided by
+  the running Git rather than by a fixed preference, from a single
+  `git config --list -z` read in Git's effective order. Before Git 2.45,
+  `core.commentString` is reported by `git config` and then ignored by Git, so
+  reading it predicted a cleanup that never happens. From 2.45 the two are aliases
+  of one setting, so neither name outranks the other and whichever comes last
+  wins. Values are taken byte for byte, trailing space included.
+- `core.commentChar`/`core.commentString` set to `auto` is refused with the
+  configuration to fix, rather than guessed. Git resolves `auto` while preparing
+  the buffer and then writes its own help lines with the character it chose, so
+  the file the hook receives always contains that character at the start of a
+  line and cannot be scanned to recover the decision - a replay concludes the
+  opposite of the truth. Modes that keep commentary never consult it and are
+  unaffected.
+- `default` resolves to `strip`, because the hook cannot observe whether an editor
+  ran; that boundary is documented and pinned by a test, and an explicit
+  `commit.cleanup` is honoured exactly.
+- Pre-commit checks no longer silently skip staged files whose names Git munges.
+  Line-oriented `--name-only` C-quotes any pathname containing a non-ASCII byte,
+  a tab, a double quote, a backslash or a newline - and `core.quotePath=false`
+  suppresses only the non-ASCII half of that. Such a name matched no `*.php`
+  pattern, named no file on disk, and dropped out of the batch while the hook
+  still exited 0. The path list is now read with `-z`, the form Git provides for
+  machine consumption.
+- A `phpstan` check declared with `"level": "max"` no longer becomes `--level=0`.
+  The level was read with `(int)`, so the strictest setting silently produced the
+  weakest analysis; a level the factory cannot read is now a configuration error.
+- `memory validate` accepts Markdown rows whose first or last cell is empty, and
+  treats an escaped `\|` as cell content. The row splitter trimmed *runs* of
+  pipes, so such a row lost a column and the whole MEMORY file was rejected as
+  malformed.
+- Checklist evidence must now resolve to a file inside the bundle or the project.
+  A trailing `is_file($reference)` accepted any readable path on the machine, so
+  `/etc/hostname` counted as evidence and a required `human_review` item passed
+  on an artifact belonging to no task.
+- Probe answers keep numeric evidence ids as strings; PHP's integer-like array
+  key coercion had been emitting them into the graded report as JSON numbers.
+
+### Validation
+
+- 86 new tests, each confirmed red before its fix and green after. The
+  commit-message and pre-commit tests drive a real repository and a real
+  `git diff --cached` rather than a stub.
+- The cleanup modes are verified by committing for real under each setting and
+  asserting the prediction equals what Git stored, so the assumption underneath
+  the validator is checked against Git rather than asserted in a comment.
+- The comment-string selector is covered deterministically across Git generations
+  without needing several Git binaries; only the tests that assert Git's own
+  handling of `core.commentString` are gated on Git 2.45.
+
 ## 0.16.3 - 2026-08-14
 
 ### Added

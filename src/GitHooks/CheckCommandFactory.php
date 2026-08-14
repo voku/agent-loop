@@ -59,7 +59,7 @@ final readonly class CheckCommandFactory
             'phpstan' => [
                 'command' => $binDirectory . '/phpstan analyse --no-progress'
                     . self::optionalOption($check, 'config', '--configuration=')
-                    . (isset($check['level']) ? ' --level=' . (int) $check['level'] : '')
+                    . self::levelOption($check)
                     . self::optionalOption($check, 'memory_limit', '--memory-limit=')
                     . $extraArguments,
                 'per_file' => false,
@@ -68,6 +68,34 @@ final readonly class CheckCommandFactory
                 'Unknown pre-commit check type: ' . $type . ' (known: ' . implode(', ', self::BUILT_IN_TYPES) . ')',
             ),
         };
+    }
+
+    /**
+     * `max` is a real PHPStan level and the one a project reaches for when it wants
+     * the strictest analysis. `(int) 'max'` is 0, so casting turned that request into
+     * `--level=0` - the *weakest* level - and the pre-commit gate kept passing while
+     * checking almost nothing. A level this factory cannot read is a configuration
+     * error, not a reason to guess.
+     *
+     * @param array<string, mixed> $check
+     */
+    private static function levelOption(array $check): string
+    {
+        $level = $check['level'] ?? null;
+        if ($level === null) {
+            return '';
+        }
+        if (is_int($level) && $level >= 0) {
+            return ' --level=' . $level;
+        }
+        if (is_string($level) && (strtolower($level) === 'max' || preg_match('/\A\d+\z/', $level) === 1)) {
+            return ' --level=' . strtolower($level);
+        }
+
+        throw new InvalidArgumentException(
+            'Invalid phpstan check level: ' . (is_scalar($level) ? (string) $level : get_debug_type($level))
+            . ' (expected a non-negative integer or "max")',
+        );
     }
 
     /**

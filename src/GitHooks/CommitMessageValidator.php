@@ -8,15 +8,30 @@ namespace voku\AgentLoop\GitHooks;
  * Validates a commit message against the repository's convention.
  *
  * The rules are always the same shape - a header that matches a pattern, no
- * leftover template placeholders, a required section that actually says something,
+ * unreplaced template markers, a required section that actually says something,
  * and a nudge when that section is short and vague. The pattern, the section name,
  * and the wording come from `.agent-loop/githooks.json`, so a project changes its
  * convention without touching a hook script.
+ *
+ * Every rule reads the message Git will *store*, never the file the hook is handed.
+ * At `commit-msg` time that file still carries Git's own comment block, the
+ * `commit.template` this package installs, and whatever blank lines the editor left.
+ * Judging the raw file made the template's own `WHY: [FILL]` guide line trip the
+ * rule that guide exists to explain - an unfixable commit, because the offending
+ * text is not something the committer typed - and made a message that merely started
+ * one blank line too low report an empty header.
+ *
+ * What Git will store is not something this class is allowed to guess: whether
+ * commentary survives, and what commentary even is, come from `commit.cleanup` and
+ * `core.commentString`. {@see GitCommitCleanup} owns that question.
  */
 final readonly class CommitMessageValidator
 {
-    public function __construct(private GitHookConfig $config)
+    private GitCommitCleanup $cleanup;
+
+    public function __construct(private GitHookConfig $config, ?GitCommitCleanup $cleanup = null)
     {
+        $this->cleanup = $cleanup ?? GitCommitCleanup::forMode('strip');
     }
 
     /**
@@ -24,7 +39,7 @@ final readonly class CommitMessageValidator
      */
     public function validate(string $message): array
     {
-        $lines = preg_split("/\r\n|\n|\r/", $message) ?: [];
+        $lines = $this->cleanup->committedLines($message);
         $header = trim((string) ($lines[0] ?? ''));
 
         if ($header === '') {
@@ -35,9 +50,10 @@ final readonly class CommitMessageValidator
             return $this->withHint('Invalid commit header: ' . $header);
         }
 
+        $committedMessage = implode("\n", $lines);
         $violations = [];
         foreach ($this->config->forbiddenPatterns as $forbidden) {
-            if (preg_match($forbidden['pattern'], $message) === 1) {
+            if (preg_match($forbidden['pattern'], $committedMessage) === 1) {
                 $violations[] = $forbidden['message'];
             }
         }
@@ -86,9 +102,7 @@ final readonly class CommitMessageValidator
         $body = [];
         foreach (array_slice($lines, 1) as $line) {
             $trimmed = trim($line);
-            // Git strips its own comment lines before the commit is written; ignoring
-            // them here keeps a template-only body from counting as real content.
-            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+            if ($trimmed === '') {
                 continue;
             }
 

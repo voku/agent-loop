@@ -111,7 +111,10 @@ final readonly class ProbeGrader
             }
         }
 
-        $canonical = array_keys($parts);
+        // PHP turns an integer-like array key into an int, so a numeric evidence id
+        // came back out of `array_keys()` as 7 rather than "7" and reached the graded
+        // report - and the declared `list<string>` - as a JSON number.
+        $canonical = array_map(strval(...), array_keys($parts));
         sort($canonical, SORT_STRING);
 
         return $canonical;
