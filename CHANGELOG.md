@@ -4,6 +4,76 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.0 - 2026-08-14
+
+### Changed
+
+- Requires `voku/agent-learning ^0.11.0`, which allocates record IDs instead of
+  deriving the next number from locally visible files. `agent-loop learn
+  finding-id` now hands out a collision-resistant finding ID, so parallel
+  branches stop allocating the same one.
+- `agent-loop map search-index` and `agent-loop map search` now default to the
+  database path `ProjectLayout` owns (`.agent-loop/map/search.sqlite`). They
+  previously fell through to agent-map's retired `.agent-map/` default, which is
+  read by nothing in the governed workflow. Pass `--database` explicitly to keep
+  a custom location.
+- `workflow approve` reports when no search index exists, because Recall still
+  compiles without ranked map evidence and a quietly narrower context is
+  indistinguishable from a correct one.
+
+### Fixed
+
+- `init doctor` and `init sync-githooks` recognise a linked Git worktree. Both
+  inferred repository state from `is_dir(<root>/.git)`, but `git worktree add`
+  stores `.git` as a file, so a valid checkout was reported as "no repository"
+  and `sync-githooks` installed six hook files while silently skipping
+  `core.hooksPath` - leaving the hook integration inert in the layout agents
+  work in most.
+- The self-shape runner detects recorded findings by identity across every
+  findings state directory. It watched `findings/validated/` only, so
+  consolidating a finding - the normal end of its lifecycle - made a change
+  whose subject was recording learning look as though it had recorded none.
+
+### Added
+
+- Two project PHPStan rules with failing fixtures and exact expected
+  diagnostics: `NoGitDirectoryShapeAssumptionRule` rejects inferring repository
+  state from the shape of `.git`, and `NoInProcessPhpstanRuleTestCaseRule` gives
+  the reviewed tooling-isolation rule a detector instead of a shell convention.
+- A frozen real-task replay suite recording where decisive evidence was lost
+  along map discovery, Recall selection and context projection. Its assertions
+  fail if a future change "fixes" a replay by widening search, changing ranking
+  or raising the context budget.
+- `composer review:slop-baseline` refreshes the line-shifted slop baseline next
+  to the check it serves.
+
+### Learning
+
+- The Learning pipeline had never been run in this repository: 23 validated
+  findings and no proposals, so `finding -> proposal -> reviewed decision ->
+  durable guidance` had never been walked once. 28 findings are now
+  consolidated into 15 proposals; 6 candidates await a named human approver,
+  and 9 were acknowledged as `NO_DURABLE_LEARNING` with recorded reasons.
+- Validated `finding.2026-08-14.008`: a derived state path needs one owner for
+  reading and writing. The search index was read by `workflow approve` and
+  written by nothing, so ranked evidence silently never reached the governed
+  context. Same task, same ranking, same budget: 17 context lines with the
+  decisive API absent, 55 with it present.
+- Validated `finding.2026-08-14.015`: read a diff for what it removed. An
+  invariant that held by construction needs an explicit assertion once its
+  construction changes, a random source is injected rather than sampled by a
+  test, and a process call is not a drop-in for a filesystem check.
+
+### Validation
+
+- PHP 8.3/8.4/8.5 tests and gates, project PHPStan rule fixtures out of
+  process, deterministic slop review, governed execution-contract dogfood,
+  installed release-set dogfood, prompt-primitives clean-consumer dogfood, and
+  agent-loop self-shape, all green before merge.
+- Evidence conservation was measured on real consumer replays in
+  `voku/simple-php-code-parser` and `voku/anti-xss` rather than on synthetic
+  prompts.
+
 ## 0.15.2 - 2026-08-14
 
 ### Changed
