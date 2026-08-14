@@ -19,12 +19,17 @@
             "summary": "First attempt aborted on an unrelated composer.lock error; the next two attempts failed immediately on the leftover active Session, one per stale session, until each was closed by hand."
         },
         {
+            "type": "test_result",
+            "command": "composer dogfood:self-shape",
+            "summary": "A *successful* run leaves the same trap: the next run planned Contract revision 4 and then failed with 'Cannot supersede governed Run run:SELF-SHAPE:12bc5c6ac04ada38 with Contract revision 4 while reusing its Session 2026-08-14-self-shape-3.' The refusal is correct; the runner simply has no path to a fresh Run for a new revision. Only deleting the local .agent-loop/{runs,contracts,recall,sessions} entries for SELF-SHAPE - restoring the fresh-checkout condition CI always has - let it proceed."
+        },
+        {
             "type": "manual_verification",
-            "summary": "After reading the approved revision from workflow status instead of assuming it, the full run passed end to end: 'Self-shape dogfood: PASSED', including workflow close and the post-prune projection replay."
+            "summary": "After reading the approved revision from workflow status instead of assuming it, the full run passed end to end against current head: 'Self-shape dogfood: PASSED', Learning decision findings_recorded, including workflow close and the post-prune projection replay."
         }
     ],
     "hypothesis": "A constant that is right in the only environment a gate normally runs in will not be questioned. CI always starts from a fresh checkout, so revision 1 was true every time it mattered, and the assumption survived precisely because the dogfood never ran twice over the same state.",
-    "validated_conclusion": "A runner asks the workflow for durable identity rather than assuming it; a value that CI always makes true is an assumption, not a fact. When a gate refuses evidence, its message names the property that failed to match - a revision, a compilation - and not only the command, or the failure is diagnosed by reading manifests by hand.",
+    "validated_conclusion": "The self-shape runner is not re-entrant over its own prior state, and every symptom of that shares one cause: it is written for the fresh checkout CI always gives it. A runner asks the workflow for durable identity rather than assuming it; a value that CI always makes true is an assumption, not a fact. When a gate refuses evidence, its message names the property that failed to match - a revision, a compilation - and not only the command, or the failure is diagnosed by reading manifests by hand.",
     "confidence": "high",
     "validation_status": "validated",
     "status": "validated",
