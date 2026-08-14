@@ -1,0 +1,33 @@
+{
+    "id": "proposal.2026-08-14.014",
+    "created_at": "2026-08-14T06:52:18+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-14.014"
+    ],
+    "reason": "A property of the ID scheme rather than a repository rule; the durable fix would be allocation authority in agent-learning, and one collision is not enough evidence for that.",
+    "remaining_uncertainty": [
+        "Whether agent-learning should allocate finding IDs rather than leaving the sequence to whoever writes the file. One collision is not enough evidence to change a scheme every existing record uses."
+    ],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": null,
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "finding.id.collision.resolution",
+    "validation_case": {
+        "given": "two branches allocating finding IDs from the same per-day sequence",
+        "when": "both land records with the same ID and the pull-request merge is validated",
+        "then": "learn validate fails with a duplicate finding ID, and the branch that arrived second renumbers inside its rebase"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:52:18+00:00"
+}

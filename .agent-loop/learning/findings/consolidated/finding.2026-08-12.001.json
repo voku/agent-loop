@@ -1,0 +1,43 @@
+{
+    "id": "finding.2026-08-12.001",
+    "task_id": "RESET-RUNLEARN-001",
+    "session": "2026-08-12-reset-runlearn-001",
+    "created_at": "2026-08-12T02:10:00+02:00",
+    "created_by": "self-dogfood",
+    "scope": [
+        "src/Run/GovernedRun.php",
+        "src/Run/GovernedRunStore.php",
+        "src/Run/RunManifestProjector.php",
+        "src/Workflow/WorkflowCloseCommand.php",
+        "src/Workflow/WorkflowLearningRoot.php",
+        "src/Workflow/WorkflowReportCommand.php"
+    ],
+    "observation": "workflow close resolved the durable Learning root from the caller-supplied --learning-root, gated on it, and reported '[OK] learning decision: no_durable_learning by lars'. The RunManifestTransitionWriter it then invoked re-derived that same location from the layout default instead, found nothing, and wrote a durable manifest saying 'learning: missing', 'state: incomplete', with next_action 'agent-loop workflow learn ...'. The close succeeded and the durable receipt it produced contradicted the gate that produced it. The contradiction survived Session pruning, so post-prune inspection of a legitimately completed Run reported it as unfinished. Package-local tests did not catch this because each side was individually correct; only the paired close-then-project sequence exposed it. A second instance of the same shape was found in the same slice: WorkflowReportCommand kept a private session root ('session_plan') and a private learning-root candidate list after the compact-layout consolidation moved both to ProjectLayout, so the report showed 'Session: missing' and '[missing]' validation for evidence that existed on disk. A third instance was in the harness rather than the product: tools/self-shape-dogfood.sh hardcoded 'infra/doc/agent-learning/recall-output' as the Recall output root while the product resolved it through ProjectLayout, so the self-shaping gate failed on a path the product no longer owned.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit (coordinated candidate set: agent-session reset/pruneable-working-memory, agent-recall-compiler reset/governed-contract-run-binding, agent-learning reset/durable-run-learning)",
+            "summary": "9 failures on reset/durable-contract-first head 150db188. Six of them (SmokeLoopTest::testGovernedCompletionFlowUsesOnlyRecordedOwnerArtifacts, WorkflowReportCommandTest x3, WorkflowPrunedSessionDurabilityTest, WorkflowRunManifestTransitionTest) reduced to two duplicated path resolvers, not nine independent defects."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "A direct probe closed a governed Run with --learning-root <root>/learning-root. Close printed '[OK] learning decision: no_durable_learning by lars' and exit 0; the manifest it wrote in the same command reported references.learning.state='missing' and state='incomplete' with zero disagreements. Zero disagreements is the important part: the projection did not know it was contradicting anything."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit tests/GovernedRunLearningBindingTest.php",
+            "summary": "RED/GREEN proof. With the projector re-deriving the learning root from the layout default, 2 of 4 new tests fail; with the Run's own binding used, all 4 pass. testDecisionInTheLayoutDefaultIsNotAttributedToARunBoundElsewhere pins the inverse direction so the fix cannot regress into reading any repository that happens to contain the run id."
+        },
+        {
+            "type": "manual_verification",
+            "command": "bash tools/self-shape-dogfood.sh --base-ref=main; php bin/agent-loop workflow manifest SELF-SHAPE --format json",
+            "summary": "After the fix the self-shaping gate passes end to end including its session-prune replay. With the Session pruned from disk, the same Run still projects run_id run:SELF-SHAPE:0cf84fb9cab7f355, state 'complete', next_action 'none', approval 'current' revision 1, verification 'passed' revision 1, learning 'decided' no_durable_learning, and no disagreements."
+        }
+    ],
+    "hypothesis": "When a command is handed a location and then delegates to a projector that re-derives that location from ambient defaults, the two will agree in the default configuration and silently disagree everywhere else. Default-configuration test fixtures hide the divergence, and the resulting durable artifact is worse than a plain failure because it is confidently wrong.",
+    "validated_conclusion": "A durable projection must not re-derive an owner location from ambient defaults or from a flag nothing durable remembers. Bind the location into the durable record whose lifetime it describes (here: the governed Run records the Learning repository it is governed against), read it from there everywhere, and refuse an explicit override that disagrees rather than silently substituting it. Corollary for migrations: when a layout owner such as ProjectLayout is introduced, the migration is not finished until every private path resolver is deleted, including the ones in read-only projections and in dogfood harnesses. A grep for the old literal is a cheap and sufficient completeness check, and both remaining instances in this slice would have been caught by it.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

@@ -164,6 +164,16 @@ final class Dispatcher
             $rest[] = '--index=' . $this->defaultMapIndex();
         }
 
+        // The derived search index is what turns retrieval into ranked Recall
+        // evidence, and `workflow approve` reads it from the path ProjectLayout
+        // owns. Without this, agent-map falls back to its own `.agent-map/`
+        // default: the index is built somewhere nothing reads, approve compiles
+        // Recall with no ranked facts, and the decisive symbol silently never
+        // reaches the governed context.
+        if (in_array($command, ['search-index', 'search'], true) && !$this->hasOption($rest, 'database')) {
+            $rest[] = '--database=' . $this->defaultMapSearchIndex();
+        }
+
         return $rest;
     }
 
@@ -236,6 +246,11 @@ final class Dispatcher
     private function defaultMapIndex(): string
     {
         return $this->layout()->mapIndex();
+    }
+
+    private function defaultMapSearchIndex(): string
+    {
+        return $this->layout()->mapSearchIndex();
     }
 
     private function defaultHistoryDatabase(): string
@@ -433,8 +448,8 @@ final class Dispatcher
                   Deterministic context/replay compilation (voku/agent-recall-compiler).
           session <start|claim|checkpoint|record|close|list|show|validation|prune>
                   Pruneable per-Run working memory and raw validation observations (voku/agent-session).
-          map     <build|refresh|discover|rank|impact|history|query|file|stale|summary|changed|related|
-                  stats|scope|callers|callees|context>
+          map     <build|refresh|search-index|search|discover|rank|impact|history|query|file|stale|
+                  summary|changed|related|stats|scope|callers|callees|context>
                   Deterministic PHP repository map, architecture discovery, and
                   temporal evidence (voku/agent-map).
           memory  <validate|review>

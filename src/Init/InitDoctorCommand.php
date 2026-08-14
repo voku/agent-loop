@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\GitWorkTree;
 
 final readonly class InitDoctorCommand
 {
@@ -135,9 +136,9 @@ final readonly class InitDoctorCommand
 
     private function checkGit(): InitCheckResult
     {
-        return is_dir(rtrim($this->rootPath, '/') . '/.git')
-            ? InitCheckResult::ok('Git: .git directory found')
-            : InitCheckResult::warn('Git: .git directory not found');
+        return GitWorkTree::detected(rtrim($this->rootPath, '/'))
+            ? InitCheckResult::ok('Git: working tree detected')
+            : InitCheckResult::warn('Git: no working tree detected');
     }
 
     /**

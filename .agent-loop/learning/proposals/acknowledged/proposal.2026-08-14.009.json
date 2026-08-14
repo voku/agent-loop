@@ -1,0 +1,25 @@
+{
+    "id": "proposal.2026-08-14.009",
+    "created_at": "2026-08-14T06:10:09+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-14.003"
+    ],
+    "reason": "Upstream agent-learning defects shipped as fixes in 0.8.2, 0.8.3 and 0.8.4; not a repeatable behavior agent-loop can constrain.",
+    "remaining_uncertainty": [],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": null,
+    "learning_decision": "IGNORE",
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:10:30+00:00"
+}

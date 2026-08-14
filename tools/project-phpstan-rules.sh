@@ -24,6 +24,8 @@ expected_errors=(
   'Child PHP commands must place -n immediately after PHP_BINARY'
   'ProjectLayout::learningRoot() result is discarded.'
   'PHPDoc contract tags must be on separate lines'
+  'Do not infer Git repository state from is_dir(.git)'
+  'do not extend PHPStan\Testing\RuleTestCase in the PHPUnit suite'
 )
 
 for expected_error in "${expected_errors[@]}"; do

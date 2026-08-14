@@ -1,0 +1,31 @@
+{
+    "id": "proposal.2026-08-14.008",
+    "created_at": "2026-08-14T06:10:09+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-08.003"
+    ],
+    "reason": "The mechanism-not-delta rule is already carried by the no-production-change acceptance model; the concrete mechanisms were adopted or explicitly deferred at the time.",
+    "remaining_uncertainty": [],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": "docs/agents/dogfood/no-production-change.md",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "adaptation.compare.mechanism.not.delta.size",
+    "validation_case": {
+        "given": "an upstream change whose diff against the local implementation is small",
+        "when": "the small delta is treated as evidence that the local contract already contains the mechanism",
+        "then": "a mechanism-level comparison is required before concluding equivalence, because file shape is not behavior"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:10:30+00:00"
+}

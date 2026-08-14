@@ -58,6 +58,28 @@ recall/                       -> .agent-loop/recall/
 .agent-map/                   -> .agent-loop/map/
 ```
 
+### One path the mapping does not cover
+
+`agent-map` writes its PHPStan result cache to a hardcoded
+`.agent-map/phpstan-cache/`, with no option to redirect it, so `map build`
+recreates that directory even in a fully migrated repository. It is a cache,
+not workflow state, and it is regenerated on demand — but it is several
+megabytes and it lands outside `.agent-loop/`, so a library repository has to
+exclude it explicitly:
+
+```gitignore
+/.agent-map/
+```
+
+```gitattributes
+/.agent-map export-ignore
+```
+
+Until `agent-map` accepts a cache location, this is the one place where the
+mapping above is aspirational rather than complete. Do not read the leftover
+`/.agent-map/` line in this repository's own `.gitignore` as migration residue:
+it is load-bearing for exactly this reason.
+
 After moving existing state, run `agent-loop verify` before removing the old
 locations. Focused package CLI options can still select a genuinely custom path
 explicitly.

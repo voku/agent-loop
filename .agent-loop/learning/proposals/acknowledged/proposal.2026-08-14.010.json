@@ -1,0 +1,34 @@
+{
+    "id": "proposal.2026-08-14.010",
+    "created_at": "2026-08-14T06:10:09+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-14.010"
+    ],
+    "reason": "No failing case exists for either side of the itp-context boundary contradiction; a durable rule now would freeze a guess about a package boundary.",
+    "remaining_uncertainty": [
+        "Whether itp-context moves out of require, or the documentation stops calling it external, needs a governed task with a real consumer case.",
+        "Consumers may already rely on itp-context-validate resolving from agent-loop's vendor directory."
+    ],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": null,
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "boundary.docs.and.dependency.graph.must.agree",
+    "validation_case": {
+        "given": "documentation that describes an evidence plane as an external, optional tool",
+        "when": "composer.json lists that package under require rather than require-dev or suggest",
+        "then": "every consumer installs it unasked, and the documented boundary is false until one of the two is changed"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:10:30+00:00"
+}

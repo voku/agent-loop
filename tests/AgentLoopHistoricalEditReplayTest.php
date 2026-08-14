@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\EditCommand;
+use voku\AgentLoop\GitWorkTree;
 
 /**
  * Replays a public package fix through the same edit path consumers use.
@@ -29,7 +30,9 @@ final class AgentLoopHistoricalEditReplayTest extends TestCase
     protected function setUp(): void
     {
         $this->packageRoot = dirname(__DIR__);
-        if (!is_dir($this->packageRoot . '/.git')) {
+        // Asked of Git, not of the filesystem: in a linked worktree `.git` is a
+        // file, and shape-testing it skipped this replay in a valid checkout.
+        if (!GitWorkTree::detected($this->packageRoot)) {
             self::markTestSkipped('The package Git history is required for the historical replay.');
         }
         if (!$this->hasRevision('d0ce7ba')) {

@@ -1,0 +1,29 @@
+{
+    "id": "finding.2026-08-14.007",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T06:05:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        "MEMORY.md",
+        "tools/self-shape-dogfood.sh",
+        "src/Workflow/WorkflowCloseCommand.php"
+    ],
+    "observation": "Inspecting the artifacts of a passing self-shape run rather than its exit code showed that the reviewed durable rule and the enforced behavior disagreed. The MEMORY row 'Self-review close-out' required 'the final machine-readable blind-spot status to be exactly ok' and named tools/self-shape-dogfood.sh as its canonical home. The runner never read the report; it only relied on the CLI exit code, which is 0 for both ok and warn. The run closed successfully with references.review.state = warn from a security_sensitive_context finding whose evidence was 'Matched markers: auth, permission'. The stated rule was also unreachable: that advisory fires on any diff whose recall artifacts mention security terms, so no such change could ever have closed under it.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "A passing run produced .agent-loop/runs/SELF-SHAPE/manifest.json with references.review.state = warn while tools/self-shape-dogfood.sh contained no read of .agent-loop/recall/SELF-SHAPE/reviews/SELF-SHAPE.blindspots.json. The real gate lives in WorkflowCloseCommand::checkReviewGate(), which refuses a missing, invalid or fail report and admits warn; tests/WorkflowCloseCommandTest.php already covers the missing and fail cases."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Removing the `recall log-outcome` step from the runner did not change the blind-spot status, because the reviewer's close-out markers are satisfied by the checkpoint narrative text rather than by the outcome artifact. A shell-side assertion over those marker ids would therefore have been a second gate that could not detect the condition it named."
+        }
+    ],
+    "hypothesis": "A MEMORY row that names a shell runner as canonical home can assert something the runner does not do, because prose is not executed. The drift stays invisible while the pipeline is judged by exit code instead of by its artifacts.",
+    "validated_conclusion": "The blind-spot gate belongs to `workflow close`, which already owns and tests it; the harness records the residual status as close-out evidence instead of asserting a duplicate gate. MEMORY now describes the enforced behavior and points at the product code and its test. When a memory row and its canonical home disagree, correct the row towards the executable truth rather than adding a second enforcement point.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

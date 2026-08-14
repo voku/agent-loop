@@ -1,0 +1,49 @@
+{
+    "schema_version": "1.0",
+    "case": "map-recall-context-evidence-conservation",
+    "consumer_repository": "voku/simple-php-code-parser",
+    "consumer_commit": "93867be",
+    "installed_as": "isolated tooling project (tools/agent-loop), vendor/bin/agent-loop",
+    "task": {
+        "id": "PARSER-AST",
+        "goal": "Support building an AST from raw PHP source held in a string, without writing it to a temporary file first.",
+        "approved_scope": [
+            "src/voku/SimplePhpParser/Parsers/Helper/ParserContainer.php"
+        ],
+        "correct_outcome": "NO_CHANGE_REQUIRED"
+    },
+    "decisive_evidence": {
+        "symbol": "voku\\SimplePhpParser\\Parsers\\PhpCodeParser::getAstFromString",
+        "file": "src/voku/SimplePhpParser/Parsers/PhpCodeParser.php",
+        "why_decisive": "The requested capability already exists as a public static API, so implementing a second string-parsing path would duplicate shipped behavior. The decisive symbol is deliberately outside the approved scope, which is the situation ranked map evidence exists for."
+    },
+    "chain_before": {
+        "discovered_by_map": true,
+        "selected_by_recall": false,
+        "present_in_governed_context": false,
+        "classification": "discovered but not selected",
+        "context_lines": 17,
+        "context_bytes": 1035,
+        "recall_facts": [
+            "map.file.src/voku/SimplePhpParser/Parsers/Helper/ParserContainer.php",
+            "map.snapshot",
+            "project.capabilities",
+            "task.PARSER-AST"
+        ],
+        "root_cause": "agent-loop read the derived search index from ProjectLayout::mapSearchIndex() but never wrote it: `map search-index build` fell through to agent-map's own .agent-map/search.sqlite default. With no index at the owned path, workflow approve omitted --map-search-index and Recall compiled no ranked facts. Nothing reported the degradation."
+    },
+    "chain_after": {
+        "discovered_by_map": true,
+        "selected_by_recall": true,
+        "present_in_governed_context": true,
+        "classification": "conserved",
+        "context_lines": 55,
+        "context_bytes": 7496
+    },
+    "fix_boundary": {
+        "search_widened": false,
+        "ranking_changed": false,
+        "context_budget_raised": false,
+        "note": "Only the ownership of the derived index path changed, plus a warning when ranked evidence is unavailable. The same retrieval, the same ranking, the same budget."
+    }
+}

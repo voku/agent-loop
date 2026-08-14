@@ -1,0 +1,30 @@
+{
+    "id": "proposal.2026-08-14.006",
+    "created_at": "2026-08-14T06:09:48+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-07.001",
+        "finding.2026-08-07.002",
+        "finding.2026-08-07.004",
+        "finding.2026-08-07.006",
+        "finding.2026-08-07.007",
+        "finding.2026-08-07.008"
+    ],
+    "reason": "All six PR #28 findings are already reviewed MEMORY rows with executable canonical homes; re-proposing would duplicate reviewed guidance.",
+    "remaining_uncertainty": [],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": null,
+    "learning_decision": "IGNORE",
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:10:30+00:00"
+}

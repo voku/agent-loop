@@ -1,0 +1,28 @@
+{
+    "id": "finding.2026-08-14.011",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T08:45:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        "tools/self-shape-dogfood.sh"
+    ],
+    "observation": "Running the Learning pipeline for the first time broke the repository's own self-dogfood runner. The runner decided its learning status by looking for files added under .agent-loop/learning/findings/validated/finding.*.json, but `learn finding-transition <id> consolidated` moves a finding out of validated/ - the normal end of its lifecycle. After 23 findings were consolidated, the runner found zero added finding files while MEMORY.md had still changed, so it selected findings_recorded with no finding ids and `workflow learn` refused: 'findings_recorded requires at least one finding id'. The self-shape gate failed on a pull request whose entire subject was recording learning.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "bash tools/self-shape-dogfood.sh",
+            "summary": "Exit 1 with '[FAIL] workflow learn: findings_recorded requires at least one finding id'. Against the same base, `git diff --diff-filter=A -- '.agent-loop/learning/findings/validated/finding.*.json'` returned 0 paths while `git diff --diff-filter=AR -- '.agent-loop/learning/findings/*/finding.*.json'` returned 23."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "After widening the watch to every findings state directory and deduplicating ids, the same run passed and recorded findings_recorded citing all 23 finding ids in .agent-loop/learning/history/run-learning/."
+        }
+    ],
+    "hypothesis": "The runner encoded a finding's storage location rather than its identity. That held only while no finding had ever advanced past validated, which was true for as long as the Learning pipeline had never been run.",
+    "validated_conclusion": "Evidence detection follows the artifact's identity, not the directory it currently sits in: findings are watched across every state directory, with ids deduplicated. A MEMORY.md change with no finding evidence is now a hard failure rather than a status chosen around it, which enforces the existing promotion rule that a durable rule needs a finding behind it.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

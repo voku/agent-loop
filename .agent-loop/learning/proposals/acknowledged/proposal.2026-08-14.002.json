@@ -1,0 +1,34 @@
+{
+    "id": "proposal.2026-08-14.002",
+    "created_at": "2026-08-14T06:09:14+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-07.003",
+        "finding.2026-08-08.002",
+        "finding.2026-08-08.004",
+        "finding.2026-08-14.007"
+    ],
+    "reason": "Already governed by ArchitectureRules::EvidenceIsNotAuthority and the WorkflowCloseCommand review gate; the correction belonged in the MEMORY row, not in new guidance.",
+    "remaining_uncertainty": [],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": "ArchitectureRules::EvidenceIsNotAuthority",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "evidence.exit.code.is.not.a.gate",
+    "validation_case": {
+        "given": "a workflow step whose CLI exits zero",
+        "when": "its machine-readable artifact reports warn, degraded, or an incomplete lifecycle",
+        "then": "the step is inspected from the artifact and the residual status is recorded as close-out evidence"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:10:30+00:00"
+}

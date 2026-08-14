@@ -1,0 +1,33 @@
+{
+    "id": "finding.2026-08-14.015",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T11:10:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        "src/GitWorkTree.php",
+        "src/Init/InitDoctorCommand.php"
+    ],
+    "observation": "A blind-spot review of this branch's own diff, run after every gate was already green, found three defects that no gate had caught. Two were in the record-ID change: a candidate-proposal writer whose free-filename guarantee came from the sequential allocator and was silently dropped when the allocator became random, and a test that drew a thousand real random suffixes and demanded no repeat - a 2.94% failure probability, roughly one in thirty-four CI runs. The third was in agent-loop: replacing `is_dir($root . '/.git')` with a process call made `init doctor` emit a raw 'proc_open(): posix_spawn() failed' PHP warning on a machine without git, where the previous filesystem check was silent. All three passed PHPUnit, PHPStan level 8, the project rule fixtures, the slop review, and both dogfood runners.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "GuidanceCandidateProposalWriter wrote straight to file_put_contents with no existence check, while the sibling ProposalImporter already threw 'duplicate proposal ID'. The scanning allocator had made the filename free by construction; the random allocator does not."
+        },
+        {
+            "type": "test_result",
+            "command": "1 - exp(-n^2/2N) for n=1000, N=16^6",
+            "summary": "2.936% collision probability per run for the original assertion. Replaced with an injected entropy source, so the test asserts what the class does with entropy instead of sampling it; a constant-entropy generator is still caught."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Running `php bin/agent-loop init doctor` with git removed from PATH printed 'PHP Warning: proc_open(): posix_spawn() failed' above '[WARN] Git: no working tree detected'. After silencing that single call the warning is gone, the OK and WARN paths are unchanged, and the slop review reports no error-swallowing finding."
+        }
+    ],
+    "hypothesis": "Green gates measure the properties someone already thought to encode. A change that removes an invariant, or that replaces a filesystem check with a process call, alters properties nobody had written a check for - so the diff has to be read against its own removals rather than only run.",
+    "validated_conclusion": "Review the diff for what it removed, not only for what it added: an invariant that used to hold by construction needs an explicit assertion once its construction changes. Do not test a random source by sampling it - inject it, or the suite becomes a slow coin flip. A process call is not a drop-in for a filesystem check, because it can fail in ways that print.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

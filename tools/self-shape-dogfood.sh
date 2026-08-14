@@ -48,14 +48,32 @@ if [[ "${#changed_files[@]}" -eq 0 ]]; then
   exit 1
 fi
 
+# Findings are watched across every state directory, not just validated/.
+# `learn finding-transition` moves a consolidated finding out of validated/,
+# which is the normal end of its lifecycle - watching only that one directory
+# made a pull request that ran the Learning pipeline look as if it had recorded
+# no findings at all, while MEMORY.md still forced the findings_recorded status.
 mapfile -t recorded_finding_files < <(
-  git diff --name-only --diff-filter=A "${base}" HEAD -- '.agent-loop/learning/findings/validated/finding.*.json'
+  git diff --name-only --diff-filter=AR "${base}" HEAD -- '.agent-loop/learning/findings/*/finding.*.json' \
+    | sed 's#.*/##; s#\.json$##' \
+    | sort -u
 )
+memory_changed=0
+if ! git diff --quiet "${base}" HEAD -- MEMORY.md; then
+  memory_changed=1
+fi
+
 learning_status='no_durable_learning'
 learning_reason='The self-shape gate observed no new reusable guidance beyond the durable changes already represented by this pull request.'
-if [[ "${#recorded_finding_files[@]}" -gt 0 ]] || ! git diff --quiet "${base}" HEAD -- MEMORY.md; then
+if [[ "${#recorded_finding_files[@]}" -gt 0 ]]; then
   learning_status='findings_recorded'
-  learning_reason='The pull-request evidence added validated project findings or changed durable memory; record that evidence in the governed Run.'
+  learning_reason='The pull-request evidence recorded project findings; cite that evidence in the governed Run.'
+elif [[ "${memory_changed}" -eq 1 ]]; then
+  # The repository's own promotion rule: a durable memory row is backed by a
+  # finding. Changing MEMORY.md with no finding evidence is the contradiction,
+  # not a status to be chosen around.
+  echo 'MEMORY.md changed but no project finding was recorded; a durable rule needs evidence.' >&2
+  exit 1
 fi
 
 mkdir -p build
@@ -182,18 +200,47 @@ if [[ ! -s "${code_review_prompt}" ]]; then
   exit 1
 fi
 
+blindspot_report="${recall_root}/${task}/reviews/${task}.blindspots.json"
+if [[ ! -s "${blindspot_report}" ]]; then
+  echo "Missing blind-spot report: ${blindspot_report}" >&2
+  exit 1
+fi
+
 raw_diff_sha="$(sha256sum "${raw_diff}" | awk '{print $1}')"
 code_review_prompt_sha="$(sha256sum "${code_review_prompt}" | awk '{print $1}')"
+# What the deterministic review actually said is recorded here. `review
+# blindspots` exits 0 on `warn`, and `workflow close` owns the gate that
+# refuses a missing, invalid or `fail` report - so the harness does not assert
+# a second copy of that gate. It captures the residual status instead, because
+# an unrecorded `warn` is a review result nobody can inspect afterwards.
 php -r '
+$report = json_decode((string) file_get_contents($argv[5]), true, 512, JSON_THROW_ON_ERROR);
+$status = is_array($report) ? ($report["status"] ?? null) : null;
+if (!is_string($status)) {
+    fwrite(STDERR, "Blind-spot report has no machine-readable status.\n");
+    exit(1);
+}
+$findings = [];
+foreach (is_array($report["findings"] ?? null) ? $report["findings"] : [] as $finding) {
+    $id = is_array($finding) ? ($finding["id"] ?? null) : null;
+    if (is_string($id)) {
+        $findings[] = $id;
+    }
+}
 echo json_encode([
     "raw_diff" => ["path" => $argv[1], "sha256" => $argv[2], "complete" => true],
     "code_review_prompt" => ["path" => $argv[3], "sha256" => $argv[4]],
+    "blindspot_review" => [
+        "path" => $argv[5],
+        "status" => $status,
+        "residual_findings" => $findings,
+    ],
     "correctness_review" => [
         "status" => "external_required",
         "note" => "CI preserves the complete raw diff and bounded review input; it does not claim independent human/model correctness review occurred.",
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), PHP_EOL;
-' "${raw_diff}" "${raw_diff_sha}" "${code_review_prompt}" "${code_review_prompt_sha}" \
+' "${raw_diff}" "${raw_diff_sha}" "${code_review_prompt}" "${code_review_prompt_sha}" "${blindspot_report}" \
   > build/self-shape-review-evidence.json
 
 learning=(
@@ -202,8 +249,7 @@ learning=(
   --by "${planner}"
   --reason "${learning_reason}"
 )
-for finding_file in "${recorded_finding_files[@]}"; do
-  finding_id="$(basename "${finding_file}" .json)"
+for finding_id in "${recorded_finding_files[@]}"; do
   learning+=(--finding "${finding_id}")
 done
 "${learning[@]}"

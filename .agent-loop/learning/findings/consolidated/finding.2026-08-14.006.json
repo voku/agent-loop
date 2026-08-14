@@ -1,0 +1,31 @@
+{
+    "id": "finding.2026-08-14.006",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T05:20:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "tools/project-phpstan-rules.sh",
+        "phpstan/project-rule-test.neon",
+        "MEMORY.md"
+    ],
+    "observation": "The reviewed durable rule 'Tooling test isolation' states that project PHPStan rule fixtures must not load `PHPStan\\Testing\\RuleTestCase` into agent-loop's PHPUnit process, because agent-map performs Composer-based PHPStan discovery there. That rule was enforced only by convention: `tools/project-phpstan-rules.sh` runs the fixtures out of process, but nothing failed if somebody added an in-process `RuleTestCase` subclass beside the ordinary tests. A MEMORY row whose canonical home is a shell script is a rule with no detector.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "Before this change `grep -rn RuleTestCase tests/ src/ phpstan/` returned nothing, so the convention held only because no one had broken it yet. The MEMORY row named `tools/project-phpstan-rules.sh` and `phpstan/project-rule-test.neon` as its canonical home; neither can observe a new PHPUnit test class."
+        },
+        {
+            "type": "test_result",
+            "command": "bash tools/project-phpstan-rules.sh",
+            "summary": "The isolated fixture run now reports `agentLoop.phpstan.inProcessRuleTestCase` for tests/PHPStan/data/in-process-phpstan-rule-test-case.php, and the runner asserts that exact diagnostic alongside the other eight project rules."
+        }
+    ],
+    "hypothesis": "Learning that stops at a MEMORY row plus a shell convention decays: the next contributor reaches for the idiomatic in-process RuleTestCase and only discovers the incompatibility as a confusing runtime failure in an unrelated suite.",
+    "validated_conclusion": "When a durable rule is mechanically detectable, its canonical home is the detector. This one is now `NoInProcessPhpstanRuleTestCaseRule`, and the MEMORY row points at the rule rather than at the convention that predated it.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}
