@@ -23,7 +23,9 @@ jobs:
           coverage: none
           tools: composer:v2
       - name: Apply candidate patch
-        run: python .github/apply-self-shape-repeat-fix.py
+        run: |
+          python .github/fix-patch-helper.py
+          python .github/apply-self-shape-repeat-fix.py
       - name: Validate changed PHP syntax
         run: |
           php -l src/Workflow/WorkflowPlanCommand.php
