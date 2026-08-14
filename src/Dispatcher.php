@@ -6,9 +6,7 @@ namespace voku\AgentLoop;
 
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
-use voku\AgentMap\Cli\AgentMapApplication;
-use voku\AgentMap\Cli\DiscoveryCliApplication;
-use voku\AgentMap\Cli\TemporalCliApplication;
+use voku\AgentMap\Cli\CliApplication as AgentMapCli;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
@@ -104,109 +102,13 @@ final class Dispatcher
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
     }
 
-    /**
-     * Preserve agent-map's temporal/discovery/general routing while keeping all
-     * derived state below the shared workspace root.
-     *
-     * @param list<string> $rest
-     */
+    /** @param list<string> $rest */
     private function dispatchMap(string $scriptName, array $rest): int
     {
-        $argv = $this->subArgv($scriptName, $this->resolveMapArgv($rest));
-        $temporal = new TemporalCliApplication();
-        if ($temporal->supports($argv)) {
-            return $temporal->run($argv);
-        }
-
-        $discovery = new DiscoveryCliApplication();
-        if ($discovery->supports($argv)) {
-            return $discovery->run($argv);
-        }
-
-        $status = (new AgentMapApplication())->run($argv);
-        if ($temporal->shouldAppendToGeneralHelp($argv)) {
-            echo $temporal->helpOverview();
-        }
-        if ($discovery->shouldAppendToGeneralHelp($argv)) {
-            echo $discovery->helpOverview();
-        }
-
-        return $status;
-    }
-
-    /**
-
-     * @param list<string> $rest
-
-     * @return list<string>
-
-     */
-    private function resolveMapArgv(array $rest): array
-    {
-        $command = $rest[0] ?? 'help';
-        if (in_array($command, ['help', '--help', '-h', ''], true)) {
-            return $rest;
-        }
-
-        if ($command === 'history') {
-            return $this->resolveHistoryArgv($rest);
-        }
-
-        if ($command === 'build' || $command === 'refresh') {
-            if (!$this->hasOption($rest, 'root')) {
-                $rest[] = '--root=' . rtrim($this->rootPath, '/');
-            }
-            if (!$this->hasOption($rest, 'out')) {
-                $rest[] = '--out=' . $this->defaultMapIndex();
-            }
-        }
-
-        if ($command !== 'build' && !$this->hasOption($rest, 'index')) {
-            $rest[] = '--index=' . $this->defaultMapIndex();
-        }
-
-        // The derived search index is what turns retrieval into ranked Recall
-        // evidence, and `workflow approve` reads it from the path ProjectLayout
-        // owns. Without this, agent-map falls back to its own `.agent-map/`
-        // default: the index is built somewhere nothing reads, approve compiles
-        // Recall with no ranked facts, and the decisive symbol silently never
-        // reaches the governed context.
-        if (in_array($command, ['search-index', 'search'], true) && !$this->hasOption($rest, 'database')) {
-            $rest[] = '--database=' . $this->defaultMapSearchIndex();
-        }
-
-        return $rest;
-    }
-
-    /**
-
-     * @param list<string> $rest
-
-     * @return list<string>
-
-     */
-    private function resolveHistoryArgv(array $rest): array
-    {
-        $subcommand = $rest[1] ?? 'help';
-
-        if (in_array($subcommand, ['coupling', 'claims'], true)) {
-            if (!$this->hasOption($rest, 'index')) {
-                $rest[] = '--index=' . $this->defaultMapIndex();
-            }
-            if (!$this->hasOption($rest, 'root')) {
-                $rest[] = '--root=' . rtrim($this->rootPath, '/');
-            }
-        }
-
-        if ($subcommand === 'observe' && !$this->hasOption($rest, 'index')) {
-            $rest[] = '--index=' . $this->defaultMapIndex();
-        }
-
-        if (in_array($subcommand, ['observe', 'show'], true) && !$this->hasOption($rest, 'database')) {
-            $rest[] = '--database=' . $this->defaultHistoryDatabase();
-        }
-
-        return $rest;
+        return (new AgentMapCli(
+            projectRoot: $this->rootPath,
+            mapRoot: $this->layout()->mapRoot(),
+        ))->run($this->subArgv($scriptName, $rest));
     }
 
     /** @param list<string> $tokens */
@@ -244,27 +146,9 @@ final class Dispatcher
         return null;
     }
 
-    private function defaultMapIndex(): string
-    {
-        return $this->layout()->mapIndex();
-    }
-
-    private function defaultMapSearchIndex(): string
-    {
-        return $this->layout()->mapSearchIndex();
-    }
-
-    private function defaultHistoryDatabase(): string
-    {
-        return $this->layout()->mapHistoryDatabase();
-    }
-
     /**
-
      * @param list<string> $rest
-
      * @return list<string>
-
      */
     private function resolveReviewArgv(array $rest): array
     {
@@ -366,11 +250,8 @@ final class Dispatcher
     }
 
     /**
-
      * @param list<string> $rest
-
      * @return list<string>
-
      */
     private function resolveRecallArgv(array $rest): array
     {
@@ -403,11 +284,8 @@ final class Dispatcher
     }
 
     /**
-
      * @param list<string> $rest
-
      * @return list<string>
-
      */
     private function subArgv(string $scriptName, array $rest): array
     {
