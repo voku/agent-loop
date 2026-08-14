@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
+use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
+
 final readonly class GovernedRun
 {
     /**
@@ -26,6 +29,14 @@ final readonly class GovernedRun
         public string $preparedAt,
         public string $path,
     ) {
+    }
+
+    /** Resolve the durable Learning repository this Run was prepared against. */
+    public function learningRoot(string $rootPath): string
+    {
+        return $this->learningRoot === null
+            ? (new ProjectLayout($rootPath))->learningRoot()
+            : PathResolver::join($rootPath, $this->learningRoot);
     }
 
     /** @return array<string, mixed> */
