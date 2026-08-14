@@ -59,6 +59,34 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertSame($before, $this->files(), 'status is read-only');
     }
 
+    public function testExpectedStateMakesIncompleteHostDogfoodFailExecutable(): void
+    {
+        [$failedExit, $failedOutput] = $this->statusOf(
+            'ABC-123',
+            ['--format=json', '--expect=complete'],
+        );
+        $failed = json_decode($failedOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(1, $failedExit);
+        self::assertSame('incomplete', $failed['manifest']['state'] ?? null);
+
+        [$matchedExit, $matchedOutput] = $this->statusOf(
+            'ABC-123',
+            ['--format', 'json', '--expect', 'incomplete'],
+        );
+        $matched = json_decode($matchedOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $matchedExit);
+        self::assertSame('incomplete', $matched['manifest']['state'] ?? null);
+    }
+
+    public function testUnknownExpectedStateFailsClosed(): void
+    {
+        [$exit] = $this->statusOf('ABC-123', ['--expect=done-ish']);
+
+        self::assertSame(1, $exit);
+    }
+
     public function testNextCommandFollowsOwnerArtifacts(): void
     {
         $contracts = new TaskContractStore($this->root);

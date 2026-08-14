@@ -7,10 +7,9 @@ namespace voku\AgentLoop\Run;
 use JsonException;
 use RuntimeException;
 use Throwable;
-use voku\AgentKanban\Config\BoardConfig;
+use voku\AgentKanban\Cli\BoardContextFactory;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
-use voku\AgentKanban\Repository\MarkdownCardRepository;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
@@ -160,28 +159,35 @@ final readonly class RunManifestProjector
     {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
         $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
-        if (!is_file($configPath)) {
+        $metadataPath = rtrim($boardRoot, '/') . '/todo/board.md';
+        $cards = array_merge(
+            glob(rtrim($boardRoot, '/') . '/todo/cards/*.md') ?: [],
+            glob(rtrim($boardRoot, '/') . '/todo/jira/*.md') ?: [],
+        );
+        if (!is_file($configPath) && !is_file($metadataPath) && $cards === []) {
             return ['owner' => 'agent-kanban', 'state' => 'not_configured', 'observation_mode' => 'checked'];
         }
         try {
-            $cardId = CardId::fromString($taskId);
-        } catch (ValidationException) {
-            return [
-                'owner' => 'agent-kanban',
-                'state' => 'ad_hoc_task',
-                'observation_mode' => 'checked',
-                'config' => $this->artifact($configPath),
-            ];
-        }
-        try {
-            $repository = new MarkdownCardRepository($boardRoot, BoardConfig::fromJsonFile($configPath));
+            $context = (new BoardContextFactory())->create($boardRoot, null, null);
+            $configuration = $this->boardConfigurationReference($configPath, $metadataPath);
+            try {
+                $cardId = CardId::fromString($taskId);
+            } catch (ValidationException) {
+                return [
+                    'owner' => 'agent-kanban',
+                    'state' => 'ad_hoc_task',
+                    'observation_mode' => 'checked',
+                    'configuration' => $configuration,
+                ];
+            }
+            $repository = $context->repository;
             if (!$repository->exists($cardId)) {
                 return [
                     'owner' => 'agent-kanban',
                     'state' => 'not_linked',
                     'observation_mode' => 'checked',
                     'card_id' => $taskId,
-                    'config' => $this->artifact($configPath),
+                    'configuration' => $configuration,
                 ];
             }
             $card = $repository->load($cardId);
@@ -195,7 +201,7 @@ final readonly class RunManifestProjector
                 'lane' => $card->lane->toString(),
                 'status' => $card->status->toString(),
                 'source' => $this->artifact($card->sourceFile),
-                'config' => $this->artifact($configPath),
+                'configuration' => $configuration,
             ];
         } catch (Throwable $exception) {
             $disagreements[] = [
@@ -206,6 +212,19 @@ final readonly class RunManifestProjector
 
             return ['owner' => 'agent-kanban', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
+    }
+
+    /** @return array{mode: 'json'|'metadata'|'inferred', source?: array{path: string, sha256: string}} */
+    private function boardConfigurationReference(string $configPath, string $metadataPath): array
+    {
+        if (is_file($configPath)) {
+            return ['mode' => 'json', 'source' => $this->artifact($configPath)];
+        }
+        if (is_file($metadataPath)) {
+            return ['mode' => 'metadata', 'source' => $this->artifact($metadataPath)];
+        }
+
+        return ['mode' => 'inferred'];
     }
 
     /** @return array<string, mixed> */

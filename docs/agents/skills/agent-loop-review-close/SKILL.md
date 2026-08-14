@@ -14,17 +14,18 @@ Record execution evidence, review, outcomes, and the learning decision before
 verify/report/close:
 
 ```bash
-vendor/bin/agent-loop session validation record <task-id> --brief-revision <n> --command "<brief command>" --status passed --exit-code 0 --by <actor>
+vendor/bin/agent-loop session validation record <task-id> --contract-revision <n> --command "<Contract command>" --status passed --exit-code 0 --by <actor>
 vendor/bin/agent-loop review blindspots <task-id>
 vendor/bin/agent-loop recall log-outcome --root <learning-root> --draft recall/<task-id>/recall-log.draft.json --by <actor> --commit <sha>
-vendor/bin/agent-loop session learning decide <task-id> --status no_durable_learning --by <actor>
-vendor/bin/agent-loop verify
+vendor/bin/agent-loop workflow learn <task-id> --status no_durable_learning --by <actor> --reason "No reusable finding from this bounded task."
+vendor/bin/agent-loop verify --task-id=<task-id>
 vendor/bin/agent-loop workflow report <task-id> --changed-file <path>
 
 # Optional at ready_to_close when extra task scrutiny is useful:
 vendor/bin/agent-loop workflow reflect <task-id> --scope task
 
 vendor/bin/agent-loop workflow close <task-id> --status done
+vendor/bin/agent-loop workflow status <task-id> --expect complete
 
 # Optional after close when the work exposed a meaningful future investment:
 vendor/bin/agent-loop workflow reflect <task-id> --scope project
@@ -110,8 +111,8 @@ PROJECT REFLECTION = What future investment became visible through the work?
 vendor/bin/agent-loop workflow close <task-id> --status done
 ```
 
-`workflow close` is gated: it requires an approved current work brief, passing
-evidence for every required command in that exact brief revision, recall
+`workflow close` is gated: it requires an approved current Contract, passing
+evidence for every required command in that exact Contract revision, recall
 metadata and explicit outcomes for selected guidance, a blind-spot review,
 an explicit learning decision, and a passing `verify` before accepting
 `--status done`. If the gate is not satisfied, the command exits with an error
@@ -172,7 +173,7 @@ merely because it produced an interesting idea.
 ## Validation
 
 - Blind-spot review report exists under `<recall-root>/<task-id>/reviews/`
-- required validation evidence is passed and matches the current work-brief revision
+- required validation evidence is passed and matches the current Contract revision
 - selected guidance has explicit, truthful recall outcomes
 - an explicit session learning decision exists
 - `vendor/bin/agent-loop verify` passes (or accepted risk is explicit and named)

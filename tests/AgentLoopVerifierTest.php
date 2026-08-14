@@ -47,6 +47,20 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertStringContainsString('(required with --strict)', $result['output']);
     }
 
+    public function testTaskScopeRequiresTheExactTaskInsteadOfPassingOnAnotherTask(): void
+    {
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/ABC-1.md', "# ABC-1\n");
+
+        $result = $this->verify(['--task-id=ABC-2']);
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString(
+            '[FAIL] tasks: task ABC-2 does not exist at ' . $this->root . '/.agent-loop/tasks/ABC-2.md',
+            $result['output'],
+        );
+    }
+
     public function testStrictModeStillSkipsBoardAndLearningRootOnceTasksAndSessionsExist(): void
     {
         mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
@@ -103,12 +117,44 @@ final class AgentLoopVerifierTest extends TestCase
     public function testVerifyRecognizesTypedBoardMetadata(): void
     {
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
-        file_put_contents($this->root . '/.agent-loop/todo/board.md', "# Board Metadata\n\n- **Project prefix:** `ABC`\n- **Done count:** 0\n");
+        file_put_contents($this->root . '/.agent-loop/todo/board.md', "# Board Metadata\n\n- **Project prefix:** `ABC`\n");
 
         $result = $this->verify([]);
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[OK] board: kanban board projection verified', $result['output']);
+    }
+
+    public function testTaskScopeIgnoresAnotherCardsLocalDriftButFullVerifyDoesNot(): void
+    {
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/ABC-1.md', "# ABC-1\n");
+        file_put_contents($this->root . '/.agent-loop/todo/board.md', "# Board Metadata\n\n- **Project prefix:** ABC\n");
+        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-1.md', <<<'MD'
+# ABC-1: Valid card
+
+- **Ticket:** ABC-1
+- **Lane:** BACKLOG
+- **Status:** Backlog
+MD
+            . "\n");
+        file_put_contents($this->root . '/.agent-loop/todo/cards/XYZ-2.md', <<<'MD'
+# XYZ-2: Unrelated invalid-prefix card
+
+- **Ticket:** XYZ-2
+- **Lane:** BACKLOG
+- **Status:** Backlog
+MD
+            . "\n");
+
+        $scoped = $this->verify(['--task-id=ABC-1']);
+        self::assertSame(0, $scoped['exit'], $scoped['output']);
+        self::assertStringContainsString('[OK] board: task ABC-1 and board-wide policy verified', $scoped['output']);
+
+        $full = $this->verify([]);
+        self::assertSame(1, $full['exit'], $full['output']);
+        self::assertStringContainsString('[FAIL] board:', $full['output']);
     }
 
     public function testVerifyFailsWhenRunNoLongerMatchesCurrentApprovedContract(): void

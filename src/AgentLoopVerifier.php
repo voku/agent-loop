@@ -53,13 +53,13 @@ final class AgentLoopVerifier
 
         echo "agent-loop verify - cross-package consistency check\n\n";
         if ($taskId !== null) {
-            echo "Scoped to task {$taskId}: unrelated tasks' drift will not fail this run.\n\n";
+            echo "Scoped to task {$taskId}: unrelated task-local drift will not fail this run.\n\n";
         }
 
         $results = [
             $this->checkPackagesWired(),
             $this->checkTasks($options['tasks-root'], $strict, $taskId),
-            $this->checkBoard($boardRoot),
+            $this->checkBoard($boardRoot, $taskId),
             $this->checkSessionsAndRecall($options['sessions-root'], $options['recall-root'], $strict, $taskId),
             $this->checkLearningRoot($options['learning-root']),
         ];
@@ -135,11 +135,23 @@ final class AgentLoopVerifier
     private function checkTasks(string $tasksRoot, bool $strict, ?string $taskId): bool
     {
         if (!is_dir($tasksRoot)) {
+            if ($taskId !== null) {
+                echo "[FAIL] tasks: task {$taskId} does not exist at {$tasksRoot}/{$taskId}.md\n";
+
+                return false;
+            }
+
             return $this->skipOrFail('tasks', "no directory at {$tasksRoot}", $strict);
         }
 
         $files = glob($tasksRoot . '/*.md') ?: [];
         if ($files === []) {
+            if ($taskId !== null) {
+                echo "[FAIL] tasks: task {$taskId} does not exist at {$tasksRoot}/{$taskId}.md\n";
+
+                return false;
+            }
+
             return $this->skipOrFail('tasks', "{$tasksRoot} has no *.md task files", $strict);
         }
 
@@ -167,12 +179,18 @@ final class AgentLoopVerifier
             return false;
         }
 
-        echo '[OK] tasks: ' . count($ids) . ' task file(s) parsed' . ($taskId !== null ? " (scoped to {$taskId})" : ': ' . implode(', ', $ids)) . "\n";
+        if ($taskId !== null && !in_array($taskId, $ids, true)) {
+            echo "[FAIL] tasks: task {$taskId} does not exist at {$tasksRoot}/{$taskId}.md\n";
+
+            return false;
+        }
+
+        echo '[OK] tasks: ' . ($taskId !== null ? "task {$taskId} parsed" : count($ids) . ' task file(s) parsed: ' . implode(', ', $ids)) . "\n";
 
         return true;
     }
 
-    private function checkBoard(string $boardRoot): bool
+    private function checkBoard(string $boardRoot, ?string $taskId): bool
     {
         $root = rtrim($boardRoot, '/');
         $metadata = $root . '/todo/board.md';
@@ -186,9 +204,17 @@ final class AgentLoopVerifier
 
         ob_start();
         try {
-            $exit = (new CliApplication($boardRoot))->run(['agent-loop', 'verify']);
+            $exit = (new CliApplication($boardRoot))->run(
+                $taskId === null
+                    ? ['agent-loop', 'verify']
+                    : ['agent-loop', 'verify', '--format=json'],
+            );
         } finally {
             $boardOutput = (string) ob_get_clean();
+        }
+
+        if ($taskId !== null) {
+            return $this->checkScopedBoardOutput($boardOutput, $taskId);
         }
 
         if ($exit === 0) {
@@ -201,6 +227,60 @@ final class AgentLoopVerifier
         echo "[FAIL] board: kanban board verification failed, see voku/agent-kanban error above\n";
 
         return false;
+    }
+
+    private function checkScopedBoardOutput(string $boardOutput, string $taskId): bool
+    {
+        try {
+            $decoded = json_decode($boardOutput, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            echo "[FAIL] board: agent-kanban returned unreadable verification JSON: {$exception->getMessage()}\n";
+
+            return false;
+        }
+        if (!is_array($decoded) || !is_array($decoded['violations'] ?? null)) {
+            echo "[FAIL] board: agent-kanban returned an invalid verification report\n";
+
+            return false;
+        }
+
+        $errors = array_values(array_filter(
+            $decoded['violations'],
+            fn (mixed $violation): bool => is_array($violation)
+                && ($violation['severity'] ?? null) === 'error'
+                && $this->boardViolationAppliesToTask($violation, $taskId),
+        ));
+        if ($errors === []) {
+            echo "[OK] board: task {$taskId} and board-wide policy verified (delegated to voku/agent-kanban)\n";
+
+            return true;
+        }
+
+        foreach ($errors as $violation) {
+            echo sprintf(
+                "[FAIL] board: %s: %s\n",
+                is_string($violation['code'] ?? null) ? $violation['code'] : 'unknown',
+                is_string($violation['message'] ?? null) ? $violation['message'] : 'No violation detail supplied.',
+            );
+        }
+
+        return false;
+    }
+
+    /** @param array<string, mixed> $violation */
+    private function boardViolationAppliesToTask(array $violation, string $taskId): bool
+    {
+        $cardId = $violation['cardId'] ?? null;
+        if (is_string($cardId)) {
+            return $cardId === $taskId;
+        }
+
+        $file = $violation['file'] ?? null;
+        if (is_string($file) && str_ends_with($file, '.md')) {
+            return basename($file, '.md') === $taskId;
+        }
+
+        return true;
     }
 
     private function checkSessionsAndRecall(string $sessionsRoot, string $recallRoot, bool $strict, ?string $taskId): bool

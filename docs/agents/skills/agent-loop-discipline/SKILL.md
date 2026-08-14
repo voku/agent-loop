@@ -15,7 +15,7 @@ PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEA
 
 1. Reuse the stable task id and inspect `workflow status` before mutation.
 2. Resume its active session; never create a parallel active session.
-3. Mutating work requires the approved WorkBrief.
+3. Mutating work requires the approved Contract.
 4. When that brief selects L2 policy, mutation also requires a current `ready` execution contract bound to its revision and recall bundle.
 5. Scope or policy drift returns to PLAN. Changed recall invalidates an L2 contract and returns to CONTRACT.
 6. Use `agent-loop-workflow` for phase-specific mechanics and evidence requirements.
@@ -28,11 +28,11 @@ vendor/bin/agent-loop workflow status <task-id> --format=json
 
 A SessionStart/SubagentStart resume hint is navigation only. Resolve multiple unfinished tasks from the request and repository context; never infer approval, contract readiness, validation, review, learning, product intent, or a next command from a hint.
 
-Human gates are limited to WorkBrief approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, contract construction from approved evidence, reports, and agent-owned checkpoints remain agent work.
+Human gates are limited to Contract approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, execution-contract construction from approved evidence, reports, and agent-owned checkpoints remain agent work.
 
 ## Prompt Controls
 
-When the approved WorkBrief explicitly selects the bundled L1 controls, apply them without inventing new workflow authority:
+When the approved Contract explicitly selects the bundled L1 controls, apply them without inventing new workflow authority:
 
 - `checkpoint-autonomy`: at the supplied explicit anchor, inspect scope, evidence, relevant validation, blockers, and the current done condition. If the checkpoint passes and no real human-only gate is present, record a concise session checkpoint and continue automatically. Never persist a synthetic human/self approval.
 - `momentum`: reuse still-valid files, symbols, commands, constraints, decisions, and evidence from the work already completed. Re-check authority, freshness, repository scope, and assumptions when they may have changed instead of restarting discovery from scratch.
@@ -116,7 +116,7 @@ Update only when result, blocker, scope, decision, or phase changes:
 
 ```text
 RESULT: <verified result, decision, artifact, or blocker>
-STATE: <phase> <task-id> <brief revision when known>
+STATE: <phase> <task-id> <Contract revision when known>
 NEXT: <one agent-owned action or exact human gate>
 ```
 
@@ -136,7 +136,7 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Code,
 
 ## Validation And Close
 
-Run the narrowest proof first, then the gates required by the WorkBrief and L1 Verification section. Claim a pass only after observing its result. Stop when approved behavior is satisfied and all required gates are closed; do not manufacture follow-up work.
+Run the narrowest proof first, then the gates required by the Contract and L1 Verification section. Claim a pass only after observing its result. Stop when approved behavior is satisfied and all required gates are closed; do not manufacture follow-up work.
 
 At `ready_to_close`, task reflection is optional when deeper scrutiny is useful:
 

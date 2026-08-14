@@ -111,6 +111,10 @@ final class InitCliTest extends TestCase
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
         self::assertDirectoryExists($this->root . '/.agent-loop/sessions');
         self::assertDirectoryExists($this->root . '/.agent-loop/learning/findings');
+        self::assertSame(
+            "# Board Metadata\n\n- **Project prefix:** DEMO\n",
+            file_get_contents($this->root . '/.agent-loop/todo/board.md'),
+        );
 
         $plan = $this->dispatch([
             'agent-loop', 'workflow', 'plan', 'DEMO-1', '--by', 'tester',

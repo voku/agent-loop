@@ -32,7 +32,7 @@ vendor/bin/agent-loop recall log-outcome \
   --by <actor> \
   --commit <sha>
 
-vendor/bin/agent-loop session learning decide <task-id> \
+vendor/bin/agent-loop workflow learn <task-id> \
   --status findings_recorded|no_durable_learning|follow_up_required \
   --by <actor> \
   --reason "<bounded reason>"

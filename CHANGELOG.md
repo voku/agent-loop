@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `workflow status <task-id> --expect <state>` turns the read-only Run
+  projection into an exact, CI-assertable lifecycle check without changing the
+  existing status exit semantics when no expectation is supplied.
+
 - `voku/itp-context` is a runtime dependency, and `src/Context/ArchitectureRules.php`
   declares four rules with the `Rule` attribute on the symbols they constrain:
   `ProjectLayout` owns every state path, Workflow calls typed package APIs,
@@ -30,6 +34,16 @@ All notable changes to this project will be documented in this file.
   those commands accept.
 
 ### Fixed
+
+- Task-scoped `verify` now requires the exact task to exist and filters
+  `agent-kanban` failures to that task while retaining board-wide failures, so a
+  missing task cannot pass and unrelated task-local drift cannot block it.
+- Run projection now resolves board context through `agent-kanban`'s canonical
+  config/metadata/inference rules. The metadata-only board created by `init
+  scaffold` is therefore linked instead of reported as unconfigured, and the
+  scaffold no longer writes stale derived `Source` or `Done count` metadata.
+- Agent-facing guidance, hook guards, edit help, and dogfood fixtures use the
+  canonical `.agent-loop/map` paths and current Contract/Learning commands.
 
 - The isolated tool projects pin `config.platform.php` to this package's lowest
   supported PHP. Their lock files had been resolved on 8.4 and pulled
