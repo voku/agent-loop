@@ -131,6 +131,27 @@ final class GitCandidateEvidenceTest extends TestCase
         (new GitCandidateEvidence($repo))->prove('main', $head, 'main');
     }
 
+    public function testPublicVerifyCommandEmitsMachineReadableCandidateEvidence(): void
+    {
+        $repo = $this->repository();
+        $candidate = $this->git($repo, 'rev-parse', 'HEAD');
+        $result = (new ProcessRunner($repo))->mustRun([
+            PHP_BINARY,
+            dirname(__DIR__) . '/bin/agent-loop',
+            'verify',
+            '--candidate-sha=' . $candidate,
+            '--integrated-sha=' . $candidate,
+            '--target-ref=main',
+            '--format=json',
+        ]);
+        $decoded = json_decode($result['stdout'], true, 32, JSON_THROW_ON_ERROR);
+
+        self::assertIsArray($decoded);
+        self::assertSame('ok', $decoded['status'] ?? null);
+        self::assertSame($candidate, $decoded['candidate_sha'] ?? null);
+        self::assertSame($candidate, $decoded['target_sha'] ?? null);
+    }
+
     private function repository(): string
     {
         $repo = $this->root . '/repo';
