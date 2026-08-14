@@ -227,7 +227,7 @@ final class AcceptanceCriteriaDogfood
             'type' => 'project',
             'require-dev' => [
                 'voku/agent-loop' => 'dev-main',
-                'voku/agent-recall-compiler' => '0.11.2',
+                'voku/agent-recall-compiler' => '0.11.4',
             ],
             'repositories' => [
                 [
@@ -243,7 +243,7 @@ final class AcceptanceCriteriaDogfood
                     'url' => str_replace('\\', '/', $this->recallRoot),
                     'options' => [
                         'symlink' => false,
-                        'versions' => ['voku/agent-recall-compiler' => '0.11.2'],
+                        'versions' => ['voku/agent-recall-compiler' => '0.11.4'],
                     ],
                 ],
             ],
