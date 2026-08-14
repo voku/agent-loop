@@ -153,7 +153,12 @@ final class GitCandidateEvidenceTest extends TestCase
 
     private function git(string $repo, string ...$arguments): string
     {
-        return trim((new ProcessRunner($repo))->mustRun(['git', ...$arguments])['stdout']);
+        $command = ['git'];
+        foreach ($arguments as $argument) {
+            $command[] = $argument;
+        }
+
+        return trim((new ProcessRunner($repo))->mustRun($command)['stdout']);
     }
 
     private function removeDirectory(string $path): void
