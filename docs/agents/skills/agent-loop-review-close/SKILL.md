@@ -37,8 +37,8 @@ vendor/bin/agent-loop workflow status <task-id> --expect complete
 vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
-Do not invent passing evidence simply to satisfy the order. Reflection is not a
-close gate.
+Do not invent passing evidence simply to satisfy the order. Reflection is not one
+more completion gate.
 
 ## Blind-Spot Review
 
