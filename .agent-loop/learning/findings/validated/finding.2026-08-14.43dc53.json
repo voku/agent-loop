@@ -1,0 +1,34 @@
+{
+    "id": "finding.2026-08-14.43dc53",
+    "task_id": "GH-18",
+    "session": "2026-08-14-path-authority-reduction",
+    "created_at": "2026-08-14T18:40:00+02:00",
+    "created_by": "voku",
+    "scope": [
+        "src/Init/InitSyncHooksCommand.php",
+        "src/Init/InitStatusCommand.php",
+        ".github/workflows/ci.yml"
+    ],
+    "observation": "Four private implementations of one decision - how a directory named by an environment variable resolves against the project root - had drifted into three behaviours. InitSyncSkillsCommand delegated to PathResolver::join, InitSyncSubagentsCommand and InitStatusCommand hand-rolled the same Unix/drive-letter/UNC test, and InitSyncHooksCommand tested only str_starts_with($value, '/'). With CODEX_HOME='C:\\Users\\me\\.codex', `init status` reported the Codex hooks target as C:/Users/me/.codex while `init sync-hooks` wrote to <project-root>/C:\\Users\\me\\.codex. One command reported where the assets were; the other put them somewhere else. Neither was wrong on its own terms and no test covered the disagreement.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "A probe replicating both resolvers verbatim against CODEX_HOME='C:\\Users\\me\\.codex' printed 'init status hooks target: C:/Users/me/.codex' and 'init sync-hooks target: /proj/C:\\Users\\me\\.codex' -> DISAGREE."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter HostAssetPathOwnershipTest",
+            "summary": "Against unchanged src at 55abe3f the new regression fails twice: sync-hooks emits '/tmp/.../C:\\Users\\me\\.codex/hooks.json', and PathResolver::relativeTo returns 'C:\\project\\runs\\ABC-123\\run.json' unchanged instead of 'runs/ABC-123/run.json'. Both pass once PathResolver owns the decision."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "The clean-consumer skills gate in .github/workflows/ci.yml runs `init install-assets --agent=all` and asserts .codex/skills, .claude/skills, .github/skills, .agents/skills and .codex/agents/*.toml. Every assertion uses the default target root, where all four implementations agreed. No gate in tools/ or .github/workflows/ sets CODEX_HOME, CODEX_SKILLS_DIR, CLAUDE_CONFIG_DIR or any sibling variable."
+        }
+    ],
+    "hypothesis": "Duplicated implementations of one decision do not drift uniformly. They drift on the branches no gate exercises, because agreement on the covered branch is continuously proved and agreement everywhere else is only assumed.",
+    "validated_conclusion": "Coverage of a decision must follow its branches, not its call sites. The host-asset gate exercised four resolvers through their default branch, which is exactly the branch on which the copies could not disagree, so a duplicated decision passed every gate for as long as it existed while being wrong on the override branch. When a duplicated decision is collapsed onto its owner, the regression that proves the collapse belongs on the branch the old gate never reached - here the environment-variable override - or the collapse is asserted only where the duplicates already matched.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

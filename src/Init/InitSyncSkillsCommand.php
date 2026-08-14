@@ -217,11 +217,11 @@ final readonly class InitSyncSkillsCommand
     private function resolveTargetRoot(string $agent): string
     {
         return match ($agent) {
-            'codex' => $this->resolvePathFromEnv('CODEX_SKILLS_DIR')
-                ?? (($codexHome = $this->resolvePathFromEnv('CODEX_HOME')) !== null ? $codexHome . '/skills' : $this->rootPath . '/.codex/skills'),
-            'copilot' => $this->resolvePathFromEnv('COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
-            'claude' => $this->resolvePathFromEnv('CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
-            default => $this->resolvePathFromEnv('ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
+            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_SKILLS_DIR')
+                ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/skills' : $this->rootPath . '/.codex/skills'),
+            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
+            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
+            default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
         };
     }
 
@@ -313,16 +313,6 @@ final readonly class InitSyncSkillsCommand
     private function pathExists(string $path): bool
     {
         return is_file($path) || is_dir($path) || is_link($path);
-    }
-
-    private function resolvePathFromEnv(string $envName): ?string
-    {
-        $value = getenv($envName);
-        if (!is_string($value) || trim($value) === '') {
-            return null;
-        }
-
-        return PathResolver::join($this->rootPath, $value);
     }
 
     private function displayPath(string $path): string

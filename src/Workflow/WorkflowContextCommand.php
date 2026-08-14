@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use JsonException;
 use Throwable;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentMap\Index\FileEntry;
@@ -308,7 +309,7 @@ final readonly class WorkflowContextCommand
     private function addMap(WorkflowContextBudget $budget, array $scope): void
     {
         $indexPath = (new ProjectLayout($this->rootPath))->mapIndex();
-        $relativeIndex = $this->relativePath($indexPath);
+        $relativeIndex = PathResolver::relativeTo($this->rootPath, $indexPath);
         if (!is_file($indexPath)) {
             $budget->skip('agent-map: index missing (' . $relativeIndex . ')');
 
@@ -379,15 +380,5 @@ final readonly class WorkflowContextCommand
         }
 
         return array_values(array_filter($value, static fn (mixed $item): bool => is_string($item)));
-    }
-
-    private function relativePath(string $path): string
-    {
-        $root = rtrim(str_replace('\\', '/', $this->rootPath), '/');
-        $normalized = str_replace('\\', '/', $path);
-
-        return str_starts_with($normalized, $root . '/')
-            ? substr($normalized, strlen($root) + 1)
-            : $normalized;
     }
 }

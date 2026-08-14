@@ -9,6 +9,7 @@ use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
 
@@ -49,7 +50,7 @@ final readonly class WorkflowKanbanContextWriter
             'schema_version' => '1.0',
             'task_id' => $taskId,
             'source' => [
-                'path' => $this->relativeToRoot($card->sourceFile),
+                'path' => PathResolver::relativeTo($this->rootPath, $card->sourceFile),
                 'revision' => $card->revision->toString(),
             ],
             'card' => [
@@ -71,17 +72,6 @@ final readonly class WorkflowKanbanContextWriter
         }
 
         return $path;
-    }
-
-    private function relativeToRoot(string $path): string
-    {
-        $root = rtrim(str_replace('\\', '/', $this->rootPath), '/');
-        $normalized = str_replace('\\', '/', $path);
-        if (str_starts_with($normalized, $root . '/')) {
-            return substr($normalized, strlen($root) + 1);
-        }
-
-        return $normalized;
     }
 
     private function excerpt(string $value, int $maxChars): string

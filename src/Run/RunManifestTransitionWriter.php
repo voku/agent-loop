@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
+use voku\AgentLoop\PathResolver;
+
 /**
  * Refreshes the derived run projection after a workflow-owned state transition.
  *
@@ -22,6 +24,6 @@ final readonly class RunManifestTransitionWriter
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
         $path = (new RunManifestStore($this->rootPath))->write($manifest);
 
-        return RelativePath::fromRoot($this->rootPath, $path);
+        return PathResolver::relativeTo($this->rootPath, $path);
     }
 }
