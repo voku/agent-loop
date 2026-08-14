@@ -9,8 +9,10 @@ use ItpContext\Attribute\Rule;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Context\ArchitectureRules;
+use voku\AgentLoop\Init\RepositoryActivation;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -129,6 +131,7 @@ final readonly class WorkflowApproveCommand
             $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
             echo "[OK] workflow approve: Contract approved and governed Recall compiled for {$taskId->value}\n";
             echo "[OK] workflow approve: compiled-state Run projection refreshed at {$manifestPath}\n";
+            $this->printRecallHandoff($taskId->value);
 
             return 0;
         } catch (RuntimeException $exception) {
@@ -273,6 +276,16 @@ final readonly class WorkflowApproveCommand
         }
 
         return $path;
+    }
+
+    private function printRecallHandoff(string $taskId): void
+    {
+        $cli = (new RepositoryActivation($this->rootPath))->cliPath();
+        $systemPath = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/system.md';
+        $displaySystemPath = RecallOutputRoot::relativeTo($this->rootPath, $systemPath);
+
+        echo "[NEXT] {$cli} workflow context {$taskId} --max-lines 120 --max-bytes 12000\n";
+        echo "[NEXT] Read {$displaySystemPath} before planning or modifying code.\n";
     }
 
     private function operatingPromptManifest(TaskContract $contract): ?string
