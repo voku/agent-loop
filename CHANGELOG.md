@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.3 - 2026-08-14
+
+### Added
+
+- Added top-level `agent-loop prompt guidance-gaps`, delegating to released
+  `agent-recall-compiler 0.12.2`. The opt-in L2 technique creates a
+  project-specific implementation prompt that maintains task-local
+  `implementation-notes.html` and distinguishes ordinary decisions from
+  actual missing, stale, or conflicting spec, docs, skill, workflow, tool
+  contract, code, or test authority.
+- The generic Recall-owned `prompt` namespace also exposes context-light
+  `prompt future-work`; governed Runs should continue to use `workflow reflect`.
+
+### Changed
+
+- Requires `voku/agent-recall-compiler ^0.12.2`.
+- Agent-facing prompt primitive docs now explain the guidance-gap journal,
+  `HUMAN_DECISION_REQUIRED` boundary, non-commit default, and the raw-versus-
+  governed future-work reflection boundary.
+
+### Validation
+
+- Clean-consumer prompt dogfood executed the installed
+  `agent-loop prompt guidance-gaps` command and asserted journal, authority,
+  opt-in, blocking, and non-commit semantics against Recall `0.12.2`.
+- Dogfooding the technique found the missing Loop prompt-primitives
+  documentation surface and the raw-versus-governed future-work ambiguity
+  before release.
+- PHP 8.3/8.4/8.5, PHPStan and project rules, acceptance/prompt candidate
+  dogfoods, installed release-set, execution-contract, self-shape,
+  deterministic slop review, AccessLint and CodeRabbit were green on the
+  exact feature candidate before merge.
+
 ## 0.16.2 - 2026-08-14
 
 ### Changed
