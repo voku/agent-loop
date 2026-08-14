@@ -32,6 +32,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init install-plan', $help['output']);
         self::assertStringContainsString('agent-loop init install-assets', $help['output']);
         self::assertStringContainsString('agent-loop init sync-instructions', $help['output']);
+        self::assertStringContainsString('init scaffold [--agent=<agent|all>]', $help['output']);
         self::assertStringContainsString('init status', $help['output']);
         self::assertStringNotContainsString('rtk', strtolower($help['output']));
 
@@ -107,6 +108,8 @@ final class InitCliTest extends TestCase
 
         $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold']);
         self::assertSame(0, $scaffold['exit'], $scaffold['output']);
+        self::assertStringContainsString('[WARN] Host assets were not projected because --agent was not provided.', $scaffold['output']);
+        self::assertStringContainsString('init install-assets --agent=<codex|claude|copilot|antigravity>', $scaffold['output']);
         self::assertFileExists($this->root . '/.agent-loop/init.json');
         self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
@@ -174,12 +177,28 @@ final class InitCliTest extends TestCase
         self::assertFileExists($this->root . '/.agent-loop/runs/DEMO-1/verification.json');
     }
 
+    public function testScaffoldCanProjectHostAssetsBeforeTheNextAgentSession(): void
+    {
+        file_put_contents($this->root . '/composer.json', "{\"name\": \"demo/project\"}\n");
+
+        $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold', '--agent=codex']);
+
+        self::assertSame(0, $scaffold['exit'], $scaffold['output']);
+        self::assertFileExists($this->root . '/AGENTS.md');
+        self::assertFileExists($this->root . '/.codex/skills/.agent-loop-manifest.json');
+        self::assertStringContainsString('local workflow structure and host assets are ready', $scaffold['output']);
+        self::assertStringContainsString('Start a fresh agent session so the projected instructions and skills can actually be consumed.', $scaffold['output']);
+        self::assertStringContainsString('agent-loop map build --paths=src,tests', $scaffold['output']);
+        self::assertStringContainsString('agent-loop map search-index build', $scaffold['output']);
+    }
+
     public function testScaffoldDryRunDoesNotWriteAndExistingFilesAreNotOverwritten(): void
     {
-        $dry = $this->dispatch(['agent-loop', 'init', 'scaffold', '--dry-run']);
+        $dry = $this->dispatch(['agent-loop', 'init', 'scaffold', '--agent=codex', '--dry-run']);
         self::assertSame(0, $dry['exit']);
         self::assertStringContainsString('[DRY-RUN] would create .agent-loop/', $dry['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+        self::assertFileDoesNotExist($this->root . '/AGENTS.md');
 
         mkdir($this->root . '/.agent-loop', 0o775, true);
         file_put_contents($this->root . '/.agent-loop/init.json', "{\"version\": 99}\n");
@@ -194,15 +213,13 @@ final class InitCliTest extends TestCase
         self::assertSame(1, $this->dispatch(['agent-loop', 'init', 'unknown'])['exit']);
         self::assertSame(1, $this->dispatch(['agent-loop', 'init', 'validate'])['exit']);
         self::assertSame(1, $this->dispatch(['agent-loop', 'init', 'scaffold', '--profile=wsl2'])['exit']);
+        self::assertSame(1, $this->dispatch(['agent-loop', 'init', 'scaffold', '--agent=nope'])['exit']);
         self::assertSame(1, $this->dispatch(['agent-loop', 'init', 'install-plan', '--profile=wsl2', '--agent=nope'])['exit']);
     }
 
     /**
-
      * @param list<string> $argv
-
      * @return array{exit: int, output: string}
-
      */
     private function dispatch(array $argv): array
     {
