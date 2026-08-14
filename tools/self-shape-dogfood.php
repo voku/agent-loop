@@ -15,6 +15,7 @@ declare(strict_types=1);
  */
 
 use voku\AgentLoop\Dogfood\ProcessRunner;
+use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
 use voku\AgentLoop\Dogfood\SelfShapeEvidence;
 
@@ -156,6 +157,14 @@ $runId = $statusBefore['manifest']['run_id'] ?? null;
 if (!is_string($runId) || !str_starts_with($runId, 'run:')) {
     $fail('Unable to resolve the governed Run id.');
 }
+// Asked, not assumed. This was pinned to 1, which is right on a fresh CI
+// checkout and wrong the moment a Contract is revised: the observation then
+// attaches to a superseded revision and `workflow close` reports the validation
+// evidence as missing, with nothing pointing at the revision as the cause.
+$contractRevision = $statusBefore['manifest']['references']['contract']['revision'] ?? null;
+if (!is_int($contractRevision) || $contractRevision < 1) {
+    $fail('Unable to resolve the approved Contract revision.');
+}
 
 $loop([
     'session', 'checkpoint', TASK,
@@ -177,7 +186,7 @@ if ($validation['exit_code'] !== 0) {
 
 $loop([
     'session', 'validation', 'record', TASK,
-    '--contract-revision', '1',
+    '--contract-revision', (string) $contractRevision,
     '--command', 'composer ci',
     '--status', 'passed',
     '--exit-code', '0',
@@ -188,10 +197,16 @@ $loop([
 // `review blindspots` exits 1 on a fail status; before close-out evidence
 // exists a warn is expected, so the first pass is informational.
 $runner->run([PHP_BINARY, 'bin/agent-loop', 'review', 'blindspots', TASK]);
+$outcomeDraft = $recallRoot . '/' . TASK . '/recall-log.draft.json';
+$withheldCount = RecallOutcomeDraft::withholdInFile(
+    $outcomeDraft,
+    'The self-shape runner compiles Recall to exercise the governed lifecycle and never reads system.md, so it has no evidence about whether the selected guidance helped.',
+);
+echo '[OK] self-shape: withheld ' . $withheldCount . ' compiled guidance judgement(s); selection is still recorded.' . "\n";
 $loop([
     'recall', 'log-outcome',
     '--root', '.agent-loop/learning',
-    '--draft', $recallRoot . '/' . TASK . '/recall-log.draft.json',
+    '--draft', $outcomeDraft,
     '--by', PLANNER,
     '--commit', $head,
 ]);

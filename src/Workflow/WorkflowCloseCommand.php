@@ -282,11 +282,11 @@ final readonly class WorkflowCloseCommand
         if (!is_string($compilationId) || trim($compilationId) === '') {
             return 'selected guidance without a compilation id';
         }
+        // An absent outcomes file is no longer a failure in itself: a Run that
+        // withheld every judgement writes no outcome at all. Whether each
+        // selection is accounted for is decided below, where the message can
+        // name the guidance rather than the file.
         $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';
-        if (!is_file($outcomesPath)) {
-            return 'missing history/outcomes.jsonl for selected guidance';
-        }
-
         $recorded = [];
         foreach (file($outcomesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
             try {
@@ -303,16 +303,58 @@ final readonly class WorkflowCloseCommand
                 $recorded[$outcome['guidance_id']] = true;
             }
         }
+        $withheld = $this->declaredWithholdings($learningRoot, $taskId, $compilationId);
         $missing = array_values(array_filter(
             array_unique($selected),
-            static fn (string $id): bool => !isset($recorded[$id]),
+            static fn (string $id): bool => !isset($recorded[$id]) && !isset($withheld[$id]),
         ));
         if ($missing !== []) {
             return 'missing explicit recall outcome for: ' . implode(', ', $missing);
         }
-        echo '[OK] recall outcomes: explicit outcomes recorded for ' . count($selected) . " selected guidance item(s)\n";
+        // A judgement is not the only honest close-out. A Run that compiled
+        // guidance it never consulted has nothing truthful to say about it, and
+        // every available bucket moves a promotion or retirement gate. What this
+        // gate owns is that the silence was deliberate: a declared withholding
+        // passes, a guidance that simply never appears does not.
+        echo '[OK] recall outcomes: ' . (count($selected) - count($withheld)) . ' judged, '
+            . count($withheld) . " withheld with a stated reason, for " . count($selected)
+            . " selected guidance item(s)\n";
 
         return null;
+    }
+
+    /**
+     * Selected guidance whose absent outcome was declared at log time.
+     *
+     * @return array<string, true>
+     */
+    private function declaredWithholdings(string $learningRoot, string $taskId, string $compilationId): array
+    {
+        $path = rtrim($learningRoot, '/') . '/history/recall-selections.jsonl';
+        if (!is_file($path)) {
+            return [];
+        }
+
+        $withheld = [];
+        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            // An unreadable line yields no withholding, so the selection it
+            // described stays unaccounted for and the gate refuses the close.
+            // That is the safe direction: a corrupt record must not be able to
+            // excuse a missing judgement.
+            $event = json_decode($line, true);
+            if (
+                is_array($event)
+                && ($event['task_id'] ?? null) === $taskId
+                && ($event['compilation_id'] ?? null) === $compilationId
+                && is_string($event['guidance_id'] ?? null)
+                && is_string($event['outcome_withheld_reason'] ?? null)
+                && trim($event['outcome_withheld_reason']) !== ''
+            ) {
+                $withheld[$event['guidance_id']] = true;
+            }
+        }
+
+        return $withheld;
     }
 
     private function checkEditVerificationGate(string $taskId): ?string

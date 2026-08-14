@@ -1,0 +1,44 @@
+{
+    "id": "finding.2026-08-14.b4f597",
+    "task_id": "GH-18",
+    "session": "2026-08-14-outcome-honesty",
+    "created_at": "2026-08-14T13:05:00+02:00",
+    "created_by": "voku",
+    "scope": [
+        "tools/self-shape-dogfood.php",
+        "src/Dogfood/RecallOutcomeDraft.php",
+        "src/Workflow/WorkflowCloseCommand.php"
+    ],
+    "observation": "Every guidance outcome this repository had recorded was written by the component that chose the guidance. `recall compile` writes recall-log.draft.json with one row per selected guidance, pre-filled outcome `unknown`, applied false, comment null, and a note in the draft saying 'Selection alone is not proof of usefulness'. Nothing enforced that note: OutcomeLogger's event path accepted the untouched draft verbatim. The self-shape runner logged it unedited on every run, producing eight guidance-outcome records, all `unknown`, all recorded_by agent-loop-self-shape - a harness that compiles Recall and never reads system.md. The metric built to detect exactly this absence read `outcome_completeness_rate: 1` against them, and every `learn guidance-evaluate` decision was NO_ACTION with 'The projection observes selection and explicit feedback only.' The same file enforces the missing rules one function further down: parseOperatingPromptOutcomes requires evidence for helpful/irrelevant/harmful and forbids helpful/harmful with applied=false, and the legacy pre-event path required every selected guidance to be bucketed. The event-shaped path was written without them.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "`learn dream --format json` before the change: selected_guidance_count 8, explicit_outcome_count 8, outcome_completeness_rate 1, outcome_signals {helpful:0, harmful:0, irrelevant:0, not_used:0, unknown:8}. Perfect completeness over zero information."
+        },
+        {
+            "type": "file_reference",
+            "path": "vendor/voku/agent-recall-compiler/src/OutcomeLogger.php",
+            "line": 404,
+            "summary": "parseGuidanceOutcomes carried no coherence or justification rule, while parseOperatingPromptOutcomes below it enforced both, and assertSelectedFeedbackIsExplicit enforced bucketing on the legacy path."
+        },
+        {
+            "type": "test_result",
+            "command": "composer dogfood:self-shape",
+            "summary": "After forbidding placeholder judgements, the run failed at '[FAIL] recall_outcomes: missing explicit recall outcome for: proposal.2026-08-14.d7d793'. workflow close required a judgement per selected guidance, so a Run that honestly had nothing to say could not close at all. The two owners disagreed and only running it showed that."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Fabricating a bucket instead was checked and rejected: MemoryStalenessPolicy and SkillStalenessPolicy both count not_used together with irrelevant as negative signal, so a runner that never read the guidance would have voted to retire it."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "After the change, the first judged outcomes in this project's history: proposal.2026-08-14.d7d793 helpful applied=1, proposal.2026-08-14.004 irrelevant, proposal.2026-08-14.011 not_used, each with a comment citing what the rule did or did not do. `learn dream` reports 11/13 judged and warns outcome_missing naming the two withheld selections."
+        }
+    ],
+    "hypothesis": "A default value that is also a valid answer will be recorded as an answer. The draft had to pre-fill something for a human to edit, and `unknown` was indistinguishable from a considered judgement, so the absence of feedback was invisible to every gate that consumed it.",
+    "validated_conclusion": "A component must not grade its own output, and a placeholder must not be a loggable value. Selection is a fact about the compiler; usefulness is a fact about the session that read the guidance. Where a session has no evidence, record the selection and withhold the judgement with a stated reason - never invent a bucket, because every bucket moves a promotion or retirement gate. The gate that decides whether a Run may close owns the deliberateness of that silence, not the existence of a judgement.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
