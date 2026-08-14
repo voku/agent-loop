@@ -25,11 +25,13 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('Never persist a synthetic human/self approval.', $context);
     }
 
-    public function testWorkflowAndReviewCloseSkillsKeepReflectionOptionalAndRoutable(): void
+    public function testWorkflowReviewAndReflectionSkillsKeepPromptPrimitivesRoutable(): void
     {
         $root = dirname(__DIR__) . '/docs/agents/skills';
         $workflow = (string) file_get_contents($root . '/agent-loop-workflow/SKILL.md');
         $reviewClose = (string) file_get_contents($root . '/agent-loop-review-close/SKILL.md');
+        $codeReview = (string) file_get_contents($root . '/agent-loop-code-review/SKILL.md');
+        $promptPrimitives = (string) file_get_contents(dirname(__DIR__) . '/docs/agents/PROMPT_PRIMITIVES.md');
 
         self::assertStringContainsString('checkpoint-autonomy', $workflow);
         self::assertStringContainsString('momentum', $workflow);
@@ -40,5 +42,16 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('Reflection is not one', $reviewClose);
         self::assertStringContainsString('workflow reflect <task-id> --scope project', $reviewClose);
         self::assertStringContainsString('workflow reflect <task-id> --scope task', $reviewClose);
+
+        self::assertStringContainsString('agent-loop review code <task-id>', $codeReview);
+        self::assertStringContainsString('agent-loop review first-draft', $codeReview);
+        self::assertStringContainsString('STATUS: clean', $codeReview);
+        self::assertStringContainsString('no evidence-backed defect', $codeReview);
+
+        self::assertStringContainsString('adversarial-review', $promptPrimitives);
+        self::assertStringContainsString('minimum_failure_modes', $promptPrimitives);
+        self::assertStringContainsString('not** a quota of defects', $promptPrimitives);
+        self::assertStringContainsString('review first-draft', $promptPrimitives);
+        self::assertStringContainsString('review code TASK-1', $promptPrimitives);
     }
 }
