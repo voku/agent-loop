@@ -28,7 +28,13 @@ final readonly class GitCandidateEvidenceCommand
     public static function requested(array $tokens): bool
     {
         foreach ($tokens as $token) {
-            if ($token === '--candidate-sha' || str_starts_with($token, '--candidate-sha=')) {
+            if (!str_starts_with($token, '--')) {
+                continue;
+            }
+
+            $raw = substr($token, 2);
+            $name = str_contains($raw, '=') ? strstr($raw, '=', true) : $raw;
+            if (is_string($name) && $name !== 'format' && in_array($name, self::VALUE_OPTIONS, true)) {
                 return true;
             }
         }
