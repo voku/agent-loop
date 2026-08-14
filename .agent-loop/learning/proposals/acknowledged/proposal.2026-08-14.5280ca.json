@@ -1,0 +1,33 @@
+{
+    "id": "proposal.2026-08-14.5280ca",
+    "created_at": "2026-08-14T10:05:03+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-14.3b74fd"
+    ],
+    "reason": "The fix is a schema change in agent-learning (row-level target refs), tracked by agent-learning#11; agent-loop should not restate another package's schema decision as local guidance.",
+    "remaining_uncertainty": [
+        "Whether agent-learning should pin a row or anchor rather than the file, and whether an un-apply transition should exist, both belong to agent-learning#11 and need its own governed task."
+    ],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": null,
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "applied.guidance.evidence.needs.a.narrower.target",
+    "validation_case": {
+        "given": "two approved memory proposals applied at different times against the same MEMORY.md",
+        "when": "the file is edited between the two transitions",
+        "then": "the first record's whole-file hash no longer matches and every later transition fails on that record rather than on itself"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "voku",
+    "acknowledged_at": "2026-08-14T10:05:03+00:00"
+}

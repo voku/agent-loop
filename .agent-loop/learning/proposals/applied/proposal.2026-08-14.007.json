@@ -8,7 +8,7 @@
     ],
     "reason": "The Simple-PHP-Code-Parser case was recorded twice, a year apart in effect: raw ranking reached the decisive AST API and governed context did not. The second replay found the mechanism - the derived search index had a reader in workflow approve and no writer anywhere, so Recall compiled no ranked facts at all and approve reported success. The durable rule is that an unavailable evidence channel must announce itself, because a smaller well-formed context is indistinguishable from a correct one. Scope names the compile entrypoint and the frozen replays that measure the chain.",
     "remaining_uncertainty": [],
-    "status": "approved",
+    "status": "applied",
     "proposed_by": "consolidation",
     "approved_by": "voku",
     "approved_at": "2026-08-14T09:49:11+00:00",
@@ -33,5 +33,22 @@
         "given": "a task whose decisive symbol lies outside the approved scope",
         "when": "the ranked-evidence channel is unavailable and the workflow compiles Recall without it",
         "then": "approve reports the missing channel instead of emitting a context that silently contains only the scoped symbols"
+    },
+    "applied_by": "voku",
+    "applied_at": "2026-08-14T10:01:40+00:00",
+    "commit": "e05cf7d25261bf629b5ae389418399e9c51c228d",
+    "applied_validation": {
+        "command": "composer ci",
+        "status": "passed",
+        "exit_code": 0,
+        "commit": "e05cf7d25261bf629b5ae389418399e9c51c228d",
+        "target_source_ref": "MEMORY.md",
+        "target_content_hash": "6574f6f4d1b46d057eaaa2807bfe8767074ac44d32542844be026495df6ddbe7",
+        "summary": "481 tests, PHPStan level 8 clean, nine project rule fixtures asserted out of process, context validate and discipline dogfood. composer review:slop reported 0 new findings and php tools/self-shape-dogfood.php governed this diff to PASSED.",
+        "evidence": [
+            "composer ci",
+            "composer review:slop",
+            "php tools/self-shape-dogfood.php"
+        ]
     }
 }
