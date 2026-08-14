@@ -14,3 +14,23 @@ services:
     class: voku\AgentLoop\PHPStan\Rules\NoFocusedPackageCliInWorkflowRule
     tags:
       - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoWorkflowLearningRootOptionRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoInProcessPhpstanRuleTestCaseRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoGitDirectoryShapeAssumptionRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoDirectSessionStoreCreateInWorkflowRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoWorkflowPrivateStatePathRule
+    tags:
+      - phpstan.rules.rule

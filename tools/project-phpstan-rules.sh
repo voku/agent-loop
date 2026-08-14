@@ -12,13 +12,24 @@ set -e
 printf '%s\n' "${output}"
 
 if [[ "${exit_code}" -ne 1 ]]; then
-  echo "Expected project PHPStan fixture to fail with exit 1, got ${exit_code}." >&2
+  echo "Expected project PHPStan fixtures to fail with exit 1, got ${exit_code}." >&2
   exit 1
 fi
 
-if ! grep -Fq 'Workflow orchestration must not instantiate focused-package CLI voku\AgentSession\Cli.' <<< "${output}"; then
-  echo 'Expected focused-package CLI boundary error was not reported.' >&2
-  exit 1
-fi
+expected=(
+  'Workflow orchestration must not instantiate focused-package CLI voku\AgentSession\Cli.'
+  'Workflow commands must not expose --learning-root.'
+  'Project-specific PHPStan rule fixtures must run in an isolated PHPStan subprocess'
+  'Do not infer Git repository support from is_dir(.git)'
+  'Workflow orchestration must not call SessionStore::create() directly.'
+  'Workflow orchestration must not own historical state path "infra/doc/agent-learning".'
+)
+
+for diagnostic in "${expected[@]}"; do
+  if ! grep -Fq "${diagnostic}" <<< "${output}"; then
+    echo "Expected project PHPStan diagnostic was not reported: ${diagnostic}" >&2
+    exit 1
+  fi
+done
 
 echo 'Project PHPStan rule dogfood: PASSED'
