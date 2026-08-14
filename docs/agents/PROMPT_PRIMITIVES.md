@@ -144,7 +144,15 @@ vendor/bin/agent-loop workflow reflect TASK-1 --scope task
   A real correctness/acceptance gap is reported as `RETURN_TO_REVIEW`; optional
   extra depth remains optional.
 
-Reflection is available only when the governed run is `ready_to_close` or
-`complete`. It emits the deterministic context-light prompt supplied by
-`voku/agent-recall-compiler`; it does not call a model, mutate Run/Session/
-Learning state, create an issue, or manufacture follow-up work.
+Inside a governed Run, prefer `workflow reflect` because it enforces the
+`ready_to_close` / `complete` state boundary. For a manual context-light session,
+the same Recall-owned raw helper is also available without Run state:
+
+```bash
+vendor/bin/agent-loop prompt future-work --scope project
+vendor/bin/agent-loop prompt future-work --scope task
+```
+
+Reflection through `workflow reflect` emits the deterministic context-light
+prompt supplied by `voku/agent-recall-compiler`; it does not call a model, mutate
+Run/Session/Learning state, create an issue, or manufacture follow-up work.
