@@ -21,16 +21,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.11.4
+          ref: 0.11.5
           path: build/candidate-agent-recall-compiler
-          persist-credentials: false
-
-      - name: Checkout pinned first-party operational prompt catalog
-        uses: actions/checkout@v6
-        with:
-          repository: voku/agent-skills
-          ref: 2d43611e854f1621e62014a3f3b312ad2dc572b7
-          path: build/candidate-agent-skills
           persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
@@ -49,19 +41,14 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-prompt-primitives
           --report=${{ github.workspace }}/build/prompt-primitives-dogfood.json
 
-      - name: Prove installed project-grounded adversarial review and context-light review
+      - name: Prove installed Recall-owned adversarial review and context-light review
         shell: bash
         run: |
           set -euo pipefail
           consumer="${RUNNER_TEMP}/agent-loop-prompt-primitives/consumer"
-          skills_root="${GITHUB_WORKSPACE}/build/candidate-agent-skills/skills"
           cd "${consumer}"
 
-          php vendor/bin/agent-loop init install-assets \
-            --agent=codex \
-            --extra-skills-root="${skills_root}"
-
-          catalog='.codex/skills/operational-prompting/operating-prompts.json'
+          catalog='vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json'
           test -f "${catalog}"
           grep -Fq 'distinct plausible failure-mode hypotheses or attack scenarios' "${catalog}"
           grep -Fq 'Do not manufacture defects merely to satisfy the numeric floor' "${catalog}"

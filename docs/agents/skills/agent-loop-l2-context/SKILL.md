@@ -1,17 +1,51 @@
 ---
 name: agent-loop-l2-context
-description: Compile and use agent-loop recall/L2 meta-prompt artifacts from the current repository without mistaking generated context for executed agent actions.
+description: Use agent-loop to compile, inspect, and govern task-scoped Recall/L2 context without duplicating agent-recall-compiler's prompt schema or treating generated artifacts as executed work.
 ---
 
 # Agent Loop L2 Context
 
-Use this skill when the task asks for L2 prompts, recall compilation, context
-briefing, reusable operational prompt recipes, or agent context from the current
-repository.
+Use this skill when a task needs `agent-loop` recall compilation, governed L2
+prompt construction, bounded context, map navigation, or evidence from the
+current repository.
+
+## Ownership Boundary
+
+This skill owns the **agent-loop orchestration surface** around context:
+
+- how Loop invokes Recall for a governed task;
+- where Loop exposes the resulting task artifacts;
+- when an L2-generated execution contract becomes a Loop gate;
+- how Loop combines Recall with map and optional architecture evidence.
+
+`voku/agent-recall-compiler` owns Recall-specific behavior and instructions:
+
+- compile input/output schema;
+- operating-prompt manifest schema and bundled first-party recipes;
+- L2 -> L1 construction semantics;
+- Recall evidence labels and review primitives.
+
+Do not duplicate those contracts here. In an installed project, the canonical
+Recall skill and first-party recipe catalog are shipped with the tool at:
+
+```text
+vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/SKILL.md
+vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json
+```
+
+When Recall changes, update its owned skill with the code. This Loop skill should
+only change when Loop's orchestration of that tool changes.
 
 ## Fast Path
 
-Compile task-scoped context from selected files:
+For an existing governed task, inspect the bounded view and current state:
+
+```bash
+vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
+vendor/bin/agent-loop workflow status <task-id>
+```
+
+For standalone exploration, compile task-scoped Recall through Loop:
 
 ```bash
 vendor/bin/agent-loop recall compile \
@@ -21,194 +55,115 @@ vendor/bin/agent-loop recall compile \
   --file <path-to-file-2>
 ```
 
-Then inspect the bounded working view:
+`workflow context` is read-only. It does not recompile Recall, refresh a map, or
+embed arbitrary source bodies.
 
-```bash
-vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
-vendor/bin/agent-loop workflow status <task-id>
-```
-
-`workflow context` reads existing brief, session, recall, validation, and map
-artifacts. It is read-only: it never recompiles recall, refreshes a map, or
-embeds source bodies.
-
-For governed starts, put an intentionally small, Git-tracked
-`recall-documents.json` beside the learning root. `workflow approve` forwards
-it to recall automatically; use explicit scopes and excerpt limits instead of
-making every skill or ADR global context. A manifest entry may also declare
-`tags`; it is then selected when its path scope overlaps the task's files
-**or** when it shares a tag with `--tag` values passed to `workflow plan`,
-independent of directory layout.
-
-## What Recall Compile Does
-
-`recall compile` selects task-scoped context from the files you pass and writes
-artifacts under `recall/<task-id>/` (the default when `--output-dir` is not set):
-
-- `system.md` — compiled briefing for an agent or harness
-- `validation-plan.md` — validation steps derived from the task scope
-- `recall.bundle.json` — canonical task snapshot with source digests and resolved facts
-- `facts.json` — compact structured task, board, map, document, and prompt-recipe facts
-- `selection-report.json` — deterministic learning/constraint selection explanation
-- `recall-log.draft.json` — structured log of what was compiled
-- `meta.json` — metadata and output hash used by `agent-loop verify`
-
-Check that `recall/<task-id>/meta.json` exists after compiling:
-
-```bash
-ls recall/<task-id>/
-```
+For governed starts, keep `recall-documents.json` intentionally small and
+Git-tracked beside the Learning root. `workflow approve` forwards it to Recall.
+Use explicit scopes, tags, and excerpt limits instead of making every document
+global context.
 
 ## Reusable Operational Prompt Recipes
 
-When `recall compile` receives an operating-prompt manifest and a selected
-recipe, the recipe is compiled beside the same project context instead of being
-used as a generic standalone prompt.
-
-The intended flow is:
-
-```text
-L2 recipe + recall context -> project-specific L1 operating prompt -> execution
-```
-
-Most reusable engineering recipes should be L2. The shared recipe owns the
-method and quality floor; recall owns the project context: exact files, symbols,
-callers, tests, project documents, constraints, validation commands, task state,
-and known risks.
-
-Example:
+Use Recall's installed first-party catalog instead of a copied recipe file:
 
 ```bash
-vendor/bin/agent-loop recall compile \
-  --root <learning-root-path> \
-  --task <task-id> \
+vendor/bin/agent-loop workflow plan <task-id> \
+  --by <actor> \
   --file src/Parser.php \
   --file tests/ParserTest.php \
-  --operating-prompt-manifest <path-to-operating-prompts.json> \
+  --goal 'Harden the parser tests.' \
+  --validation 'composer ci' \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"coverage-mutation","arguments":{"minimum_percentage_points":10,"mutation_command":"vendor/bin/infection --threads=max"}}'
 ```
 
-If `system.md` contains `## L2 Operational Prompt Construction`, use a strict
-two-pass boundary:
+Recipe selection and arguments remain explicit Contract policy. Bundling the
+catalog with Recall does not make Loop select recipes automatically.
 
-1. **Prompt construction pass:** read the compiled recall context and construct
-   one project-specific L1 prompt with exactly `Goal`, `Context`, `Constraints`,
-   and `Done When`. Preserve numeric floors and stopping conditions. Replace
-   generic placeholders with exact repository facts when available. Do not
-   implement the task in this pass.
-2. **Execution pass:** execute the resulting L1 prompt as the task contract.
-   Validate against `validation-plan.md` and the repository-specific evidence
-   named by the generated prompt.
-
-Do not collapse the two passes into "understand the intent and start coding".
-That throws away the point of L2: first turn reusable policy plus project facts
-into a concrete operating contract, then execute that contract.
-
-A recipe with `level: 1` is already an execution contract and may be applied
-directly. Typical L1 recipes are context-independent control rules such as
-bounded retries or evidence-report formatting.
-
-## ctx Versus Recall
-
-Use `ctx` when you need to search prior local agent sessions for historical
-raw material:
+After approval:
 
 ```bash
-ctx search "<task / module / error / command>"
-ctx show event <ctx-event-id> --window 5
-```
-
-Use recall compile when you need approved task guidance selected from
-agent-learning artifacts. ctx hits are not durable memory and are not
-automatically trusted by recall.
-
-If the default recall output location belongs to another active task, compile
-into a task-specific output directory instead of trampling it:
-
-```bash
-vendor/bin/agent-loop recall compile \
-  --root <learning-root-path> \
-  --task <task-id> \
-  --output-dir recall/<task-id> \
-  --file <path-to-file-1>
-```
-
-## Warning: Artifacts Are Not Auto-Injected
-
-> Recall artifacts are not injected into ChatGPT, Codex, Claude, Copilot,
-> Gemini, or Antigravity automatically.
-
-After a successful compile, `agent-loop` prints:
-
-```text
-[NOTE] Recall artifacts were written for review or harness ingestion.
-[ACTION REQUIRED] Pass system.md / validation-plan.md into your agent workflow manually
-unless your harness consumes them automatically.
-```
-
-You must explicitly read or pass `system.md` and `validation-plan.md` into
-your active workflow. They are review inputs or harness inputs, not
-automatically executed agent actions.
-
-For L2 prompt recipes this warning is especially important: the compiled L2
-section is an instruction to construct a project-specific L1 prompt. The
-presence of that section does not prove the L1 prompt was constructed, and the
-presence of an L1 prompt does not prove it was executed.
-
-## Compact Map Locations
-
-`map` is a plain lookup tool, not something gated behind `workflow
-plan/approve` -- reach for it any time a task needs "where is this
-class/method defined" or "what else references it" across more than one or
-two files, the same way you'd reach for `rg`. Use it as a local query index
-rather than a broad prompt dump or a multi-file `grep` sweep:
-
-```bash
-vendor/bin/agent-loop init tools
-vendor/bin/agent-loop map build --paths=src,tests   # once; then: map refresh
-vendor/bin/agent-loop map query SomeClass
-vendor/bin/agent-loop map related SomeClass
-vendor/bin/agent-loop map stale
+vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
 
-Run `init tools` first (it caches its result, so this is cheap even when run
-at the start of most sessions): it reports whether `rg` is available, whether
-an `agent-map` index already exists, and whether the external evidence tools
-`itp-context` and `slop-scan` are installed, so you are not guessing or
-re-discovering that from scratch every time. Invoke an external tool at the
-path the inventory reports; `agent-loop` does not install it, so its location
-depends on how the project set it up. The default
-`.agent-loop/map/php-symbols.json` is generated navigation state and must be
-ignored by the host repository. The context command reports a missing,
-invalid, or budget-omitted map section instead of silently rebuilding it.
+If the compiled Recall artifacts require an L2 construction pass, follow the
+**current instructions in the Recall-owned `system.md`/skill** rather than a
+restated schema in this file. Persist the constructed execution contract through
+Loop before mutation:
+
+```bash
+vendor/bin/agent-loop workflow contract <task-id> \
+  --status ready \
+  --from <project-specific-l1.md> \
+  --by <actor>
+```
+
+If construction proves the approved task cannot safely be executed, persist a
+`blocked` or `rejected` state with evidence. Do not weaken the approved Contract
+inside the generated prompt.
+
+## Recall Artifacts Through Loop
+
+Recall compilation produces the canonical task evidence consumed by Loop,
+including `system.md`, `validation-plan.md`, `recall.bundle.json`, `facts.json`,
+`selection-report.json`, `recall-log.draft.json`, and `meta.json` under the
+configured task Recall root.
+
+These are evidence/harness inputs. They are not automatically injected into an
+agent and their presence does not prove an L1 prompt was constructed or executed.
+
+Use the project layout instead of assuming an old hard-coded Recall path:
+
+```bash
+vendor/bin/agent-loop init paths --format=json
+vendor/bin/agent-loop workflow status <task-id>
+```
+
+Recompile only through the owning workflow when the approved Contract or relevant
+inputs changed. Do not hand-edit generated Recall evidence to make a gate pass.
+
+## Compact Map Navigation
+
+`map` is a lookup tool, not a lifecycle gate. Use it whenever the task needs
+precise definitions, callers, or related symbols across more than one or two
+files:
+
+```bash
+vendor/bin/agent-loop init tools
+vendor/bin/agent-loop map build --paths=src,tests   # once; then prefer refresh
+vendor/bin/agent-loop map query SomeClass
+vendor/bin/agent-loop map related SomeClass
+vendor/bin/agent-loop map stale
+```
+
+Query the generated map, then inspect the selected real source. Do not dump map
+databases into prompts.
 
 ## Architecture Intent Evidence
 
-`map` answers what the code is. When `init tools` reports `itp-context` as
-available, it answers why selected code is constrained: architecture rules,
-owners, `refs`, and `verified_by` metadata declared by the project.
+When `init tools` reports `itp-context`, use the reported executable path to query
+project-declared architecture intent:
 
 ```bash
 <reported-path>/itp-context-export var/itp-context src --exclude=vendor --exclude=tests
 <reported-path>/itp-context-query var/itp-context --text='<task concepts>'
 ```
 
-Keep the two kinds of evidence apart in the context you carry forward:
+Keep structural and intent evidence distinct:
 
-- a structural fact says the code exists and is called from here;
-- a rule says the project declared an intent. **It is not proof that the
-  current source complies with it**, and `verified_by` names a check to run,
-  not a check that passed.
+- map evidence says what code exists and how symbols relate;
+- an architecture rule says what the project declared should hold;
+- `verified_by` names a check to run, not evidence that it passed.
 
-A repository with no declared rules is a normal repository. Record that the
-plane is absent and move on; do not annotate somebody's code so a run can say
-it used the tool.
+A repository with no declared architecture rules is normal. Do not invent rules
+just to claim the tool was used.
 
 ## Direct Edit Routing
 
-For a one-for-one literal replacement inside one exact PHP method, do not
-spend model tokens on source rediscovery. Prefer the token-safe `auto` route:
+For a one-for-one literal replacement inside one exact PHP method, prefer Loop's
+token-safe `auto` route:
 
 ```bash
 vendor/bin/agent-loop edit 'App\Service\UserService::save' \
@@ -218,79 +173,54 @@ vendor/bin/agent-loop edit 'App\Service\UserService::save' \
   'Replace the deprecated region property exactly once.'
 ```
 
-With both replacement literals, `auto` selects the scoped mechanical runner:
-it requires one in-method match, checks the map hash before writing, runs PHP
-lint, reverts a lint failure, and records zero model tokens/tool calls. Without
-that proof, `auto` records `escalation_required` and does not invoke a model.
-Use `edit --focus=... --runner=command` only when the replacement needs PHP
-judgment beyond a literal substitution; it supplies a narrow source window and
-keeps callers/dependencies out unless you intentionally omit the focus.
+With both literals, `auto` can select the scoped mechanical runner. Without
+sufficient proof it records `escalation_required` instead of launching a model.
+Use an explicit command runner only when the edit actually requires coding
+judgment.
 
-## When To Recompile
+## Review And Outcomes
 
-Recompile when important files changed since the last compile. Stale context
-misleads the review and verify gates. `agent-loop verify` checks that the
-output hash in `meta.json` still matches the artifacts on disk — a mismatch
-means the briefing was edited or regenerated out of band.
-
-## Review After Compiling
-
-Use `review blindspots` and `review code` after implementation or before
-close, not as a substitute for implementation:
+After implementation, use Loop's review routing rather than interpreting Recall
+artifacts as approval:
 
 ```bash
 vendor/bin/agent-loop review blindspots <task-id>
 vendor/bin/agent-loop review code <task-id>
 ```
 
-Review output is deterministic. It is not human approval. It does not approve
-code or durable learning.
-
-## Log Outcomes After Work
-
-Log outcomes only after actual work happened:
+Record Recall outcomes only after actual work and validation happened:
 
 ```bash
 vendor/bin/agent-loop recall log-outcome \
   --root <learning-root> \
-  --draft recall/<task-id>/recall-log.draft.json \
+  --draft <recall-root>/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
 ```
 
-`recall-log.draft.json` is one of the files `recall compile` writes under
-`recall/<task-id>/`. Pass the path matching the task whose outcome you
-are logging. Do not log outcomes before the work is done. For a governed
-`done` close, every selected guidance item needs an explicit truthful outcome.
+Selected guidance or recipes are exposure, not proof of usefulness. Keep outcome
+classification evidence-backed.
 
 ## Validation
 
-- Check `recall/<task-id>/meta.json` exists
-- Verify generated artifacts were inspected before use
-- For L2 recipes, verify a project-specific L1 prompt was constructed before execution
-- Run `vendor/bin/agent-loop verify` to confirm the briefing is not stale
+Before claiming context work is complete:
+
+- confirm the current task's Recall artifacts exist through `workflow status`;
+- inspect generated evidence before using it;
+- when L2 policy applies, confirm the current Loop execution-contract gate is
+  `ready` before mutation;
+- run the task's approved validation commands and record their observed result;
+- run `vendor/bin/agent-loop verify --task-id=<task-id>` before close.
 
 ## Skill Boundary
 
-This skill owns:
+This skill does **not** own:
 
-- compiling and using recall/L2 context from the current repository
-- reusing L2 prompt recipes to construct project-specific L1 contracts
-- understanding what recall compile writes and where
-- knowing that artifacts are review/harness inputs, not auto-executed
-- recompile discipline when files change
+- Recall's prompt schema or first-party recipe definitions;
+- Recall review semantics;
+- the task opening/approval decision;
+- review/close policy outside context orchestration;
+- external evidence-tool installation.
 
-This skill does not own:
-
-- the task opening step (see `agent-loop-task-start`)
-- the review and close steps (see `agent-loop-review-close`)
-- developing `agent-loop` itself
-
-## Example Triggers
-
-- "Run the L2 meta prompt for this repo."
-- "Compile recall context from these files."
-- "Use the coverage-mutation recipe for this task."
-- "Turn this reusable prompt recipe into a project-specific operating prompt."
-- "Use the generated validation plan before coding."
-- "Review blind spots from the compiled context."
+Those contracts stay with their owning tool or workflow skill. This prevents an
+umbrella skill from becoming a stale second implementation written in Markdown.

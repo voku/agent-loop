@@ -1,0 +1,34 @@
+{
+  "id": "finding.2026-08-14.005",
+  "task_id": "PROMPT-OWNERSHIP-001",
+  "session": "2026-08-14-prompt-ownership",
+  "created_at": "2026-08-14T05:38:00+02:00",
+  "created_by": "cross-repo-prompt-sync",
+  "scope": [
+    ".github/workflows/prompt-primitives-candidate.yml",
+    ".github/workflows/ci.yml",
+    "docs/agents/PROMPT_PRIMITIVES.md",
+    "composer.json",
+    "voku/agent-recall-compiler:skills/agent-recall-consumer/SKILL.md",
+    "voku/agent-recall-compiler:skills/agent-recall-consumer/operating-prompts.json",
+    "voku/agent-skills:skills/operational-prompting/SKILL.md"
+  ],
+  "observation": "During the prompt workflow sync, agent-loop required a separately pinned agent-skills commit solely to provide skills/operational-prompting/operating-prompts.json to agent-recall-compiler. The same Recall-specific catalog and direct review instructions lived in agent-skills while Recall code, CLI behavior, manifest handling, and releases evolved independently. This created a manual cross-repository synchronization obligation and made green Loop gates depend on an unrelated skill-repository SHA for Recall behavior.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "agent-loop prompt-primitives and execution-contract workflows pinned agent-skills commit 2d43611e854f1621e62014a3f3b312ad2dc572b7 specifically to load skills/operational-prompting/operating-prompts.json while Recall was separately versioned at 0.11.4."
+    },
+    {
+      "type": "test_result",
+      "command": "agent-recall-compiler PR #44 CI",
+      "summary": "A Recall-owned copy of the catalog compiled adversarial-review through the real CLI and preserved the falsification-safe contract in package CI."
+    }
+  ],
+  "hypothesis": "When a coding skill's correctness depends on a tool's CLI, schema, file layout, generated artifacts, or runtime behavior but its canonical instructions live elsewhere, code and instructions acquire independent release cadences and drift unless every consumer manually synchronizes both repositories.",
+  "validated_conclusion": "Keep tool-coupled skills and machine-readable instruction assets in the repository that owns the tool. Ship and test them with the implementation. Generic skill collections may contain tool-neutral principles and may reference or install tool-owned skills, but must not keep a second canonical copy of tool commands, schemas, output contracts, or recipe resources.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

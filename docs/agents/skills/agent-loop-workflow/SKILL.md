@@ -59,7 +59,7 @@ Transitions are evidence-driven, not optimistic:
 3. Plan explicit goal, scope, non-goals, behavior anchors, exact validation, and any selected operating-prompt recipe + explicit arguments.
 4. Approve that exact revision through a named human actor.
 5. Compile/use bounded recall; use `agent-map` to select precise source reads.
-6. When recall contains L2 recipes, construct exactly one project-specific L1 with `Goal`, `Context`, `Constraints`, `Verification`, and `Done When`; persist it with `workflow contract` before mutation.
+6. When recall contains L2 recipes, follow the current Recall-owned construction instructions and persist exactly one project-specific L1 with `workflow contract` before mutation.
 7. Implement the smallest correct change in the owning package.
 8. Record validation against the current Contract revision.
 9. Review blind spots, the complete raw diff, and complexity separately when needed.
@@ -88,7 +88,8 @@ vendor/bin/agent-loop workflow plan <task-id> \
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 ```
 
-With a reusable L2 recipe, selection is part of the Contract that gets approved:
+With a reusable L2 recipe, selection is part of the Contract that gets approved.
+Use the catalog shipped by the tool that owns those recipe semantics:
 
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \
@@ -96,12 +97,17 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --file <path> \
   --goal "Harden the parser tests." \
   --validation "composer ci" \
-  --operating-prompt-manifest skills/operational-prompting/operating-prompts.json \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"coverage-mutation","arguments":{"minimum_percentage_points":10,"mutation_command":"vendor/bin/infection"}}'
 
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
+
+Recall owns the reusable recipe schema and L2 construction semantics. Loop owns
+selection persistence in the Contract, approval, execution-contract binding, and
+lifecycle progression. Do not keep a second canonical copy of Recall recipe
+instructions in this skill.
 
 ## Built-in L1 Control Prompts
 
@@ -133,26 +139,9 @@ Both built-in controls are L1-only and do not require an L2 construction pass by
 themselves. A separately selected L2 engineering recipe keeps its normal contract
 gate.
 
-The L2 construction pass creates one repository-grounded L1 document with exactly:
-
-```markdown
-## Goal
-...
-
-## Context
-...
-
-## Constraints
-...
-
-## Verification
-...
-
-## Done When
-...
-```
-
-Persist that generated contract before implementation:
+When Recall requires an L2 construction pass, follow the current construction
+contract rendered in the task's Recall artifacts. Persist that generated contract
+before implementation:
 
 ```bash
 vendor/bin/agent-loop workflow contract <task-id> \
