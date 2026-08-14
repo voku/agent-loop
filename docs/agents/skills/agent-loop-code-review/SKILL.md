@@ -10,11 +10,15 @@ Own the review workflow, not the engineering handbook.
 ## Contract
 
 1. Review the complete raw diff and task/brief evidence. Never review a summary instead.
-2. Use `agent-loop map changed --base=<ref>` and focused caller/context lookup when a claim depends on surrounding code. Verify against real source.
-3. Select **one dominant** installed `code-review-*` engineering lens for the most material concern. Do not run a default review swarm.
-4. Accept at most one `HANDOFF:` only when it names an installed lens plus evidence `path:line` and why that concern is dominant. Otherwise return `STATUS: blocked` with the missing target/evidence.
-5. Persist/report the lens result without turning it into workflow approval. `review blindspots` remains a separate deterministic process/evidence check.
-6. Read-only. Do not apply fixes during review.
+2. For a governed task, run `agent-loop review code <task-id>` first and use the generated task-artifact-backed prompt as the review framing. It carries Recall's first-draft falsification lens and evidence boundaries; do not replace it with remembered prose.
+3. If there is no governed task/artifact set and only a context-light adversarial pass is needed, use `agent-loop review first-draft` instead.
+4. Use `agent-loop map changed --base=<ref>` and focused caller/context lookup when a claim depends on surrounding code. Verify against real source.
+5. Select **one dominant** installed `code-review-*` engineering lens for the most material concern. Do not run a default review swarm.
+6. Accept at most one `HANDOFF:` only when it names an installed lens plus evidence `path:line` and why that concern is dominant. Otherwise return `STATUS: blocked` with the missing target/evidence.
+7. Persist/report the lens result without turning it into workflow approval. `review blindspots` remains a separate deterministic process/evidence check.
+8. Read-only. Do not apply fixes during review.
+
+The first-draft lens is adversarial without creating a finding quota. `STATUS: clean` remains valid after concrete falsification attempts find no evidence-backed defect. Missing material evidence stays `UNKNOWN`/`blocked`; model confidence, prior rationale, prompt construction, or an unexecuted command are not verification.
 
 ## Optional Deterministic Observation
 
