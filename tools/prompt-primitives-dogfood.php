@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 use voku\AgentLoop\Dogfood\MinimumReleasePin;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+// The class file, not the autoloader: a candidate workflow checks this
+// repository out and runs PHP against it without ever installing agent-loop's
+// own dependencies, because what it exercises is a separately installed
+// consumer. MinimumReleasePin depends on nothing but PHP, so it loads directly.
+require dirname(__DIR__) . '/src/Dogfood/MinimumReleasePin.php';
 
 final class PromptPrimitivesDogfoodFailure extends RuntimeException
 {

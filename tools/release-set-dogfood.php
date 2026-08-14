@@ -13,7 +13,10 @@ declare(strict_types=1);
 
 use voku\AgentLoop\Dogfood\MinimumReleasePin;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+// Loaded directly rather than through the autoloader, for the same reason as
+// the other candidate runner: these gates run against a checkout whose own
+// dependencies may not be installed.
+require dirname(__DIR__) . '/src/Dogfood/MinimumReleasePin.php';
 
 final class ReleaseSetFailure extends RuntimeException
 {
