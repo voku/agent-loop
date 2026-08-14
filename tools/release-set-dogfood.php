@@ -11,6 +11,10 @@ declare(strict_types=1);
  * are published, the same runner resolves them from Packagist without changes.
  */
 
+use voku\AgentLoop\Dogfood\MinimumReleasePin;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
 final class ReleaseSetFailure extends RuntimeException
 {
 }
@@ -368,11 +372,19 @@ final class ReleaseSetDogfood
             'url' => str_replace('\\', '/', $this->candidateRoot),
             'options' => ['symlink' => false, 'versions' => ['voku/agent-loop' => 'dev-main']],
         ]];
+        // Derived from the declared minimum for the same reason as the prompt
+        // primitives runner: a path repository is canonical, so a sentinel left
+        // behind by a constraint bump fails the install outright. This one is
+        // only latent here, because the candidate directories exist just in the
+        // coordinated release job.
         foreach ([
-            ['build/candidate-agent-session', 'voku/agent-session', '0.5.999'],
-            ['build/candidate-agent-recall-compiler', 'voku/agent-recall-compiler', '0.11.999'],
-            ['build/candidate-agent-learning', 'voku/agent-learning', '0.10.999'],
-        ] as [$relative, $package, $version]) {
+            ['build/candidate-agent-session', 'voku/agent-session'],
+            ['build/candidate-agent-recall-compiler', 'voku/agent-recall-compiler'],
+            ['build/candidate-agent-learning', 'voku/agent-learning'],
+        ] as [$relative, $package]) {
+            $version = MinimumReleasePin::pathRepositoryVersion(
+                MinimumReleasePin::declaredConstraint($this->repositoryRoot . '/composer.json', $package),
+            );
             $path = $this->repositoryRoot . '/' . $relative;
             if (!is_dir($path)) {
                 continue;
