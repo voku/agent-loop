@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Init\InitInstallAssetsCommand;
 use voku\AgentLoop\Init\InitSyncInstructionsCommand;
 
 /** @internal */
@@ -39,6 +40,21 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString('sync-githooks', $agents);
         self::assertFileDoesNotExist($this->root . '/CLAUDE.md');
         self::assertFileDoesNotExist($this->root . '/GEMINI.md');
+    }
+
+    public function testInstallAssetsAlsoCreatesTheAlwaysOnRouter(): void
+    {
+        ob_start();
+        $exit = (new InitInstallAssetsCommand($this->root))->run(['--agent=codex']);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit, $output);
+        self::assertFileExists($this->root . '/AGENTS.md');
+        self::assertStringContainsString(
+            'agent-loop workflow router',
+            (string) file_get_contents($this->root . '/AGENTS.md'),
+        );
+        self::assertStringContainsString('[OK] sync instructions: updated AGENTS.md.', $output);
     }
 
     public function testClaudeAndGeminiUseThinImportsInsteadOfDuplicatingTheRouter(): void
