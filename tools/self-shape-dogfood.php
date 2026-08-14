@@ -15,6 +15,7 @@ declare(strict_types=1);
  */
 
 use voku\AgentLoop\Dogfood\ProcessRunner;
+use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
 use voku\AgentLoop\Dogfood\SelfShapeEvidence;
 
@@ -188,10 +189,16 @@ $loop([
 // `review blindspots` exits 1 on a fail status; before close-out evidence
 // exists a warn is expected, so the first pass is informational.
 $runner->run([PHP_BINARY, 'bin/agent-loop', 'review', 'blindspots', TASK]);
+$outcomeDraft = $recallRoot . '/' . TASK . '/recall-log.draft.json';
+$withheldCount = RecallOutcomeDraft::withholdInFile(
+    $outcomeDraft,
+    'The self-shape runner compiles Recall to exercise the governed lifecycle and never reads system.md, so it has no evidence about whether the selected guidance helped.',
+);
+echo '[OK] self-shape: withheld ' . $withheldCount . ' compiled guidance judgement(s); selection is still recorded.' . "\n";
 $loop([
     'recall', 'log-outcome',
     '--root', '.agent-loop/learning',
-    '--draft', $recallRoot . '/' . TASK . '/recall-log.draft.json',
+    '--draft', $outcomeDraft,
     '--by', PLANNER,
     '--commit', $head,
 ]);
