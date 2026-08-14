@@ -194,20 +194,144 @@ final class GitCommitCleanupTest extends TestCase
     }
 
     /**
-     * The same value read back out of a real repository keeps its trailing space.
+     * The selector, exercised against every Git generation without needing more than
+     * one Git binary. The two names are one setting from 2.45 onward, so order decides;
+     * before 2.45 the newer name is reported by `git config` and then ignored by Git
+     * itself, so reading it would predict a cleanup that never happens.
      *
-     * No version gate: this asserts what *this* class does with what `git config --get`
-     * reports, and every Git stores and returns the value faithfully. Only the test
-     * below, which asserts Git's own cleanup behaviour, needs a Git that honours the
-     * setting.
+     * @param list<array{key: string, value: string}> $entries
      */
-    public function testTheConfiguredCommentStringIsReadVerbatim(): void
+    #[DataProvider('commentStringSelections')]
+    public function testTheSelectorFollowsTheRunningGitsSemantics(
+        string $gitVersion,
+        array $entries,
+        string $expected,
+    ): void {
+        self::assertSame($expected, GitCommitCleanup::selectCommentString($entries, $gitVersion));
+    }
+
+    /** @return array<string, array{string, list<array{key: string, value: string}>, string}> */
+    public static function commentStringSelections(): array
+    {
+        $commentChar = ['key' => 'core.commentchar', 'value' => ';'];
+        $commentString = ['key' => 'core.commentstring', 'value' => '//'];
+
+        return [
+            '2.44 ignores commentString even when it is last' => [
+                'git version 2.44.0',
+                [$commentChar, $commentString],
+                ';',
+            ],
+            '2.44 with only commentString falls back to the default' => [
+                'git version 2.44.0',
+                [$commentString],
+                '#',
+            ],
+            '2.45 aliases them, so a later commentChar wins' => [
+                'git version 2.45.0',
+                [$commentString, $commentChar],
+                ';',
+            ],
+            '2.45 aliases them, so a later commentString wins' => [
+                'git version 2.45.0',
+                [$commentChar, $commentString],
+                '//',
+            ],
+            '2.45 keeps a trailing space byte for byte' => [
+                'git version 2.45.1',
+                [['key' => 'core.commentString', 'value' => '; ']],
+                '; ',
+            ],
+            'a later empty value does not blank out the one in force' => [
+                'git version 2.45.0',
+                [$commentChar, ['key' => 'core.commentchar', 'value' => '']],
+                ';',
+            ],
+            'an unreadable version is not evidence the newer name works' => [
+                'git version (unknown)',
+                [$commentString],
+                '#',
+            ],
+            'nothing configured' => ['git version 2.45.0', [], '#'],
+        ];
+    }
+
+    /** The version boundary itself, stated once. */
+    #[DataProvider('versionSupport')]
+    public function testTheCommentStringNameIsReadOnlyFrom245(string $gitVersion, bool $supported): void
+    {
+        self::assertSame($supported, GitCommitCleanup::supportsCommentString($gitVersion));
+    }
+
+    /** @return list<array{string, bool}> */
+    public static function versionSupport(): array
+    {
+        return [
+            ['git version 2.43.0', false],
+            ['git version 2.44.4', false],
+            ['git version 2.45.0', true],
+            ['git version 2.50.1', true],
+            ['git version 3.0.0', true],
+            ['nonsense', false],
+        ];
+    }
+
+    /**
+     * Git returns a trailing space untouched, which is what the reader relies on. True
+     * of every Git, so no gate: this pins the transport, not the semantics.
+     *
+     * Read through a pipe rather than `exec()`, which strips trailing whitespace from
+     * every line it hands back and would destroy the very byte under test.
+     */
+    public function testGitReportsATrailingSpaceVerbatim(): void
     {
         $this->git("config core.commentString '; '");
 
-        $cleanup = GitCommitCleanup::fromRepository($this->root);
+        self::assertSame("core.commentstring\n; ", $this->gitRecordFor('core.commentstring'));
+    }
 
-        self::assertSame('; ', $cleanup->commentString);
+    /** The `--list -z` record for one key, byte for byte. */
+    private function gitRecordFor(string $key): string
+    {
+        $pipes = [];
+        $process = proc_open(
+            ['git', '-C', $this->root, 'config', '--list', '-z'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        self::assertIsResource($process);
+
+        $stdout = (string) stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        foreach (explode("\0", $stdout) as $record) {
+            if (str_starts_with($record, $key . "\n")) {
+                return $record;
+            }
+        }
+
+        self::fail('No config record for ' . $key . ' in: ' . str_replace("\0", '|', $stdout));
+    }
+
+    /** And the reader agrees with whichever Git is actually running. */
+    public function testTheReaderMatchesTheRunningGitsSupport(): void
+    {
+        $this->git("config core.commentString '; '");
+
+        $expected = GitCommitCleanup::supportsCommentString($this->git('--version')) ? '; ' : '#';
+
+        self::assertSame($expected, GitCommitCleanup::fromRepository($this->root)->commentString);
+    }
+
+    /** A lone `core.commentChar` is read the same way on every Git. */
+    public function testCommentCharIsReadOnEveryGitVersion(): void
+    {
+        $this->git('config core.commentChar ";"');
+
+        self::assertSame(';', GitCommitCleanup::fromRepository($this->root)->commentString);
     }
 
     /**

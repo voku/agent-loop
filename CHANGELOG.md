@@ -22,6 +22,13 @@ All notable changes to this project will be documented in this file.
   `scissors` are modelled too. The configured comment string is used verbatim,
   trailing space included: `core.commentString = "; "` makes `; comment` a comment
   and leaves `;not-a-comment` as content Git stores.
+- Which of `core.commentChar` and `core.commentString` applies is now decided by
+  the running Git rather than by a fixed preference, from a single
+  `git config --list -z` read in Git's effective order. Before Git 2.45,
+  `core.commentString` is reported by `git config` and then ignored by Git, so
+  reading it predicted a cleanup that never happens. From 2.45 the two are aliases
+  of one setting, so neither name outranks the other and whichever comes last
+  wins. Values are taken byte for byte, trailing space included.
 - `core.commentChar`/`core.commentString` set to `auto` is refused with the
   configuration to fix, rather than guessed. Git resolves `auto` while preparing
   the buffer and then writes its own help lines with the character it chose, so
@@ -55,12 +62,15 @@ All notable changes to this project will be documented in this file.
 
 ### Validation
 
-- 70 new tests, each confirmed red before its fix and green after. The
+- 86 new tests, each confirmed red before its fix and green after. The
   commit-message and pre-commit tests drive a real repository and a real
   `git diff --cached` rather than a stub.
 - The cleanup modes are verified by committing for real under each setting and
   asserting the prediction equals what Git stored, so the assumption underneath
   the validator is checked against Git rather than asserted in a comment.
+- The comment-string selector is covered deterministically across Git generations
+  without needing several Git binaries; only the tests that assert Git's own
+  handling of `core.commentString` are gated on Git 2.45.
 
 ## 0.16.3 - 2026-08-14
 

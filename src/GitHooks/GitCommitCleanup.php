@@ -19,7 +19,9 @@ use InvalidArgumentException;
  *   `core.commentChar=;` a `#` line is ordinary content Git keeps, and a `;` line
  *   is the comment Git drops - the exact opposite of the hardcoded assumption.
  *   The value is used verbatim, trailing space included: `"; "` makes `; comment` a
- *   comment and leaves `;not-a-comment` as content.
+ *   comment and leaves `;not-a-comment` as content. Which of the two names wins
+ *   depends on the running Git, so it is selected rather than preferred; see
+ *   {@see self::selectCommentString()}.
  *
  * Both were verified against Git rather than inferred: see the tests, which drive a
  * real repository through each mode and read back what Git committed.
@@ -57,21 +59,68 @@ final readonly class GitCommitCleanup
     }
 
     /**
-     * Reads the two settings from the repository the hook is running in.
+     * Reads the settings from the repository the hook is running in.
      *
-     * `git config` is asked rather than a file parsed, so system, global, local and
-     * worktree scopes resolve the way Git resolves them.
+     * `git config --list -z` is asked rather than a file parsed, so system, global,
+     * local and worktree scopes resolve the way Git resolves them, in the order Git
+     * resolves them, with values delimited by NUL so nothing in them can be mistaken
+     * for structure.
      */
     public static function fromRepository(string $rootPath): self
     {
-        // The mode is a keyword, so surrounding whitespace carries nothing; the comment
-        // string is data, so it is taken exactly as Git reports it.
-        $mode = trim(self::gitConfig($rootPath, 'commit.cleanup') ?? 'default');
-        $commentString = self::gitConfig($rootPath, 'core.commentString')
-            ?? self::gitConfig($rootPath, 'core.commentChar')
-            ?? '#';
+        $entries = self::configEntries($rootPath);
 
-        return new self(strtolower($mode === '' ? 'default' : $mode), $commentString);
+        // The mode is a keyword, so surrounding whitespace carries nothing.
+        $mode = trim(self::lastValue($entries, 'commit.cleanup') ?? 'default');
+
+        return new self(
+            strtolower($mode === '' ? 'default' : $mode),
+            self::selectCommentString($entries, self::gitVersion($rootPath)),
+        );
+    }
+
+    /**
+     * Picks the comment string the *running* Git will use.
+     *
+     * `core.commentString` arrived in Git 2.45 as the new name for `core.commentChar`.
+     * Older Git parses the key, reports it from `git config`, and then ignores it - so
+     * reading it there predicts a cleanup that will not happen, in the direction that
+     * blocks a commit Git would have accepted. From 2.45 the two are aliases of one
+     * setting, which means neither name outranks the other: whichever appears last in
+     * Git's effective order is the one in force. A fixed preference for either name is
+     * wrong on one side of that boundary or the other.
+     *
+     * @param list<array{key: string, value: string}> $entries in Git's effective order
+     */
+    public static function selectCommentString(array $entries, string $gitVersion): string
+    {
+        $aliased = self::supportsCommentString($gitVersion);
+        $selected = '#';
+
+        foreach ($entries as $entry) {
+            $key = strtolower($entry['key']);
+            if ($key !== 'core.commentchar' && ($key !== 'core.commentstring' || !$aliased)) {
+                continue;
+            }
+            // Git rejects an empty comment character, so an empty value is not a
+            // selection and must not blank out the one already in force.
+            if ($entry['value'] !== '') {
+                $selected = $entry['value'];
+            }
+        }
+
+        return $selected;
+    }
+
+    /** Git 2.45 is where `core.commentString` became a name Git actually reads. */
+    public static function supportsCommentString(string $gitVersion): bool
+    {
+        if (preg_match('/(\d+)\.(\d+)/', $gitVersion, $matches) !== 1) {
+            // An unreadable version is not evidence that the newer name works.
+            return false;
+        }
+
+        return ((int) $matches[1] * 1000 + (int) $matches[2]) >= 2045;
     }
 
     public static function forMode(string $mode, string $commentString = '#'): self
@@ -157,14 +206,70 @@ final readonly class GitCommitCleanup
         return $this->stripsComments() || $this->mode === 'scissors';
     }
 
-    private static function gitConfig(string $rootPath, string $key): ?string
+    /**
+     * Every config entry, in Git's effective order.
+     *
+     * `--list -z` terminates each record with a NUL and separates the key from the
+     * value with a newline, so a value carrying spaces, newlines or a trailing space
+     * survives byte for byte. Reading whole records rather than one key at a time is
+     * what makes the *order* of two aliased names observable at all.
+     *
+     * @return list<array{key: string, value: string}>
+     */
+    private static function configEntries(string $rootPath): array
+    {
+        $stdout = self::git($rootPath, ['config', '--list', '-z']);
+        if ($stdout === null) {
+            return [];
+        }
+
+        $entries = [];
+        foreach (explode("\0", $stdout) as $record) {
+            if ($record === '') {
+                continue;
+            }
+
+            // A key declared without a value has no newline and no value at all.
+            $separator = strpos($record, "\n");
+            $entries[] = $separator === false
+                ? ['key' => $record, 'value' => '']
+                : ['key' => substr($record, 0, $separator), 'value' => substr($record, $separator + 1)];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{key: string, value: string}> $entries
+     */
+    private static function lastValue(array $entries, string $key): ?string
+    {
+        $value = null;
+        foreach ($entries as $entry) {
+            if (strtolower($entry['key']) === strtolower($key)) {
+                $value = $entry['value'];
+            }
+        }
+
+        return $value;
+    }
+
+    private static function gitVersion(string $rootPath): string
+    {
+        return self::git($rootPath, ['--version']) ?? '';
+    }
+
+    /**
+     * @param non-empty-list<string> $arguments
+     */
+    private static function git(string $rootPath, array $arguments): ?string
     {
         if (!is_dir($rootPath)) {
             return null;
         }
 
         $process = @proc_open(
-            ['git', '-C', $rootPath, 'config', '--get', $key],
+            array_merge(['git', '-C', $rootPath], $arguments),
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
         );
@@ -177,16 +282,14 @@ final readonly class GitCommitCleanup
         fclose($pipes[1]);
         fclose($pipes[2]);
 
-        // Only the line terminator `git config` adds is removed. A comment string may
-        // legitimately end in a space - `core.commentString = "; "` makes `; comment` a
-        // comment while `;not-a-comment` is content - and trimming that space would drop
-        // a line Git stores, which is the blind spot this whole class exists to close.
-        $value = is_string($stdout) ? rtrim($stdout, "\r\n") : '';
-
-        if (proc_close($process) !== 0 || $value === '') {
+        if (proc_close($process) !== 0 || !is_string($stdout)) {
             return null;
         }
 
-        return $value;
+        // Nothing beyond Git's own line terminator is removed. A comment string may
+        // legitimately end in a space - `core.commentString = "; "` makes `; comment` a
+        // comment while `;not-a-comment` is content - and trimming that space would drop
+        // a line Git stores, which is the blind spot this whole class exists to close.
+        return rtrim($stdout, "\r\n");
     }
 }
