@@ -1,0 +1,34 @@
+{
+    "id": "proposal.2026-08-14.c969ec",
+    "created_at": "2026-08-14T09:16:27+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-14.93fa8b"
+    ],
+    "reason": "A recorded follow-up that named two possible wrong sides was resolved by changing the cheaper one first, and the repository's own test caught it. The scope names composer.json and the document that disagreed with it, plus the two files whose evidence surfaced during the same run; the rule generalises to any dependency a published class depends on.",
+    "remaining_uncertainty": [],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Runtime dependency boundary",
+    "scope": [
+        "composer.json",
+        "docs/agents/dogfood/real-issue-acceptance.md"
+    ],
+    "old": null,
+    "new": "A package cannot be dev-only while a class agent-loop publishes depends on it. Loading a shipped class is not the same as running a command, so a CLI smoke test cannot decide a dependency boundary. When a follow-up names two possible wrong sides, falsify the cheaper one before changing it.",
+    "boundary": "Applies to dependencies reachable from published classes. Genuinely external tools installed from their own Composer project, such as slop-scan, are unaffected.",
+    "validation": [
+        "vendor/bin/phpunit --filter RealIssueEvidenceToolBoundaryTest"
+    ],
+    "scope_justification": "A recorded follow-up that named two possible wrong sides was resolved by changing the cheaper one first, and the repository's own test caught it. The scope names composer.json and the document that disagreed with it, plus the two files whose evidence surfaced during the same run; the rule generalises to any dependency a published class depends on.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "dependency.of.a.published.class.is.not.dev.only",
+    "validation_case": {
+        "given": "a class shipped in src/ that implements an interface from a dependency",
+        "when": "a smoke test over the CLI suggests the dependency can move to require-dev",
+        "then": "anything reflecting over the published classes fatals, so the dependency stays in require and the documentation is what changes"
+    }
+}

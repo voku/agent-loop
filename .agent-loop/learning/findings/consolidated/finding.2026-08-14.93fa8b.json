@@ -1,0 +1,40 @@
+{
+    "id": "finding.2026-08-14.93fa8b",
+    "task_id": "GH-96",
+    "session": "2026-08-14-close-followups-3",
+    "created_at": "2026-08-14T12:40:00+02:00",
+    "created_by": "agent-loop-followup-cleanup",
+    "scope": [
+        "composer.json",
+        "docs/agents/dogfood/real-issue-acceptance.md",
+        "src/Init/InitDoctorCommand.php",
+        "slop-scan.config.json"
+    ],
+    "observation": "Closing finding.2026-08-14.010 decided the open question the wrong way first. That finding recorded that the evidence-plane documentation calls itp-context an external tool while composer.json requires it at runtime, and left open which side was wrong. Removing the package showed the CLI, `verify` and `ProjectLayout` all still working, which made 'move it to require-dev' look correct - and the change was made. The suite then failed on a test that asserts the opposite deliberately and names why: ArchitectureRules ships in src/ and implements ItpContext\\Contract\\RuleIdentifier, so anything reflecting over agent-loop's production classes fatals without the package. The documentation was the wrong side. Separately, closing finding.2026-08-14.009 produced its own evidence: after a local `map build`, `composer review:slop` reported a finding inside .agent-map/phpstan-cache, because the scan config did not ignore the one directory that escapes the workflow state root. CI had never seen it, since the slop job never builds a map.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "With itp-context moved to require-dev: 'RealIssueEvidenceToolBoundaryTest::testItpContextIsARuntimeDependencyBecauseTheRulesNeedIt - Failed asserting that an array has the key voku/itp-context'. A partial smoke test over the CLI had suggested the opposite."
+        },
+        {
+            "type": "test_result",
+            "command": "composer review:slop",
+            "summary": "'weak Found empty method body in a concrete class php.placeholder-method-bodies at .agent-map/phpstan-cache/cache/nette.configurator/Container_3465e6dc61.php:9717'. Adding **/.agent-map/** to the scan ignores returns it to 0 new findings."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "The governed Contract went through three approved revisions in this run: the falsified acceptance criterion forced revision 2, and validation surfacing an out-of-scope file forced revision 3. Both changes of intent are recorded in .agent-loop/contracts/CLOSE-FOLLOWUPS/contract.json rather than made silently."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Recording this finding failed with 'missing task references' for task_id CLOSE-FOLLOWUPS. WorkflowTaskId accepts letters, numbers, dots, underscores and hyphens, so `workflow plan CLOSE-FOLLOWUPS` and `workflow approve` both succeeded, but agent-learning requires a finding's task reference to match /^[A-Z][A-Z0-9_-]*-\\d+|TODO@.../ - a trailing number. A task can therefore be planned and approved under a name that cannot be cited by the finding it produces."
+        }
+    ],
+    "hypothesis": "A follow-up that says 'one of these two is wrong' invites resolving it by whichever side is easier to change. A smoke test over the happy path measured the wrong property - loading a shipped class is not the same as running a command - and only a test written by somebody who had already thought about it caught the difference.",
+    "validated_conclusion": "itp-context is a runtime dependency of agent-loop, deliberately, because ArchitectureRules ships in src/ and implements its interface; the evidence-plane documentation now says so. A package cannot be dev-only while a class the package publishes depends on it. When a recorded follow-up names two possible wrong sides, falsify the one that is cheaper to change before changing it. Separately: a governed task id and a finding's task reference are validated by different contracts, so a task name without a trailing number is plannable but not citable. Name governed tasks so both accept them until the two contracts agree.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}
