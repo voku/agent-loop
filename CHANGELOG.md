@@ -41,6 +41,11 @@ All notable changes to this project will be documented in this file.
 - `init sync-githooks --adopt-existing` now adds the execute bit to an adopted
   hook, keeping its content untouched. Adoption recorded a file as managed without
   checking the one property that decides whether Git can run it at all.
+- The generated `githooks/lib/agent-loop-hooks.env` now pins `AGENT_LOOP_BIN` to the
+  resolved CLI path. `pre-commit` and `commit-msg` fall back to
+  `vendor/bin/agent-loop`, so in a repository whose own root package is agent-loop
+  every commit aborted with "vendor/bin/agent-loop: No such file or directory" the
+  moment the hooks were activated.
 - `githooks/agent-map-refresh.sh` is shipped executable. `post-checkout` and
   `post-merge` `exec` it directly, so every checkout in a repository that adopts
   the package's own hook sources ran into "Permission denied".
