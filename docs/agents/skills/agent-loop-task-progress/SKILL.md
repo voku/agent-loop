@@ -59,7 +59,7 @@ vendor/bin/agent-loop session checkpoint <task-id> \
   --body "Task expanded from docs-only to docs plus init help because the executable contract was stale."
 ```
 
-Re-plan when the approved brief no longer describes the work. A new revision
+Re-plan when the approved Contract no longer describes the work. A new revision
 invalidates old approval and completion evidence.
 
 ## Simplification Ceilings
@@ -87,7 +87,7 @@ A prose checkpoint explains progress but does not satisfy a governed close:
 
 ```bash
 vendor/bin/agent-loop session validation record <task-id> \
-  --brief-revision <current-revision> \
+  --contract-revision <current-revision> \
   --command "vendor/bin/phpunit tests/FocusedTest.php" \
   --status passed \
   --exit-code 0 \
@@ -119,10 +119,10 @@ vendor/bin/agent-loop session checkpoint <task-id> \
   --body "Implementation complete; full diff reviewed; required validation passed."
 
 vendor/bin/agent-loop review blindspots <task-id>
-vendor/bin/agent-loop verify
+vendor/bin/agent-loop verify --task-id=<task-id>
 vendor/bin/agent-loop workflow status <task-id>
 
-vendor/bin/agent-loop session learning decide <task-id> \
+vendor/bin/agent-loop workflow learn <task-id> \
   --status no_durable_learning \
   --by <actor> \
   --reason "No reusable finding from this bounded task."

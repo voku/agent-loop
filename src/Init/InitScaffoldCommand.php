@@ -59,9 +59,7 @@ final readonly class InitScaffoldCommand
         $this->ensureFile($stateRoot . '/todo/board.md', $this->relative($root, $stateRoot . '/todo/board.md'), <<<'MD'
 # Board Metadata
 
-- **Source:** `todo/cards/*.md`
 - **Project prefix:** DEMO
-- **Done count:** 0
 MD
             . "\n", $dryRun);
         $this->ensureFile($stateRoot . '/tasks/DEMO-1.md', $this->relative($root, $stateRoot . '/tasks/DEMO-1.md'), <<<'MD'

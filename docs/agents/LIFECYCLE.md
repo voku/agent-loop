@@ -12,7 +12,7 @@ concern and can be used on its own.
 | Package                 | Owns                                                       |
 | ----------------------- | ---------------------------------------------------------- |
 | `agent-kanban`          | durable work-item state                                     |
-| `agent-session`         | task-local mutable working state, work briefs, approvals    |
+| `agent-session`         | task-local mutable working state and validation evidence    |
 | `agent-map`             | repository facts, source-backed context, hybrid search      |
 | `agent-recall-compiler` | governed briefing and verification contracts                |
 | `agent-loop`            | transitions and orchestration                               |
@@ -23,13 +23,13 @@ concern and can be used on its own.
 | Transition | Owner                                | Input                                    | Output                                        |
 | ---------- | ------------------------------------ | ---------------------------------------- | --------------------------------------------- |
 | DISCOVER   | `agent-map`                          | question or symbol name                  | file/range candidates, no state                |
-| PLAN       | `agent-loop` + `agent-session`       | task id, goal, scope, validation         | session + candidate work brief revision        |
-| APPROVE    | `agent-loop` + `agent-recall-compiler` | exact brief revision                   | approval record + compiled briefing            |
-| PREPARE    | `agent-map` + `agent-recall-compiler` | approved brief + repository snapshot     | recall bundle, verification plan and key       |
+| PLAN       | `agent-loop`                         | task id, goal, scope, validation         | candidate Contract revision                     |
+| APPROVE    | `agent-loop` + `agent-session` + `agent-recall-compiler` | exact Contract revision | approval + governed Run/Session + compiled briefing |
+| PREPARE    | `agent-map` + `agent-recall-compiler` | approved Contract + repository snapshot  | recall bundle, verification plan and key       |
 | EXECUTE    | `agent-loop`                         | prepared bundle                          | edit bundle under `.agent-loop/edit/<task-id>` |
 | VERIFY     | `agent-loop`                         | edit bundle + verification key           | `verification-result.json`                     |
 | REVIEW     | `agent-loop`                         | task artifacts                           | blind-spot report                              |
-| LEARN      | `agent-session` + `agent-learning`   | recall draft, session evidence           | outcome history, findings, proposals           |
+| LEARN      | `agent-learning`                     | governed Run, recall draft, evidence      | durable close-out, outcomes, findings, proposals |
 | CLOSE      | `agent-loop`                         | all of the above                         | closed session, gates enforced                 |
 
 ### DISCOVER — `agent-map`
@@ -50,25 +50,22 @@ vendor/bin/agent-map search "Wie werden Anträge storniert?" --semantic
   first but never revealed that the other system existed, which `query` found in
   one call.
 
-### PLAN — `agent-loop` + `agent-session`
+### PLAN — `agent-loop`
 
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <path> \
-  --goal "..." --validation "..." [--tag <label>] [--behavior-anchor <text>] [--ephemeral]
+  --goal "..." --validation "..." [--tag <label>] [--behavior-anchor <text>]
 ```
 
-- **Produces:** a Session under the project's sessions root (working memory;
-  `agent-loop init paths`), work brief
-  revision 1 in state `candidate`, and a refreshed run projection under
-  `.agent-loop/runs/<task-id>/manifest.json`.
-- **State:** task-local and mutable. Sessions are working memory, not evidence.
+- **Produces:** a durable candidate Contract revision. PLAN creates neither a
+  Session nor a governed Run.
+- **State:** durable intent owned by `agent-loop`; approval binds to an exact
+  Contract revision.
 - **Failure:** a missing `--file`, `--goal` or `--validation` is refused; a
   second active session for the same task is refused.
-- **Recovery:** `agent-loop session close <session-id> --status dropped`.
-- **`--ephemeral`:** declares the session an experiment. Repository-wide gates
-  skip it. Use it whenever the session exists to try a command out - without it,
-  an unfinished throwaway fails `agent-loop verify` for *every* other session in
-  the repository until it is dropped.
+- **Recovery:** correct the Contract inputs and rerun `workflow plan`. For an
+  ungoverned experiment, use `agent-loop session start --ephemeral`; there is no
+  workflow shortcut that can masquerade as governed work.
 
 ### APPROVE — `agent-loop`
 
@@ -76,9 +73,10 @@ vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <path> \
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 ```
 
-- **Preconditions:** a candidate brief revision exists, or the exact current
+- **Preconditions:** a candidate Contract revision exists, or the exact current
   revision is already approved and recall compilation needs to be resumed.
-- **Produces:** an approval bound to that exact revision, then a compiled
+- **Produces:** an approval bound to that exact revision, a governed Run and
+  working Session, then a compiled
   briefing under the recall output root: `system.md`, `validation-plan.md`,
   `recall.bundle.json`, `facts.json`, `selection-report.json`,
   `recall-log.draft.json`, and - when a map target resolves -
@@ -154,11 +152,12 @@ vendor/bin/agent-loop review blindspots <task-id>
 - **Note:** the review is required before CLOSE, and the first run legitimately
   warns that no review checkpoint exists yet. Record a checkpoint and re-run.
 
-### LEARN — `agent-session` + `agent-learning`
+### LEARN — `agent-learning`
 
 ```bash
-vendor/bin/agent-loop session learning decide <session-id> --by <actor> \
-  --status findings_recorded|no_durable_learning|follow_up_required
+vendor/bin/agent-loop workflow learn <task-id> --by <actor> \
+  --status findings_recorded|no_durable_learning|follow_up_required \
+  --reason "<bounded reason>"
 vendor/bin/agent-recall-compiler log-outcome --root <learning-root> \
   --draft <recall-log.draft.json> --by <actor> --commit <sha>
 ```
@@ -179,7 +178,7 @@ vendor/bin/agent-loop workflow close <task-id> --status done
 Gates, all enforced:
 
 1. cross-package `verify` passes for this task;
-2. the current brief revision is approved;
+2. the current Contract revision is approved;
 3. every existing edit bundle has a passing `verification-result.json`;
 4. a blind-spot review report exists;
 5. a learning decision is recorded;
@@ -188,7 +187,7 @@ Gates, all enforced:
 - **Produces:** a closed session and a final refreshed run projection.
 - **Recovery:** the failure names the missing artifact and the command that
   produces it. `agent-loop workflow status <task-id>` projects board, session,
-  brief, approval, map/search, recall, edit, verification, review and learning
+  Contract, approval, map/search, recall, edit, verification, review and learning
   state and prints one next command. `--format=json` exposes the same projection
   for coding agents. A contradictory or blocking state exits `2` instead of
   returning an ornamental green status.
@@ -202,7 +201,7 @@ A governed run is identified by the relationship between:
 ```text
 task/card id
 + session id
-+ work-brief revision and approval
++ Contract revision and approval
 + map/search snapshot
 + recall compilation
 + edit and verification artifacts

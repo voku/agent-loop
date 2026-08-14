@@ -203,9 +203,9 @@ final class AgentDisciplineHookTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function unboundedMapDumpProvider(): iterable
     {
-        yield 'cat JSON index' => ['cat .agent-map/php-symbols.json'];
-        yield 'jq with options' => ["jq -r '.' .agent-map/php-symbols.json"];
-        yield 'arbitrary SQLite query' => ["sqlite3 .agent-map/search.sqlite 'SELECT * FROM documents'"];
+        yield 'cat JSON index' => ['cat .agent-loop/map/php-symbols.json'];
+        yield 'jq with options' => ["jq -r '.' .agent-loop/map/php-symbols.json"];
+        yield 'arbitrary SQLite query' => ["sqlite3 .agent-loop/map/search.sqlite 'SELECT * FROM documents'"];
     }
 
     #[DataProvider('unboundedMapDumpProvider')]

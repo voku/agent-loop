@@ -23,20 +23,35 @@ final readonly class WorkflowStatusCommand
     {
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
-            $format = $this->parseFormat(array_slice($args, 1));
+            $options = $this->parseOptions(array_slice($args, 1));
             $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
             $storage = (new RunManifestStore($this->rootPath))->status($manifest);
 
-            if ($format === 'json') {
+            if ($options['format'] === 'json') {
                 echo CanonicalJson::pretty([
                     'manifest' => $manifest->toArray(),
                     'storage' => $storage,
                 ]);
-
-                return $manifest->state === 'blocked' ? 2 : 0;
+            } else {
+                $this->renderText($manifest, $storage);
             }
 
-            $this->renderText($manifest, $storage);
+            if ($options['expect'] !== null && $manifest->state !== $options['expect']) {
+                fwrite(
+                    \STDERR,
+                    sprintf(
+                        "[FAIL] workflow status: expected state %s, actual state is %s.\n",
+                        $options['expect'],
+                        $manifest->state,
+                    ),
+                );
+
+                return 1;
+            }
+
+            if ($options['expect'] !== null) {
+                return 0;
+            }
 
             return $manifest->state === 'blocked' ? 2 : 0;
         } catch (Throwable $exception) {
@@ -251,28 +266,41 @@ final readonly class WorkflowStatusCommand
 
      * @param list<string> $tokens
 
-     * @return 'text'|'json'
+     * @return array{
+     *     format: 'text'|'json',
+     *     expect: 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete'|null
+     * }
 
      */
-    private function parseFormat(array $tokens): string
+    private function parseOptions(array $tokens): array
     {
         $format = 'text';
+        $expect = null;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
             if (str_starts_with($token, '--format=')) {
                 $format = $this->format(substr($token, strlen('--format=')));
                 continue;
             }
-            if ($token !== '--format') {
+            if (str_starts_with($token, '--expect=')) {
+                $expect = $this->expectedState(substr($token, strlen('--expect=')));
+                continue;
+            }
+            if (!in_array($token, ['--format', '--expect'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$index + 1])) {
-                throw new InvalidArgumentException('--format requires text or json.');
+                throw new InvalidArgumentException($token . ' requires a value.');
             }
-            $format = $this->format($tokens[++$index]);
+            $value = $tokens[++$index];
+            if ($token === '--format') {
+                $format = $this->format($value);
+            } else {
+                $expect = $this->expectedState($value);
+            }
         }
 
-        return $format;
+        return ['format' => $format, 'expect' => $expect];
     }
 
     /** @return 'text'|'json' */
@@ -284,5 +312,18 @@ final readonly class WorkflowStatusCommand
         }
 
         return $format;
+    }
+
+    /** @return 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete' */
+    private function expectedState(string $value): string
+    {
+        $state = strtolower(trim($value));
+        if (!in_array($state, ['blocked', 'experiment', 'incomplete', 'ready_to_close', 'complete'], true)) {
+            throw new InvalidArgumentException(
+                '--expect must be blocked, experiment, incomplete, ready_to_close, or complete.',
+            );
+        }
+
+        return $state;
     }
 }

@@ -46,6 +46,39 @@ final class RunManifestProjectorTest extends TestCase
         self::assertStringContainsString('workflow plan ABC-123', $manifest->nextAction);
     }
 
+    public function testMetadataOnlyScaffoldBoardIsLinkedThroughAgentKanbanResolution(): void
+    {
+        mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/board.md',
+            "# Board Metadata\n\n- **Project prefix:** ABC\n",
+        );
+        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<'MD'
+# ABC-123: Metadata-only board
+
+- **Ticket:** ABC-123
+- **Lane:** READY
+- **Status:** Selected
+
+## Agent Task Brief
+
+Prove that agent-loop uses agent-kanban's canonical board resolution.
+MD
+            . "\n");
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('linked', $manifest->references['board']['state']);
+        self::assertSame('READY', $manifest->references['board']['lane']);
+        self::assertSame('Selected', $manifest->references['board']['status']);
+        self::assertSame('.agent-loop/todo/cards/ABC-123.md', $manifest->references['board']['source']['path']);
+        self::assertSame('metadata', $manifest->references['board']['configuration']['mode']);
+        self::assertSame(
+            '.agent-loop/todo/board.md',
+            $manifest->references['board']['configuration']['source']['path'],
+        );
+    }
+
     public function testCompletedRunIsTraceableThroughDurableOwningArtifacts(): void
     {
         [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);

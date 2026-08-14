@@ -54,7 +54,7 @@ When work is governed by `agent-loop`:
 PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 ```
 
-Persisted workflow state beats conversational confidence. Scope drift returns to PLAN and invalidates evidence tied to the old brief revision.
+Persisted workflow state beats conversational confidence. Scope drift returns to PLAN and invalidates evidence tied to the old Contract revision.
 
 A resume hint from `.agent-loop/runs/*/manifest.json` is navigation only. Before governed mutation, resolve authoritative state with:
 

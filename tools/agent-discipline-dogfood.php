@@ -367,9 +367,9 @@ try {
     $checks[] = ['id' => 'hook-not-security-sandbox', 'result' => 'passed'];
 
     foreach ([
-        'cat .agent-map/php-symbols.json',
-        "jq -r '.' .agent-map/php-symbols.json",
-        "sqlite3 .agent-map/search.sqlite 'SELECT * FROM documents'",
+        'cat .agent-loop/map/php-symbols.json',
+        "jq -r '.' .agent-loop/map/php-symbols.json",
+        "sqlite3 .agent-loop/map/search.sqlite 'SELECT * FROM documents'",
     ] as $mapCommand) {
         $mapDump = runPreToolCase($hookCommands, $workspace, $basePreTool, $mapCommand, 'map dump deny');
         assertTrue(($mapDump['hookSpecificOutput']['permissionDecision'] ?? null) === 'deny', 'Unbounded map dump was not denied: ' . $mapCommand);

@@ -72,7 +72,7 @@ They are passed as data, never evaluated as shell code. The runner also accepts 
 }
 ```
 
-The workflow still exercises its APPROVE transition because the gate mechanics themselves are part of the dogfood contract. The PR author identity is a harness fixture for that transition, not evidence that a separate human reviewed and approved the generated work-brief revision. Actual review/merge policy remains outside that claim.
+The workflow still exercises its APPROVE transition because the gate mechanics themselves are part of the dogfood contract. The PR author identity is a harness fixture for that transition, not evidence that a separate human reviewed and approved the generated Contract revision. Actual review/merge policy remains outside that claim.
 
 The planner and approval fixture must be different identities. A self-shape run that tries to use the planner as its own approver fails before PLAN.
 
