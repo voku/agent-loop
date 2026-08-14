@@ -131,11 +131,11 @@ final class GitCandidateEvidenceTest extends TestCase
         (new GitCandidateEvidence($repo))->prove('main', $head, 'main');
     }
 
-    public function testPublicVerifyCommandEmitsMachineReadableCandidateEvidence(): void
+    public function testPublicVerifyCommandEmitsMachineReadableCandidateEvidenceAndRejectsOptionTypos(): void
     {
         $repo = $this->repository();
         $candidate = $this->git($repo, 'rev-parse', 'HEAD');
-        $result = (new ProcessRunner($repo))->mustRun([
+        $command = [
             PHP_BINARY,
             dirname(__DIR__) . '/bin/agent-loop',
             'verify',
@@ -143,13 +143,19 @@ final class GitCandidateEvidenceTest extends TestCase
             '--integrated-sha=' . $candidate,
             '--target-ref=main',
             '--format=json',
-        ]);
+        ];
+        $runner = new ProcessRunner($repo);
+        $result = $runner->mustRun($command);
         $decoded = json_decode($result['stdout'], true, 32, JSON_THROW_ON_ERROR);
 
         self::assertIsArray($decoded);
         self::assertSame('ok', $decoded['status'] ?? null);
         self::assertSame($candidate, $decoded['candidate_sha'] ?? null);
         self::assertSame($candidate, $decoded['target_sha'] ?? null);
+
+        $typo = $runner->run([...$command, '--release-tga=1.2.3']);
+        self::assertSame(1, $typo['exit_code']);
+        self::assertStringContainsString('Unknown candidate evidence option: --release-tga', $typo['stdout'] . $typo['stderr']);
     }
 
     private function repository(): string
