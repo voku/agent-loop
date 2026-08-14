@@ -1,0 +1,35 @@
+{
+    "id": "proposal.2026-08-14.013",
+    "created_at": "2026-08-14T06:51:48+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-14.005"
+    ],
+    "reason": "agent-loop pinned an agent-skills commit solely to load a Recall operating-prompt catalog, so a green Loop gate depended on an unrelated repository's SHA for Recall behavior while Recall itself versioned independently. The scope names the workflows and the manifest resource because that is where the coupling was expressed and where a regression would reappear; the rule generalises to any machine-readable instruction asset whose correctness is defined by a tool's CLI, schema or output contract.",
+    "remaining_uncertainty": [],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Tool-coupled instruction assets",
+    "scope": [
+        ".github/workflows/ci.yml",
+        "composer.json",
+        "docs/agents/PROMPT_PRIMITIVES.md"
+    ],
+    "old": null,
+    "new": "Machine-readable instruction assets coupled to a tool's CLI, schema or output contract ship from the repository that owns the tool and are tested with it. A general skill collection may reference or install tool-owned assets but must not keep a second canonical copy.",
+    "boundary": "Tool-neutral principles may still live in a shared skill collection. The rule constrains canonical copies of commands, schemas, output contracts and recipe resources.",
+    "validation": [
+        "php tools/prompt-primitives-dogfood.php --recall-root=<checkout> --workspace=<tmp> --report=build/prompt-primitives-report.json"
+    ],
+    "scope_justification": "agent-loop pinned an agent-skills commit solely to load a Recall operating-prompt catalog, so a green Loop gate depended on an unrelated repository's SHA for Recall behavior while Recall itself versioned independently. The scope names the workflows and the manifest resource because that is where the coupling was expressed and where a regression would reappear; the rule generalises to any machine-readable instruction asset whose correctness is defined by a tool's CLI, schema or output contract.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "tool.coupled.instructions.ship.with.the.tool",
+    "validation_case": {
+        "given": "a machine-readable instruction asset whose correctness depends on a tool's CLI, schema or generated artifacts",
+        "when": "the canonical copy lives in a separate repository that the consumer must pin by commit",
+        "then": "code and instructions acquire independent release cadences, and a green gate depends on an unrelated repository's SHA"
+    }
+}

@@ -1,0 +1,28 @@
+{
+    "id": "finding.2026-08-14.014",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T10:05:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        ".agent-loop/learning/findings"
+    ],
+    "observation": "Finding IDs are a date plus a per-day sequence allocated by whoever writes the file. While this branch was open, release 0.15.2 landed finding.2026-08-14.005 on main for task PROMPT-OWNERSHIP-001, and the branch had already allocated the same ID for an unrelated Git-worktree finding. Nothing detected the collision at allocation time. Both branches passed their own `learn validate` because each side saw only its own file; the collision surfaced only in CI, where the pull-request merge produced two records with one ID and `learn validate` failed with 'duplicate finding ID' before any other gate could run.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "bash tools/self-shape-dogfood.sh (GitHub Actions, PR #104)",
+            "summary": "Exit 1 at the first step: '.agent-loop/learning/findings/validated/finding.2026-08-14.005.json: record finding.2026-08-14.005: duplicate finding ID'. The same runner passed on the branch checkout, where only one of the two records existed."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Resolved by keeping the published ID with the finding that reached main first and renumbering the branch's record to finding.2026-08-14.013, then updating the proposal that cited it. Renumbering had to be applied inside the rebase, because the ID appears in the commit that creates the file and again in the commit that consolidates it."
+        }
+    ],
+    "hypothesis": "A per-day sequence with no allocation authority is safe only while one branch at a time writes findings. Parallel work makes collisions likely on any busy day, and the failure appears late - at merge - rather than at allocation, where it would be cheap.",
+    "validated_conclusion": "On a collision the published ID stays with the record that reached the default branch first; the later branch renumbers and updates every citation. Rebase before the merge check rather than after: the ID appears in both the commit that creates a finding and the commit that consolidates it, so the renumber must be applied during the rebase, not on the final tree.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}
