@@ -1,0 +1,48 @@
+{
+    "schema_version": "1.0",
+    "case": "external-consumer-integration",
+    "consumer_repository": "voku/anti-xss",
+    "consumer_commit": "d0b62aa",
+    "installed_as": "isolated tooling project (tools/agent-loop), vendor/bin/agent-loop",
+    "task": {
+        "id": "ANTIXSS-1",
+        "goal": "Turn representative vectors from the PayloadsAllTheThings XSS Injection catalog into focused regression tests for AntiXSS::xss_clean().",
+        "approved_scope": [
+            "tests/AntiXssTest.php"
+        ],
+        "correct_outcome": "TEST_ONLY_CHANGE unless a regression demonstrates an executable XSS primitive survives sanitization"
+    },
+    "decisive_evidence": {
+        "symbol": "voku\\helper\\AntiXSS::xss_clean",
+        "file": "src/voku/helper/AntiXSS.php",
+        "why_decisive": "The production entry point under test is outside the approved scope, and the repository map was built over src only, so the scoped test file is not in the index at all. Without ranked evidence the governed context would describe the task and nothing it acts on."
+    },
+    "chain_before": {
+        "discovered_by_map": true,
+        "selected_by_recall": false,
+        "present_in_governed_context": false,
+        "classification": "discovered but not selected",
+        "context_lines": null,
+        "context_bytes": null,
+        "root_cause": "Same reader-without-writer defect as the Simple-PHP-Code-Parser case: no derived search index existed at ProjectLayout::mapSearchIndex(), so workflow approve compiled Recall without ranked facts."
+    },
+    "chain_after": {
+        "discovered_by_map": true,
+        "selected_by_recall": true,
+        "present_in_governed_context": true,
+        "classification": "conserved",
+        "context_lines": 43,
+        "context_bytes": 3573,
+        "note": "The scoped file itself is reported honestly as [SKIP] agent-map: missing for tests/AntiXssTest.php, while the decisive production symbols still reach the context through ranked evidence."
+    },
+    "fix_boundary": {
+        "search_widened": false,
+        "ranking_changed": false,
+        "context_budget_raised": false,
+        "note": "No consumer production code was changed. The repository had already adopted the documented boundary: .gitattributes export-ignores /.agent-loop and /tools/agent-loop, and tools/agent-loop pins config.platform.php."
+    },
+    "observed_friction": [
+        "agent-map writes a PHPStan result cache to a hardcoded path outside the workflow state root; the consumer gained an untracked 5.3 MB directory not covered by its export-ignore rules (finding.2026-08-14.009).",
+        "voku/itp-context installs as a hard runtime dependency although the evidence-plane documentation calls it an external tool (finding.2026-08-14.010)."
+    ]
+}
