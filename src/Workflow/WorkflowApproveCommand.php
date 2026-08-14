@@ -15,6 +15,7 @@ use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
+use voku\AgentMap\Index\IndexReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -42,6 +43,7 @@ final readonly class WorkflowApproveCommand
         try {
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
+            $this->assertDiscoveryReady($contract);
             $alreadyApproved = $contract->status === TaskContract::APPROVED;
 
             if (!$alreadyApproved) {
@@ -147,6 +149,92 @@ final readonly class WorkflowApproveCommand
 
             return 1;
         }
+    }
+
+    private function assertDiscoveryReady(TaskContract $contract): void
+    {
+        $projectRoot = realpath($this->rootPath);
+        if (!is_string($projectRoot)) {
+            throw new RuntimeException('Project root cannot be resolved for discovery readiness: ' . $this->rootPath);
+        }
+        $projectRoot = rtrim(str_replace('\\', '/', $projectRoot), '/');
+
+        $existingPhpScope = [];
+        foreach ($contract->scope as $scopePath) {
+            $absolute = realpath(PathResolver::join($projectRoot, $scopePath));
+            if (!is_string($absolute)) {
+                continue;
+            }
+            $absolute = str_replace('\\', '/', $absolute);
+            if (!str_starts_with($absolute, $projectRoot . '/')) {
+                continue;
+            }
+            $relative = substr($absolute, strlen($projectRoot) + 1);
+            if ($relative === '' || !str_ends_with(strtolower($relative), '.php') || !is_file($absolute)) {
+                continue;
+            }
+            $existingPhpScope[$relative] = true;
+        }
+
+        if ($existingPhpScope === []) {
+            return;
+        }
+
+        $layout = new ProjectLayout($this->rootPath);
+        $mapIndex = $layout->mapIndex();
+        if (!is_file($mapIndex)) {
+            throw new RuntimeException(
+                'Existing PHP scope requires agent-map discovery before approval: '
+                . implode(', ', array_keys($existingPhpScope))
+                . '. Run `agent-loop map build --paths=src,tests` (or the project-appropriate paths) first.',
+            );
+        }
+
+        try {
+            $map = (new IndexReader())->readSections($mapIndex, ['files']);
+        } catch (RuntimeException $exception) {
+            throw new RuntimeException(
+                'Existing PHP scope requires a readable agent-map snapshot before approval: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        }
+
+        $missingScope = [];
+        foreach (array_keys($existingPhpScope) as $relative) {
+            if ($map->file($relative) === null) {
+                $missingScope[] = $relative;
+            }
+        }
+
+        $stale = [];
+        foreach ($map->files as $file) {
+            $absolute = PathResolver::join($projectRoot, $file->path);
+            $hash = is_file($absolute) ? hash_file('sha256', $absolute) : false;
+            if (!is_string($hash) || !hash_equals($file->sha256, 'sha256:' . $hash)) {
+                $stale[] = $file->path;
+            }
+        }
+
+        if ($missingScope === [] && $stale === []) {
+            return;
+        }
+
+        $problems = [];
+        if ($missingScope !== []) {
+            $problems[] = 'scope not indexed: ' . implode(', ', $missingScope);
+        }
+        if ($stale !== []) {
+            $visible = array_slice($stale, 0, 5);
+            $problems[] = 'stale map entries: ' . implode(', ', $visible)
+                . (count($stale) > count($visible) ? sprintf(' (+%d more)', count($stale) - count($visible)) : '');
+        }
+
+        throw new RuntimeException(
+            'Existing PHP scope is not covered by a fresh agent-map snapshot before approval ('
+            . implode('; ', $problems)
+            . '). Run `agent-loop map refresh` or rebuild the map first.',
+        );
     }
 
     private function prepareSession(TaskContract $contract): Session

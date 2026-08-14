@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\InitDoctorCommand;
+use voku\AgentLoop\Init\InitSyncGitHooksCommand;
 
 /**
  * @internal
@@ -143,7 +144,7 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[OK] Workflow: init diagnostics do not affect workflow close', $result['output']);
     }
 
-    public function testDoctorDistinguishesTrackedGitIntegrationFromActivation(): void
+    public function testDoctorDistinguishesTrackedConfiguredAndActuallyActiveGitIntegration(): void
     {
         $runner = new ProcessRunner($this->root);
         if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
@@ -158,12 +159,41 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[WARN] Git hooks: project policy exists but core.hooksPath is unset', $inactive);
         self::assertStringContainsString('[WARN] Commit template: .gitmessage exists but commit.template is unset', $inactive);
 
-        $runner->mustRun(['git', 'config', 'core.hooksPath', '.githooks']);
-        $runner->mustRun(['git', 'config', 'commit.template', '.gitmessage']);
+        mkdir($this->root . '/other-hooks', 0o775, true);
+        file_put_contents($this->root . '/other-hooks/pre-commit', "#!/bin/sh\nexit 0\n");
+        file_put_contents($this->root . '/other-hooks/commit-msg', "#!/bin/sh\nexit 0\n");
+        file_put_contents($this->root . '/other-message', "# unrelated template\n");
+        $runner->mustRun(['git', 'config', 'core.hooksPath', 'other-hooks']);
+        $runner->mustRun(['git', 'config', 'commit.template', 'other-message']);
+
+        $miswired = $this->runDoctor([])['output'];
+        self::assertStringContainsString(
+            '[WARN] Git hooks: core.hooksPath=other-hooks does not point to executable current agent-loop pre-commit/commit-msg hooks',
+            $miswired,
+        );
+        self::assertStringContainsString(
+            '[WARN] Commit template: commit.template=other-message does not point to .gitmessage',
+            $miswired,
+        );
+
+        ob_start();
+        $syncExit = (new InitSyncGitHooksCommand($this->root))->run(['--commit-template=.gitmessage']);
+        ob_end_clean();
+        self::assertSame(0, $syncExit);
+
+        if (DIRECTORY_SEPARATOR === '/') {
+            self::assertTrue(chmod($this->root . '/.githooks/pre-commit', 0o644));
+            $notExecutable = $this->runDoctor([])['output'];
+            self::assertStringContainsString(
+                '[WARN] Git hooks: core.hooksPath=.githooks does not point to executable current agent-loop pre-commit/commit-msg hooks',
+                $notExecutable,
+            );
+            self::assertTrue(chmod($this->root . '/.githooks/pre-commit', 0o755));
+        }
 
         $active = $this->runDoctor([])['output'];
-        self::assertStringContainsString('[OK] Git hooks: core.hooksPath=.githooks', $active);
-        self::assertStringContainsString('[OK] Commit template: commit.template=.gitmessage', $active);
+        self::assertStringContainsString('[OK] Git hooks: active via core.hooksPath=.githooks', $active);
+        self::assertStringContainsString('[OK] Commit template: active via commit.template=.gitmessage', $active);
     }
 
     public function testDoctorWritesNoFiles(): void

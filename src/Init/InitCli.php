@@ -60,7 +60,7 @@ final readonly class InitCli
                                        [--skip-git-config] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-instructions --agent=<agent|all> [--dry-run]
           agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]
-          agent-loop init scaffold [--dry-run]
+          agent-loop init scaffold [--agent=<agent|all>] [--dry-run]
 
         Commands:
           help              Show init help.
@@ -77,7 +77,7 @@ final readonly class InitCli
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
-          scaffold          Create the minimum local workflow structure below .agent-loop/ and a DEMO-1 task.
+          scaffold          Create the minimum local workflow structure and, with --agent, project the existing host assets/router before workflow work begins.
         TXT;
 
         if ($unknownCommand === '') {

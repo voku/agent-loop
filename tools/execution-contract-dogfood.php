@@ -33,6 +33,15 @@ final readonly class ExecutionContractDogfood
                 throw new ExecutionContractDogfoodFailure('Dogfood fixture is not at the expected validated starting state.');
             }
 
+            // Discovery has to exist before the Contract can be approved and
+            // Recall freezes its governed context. This harness previously
+            // reached approval first and only let `edit --map-paths` build map
+            // state later, which reproduced the exact dogfood bypass the
+            // production workflow now rejects.
+            $this->runCommand([
+                PHP_BINARY, 'bin/agent-loop', 'map', 'build', '--paths=tests/fixtures/self-shape',
+            ], $worktree);
+
             $this->runCommand([
                 PHP_BINARY, 'bin/agent-loop', 'workflow', 'plan', self::TASK,
                 '--by', 'dogfood-planner',
@@ -162,6 +171,7 @@ MD
                 'task_id' => self::TASK,
                 'operating_prompt' => 'breaking-change-review',
                 'project_policy' => 'docs/agents/policies/pre-1.0-compatibility.md',
+                'discovery_before_approval' => true,
                 'pre_contract_state' => 'missing',
                 'pre_contract_mutation_exit' => $blockedEdit['exit_code'],
                 'pre_contract_source_sha256' => hash('sha256', $sourceBefore),

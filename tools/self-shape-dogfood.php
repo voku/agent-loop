@@ -140,8 +140,10 @@ $json($root . '/build/self-shape-input.json', [
 $loop(['learn', 'validate', '--root', '.agent-loop/learning']);
 
 // Approval compiles Recall. Build both map layers first or the governed briefing
-// cannot consume repository evidence that appears only after approval.
-$loop(['map', 'build', '--paths=src,tests']);
+// cannot consume repository evidence that appears only after approval. `tools`
+// contains executable PHP maintained as part of this repository and can be in
+// the same governed PR scope as src/tests.
+$loop(['map', 'build', '--paths=src,tests,tools']);
 $loop(['map', 'search-index', 'build']);
 
 $plan = ['workflow', 'plan', TASK, '--by', PLANNER, '--base-commit', $base];

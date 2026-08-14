@@ -34,6 +34,7 @@ final readonly class InitScaffoldCommand
         }
 
         $dryRun = $options['dryRun'];
+        $agent = $options['agent'];
         $root = rtrim($this->rootPath, '/');
         $stateRoot = $root . '/.agent-loop';
         $configPath = $stateRoot . '/init.json';
@@ -110,33 +111,85 @@ MD
             echo '[CREATE] ' . $cardDisplay . "\n";
         }
 
+        if ($agent !== null) {
+            foreach ($agent->messages() as $message) {
+                echo $message . "\n";
+            }
+
+            $installTokens = ['--agent=' . $agent->canonicalName()];
+            if ($dryRun) {
+                $installTokens[] = '--dry-run';
+            }
+            $installExit = (new InitInstallAssetsCommand($root))->run($installTokens);
+            if ($installExit !== 0) {
+                return $installExit;
+            }
+
+            echo "\n[OK] init scaffold: local workflow structure and host assets are ready.\n";
+            echo "Next:\n";
+            echo "  Start a fresh agent session so the projected instructions and skills can actually be consumed.\n";
+            echo "  agent-loop init doctor\n";
+            echo "  agent-loop map build --paths=src,tests\n";
+            echo "  agent-loop map search-index build\n";
+            echo "  agent-loop board card show DEMO-1\n";
+
+            return 0;
+        }
+
         echo "\n[OK] init scaffold: minimal local workflow structure is ready.\n";
-        echo "Next:\n";
-        echo "  agent-loop board card show DEMO-1\n";
-        echo "  agent-loop workflow plan DEMO-1 --by <actor> --file composer.json --goal \"Add a small validated change.\" --validation \"composer test\"\n";
+        echo "[WARN] Host assets were not projected because --agent was not provided.\n";
+        echo "Before workflow work:\n";
+        echo "  agent-loop init install-assets --agent=<codex|claude|copilot|antigravity>\n";
+        echo "  Start a fresh agent session so the projected instructions and skills can actually be consumed.\n";
+        echo "  agent-loop init doctor\n";
+        echo "  Build or refresh agent-map before workflow approve when governed Recall depends on repository discovery.\n";
 
         return 0;
     }
 
     /**
      * @param list<string> $tokens
-     * @return array{dryRun: bool}
+     * @return array{dryRun: bool, agent: InitAgent|null}
      */
     private function parse(array $tokens): array
     {
         $dryRun = false;
+        $requestedAgent = null;
+        $count = count($tokens);
 
-        foreach ($tokens as $token) {
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
             if ($token === '--dry-run') {
                 $dryRun = true;
 
                 continue;
             }
 
-            throw new \InvalidArgumentException('supported option is --dry-run.');
+            if (str_starts_with($token, '--agent=')) {
+                $requestedAgent = substr($token, strlen('--agent='));
+
+                continue;
+            }
+
+            if ($token === '--agent') {
+                $candidate = $tokens[$i + 1] ?? null;
+                if (!is_string($candidate) || $candidate === '' || str_starts_with($candidate, '--')) {
+                    throw new \InvalidArgumentException('Missing value for option: --agent');
+                }
+                $requestedAgent = $candidate;
+                ++$i;
+
+                continue;
+            }
+
+            throw new \InvalidArgumentException('supported options are --agent=<agent|all> and --dry-run.');
         }
 
-        return ['dryRun' => $dryRun];
+        $agent = $requestedAgent === null
+            ? null
+            : InitAgent::parse($requestedAgent, InitAgent::canonicalNames(), true);
+
+        return ['dryRun' => $dryRun, 'agent' => $agent];
     }
 
     private function ensureDirectory(string $path, string $displayPath, bool $dryRun): void
