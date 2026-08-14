@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use PDO;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
+use voku\AgentMap\Index\AgentMapIndex;
+use voku\AgentMap\Index\AnalysisFingerprint;
+use voku\AgentMap\Index\IndexWriter;
 
 /**
  * A governed context that quietly lost its ranked evidence looks correct.
  *
- * Approve compiles Recall with `--map-search-index` only when the derived index
- * exists. When it does not, Recall still succeeds and still writes every
- * artifact — it simply carries no ranked facts, so the context reaching the
- * execution agent holds only the symbols the approved scope already named. That
- * degradation was invisible: approve printed the same success lines either way.
+ * Approve compiles Recall with `--map-search-index` only when agent-map proves
+ * the derived Search index belongs to the current map snapshot. Missing or
+ * stale ranked evidence remains a visible degradation instead of being inferred
+ * from whether a SQLite file happens to exist.
  *
  * @internal
  */
@@ -29,7 +32,21 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-approve-search-' . bin2hex(random_bytes(6));
         mkdir($this->root . '/.agent-loop/map', 0o775, true);
-        file_put_contents($this->root . '/.agent-loop/map/php-symbols.json', '{}');
+        (new IndexWriter())->write(
+            new AgentMapIndex(
+                schemaVersion: '2.0',
+                root: $this->root,
+                backend: 'test',
+                files: [],
+                fingerprint: new AnalysisFingerprint(
+                    '2.2.0',
+                    'sha256:config',
+                    'sha256:lock',
+                    'sha256:current',
+                ),
+            ),
+            $this->root . '/.agent-loop/map/php-symbols.json',
+        );
 
         (new TaskContractStore($this->root))->create(
             'ABC-123',
@@ -51,7 +68,7 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         $result = $this->approve();
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('[WARN] workflow approve: no search index at', $result['output']);
+        self::assertStringContainsString('[WARN] workflow approve: agent-map Search is missing at', $result['output']);
         self::assertStringContainsString('.agent-loop/map/search.sqlite', $result['output']);
         self::assertStringContainsString('map search-index build', $result['output']);
         self::assertNotContains('--map-search-index', $result['recallArgs']);
@@ -59,12 +76,12 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
 
     public function testApproveStaysQuietWhenRankedMapEvidenceIsAvailable(): void
     {
-        file_put_contents($this->root . '/.agent-loop/map/search.sqlite', '');
+        $this->writeSearchSnapshot('sha256:current');
 
         $result = $this->approve();
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringNotContainsString('no search index at', $result['output']);
+        self::assertStringNotContainsString('[WARN] workflow approve:', $result['output']);
         self::assertContains('--map-search-index', $result['recallArgs']);
     }
 
@@ -87,6 +104,19 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         $output = (string) ob_get_clean();
 
         return ['exit' => $exit, 'output' => $output, 'recallArgs' => $recallArgs];
+    }
+
+    private function writeSearchSnapshot(string $snapshot): void
+    {
+        $pdo = new PDO(
+            'sqlite:' . $this->root . '/.agent-loop/map/search.sqlite',
+            null,
+            null,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
+        $pdo->exec('CREATE TABLE search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        $statement = $pdo->prepare('INSERT INTO search_meta (key, value) VALUES (:key, :value)');
+        $statement->execute(['key' => 'map_snapshot', 'value' => $snapshot]);
     }
 
     private function rm(string $path): void

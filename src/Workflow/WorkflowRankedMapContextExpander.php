@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use RuntimeException;
 use Throwable;
-use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentMap\Context\EditContextPlanner;
 use voku\AgentMap\Context\EditContextPolicy;
-use voku\AgentMap\Index\AgentMapIndex;
-use voku\AgentMap\Index\IndexReader;
+use voku\AgentMap\Inspect\MapReadinessInspector;
+use voku\AgentMap\MapArtifactPaths;
 
 /**
  * Turns ranked Recall navigation leads into bounded, read-only structural context.
@@ -45,27 +43,33 @@ final readonly class WorkflowRankedMapContextExpander
             $budget->add('candidate_navigation', $this->leadLine($offset + 1, $result));
         }
 
-        try {
-            $index = $this->currentMap();
-        } catch (RuntimeException $exception) {
-            $budget->skip('agent-map candidate expansion: ' . $exception->getMessage());
+        $layout = new ProjectLayout($this->rootPath);
+        $readiness = (new MapReadinessInspector())->inspect(
+            MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
+        );
+        $index = $readiness->currentMap();
+        if ($index === null) {
+            $budget->skip(
+                'agent-map candidate expansion: current map is ' . $readiness->mapState
+                . ($readiness->mapFailure === null ? '' : ' (' . $readiness->mapFailure . ')'),
+            );
 
             return;
         }
 
-        if ($index->fingerprint === null) {
+        $currentSnapshot = $readiness->mapSnapshot;
+        if ($currentSnapshot === null || $currentSnapshot === '') {
             $budget->skip('agent-map candidate expansion: current map has no source fingerprint');
 
             return;
         }
 
         $recallSnapshot = is_string($payload['map_snapshot'] ?? null) ? trim($payload['map_snapshot']) : '';
-        $currentSnapshot = $index->fingerprint->sourceDigest;
-        if ($recallSnapshot === '' || $currentSnapshot === '' || $recallSnapshot !== $currentSnapshot) {
+        if ($recallSnapshot === '' || $recallSnapshot !== $currentSnapshot) {
             $budget->skip(sprintf(
                 'agent-map candidate expansion: map snapshot mismatch (recall %s, current %s)',
                 $recallSnapshot === '' ? 'missing' : $recallSnapshot,
-                $currentSnapshot === '' ? 'missing' : $currentSnapshot,
+                $currentSnapshot,
             ));
 
             return;
@@ -154,20 +158,6 @@ final readonly class WorkflowRankedMapContextExpander
                 ));
             }
             ++$expanded;
-        }
-    }
-
-    private function currentMap(): AgentMapIndex
-    {
-        $path = (new ProjectLayout($this->rootPath))->mapIndex();
-        if (!is_file($path)) {
-            throw new RuntimeException('index missing (' . PathResolver::relativeTo($this->rootPath, $path) . ')');
-        }
-
-        try {
-            return (new IndexReader())->read($path);
-        } catch (Throwable $exception) {
-            throw new RuntimeException('index invalid (' . PathResolver::relativeTo($this->rootPath, $path) . ')', 0, $exception);
         }
     }
 

@@ -15,7 +15,9 @@ use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
-use voku\AgentMap\Index\IndexReader;
+use voku\AgentMap\Inspect\MapReadiness;
+use voku\AgentMap\Inspect\MapReadinessInspector;
+use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -43,7 +45,8 @@ final readonly class WorkflowApproveCommand
         try {
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
-            $this->assertDiscoveryReady($contract);
+            $mapReadiness = $this->mapReadiness();
+            $this->assertDiscoveryReady($contract, $mapReadiness);
             $alreadyApproved = $contract->status === TaskContract::APPROVED;
 
             if (!$alreadyApproved) {
@@ -96,24 +99,23 @@ final readonly class WorkflowApproveCommand
                 $recallArgs[] = $kanbanContext;
             }
 
-            $mapIndex = $layout->mapIndex();
-            if (is_file($mapIndex)) {
+            if ($mapReadiness->mapState === 'ready') {
                 $recallArgs[] = '--map-index';
-                $recallArgs[] = $mapIndex;
+                $recallArgs[] = $mapReadiness->mapPath;
                 $recallArgs[] = '--map-root';
                 $recallArgs[] = $this->rootPath;
 
-                $mapSearchIndex = $layout->mapSearchIndex();
-                if (is_file($mapSearchIndex)) {
+                if ($mapReadiness->rankedSearchReady()) {
                     $recallArgs[] = '--map-search-index';
-                    $recallArgs[] = $mapSearchIndex;
+                    $recallArgs[] = $mapReadiness->searchPath;
                 } else {
                     // Recall still compiles, but with no ranked facts - so the
                     // governed context carries only the symbols already named in
                     // the approved scope. Said out loud, because a silently
                     // narrower context looks exactly like a correct one.
-                    echo '[WARN] workflow approve: no search index at ' . $layout->display($mapSearchIndex)
-                        . '; Recall compiles without ranked map evidence. Run `agent-loop map search-index build` first.' . "\n";
+                    echo '[WARN] workflow approve: agent-map Search is ' . $mapReadiness->searchState
+                        . ' at ' . $layout->display($mapReadiness->searchPath)
+                        . '; Recall compiles without ranked map evidence. Run `agent-loop map search-index build` or refresh it first.' . "\n";
                 }
             }
             $exit = ($this->recallRunner)($recallArgs);
@@ -151,7 +153,7 @@ final readonly class WorkflowApproveCommand
         }
     }
 
-    private function assertDiscoveryReady(TaskContract $contract): void
+    private function assertDiscoveryReady(TaskContract $contract, MapReadiness $readiness): void
     {
         $projectRoot = realpath($this->rootPath);
         if (!is_string($projectRoot)) {
@@ -180,24 +182,33 @@ final readonly class WorkflowApproveCommand
             return;
         }
 
-        $layout = new ProjectLayout($this->rootPath);
-        $mapIndex = $layout->mapIndex();
-        if (!is_file($mapIndex)) {
+        if ($readiness->mapState === 'missing') {
             throw new RuntimeException(
                 'Existing PHP scope requires agent-map discovery before approval: '
                 . implode(', ', array_keys($existingPhpScope))
                 . '. Run `agent-loop map build --paths=src,tests` (or the project-appropriate paths) first.',
             );
         }
-
-        try {
-            $map = (new IndexReader())->readSections($mapIndex, ['files']);
-        } catch (RuntimeException $exception) {
+        if ($readiness->mapState === 'invalid') {
             throw new RuntimeException(
-                'Existing PHP scope requires a readable agent-map snapshot before approval: ' . $exception->getMessage(),
-                0,
-                $exception,
+                'Existing PHP scope requires a readable agent-map snapshot before approval: '
+                . ($readiness->mapFailure ?? 'agent-map reported an invalid snapshot'),
             );
+        }
+        if ($readiness->mapState === 'stale') {
+            $stale = array_column($readiness->staleEntries, 'path');
+            $visible = array_slice($stale, 0, 5);
+            throw new RuntimeException(
+                'Existing PHP scope is not covered by a fresh agent-map snapshot before approval (stale map entries: '
+                . implode(', ', $visible)
+                . (count($stale) > count($visible) ? sprintf(' (+%d more)', count($stale) - count($visible)) : '')
+                . '). Run `agent-loop map refresh` or rebuild the map first.',
+            );
+        }
+
+        $map = $readiness->currentMap();
+        if ($map === null) {
+            throw new RuntimeException('agent-map reported a ready snapshot without a readable current map.');
         }
 
         $missingScope = [];
@@ -206,34 +217,23 @@ final readonly class WorkflowApproveCommand
                 $missingScope[] = $relative;
             }
         }
-
-        $stale = [];
-        foreach ($map->files as $file) {
-            $absolute = PathResolver::join($projectRoot, $file->path);
-            $hash = is_file($absolute) ? hash_file('sha256', $absolute) : false;
-            if (!is_string($hash) || !hash_equals($file->sha256, 'sha256:' . $hash)) {
-                $stale[] = $file->path;
-            }
-        }
-
-        if ($missingScope === [] && $stale === []) {
+        if ($missingScope === []) {
             return;
         }
 
-        $problems = [];
-        if ($missingScope !== []) {
-            $problems[] = 'scope not indexed: ' . implode(', ', $missingScope);
-        }
-        if ($stale !== []) {
-            $visible = array_slice($stale, 0, 5);
-            $problems[] = 'stale map entries: ' . implode(', ', $visible)
-                . (count($stale) > count($visible) ? sprintf(' (+%d more)', count($stale) - count($visible)) : '');
-        }
-
         throw new RuntimeException(
-            'Existing PHP scope is not covered by a fresh agent-map snapshot before approval ('
-            . implode('; ', $problems)
+            'Existing PHP scope is not covered by a fresh agent-map snapshot before approval (scope not indexed: '
+            . implode(', ', $missingScope)
             . '). Run `agent-loop map refresh` or rebuild the map first.',
+        );
+    }
+
+    private function mapReadiness(): MapReadiness
+    {
+        $layout = new ProjectLayout($this->rootPath);
+
+        return (new MapReadinessInspector())->inspect(
+            MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
         );
     }
 
