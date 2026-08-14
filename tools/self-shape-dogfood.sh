@@ -3,7 +3,7 @@ set -euo pipefail
 
 task='SELF-SHAPE'
 planner='agent-loop-self-shape'
-learning_root='infra/doc/agent-learning'
+learning_root='.agent-loop/learning'
 # Resolved from the product after APPROVE: agent-loop owns where Recall output
 # lives, so the harness must not assert a second, hardcoded location for it.
 recall_root=''
@@ -87,7 +87,6 @@ echo json_encode([
 plan=(
   "${agent_loop[@]}" workflow plan "${task}"
   --by "${planner}"
-  --learning-root "${learning_root}"
   --base-commit "${base}"
 )
 for file in "${changed_files[@]}"; do
@@ -102,10 +101,9 @@ plan+=(
 "${plan[@]}"
 
 "${agent_loop[@]}" workflow approve "${task}" \
-  --by "${approval_actor}" \
-  --learning-root "${learning_root}"
+  --by "${approval_actor}"
 
-recall_root="$("${agent_loop[@]}" workflow report "${task}" --format json --learning-root "${learning_root}" | php -r '
+recall_root="$("${agent_loop[@]}" workflow report "${task}" --format json | php -r '
 $data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
 $meta = $data["recall"]["meta_path"] ?? null;
 if (!is_string($meta) || $meta === "") { exit(1); }
@@ -130,7 +128,6 @@ echo $run;
 
 "${agent_loop[@]}" workflow context "${task}" \
   --format json \
-  --learning-root "${learning_root}" \
   > build/self-shape-context.json
 
 validation_started_ms="$(php -r 'echo (string) ((int) round(microtime(true) * 1000));')"
@@ -193,8 +190,7 @@ echo json_encode([
 "${agent_loop[@]}" workflow learn "${task}" \
   --status no_durable_learning \
   --by "${planner}" \
-  --reason 'The self-shape gate observed no new reusable guidance beyond the durable Contract/Run ownership changes already represented by this pull request.' \
-  --learning-root "${learning_root}"
+  --reason 'The self-shape gate observed no new reusable guidance beyond the durable Contract/Run ownership changes already represented by this pull request.'
 
 memory_review="$("${agent_loop[@]}" memory review --file=MEMORY.md)"
 printf '%s\n' "${memory_review}"
@@ -210,7 +206,6 @@ grep -Fq 'Rows still needing promotion review: 0' <<< "${memory_review}"
 report=(
   "${agent_loop[@]}" workflow report "${task}"
   --format json
-  --learning-root "${learning_root}"
 )
 for file in "${changed_files[@]}"; do
   report+=(--changed-file "${file}")
@@ -218,8 +213,7 @@ done
 "${report[@]}" > build/self-shape-report.json
 
 "${agent_loop[@]}" workflow close "${task}" \
-  --status done \
-  --learning-root "${learning_root}"
+  --status done
 
 status_file='build/self-shape-status.json'
 "${agent_loop[@]}" workflow status "${task}" --format json > "${status_file}"
@@ -268,7 +262,6 @@ if (
 
 "${agent_loop[@]}" workflow report "${task}" \
   --format json \
-  --learning-root "${learning_root}" \
   > build/self-shape-report-post-prune.json
 
 grep -Fq '"source": "verification_receipt"' build/self-shape-report-post-prune.json
