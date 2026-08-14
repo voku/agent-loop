@@ -4,11 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.15.1 - 2026-08-14
+
 ### Added
 
 - `workflow status <task-id> --expect <state>` turns the read-only Run
   projection into an exact, CI-assertable lifecycle check without changing the
   existing status exit semantics when no expectation is supplied.
+- Prompt review now has an installable falsification path end to end: the Loop
+  review namespace exposes Recall's context-light `review first-draft`, governed
+  `review code <task-id>` includes the same first-draft lens with task artifacts,
+  and installed `agent-skills` can supply project-grounded L2 recipes such as
+  `adversarial-review` through their copied `operating-prompts.json` manifest.
 
 - `voku/itp-context` is a runtime dependency, and `src/Context/ArchitectureRules.php`
   declares four rules with the `Rule` attribute on the symbols they constrain:
@@ -25,6 +32,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Requires `voku/agent-recall-compiler ^0.11.4`, whose released prompt surface
+  preserves acceptance/scope/evidence boundaries and provides the first-draft
+  review primitive. Prompt, acceptance, execution-contract, release-set, and
+  installed-asset dogfood now use the same released Recall floor and the same
+  pinned first-party `agent-skills` catalog instead of testing stale prompt
+  combinations.
 - `voku\AgentLoop\Cli\OptionTokens` owns argv option parsing. Twelve commands
   carried a private copy of the same loop, ten byte for byte — including one
   added in this release. `slop-scan` reported the cluster; the extraction
