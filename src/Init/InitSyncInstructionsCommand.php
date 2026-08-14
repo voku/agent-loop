@@ -154,7 +154,7 @@ final readonly class InitSyncInstructionsCommand
     /**
      * The router is the only agent-loop text a host loads without being asked,
      * so the commands in it have to be the ones that work here. The package
-     * source keeps a placeholder and the projection resolves it: a consumer gets
+     * source keeps a CLI token that projection resolves: a consumer gets
      * `vendor/bin/agent-loop`, the package's own checkout gets `bin/agent-loop`,
      * which is the only path that exists there.
      */

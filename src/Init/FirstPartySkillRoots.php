@@ -26,33 +26,27 @@ final readonly class FirstPartySkillRoots
      */
     public static function resolve(string $packageRoot): array
     {
-        $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
-        if (!is_string($recallFile)) {
+        $recallRoot = self::recallSkillRoot();
+        if ($recallRoot === null) {
             throw new RuntimeException('Unable to resolve the installed agent-recall-compiler package path.');
         }
 
         return [
             $packageRoot . '/docs/agents/skills',
-            dirname($recallFile, 2) . '/skills',
+            $recallRoot,
         ];
     }
 
     /**
      * Skill directory names the Recall dependency contributes, or an empty list
-     * when it is not installed - a read-only report must not fail over that.
+     * when it is not installed. A read-only status report should remain usable.
      *
      * @return list<string>
      */
     public static function recallSkillEntries(): array
     {
-        try {
-            $roots = self::resolve('');
-        } catch (RuntimeException) {
-            return [];
-        }
-
-        $recallRoot = $roots[1];
-        if (!is_dir($recallRoot)) {
+        $recallRoot = self::recallSkillRoot();
+        if ($recallRoot === null || !is_dir($recallRoot)) {
             return [];
         }
 
@@ -70,5 +64,16 @@ final readonly class FirstPartySkillRoots
         sort($entries);
 
         return $entries;
+    }
+
+    private static function recallSkillRoot(): ?string
+    {
+        if (!class_exists(RecallCli::class)) {
+            return null;
+        }
+
+        $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
+
+        return is_string($recallFile) ? dirname($recallFile, 2) . '/skills' : null;
     }
 }
