@@ -5,7 +5,19 @@ declare(strict_types=1);
 namespace voku\AgentLoop;
 
 /**
- * Answers repository-shape questions by asking Git instead of inspecting `.git`.
+ * Answers "is this path inside a Git working tree" by asking Git.
+ *
+ * The filesystem shape of `.git` is not a contract. In a linked worktree
+ * (`git worktree add`) it is a *file* pointing at the shared repository, and in
+ * a submodule it is a file too. Code that tested `is_dir($root . '/.git')`
+ * therefore reported a perfectly valid checkout as "not a repository": `init
+ * doctor` warned that Git was missing, and `init sync-githooks` silently
+ * skipped `core.hooksPath`/`commit.template`, so it wrote hook files that Git
+ * was never pointed at.
+ *
+ * Agents routinely work in linked worktrees, which is exactly where the shape
+ * assumption fails, so the question is asked once, here, of the only component
+ * that actually knows the answer.
  */
 final readonly class GitWorkTree
 {
@@ -16,6 +28,12 @@ final readonly class GitWorkTree
 
     /**
      * Whether Git ignores a repository-relative path.
+     *
+     * Asked of Git for the same reason as everything else here: the answer
+     * depends on global excludes, nested `.gitignore` files and `info/exclude`,
+     * none of which a substring search over the root `.gitignore` would see.
+     * Returns false when Git cannot answer, so a caller reports a possible
+     * problem rather than silently assuming the path is covered.
      */
     public static function ignores(string $rootPath, string $relativePath): bool
     {
