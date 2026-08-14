@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- `commit-msg` now judges the message Git will store instead of the file the
+  hook is handed. At hook time that file still carries Git's comment block, the
+  `commit.template` `init sync-githooks` installs, and the editor's leading blank
+  lines. Matching forbidden patterns against it meant the template's own
+  `WHY: [FILL]` guide line tripped the placeholder rule it exists to explain -
+  blocking every commit with text the committer could not remove - and a message
+  starting one blank line low was reported as having an empty header.
+- Pre-commit checks no longer silently skip staged files whose names Git
+  C-quotes. `core.quotePath` defaults to true, so `für.php` arrived as
+  `"f\303\274r.php"`, matched no `*.php` pattern, named no file on disk, and
+  dropped out of the batch while the hook still exited 0.
+- A `phpstan` check declared with `"level": "max"` no longer becomes `--level=0`.
+  The level was read with `(int)`, so the strictest setting silently produced the
+  weakest analysis; a level the factory cannot read is now a configuration error.
+- `memory validate` accepts Markdown rows whose first or last cell is empty, and
+  treats an escaped `\|` as cell content. The row splitter trimmed *runs* of
+  pipes, so such a row lost a column and the whole MEMORY file was rejected as
+  malformed.
+- Checklist evidence must now resolve to a file inside the bundle or the project.
+  A trailing `is_file($reference)` accepted any readable path on the machine, so
+  `/etc/hostname` counted as evidence and a required `human_review` item passed
+  on an artifact belonging to no task.
+- Probe answers keep numeric evidence ids as strings; PHP's integer-like array
+  key coercion had been emitting them into the graded report as JSON numbers.
+
+### Validation
+
+- 45 new tests across the six defects, each confirmed red before the fix and
+  green after. The commit-message and pre-commit tests drive a real repository
+  and a real `git diff --cached`, and one of them pins Git's own cleanup
+  behaviour so the assumption underneath the validator is checked rather than
+  asserted in a comment.
+
 ## 0.16.3 - 2026-08-14
 
 ### Added

@@ -90,10 +90,10 @@ final readonly class PreCommitRunner
      */
     public function stagedFiles(callable $runner): array
     {
-        $result = $runner('git -C ' . escapeshellarg($this->rootPath) . ' diff --cached --name-only --diff-filter=ACMRT HEAD');
+        $result = $runner($this->diffCommand(' HEAD'));
         if ($result['exit'] !== 0) {
             // A repository without HEAD (the very first commit) has nothing to diff against.
-            $result = $runner('git -C ' . escapeshellarg($this->rootPath) . ' diff --cached --name-only --diff-filter=ACMRT');
+            $result = $runner($this->diffCommand(''));
         }
 
         $files = [];
@@ -112,6 +112,20 @@ final readonly class PreCommitRunner
         }
 
         return array_values($files);
+    }
+
+    /**
+     * `core.quotePath` defaults to true, so Git renders any path with a byte
+     * outside ASCII as a C-quoted string - `"f\303\274r.php"` for `für.php`.
+     * That name matches no `*.php` pattern and names no file on disk, so the file
+     * was dropped from the batch and every configured check silently skipped it
+     * while the hook still reported success. Asking Git for the literal path is
+     * the only way the filter sees what was actually staged.
+     */
+    private function diffCommand(string $revision): string
+    {
+        return 'git -C ' . escapeshellarg($this->rootPath)
+            . ' -c core.quotePath=false diff --cached --name-only --diff-filter=ACMRT' . $revision;
     }
 
     private function matchesFilePatterns(string $file): bool
