@@ -233,7 +233,7 @@
             "locations": [
                 {
                     "path": "src/Init/InitStatusCommand.php",
-                    "line": 267,
+                    "line": 268,
                     "column": 1
                 }
             ],
@@ -242,9 +242,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "23a23e7a3cf8fe646f3a2ec43b0f4ca1b1910dfda0639ab2259a1e3853d8f3fa",
+                        "fingerprint": "8db439730d0983156ed6c8e1cb0fe8b2bbab470b3246a55389afec734e5247e0",
                         "path": "src/Init/InitStatusCommand.php",
-                        "line": 267,
+                        "line": 268,
                         "column": 1
                     }
                 ]
@@ -266,7 +266,7 @@
             "locations": [
                 {
                     "path": "src/Run/RunManifestProjector.php",
-                    "line": 128,
+                    "line": 129,
                     "column": 1
                 }
             ],
@@ -275,9 +275,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "69fdfad22a076fa0baeda445f3fa983dbb752dcf3aec9c77199abdd058688b84",
+                        "fingerprint": "888a487034da2bb72197ddb0a8467d50881cf7b8212cd1c31cb706330c35f067",
                         "path": "src/Run/RunManifestProjector.php",
-                        "line": 128,
+                        "line": 129,
                         "column": 1
                     }
                 ]
@@ -332,7 +332,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 171,
+                    "line": 172,
                     "column": 1
                 }
             ],
@@ -341,9 +341,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "f4c1b6c5f21ba1b1cbf680f72c2f589d718fd6140717bd3ea603138266abe3dc",
+                        "fingerprint": "08be72f1c90b9a0027a6cc1c059f8e82a21d442a5164798f02de08c5cb3f185a",
                         "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 171,
+                        "line": 172,
                         "column": 1
                     }
                 ]
@@ -365,7 +365,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 217,
+                    "line": 218,
                     "column": 1
                 }
             ],
@@ -374,9 +374,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "716bc0a95604e612fddf271df7819369e17cb2d1f7ca2a52020a3ec83d021c43",
+                        "fingerprint": "56d608f09519799abdbe6ae87ea9774a7d4ca7ca919ace1b1bf5481150c034de",
                         "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 217,
+                        "line": 218,
                         "column": 1
                     }
                 ]
@@ -398,7 +398,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowKanbanContextWriter.php",
-                    "line": 34,
+                    "line": 35,
                     "column": 1
                 }
             ],
@@ -407,9 +407,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "644289b6d4f1ac1cbd34dc54934ed472f15994ed1806ad1d895019e5ce899547",
+                        "fingerprint": "6b560f6636cc312daaa7c080e5560451a496a6add0d6ecd88bdf6ddb39b07f83",
                         "path": "src/Workflow/WorkflowKanbanContextWriter.php",
-                        "line": 34,
+                        "line": 35,
                         "column": 1
                     }
                 ]

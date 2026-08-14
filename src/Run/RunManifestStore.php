@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Run;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 
 final readonly class RunManifestStore
@@ -77,7 +78,7 @@ final readonly class RunManifestStore
         if ($stored === null) {
             return [
                 'state' => 'missing',
-                'path' => RelativePath::fromRoot($this->rootPath, $this->path($manifest->taskId)),
+                'path' => PathResolver::relativeTo($this->rootPath, $this->path($manifest->taskId)),
                 'current_sha256' => 'sha256:' . $currentSha,
                 'stored_sha256' => null,
             ];
@@ -88,7 +89,7 @@ final readonly class RunManifestStore
 
         return [
             'state' => hash_equals($storedSha, $currentSha) ? 'current' : 'stale',
-            'path' => RelativePath::fromRoot($this->rootPath, $this->path($manifest->taskId)),
+            'path' => PathResolver::relativeTo($this->rootPath, $this->path($manifest->taskId)),
             'current_sha256' => 'sha256:' . $currentSha,
             'stored_sha256' => 'sha256:' . $storedSha,
         ];

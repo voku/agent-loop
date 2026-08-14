@@ -39,7 +39,7 @@ final class GovernedRunStore
             throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);
         }
         $contractSource = [
-            'path' => RelativePath::fromRoot($this->rootPath, $contract->path),
+            'path' => PathResolver::relativeTo($this->rootPath, $contract->path),
             'sha256' => 'sha256:' . $contractHash,
         ];
 

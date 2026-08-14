@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\PathResolver;
 
 final readonly class InitSyncSubagentsCommand
 {
@@ -175,11 +176,11 @@ final readonly class InitSyncSubagentsCommand
     private function resolveTargetRoot(string $agent): string
     {
         return match ($agent) {
-            'codex' => $this->resolvePathFromEnv('CODEX_AGENTS_DIR')
-                ?? (($codexHome = $this->resolvePathFromEnv('CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
-            'claude' => $this->resolvePathFromEnv('CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
-            'copilot' => $this->resolvePathFromEnv('COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
-            default => $this->resolvePathFromEnv('ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
+                ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
+            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
+            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
+            default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
         };
     }
 
@@ -219,41 +220,6 @@ final readonly class InitSyncSubagentsCommand
     private function pathExists(string $path): bool
     {
         return is_file($path) || is_dir($path) || is_link($path);
-    }
-
-    private function resolvePathFromEnv(string $envName): ?string
-    {
-        $value = getenv($envName);
-        if (!is_string($value) || trim($value) === '') {
-            return null;
-        }
-
-        if ($this->isAbsolutePath($value)) {
-            return rtrim(str_replace('\\', '/', $value), '/');
-        }
-
-        return rtrim(str_replace('\\', '/', $this->rootPath), '/') . '/' . trim(str_replace('\\', '/', $value), '/');
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        if ($path === '') {
-            return false;
-        }
-
-        if (str_starts_with($path, '/')) {
-            return true;
-        }
-
-        if (preg_match('/^[a-zA-Z]:[\\\\\/]/', $path) === 1) {
-            return true;
-        }
-
-        if (str_starts_with($path, '\\\\') || str_starts_with($path, '//')) {
-            return true;
-        }
-
-        return false;
     }
 
     /**

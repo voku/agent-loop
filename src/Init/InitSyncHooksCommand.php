@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\PathResolver;
 
 final readonly class InitSyncHooksCommand
 {
@@ -217,21 +218,7 @@ final readonly class InitSyncHooksCommand
 
     private function resolveClaudeTargetRoot(): string
     {
-        return $this->resolvePathFromEnv('CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
-    }
-
-    private function resolvePathFromEnv(string $variableName): ?string
-    {
-        $value = getenv($variableName);
-        if (!is_string($value) || trim($value) === '') {
-            return null;
-        }
-
-        if (str_starts_with($value, '/')) {
-            return rtrim($value, '/');
-        }
-
-        return rtrim($this->rootPath, '/') . '/' . trim($value, '/');
+        return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
     }
 
     private function syncHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
@@ -349,16 +336,7 @@ final readonly class InitSyncHooksCommand
 
     private function resolveTargetRoot(): string
     {
-        $codexHome = getenv('CODEX_HOME');
-        if (is_string($codexHome) && trim($codexHome) !== '') {
-            if (str_starts_with($codexHome, '/')) {
-                return rtrim($codexHome, '/');
-            }
-
-            return rtrim($this->rootPath, '/') . '/' . trim($codexHome, '/');
-        }
-
-        return $this->rootPath . '/.codex';
+        return PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME') ?? $this->rootPath . '/.codex';
     }
 
     private function writeFile(string $filePath, string $content): void

@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentMap\Context\EditContextPlanner;
 use voku\AgentMap\Context\EditContextPolicy;
@@ -160,13 +161,13 @@ final readonly class WorkflowRankedMapContextExpander
     {
         $path = (new ProjectLayout($this->rootPath))->mapIndex();
         if (!is_file($path)) {
-            throw new RuntimeException('index missing (' . $this->relativePath($path) . ')');
+            throw new RuntimeException('index missing (' . PathResolver::relativeTo($this->rootPath, $path) . ')');
         }
 
         try {
             return (new IndexReader())->read($path);
         } catch (Throwable $exception) {
-            throw new RuntimeException('index invalid (' . $this->relativePath($path) . ')', 0, $exception);
+            throw new RuntimeException('index invalid (' . PathResolver::relativeTo($this->rootPath, $path) . ')', 0, $exception);
         }
     }
 
@@ -191,15 +192,5 @@ final readonly class WorkflowRankedMapContextExpander
             || str_starts_with($normalized, 'test/')
             || str_contains($normalized, '/tests/')
             || preg_match('/(?:^|\/)[^\/]*test\.php$/', $normalized) === 1;
-    }
-
-    private function relativePath(string $path): string
-    {
-        $root = rtrim(str_replace('\\', '/', $this->rootPath), '/');
-        $normalized = str_replace('\\', '/', $path);
-
-        return str_starts_with($normalized, $root . '/')
-            ? substr($normalized, strlen($root) + 1)
-            : $normalized;
     }
 }

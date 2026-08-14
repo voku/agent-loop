@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace voku\AgentLoop;
 
 /**
- * Shared absolute/relative path helpers for resolving a configured path
- * (which may be relative to a project root, or an absolute path elsewhere)
- * against that root, and for rendering an absolute path back down to a
- * root-relative one for display. Used wherever a `paths.*` config value or a
- * resolved output location needs the same join/display logic.
+ * The only code that decides what a path means relative to the project root.
+ *
+ * A configured `paths.*` value, an environment variable naming a host asset
+ * directory and a stored artifact reference are the same question asked three
+ * ways: is this absolute, and if not, what is it relative to? Every private
+ * answer to it agreed with this one only on Unix and only by accident, which is
+ * how `init status` and `init sync-hooks` came to report two different Codex
+ * hooks directories for one `CODEX_HOME`.
  */
 final class PathResolver
 {
@@ -55,14 +58,32 @@ final class PathResolver
     }
 
     /**
+     * A directory named by an environment variable, resolved exactly like a
+     * configured path. Null when the variable is unset or blank, so a caller
+     * falls back to its own default instead of joining an empty string.
+     */
+    public static function fromEnvironment(string $rootPath, string $variableName): ?string
+    {
+        $value = getenv($variableName);
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return rtrim(self::join($rootPath, trim($value)), '/');
+    }
+
+    /**
      * The inverse of join() for display: an absolute path under rootPath is
      * shown relative to it; a path outside rootPath (e.g. a configured
      * absolute override) is returned unchanged rather than mangled.
      */
     public static function relativeTo(string $rootPath, string $absolutePath): string
     {
-        $root = rtrim($rootPath, '/') . '/';
+        $root = rtrim(str_replace('\\', '/', $rootPath), '/') . '/';
+        $normalized = str_replace('\\', '/', $absolutePath);
 
-        return str_starts_with($absolutePath, $root) ? substr($absolutePath, strlen($root)) : $absolutePath;
+        return str_starts_with($normalized, $root)
+            ? substr($normalized, strlen($root))
+            : $normalized;
     }
 }

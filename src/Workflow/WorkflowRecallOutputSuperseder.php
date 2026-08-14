@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\RecallOutputRoot;
-use voku\AgentLoop\Run\RelativePath;
 
 /**
  * Archives derived recall output before a newly approved brief revision is
@@ -42,6 +42,6 @@ final readonly class WorkflowRecallOutputSuperseder
             throw new RuntimeException('Unable to archive superseded recall output: ' . $directory);
         }
 
-        return RelativePath::fromRoot($this->rootPath, $archive);
+        return PathResolver::relativeTo($this->rootPath, $archive);
     }
 }

@@ -11,6 +11,7 @@ use voku\AgentKanban\Cli\BoardContextFactory;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
@@ -371,7 +372,7 @@ final readonly class RunManifestProjector
             'owner' => 'agent-loop',
             'state' => 'present',
             'observation_mode' => 'checked',
-            'path' => RelativePath::fromRoot($this->rootPath, $directory),
+            'path' => PathResolver::relativeTo($this->rootPath, $directory),
             'artifacts' => $artifacts,
         ];
     }
@@ -407,7 +408,7 @@ final readonly class RunManifestProjector
             'owner' => 'agent-loop',
             'state' => 'pending_close',
             'observation_mode' => 'checked',
-            'path' => RelativePath::fromRoot($this->rootPath, (new RunVerificationReceiptStore($this->rootPath))->path($taskId)),
+            'path' => PathResolver::relativeTo($this->rootPath, (new RunVerificationReceiptStore($this->rootPath))->path($taskId)),
         ];
     }
 
@@ -490,7 +491,7 @@ final readonly class RunManifestProjector
                 'owner' => $owner,
                 'state' => $missingState,
                 'observation_mode' => 'checked',
-                'path' => RelativePath::fromRoot($this->rootPath, $path),
+                'path' => PathResolver::relativeTo($this->rootPath, $path),
             ];
         }
 
@@ -607,7 +608,7 @@ final readonly class RunManifestProjector
             throw new RuntimeException('Unable to hash referenced artifact: ' . $path);
         }
 
-        return ['path' => RelativePath::fromRoot($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
+        return ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
     }
 
     /** @return array<string, mixed> */

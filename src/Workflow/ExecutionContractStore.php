@@ -8,9 +8,9 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
-use voku\AgentLoop\Run\RelativePath;
 
 final readonly class ExecutionContractStore
 {
@@ -123,7 +123,7 @@ final readonly class ExecutionContractStore
             'created_at' => $this->now(),
         ]));
 
-        return RelativePath::fromRoot($this->rootPath, $metadataPath);
+        return PathResolver::relativeTo($this->rootPath, $metadataPath);
     }
 
     /** @param list<string> $evidence */
@@ -172,7 +172,7 @@ final readonly class ExecutionContractStore
             'created_at' => $this->now(),
         ]));
 
-        return RelativePath::fromRoot($this->rootPath, $metadataPath);
+        return PathResolver::relativeTo($this->rootPath, $metadataPath);
     }
 
     public function assertReadyForMutation(string $taskId): void
@@ -397,7 +397,7 @@ final readonly class ExecutionContractStore
         }
 
         return [
-            'path' => RelativePath::fromRoot($this->rootPath, $path),
+            'path' => PathResolver::relativeTo($this->rootPath, $path),
             'sha256' => 'sha256:' . $sha,
         ];
     }
