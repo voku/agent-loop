@@ -7,10 +7,10 @@
     ],
     "reason": "Three defects survived every gate on this branch and were found only by reading the diff against its own removals. The scope names the two files the concrete regressions live in; the rule generalises to any change that replaces a construction-guaranteed invariant with an allocated or computed one, or that swaps a filesystem check for a process call.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "approved",
     "proposed_by": "consolidation",
-    "approved_by": null,
-    "approved_at": null,
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:49:11+00:00",
     "target_type": "memory",
     "target": "Blind-spot review of a diff",
     "scope": [

@@ -142,7 +142,7 @@ Query the index, then inspect selected real source. Never dump `.agent-loop/map/
 
 `composer dogfood:discipline` verifies the bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, and bounded map denial. In particular, it now proves the implementation ladder is **absent** from SessionStart/SubagentStart context.
 
-PR CI additionally runs `tools/self-shape-dogfood.sh` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects an exact pinned `voku/agent-skills` revision. That cross-repository run is the executable proof that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
+PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects an exact pinned `voku/agent-skills` revision. That cross-repository run is the executable proof that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
 
 A green installer proves projection mechanics only. Runtime/delegation claims require their own evidence.
 

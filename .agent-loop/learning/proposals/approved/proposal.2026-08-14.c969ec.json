@@ -7,10 +7,10 @@
     ],
     "reason": "A recorded follow-up that named two possible wrong sides was resolved by changing the cheaper one first, and the repository's own test caught it. The scope names composer.json and the document that disagreed with it, plus the two files whose evidence surfaced during the same run; the rule generalises to any dependency a published class depends on.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "approved",
     "proposed_by": "consolidation",
-    "approved_by": null,
-    "approved_at": null,
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:49:11+00:00",
     "target_type": "memory",
     "target": "Runtime dependency boundary",
     "scope": [

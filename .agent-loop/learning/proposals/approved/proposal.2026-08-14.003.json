@@ -8,10 +8,10 @@
     ],
     "reason": "The same assumption produced two separate silent failures a week apart: WorkingTreeSnapshotter treated a linked worktree as not Git-backed, and later init doctor plus init sync-githooks did the same, installing hook files Git was never pointed at. Both tested the filesystem shape of .git. Scope names the owner that answers the question and the static rule that rejects the shape test, because a rule enforced only by review has already failed twice here.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "approved",
     "proposed_by": "consolidation",
-    "approved_by": null,
-    "approved_at": null,
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:49:11+00:00",
     "target_type": "memory",
     "target": "Git repository detection",
     "scope": [
