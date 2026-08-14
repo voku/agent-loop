@@ -12,6 +12,21 @@
         "dependencies"
       ],
       "max_chars": 4000
+    },
+    {
+      "id": "skill.agent-loop-self-shaping",
+      "type": "skill",
+      "source": "dogfood/self-shaping.md",
+      "scope": [
+        "tools/self-shape-dogfood.php",
+        "src/Dogfood"
+      ],
+      "tags": [
+        "dogfood",
+        "self-shape",
+        "workflow"
+      ],
+      "max_chars": 12000
     }
   ]
 }
