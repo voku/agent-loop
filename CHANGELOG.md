@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.2 - 2026-08-14
+
+### Changed
+
+- Requires `voku/agent-learning ^0.11.1` and `voku/agent-recall-compiler ^0.12.1`. The default Dream report now exposes selected-versus-judged guidance completeness, and the installed Recall consumer skill teaches the released outcome-honesty contract instead of treating compiler placeholders as feedback.
+- Candidate clean-consumer dogfood resolves the declared minimum Recall release from the package contract rather than relying on a synthetic path-repository version.
+
+### Fixed
+
+- Self-shape no longer logs Recall's pre-filled `unknown` rows as though the runner had judged guidance it never read. A caller without evidence can explicitly withhold the judgement with a bounded reason; silent absence still blocks close.
+- `workflow close` accepts withholding only from a current `selected=true` selection event, canonicalizes the current selected set, and does not warn by reading a missing `outcomes.jsonl` in a legitimate all-withheld run. An existing unreadable outcome history fails explicitly.
+- Self-shape resolves the current Contract revision instead of assuming revision 1, so evidence remains bound after a Contract revision.
+
+### Validation
+
+- PHP 8.3/8.4/8.5, diagnostics and project PHPStan rules, acceptance/prompt-primitives clean-consumer dogfood, installed release-set dogfood, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint and CodeRabbit were green on the exact current-base candidate before merge; the exact merge commit also passed main-branch CI.
+
+
 ## 0.16.1 - 2026-08-14
 
 ### Changed
