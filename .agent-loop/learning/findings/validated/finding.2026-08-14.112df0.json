@@ -1,0 +1,42 @@
+{
+  "id": "finding.2026-08-14.112df0",
+  "task_id": "GH-112",
+  "session": "2026-08-14-shipping-evidence-self-discovery",
+  "created_at": "2026-08-14T21:20:00+02:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "tools/self-shape-dogfood.php",
+    "docs/quick-start.md",
+    "docs/agents/skills/agent-loop-dogfood/SKILL.md",
+    "src/Workflow/WorkflowApproveCommand.php",
+    "src/Init/InitInstallAssetsCommand.php",
+    "src/Init/InitSyncGitHooksCommand.php",
+    "src/GitHooks/PreCommitRunner.php"
+  ],
+  "observation": "The repository used the word dogfood for three different evidence strengths. The installed release-set asset gate proves skills/hooks are projected, while the self-shape runner compiles Recall but explicitly withholds guidance judgement because it never reads system.md. The quick-start built agent-map only after workflow approve even though approve is the point that compiles Recall from map files that already exist. Separately, package-owned Git hooks could be installed but this repository had no tracked .agent-loop/githooks.json, so pre-commit reported no configured checks; GitHub API/connector commits cannot execute local Git hooks in any case. These are capability/ordering boundaries, not model reluctance.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "tools/self-shape-dogfood.php calls RecallOutcomeDraft::withholdInFile with the explicit reason that the harness never reads system.md. The installed release-set CI separately checks projected host files, so compilation/projection were being observed without agent consumption."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "WorkflowApproveCommand passes map/search-index paths to Recall only when they already exist, while the previous docs/quick-start.md ordered workflow approve before map build. Building the map afterwards therefore could not influence the already-compiled briefing."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "GitHookConfig defaults to an empty check list when .agent-loop/githooks.json is absent and PreCommitRunner exits successfully with 'No pre-commit checks configured.' The repository did not track that config and .gitignore ignored .agent-loop/* by default."
+    },
+    {
+      "type": "test_result",
+      "command": "GitHub Actions PR #124 initial candidate runs",
+      "summary": "Acceptance-criteria and prompt-primitives candidate dogfoods passed, the governed L2 execution-contract dogfood passed, and installed release-set dogfood passed independently. Their separate green results demonstrate that these gates exercise different capability planes rather than one end-to-end agent-host behavior."
+    }
+  ],
+  "hypothesis": "Agent workflow integrations appear unused when installation, deterministic compilation, host consumption, and local Git execution are treated as one implicit bootstrap. A mechanism cannot affect an agent before the host loads it, Recall cannot consume a map built after compilation, and local Git hooks cannot run in a GitHub API write path.",
+  "validated_conclusion": "Classify dogfood evidence as installer, deterministic lifecycle, or agent-host behavior before making claims. For agent-host runs, project skills before starting the clean session; build map/search evidence before workflow approval; select L2 recipes in the approved Contract and distinguish compilation from actual system.md consumption. Track project hook policy when local hooks are expected, and mark hooks not_exercised when the host writes through an API that bypasses local Git.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
