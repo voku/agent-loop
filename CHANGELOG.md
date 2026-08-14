@@ -10,13 +10,25 @@ All notable changes to this project will be documented in this file.
   hook is handed. At hook time that file still carries Git's comment block, the
   `commit.template` `init sync-githooks` installs, and the editor's leading blank
   lines. Matching forbidden patterns against it meant the template's own
-  `WHY: [FILL]` guide line tripped the placeholder rule it exists to explain -
-  blocking every commit with text the committer could not remove - and a message
-  starting one blank line low was reported as having an empty header.
-- Pre-commit checks no longer silently skip staged files whose names Git
-  C-quotes. `core.quotePath` defaults to true, so `für.php` arrived as
-  `"f\303\274r.php"`, matched no `*.php` pattern, named no file on disk, and
-  dropped out of the batch while the hook still exited 0.
+  `WHY: [FILL]` guide line tripped the rule it exists to explain - blocking every
+  commit with text the committer could not remove - and a message starting one
+  blank line low was reported as having an empty header.
+- What Git will store is now read from `commit.cleanup` and
+  `core.commentString`/`core.commentChar` rather than assumed. New
+  `GitCommitCleanup` owns the question. Assuming `strip` and `#` was wrong in both
+  directions: under `commit.cleanup=whitespace` Git stores the commentary a
+  stripping rule would have skipped, and under `core.commentChar=;` a `#` line is
+  content Git keeps while the `;` line is the one it drops. `verbatim` and
+  `scissors` are modelled too. `default` resolves to `strip`, because the hook
+  cannot observe whether an editor ran; that boundary is documented and pinned by
+  a test, and an explicit `commit.cleanup` is honoured exactly.
+- Pre-commit checks no longer silently skip staged files whose names Git munges.
+  Line-oriented `--name-only` C-quotes any pathname containing a non-ASCII byte,
+  a tab, a double quote, a backslash or a newline - and `core.quotePath=false`
+  suppresses only the non-ASCII half of that. Such a name matched no `*.php`
+  pattern, named no file on disk, and dropped out of the batch while the hook
+  still exited 0. The path list is now read with `-z`, the form Git provides for
+  machine consumption.
 - A `phpstan` check declared with `"level": "max"` no longer becomes `--level=0`.
   The level was read with `(int)`, so the strictest setting silently produced the
   weakest analysis; a level the factory cannot read is now a configuration error.
@@ -33,11 +45,12 @@ All notable changes to this project will be documented in this file.
 
 ### Validation
 
-- 45 new tests across the six defects, each confirmed red before the fix and
-  green after. The commit-message and pre-commit tests drive a real repository
-  and a real `git diff --cached`, and one of them pins Git's own cleanup
-  behaviour so the assumption underneath the validator is checked rather than
-  asserted in a comment.
+- 64 new tests, each confirmed red before its fix and green after. The
+  commit-message and pre-commit tests drive a real repository and a real
+  `git diff --cached` rather than a stub.
+- The cleanup modes are verified by committing for real under each setting and
+  asserting the prediction equals what Git stored, so the assumption underneath
+  the validator is checked against Git rather than asserted in a comment.
 
 ## 0.16.3 - 2026-08-14
 

@@ -72,10 +72,10 @@ final class CommitMessageCleanupTest extends TestCase
     }
 
     /**
-     * The placeholder rule exists to catch a template guide line the committer forgot
-     * to replace. The guide line itself lives in a comment, so matching it there
-     * blocked every single commit in a repository that uses the `--commit-template`
-     * this package installs - and no edit to the message could clear it.
+     * The rule exists to catch a template guide line the committer forgot to replace.
+     * The guide line itself lives in a comment, so matching it there blocked every
+     * single commit in a repository that uses the `--commit-template` this package
+     * installs - and no edit to the message could clear it.
      */
     public function testATemplatePlaceholderInACommentDoesNotBlockTheCommit(): void
     {
@@ -92,7 +92,7 @@ final class CommitMessageCleanupTest extends TestCase
         self::assertSame([], $violations);
     }
 
-    /** The same placeholder on a line the committer actually wrote is still a violation. */
+    /** The same marker on a line the committer actually wrote is still a violation. */
     public function testATemplatePlaceholderLeftInTheRealBodyStillBlocksTheCommit(): void
     {
         $violations = (new CommitMessageValidator($this->config()))->validate(
@@ -104,8 +104,9 @@ final class CommitMessageCleanupTest extends TestCase
     }
 
     /**
-     * Git's comment block lists the staged paths, so a forbidden pattern as ordinary as
-     * `/TODO/` used to fire on a repository that merely staged a file called `TODO.md`.
+     * Git's comment block lists the staged paths, so a forbidden pattern matching an
+     * unfinished-work marker used to fire on a repository that merely staged a file
+     * whose name contains one.
      */
     public function testGitsOwnStatusCommentaryCannotTripAForbiddenPattern(): void
     {

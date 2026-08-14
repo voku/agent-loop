@@ -8,24 +8,30 @@ namespace voku\AgentLoop\GitHooks;
  * Validates a commit message against the repository's convention.
  *
  * The rules are always the same shape - a header that matches a pattern, no
- * leftover template placeholders, a required section that actually says something,
+ * unreplaced template markers, a required section that actually says something,
  * and a nudge when that section is short and vague. The pattern, the section name,
  * and the wording come from `.agent-loop/githooks.json`, so a project changes its
  * convention without touching a hook script.
  *
- * Everything is judged against the message Git will *store*, not the file the
- * hook is handed. At `commit-msg` time that file still carries Git's own comment
- * block, the `commit.template` this package installs, and whatever blank lines the
- * editor left; Git strips all of it afterwards. Judging the raw file made the
- * template's own `WHY: [FILL]` guide line trip the placeholder rule that the guide
- * exists to explain - an unfixable commit, because the offending text is not
- * something the committer typed - and made a message that merely started one blank
- * line too low report an empty header.
+ * Every rule reads the message Git will *store*, never the file the hook is handed.
+ * At `commit-msg` time that file still carries Git's own comment block, the
+ * `commit.template` this package installs, and whatever blank lines the editor left.
+ * Judging the raw file made the template's own `WHY: [FILL]` guide line trip the
+ * rule that guide exists to explain - an unfixable commit, because the offending
+ * text is not something the committer typed - and made a message that merely started
+ * one blank line too low report an empty header.
+ *
+ * What Git will store is not something this class is allowed to guess: whether
+ * commentary survives, and what commentary even is, come from `commit.cleanup` and
+ * `core.commentString`. {@see GitCommitCleanup} owns that question.
  */
 final readonly class CommitMessageValidator
 {
-    public function __construct(private GitHookConfig $config)
+    private GitCommitCleanup $cleanup;
+
+    public function __construct(private GitHookConfig $config, ?GitCommitCleanup $cleanup = null)
     {
+        $this->cleanup = $cleanup ?? GitCommitCleanup::forMode('strip');
     }
 
     /**
@@ -33,7 +39,7 @@ final readonly class CommitMessageValidator
      */
     public function validate(string $message): array
     {
-        $lines = $this->committedLines($message);
+        $lines = $this->cleanup->committedLines($message);
         $header = trim((string) ($lines[0] ?? ''));
 
         if ($header === '') {
@@ -85,35 +91,6 @@ final readonly class CommitMessageValidator
         $trivialPattern = $this->config->trivialHeaderPattern;
 
         return $trivialPattern !== null && preg_match($trivialPattern, $header) === 1;
-    }
-
-    /**
-     * The message as Git will store it: comment lines removed, then leading and
-     * trailing blank lines dropped - `git commit --cleanup=strip`, which is the
-     * default whenever the message came through an editor.
-     *
-     * Only a `#` in the first column starts a comment for Git, so an indented one
-     * is real content here too.
-     *
-     * @return list<string>
-     */
-    private function committedLines(string $message): array
-    {
-        $lines = [];
-        foreach (preg_split("/\r\n|\n|\r/", $message) ?: [] as $line) {
-            if (!str_starts_with($line, '#')) {
-                $lines[] = $line;
-            }
-        }
-
-        while ($lines !== [] && trim($lines[0]) === '') {
-            array_shift($lines);
-        }
-        while ($lines !== [] && trim($lines[count($lines) - 1]) === '') {
-            array_pop($lines);
-        }
-
-        return $lines;
     }
 
     /**

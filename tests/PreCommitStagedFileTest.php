@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\GitHooks\GitHookConfig;
 use voku\AgentLoop\GitHooks\PreCommitRunner;
@@ -48,13 +49,59 @@ final class PreCommitStagedFileTest extends TestCase
         self::assertSame(['src/Plain.php', 'src/für.php'], $this->stagedFiles());
     }
 
+    /**
+     * `core.quotePath=false` covers only the non-ASCII half of the munging. A tab, a
+     * double quote or a newline in a pathname is C-quoted regardless of that setting,
+     * so the same silent skip survives for every control character unless the path
+     * list is read the way Git means it to be read.
+     *
+     * @param non-empty-string $name
+     */
+    #[DataProvider('mungedNames')]
+    public function testAFileWhoseNameGitWouldQuoteIsStillChecked(string $name): void
+    {
+        $this->stage('src/' . $name, "<?php\n");
+
+        self::assertSame(['src/' . $name], $this->stagedFiles());
+    }
+
+    /** @return array<string, array{non-empty-string}> */
+    public static function mungedNames(): array
+    {
+        return [
+            'non-ascii' => ['für.php'],
+            'tab' => ["tab\tbed.php"],
+            'double quote' => ['quo"te.php'],
+            'newline' => ["we\nird.php"],
+            'backslash' => ['back\\slash.php'],
+        ];
+    }
+
+    /** Several munged names in one commit must all survive, and stay separate paths. */
+    public function testEveryMungedNameInOneCommitSurvivesAsItsOwnPath(): void
+    {
+        $this->stage("src/we\nird.php", "<?php\n");
+        $this->stage("src/tab\tbed.php", "<?php\n");
+        $this->stage('src/für.php', "<?php\n");
+
+        $files = $this->stagedFiles();
+        sort($files, SORT_STRING);
+
+        self::assertSame(['src/für.php', "src/tab\tbed.php", "src/we\nird.php"], $files);
+    }
+
     /** A quoted path must not survive as its quoted spelling either. */
     public function testTheQuotedSpellingNeverReachesTheCheckCommand(): void
     {
         $this->stage('src/für.php', "<?php\n");
+        $this->stage("src/tab\tbed.php", "<?php\n");
 
-        foreach ($this->stagedFiles() as $file) {
+        $files = $this->stagedFiles();
+        self::assertCount(2, $files);
+        foreach ($files as $file) {
             self::assertStringNotContainsString('\\303', $file);
+            self::assertStringNotContainsString('\\t', $file);
+            self::assertDoesNotMatchRegularExpression('/\A".*"\z/', $file);
             self::assertFileExists($this->root . '/' . $file);
         }
     }

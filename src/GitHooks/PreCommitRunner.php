@@ -97,13 +97,15 @@ final readonly class PreCommitRunner
         }
 
         $files = [];
-        foreach ($result['output'] as $line) {
-            $file = trim($line);
-            if ($file === '' || !$this->matchesFilePatterns($file) || $this->isExcluded($file)) {
+        foreach ($this->pathRecords($result['output']) as $file) {
+            if (!$this->matchesFilePatterns($file) || $this->isExcluded($file)) {
                 continue;
             }
 
-            // A staged deletion leaves no file to check.
+            // Nothing to hand a check when the path is gone from the worktree - staged
+            // and then deleted, or replaced by a directory. With `-z` this rejects only
+            // files that really are absent; it used to absorb every name Git had
+            // rewritten on the way out, which is how the filter hid its own blind spot.
             if (!is_file(rtrim($this->rootPath, '/') . '/' . $file)) {
                 continue;
             }
@@ -115,17 +117,41 @@ final readonly class PreCommitRunner
     }
 
     /**
-     * `core.quotePath` defaults to true, so Git renders any path with a byte
-     * outside ASCII as a C-quoted string - `"f\303\274r.php"` for `für.php`.
-     * That name matches no `*.php` pattern and names no file on disk, so the file
-     * was dropped from the batch and every configured check silently skipped it
-     * while the hook still reported success. Asking Git for the literal path is
-     * the only way the filter sees what was actually staged.
+     * `-z` is Git's machine-readable form for a path list: pathnames verbatim, NUL
+     * separated.
+     *
+     * Line-oriented `--name-only` munges names on the way out - `für.php` becomes the
+     * literal `"f\303\274r.php"`, and a tab, a quote or a newline in a name is
+     * C-quoted no matter what `core.quotePath` says. Such a name matches no `*.php`
+     * pattern and names no file on disk, so the file dropped out of the batch, every
+     * configured check skipped it, and the hook still exited 0. `core.quotePath=false`
+     * covers only the non-ASCII half of that; `-z` is the flag Git provides for the
+     * whole of it.
      */
     private function diffCommand(string $revision): string
     {
         return 'git -C ' . escapeshellarg($this->rootPath)
-            . ' -c core.quotePath=false diff --cached --name-only --diff-filter=ACMRT' . $revision;
+            . ' diff --cached --name-only --diff-filter=ACMRT -z' . $revision;
+    }
+
+    /**
+     * Splits `-z` output into pathnames.
+     *
+     * The runner reports stdout as lines, and under `-z` a newline is part of a
+     * pathname rather than a separator, so the lines are rejoined before the real
+     * separator is applied. Nothing is dropped for failing to look like a path: a
+     * record that survives to here is one Git named, and the only later rejections
+     * are the configured pattern and exclusion filters.
+     *
+     * @param list<string> $output
+     * @return list<string>
+     */
+    private function pathRecords(array $output): array
+    {
+        return array_values(array_filter(
+            explode("\0", implode("\n", $output)),
+            static fn (string $record): bool => $record !== '',
+        ));
     }
 
     private function matchesFilePatterns(string $file): bool
