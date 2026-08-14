@@ -1,0 +1,33 @@
+name: Refresh outcome-honesty slop baseline
+
+on:
+  push:
+    branches:
+      - agent/outcome-honesty-self-correction
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/outcome-honesty-self-correction
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Refresh only the deterministic slop baseline
+        run: |
+          composer install --no-interaction --prefer-dist --working-dir=tools/slop-scan
+          composer review:slop-baseline
+          rm .github/workflows/refresh-outcome-honesty-slop-baseline.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add slop-baseline.json .github/workflows/refresh-outcome-honesty-slop-baseline.yml
+          git diff --cached --exit-code && { echo 'baseline did not change'; exit 1; } || true
+          git commit -m "Refresh slop baseline after outcome close hardening"
+          git push origin HEAD:agent/outcome-honesty-self-correction
