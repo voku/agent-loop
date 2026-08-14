@@ -97,8 +97,8 @@ final readonly class AgentDisciplineHook
         $command = $this->extractCommand($payload);
         if ($this->isUnboundedMapDump($command)) {
             return $this->deny(
-                'Unbounded read of the generated agent-map index is blocked.',
-                'Use agent-loop map query, related, file, changed, or stats. The index is navigation state, not prompt evidence.',
+                'Unbounded read of generated agent-map state is blocked.',
+                'Use agent-loop map query, related, file, changed, or stats. Generated map state is navigation state, not prompt evidence.',
             );
         }
 
@@ -342,14 +342,12 @@ final readonly class AgentDisciplineHook
     private function isUnboundedMapDump(string $command): bool
     {
         $layout = new ProjectLayout($this->repositoryRoot);
-        foreach ([$layout->mapIndex(), $layout->mapSearchIndex()] as $mapArtifact) {
-            $path = preg_quote($layout->display($mapArtifact), '~');
-            if (preg_match('~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*' . $path . '(?:\s|$)~i', $command) === 1) {
-                return true;
-            }
-        }
+        $mapRoot = preg_quote(rtrim($layout->display($layout->mapRoot()), '/') . '/', '~');
 
-        return false;
+        return preg_match(
+            '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*' . $mapRoot . '[^;&|]*(?:\s|$)~i',
+            $command,
+        ) === 1;
     }
 
     /**
