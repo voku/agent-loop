@@ -105,6 +105,13 @@ final readonly class WorkflowApproveCommand
                 if (is_file($mapSearchIndex)) {
                     $recallArgs[] = '--map-search-index';
                     $recallArgs[] = $mapSearchIndex;
+                } else {
+                    // Recall still compiles, but with no ranked facts - so the
+                    // governed context carries only the symbols already named in
+                    // the approved scope. Said out loud, because a silently
+                    // narrower context looks exactly like a correct one.
+                    echo '[WARN] workflow approve: no search index at ' . $layout->display($mapSearchIndex)
+                        . '; Recall compiles without ranked map evidence. Run `agent-loop map search-index build` first.' . "\n";
                 }
             }
             $exit = ($this->recallRunner)($recallArgs);
