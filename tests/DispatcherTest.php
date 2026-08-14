@@ -31,7 +31,7 @@ final class DispatcherTest extends TestCase
 
     public function testHelpIsPrintedAndSucceeds(): void
     {
-        $this->assertRun(['agent-loop', 'help'], 0, ['agent-loop - unified CLI', 'edit', 'board', 'learn', 'map', 'recall', 'memory', 'workflow', 'init']);
+        $this->assertRun(['agent-loop', 'help'], 0, ['agent-loop - unified CLI', 'edit', 'board', 'learn', 'map', 'recall', 'prompt', 'memory', 'workflow', 'init']);
     }
 
     public function testNoArgumentsShowsHelp(): void
@@ -56,6 +56,7 @@ final class DispatcherTest extends TestCase
             ['board'],
             ['learn', 'help'],
             ['recall', 'help'],
+            ['prompt', 'guidance-gaps'],
             ['session', 'help'],
         ] as $args) {
             ob_start();
