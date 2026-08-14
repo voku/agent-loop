@@ -5,18 +5,32 @@
   "created_at": "2026-08-14T21:20:00+02:00",
   "created_by": "agent-loop-self-discovery",
   "scope": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    "docs/agents/project-instructions.md",
     "tools/self-shape-dogfood.php",
     "docs/quick-start.md",
     "docs/agents/skills/agent-loop-dogfood/SKILL.md",
     "src/Workflow/WorkflowApproveCommand.php",
     "src/Init/InitInstallAssetsCommand.php",
+    "src/Init/InitSyncInstructionsCommand.php",
     "src/Init/InitSyncGitHooksCommand.php",
     "src/Init/InitDoctorCommand.php",
     "src/GitWorkTree.php",
     "src/GitHooks/PreCommitRunner.php"
   ],
-  "observation": "The repository used the word dogfood for three different evidence strengths. The installed release-set asset gate proves skills/hooks are projected, while the self-shape runner compiles Recall but explicitly withholds guidance judgement because it never reads system.md. The quick-start built agent-map only after workflow approve even though approve is the point that compiles Recall from map files that already exist. Separately, package-owned Git hooks could be installed but this repository had no tracked .agent-loop/githooks.json, so pre-commit reported no configured checks; init doctor also did not distinguish a tracked policy/template from Git actually being configured to use them. GitHub API/connector commits cannot execute local Git hooks in any case. These are capability/ordering boundaries, not model reluctance.",
+  "observation": "The repository had package-owned skills, subagents, hooks, Recall prompt recipes, and agent-map commands, but no project-root instruction file that supported coding-agent hosts automatically load at session start. The installed release-set gate therefore proved that capabilities were projected without proving that a fresh agent was told to use them. This missing always-on router explains the common failure mode better than any individual map or hook defect: on-demand skills and commands existed, but nothing in the default project context connected ordinary task execution to them. Additional concrete defects amplified the symptom: the self-shape runner compiles Recall but explicitly withholds guidance judgement because it never reads system.md; the quick-start built agent-map only after workflow approve even though approve compiles Recall from map files that already exist; package-owned Git hooks could be installed while the repository had no tracked .agent-loop/githooks.json; and GitHub API/connector commits cannot execute local Git hooks in any case.",
   "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "The PR branch initially had no root AGENTS.md, CLAUDE.md, or GEMINI.md. Current Codex documentation automatically aggregates AGENTS.md into project instructions; Claude Code loads CLAUDE.md at session start and documents importing an existing AGENTS.md; Gemini CLI loads GEMINI.md and supports file imports. The repository therefore lacked the host-loaded entrypoint that could route an agent toward installed agent-loop capabilities."
+    },
+    {
+      "type": "test_result",
+      "command": "InitSyncInstructionsCommandTest",
+      "summary": "The regression proves a canonical AGENTS.md router is created, Claude/Gemini use thin imports instead of copied guidance, project-owned text outside markers survives updates, unmanaged existing imports are preserved, malformed markers fail without rewriting the file, dry-run writes nothing, and install-assets projects the router automatically."
+    },
     {
       "type": "manual_verification",
       "summary": "tools/self-shape-dogfood.php calls RecallOutcomeDraft::withholdInFile with the explicit reason that the harness never reads system.md. The installed release-set CI separately checks projected host files, so compilation/projection were being observed without agent consumption."
@@ -40,8 +54,8 @@
       "summary": "Acceptance-criteria and prompt-primitives candidate dogfoods, governed L2 execution-contract dogfood, installed release-set dogfood, and deterministic slop review run independently. Their separate results demonstrate that these gates exercise different capability planes rather than one end-to-end agent-host behavior."
     }
   ],
-  "hypothesis": "Agent workflow integrations appear unused when installation, deterministic compilation, host consumption, and local Git execution are treated as one implicit bootstrap. A mechanism cannot affect an agent before the host loads it, Recall cannot consume a map built after compilation, and local Git hooks cannot run in a GitHub API write path.",
-  "validated_conclusion": "Classify dogfood evidence as installer, deterministic lifecycle, or agent-host behavior before making claims. For agent-host runs, project skills before starting the clean session; build map/search evidence before workflow approval; select L2 recipes in the approved Contract and distinguish compilation from actual system.md consumption. Track project hook policy when local hooks are expected, have init diagnostics report tracked-but-inactive Git integration, and mark hooks not_exercised when the host writes through an API that bypasses local Git.",
+  "hypothesis": "Agent workflow integrations appear unused when on-demand capabilities are installed without an always-loaded project instruction router that tells the acting host when to discover and invoke them. Installation, deterministic compilation, host consumption, and local Git execution are separate capability planes: a skill cannot affect an agent that was never routed to it, Recall cannot consume a map built after compilation, and local Git hooks cannot run in a GitHub API write path.",
+  "validated_conclusion": "Keep the always-on host context small and use it as a router, not a handbook. Project one canonical marker-owned AGENTS.md block that points non-trivial work at agent-loop status, installed skills, agent-map discovery, governed Contract/Recall state, and Git-hook boundaries; use thin host imports where the host requires CLAUDE.md or GEMINI.md. Make install-assets update that router idempotently so package upgrades can revise it without overwriting project-owned instructions. Separately classify dogfood evidence as installer, deterministic lifecycle, or agent-host behavior; build map/search evidence before workflow approval; distinguish compiled L2 prompts from briefing consumption; and report local hooks as not_exercised when the host bypasses local Git.",
   "confidence": "high",
   "validation_status": "validated",
   "status": "validated",
