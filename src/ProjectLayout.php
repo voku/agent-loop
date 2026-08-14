@@ -8,6 +8,7 @@ use ItpContext\Attribute\Rule;
 use RuntimeException;
 use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentMap\MapArtifactPaths;
 
 /**
  * The single owner of every repository-local workflow path.
@@ -18,6 +19,7 @@ use voku\AgentLoop\Init\InitConfigLoader;
  * pre-consolidation session root long after the migration, and how a Run's
  * Learning close-out became invisible to the projection that had to explain it.
  *
+ * Package-owned trees may own their filenames below a Loop-owned mount point.
  * `describe()` exists so a coding agent can ask instead of hardcoding.
  */
 #[Rule(ArchitectureRules::SingleStatePathOwner)]
@@ -110,17 +112,17 @@ final readonly class ProjectLayout
 
     public function mapIndex(): string
     {
-        return $this->mapRoot() . '/php-symbols.json';
+        return $this->mapArtifacts()->indexJson();
     }
 
     public function mapSearchIndex(): string
     {
-        return $this->mapRoot() . '/search.sqlite';
+        return $this->mapArtifacts()->searchDatabase();
     }
 
     public function mapHistoryDatabase(): string
     {
-        return $this->mapRoot() . '/history.sqlite';
+        return $this->mapArtifacts()->historyDatabase();
     }
 
     public function toolInventory(): string
@@ -211,6 +213,11 @@ final readonly class ProjectLayout
         }
 
         return $described;
+    }
+
+    private function mapArtifacts(): MapArtifactPaths
+    {
+        return MapArtifactPaths::forProject($this->projectRoot(), $this->mapRoot());
     }
 
     private function projectRoot(): string
