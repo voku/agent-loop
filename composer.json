@@ -47,6 +47,7 @@
     "test:project-phpstan-rules": "bash tools/project-phpstan-rules.sh",
     "context:validate": "itp-context-validate 'voku\\AgentLoop\\Context\\ArchitectureRules'",
     "review:slop": "php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --lint",
+    "review:slop-baseline": "php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --generate-baseline",
     "dogfood:discipline": "php tools/agent-discipline-dogfood.php",
     "dogfood:self-shape": "bash tools/self-shape-dogfood.sh",
     "ci": [

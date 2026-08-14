@@ -1,0 +1,29 @@
+{
+    "id": "finding.2026-08-14.012",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T09:20:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        "composer.json",
+        "slop-baseline.json"
+    ],
+    "observation": "The deterministic slop review failed on the candidate branch with one new finding: a php.clone-cluster over the private layout() accessor shared by Dispatcher and AcceptedRiskWriter. That clone is pre-existing and already recorded in slop-baseline.json, but the baseline entry stores an absolute line number and a location-derived fingerprint. Adding fifteen lines above the accessor in src/Dispatcher.php moved it from line 401 to 416, so the baselined finding no longer matched and was reported as new. Scanning origin/main with the same tool reported zero new findings, confirming the branch introduced no defect. The repository had no documented or scripted way to refresh the baseline; the option had to be recovered from `slop-scan scan --help`.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer review:slop",
+            "summary": "Exit 1 with 'medium Found near-duplicate PHP function bodies php.clone-cluster at src/Dispatcher.php:416:1, at src/Workflow/AcceptedRiskWriter.php:43:1' and '1 new finding'. The same scan against origin/main reported '0 new findings'."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Regenerating the baseline changed exactly three lines: the recorded line number 401 -> 416 and its derived fingerprint. Comparing the old and new baselines by rule id and evidence showed 13 findings before and after, with nothing added and nothing removed, so no genuine finding was absorbed by the refresh."
+        }
+    ],
+    "hypothesis": "A committed baseline keyed on absolute line numbers turns any insertion above an accepted finding into a review failure. Without a scripted refresh, each occurrence costs a contributor the same rediscovery: read the tool's help, confirm the finding is a move rather than a defect, and regenerate by hand.",
+    "validated_conclusion": "A line-shifted baseline entry is refreshed, not argued with - but only after proving the finding moved rather than appeared, by scanning the base revision with the same tool. `composer review:slop-baseline` now makes the refresh discoverable next to the check it serves.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

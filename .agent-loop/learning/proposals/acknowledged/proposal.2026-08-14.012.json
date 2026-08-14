@@ -1,0 +1,33 @@
+{
+    "id": "proposal.2026-08-14.012",
+    "created_at": "2026-08-14T06:43:36+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-14.012"
+    ],
+    "reason": "A pinned-tool characteristic with a discoverable script as its fix; the transferable part is a working practice, not a repository rule.",
+    "remaining_uncertainty": [
+        "Whether a later slop-scan release makes baseline identity independent of line numbers; the project is pinned to 0.1.4 because 0.1.5 has no tag."
+    ],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": "composer.json#scripts.review:slop-baseline",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "baseline.refresh.after.proving.the.finding.moved",
+    "validation_case": {
+        "given": "a committed slop baseline whose entries carry absolute line numbers",
+        "when": "a change inserts lines above an already-accepted finding",
+        "then": "the review reports it as new, and the base revision must be scanned with the same tool before the baseline is refreshed"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:43:36+00:00"
+}
