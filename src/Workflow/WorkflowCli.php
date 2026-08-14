@@ -44,7 +44,7 @@ Usage:
   agent-loop workflow approve <task-id> --by <actor>
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
-  agent-loop workflow status <task-id> [--format text|json]
+  agent-loop workflow status <task-id> [--format text|json] [--expect blocked|experiment|incomplete|ready_to_close|complete]
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
   agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
@@ -56,7 +56,7 @@ Commands:
   plan      Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
   approve   Approve the exact Contract revision, prepare/resume its governed Run and working Session, then compile Run-bound Recall.
   contract  Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
-  status    Show the read-only cross-package Run projection and one next action.
+  status    Show the read-only cross-package Run projection and one next action; --expect makes an exact state CI-assertable.
   manifest  Inspect or atomically persist the cross-package Run projection.
   context   Render bounded read-only context from the durable Contract and current owner artifacts.
   report    Show an auditable task/Run completion report.

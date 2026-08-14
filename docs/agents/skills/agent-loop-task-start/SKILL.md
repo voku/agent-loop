@@ -12,7 +12,7 @@ sealed input before editing code.
 
 ## Fast Path
 
-Prefer the governed work-brief path:
+Prefer the governed Contract path:
 
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \

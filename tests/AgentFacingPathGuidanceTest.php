@@ -27,6 +27,13 @@ final class AgentFacingPathGuidanceTest extends TestCase
         '.agent-map/',
     ];
 
+    /** Command forms removed by the durable Contract/compact-layout reset. */
+    private const array RETIRED_COMMANDS = [
+        '--brief-revision',
+        'session learning decide',
+        'workflow start',
+    ];
+
     /** Documents whose purpose is to map old locations to new ones. */
     private const array MIGRATION_DOCUMENTS = [
         'UPGRADING.md',
@@ -77,6 +84,29 @@ final class AgentFacingPathGuidanceTest extends TestCase
                     $retired,
                 ),
             );
+        }
+    }
+
+    public function testExecutableGuidanceDoesNotTeachRetiredCommands(): void
+    {
+        $root = dirname(__DIR__);
+        $documents = [
+            $root . '/README.md',
+            $root . '/docs/quick-start.md',
+        ];
+        foreach (self::agentFacingDocuments() as [$path]) {
+            $documents[] = $path;
+        }
+
+        foreach ($documents as $path) {
+            $contents = (string) file_get_contents($path);
+            foreach (self::RETIRED_COMMANDS as $retired) {
+                self::assertStringNotContainsString(
+                    $retired,
+                    $contents,
+                    basename($path) . ' still teaches the retired command form "' . $retired . '".',
+                );
+            }
         }
     }
 

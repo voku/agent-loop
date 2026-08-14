@@ -147,13 +147,13 @@ available for genuinely custom locations.
 ## 5. Make and validate the change
 
 Make the scoped change, run the validation declared in the plan, then record
-the actual result. The first work brief has revision `1`:
+the actual result. The first Contract has revision `1`:
 
 ```bash
 composer test
 
 vendor/bin/agent-loop session validation record DEMO-1 \
-  --brief-revision 1 \
+  --contract-revision 1 \
   --command "composer test" \
   --status passed \
   --exit-code 0 \
@@ -175,12 +175,14 @@ vendor/bin/agent-loop session checkpoint DEMO-1 \
 
 vendor/bin/agent-loop review blindspots DEMO-1
 
-vendor/bin/agent-loop session learning decide DEMO-1 \
+vendor/bin/agent-loop workflow learn DEMO-1 \
   --status no_durable_learning \
-  --by "$(git config user.name)"
+  --by "$(git config user.name)" \
+  --reason "No reusable finding from this bounded task."
 
-vendor/bin/agent-loop verify
+vendor/bin/agent-loop verify --task-id=DEMO-1
 vendor/bin/agent-loop workflow close DEMO-1 --status done
+vendor/bin/agent-loop workflow status DEMO-1 --expect complete
 ```
 
 Read the review output before recording the checkpoint. If verification still

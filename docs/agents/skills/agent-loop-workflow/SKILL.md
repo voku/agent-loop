@@ -26,12 +26,12 @@ reasoning surface available only once normal completion evidence reaches
 
 | Phase | Required evidence before leaving | Route |
 |---|---|---|
-| `PLAN` | candidate brief with goal, scope, non-goals, behavior anchors, validation, and selected operating-prompt policy when used | `agent-loop-task-start` |
-| `APPROVE` | named human approval of that exact brief revision | human gate |
+| `PLAN` | candidate Contract with goal, scope, non-goals, behavior anchors, validation, and selected operating-prompt policy when used | `agent-loop-task-start` |
+| `APPROVE` | named human approval of that exact Contract revision | human gate |
 | `CONTEXT` | bounded approved recall plus verified real-source locations | `agent-loop-l2-context`, then `agent-loop-investigate` when location is unknown |
-| `CONTRACT` | for selected L2 recipes, one current project-specific L1 bound to the approved brief + recall bundle | `workflow contract` |
+| `CONTRACT` | for selected L2 recipes, one current project-specific L1 bound to the approved Contract + recall bundle | `workflow contract` |
 | `IMPLEMENT` | smallest correct diff inside approved scope; required execution contract is current | `agent-loop-surgical-edit` for verified 1-2 file scope; otherwise main workflow |
-| `VALIDATE` | exact required commands recorded against current brief revision | `agent-loop-task-progress` |
+| `VALIDATE` | exact required commands recorded against current Contract revision | `agent-loop-task-progress` |
 | `REVIEW` | blind-spot artifact plus complete raw-diff correctness review; complexity pass when relevant | `agent-loop-code-review`, `agent-loop-simplify-review` |
 | `LEARN` | truthful recall/recipe outcomes plus explicit learning decision | `agent-loop-learning-boundary` |
 | `VERIFY` | cross-package verification and workflow report pass | `agent-loop-review-close` |
@@ -39,7 +39,7 @@ reasoning surface available only once normal completion evidence reaches
 
 Transitions are evidence-driven, not optimistic:
 
-- scope or task policy exceeds the approved brief -> `PLAN` and obtain approval again;
+- scope or task policy exceeds the approved Contract -> `PLAN` and obtain approval again;
 - approval/recompile changes the recall bundle -> any prior execution contract becomes superseded/stale -> `CONTRACT`;
 - required L2 contract is missing, stale, or invalid -> `CONTRACT`, never `IMPLEMENT`;
 - contract construction proves the approved task cannot be executed safely -> record `BLOCKED` or `REJECTED`; do not weaken policy silently;
@@ -61,7 +61,7 @@ Transitions are evidence-driven, not optimistic:
 5. Compile/use bounded recall; use `agent-map` to select precise source reads.
 6. When recall contains L2 recipes, construct exactly one project-specific L1 with `Goal`, `Context`, `Constraints`, `Verification`, and `Done When`; persist it with `workflow contract` before mutation.
 7. Implement the smallest correct change in the owning package.
-8. Record validation against the current brief revision.
+8. Record validation against the current Contract revision.
 9. Review blind spots, the complete raw diff, and complexity separately when needed.
 10. Record recall outcomes, evidence-backed operating-prompt outcomes, and an explicit learning decision.
 11. Run cross-package verification and inspect the workflow report.
@@ -88,7 +88,7 @@ vendor/bin/agent-loop workflow plan <task-id> \
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 ```
 
-With a reusable L2 recipe, selection is part of the WorkBrief that gets approved:
+With a reusable L2 recipe, selection is part of the Contract that gets approved:
 
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \
@@ -195,7 +195,7 @@ The persisted L1 is stored beside the task recall artifacts as:
 The metadata binds the document to the current:
 
 - task id;
-- WorkBrief revision;
+- Contract revision;
 - recall bundle digest;
 - selected L2 prompt semantics/arguments;
 - content digest and actor.
@@ -204,11 +204,9 @@ Re-planning and approving a newer brief supersedes the prior recall task directo
 
 For an active governed task, mutating `agent-loop edit` runners (`command`, `mechanical`, `auto`) require the current L2 execution contract to be `ready`. Read-only prompt/context preparation remains possible before that gate. Context-independent L1-only recipes do not require a synthetic L2 construction pass.
 
-`workflow start` is a legacy/bootstrap shortcut that creates context without a revisioned WorkBrief approval. It is not a replacement for `workflow plan` + `workflow approve` and does not make governed mutation implementation-ready.
-
 ## Workflow Boundary
 
-- Planning records a candidate brief; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments.
+- Planning records a candidate Contract; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments.
 - Re-planning invalidates approval and validation evidence for the old revision.
 - `workflow context`, `status`, `report`, and `reflect` are read-only.
 - `workflow context` never rebuilds recall or a map.
@@ -266,7 +264,7 @@ contract from `agent-loop-discipline`:
 
 ```text
 RESULT: <verified result>
-STATE: <phase> <task-id> <brief revision when known>
+STATE: <phase> <task-id> <Contract revision when known>
 NEXT: <one agent-owned action or exact human gate>
 ```
 
@@ -275,7 +273,7 @@ from persisted artifacts or observed command results, never from intention.
 
 ## Navigation And Evidence
 
-Generated `.agent-map` files are disposable navigation state. Query them through
+Generated `.agent-loop/map` files are disposable navigation state. Query them through
 the CLI, then inspect the selected real source. Do not dump map databases into a
 prompt.
 
@@ -307,7 +305,7 @@ or unverified history.
 
 ```bash
 vendor/bin/agent-loop session validation record <task-id> \
-  --brief-revision <current-revision> \
+  --contract-revision <current-revision> \
   --command "vendor/bin/phpunit tests/FocusedTest.php" \
   --status passed \
   --exit-code 0 \
@@ -326,10 +324,10 @@ A learning decision records an outcome; it does not approve durable guidance or 
 
 ```bash
 vendor/bin/agent-loop review blindspots <task-id>
-vendor/bin/agent-loop verify
+vendor/bin/agent-loop verify --task-id=<task-id>
 vendor/bin/agent-loop workflow report <task-id>
 
-vendor/bin/agent-loop session learning decide <task-id> \
+vendor/bin/agent-loop workflow learn <task-id> \
   --status no_durable_learning \
   --by <actor> \
   --reason "No reusable finding from this bounded task."
@@ -338,6 +336,7 @@ vendor/bin/agent-loop session learning decide <task-id> \
 vendor/bin/agent-loop workflow reflect <task-id> --scope task
 
 vendor/bin/agent-loop workflow close <task-id> --status done
+vendor/bin/agent-loop workflow status <task-id> --expect complete
 
 # Optional after close when the work exposed a meaningful future investment:
 vendor/bin/agent-loop workflow reflect <task-id> --scope project

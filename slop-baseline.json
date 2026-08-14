@@ -167,7 +167,7 @@
             "locations": [
                 {
                     "path": "src/AgentLoopVerifier.php",
-                    "line": 214,
+                    "line": 277,
                     "column": 1
                 }
             ],
@@ -176,9 +176,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "b5220371dc447c27f373b5a005306193c86f101cf28de793a713c0335d5ac91e",
+                        "fingerprint": "7d563f73377d9497189b9fcb4874958eeaeca22325ac86a3a342ac061a51afa0",
                         "path": "src/AgentLoopVerifier.php",
-                        "line": 214,
+                        "line": 277,
                         "column": 1
                     }
                 ]
@@ -200,7 +200,7 @@
             "locations": [
                 {
                     "path": "src/AgentLoopVerifier.php",
-                    "line": 413,
+                    "line": 476,
                     "column": 1
                 }
             ],
@@ -209,9 +209,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "b47001a885dad6b2045e795240c6a3f3a65791f8ef1c8c76fb6d52a1f9b3316e",
+                        "fingerprint": "bc0bb077b12223b7622b3adef4feb8322efe1eac3e0a3d0cf36d285e2e846c63",
                         "path": "src/AgentLoopVerifier.php",
-                        "line": 413,
+                        "line": 476,
                         "column": 1
                     }
                 ]
@@ -266,7 +266,7 @@
             "locations": [
                 {
                     "path": "src/Run/RunManifestProjector.php",
-                    "line": 129,
+                    "line": 128,
                     "column": 1
                 }
             ],
@@ -275,9 +275,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "888a487034da2bb72197ddb0a8467d50881cf7b8212cd1c31cb706330c35f067",
+                        "fingerprint": "69fdfad22a076fa0baeda445f3fa983dbb752dcf3aec9c77199abdd058688b84",
                         "path": "src/Run/RunManifestProjector.php",
-                        "line": 129,
+                        "line": 128,
                         "column": 1
                     }
                 ]

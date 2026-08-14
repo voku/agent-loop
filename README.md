@@ -137,7 +137,7 @@ Codex additionally receives package-owned PHP hooks:
 - `SessionStart` injects the discipline.
 - `SubagentStart` propagates it to spawned agents.
 - `PreToolUse` leaves ordinary Bash commands unchanged.
-- `PreToolUse` denies configured unbounded `.agent-map` dump patterns and
+- `PreToolUse` denies configured unbounded `.agent-loop/map` dump patterns and
   suggests bounded map commands.
 
 Hooks are behavioral guardrails, not a correctness or security boundary. The
@@ -390,7 +390,7 @@ After implementation, record the exact validation result:
 
 ```bash
 vendor/bin/agent-loop session validation record ABC-123 \
-  --brief-revision 1 \
+  --contract-revision 1 \
   --command 'vendor/bin/phpunit tests/FooTest.php' \
   --status passed \
   --exit-code 0 \
@@ -414,15 +414,16 @@ vendor/bin/agent-loop workflow report ABC-123 \
 Record the learning outcome and close only when every required gate passes:
 
 ```bash
-vendor/bin/agent-loop session learning decide ABC-123 \
+vendor/bin/agent-loop workflow learn ABC-123 \
   --status no_durable_learning \
   --by lars \
   --reason 'No reusable finding from this bounded task.'
 
 vendor/bin/agent-loop workflow close ABC-123 --status done
+vendor/bin/agent-loop workflow status ABC-123 --expect complete
 ```
 
-A re-plan creates a new brief revision. Approval and validation evidence from an
+A re-plan creates a new Contract revision. Approval and validation evidence from an
 older revision remain auditable but cannot satisfy the revised task.
 
 ## agent-map: navigate before reading broadly
@@ -437,7 +438,7 @@ vendor/bin/agent-loop map changed --base=main
 vendor/bin/agent-loop map stats
 ```
 
-The generated `.agent-map` files are disposable navigation state. Do not paste
+The generated `.agent-loop/map` files are disposable navigation state. Do not paste
 `php-symbols.json` or `search.sqlite` into a prompt. Use map results to select the
 smallest real source range, then inspect that source directly.
 
@@ -467,7 +468,7 @@ map          compact PHP symbol navigation
 recall       task-scoped recall / L2 briefing compilation
 review       deterministic blind-spot and code-review prompts
 learn        findings, proposals, constraints, and guidance maintenance
-workflow     plan / approve / start / context / status / report / close
+workflow     plan / approve / contract / context / status / manifest / report / reflect / learn / close
 verify       cross-package workflow consistency
 memory       read-only durable-memory promotion review
 init         diagnostics, offline asset installation, sync, and scaffolding
@@ -558,6 +559,8 @@ composer ci
 composer validate --strict
 phpunit
 phpstan
+php tools/project-phpstan-rules.sh
+itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules'
 php tools/agent-discipline-dogfood.php
 ```
 

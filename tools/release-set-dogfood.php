@@ -170,6 +170,13 @@ final class ReleaseSetDogfood
         $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold']);
         $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
         $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
+
+        $status = $this->status('DEMO-1');
+        $this->assertReference($status, 'board', 'linked');
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'status', 'DEMO-1',
+            '--format=json', '--expect=complete',
+        ], [1]);
     }
 
     private function ephemeral(): void
@@ -290,7 +297,7 @@ final class ReleaseSetDogfood
     {
         $this->mustRun(['vendor/bin/agent-loop', 'verify', '--task-id=DEMO-1']);
         $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'close', 'DEMO-1', '--status', 'done']);
-        $status = $this->status('DEMO-1');
+        $status = $this->status('DEMO-1', 'complete');
         if (($status['manifest']['state'] ?? null) !== 'complete') {
             throw new ReleaseSetFailure('CLOSE did not produce complete durable Run state.');
         }
@@ -304,7 +311,7 @@ final class ReleaseSetDogfood
         $before = $this->jsonFile($this->artifactRoot . '/run-before-close.json')['run_id'] ?? null;
         $this->mustRun(['vendor/bin/agent-loop', 'session', 'prune', '--keep-days', '0', '--status', 'done']);
 
-        $status = $this->status('DEMO-1');
+        $status = $this->status('DEMO-1', 'complete');
         $after = $status['manifest']['run_id'] ?? null;
         if (!is_string($before) || $after !== $before) {
             throw new ReleaseSetFailure('Pruning Session working memory changed Run identity.');
@@ -326,9 +333,13 @@ final class ReleaseSetDogfood
     }
 
     /** @return array<string, mixed> */
-    private function status(string $taskId): array
+    private function status(string $taskId, ?string $expectedState = null): array
     {
-        $result = $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'status', $taskId, '--format=json']);
+        $command = ['vendor/bin/agent-loop', 'workflow', 'status', $taskId, '--format=json'];
+        if ($expectedState !== null) {
+            $command[] = '--expect=' . $expectedState;
+        }
+        $result = $this->mustRun($command);
 
         return $this->json($result['stdout'], 'workflow status ' . $taskId);
     }
