@@ -182,18 +182,47 @@ if [[ ! -s "${code_review_prompt}" ]]; then
   exit 1
 fi
 
+blindspot_report="${recall_root}/${task}/reviews/${task}.blindspots.json"
+if [[ ! -s "${blindspot_report}" ]]; then
+  echo "Missing blind-spot report: ${blindspot_report}" >&2
+  exit 1
+fi
+
 raw_diff_sha="$(sha256sum "${raw_diff}" | awk '{print $1}')"
 code_review_prompt_sha="$(sha256sum "${code_review_prompt}" | awk '{print $1}')"
+# What the deterministic review actually said is recorded here. `review
+# blindspots` exits 0 on `warn`, and `workflow close` owns the gate that
+# refuses a missing, invalid or `fail` report - so the harness does not assert
+# a second copy of that gate. It captures the residual status instead, because
+# an unrecorded `warn` is a review result nobody can inspect afterwards.
 php -r '
+$report = json_decode((string) file_get_contents($argv[5]), true, 512, JSON_THROW_ON_ERROR);
+$status = is_array($report) ? ($report["status"] ?? null) : null;
+if (!is_string($status)) {
+    fwrite(STDERR, "Blind-spot report has no machine-readable status.\n");
+    exit(1);
+}
+$findings = [];
+foreach (is_array($report["findings"] ?? null) ? $report["findings"] : [] as $finding) {
+    $id = is_array($finding) ? ($finding["id"] ?? null) : null;
+    if (is_string($id)) {
+        $findings[] = $id;
+    }
+}
 echo json_encode([
     "raw_diff" => ["path" => $argv[1], "sha256" => $argv[2], "complete" => true],
     "code_review_prompt" => ["path" => $argv[3], "sha256" => $argv[4]],
+    "blindspot_review" => [
+        "path" => $argv[5],
+        "status" => $status,
+        "residual_findings" => $findings,
+    ],
     "correctness_review" => [
         "status" => "external_required",
         "note" => "CI preserves the complete raw diff and bounded review input; it does not claim independent human/model correctness review occurred.",
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), PHP_EOL;
-' "${raw_diff}" "${raw_diff_sha}" "${code_review_prompt}" "${code_review_prompt_sha}" \
+' "${raw_diff}" "${raw_diff_sha}" "${code_review_prompt}" "${code_review_prompt_sha}" "${blindspot_report}" \
   > build/self-shape-review-evidence.json
 
 learning=(
