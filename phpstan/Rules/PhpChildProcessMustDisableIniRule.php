@@ -31,10 +31,6 @@ final class PhpChildProcessMustDisableIniRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (!$node instanceof FuncCall) {
-            return [];
-        }
-
         $namespace = $scope->getNamespace();
         $command = $node->getArgs()[0]->value ?? null;
         if (

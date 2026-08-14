@@ -48,10 +48,6 @@ final class NoDiscardedProjectLayoutPathRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (!$node instanceof Expression) {
-            return [];
-        }
-
         $call = $node->expr;
         if (
             !$call instanceof MethodCall

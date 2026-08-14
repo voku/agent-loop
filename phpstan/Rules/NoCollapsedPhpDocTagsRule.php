@@ -27,10 +27,6 @@ final class NoCollapsedPhpDocTagsRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (!$node instanceof ClassMethod) {
-            return [];
-        }
-
         $comment = $node->getDocComment();
         if ($comment === null) {
             return [];

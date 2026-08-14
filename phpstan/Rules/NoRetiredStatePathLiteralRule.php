@@ -34,10 +34,6 @@ final class NoRetiredStatePathLiteralRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if (!$node instanceof String_) {
-            return [];
-        }
-
         $namespace = $scope->getNamespace();
         if (
             $namespace === null
