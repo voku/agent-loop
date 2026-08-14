@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.1 - 2026-08-14
+
+### Changed
+
+- Requires `voku/agent-recall-compiler ^0.11.6`, whose canonical `agent-recall-consumer` skill now matches the live Recall CLI and compact `.agent-loop` defaults.
+- `agent-loop init install-assets` now installs both Loop-owned workflow skills and the installed Recall package's canonical skill tree, including `operating-prompts.json`, without requiring callers to know or pass the dependency's skill root.
+- Agent-facing task-start, L2-context, investigation, learning-closeout, and review-close guidance now follows the current PLAN -> APPROVE workflow, `ProjectLayout` path ownership, Run learning decision, and accepted-risk boundaries.
+
+### Validation
+
+- Agent-facing regressions reject retired or configurable hard-coded paths, normalize wrapped command examples, and verify documented `workflow` / `init` subcommands against the live CLI help.
+- Candidate dogfood derives the minimum Recall release from `composer.json`; clean-consumer tests inspect the installed Recall skill contents rather than only checking that a file exists.
+- PHP 8.3/8.4/8.5, PHPStan and project rules, acceptance/prompt-primitives candidate dogfood, installed release-set dogfood, governed execution-contract dogfood, deterministic slop review, and self-shape were green on the current combined tree before merge.
 ## 0.16.0 - 2026-08-14
 
 ### Changed
