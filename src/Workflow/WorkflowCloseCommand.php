@@ -346,6 +346,10 @@ final readonly class WorkflowCloseCommand
                 is_array($event)
                 && ($event['task_id'] ?? null) === $taskId
                 && ($event['compilation_id'] ?? null) === $compilationId
+                // Only a selection can be withheld. An evaluated-but-excluded
+                // row carrying a reason must not excuse a guidance that was
+                // actually selected and left unjudged.
+                && ($event['selected'] ?? null) === true
                 && is_string($event['guidance_id'] ?? null)
                 && is_string($event['outcome_withheld_reason'] ?? null)
                 && trim($event['outcome_withheld_reason']) !== ''

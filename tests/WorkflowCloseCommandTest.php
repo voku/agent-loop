@@ -137,8 +137,30 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertStringContainsString('missing explicit recall outcome for: G-003', $result['output']);
     }
 
-    private function writeSelectionEvent(string $compilationId, string $guidanceId, string $withheldReason): void
+    public function testCloseRefusesAWithholdingCarriedByAnUnselectedEvent(): void
     {
+        // Only a selection can be withheld. An evaluated-but-excluded row is not
+        // a statement about guidance the Run actually received.
+        $this->writeRecallMeta([
+            'task_id' => 'ABC-123',
+            'compilation_id' => 'compilation.abc.004',
+            'selected_guidance' => ['G-004'],
+        ]);
+        $this->writeReviewReport(['status' => 'ok']);
+        $this->writeSelectionEvent('compilation.abc.004', 'G-004', 'Evaluated, not selected.', selected: false);
+
+        $result = $this->runClose();
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('missing explicit recall outcome for: G-004', $result['output']);
+    }
+
+    private function writeSelectionEvent(
+        string $compilationId,
+        string $guidanceId,
+        string $withheldReason,
+        bool $selected = true,
+    ): void {
         $history = $this->root . '/.agent-loop/learning/history';
         if (!is_dir($history)) {
             mkdir($history, 0o775, true);
@@ -151,7 +173,7 @@ final class WorkflowCloseCommandTest extends TestCase
             'guidance_id' => $guidanceId,
             'guidance_type' => 'memory',
             'eligible' => true,
-            'selected' => true,
+            'selected' => $selected,
             'selection_reason' => 'scope_overlap',
             'exclusion_reason' => null,
             'task_files' => [],
