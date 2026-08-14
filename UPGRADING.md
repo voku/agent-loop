@@ -15,6 +15,31 @@ Do not hardcode `.agent-loop/` anywhere. It is the default, not the contract.
 
 ---
 
+## Project instructions now route agents into installed capabilities
+
+`install-assets` now projects a small package-managed router into root
+`AGENTS.md`. Claude and Gemini-compatible hosts use thin import shims instead of
+copying the router. Project-owned instructions outside the agent-loop marker
+block are preserved when package guidance changes.
+
+**Action:** existing repositories must rerun the asset installation once after
+upgrading, before starting the next coding-agent session:
+
+```bash
+vendor/bin/agent-loop init install-assets --agent=<your-agent>
+```
+
+To update only the always-on instruction entrypoint, use:
+
+```bash
+vendor/bin/agent-loop init sync-instructions --agent=<your-agent>
+```
+
+Do not hand-edit text between the `agent-loop:project-instructions` markers.
+Put repository-specific rules outside them. A session that started before the
+router was installed cannot retroactively consume the new project instructions;
+start a fresh agent session after the migration.
+
 ## Workflow state is configurable
 
 `ProjectLayout` owns every state path. Override any of them in
