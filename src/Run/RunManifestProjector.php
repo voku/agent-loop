@@ -19,6 +19,9 @@ use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
+use voku\AgentMap\Inspect\MapReadiness;
+use voku\AgentMap\Inspect\MapReadinessInspector;
+use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -65,13 +68,16 @@ final readonly class RunManifestProjector
         }
 
         $layout = new ProjectLayout($this->rootPath);
+        $mapReadiness = (new MapReadinessInspector())->inspect(
+            MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
+        );
         $references = [
             'board' => $this->boardReference($taskId, $disagreements),
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract),
             'approval' => $this->approvalReference($contract),
-            'map' => $this->fileReference('agent-map', $layout->mapIndex(), 'missing'),
-            'search_index' => $this->fileReference('agent-map', $layout->mapSearchIndex(), 'not_built'),
+            'map' => $this->mapReference($mapReadiness),
+            'search_index' => $this->searchIndexReference($mapReadiness),
             'recall' => $this->recallReference($taskId, $disagreements),
             'execution_contract' => $this->executionContractReference($taskId),
             'edit' => $this->editReference($taskId),
@@ -484,23 +490,52 @@ final readonly class RunManifestProjector
     }
 
     /** @return array<string, mixed> */
-    private function fileReference(string $owner, string $path, string $missingState): array
+    private function mapReference(MapReadiness $readiness): array
     {
-        if (!is_file($path)) {
-            return [
-                'owner' => $owner,
-                'state' => $missingState,
-                'observation_mode' => 'checked',
-                'path' => PathResolver::relativeTo($this->rootPath, $path),
-            ];
+        $reference = $this->agentMapArtifactReference(
+            $readiness->mapState,
+            $readiness->mapPath,
+            $readiness->mapSnapshot,
+            $readiness->mapFailure,
+        );
+        if ($readiness->staleEntries !== []) {
+            $reference['stale_entries'] = $readiness->staleEntries;
         }
 
-        return [
-            'owner' => $owner,
-            'state' => 'present',
+        return $reference;
+    }
+
+    /** @return array<string, mixed> */
+    private function searchIndexReference(MapReadiness $readiness): array
+    {
+        return $this->agentMapArtifactReference(
+            $readiness->searchState,
+            $readiness->searchPath,
+            $readiness->searchSnapshot,
+            $readiness->searchFailure,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function agentMapArtifactReference(string $state, string $path, ?string $snapshot, ?string $failure): array
+    {
+        $reference = [
+            'owner' => 'agent-map',
+            'state' => $state,
             'observation_mode' => 'checked',
-            'source' => $this->artifact($path),
+            'path' => PathResolver::relativeTo($this->rootPath, $path),
         ];
+        if ($snapshot !== null) {
+            $reference['snapshot'] = $snapshot;
+        }
+        if ($failure !== null) {
+            $reference['reason'] = $failure;
+        }
+        if (is_file($path)) {
+            $reference['source'] = $this->artifact($path);
+        }
+
+        return $reference;
     }
 
     /**
