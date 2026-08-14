@@ -169,6 +169,18 @@ PHP);
         self::assertStringContainsString('Demo\\Leaf — src/Leaf.php:4', $rendered);
     }
 
+    public function testCandidateExpansionFailsClosedWhenCurrentSourceChangedAfterRecall(): void
+    {
+        file_put_contents($this->root . '/src/Leaf.php', "\n// changed after Recall was compiled\n", FILE_APPEND);
+
+        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertStringContainsString('rank 1 Demo\\Leaf::read', $rendered);
+        self::assertStringNotContainsString('src/Orchestrator.php:6-10 [change_candidate]', $rendered);
+        self::assertContains('agent-map candidate expansion: current map is stale', $context['skipped']);
+    }
+
     /** @param list<SymbolEntry> $symbols */
     private function file(string $path, array $symbols): FileEntry
     {
