@@ -157,7 +157,13 @@ final readonly class InitDoctorCommand
     {
         $root = rtrim($this->rootPath, '/');
         $relative = '.agent-map';
-        if (!is_dir($root . '/' . $relative) || GitWorkTree::ignores($root, $relative)) {
+        if (!is_dir($root . '/' . $relative)) {
+            return [];
+        }
+        // Outside a working tree the advice would name .gitignore and
+        // .gitattributes for a repository that does not exist, which is worse
+        // than saying nothing.
+        if (!GitWorkTree::detected($root) || GitWorkTree::ignores($root, $relative)) {
             return [];
         }
 

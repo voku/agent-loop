@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\Init\InitDoctorCommand;
 
 /**
@@ -61,6 +62,29 @@ final class InitDoctorStrayDerivedStateTest extends TestCase
     public function testNothingIsReportedWhenTheCacheDoesNotExist(): void
     {
         self::assertStringNotContainsString('Derived state:', $this->doctor());
+    }
+
+    public function testNothingIsReportedOutsideAWorkingTree(): void
+    {
+        // Advice naming .gitignore and .gitattributes is nonsense where there
+        // is no repository to commit to. Deliberately a sibling of the fixture
+        // repository rather than a child, or it would sit inside a working
+        // tree and the precondition would be a fiction.
+        $plain = $this->root . '-plain';
+        mkdir($plain . '/.agent-map/phpstan-cache', 0o775, true);
+        file_put_contents($plain . '/composer.json', '{"name":"acme/plain"}');
+
+        try {
+            self::assertFalse(GitWorkTree::detected($plain), 'The fixture must sit outside any working tree.');
+
+            ob_start();
+            (new InitDoctorCommand($plain))->run([]);
+            $output = (string) ob_get_clean();
+
+            self::assertStringNotContainsString('Derived state:', $output);
+        } finally {
+            $this->rm($plain);
+        }
     }
 
     private function doctor(): string
