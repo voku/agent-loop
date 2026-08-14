@@ -40,6 +40,10 @@ jobs:
               echo "Invalid release version: $version" >&2
               exit 1
             fi
+            if [[ ! "$target" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+              echo "Invalid release target SHA: $target" >&2
+              exit 1
+            fi
             if ! grep -Fq "## [$version] - " CHANGELOG.md && ! grep -Fq "## $version - " CHANGELOG.md; then
               echo "CHANGELOG.md has no release section for $version" >&2
               exit 1
