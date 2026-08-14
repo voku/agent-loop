@@ -6,7 +6,7 @@
             "name": "slop-scan-php",
             "version": "0.1.0"
         },
-        "configHash": "976f75b83abea03d648a2bc73d2a30ef0a312ed60d38fafb292f6a0dcaf84beb",
+        "configHash": "c91e5df87eb9db95a50c71afc278098d7c0c67f708036da7a4b41386461603bb",
         "findingFingerprintVersion": 1
     },
     "summary": {
@@ -299,7 +299,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowCloseCommand.php",
-                    "line": 365,
+                    "line": 407,
                     "column": 1
                 }
             ],
@@ -308,9 +308,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "399e3acb35b5b423e6bdaabed8a1896936d182f439f0a41ed2431ab88af239e0",
+                        "fingerprint": "34e8fa47240191a3c44c0c2ebe86a881c1149960dd2761c73405bd922b8ccffd",
                         "path": "src/Workflow/WorkflowCloseCommand.php",
-                        "line": 365,
+                        "line": 407,
                         "column": 1
                     }
                 ]
