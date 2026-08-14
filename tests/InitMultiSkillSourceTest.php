@@ -141,7 +141,23 @@ JSON;
         self::assertFileDoesNotExist($this->root . '/.codex/skills/workflow-discipline/SKILL.md');
     }
 
-    public function testInstallAssetsMergesBundledWorkflowSkillsWithExplicitLocalEngineeringSkills(): void
+    public function testInstallAssetsIncludesLoopAndRecallOwnedSkillsWithoutExtraRoots(): void
+    {
+        ob_start();
+        $exit = (new InitInstallAssetsCommand($this->root))->run([
+            '--agent=codex',
+        ]);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit, $output);
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/operating-prompts.json');
+        self::assertStringContainsString('from 2 source root(s)', $output);
+        self::assertStringContainsString('first-party package guidance', $output);
+    }
+
+    public function testInstallAssetsMergesFirstPartySkillsWithExplicitLocalEngineeringSkills(): void
     {
         $this->writeSkill('engineering-skills', 'code-review-security', '# Security');
 
@@ -154,8 +170,9 @@ JSON;
 
         self::assertSame(0, $exit, $output);
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/code-review-security/SKILL.md');
-        self::assertStringContainsString('package-owned guidance plus 1 explicit local skill source(s)', $output);
+        self::assertStringContainsString('first-party package guidance plus 1 explicit local skill source(s)', $output);
         self::assertStringContainsString('without downloading remote code', $output);
     }
 
