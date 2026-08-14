@@ -34,8 +34,9 @@ jobs:
           php -l tools/self-shape-dogfood.php
           php -l tests/SelfShapeRunRecoveryTest.php
           php -l tests/WorkflowRepeatRunTest.php
-      - name: Commit candidate
+      - name: Commit non-workflow candidate
         run: |
+          git restore -- .github/workflows/ci.yml .github/workflows/apply-self-shape-repeat-fix.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
