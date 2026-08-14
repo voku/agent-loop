@@ -48,6 +48,16 @@ final readonly class InitStatusCommand
 
         echo "agent-loop init status\n\n";
 
+        $activation = new RepositoryActivation($this->rootPath);
+        $projectedAgents = $this->projectedSkillAgents();
+        $gitIntegrationChecks = $activation->localGitIntegrationChecks();
+
+        echo "Activation:\n";
+        foreach ($this->buildActivationResults($activation, $projectedAgents, $gitIntegrationChecks) as $result) {
+            echo $result->render() . "\n";
+        }
+        echo "\n";
+
         echo "Source paths:\n";
         foreach ($this->buildSourceResults($paths) as $result) {
             echo $result->render() . "\n";
@@ -76,7 +86,91 @@ final readonly class InitStatusCommand
             echo $staleLine . "\n";
         }
 
+        $nextCommands = $this->buildNextCommands($activation, $projectedAgents, $gitIntegrationChecks);
+        if ($nextCommands !== []) {
+            echo "\nNext:\n";
+            foreach ($nextCommands as $command) {
+                echo '  ' . $command . "\n";
+            }
+        }
+
         return 0;
+    }
+
+    /**
+     * The part of the report that decides whether an agent activates anything.
+     *
+     * Source presence, host projection and local Git activation are three
+     * different facts, and only the first one used to be reported. A repository
+     * where nothing is projected into any host - so no running agent can reach a
+     * single skill - looked exactly like a healthy one.
+     *
+     * None of these lines claims an agent *consumed* anything: a projected skill
+     * is readable by the host, which is not the same as a session having used it.
+     *
+     * @param list<string> $projectedAgents
+     * @param list<InitCheckResult> $gitIntegrationChecks
+     * @return list<InitCheckResult>
+     */
+    private function buildActivationResults(
+        RepositoryActivation $activation,
+        array $projectedAgents,
+        array $gitIntegrationChecks,
+    ): array {
+        $results = [$activation->cliCheck()];
+
+        $results[] = $projectedAgents === []
+            ? InitCheckResult::warn(
+                'Host skills: not projected for any host, so no running agent can read them; run '
+                . $activation->installAssetsCommand(),
+            )
+            : InitCheckResult::ok('Host skills: projected for ' . implode(', ', $projectedAgents));
+
+        return [...$results, ...$gitIntegrationChecks];
+    }
+
+    /**
+     * @param list<string> $projectedAgents
+     * @param list<InitCheckResult> $gitIntegrationChecks
+     * @return list<string>
+     */
+    private function buildNextCommands(
+        RepositoryActivation $activation,
+        array $projectedAgents,
+        array $gitIntegrationChecks,
+    ): array {
+        $commands = [];
+        if ($projectedAgents === []) {
+            $commands[] = $activation->installAssetsCommand();
+        }
+
+        foreach ($gitIntegrationChecks as $check) {
+            if (str_starts_with($check->render(), '[WARN]')) {
+                $commands[] = $activation->syncGitHooksCommand();
+
+                break;
+            }
+        }
+
+        return $commands;
+    }
+
+    /**
+     * Hosts that currently carry a managed skill projection.
+     *
+     * @return list<string>
+     */
+    private function projectedSkillAgents(): array
+    {
+        $agents = [];
+        foreach (InitAgent::canonicalNames() as $agent) {
+            $manifestPath = rtrim($this->resolveSkillsTargetRoot($agent), '/') . '/' . InitSyncManifest::fileName();
+            if (is_file($manifestPath)) {
+                $agents[] = $agent;
+            }
+        }
+
+        return $agents;
     }
 
     /**
@@ -101,7 +195,17 @@ final readonly class InitStatusCommand
      */
     private function buildManifestTargets(AgentAssetSourcePaths $paths): array
     {
+        // A projection legitimately contains the Recall consumer skills that
+        // `install-assets` re-exports from agent-recall-compiler. Comparing it
+        // against this repository's skills root alone reported those as stale
+        // managed entries the moment the install succeeded.
         $skillsDesiredEntries = $this->findSkillSourceEntries($paths);
+        foreach (FirstPartySkillRoots::recallSkillEntries() as $recallEntry) {
+            if (!in_array($recallEntry, $skillsDesiredEntries, true)) {
+                $skillsDesiredEntries[] = $recallEntry;
+            }
+        }
+        sort($skillsDesiredEntries);
 
         return [
             ['label' => 'codex skills', 'targetRoot' => $this->resolveSkillsTargetRoot('codex'), 'kind' => 'skills', 'agent' => 'codex', 'desiredEntries' => $skillsDesiredEntries],

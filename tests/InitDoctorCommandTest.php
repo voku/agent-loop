@@ -158,12 +158,41 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[WARN] Git hooks: project policy exists but core.hooksPath is unset', $inactive);
         self::assertStringContainsString('[WARN] Commit template: .gitmessage exists but commit.template is unset', $inactive);
 
+        mkdir($this->root . '/.githooks', 0o775, true);
         $runner->mustRun(['git', 'config', 'core.hooksPath', '.githooks']);
         $runner->mustRun(['git', 'config', 'commit.template', '.gitmessage']);
 
         $active = $this->runDoctor([])['output'];
         self::assertStringContainsString('[OK] Git hooks: core.hooksPath=.githooks', $active);
         self::assertStringContainsString('[OK] Commit template: commit.template=.gitmessage', $active);
+    }
+
+    public function testDoctorRecommendsTheHookCommandThatWorksInThisRepository(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+        file_put_contents($this->root . '/.gitmessage', "# template\n");
+        file_put_contents(
+            $this->root . '/composer.json',
+            json_encode(['name' => 'voku/agent-loop'], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES),
+        );
+        mkdir($this->root . '/githooks/lib', 0o775, true);
+        file_put_contents($this->root . '/githooks/lib/agent-loop-hooks.sh', "#!/usr/bin/env bash\n");
+        file_put_contents($this->root . '/githooks/pre-commit', "#!/usr/bin/env bash\n");
+
+        $output = $this->runDoctor([])['output'];
+
+        self::assertStringContainsString(
+            'run bin/agent-loop init sync-githooks --hooks-dir=githooks --commit-template=.gitmessage --adopt-existing',
+            $output,
+        );
+        self::assertStringNotContainsString('run init sync-githooks', $output);
     }
 
     public function testDoctorWritesNoFiles(): void

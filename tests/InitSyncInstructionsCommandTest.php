@@ -48,7 +48,7 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString('agent-loop-*', $agents);
         self::assertStringContainsString('agent-map', $agents);
         self::assertStringContainsString('agent-recall-compiler', $agents);
-        self::assertStringContainsString('sync-githooks', $agents);
+        self::assertStringContainsString('init status', $agents);
         self::assertFileDoesNotExist($this->root . '/CLAUDE.md');
         self::assertFileDoesNotExist($this->root . '/GEMINI.md');
     }
@@ -134,6 +134,31 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/AGENTS.md');
         self::assertFileDoesNotExist($this->root . '/CLAUDE.md');
         self::assertFileDoesNotExist($this->root . '/GEMINI.md');
+    }
+
+    public function testRouterNamesACliPathThatExistsInTheProjectedRepository(): void
+    {
+        file_put_contents(
+            $this->root . '/composer.json',
+            json_encode(['name' => 'acme/app'], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES),
+        );
+
+        self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
+
+        $consumerRouter = (string) file_get_contents($this->root . '/AGENTS.md');
+        self::assertStringContainsString('`vendor/bin/agent-loop init status`', $consumerRouter);
+        self::assertStringNotContainsString('{{agent_loop_cli}}', $consumerRouter);
+
+        file_put_contents(
+            $this->root . '/composer.json',
+            json_encode(['name' => 'voku/agent-loop'], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES),
+        );
+
+        self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
+
+        $packageRouter = (string) file_get_contents($this->root . '/AGENTS.md');
+        self::assertStringContainsString('`bin/agent-loop init status`', $packageRouter);
+        self::assertStringNotContainsString('`vendor/bin/agent-loop', $packageRouter);
     }
 
     /**

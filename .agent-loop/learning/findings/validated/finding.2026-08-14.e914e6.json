@@ -1,0 +1,61 @@
+{
+  "id": "finding.2026-08-14.e914e6",
+  "task_id": "GH-127",
+  "session": "2026-08-14-gh-127-r2-95223f24",
+  "created_at": "2026-08-14T23:10:00+02:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "docs/agents/project-instructions.md",
+    "src/Init/RepositoryActivation.php",
+    "src/Init/InitStatusCommand.php",
+    "src/Init/InitDoctorCommand.php",
+    "src/Init/InitInstallAssetsCommand.php",
+    "src/Init/InitSyncInstructionsCommand.php",
+    "src/Init/InitSyncGitHooksCommand.php",
+    "src/Init/FirstPartySkillRoots.php",
+    "githooks/agent-map-refresh.sh"
+  ],
+  "observation": "An always-on router existed and was projected into AGENTS.md, but every command inside it was written for a hypothetical consumer project rather than resolved against the repository the agent is standing in. In a fresh clone of agent-loop itself, a real Claude Code session followed the router and its first step failed immediately: `vendor/bin/agent-loop init status` does not exist, because Composer never links the root package's own binaries. The entry command it names could not distinguish an unactivated repository from a healthy one either: with zero host projections it printed `[OK] skills-root: docs/agents/skills (16 skill(s))` for source presence, `[INFO] ... no manifest at .claude/skills/...` for the absent projection, said nothing at all about local Git integration, and exited 0. The acting session consequently had no agent-loop skill available at all. The remediation `init doctor` printed was wrong for this repository as well: a bare `init sync-githooks` installs a second, untracked `.githooks/` beside the tracked package-owned `githooks/`, and the variant that works here (`--hooks-dir=githooks --commit-template=.gitmessage --adopt-existing`) is not derivable by a fresh agent. Two further presence-is-not-activation defects surfaced once the path was actually walked: `--adopt-existing` recorded hook files as managed without checking the execute bit, and `githooks/agent-map-refresh.sh` was tracked non-executable although `post-checkout`/`post-merge` exec it directly.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "Fresh session on a clean clone: `vendor/bin/agent-loop init status` -> `No such file or directory`; `ls vendor/bin` after `composer install` lists agent-kanban, agent-learning, agent-map, agent-recall-compiler, agent-session, phpunit and phpstan, but no agent-loop entry."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Pre-change `bin/agent-loop init status` exited 0 with only [OK]/[INFO] lines while `.claude/`, `.codex/` and `.agents/` did not exist, `git config --get core.hooksPath` and `git config --get commit.template` were both unset, and the acting Claude Code host listed no agent-loop-* skill."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "`init sync-githooks --hooks-dir=githooks --commit-template=.gitmessage --dry-run` failed with 'unmanaged target already exists /home/user/agent-loop/githooks/agent-map-refresh.sh'; the bare command's dry-run instead planned six installs into a new /home/user/agent-loop/.githooks."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "`git ls-files -s githooks/` reported mode 100644 for agent-map-refresh.sh while post-checkout and post-merge `exec` it directly, so an adopted hook set could not run it."
+    },
+    {
+      "type": "test_result",
+      "command": "vendor/bin/phpunit --filter 'testFreshRepositoryIsReportedAsUnactivatedInsteadOfHealthy|testDeclaredGitHookPolicyIsActivatedInTheSameRun|testRouterNamesACliPathThatExistsInTheProjectedRepository|testDoctorRecommendsTheHookCommandThatWorksInThisRepository|testLocalGitIntegrationIsReportedByTheEntryCommandItself|testSkipGitConfigInstallsHookFilesWithoutPointingGitAtThem' (source reverted)",
+      "summary": "Tests: 6, Assertions: 12, Failures: 6 against the pre-change sources; all six pass afterwards. The regressions have teeth rather than restating current output."
+    },
+    {
+      "type": "test_result",
+      "command": "composer ci",
+      "summary": "Exit 0. Tests: 646, Assertions: 3010, Skipped: 3; PHPStan [OK] No errors. Baseline before the change was 627 tests, also green."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "After the change, one command (`bin/agent-loop init install-assets --agent=claude`) projected 18 skills and 3 subagent roles into .claude/, adopted the tracked githooks/ set, and set core.hooksPath=githooks and commit.template=.gitmessage. `init status` then reported [OK] on all four activation lines and printed no Next: section."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Capability planes for this session, kept separate: installer projection = exercised; deterministic lifecycle (plan/approve/contract/validate/review/learn/verify/close, map and search index built before approval) = exercised; agent-host consumption of the compiled Recall briefing = exercised (system.md read before implementing, its missingness-audit L2 used to construct the L1 contract); agent-host consumption of projected skills = not_exercised, because the projection happened mid-session and Claude Code reads .claude/skills at session start; local Git hook execution = exercised only for the local commit in this session, and never for GitHub API/connector writes."
+    }
+  ],
+  "hypothesis": "Activation guidance that is written for a hypothetical repository fails in the concrete one, and a status report that only knows about source presence cannot tell an agent that nothing is activated. The four planes - source present, projected into a host, exercised by a deterministic harness, consumed by an agent host - degrade silently into each other whenever a report names the weakest fact in the strongest command's voice.",
+  "validated_conclusion": "Resolve activation against the repository in front of the agent instead of adding another bootstrap layer. Keep one resolver (RepositoryActivation) that answers which CLI path exists here, which hook directory the package hooks already live in, and which sync-githooks arguments will actually succeed; have the entry command (init status), the diagnostic (init doctor), the installer (init install-assets) and the router projection (init sync-instructions) all render its answers, so no command can print a path that does not exist. Make the entry command report activation, not sources, and end with the exact next commands. Fold optional setup into the installer: one command should project host assets and activate the declared local Git integration, with an explicit opt-out. Treat presence as inert until proven active - a hook directory Git is not pointed at, a hooksPath pointing at a missing directory, and an adopted hook without the execute bit are all 'installed and not running'. Keep the honesty boundary in the report itself: 'projected for <host>' is the strongest claim a static check may make; consumption is an agent-host observation and belongs in run evidence, as not_exercised when the projection happened after the session started.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

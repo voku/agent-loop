@@ -187,31 +187,15 @@ final readonly class InitDoctorCommand
      * package-owned hook directory/template. Surface that split explicitly:
      * source presence is not activation.
      *
+     * The remediation command is resolved against this repository, because the
+     * generic one installs a duplicate hook directory wherever the package-owned
+     * hooks already live under a different name.
+     *
      * @return list<InitCheckResult>
      */
     private function checkLocalGitIntegration(): array
     {
-        $root = rtrim($this->rootPath, '/');
-        if (!GitWorkTree::detected($root)) {
-            return [];
-        }
-
-        $results = [];
-        if (is_file($root . '/.agent-loop/githooks.json')) {
-            $hooksPath = GitWorkTree::configValue($root, 'core.hooksPath');
-            $results[] = $hooksPath === null || $hooksPath === ''
-                ? InitCheckResult::warn('Git hooks: project policy exists but core.hooksPath is unset; run init sync-githooks')
-                : InitCheckResult::ok('Git hooks: core.hooksPath=' . $hooksPath);
-        }
-
-        if (is_file($root . '/.gitmessage')) {
-            $template = GitWorkTree::configValue($root, 'commit.template');
-            $results[] = $template === null || $template === ''
-                ? InitCheckResult::warn('Commit template: .gitmessage exists but commit.template is unset; run init sync-githooks --commit-template=.gitmessage')
-                : InitCheckResult::ok('Commit template: commit.template=' . $template);
-        }
-
-        return $results;
+        return (new RepositoryActivation($this->rootPath))->localGitIntegrationChecks();
     }
 
     /**
