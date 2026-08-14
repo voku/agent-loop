@@ -151,8 +151,16 @@ JSON;
 
         self::assertSame(0, $exit, $output);
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
-        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
+        $recallSkillPath = $this->root . '/.codex/skills/agent-recall-consumer/SKILL.md';
+        self::assertFileExists($recallSkillPath);
         self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/operating-prompts.json');
+
+        $recallSkill = (string) file_get_contents($recallSkillPath);
+        self::assertStringContainsString('<cwd>/.agent-loop/learning', $recallSkill);
+        self::assertStringContainsString('<cwd>/.agent-loop/recall/<task-id>', $recallSkill);
+        self::assertStringNotContainsString('infra/doc/agent-learning', $recallSkill);
+        self::assertStringNotContainsString('.agent-recall-output', $recallSkill);
+
         self::assertStringContainsString('from 2 source root(s)', $output);
         self::assertStringContainsString('first-party package guidance', $output);
     }
