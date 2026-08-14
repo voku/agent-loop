@@ -40,6 +40,12 @@ final readonly class GitWorkTree
         return self::ask($rootPath, ['git', 'check-ignore', '--quiet', '--', $relativePath]) !== null;
     }
 
+    /** Repository-local/effective Git config value, or null when unset/unavailable. */
+    public static function configValue(string $rootPath, string $key): ?string
+    {
+        return self::ask($rootPath, ['git', 'config', '--get', $key]);
+    }
+
     /** @param non-empty-list<string> $command */
     private static function ask(string $workingDirectory, array $command): ?string
     {

@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\InitDoctorCommand;
 
 /**
@@ -140,6 +141,29 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[INFO] Codex hooks: detected hooks.json and 1 hook file(s)', $result['output']);
         self::assertStringContainsString('[INFO] Tools: tools directory found', $result['output']);
         self::assertStringContainsString('[OK] Workflow: init diagnostics do not affect workflow close', $result['output']);
+    }
+
+    public function testDoctorDistinguishesTrackedGitIntegrationFromActivation(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+        $runner->mustRun(['git', 'init', '--quiet']);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+        file_put_contents($this->root . '/.gitmessage', "# template\n");
+
+        $inactive = $this->runDoctor([])['output'];
+        self::assertStringContainsString('[WARN] Git hooks: project policy exists but core.hooksPath is unset', $inactive);
+        self::assertStringContainsString('[WARN] Commit template: .gitmessage exists but commit.template is unset', $inactive);
+
+        $runner->mustRun(['git', 'config', 'core.hooksPath', '.githooks']);
+        $runner->mustRun(['git', 'config', 'commit.template', '.gitmessage']);
+
+        $active = $this->runDoctor([])['output'];
+        self::assertStringContainsString('[OK] Git hooks: core.hooksPath=.githooks', $active);
+        self::assertStringContainsString('[OK] Commit template: commit.template=.gitmessage', $active);
     }
 
     public function testDoctorWritesNoFiles(): void
