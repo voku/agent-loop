@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.15.2 - 2026-08-14
+
+### Changed
+
+- Requires `voku/agent-recall-compiler ^0.11.5`. Recall now owns and ships the
+  first-party operating-prompt catalog beside its consumer skill, so Loop uses
+  `vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json`
+  instead of synchronizing Recall behavior through a separately pinned
+  `agent-skills` commit.
+- `agent-loop-l2-context` now owns only Loop orchestration around Recall and
+  defers Recall prompt schema, recipe semantics, and review primitives to the
+  Recall-owned skill. This removes a second Markdown implementation that had
+  already drifted from Recall's current L2 construction contract.
+
+### Learning
+
+- Validated `finding.2026-08-14.005`: skills and machine-readable instruction
+  assets whose correctness depends on a tool's CLI, schema, generated files,
+  output contract, or runtime behavior belong in that tool's repository and
+  ship/test with the implementation. Generic skill collections keep only
+  tool-neutral principles or references to the canonical owner.
+
+### Validation
+
+- The ownership handoff passed PHP 8.3/8.4/8.5 CI and diagnostics, project
+  PHPStan rules, acceptance and prompt-primitives clean-consumer dogfood,
+  governed execution-contract dogfood, installed release-set dogfood,
+  deterministic slop review, and agent-loop self-shape before merge.
+
+
 ## 0.15.1 - 2026-08-14
 
 ### Added
