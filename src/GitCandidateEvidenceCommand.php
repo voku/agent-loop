@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
-use JsonException;
 use RuntimeException;
+use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\Run\CanonicalJson;
 
 /** CLI adapter for the exact-candidate shipping evidence invariant. */
 final readonly class GitCandidateEvidenceCommand
@@ -29,43 +30,24 @@ final readonly class GitCandidateEvidenceCommand
     /** @param list<string> $tokens */
     public function run(array $tokens): int
     {
-        try {
-            $options = $this->parse($tokens);
-            $evidence = (new GitCandidateEvidence($this->rootPath))->prove(
-                $options['candidate-sha'],
-                $options['integrated-sha'],
-                $options['target-ref'],
-                $options['release-tag'],
-            );
-        } catch (RuntimeException $exception) {
-            $format = $this->formatFromTokens($tokens);
-            if ($format === 'json') {
-                try {
-                    echo json_encode(
-                        ['status' => 'fail', 'error' => $exception->getMessage()],
-                        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
-                    ) . "\n";
-                } catch (JsonException) {
-                    fwrite(STDERR, '[FAIL] candidate evidence: ' . $exception->getMessage() . "\n");
-                }
-            } else {
-                fwrite(STDERR, '[FAIL] candidate evidence: ' . $exception->getMessage() . "\n");
-            }
-
-            return 1;
+        $format = OptionTokens::value($tokens, 'format') ?? 'text';
+        if (!in_array($format, ['text', 'json'], true)) {
+            return $this->fail('--format must be text or json.', $format);
         }
 
-        if ($options['format'] === 'json') {
-            try {
-                echo json_encode(
-                    $evidence,
-                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
-                ) . "\n";
-            } catch (JsonException $exception) {
-                fwrite(STDERR, '[FAIL] candidate evidence: unable to encode evidence: ' . $exception->getMessage() . "\n");
+        try {
+            $evidence = (new GitCandidateEvidence($this->rootPath))->prove(
+                $this->required($tokens, 'candidate-sha'),
+                $this->required($tokens, 'integrated-sha'),
+                $this->required($tokens, 'target-ref'),
+                OptionTokens::value($tokens, 'release-tag'),
+            );
+        } catch (RuntimeException $exception) {
+            return $this->fail($exception->getMessage(), $format);
+        }
 
-                return 1;
-            }
+        if ($format === 'json') {
+            echo CanonicalJson::pretty($evidence);
 
             return 0;
         }
@@ -92,79 +74,26 @@ final readonly class GitCandidateEvidenceCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{
-     *     candidate-sha: non-empty-string,
-     *     integrated-sha: non-empty-string,
-     *     target-ref: non-empty-string,
-     *     release-tag: non-empty-string|null,
-     *     format: 'text'|'json'
-     * }
+     * @return non-empty-string
      */
-    private function parse(array $tokens): array
+    private function required(array $tokens, string $name): string
     {
-        $values = [];
-        $allowed = ['candidate-sha', 'integrated-sha', 'target-ref', 'release-tag', 'format'];
-        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
-            $token = $tokens[$index];
-            if (!str_starts_with($token, '--')) {
-                throw new RuntimeException('Unknown candidate evidence argument: ' . $token);
-            }
-
-            $option = substr($token, 2);
-            $value = null;
-            if (str_contains($option, '=')) {
-                [$option, $value] = explode('=', $option, 2);
-            } else {
-                $candidate = $tokens[$index + 1] ?? null;
-                if (!is_string($candidate) || str_starts_with($candidate, '--')) {
-                    throw new RuntimeException('Missing value for --' . $option . '.');
-                }
-                $value = $candidate;
-                ++$index;
-            }
-
-            if (!in_array($option, $allowed, true)) {
-                throw new RuntimeException('Unknown candidate evidence option: --' . $option);
-            }
-            if ($value === '') {
-                throw new RuntimeException('Missing value for --' . $option . '.');
-            }
-            $values[$option] = $value;
+        $value = OptionTokens::value($tokens, $name);
+        if ($value === null) {
+            throw new RuntimeException('Missing required option: --' . $name . '.');
         }
 
-        foreach (['candidate-sha', 'integrated-sha', 'target-ref'] as $required) {
-            if (!isset($values[$required])) {
-                throw new RuntimeException('Missing required option: --' . $required . '.');
-            }
-        }
-
-        $format = $values['format'] ?? 'text';
-        if (!in_array($format, ['text', 'json'], true)) {
-            throw new RuntimeException('--format must be text or json.');
-        }
-
-        return [
-            'candidate-sha' => $values['candidate-sha'],
-            'integrated-sha' => $values['integrated-sha'],
-            'target-ref' => $values['target-ref'],
-            'release-tag' => $values['release-tag'] ?? null,
-            'format' => $format,
-        ];
+        return $value;
     }
 
-    /** @param list<string> $tokens */
-    private function formatFromTokens(array $tokens): string
+    private function fail(string $message, string $format): int
     {
-        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
-            $token = $tokens[$index];
-            if (str_starts_with($token, '--format=')) {
-                return substr($token, strlen('--format='));
-            }
-            if ($token === '--format') {
-                return $tokens[$index + 1] ?? 'text';
-            }
+        if ($format === 'json') {
+            echo CanonicalJson::pretty(['status' => 'fail', 'error' => $message]);
+        } else {
+            fwrite(STDERR, '[FAIL] candidate evidence: ' . $message . "\n");
         }
 
-        return 'text';
+        return 1;
     }
 }
