@@ -21,8 +21,16 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.11.1
+          ref: 0.11.4
           path: build/candidate-agent-recall-compiler
+          persist-credentials: false
+
+      - name: Checkout pinned first-party operational prompt catalog
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-skills
+          ref: 2d43611e854f1621e62014a3f3b312ad2dc572b7
+          path: build/candidate-agent-skills
           persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
@@ -41,6 +49,57 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-prompt-primitives
           --report=${{ github.workspace }}/build/prompt-primitives-dogfood.json
 
+      - name: Prove installed project-grounded adversarial review and context-light review
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/agent-loop-prompt-primitives/consumer"
+          skills_root="${GITHUB_WORKSPACE}/build/candidate-agent-skills/skills"
+          cd "${consumer}"
+
+          php vendor/bin/agent-loop init install-assets \
+            --agent=codex \
+            --extra-skills-root="${skills_root}"
+
+          catalog='.codex/skills/operational-prompting/operating-prompts.json'
+          test -f "${catalog}"
+          grep -Fq 'distinct plausible failure-mode hypotheses or attack scenarios' "${catalog}"
+          grep -Fq 'Do not manufacture defects merely to satisfy the numeric floor' "${catalog}"
+
+          php vendor/bin/agent-loop workflow plan PROMPT-ADVERSARIAL \
+            --by prompt-sync-dogfood \
+            --file composer.json \
+            --goal 'Review the current candidate as a first draft using project-grounded adversarial evidence.' \
+            --acceptance 'The review may report CLEAN only after concrete falsification attempts find no evidence-backed defect.' \
+            --non-goal 'Do not manufacture findings to satisfy a numeric review floor.' \
+            --validation 'composer validate --strict' \
+            --operating-prompt-manifest "${catalog}" \
+            --operating-prompt '{"id":"adversarial-review","arguments":{"minimum_failure_modes":3}}'
+          php vendor/bin/agent-loop workflow approve PROMPT-ADVERSARIAL --by prompt-sync-approver
+
+          system='.agent-loop/recall/PROMPT-ADVERSARIAL/system.md'
+          grep -Fq '### adversarial-review (L2)' "${system}"
+          grep -Fq 'distinct plausible failure-mode hypotheses or attack scenarios' "${system}"
+          grep -Fq 'Do not manufacture defects merely to satisfy the numeric floor' "${system}"
+          grep -Fq 'CLEAN remains valid' "${system}"
+          grep -Fq 'does not grant edit permission' "${system}"
+          grep -Fq 'keep the result `UNKNOWN` or `BLOCKED`' "${system}"
+
+          php vendor/bin/agent-loop review first-draft > first-draft.prompt.md
+          grep -Fq 'falsification rather than confirmation' first-draft.prompt.md
+          grep -Fq 'CLEAN is valid only after concrete attempts to falsify' first-draft.prompt.md
+
+          php vendor/bin/agent-loop review code PROMPT-ADVERSARIAL
+          code_prompt='.agent-loop/recall/PROMPT-ADVERSARIAL/reviews/PROMPT-ADVERSARIAL.code.prompt.md'
+          grep -Fq '## First-draft falsification lens' "${code_prompt}"
+          grep -Fq 'CLEAN is valid only after concrete attempts to falsify' "${code_prompt}"
+
+          mkdir -p "${GITHUB_WORKSPACE}/build/prompt-sync-evidence"
+          cp "${catalog}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/installed-operating-prompts.json"
+          cp "${system}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/system.md"
+          cp first-draft.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/first-draft.prompt.md"
+          cp "${code_prompt}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/code.prompt.md"
+
       - name: Upload candidate evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,3 +109,4 @@ jobs:
           path: |
             build/prompt-primitives-dogfood.json
             build/prompt-primitives-logs
+            build/prompt-sync-evidence

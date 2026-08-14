@@ -48,6 +48,51 @@ The practical rule is:
 together from the bundled manifest. They do not require an L2 execution-contract
 construction pass by themselves.
 
+## First-draft falsification
+
+Use the context-light Recall primitive when the current implementation needs an
+adversarial pass without compiling another project-specific execution contract:
+
+```bash
+vendor/bin/agent-loop review first-draft
+```
+
+It treats the implementation as a first draft, asks for falsification rather
+than confirmation, and keeps missing material evidence `UNKNOWN` or `BLOCKED`.
+`CLEAN` is valid only after concrete attempts to break the implementation find
+no evidence-backed defect. The command has no task/run dependency and accepts no
+extra arguments.
+
+For a governed task, generate the artifact-backed review prompt instead:
+
+```bash
+vendor/bin/agent-loop review code TASK-1
+```
+
+That prompt includes the same first-draft falsification lens plus the task's
+compiled Recall artifacts and source context. The installed `code-review-*`
+engineering lens still owns the concrete technical review; Recall supplies the
+evidence boundary and `agent-loop` owns workflow progression.
+
+When the review method itself must be compiled from project evidence, select the
+repo-owned `agent-skills` L2 `adversarial-review` recipe during PLAN. Its
+`minimum_failure_modes` value is a floor on distinct plausible hypotheses or
+attack scenarios that must be investigated, **not** a quota of defects that must
+be produced. Disproved hypotheses are useful falsification evidence and `CLEAN`
+remains legal after the requested probes find no evidence-backed defect.
+
+The ownership split is intentional:
+
+```text
+agent-loop bundled L1 controls     -> direct execution controls
+agent-skills adversarial-review    -> project-grounded L2 review recipe
+Recall review first-draft          -> context-light falsification lens
+Recall review code <task-id>       -> task-artifact-backed review prompt
+```
+
+Do not copy the `agent-skills` L2 catalog into `agent-loop`; pass its manifest
+explicitly when planning a task that needs one of those methods.
+
 ## Post-task reflection
 
 Reflection is optional and read-only. It is not REVIEW, LEARN, or another
