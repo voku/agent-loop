@@ -1,9 +1,10 @@
 {
     "ignores": [
-        "**/vendor/**",
+        "**/.agent-loop/**",
+        "**/.agent-map/**",
         "**/build/**",
         "**/var/**",
-        "**/.agent-loop/**"
+        "**/vendor/**"
     ],
     "rules": {
         "php.magic-numbers": {

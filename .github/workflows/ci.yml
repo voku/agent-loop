@@ -80,12 +80,12 @@ jobs:
       - run: composer install --no-interaction --prefer-dist
       - name: Lint self-shape tools
         run: |
-          bash -n tools/self-shape-dogfood.sh
+          php -l tools/self-shape-dogfood.php
           php -l tools/self-edit-dogfood.php
       - name: Let agent-loop edit itself in an isolated worktree
         run: php tools/self-edit-dogfood.php
       - name: Govern this change with agent-loop itself
-        run: bash tools/self-shape-dogfood.sh --base-ref="${{ github.base_ref }}"
+        run: php tools/self-shape-dogfood.php --base-ref="${{ github.base_ref }}"
       - name: Upload self-shaping evidence
         if: always()
         uses: actions/upload-artifact@v4

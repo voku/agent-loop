@@ -26,6 +26,20 @@ final readonly class GitWorkTree
         return self::ask($rootPath, ['git', 'rev-parse', '--is-inside-work-tree']) === 'true';
     }
 
+    /**
+     * Whether Git ignores a repository-relative path.
+     *
+     * Asked of Git for the same reason as everything else here: the answer
+     * depends on global excludes, nested `.gitignore` files and `info/exclude`,
+     * none of which a substring search over the root `.gitignore` would see.
+     * Returns false when Git cannot answer, so a caller reports a possible
+     * problem rather than silently assuming the path is covered.
+     */
+    public static function ignores(string $rootPath, string $relativePath): bool
+    {
+        return self::ask($rootPath, ['git', 'check-ignore', '--quiet', '--', $relativePath]) !== null;
+    }
+
     /** @param non-empty-list<string> $command */
     private static function ask(string $workingDirectory, array $command): ?string
     {

@@ -1,0 +1,35 @@
+{
+    "id": "proposal.2026-08-14.d7d793",
+    "created_at": "2026-08-14T09:58:38+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-14.892b26"
+    ],
+    "reason": "Converting both dogfood runners to PHP produced two lessons at once: the reason that actually held (testability, not portability) and a regression caused by applying a static rule outside the scope it was earned in. Scope names the converted runners and the directory their decisions moved into, because that is where the pattern is checkable.",
+    "remaining_uncertainty": [],
+    "status": "approved",
+    "proposed_by": "consolidation",
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:58:38+00:00",
+    "target_type": "memory",
+    "target": "Dogfood runners are orchestration only",
+    "scope": [
+        "tools/self-shape-dogfood.php",
+        "src/Dogfood"
+    ],
+    "old": null,
+    "new": "Dogfood runners orchestrate; every decision they make lives in a tested class under src/Dogfood/. Convert a shell runner for testability rather than portability - Git for Windows ships bash, so the portability argument does not hold. A static rule carries the scope it was earned in: -n belongs to validation subprocesses, not to invoking our own CLI, which needs the extensions php.ini loads.",
+    "boundary": "Applies to repository dogfood runners. Git hooks stay shell, because Git invokes them directly and the portability argument is weakest there.",
+    "validation": [
+        "vendor/bin/phpunit --filter SelfShapeEvidenceTest",
+        "php tools/self-shape-dogfood.php"
+    ],
+    "scope_justification": "Converting both dogfood runners to PHP produced two lessons at once: the reason that actually held (testability, not portability) and a regression caused by applying a static rule outside the scope it was earned in. Scope names the converted runners and the directory their decisions moved into, because that is where the pattern is checkable.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "runner.decisions.live.in.tested.classes",
+    "validation_case": {
+        "given": "a shell runner whose decisions cannot be unit tested",
+        "when": "it is converted to PHP and the decisions stay inline in the script",
+        "then": "nothing is gained, because the conversion buys testability only if the decisions move into classes a test can call"
+    }
+}

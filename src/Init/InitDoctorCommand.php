@@ -74,6 +74,7 @@ final readonly class InitDoctorCommand
             $this->checkPhpVersion(),
             ...$this->checkComposer(),
             $this->checkGit(),
+            ...$this->checkStrayDerivedState(),
             ...$this->checkMakefiles(),
             InitCheckResult::info('skills-root: ' . $paths->skillsRoot()),
             InitCheckResult::info('subagents-root: ' . $paths->subagentsRoot()),
@@ -132,6 +133,45 @@ final readonly class InitDoctorCommand
         $results[] = InitCheckResult::warn('Composer scripts: missing ' . implode(', ', $missingScripts));
 
         return $results;
+    }
+
+    /**
+     * Derived state that escapes the workflow state root.
+     *
+     * agent-map writes its PHPStan result cache to a hardcoded
+     * `.agent-map/phpstan-cache`, which `docs/compact-layout.md` maps to
+     * `.agent-loop/map/` but which agent-map cannot be told to move. A real
+     * consumer replay gained 5.3 MB of untracked cache that its
+     * `.gitattributes` export rules did not cover, so it could have been
+     * committed and shipped in a Composer dist.
+     *
+     * Reported rather than deleted: it is a cache the next `map build`
+     * rebuilds, and removing another package's files behind its back is worse
+     * than naming the problem. Silent when the directory does not exist, and
+     * silent when Git already ignores it - a diagnostic that speaks when
+     * nothing is wrong trains people to stop reading it.
+     *
+     * @return list<InitCheckResult>
+     */
+    private function checkStrayDerivedState(): array
+    {
+        $root = rtrim($this->rootPath, '/');
+        $relative = '.agent-map';
+        if (!is_dir($root . '/' . $relative)) {
+            return [];
+        }
+        // Outside a working tree the advice would name .gitignore and
+        // .gitattributes for a repository that does not exist, which is worse
+        // than saying nothing.
+        if (!GitWorkTree::detected($root) || GitWorkTree::ignores($root, $relative)) {
+            return [];
+        }
+
+        return [InitCheckResult::warn(
+            'Derived state: ' . $relative . '/ is not ignored by Git. agent-map writes its PHPStan'
+            . ' result cache there, outside the workflow state root. Add "/' . $relative . '/" to .gitignore'
+            . ' and "/' . $relative . ' export-ignore" to .gitattributes so it cannot be committed or shipped.',
+        )];
     }
 
     private function checkGit(): InitCheckResult
