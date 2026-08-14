@@ -23,7 +23,7 @@ expected_errors=(
   'proc_open must receive an argv array, not shell-shaped command text.'
   'Child PHP commands must place -n immediately after PHP_BINARY'
   'ProjectLayout::learningRoot() result is discarded.'
-  'PHPDoc contract tags must be on separate lines.'
+  'PHPDoc contract tags must be on separate lines'
 )
 
 for expected_error in "${expected_errors[@]}"; do
