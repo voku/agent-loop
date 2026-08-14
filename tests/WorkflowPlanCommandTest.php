@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use PDO;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
+use voku\AgentMap\Index\AgentMapIndex;
+use voku\AgentMap\Index\AnalysisFingerprint;
+use voku\AgentMap\Index\IndexWriter;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowPlanCommandTest extends TestCase
@@ -214,8 +218,7 @@ final class WorkflowPlanCommandTest extends TestCase
 Use the existing view factory seam.
 CARD
 );
-        file_put_contents($root . '/.agent-loop/map/php-symbols.json', '{}');
-        file_put_contents($root . '/.agent-loop/map/search.sqlite', '');
+        $this->writeReadyMapAndSearch($root, 'sha256:current');
         file_put_contents($learningRoot . '/recall-documents.json', json_encode([
             'schema_version' => '1.0',
             'documents' => [],
@@ -329,6 +332,35 @@ CARD
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    private function writeReadyMapAndSearch(string $root, string $snapshot): void
+    {
+        (new IndexWriter())->write(
+            new AgentMapIndex(
+                schemaVersion: '2.0',
+                root: $root,
+                backend: 'test',
+                files: [],
+                fingerprint: new AnalysisFingerprint(
+                    '2.2.0',
+                    'sha256:config',
+                    'sha256:lock',
+                    $snapshot,
+                ),
+            ),
+            $root . '/.agent-loop/map/php-symbols.json',
+        );
+
+        $pdo = new PDO(
+            'sqlite:' . $root . '/.agent-loop/map/search.sqlite',
+            null,
+            null,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
+        $pdo->exec('CREATE TABLE search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        $statement = $pdo->prepare('INSERT INTO search_meta (key, value) VALUES (:key, :value)');
+        $statement->execute(['key' => 'map_snapshot', 'value' => $snapshot]);
     }
 
     private function root(string $suffix): string
