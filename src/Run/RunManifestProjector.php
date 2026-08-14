@@ -119,6 +119,10 @@ final readonly class RunManifestProjector
         }
         $store = new SessionStore();
         if ($run !== null) {
+            if (!$store->exists($root, $run->sessionId)) {
+                return null;
+            }
+
             try {
                 $session = $store->load($root, $run->sessionId);
                 if ($session->taskId !== $taskId) {
@@ -132,7 +136,13 @@ final readonly class RunManifestProjector
                 }
 
                 return $session;
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
+                $disagreements[] = [
+                    'code' => 'session.unreadable',
+                    'owner' => 'agent-session',
+                    'message' => $exception->getMessage(),
+                ];
+
                 return null;
             }
         }
