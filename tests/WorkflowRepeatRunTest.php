@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
@@ -32,30 +33,48 @@ final class WorkflowRepeatRunTest extends TestCase
     public function testNewContractRevisionAfterPruneGetsFreshSessionIdentity(): void
     {
         $contracts = new TaskContractStore($this->root);
-        $contracts->create('SELF-SHAPE', 'Govern the first candidate.', ['src/Foo.php'], [], ['composer ci'], 'agent-loop-self-shape');
+        $contracts->create(
+            'SELF-SHAPE',
+            'Govern the first candidate.',
+            ['src/Foo.php'],
+            [],
+            ['composer ci'],
+            'agent-loop-self-shape',
+        );
         $approve = new WorkflowApproveCommand($this->root, static fn (array $argv): int => 0);
 
         ob_start();
         self::assertSame(0, $approve->run(['SELF-SHAPE', '--by', 'fixture-approver']));
         ob_end_clean();
 
+        $layout = new ProjectLayout($this->root);
         $sessions = new SessionStore();
-        $firstSessions = $sessions->all($this->root . '/.agent-loop/sessions');
+        $firstSessions = $sessions->all($layout->sessionsRoot());
         self::assertCount(1, $firstSessions);
         $firstSession = $firstSessions[0];
         $firstRun = (new GovernedRunStore($this->root))->find('SELF-SHAPE');
         self::assertNotNull($firstRun);
 
         $sessions->setStatus($firstSession, SessionStatus::DONE);
-        self::assertSame([$firstSession->id], $sessions->prune($this->root . '/.agent-loop/sessions', 0, [SessionStatus::DONE]));
+        self::assertSame(
+            [$firstSession->id],
+            $sessions->prune($layout->sessionsRoot(), 0, [SessionStatus::DONE]),
+        );
 
-        $contracts->revise('SELF-SHAPE', 'Govern the second candidate.', ['src/Foo.php'], [], ['composer ci'], 'agent-loop-self-shape');
+        $contracts->revise(
+            'SELF-SHAPE',
+            'Govern the second candidate.',
+            ['src/Foo.php'],
+            [],
+            ['composer ci'],
+            'agent-loop-self-shape',
+        );
 
         ob_start();
         self::assertSame(0, $approve->run(['SELF-SHAPE', '--by', 'fixture-approver']));
         ob_end_clean();
 
-        $secondSessions = $sessions->all($this->root . '/.agent-loop/sessions');
+        $secondSessions = $sessions->all($layout->sessionsRoot());
         self::assertCount(1, $secondSessions);
         $secondSession = $secondSessions[0];
         self::assertNotSame($firstSession->id, $secondSession->id);
@@ -65,7 +84,13 @@ final class WorkflowRepeatRunTest extends TestCase
         self::assertNotSame($firstRun->runId, $secondRun->runId);
         self::assertSame(2, $secondRun->contractRevision);
         self::assertSame($secondSession->id, $secondRun->sessionId);
-        self::assertCount(1, glob($this->root . '/.agent-loop/runs/SELF-SHAPE/history/*/run.json') ?: []);
+
+        $archivedRuns = glob($layout->runHistoryRoot('SELF-SHAPE') . '/*/run.json') ?: [];
+        self::assertCount(1, $archivedRuns);
+        $archivedRun = json_decode((string) file_get_contents($archivedRuns[0]), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($archivedRun);
+        self::assertSame($firstRun->runId, $archivedRun['run_id'] ?? null);
+        self::assertSame(1, $archivedRun['contract_revision'] ?? null);
     }
 
     private function removeDirectory(string $path): void
@@ -73,6 +98,7 @@ final class WorkflowRepeatRunTest extends TestCase
         if (!is_dir($path)) {
             return;
         }
+
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
             RecursiveIteratorIterator::CHILD_FIRST,
