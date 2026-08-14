@@ -33,10 +33,12 @@ final readonly class WorkflowPlanCommand
             $contracts = new TaskContractStore($this->rootPath);
             $existing = $contracts->find($taskId->value);
 
-            if ($existing !== null && $this->activeSession($taskId->value) !== null) {
+            $activeSession = $existing !== null ? $this->activeSession($taskId->value) : null;
+            if ($activeSession !== null) {
                 throw new RuntimeException(
-                    'Cannot revise Contract for ' . $taskId->value
-                    . ' while a governed Session is active. Finish or drop that Run before changing durable intent.',
+                    'Cannot revise Contract for ' . $taskId->value . ' while governed Session ' . $activeSession->id
+                    . ' is active. Continue the existing Run, or if it is abandoned run `agent-loop session close '
+                    . $activeSession->id . ' --status dropped` before changing durable intent.',
                 );
             }
 
