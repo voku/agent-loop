@@ -51,7 +51,19 @@ final class ReviewDispatcherIntegrationTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/infra/doc/agent-learning/recall-output/ABC-123/reviews/ABC-123.blindspots.json');
     }
 
-    public function testReviewCodeDefaultsToAgentLoopRecallLayout(): void
+    public function testReviewFirstDraftDelegatesToRecallCompilerWithoutTaskState(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'review', 'first-draft']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('falsification rather than confirmation', $result['output']);
+        self::assertStringContainsString('CLEAN is valid only after concrete attempts to falsify', $result['output']);
+
+        $invalid = $this->dispatch(['agent-loop', 'review', 'first-draft', 'unexpected']);
+        self::assertSame(1, $invalid['exit']);
+    }
+
+    public function testReviewCodeDefaultsToAgentLoopRecallLayoutAndIncludesFirstDraftLens(): void
     {
         $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
         $this->write('.agent-loop/recall/ABC-123/validation-plan.md', "PHPUnit passed.\n");
@@ -64,6 +76,8 @@ final class ReviewDispatcherIntegrationTest extends TestCase
         $prompt = (string) file_get_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.code.prompt.md');
         self::assertStringContainsString('src/Foo.php', $prompt);
         self::assertStringContainsString('L2 code review prompt for ABC-123', $prompt);
+        self::assertStringContainsString('## First-draft falsification lens', $prompt);
+        self::assertStringContainsString('CLEAN is valid only after concrete attempts to falsify', $prompt);
     }
 
     public function testReviewHelpComesFromRecallCompilerReviewNamespace(): void
@@ -71,6 +85,7 @@ final class ReviewDispatcherIntegrationTest extends TestCase
         $result = $this->dispatch(['agent-loop', 'review', 'help']);
 
         self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('agent-recall-compiler review first-draft', $result['output']);
         self::assertStringContainsString('agent-recall-compiler review blindspots <task-id>', $result['output']);
         self::assertStringContainsString('agent-recall-compiler review code <task-id>', $result['output']);
     }
