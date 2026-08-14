@@ -21,7 +21,7 @@ final class GitCandidateEvidenceTest extends TestCase
 
     protected function setUp(): void
     {
-        if ($this->run(sys_get_temp_dir(), ['git', '--version'])['exit'] !== 0) {
+        if ($this->runProcess(sys_get_temp_dir(), ['git', '--version'])['exit'] !== 0) {
             self::markTestSkipped('git is not available.');
         }
 
@@ -75,7 +75,7 @@ final class GitCandidateEvidenceTest extends TestCase
         $this->git($repo, 'commit', '--quiet', '--no-gpg-sign', '-m', 'integrated squash');
         $integrated = $this->git($repo, 'rev-parse', 'HEAD');
 
-        self::assertSame(1, $this->run($repo, ['git', 'merge-base', '--is-ancestor', $candidate, $integrated])['exit']);
+        self::assertSame(1, $this->runProcess($repo, ['git', 'merge-base', '--is-ancestor', $candidate, $integrated])['exit']);
 
         $evidence = (new GitCandidateEvidence($repo))->prove($candidate, $integrated, 'main');
 
@@ -163,7 +163,7 @@ final class GitCandidateEvidenceTest extends TestCase
 
     private function git(string $workingDirectory, string ...$arguments): string
     {
-        $result = $this->run($workingDirectory, ['git', ...$arguments]);
+        $result = $this->runProcess($workingDirectory, ['git', ...$arguments]);
         self::assertSame(0, $result['exit'], trim($result['stderr']));
 
         return trim($result['stdout']);
@@ -173,7 +173,7 @@ final class GitCandidateEvidenceTest extends TestCase
      * @param non-empty-list<string> $command
      * @return array{exit: int, stdout: string, stderr: string}
      */
-    private function run(string $workingDirectory, array $command): array
+    private function runProcess(string $workingDirectory, array $command): array
     {
         $process = proc_open(
             $command,
