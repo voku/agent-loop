@@ -29,6 +29,7 @@ final readonly class InitCli
             'sync-subagents' => (new InitSyncSubagentsCommand($this->rootPath))->run($rest),
             'sync-hooks' => (new InitSyncHooksCommand($this->rootPath))->run($rest),
             'sync-githooks' => (new InitSyncGitHooksCommand($this->rootPath))->run($rest),
+            'sync-instructions' => (new InitSyncInstructionsCommand($this->rootPath))->run($rest),
             'sync-tools' => (new InitSyncToolsCommand($this->rootPath))->run($rest),
             'scaffold' => (new InitScaffoldCommand($this->rootPath))->run($rest),
             default => $this->printUsage(1, $command),
@@ -57,24 +58,26 @@ final readonly class InitCli
           agent-loop init sync-githooks [--hooks-dir=PATH] [--commit-template=PATH] [--container-service=NAME]
                                        [--container-image=NAME] [--container-workdir=PATH] [--container-user=NAME]
                                        [--skip-git-config] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init sync-instructions --agent=<agent|all> [--dry-run]
           agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init scaffold [--dry-run]
 
         Commands:
-          help           Show init help.
-          doctor         Diagnose local setup and repo-managed agent asset hints.
-          paths          Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
-          status         Show resolved init sources, aliases, and target manifests (read-only).
-          tools          Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
-          validate       Validate repo-managed agent asset definitions.
-          install-plan   Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets Install first-party workflow skills from agent-loop and its Recall dependency, optionally merge explicit local engineering skill roots, install bundled subagent roles, and install Codex/Claude PHP hooks where supported.
-          sync-skills    Prevalidate and merge one or more canonical skill roots into one managed client projection; duplicate skill IDs fail.
-          sync-subagents Sync repo-managed subagents into a client target directory.
-          sync-hooks     Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
-          sync-githooks  Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
-          sync-tools     Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
-          scaffold       Create the minimum local workflow structure below .agent-loop/ and a DEMO-1 task.
+          help              Show init help.
+          doctor            Diagnose local setup and repo-managed agent asset hints.
+          paths             Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
+          status            Show resolved init sources, aliases, and target manifests (read-only).
+          tools             Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
+          validate          Validate repo-managed agent asset definitions.
+          install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
+          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles/hooks, and the host's always-on project instruction entrypoint.
+          sync-skills       Prevalidate and merge one or more canonical skill roots into one managed client projection; duplicate skill IDs fail.
+          sync-subagents    Sync repo-managed subagents into a client target directory.
+          sync-hooks        Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
+          sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
+          sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and host import shims; preserve project-owned instructions outside the markers.
+          sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
+          scaffold          Create the minimum local workflow structure below .agent-loop/ and a DEMO-1 task.
         TXT;
 
         if ($unknownCommand === '') {

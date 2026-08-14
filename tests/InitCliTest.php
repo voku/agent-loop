@@ -31,6 +31,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init doctor', $help['output']);
         self::assertStringContainsString('agent-loop init install-plan', $help['output']);
         self::assertStringContainsString('agent-loop init install-assets', $help['output']);
+        self::assertStringContainsString('agent-loop init sync-instructions', $help['output']);
         self::assertStringContainsString('init status', $help['output']);
         self::assertStringNotContainsString('rtk', strtolower($help['output']));
 

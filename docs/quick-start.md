@@ -5,13 +5,21 @@ reviewable task. Repository-local agent workflow state lives below one
 `.agent-loop/` directory instead of spreading package-specific directories
 across the project root.
 
-## 1. Bootstrap the repository
+## 1. Bootstrap the repository and agent host
 
 Run this from the root of an existing Composer project:
 
 ```bash
 vendor/bin/agent-loop init scaffold
+vendor/bin/agent-loop init install-assets --agent=codex
+vendor/bin/agent-loop init doctor
 ```
+
+Replace `codex` with the host you are actually going to use. Use `--agent=all`
+only when the repository intentionally manages every supported host. Project the
+assets **before starting the agent session that should use them**. Installing a
+skill during an already-running session proves installation, not that the
+current agent retroactively consumed it.
 
 The scaffold creates the canonical layout:
 
@@ -44,6 +52,17 @@ Composer/Git archives with one rule:
 /.agent-loop export-ignore
 ```
 
+If the repository tracks `.agent-loop/githooks.json`, install the package-owned
+local Git hooks as well. A tracked `.gitmessage` can be bound at the same time:
+
+```bash
+vendor/bin/agent-loop init sync-githooks --commit-template=.gitmessage
+```
+
+Local Git hooks run only for a local Git commit. GitHub API/connector writes do
+not execute `pre-commit` or `commit-msg`; use the repository validation gates as
+the authority in such a host instead of pretending the hook ran.
+
 ## 2. Inspect or create a task
 
 `DEMO-1` is a normal example task, not a special workflow mode:
@@ -65,7 +84,31 @@ The board command resolves `.agent-loop/todo/`. If the cross-package verifier
 should govern `PROJECT-1`, add the matching task file at
 `.agent-loop/tasks/PROJECT-1.md` with a top-level heading.
 
-## 3. Plan, approve, and inspect context
+## 3. Build navigation evidence before approval
+
+For PHP projects, build the semantic map before `workflow approve`. Approval is
+where Loop compiles Recall, so a map built afterwards cannot influence that
+briefing without another explicit approval/compile cycle.
+
+```bash
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map search-index build
+vendor/bin/agent-loop map summary
+```
+
+The defaults are `.agent-loop/map/php-symbols.json` and
+`.agent-loop/map/search.sqlite`. Explicit agent-map path options remain
+available for genuinely custom locations.
+
+Use the installed `agent-loop-investigate` skill or bounded map queries to locate
+real source before broad reads:
+
+```bash
+vendor/bin/agent-loop map query Foo
+vendor/bin/agent-loop map related Foo
+```
+
+## 4. Plan, optionally select an L2 recipe, approve, and inspect context
 
 Choose the real file or files you intend to change. `composer.json` is used
 below only because every Composer project has one.
@@ -85,6 +128,25 @@ vendor/bin/agent-loop workflow context DEMO-1
 vendor/bin/agent-loop workflow status DEMO-1
 ```
 
+Select an L2 operating prompt only when it matches the task. Selection belongs in
+the Contract **before approval**. For example, a real self-discovery task looking
+for missing workflow integration can select Recall's `missingness-audit` recipe:
+
+```bash
+vendor/bin/agent-loop workflow plan PROJECT-1 \
+  --by "$(git config user.name)" \
+  --file src/SomeOwningClass.php \
+  --goal "Find and fix the smallest evidenced workflow integration gap." \
+  --validation "composer ci" \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt '{"id":"missingness-audit","arguments":{}}'
+```
+
+Approval then compiles the selected L2 recipe together with current repository
+and map evidence. A deterministic harness that merely checks the generated
+`system.md` proves compilation. A behavioral dogfood claim additionally needs an
+agent host that actually receives and acts on that briefing.
+
 Sessions are written below `.agent-loop/sessions/`, learning state below
 `.agent-loop/learning/`, and compiled recall below `.agent-loop/recall/`.
 Direct `session`, `learn`, `recall`, `board`, `map`, `review`, and `verify`
@@ -97,7 +159,9 @@ Material context claims should remain distinguishable as verified, inferred,
 assumed, blocked, or contradicted instead of being flattened into confidence.
 
 If `workflow status` says the selected policy requires an L1 execution
-contract, create a Markdown file with exactly these non-empty H2 sections:
+contract, construct that L1 from the generated Recall instructions and the
+project evidence the agent actually received. Persist it with exactly these
+non-empty H2 sections:
 
 ```markdown
 ## Goal
@@ -129,20 +193,6 @@ vendor/bin/agent-loop workflow status DEMO-1
 
 Do not create a contract merely to satisfy a gate. It should be the concrete
 execution boundary produced from the approved plan and selected guidance.
-
-## 4. Use the map without another project-root directory
-
-For PHP projects, `agent-map` still scans the actual repository root. Only its
-generated state is stored below `.agent-loop/`:
-
-```bash
-vendor/bin/agent-loop map build
-vendor/bin/agent-loop map summary
-```
-
-The defaults are `.agent-loop/map/php-symbols.json` and
-`.agent-loop/map/search.sqlite`. Explicit agent-map path options remain
-available for genuinely custom locations.
 
 ## 5. Make and validate the change
 
@@ -189,6 +239,21 @@ Read the review output before recording the checkpoint. If verification still
 reports drift, fix the drift rather than turning the gate into ceremonial
 paperwork. Likewise, use `no_durable_learning` only when there genuinely is no
 reusable lesson.
+
+`workflow status --expect complete` proves the governed task is complete. It is
+**not** evidence that a candidate commit was merged, shipped, or released. Those
+claims require exact candidate/integration evidence, for example:
+
+```bash
+vendor/bin/agent-loop verify \
+  --candidate-sha=<full-source-candidate-sha> \
+  --integrated-sha=<full-integrated-sha> \
+  --target-ref=main \
+  --format=json
+```
+
+Add `--release-tag=<exact-tag>` when the claim is specifically that the result
+was released.
 
 ## Upgrading an existing repository
 

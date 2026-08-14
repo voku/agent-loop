@@ -116,6 +116,14 @@ $json = static function (string $path, array $data): void {
 $json($root . '/build/self-shape-input.json', [
     'task' => TASK,
     'planner' => PLANNER,
+    'dogfood_mode' => 'deterministic_lifecycle',
+    'capabilities' => [
+        'map_built_before_recall_compile' => true,
+        'recall_compile' => 'exercised',
+        'recall_system_consumption_by_agent' => 'not_exercised',
+        'host_skill_consumption' => 'not_exercised',
+        'local_git_hooks' => 'not_exercised',
+    ],
     'approval' => [
         'actor' => $options['approver'],
         'evidence_kind' => 'ci_pr_author_fixture',
@@ -130,6 +138,11 @@ $json($root . '/build/self-shape-input.json', [
 ]);
 
 $loop(['learn', 'validate', '--root', '.agent-loop/learning']);
+
+// Approval compiles Recall. Build both map layers first or the governed briefing
+// cannot consume repository evidence that appears only after approval.
+$loop(['map', 'build', '--paths=src,tests']);
+$loop(['map', 'search-index', 'build']);
 
 $plan = ['workflow', 'plan', TASK, '--by', PLANNER, '--base-commit', $base];
 foreach ($changedFiles as $file) {
@@ -310,7 +323,7 @@ if (!str_contains($postPruneReport, '"source": "verification_receipt"')) {
 }
 
 printf(
-    "Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nRun: %s\nChanged files: %d\nGoal: %s\nApproval fixture: %s\nValidation duration: %d ms\nLearning decision: %s\nSession prune replay: passed\n",
+    "Self-shape dogfood: PASSED\nMode: deterministic_lifecycle\nBase: %s\nHead: %s\nRun: %s\nChanged files: %d\nGoal: %s\nApproval fixture: %s\nValidation duration: %d ms\nLearning decision: %s\nSession prune replay: passed\n",
     $base,
     $head,
     $runId,

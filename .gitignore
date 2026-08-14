@@ -7,6 +7,7 @@
 /.agent-map/
 /.agent-loop/*
 !/.agent-loop/init.json
+!/.agent-loop/githooks.json
 !/.agent-loop/learning/
 !/.agent-loop/learning/config.json
 !/.agent-loop/learning/findings/
