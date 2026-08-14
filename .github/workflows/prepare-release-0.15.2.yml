@@ -10,7 +10,23 @@ permissions:
 
 jobs:
   prepare:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Probe release-prep workflow
-        run: echo release-prep-ok
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Prepare changelog-only release diff
+        shell: bash
+        env:
+          RELEASE_SECTION_B64: IyMgMC4xNS4yIC0gMjAyNi0wOC0xNAoKIyMjIENoYW5nZWQKCi0gUmVxdWlyZXMgYHZva3UvYWdlbnQtcmVjYWxsLWNvbXBpbGVyIF4wLjExLjVgLiBSZWNhbGwgbm93IG93bnMgYW5kIHNoaXBzIHRoZQogIGZpcnN0LXBhcnR5IG9wZXJhdGluZy1wcm9tcHQgY2F0YWxvZyBiZXNpZGUgaXRzIGNvbnN1bWVyIHNraWxsLCBzbyBMb29wIHVzZXMKICBgdmVuZG9yL3Zva3UvYWdlbnQtcmVjYWxsLWNvbXBpbGVyL3NraWxscy9hZ2VudC1yZWNhbGwtY29uc3VtZXIvb3BlcmF0aW5nLXByb21wdHMuanNvbmAKICBpbnN0ZWFkIG9mIHN5bmNocm9uaXppbmcgUmVjYWxsIGJlaGF2aW9yIHRocm91Z2ggYSBzZXBhcmF0ZWx5IHBpbm5lZAogIGBhZ2VudC1za2lsbHNgIGNvbW1pdC4KLSBgYWdlbnQtbG9vcC1sMi1jb250ZXh0YCBub3cgb3ducyBvbmx5IExvb3Agb3JjaGVzdHJhdGlvbiBhcm91bmQgUmVjYWxsIGFuZAogIGRlZmVycyBSZWNhbGwgcHJvbXB0IHNjaGVtYSwgcmVjaXBlIHNlbWFudGljcywgYW5kIHJldmlldyBwcmltaXRpdmVzIHRvIHRoZQogIFJlY2FsbC1vd25lZCBza2lsbC4gVGhpcyByZW1vdmVzIGEgc2Vjb25kIE1hcmtkb3duIGltcGxlbWVudGF0aW9uIHRoYXQgaGFkCiAgYWxyZWFkeSBkcmlmdGVkIGZyb20gUmVjYWxsJ3MgY3VycmVudCBMMiBjb25zdHJ1Y3Rpb24gY29udHJhY3QuCgojIyMgTGVhcm5pbmcKCi0gVmFsaWRhdGVkIGBmaW5kaW5nLjIwMjYtMDgtMTQuMDA1YDogc2tpbGxzIGFuZCBtYWNoaW5lLXJlYWRhYmxlIGluc3RydWN0aW9uCiAgYXNzZXRzIHdob3NlIGNvcnJlY3RuZXNzIGRlcGVuZHMgb24gYSB0b29sJ3MgQ0xJLCBzY2hlbWEsIGdlbmVyYXRlZCBmaWxlcywKICBvdXRwdXQgY29udHJhY3QsIG9yIHJ1bnRpbWUgYmVoYXZpb3IgYmVsb25nIGluIHRoYXQgdG9vbCdzIHJlcG9zaXRvcnkgYW5kCiAgc2hpcC90ZXN0IHdpdGggdGhlIGltcGxlbWVudGF0aW9uLiBHZW5lcmljIHNraWxsIGNvbGxlY3Rpb25zIGtlZXAgb25seQogIHRvb2wtbmV1dHJhbCBwcmluY2lwbGVzIG9yIHJlZmVyZW5jZXMgdG8gdGhlIGNhbm9uaWNhbCBvd25lci4KCiMjIyBWYWxpZGF0aW9uCgotIFRoZSBvd25lcnNoaXAgaGFuZG9mZiBwYXNzZWQgUEhQIDguMy84LjQvOC41IENJIGFuZCBkaWFnbm9zdGljcywgcHJvamVjdAogIFBIUFN0YW4gcnVsZXMsIGFjY2VwdGFuY2UgYW5kIHByb21wdC1wcmltaXRpdmVzIGNsZWFuLWNvbnN1bWVyIGRvZ2Zvb2QsCiAgZ292ZXJuZWQgZXhlY3V0aW9uLWNvbnRyYWN0IGRvZ2Zvb2QsIGluc3RhbGxlZCByZWxlYXNlLXNldCBkb2dmb29kLAogIGRldGVybWluaXN0aWMgc2xvcCByZXZpZXcsIGFuZCBhZ2VudC1sb29wIHNlbGYtc2hhcGUgYmVmb3JlIG1lcmdlLgoK
+        run: |
+          set -euo pipefail
+          python -c 'import base64, os; from pathlib import Path; p=Path("CHANGELOG.md"); text=p.read_text(); marker="## Unreleased\n"; assert marker in text; assert "## 0.15.2 - " not in text; section=base64.b64decode(os.environ["RELEASE_SECTION_B64"]).decode(); p.write_text(text.replace(marker, marker + "\n" + section, 1))'
+          rm .github/workflows/prepare-release-0.15.2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md .github/workflows/prepare-release-0.15.2.yml
+          git diff --cached --check
+          git commit -m 'Prepare agent-loop 0.15.2'
+          git push origin HEAD:agent/release-0.15.2
