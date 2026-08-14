@@ -74,9 +74,15 @@ compiled Recall artifacts and source context. The installed `code-review-*`
 engineering lens still owns the concrete technical review; Recall supplies the
 evidence boundary and `agent-loop` owns workflow progression.
 
-When the review method itself must be compiled from project evidence, select the
-repo-owned `agent-skills` L2 `adversarial-review` recipe during PLAN. Its
-`minimum_failure_modes` value is a floor on distinct plausible hypotheses or
+When the review method itself must be compiled from project evidence, select
+Recall's bundled L2 `adversarial-review` recipe during PLAN using the installed
+manifest:
+
+```text
+vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json
+```
+
+Its `minimum_failure_modes` value is a floor on distinct plausible hypotheses or
 attack scenarios that must be investigated, **not** a quota of defects that must
 be produced. Disproved hypotheses are useful falsification evidence and `CLEAN`
 remains legal after the requested probes find no evidence-backed defect.
@@ -84,14 +90,18 @@ remains legal after the requested probes find no evidence-backed defect.
 The ownership split is intentional:
 
 ```text
-agent-loop bundled L1 controls     -> direct execution controls
-agent-skills adversarial-review    -> project-grounded L2 review recipe
+agent-loop bundled L1 controls     -> Loop execution/orchestration controls
+Recall bundled L2 recipes          -> project-grounded Recall prompt construction
 Recall review first-draft          -> context-light falsification lens
 Recall review code <task-id>       -> task-artifact-backed review prompt
+agent-skills                        -> tool-neutral engineering principles/skills
 ```
 
-Do not copy the `agent-skills` L2 catalog into `agent-loop`; pass its manifest
-explicitly when planning a task that needs one of those methods.
+A skill or machine-readable recipe whose correctness depends on a tool's CLI,
+schema, file layout, generated artifacts, or runtime behavior belongs in that
+tool's repository. Consumers may install or reference the owned asset, but must
+not keep a second canonical copy. That keeps tool code and coding instructions on
+the same review, test, and release cadence.
 
 ## Post-task reflection
 
