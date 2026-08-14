@@ -49,7 +49,13 @@ final readonly class InitInstallAssetsCommand
         }
 
         $packageRoot = dirname(__DIR__, 2);
-        $skillRoots = $this->firstPartySkillRoots($packageRoot);
+        try {
+            $skillRoots = $this->firstPartySkillRoots($packageRoot);
+        } catch (InvalidArgumentException $exception) {
+            fwrite(\STDERR, $exception->getMessage() . "\n");
+
+            return 1;
+        }
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $codexHooksRoot = $packageRoot . '/docs/agents/codex-hooks';
         $claudeHooksRoot = $packageRoot . '/docs/agents/claude-hooks';
