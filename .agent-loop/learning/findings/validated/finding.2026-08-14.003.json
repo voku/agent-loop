@@ -1,0 +1,26 @@
+{
+  "id": "finding.2026-08-14.003",
+  "task_id": "HISTORY-LEARNING-SELF-AUDIT-001",
+  "session": "2026-08-14-history-extraction",
+  "created_at": "2026-08-14T03:32:00+02:00",
+  "created_by": "history-review",
+  "scope": [
+    "docs/agents/skills/agent-loop-learning-boundary/SKILL.md",
+    "docs/workflow/learning-boundary.md",
+    "src/Workflow/WorkflowLearningCommand.php",
+    "src/Workflow/WorkflowCloseCommand.php"
+  ],
+  "observation": "Earlier agent-learning self-audit dogfood found three user-visible contract gaps that package-internal happy paths had not exposed: NO_DURABLE_LEARNING lacked the correct terminal transition, proposal commands accepted full paths but failed on the natural bare proposal ID documented for users, and older outcome records were silently excluded from guidance statistics. The fixes shipped separately in agent-learning 0.8.2, 0.8.3, and 0.8.4, which shows the failures were independent rather than one broad refactor opportunity.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "The reviewed agent-loop dogfood history identifies the three defects and their released fixes in agent-learning 0.8.2, 0.8.3, and 0.8.4. Current agent-loop guidance documents the bare-ID proposal contract and the explicit findings_recorded/no_durable_learning/follow_up_required close-out states."
+    }
+  ],
+  "hypothesis": "A learning pipeline can be internally valid while its natural CLI entrypoint, terminal state machine, or historical projection is wrong. Testing only freshly written records and path-shaped internal inputs hides those failures.",
+  "validated_conclusion": "Replay learning through the documented natural CLI surface, cover every terminal decision, and include old-but-supported records in projection fixtures. A green current-record unit test is not evidence that the durable history remains complete or that the user-facing command contract works.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

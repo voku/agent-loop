@@ -38,7 +38,7 @@ final readonly class WorkflowReportCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
-            $report = $this->buildReport($taskId->value, $options['learningRoot'], $options['changedFiles']);
+            $report = $this->buildReport($taskId->value, $options['changedFiles']);
             if ($options['format'] === 'json') {
                 echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 
@@ -61,17 +61,16 @@ final readonly class WorkflowReportCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{format: 'text'|'json', learningRoot: string|null, changedFiles: list<string>}
+     * @return array{format: 'text'|'json', changedFiles: list<string>}
      */
     private function parse(array $tokens): array
     {
         $format = 'text';
-        $learningRoot = null;
         $changedFiles = [];
 
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--format', '--learning-root', '--changed-file'], true)) {
+            if (!in_array($token, ['--format', '--changed-file'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
@@ -85,7 +84,6 @@ final readonly class WorkflowReportCommand
 
             match ($token) {
                 '--format' => $format = $value,
-                '--learning-root' => $learningRoot = $value,
                 '--changed-file' => $changedFiles[] = $value,
             };
         }
@@ -97,7 +95,6 @@ final readonly class WorkflowReportCommand
         /** @var 'text'|'json' $format */
         return [
             'format' => $format,
-            'learningRoot' => $learningRoot,
             'changedFiles' => array_values(array_unique($changedFiles)),
         ];
     }
@@ -106,7 +103,7 @@ final readonly class WorkflowReportCommand
      * @param list<string> $changedFiles
      * @return array<string, mixed>
      */
-    public function buildReport(string $taskId, ?string $learningRoot = null, array $changedFiles = []): array
+    public function buildReport(string $taskId, array $changedFiles = []): array
     {
         $sessions = $this->sessionsFor($taskId);
         $activeSessions = array_values(array_filter($sessions, static fn (Session $session): bool => !$session->status->isClosed()));
@@ -128,9 +125,9 @@ final readonly class WorkflowReportCommand
             'scope' => $this->scopeReport($contract, $changedFiles),
             'validation' => $this->validationReport($taskId, $contract, $session['session']),
             'verification' => $this->verificationReport($taskId),
-            'recall' => $this->recallReport($taskId, $learningRoot),
+            'recall' => $this->recallReport($taskId),
             'review' => $this->reviewReport($taskId),
-            'learning' => $this->learningReport($taskId, $learningRoot),
+            'learning' => $this->learningReport($taskId),
             'accepted_risk' => $this->acceptedRiskReport($taskId),
         ];
     }
@@ -335,7 +332,7 @@ final readonly class WorkflowReportCommand
     }
 
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
-    private function recallReport(string $taskId, ?string $learningRoot): array
+    private function recallReport(string $taskId): array
     {
         $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
         $relative = $this->relativePath($path);
@@ -360,7 +357,7 @@ final readonly class WorkflowReportCommand
             'meta_path' => $relative,
             'task_files' => $taskFiles,
             'outcome_draft' => is_file(dirname($path) . '/recall-log.draft.json'),
-            'logged_outcomes' => $this->loggedOutcomeCount($taskId, $this->resolveLearningRoot($taskId, $learningRoot)),
+            'logged_outcomes' => $this->loggedOutcomeCount($taskId, $this->resolveLearningRoot($taskId)),
         ];
     }
 
@@ -373,9 +370,9 @@ final readonly class WorkflowReportCommand
     }
 
     /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int, decision: string|null, run_id: string|null} */
-    private function learningReport(string $taskId, ?string $learningRoot): array
+    private function learningReport(string $taskId): array
     {
-        $root = $this->resolveLearningRoot($taskId, $learningRoot);
+        $root = $this->resolveLearningRoot($taskId);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $decision = $root === null || $run === null ? null : (new RunLearningDecisionStore($root))->find($run->runId);
         if ($root === null) {
@@ -437,16 +434,15 @@ final readonly class WorkflowReportCommand
     /**
      * The report never invents a Learning location, and never attributes another
      * repository's decision to this Run: a governed Run reads from the root it is
-     * bound to, and an explicit override that disagrees is refused rather than
-     * silently substituted. A root that does not exist stays null so the report
+     * bound to. A root that does not exist stays null so the report
      * says "unavailable" instead of "invalid".
      */
-    private function resolveLearningRoot(string $taskId, ?string $explicit): ?string
+    private function resolveLearningRoot(string $taskId): ?string
     {
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
         $candidate = $run === null
-            ? WorkflowLearningRoot::resolve($this->rootPath, $explicit)
-            : WorkflowLearningRoot::assertRunBinding($this->rootPath, $run, $explicit);
+            ? (new ProjectLayout($this->rootPath))->learningRoot()
+            : WorkflowLearningRoot::forRun($this->rootPath, $run);
 
         return is_dir($candidate) ? rtrim($candidate, '/') : null;
     }

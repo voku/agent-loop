@@ -21,6 +21,10 @@ final class SmokeLoopTest extends TestCase
         mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
         rename($this->root . '/tasks/task.001.md', $this->root . '/.agent-loop/tasks/task.001.md');
         rmdir($this->root . '/tasks');
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode(['version' => 1, 'paths' => ['learning_root' => 'learning-root']], JSON_THROW_ON_ERROR),
+        );
     }
 
     protected function tearDown(): void
@@ -88,13 +92,12 @@ final class SmokeLoopTest extends TestCase
     {
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'plan', 'task.001', '--by', 'tester',
-            '--learning-root', $this->root . '/learning-root', '--file', 'src/Signup.php',
+            '--file', 'src/Signup.php',
             '--goal', 'Keep completion evidence auditable.',
             '--validation', 'vendor/bin/phpunit tests/SignupTest.php',
         ])['exit']);
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
-            '--learning-root', $this->root . '/learning-root',
         ])['exit']);
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'session', 'validation', 'record', 'task.001',
@@ -105,7 +108,6 @@ final class SmokeLoopTest extends TestCase
             'agent-loop', 'workflow', 'learn', 'task.001',
             '--status', 'no_durable_learning', '--by', 'tester',
             '--reason', 'The smoke run produced no reusable guidance.',
-            '--learning-root', $this->root . '/learning-root',
         ])['exit']);
         mkdir($this->root . '/.agent-loop/recall/task.001/reviews', 0o775, true);
         file_put_contents(
@@ -113,23 +115,17 @@ final class SmokeLoopTest extends TestCase
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
-        $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001', '--learning-root', $this->root . '/learning-root']);
+        $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
         self::assertSame(0, $context['exit']);
         self::assertStringContainsString('Keep completion evidence auditable.', $context['output']);
         self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php', $context['output']);
 
-        $report = $this->dispatch([
-            'agent-loop', 'workflow', 'report', 'task.001',
-            '--learning-root', $this->root . '/learning-root',
-        ]);
+        $report = $this->dispatch(['agent-loop', 'workflow', 'report', 'task.001']);
         self::assertSame(0, $report['exit']);
         self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php via session', $report['output']);
         self::assertStringContainsString('Run decision no_durable_learning', $report['output']);
 
-        $close = $this->dispatch([
-            'agent-loop', 'workflow', 'close', 'task.001', '--status', 'done',
-            '--learning-root', $this->root . '/learning-root',
-        ]);
+        $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'task.001', '--status', 'done']);
         self::assertSame(0, $close['exit'], $close['output']);
         self::assertStringContainsString('[OK] validation:', $close['output']);
         self::assertStringContainsString('[OK] learning decision:', $close['output']);

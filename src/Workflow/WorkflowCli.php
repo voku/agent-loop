@@ -40,17 +40,17 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> [--learning-root <path>] --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
-  agent-loop workflow approve <task-id> --by <actor> [--learning-root <path>]
+  agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
+  agent-loop workflow approve <task-id> --by <actor>
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
   agent-loop workflow status <task-id> [--format text|json]
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
-  agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json] [--learning-root <path>]
-  agent-loop workflow report <task-id> [--format text|json] [--learning-root <path>] [--changed-file <path> ...]
+  agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
+  agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
   agent-loop workflow reflect <task-id> [--scope project|task]
-  agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>] [--learning-root <path>]
-  agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>] [--learning-root <path>]
+  agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>]
+  agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
 
 Commands:
   plan      Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.

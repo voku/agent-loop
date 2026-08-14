@@ -126,7 +126,7 @@ final readonly class WorkflowPlanCommand
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
-            if (!in_array($token, ['--by', '--learning-root', '--root', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -141,11 +141,6 @@ final readonly class WorkflowPlanCommand
             switch ($token) {
                 case '--by':
                     $by = $value;
-                    break;
-                case '--learning-root':
-                case '--root':
-                    // Accepted but unused: PLAN owns no Learning state. The governed
-                    // Run binds its durable Learning root at APPROVE instead.
                     break;
                 case '--file':
                     $files[] = $value;

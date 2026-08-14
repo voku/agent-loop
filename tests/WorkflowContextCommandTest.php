@@ -78,7 +78,7 @@ final class WorkflowContextCommandTest extends TestCase
     public function testContextReportsOmissionsAndMissingMap(): void
     {
         unlink($this->root . '/.agent-loop/map/php-symbols.json');
-        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', null, 12, 512);
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 12, 512);
 
         self::assertNotEmpty($context['omitted']);
         self::assertContains('agent-map: index missing (.agent-loop/map/php-symbols.json)', $context['skipped']);
@@ -112,7 +112,7 @@ final class WorkflowContextCommandTest extends TestCase
         ], JSON_THROW_ON_ERROR));
         unlink($this->root . '/.agent-loop/map/php-symbols.json');
 
-        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', null, 120, 12000);
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
 
         self::assertStringContainsString('Demo\\BundleFoo — src/Foo.php:7', implode("\n", $context['lines']));
         self::assertNotContains('agent-map: index missing (.agent-loop/map/php-symbols.json)', $context['skipped']);
@@ -141,7 +141,7 @@ final class WorkflowContextCommandTest extends TestCase
             ]],
         ], JSON_THROW_ON_ERROR));
 
-        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', null, 120, 12000);
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
 
         self::assertStringContainsString('Keep the context bounded (READY / Selected)', implode("\n", $context['lines']));
         self::assertStringContainsString('Next: Inspect the sealed facts.', implode("\n", $context['lines']));

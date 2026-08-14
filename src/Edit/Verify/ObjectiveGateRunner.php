@@ -103,7 +103,7 @@ final readonly class ObjectiveGateRunner
             }
 
             ++$linted;
-            $result = $this->commandRunner->run([PHP_BINARY, '-l', $absolute], $projectRoot);
+            $result = $this->commandRunner->run([PHP_BINARY, '-n', '-l', $absolute], $projectRoot);
             if ($result['exit_code'] !== 0) {
                 $failures[] = $file;
             }

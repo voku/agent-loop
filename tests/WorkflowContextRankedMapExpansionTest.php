@@ -127,7 +127,7 @@ PHP);
 
     public function testRankedMethodLeadExpandsThroughExistingMapRelationsWithoutChangingApprovedScope(): void
     {
-        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', null, 120, 12000);
+        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', 120, 12000);
         $rendered = implode("\n", $context['lines']);
 
         self::assertStringContainsString('Candidate map leads (ranked, unverified):', $rendered);
@@ -142,7 +142,7 @@ PHP);
     {
         $this->writeRankedTestCandidateFacts('sha256:fixture-map');
 
-        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', null, 120, 12000);
+        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', 120, 12000);
         $rendered = implode("\n", $context['lines']);
 
         self::assertStringContainsString('rank 1 Demo\\LeafEntryPointsTest::testRead', $rendered);
@@ -157,7 +157,7 @@ PHP);
     {
         $this->writeCandidateFacts('sha256:older-map');
 
-        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', null, 120, 12000);
+        $context = (new WorkflowContextCommand($this->root))->build('MAP-69', 120, 12000);
         $rendered = implode("\n", $context['lines']);
 
         self::assertStringContainsString('rank 1 Demo\\Leaf::read', $rendered);

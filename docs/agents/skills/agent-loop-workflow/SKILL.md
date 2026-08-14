@@ -80,7 +80,6 @@ Without an L2 recipe:
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \
   --by <actor> \
-  --learning-root <path> \
   --file <path> \
   --goal "Implement the approved task." \
   --behavior-anchor "request -> service -> persisted state" \
@@ -94,7 +93,6 @@ With a reusable L2 recipe, selection is part of the WorkBrief that gets approved
 ```bash
 vendor/bin/agent-loop workflow plan <task-id> \
   --by <actor> \
-  --learning-root <path> \
   --file <path> \
   --goal "Harden the parser tests." \
   --validation "composer ci" \

@@ -24,7 +24,7 @@ final readonly class WorkflowLearningCommand
             $options = $this->parse(array_slice($args, 1));
             $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
                 ?? throw new InvalidArgumentException('No governed Run exists for task ' . $taskId->value . '.');
-            $learningRoot = WorkflowLearningRoot::assertRunBinding($this->rootPath, $run, $options['learningRoot']);
+            $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
             $decision = (new RunLearningDecisionStore($learningRoot))->record(
                 $run->runId,
                 $options['status'],
@@ -45,7 +45,7 @@ final readonly class WorkflowLearningCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{status: RunLearningDecisionStatus, by: string, reason: string, findingIds: list<string>, followUp: string|null, learningRoot: string|null}
+     * @return array{status: RunLearningDecisionStatus, by: string, reason: string, findingIds: list<string>, followUp: string|null}
      */
     private function parse(array $tokens): array
     {
@@ -53,12 +53,11 @@ final readonly class WorkflowLearningCommand
         $by = null;
         $reason = null;
         $followUp = null;
-        $learningRoot = null;
         $findingIds = [];
 
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
-            if (!in_array($token, ['--status', '--by', '--reason', '--finding', '--follow-up', '--learning-root'], true)) {
+            if (!in_array($token, ['--status', '--by', '--reason', '--finding', '--follow-up'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$index + 1]) || str_starts_with($tokens[$index + 1], '--')) {
@@ -79,8 +78,6 @@ final readonly class WorkflowLearningCommand
                 $findingIds[] = $value;
             } elseif ($token === '--follow-up') {
                 $followUp = $value;
-            } else {
-                $learningRoot = $value;
             }
         }
         if (!$status instanceof RunLearningDecisionStatus || $by === null || $reason === null) {
@@ -93,7 +90,6 @@ final readonly class WorkflowLearningCommand
             'reason' => $reason,
             'findingIds' => $findingIds,
             'followUp' => $followUp,
-            'learningRoot' => $learningRoot,
         ];
     }
 }

@@ -12,7 +12,7 @@ use voku\AgentMap\Index\IndexWriter;
 /**
  * Brings the edit's own map index up to date with the post-edit working tree.
  *
- * Deliberately bundle-local. Refreshing the shared `.agent-map/php-symbols.json` while grading
+ * Deliberately bundle-local. Refreshing the shared `.agent-loop/map/php-symbols.json` while grading
  * would mutate state the next task reads, which makes verification a side effect rather than an
  * observation. The bundle map is also the narrow one the edit was compiled against, so refreshing
  * it costs the changed files, not the repository.

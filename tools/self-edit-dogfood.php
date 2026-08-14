@@ -36,7 +36,7 @@ final readonly class SelfEditDogfood
                 'edit',
                 self::TARGET,
                 '--task=' . self::TASK,
-                '--recall-root=infra/doc/agent-learning',
+                '--recall-root=.agent-loop/learning',
                 '--map-paths=tests/fixtures/self-shape',
                 '--phpstan-memory-limit=512M',
                 '--runner=mechanical',

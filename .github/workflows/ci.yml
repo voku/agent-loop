@@ -105,7 +105,7 @@ jobs:
             .agent-loop/recall/SELF-SHAPE
             .agent-loop/runs/SELF-SHAPE
             .agent-loop/sessions
-            infra/doc/agent-learning/history
+            .agent-loop/learning/history
 
   release-set-dogfood:
     name: Installed release-set dogfood

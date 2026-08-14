@@ -28,7 +28,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-transition-manifest-' . bin2hex(random_bytes(4));
         mkdir($this->root, 0o775, true);
-        mkdir($this->root . '/learning-root', 0o775, true);
+        mkdir($this->root . '/.agent-loop/learning', 0o775, true);
     }
 
     protected function tearDown(): void
@@ -73,7 +73,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         );
 
         ob_start();
-        $exit = $command->run(['ABC-123', '--by', 'lars', '--learning-root', $this->root . '/learning-root']);
+        $exit = $command->run(['ABC-123', '--by', 'lars']);
         $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit);
@@ -97,7 +97,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         ob_start();
         $firstExit = (new WorkflowApproveCommand($this->root, static fn (array $argv): int => 7))->run([
-            'ABC-123', '--by', 'lars', '--learning-root', $this->root . '/learning-root',
+            'ABC-123', '--by', 'lars',
         ]);
         ob_end_clean();
 
@@ -117,7 +117,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             },
         );
         ob_start();
-        $secondExit = $second->run(['ABC-123', '--by', 'lars', '--learning-root', $this->root . '/learning-root']);
+        $secondExit = $second->run(['ABC-123', '--by', 'lars']);
         ob_end_clean();
 
         self::assertSame(0, $secondExit);
@@ -142,7 +142,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             10,
             'lars',
         );
-        (new RunLearningDecisionStore($this->root . '/learning-root'))->record(
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
@@ -156,10 +156,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
         ob_start();
-        $exit = $cli->run([
-            'close', 'ABC-123', '--status', 'done',
-            '--learning-root', $this->root . '/learning-root',
-        ]);
+        $exit = $cli->run(['close', 'ABC-123', '--status', 'done']);
         $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit, $output);
@@ -187,7 +184,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             },
         );
         ob_start();
-        self::assertSame(0, $command->run(['ABC-123', '--by', 'lars', '--learning-root', $this->root . '/learning-root']));
+        self::assertSame(0, $command->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
 
         $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');

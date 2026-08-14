@@ -203,9 +203,9 @@ final class AgentDisciplineHookTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function unboundedMapDumpProvider(): iterable
     {
-        yield 'cat JSON index' => ['cat .agent-map/php-symbols.json'];
-        yield 'jq with options' => ["jq -r '.' .agent-map/php-symbols.json"];
-        yield 'arbitrary SQLite query' => ["sqlite3 .agent-map/search.sqlite 'SELECT * FROM documents'"];
+        yield 'cat JSON index' => ['cat .agent-loop/map/php-symbols.json'];
+        yield 'jq with options' => ["jq -r '.' .agent-loop/map/php-symbols.json"];
+        yield 'arbitrary SQLite query' => ["sqlite3 .agent-loop/map/search.sqlite 'SELECT * FROM documents'"];
     }
 
     #[DataProvider('unboundedMapDumpProvider')]
@@ -217,6 +217,27 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertNotSame('', trim($output['hookSpecificOutput']['permissionDecisionReason'] ?? ''));
         self::assertStringContainsString('agent-loop map query', $output['hookSpecificOutput']['additionalContext'] ?? '');
         self::assertArrayNotHasKey('suppressOutput', $output);
+    }
+
+    public function testUnboundedMapDumpUsesTheConfiguredProjectLayout(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-layout-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($root . '/.agent-loop', 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $root . '/.agent-loop/init.json',
+            $this->json(['version' => 1, 'paths' => ['state_root' => 'var/agent-state']]),
+        ));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->preToolUseOutput($this->json([
+                'hook_event_name' => 'PreToolUse',
+                'tool_input' => ['command' => 'cat var/agent-state/map/php-symbols.json'],
+            ]));
+
+            self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
+        } finally {
+            $this->removeTree($root);
+        }
     }
 
     public function testMalformedPayloadFailsWithContext(): void

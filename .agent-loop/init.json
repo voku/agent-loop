@@ -1,5 +1,8 @@
 {
   "version": 1,
+  "paths": {
+    "learning_root": ".agent-loop/learning"
+  },
   "recall": {
     "document_manifests": [
       "docs/agents/recall-documents.json"

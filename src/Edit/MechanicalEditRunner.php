@@ -81,7 +81,7 @@ final class MechanicalEditRunner implements EditRunner
     private function lint(string $path): array
     {
         $pipes = [];
-        $process = proc_open([PHP_BINARY, '-l', $path], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $process = proc_open([PHP_BINARY, '-n', '-l', $path], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         if (!is_resource($process)) {
             throw new RuntimeException('Unable to start PHP lint for mechanical edit.');
         }

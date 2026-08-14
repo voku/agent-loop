@@ -48,27 +48,25 @@ of passing path flags on every command.
 
 ## A governed Run records its Learning root
 
-`.agent-loop/runs/<task>/run.json` now requires a `learning_root` field, written
-by `workflow approve` from its resolved `--learning-root`. `close`, `learn`,
-`report` and the Run projection all read it from there, and a `--learning-root`
-that disagrees with the Run is refused rather than silently reading a different
-repository.
+`.agent-loop/runs/<task>/run.json` requires a `learning_root` field, written by
+`workflow approve` from `paths.learning_root` (or the project-layout default).
+`close`, `learn`, `report` and the Run projection all read that binding. Workflow
+commands no longer accept a second per-command Learning-root authority.
 
 The value is a **project-relative path, or `null`** — never absolute. A
 checkout sits at a different absolute path on every machine, so an absolute
 path would make a completed Run unexplainable after a clone. `null` means the
 Learning repository lives outside the project and its location is owned by
 `paths.learning_root` in `.agent-loop/init.json`, re-resolved on every read.
-Consequently an out-of-project Learning root must be configured; passing one
-per command is refused, because nothing durable could record it portably.
+Consequently an out-of-project Learning root must be configured.
 
 **Action:** Run artifacts written before this change are rejected by name. Re-run
-`agent-loop workflow approve <task-id> --by <actor> --learning-root <path>` to
-re-prepare the Run against the same approved Contract revision. The durable
+`agent-loop workflow approve <task-id> --by <actor>` to re-prepare the Run
+against the same approved Contract revision. The durable
 Contract, verification receipt and Learning decision are untouched.
 
-`workflow plan` still accepts `--learning-root` and ignores it — PLAN owns no
-Learning state.
+Configure `paths.learning_root` before approval when the project does not use
+the default. `workflow plan` owns no Learning state or Learning-root option.
 
 ## Repository-local state lives under one root
 

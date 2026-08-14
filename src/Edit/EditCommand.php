@@ -73,7 +73,7 @@ final readonly class EditCommand
         Options:
           --task ID                 Stable task ID. Generated from target and instruction by default.
           --recall-root PATH        Learning/recall root. Auto-discovered below the project root.
-          --map-index PATH          JSON or TOON map path. Default: .agent-map/php-symbols.json
+          --map-index PATH          JSON or TOON map path. Default: .agent-loop/map/php-symbols.json
           --map-root PATH           Runtime source root for map freshness checks. Default: project root.
           --map-paths PATHS         Comma-separated map build paths. Default: .
           --map-exclude REGEX       Additional agent-map exclude regex. Repeatable.

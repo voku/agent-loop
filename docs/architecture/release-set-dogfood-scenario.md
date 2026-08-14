@@ -27,7 +27,7 @@ tests/
   RequestServiceTest.php
 todo/cards/
   DEMO-1.md
-infra/doc/agent-learning/
+.agent-loop/learning/
   config.json
   findings/
   proposals/

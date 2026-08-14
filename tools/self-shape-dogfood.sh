@@ -3,7 +3,7 @@ set -euo pipefail
 
 task='SELF-SHAPE'
 planner='agent-loop-self-shape'
-learning_root='infra/doc/agent-learning'
+learning_root='.agent-loop/learning'
 # Resolved from the product after APPROVE: agent-loop owns where Recall output
 # lives, so the harness must not assert a second, hardcoded location for it.
 recall_root=''
@@ -48,6 +48,16 @@ if [[ "${#changed_files[@]}" -eq 0 ]]; then
   exit 1
 fi
 
+mapfile -t recorded_finding_files < <(
+  git diff --name-only --diff-filter=A "${base}" HEAD -- '.agent-loop/learning/findings/validated/finding.*.json'
+)
+learning_status='no_durable_learning'
+learning_reason='The self-shape gate observed no new reusable guidance beyond the durable changes already represented by this pull request.'
+if [[ "${#recorded_finding_files[@]}" -gt 0 ]] || ! git diff --quiet "${base}" HEAD -- MEMORY.md; then
+  learning_status='findings_recorded'
+  learning_reason='The pull-request evidence added validated project findings or changed durable memory; record that evidence in the governed Run.'
+fi
+
 mkdir -p build
 raw_diff='build/self-shape-raw.diff'
 git diff --no-ext-diff --binary "${base}" HEAD -- > "${raw_diff}"
@@ -87,7 +97,6 @@ echo json_encode([
 plan=(
   "${agent_loop[@]}" workflow plan "${task}"
   --by "${planner}"
-  --learning-root "${learning_root}"
   --base-commit "${base}"
 )
 for file in "${changed_files[@]}"; do
@@ -101,11 +110,9 @@ plan+=(
 )
 "${plan[@]}"
 
-"${agent_loop[@]}" workflow approve "${task}" \
-  --by "${approval_actor}" \
-  --learning-root "${learning_root}"
+"${agent_loop[@]}" workflow approve "${task}" --by "${approval_actor}"
 
-recall_root="$("${agent_loop[@]}" workflow report "${task}" --format json --learning-root "${learning_root}" | php -r '
+recall_root="$("${agent_loop[@]}" workflow report "${task}" --format json | php -r '
 $data = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
 $meta = $data["recall"]["meta_path"] ?? null;
 if (!is_string($meta) || $meta === "") { exit(1); }
@@ -130,7 +137,6 @@ echo $run;
 
 "${agent_loop[@]}" workflow context "${task}" \
   --format json \
-  --learning-root "${learning_root}" \
   > build/self-shape-context.json
 
 validation_started_ms="$(php -r 'echo (string) ((int) round(microtime(true) * 1000));')"
@@ -190,11 +196,17 @@ echo json_encode([
 ' "${raw_diff}" "${raw_diff_sha}" "${code_review_prompt}" "${code_review_prompt_sha}" \
   > build/self-shape-review-evidence.json
 
-"${agent_loop[@]}" workflow learn "${task}" \
-  --status no_durable_learning \
-  --by "${planner}" \
-  --reason 'The self-shape gate observed no new reusable guidance beyond the durable Contract/Run ownership changes already represented by this pull request.' \
-  --learning-root "${learning_root}"
+learning=(
+  "${agent_loop[@]}" workflow learn "${task}"
+  --status "${learning_status}"
+  --by "${planner}"
+  --reason "${learning_reason}"
+)
+for finding_file in "${recorded_finding_files[@]}"; do
+  finding_id="$(basename "${finding_file}" .json)"
+  learning+=(--finding "${finding_id}")
+done
+"${learning[@]}"
 
 memory_review="$("${agent_loop[@]}" memory review --file=MEMORY.md)"
 printf '%s\n' "${memory_review}"
@@ -210,22 +222,20 @@ grep -Fq 'Rows still needing promotion review: 0' <<< "${memory_review}"
 report=(
   "${agent_loop[@]}" workflow report "${task}"
   --format json
-  --learning-root "${learning_root}"
 )
 for file in "${changed_files[@]}"; do
   report+=(--changed-file "${file}")
 done
 "${report[@]}" > build/self-shape-report.json
 
-"${agent_loop[@]}" workflow close "${task}" \
-  --status done \
-  --learning-root "${learning_root}"
+"${agent_loop[@]}" workflow close "${task}" --status done
 
 status_file='build/self-shape-status.json'
 "${agent_loop[@]}" workflow status "${task}" --format json > "${status_file}"
 php -r '
 $path = $argv[1];
 $expectedRun = $argv[2];
+$expectedLearning = $argv[3];
 $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 $manifest = $data["manifest"] ?? null;
 $refs = is_array($manifest) ? ($manifest["references"] ?? null) : null;
@@ -237,12 +247,12 @@ if (
     || ($refs["session"]["state"] ?? null) !== "done"
     || ($refs["verification"]["state"] ?? null) !== "passed"
     || ($refs["learning"]["state"] ?? null) !== "decided"
-    || ($refs["learning"]["decision"] ?? null) !== "no_durable_learning"
+    || ($refs["learning"]["decision"] ?? null) !== $expectedLearning
 ) {
     fwrite(STDERR, "Final workflow projection is not complete and owner-consistent.\n");
     exit(1);
 }
-' "${status_file}" "${run_id}"
+' "${status_file}" "${run_id}" "${learning_status}"
 
 "${agent_loop[@]}" session prune --keep-days 0 --status done
 post_prune_file='build/self-shape-status-post-prune.json'
@@ -268,10 +278,9 @@ if (
 
 "${agent_loop[@]}" workflow report "${task}" \
   --format json \
-  --learning-root "${learning_root}" \
   > build/self-shape-report-post-prune.json
 
 grep -Fq '"source": "verification_receipt"' build/self-shape-report-post-prune.json
 
-printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nRun: %s\nChanged files: %d\nGoal: %s\nApproval fixture: %s\nValidation duration: %d ms\nLearning decision: no_durable_learning\nSession prune replay: passed\n' \
-  "${base}" "${head}" "${run_id}" "${#changed_files[@]}" "${plan_goal}" "${approval_actor}" "${validation_duration_ms}"
+printf 'Self-shape dogfood: PASSED\nBase: %s\nHead: %s\nRun: %s\nChanged files: %d\nGoal: %s\nApproval fixture: %s\nValidation duration: %d ms\nLearning decision: %s\nSession prune replay: passed\n' \
+  "${base}" "${head}" "${run_id}" "${#changed_files[@]}" "${plan_goal}" "${approval_actor}" "${validation_duration_ms}" "${learning_status}"
