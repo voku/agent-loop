@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use PDO;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -13,6 +14,10 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentMap\Index\AgentMapIndex;
+use voku\AgentMap\Index\AnalysisFingerprint;
+use voku\AgentMap\Index\FileEntry;
+use voku\AgentMap\Index\IndexWriter;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -44,6 +49,48 @@ final class RunManifestProjectorTest extends TestCase
         self::assertSame('missing', $manifest->references['recall']['state']);
         self::assertSame([], $manifest->disagreements);
         self::assertStringContainsString('workflow plan ABC-123', $manifest->nextAction);
+    }
+
+    public function testMapAndSearchReadinessAreProjectedFromAgentMapOwnerFacts(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        mkdir($this->root . '/.agent-loop/map', 0o775, true);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+        $hash = hash_file('sha256', $this->root . '/src/Foo.php');
+        self::assertIsString($hash);
+        (new IndexWriter())->write(
+            new AgentMapIndex(
+                schemaVersion: '2.0',
+                root: $this->root,
+                backend: 'test',
+                files: [new FileEntry('src/Foo.php', 'sha256:' . $hash, '', [])],
+                fingerprint: new AnalysisFingerprint('2.2.0', 'sha256:config', 'sha256:lock', 'sha256:current'),
+            ),
+            $this->root . '/.agent-loop/map/php-symbols.json',
+        );
+        $pdo = new PDO(
+            'sqlite:' . $this->root . '/.agent-loop/map/search.sqlite',
+            null,
+            null,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+        );
+        $pdo->exec('CREATE TABLE search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        $pdo->exec("INSERT INTO search_meta (key, value) VALUES ('map_snapshot', 'sha256:older')");
+        unset($pdo);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('ready', $manifest->references['map']['state']);
+        self::assertSame('sha256:current', $manifest->references['map']['snapshot']);
+        self::assertSame('stale', $manifest->references['search_index']['state']);
+        self::assertSame('sha256:older', $manifest->references['search_index']['snapshot']);
+
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class ChangedFoo {}\n");
+        $stale = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('stale', $stale->references['map']['state']);
+        self::assertSame('src/Foo.php', $stale->references['map']['stale_entries'][0]['path']);
+        self::assertSame('unavailable', $stale->references['search_index']['state']);
     }
 
     public function testMetadataOnlyScaffoldBoardIsLinkedThroughAgentKanbanResolution(): void
