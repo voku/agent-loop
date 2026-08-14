@@ -78,7 +78,7 @@ final readonly class InitSyncInstructionsCommand
     {
         $absolutePath = $this->rootPath . '/' . $relativePath;
         $existing = $this->readOptional($absolutePath);
-        if ($existing !== null && $this->alreadyImportsAgents($existing)) {
+        if ($existing !== null && !$this->hasManagedMarker($existing) && $this->alreadyImportsAgents($existing)) {
             echo '[OK] sync instructions: ' . $relativePath . ' already imports AGENTS.md; existing import preserved.' . "\n";
 
             return;
@@ -177,6 +177,11 @@ final readonly class InitSyncInstructionsCommand
     private function alreadyImportsAgents(string $content): bool
     {
         return preg_match('/(?m)^\s*@(?:\.\/)?AGENTS\.md\s*$/', $content) === 1;
+    }
+
+    private function hasManagedMarker(string $content): bool
+    {
+        return str_contains($content, self::BEGIN_MARKER) || str_contains($content, self::END_MARKER);
     }
 
     /** @param list<string> $tokens */
