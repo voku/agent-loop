@@ -27,6 +27,7 @@
         {
             "ruleId": "php.pass-through-wrappers",
             "paths": [
+                "src/ProjectLayout.php",
                 "tests/fixtures/**"
             ]
         },
