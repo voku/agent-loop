@@ -1,0 +1,40 @@
+name: Fix prompt dogfood guard literals
+
+on:
+  push:
+    branches:
+      - agent/outcome-honesty-self-correction
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/outcome-honesty-self-correction
+      - name: Keep source assertions literal
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('tests/AgentFacingPathGuidanceTest.php')
+          text = path.read_text()
+          replacements = {
+              'self::assertStringContainsString("$this->agentLoopRoot . \'/composer.json\'", $promptHarness);': 'self::assertStringContainsString("\\$this->agentLoopRoot . \'/composer.json\'", $promptHarness);',
+              'self::assertStringContainsString("\'voku/agent-recall-compiler\' => $recallConstraint", $promptHarness);': 'self::assertStringContainsString("\'voku/agent-recall-compiler\' => \\$recallConstraint", $promptHarness);',
+              'self::assertStringContainsString("\'voku/agent-recall-compiler\' => $recallVersion", $promptHarness);': 'self::assertStringContainsString("\'voku/agent-recall-compiler\' => \\$recallVersion", $promptHarness);',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing assertion anchor: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          rm .github/workflows/fix-prompt-dogfood-guard-literals.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/AgentFacingPathGuidanceTest.php .github/workflows/fix-prompt-dogfood-guard-literals.yml
+          git commit -m "Keep prompt dogfood guard source assertions literal"
+          git push origin HEAD:agent/outcome-honesty-self-correction
