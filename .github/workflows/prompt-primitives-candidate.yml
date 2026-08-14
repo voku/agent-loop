@@ -49,13 +49,22 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-prompt-primitives
           --report=${{ github.workspace }}/build/prompt-primitives-dogfood.json
 
-      - name: Prove project-grounded adversarial review and context-light review
+      - name: Prove installed project-grounded adversarial review and context-light review
         shell: bash
         run: |
           set -euo pipefail
           consumer="${RUNNER_TEMP}/agent-loop-prompt-primitives/consumer"
-          catalog="${GITHUB_WORKSPACE}/build/candidate-agent-skills/skills/operational-prompting/operating-prompts.json"
+          skills_root="${GITHUB_WORKSPACE}/build/candidate-agent-skills/skills"
           cd "${consumer}"
+
+          php vendor/bin/agent-loop init install-assets \
+            --agent=codex \
+            --extra-skills-root="${skills_root}"
+
+          catalog='.codex/skills/operational-prompting/operating-prompts.json'
+          test -f "${catalog}"
+          grep -Fq 'distinct plausible failure-mode hypotheses or attack scenarios' "${catalog}"
+          grep -Fq 'Do not manufacture defects merely to satisfy the numeric floor' "${catalog}"
 
           php vendor/bin/agent-loop workflow plan PROMPT-ADVERSARIAL \
             --by prompt-sync-dogfood \
@@ -86,6 +95,7 @@ jobs:
           grep -Fq 'CLEAN is valid only after concrete attempts to falsify' "${code_prompt}"
 
           mkdir -p "${GITHUB_WORKSPACE}/build/prompt-sync-evidence"
+          cp "${catalog}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/installed-operating-prompts.json"
           cp "${system}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/system.md"
           cp first-draft.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/first-draft.prompt.md"
           cp "${code_prompt}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/code.prompt.md"
