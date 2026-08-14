@@ -87,11 +87,37 @@ attack scenarios that must be investigated, **not** a quota of defects that must
 be produced. Disproved hypotheses are useful falsification evidence and `CLEAN`
 remains legal after the requested probes find no evidence-backed defect.
 
+## Guidance-gap journal
+
+Use this explicitly when you want a spec-driven implementation session to expose
+where the coding agent had to interpret or guess because the expected source of
+authority was missing, stale, conflicting, misleading, or too vague:
+
+```bash
+vendor/bin/agent-loop prompt guidance-gaps
+```
+
+This is an opt-in Recall-owned L2 diagnostic, **not** a default workflow stage.
+It generates a project-specific implementation prompt that keeps
+`implementation-notes.html` as task-local working evidence while the task runs.
+The journal separates ordinary design decisions, deviations, tradeoffs, and open
+questions from actual guidance gaps in `SPEC`, `DOC`, `SKILL`, `WORKFLOW`,
+`TOOL_CONTRACT`, code, or tests. It is not committed unless the approved task or
+harness explicitly requires the artifact.
+
+A material ambiguity is not permission to improvise. If resolving it would
+change the approved Goal, acceptance criteria, scope/non-goals, a public
+contract, security/safety boundaries, or destructive/irreversible behavior, the
+prompt requires `HUMAN_DECISION_REQUIRED` / `BLOCKED` with the missing authority.
+The technique does not automatically edit docs or skills, manufacture backlog,
+or promote journal entries into durable Learning.
+
 The ownership split is intentional:
 
 ```text
 agent-loop bundled L1 controls     -> Loop execution/orchestration controls
 Recall bundled L2 recipes          -> project-grounded Recall prompt construction
+Recall prompt guidance-gaps        -> opt-in implementation guidance-gap diagnostic
 Recall review first-draft          -> context-light falsification lens
 Recall review code <task-id>       -> task-artifact-backed review prompt
 agent-skills                        -> tool-neutral engineering principles/skills
@@ -118,7 +144,15 @@ vendor/bin/agent-loop workflow reflect TASK-1 --scope task
   A real correctness/acceptance gap is reported as `RETURN_TO_REVIEW`; optional
   extra depth remains optional.
 
-Reflection is available only when the governed run is `ready_to_close` or
-`complete`. It emits the deterministic context-light prompt supplied by
-`voku/agent-recall-compiler`; it does not call a model, mutate Run/Session/
-Learning state, create an issue, or manufacture follow-up work.
+Inside a governed Run, prefer `workflow reflect` because it enforces the
+`ready_to_close` / `complete` state boundary. For a manual context-light session,
+the same Recall-owned raw helper is also available without Run state:
+
+```bash
+vendor/bin/agent-loop prompt future-work --scope project
+vendor/bin/agent-loop prompt future-work --scope task
+```
+
+Reflection through `workflow reflect` emits the deterministic context-light
+prompt supplied by `voku/agent-recall-compiler`; it does not call a model, mutate
+Run/Session/Learning state, create an issue, or manufacture follow-up work.

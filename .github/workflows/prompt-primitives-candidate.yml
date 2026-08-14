@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.12.1
+          ref: 0.12.2
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
 
@@ -41,7 +41,7 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-prompt-primitives
           --report=${{ github.workspace }}/build/prompt-primitives-dogfood.json
 
-      - name: Prove installed Recall-owned adversarial review and context-light review
+      - name: Prove installed Recall-owned prompt primitives
         shell: bash
         run: |
           set -euo pipefail
@@ -76,6 +76,13 @@ jobs:
           grep -Fq 'falsification rather than confirmation' first-draft.prompt.md
           grep -Fq 'CLEAN is valid only after concrete attempts to falsify' first-draft.prompt.md
 
+          php vendor/bin/agent-loop prompt guidance-gaps > guidance-gaps.prompt.md
+          grep -Fq 'implementation-notes.html' guidance-gaps.prompt.md
+          grep -Fq 'HUMAN_DECISION_REQUIRED' guidance-gaps.prompt.md
+          grep -Fq 'not a default workflow stage' guidance-gaps.prompt.md
+          grep -Fq 'do not commit it unless' guidance-gaps.prompt.md
+          grep -Fq '`SPEC`, `DOC`, `SKILL`, `WORKFLOW`, `TOOL_CONTRACT`' guidance-gaps.prompt.md
+
           php vendor/bin/agent-loop review code PROMPT-ADVERSARIAL
           code_prompt='.agent-loop/recall/PROMPT-ADVERSARIAL/reviews/PROMPT-ADVERSARIAL.code.prompt.md'
           grep -Fq '## First-draft falsification lens' "${code_prompt}"
@@ -85,6 +92,7 @@ jobs:
           cp "${catalog}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/installed-operating-prompts.json"
           cp "${system}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/system.md"
           cp first-draft.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/first-draft.prompt.md"
+          cp guidance-gaps.prompt.md "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/guidance-gaps.prompt.md"
           cp "${code_prompt}" "${GITHUB_WORKSPACE}/build/prompt-sync-evidence/code.prompt.md"
 
       - name: Upload candidate evidence

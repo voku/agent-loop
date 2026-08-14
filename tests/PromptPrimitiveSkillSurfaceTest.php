@@ -53,5 +53,12 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('not** a quota of defects', $promptPrimitives);
         self::assertStringContainsString('review first-draft', $promptPrimitives);
         self::assertStringContainsString('review code TASK-1', $promptPrimitives);
+        self::assertStringContainsString('agent-loop prompt guidance-gaps', $promptPrimitives);
+        self::assertStringContainsString('not** a default workflow stage', $promptPrimitives);
+        self::assertStringContainsString('implementation-notes.html', $promptPrimitives);
+        self::assertStringContainsString('HUMAN_DECISION_REQUIRED', $promptPrimitives);
+        self::assertStringContainsString('does not automatically edit docs or skills', $promptPrimitives);
+        self::assertStringContainsString('agent-loop prompt future-work --scope project', $promptPrimitives);
+        self::assertStringContainsString('Inside a governed Run, prefer `workflow reflect`', $promptPrimitives);
     }
 }
