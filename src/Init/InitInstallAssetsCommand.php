@@ -131,12 +131,23 @@ final readonly class InitInstallAssetsCommand
             }
         }
 
+        $instructionArguments = [
+            '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
+        ];
+        if ($dryRun) {
+            $instructionArguments[] = '--dry-run';
+        }
+        $instructionsExit = (new InitSyncInstructionsCommand($this->rootPath))->run($instructionArguments);
+        if ($instructionsExit !== 0) {
+            return $instructionsExit;
+        }
+
         if (!$agent->isAll()) {
             $canonicalAgent = $agent->canonicalName();
             if ($canonicalAgent === 'claude') {
-                echo '[INFO] install assets: installed portable skills, bundled subagent roles, and repository discipline hooks for claude.' . "\n";
+                echo '[INFO] install assets: installed portable skills, bundled subagent roles, repository discipline hooks, and project instructions for claude.' . "\n";
             } elseif (in_array($canonicalAgent, ['copilot', 'antigravity'], true)) {
-                echo '[INFO] install assets: installed portable skills and bundled subagent roles for ' . $canonicalAgent . '; repository discipline hooks are currently available for codex and claude.' . "\n";
+                echo '[INFO] install assets: installed portable skills, bundled subagent roles, and project instructions for ' . $canonicalAgent . '; repository discipline hooks are currently available for codex and claude.' . "\n";
             }
         }
 
