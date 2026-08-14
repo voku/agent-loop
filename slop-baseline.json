@@ -445,7 +445,7 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "a1b1b896bcca368a27f00fd99776e47757b9b6dbb9276c2312e03e25dc1be8be",
+                        "fingerprint": "6d80b9aed639f852a73f4909c86506d2202e9d37c19918fa32a7160832f26e00",
                         "path": "src/Dispatcher.php",
                         "line": 417,
                         "column": 1
