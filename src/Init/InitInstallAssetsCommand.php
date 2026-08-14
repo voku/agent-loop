@@ -155,7 +155,7 @@ final readonly class InitInstallAssetsCommand
     private function firstPartySkillRoots(string $packageRoot): array
     {
         $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
-        if (!is_string($recallFile) || $recallFile === '') {
+        if (!is_string($recallFile)) {
             throw new InvalidArgumentException('Unable to resolve the installed agent-recall-compiler package path.');
         }
 
