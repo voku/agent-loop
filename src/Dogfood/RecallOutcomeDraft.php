@@ -10,14 +10,14 @@ use RuntimeException;
 /**
  * Decides what the self-shape run may honestly claim about compiled guidance.
  *
- * `recall compile` writes one placeholder row per selected guidance - outcome
- * `unknown`, no comment - for a session to complete afterwards. This runner is
- * not that session: it compiles Recall to prove the governed lifecycle works and
- * never reads `system.md`, so it has no opinion about whether any rule helped.
+ * `recall compile` pre-fills one row per selected guidance - outcome `unknown`,
+ * no comment - for a session to complete afterwards. This runner is not that
+ * session: it compiles Recall to prove the governed lifecycle works and never
+ * reads `system.md`, so it has no opinion about whether any rule helped.
  *
- * Logging the placeholders unedited is what produced the eight `unknown`
- * outcomes in this repository's history, every one of them written by the same
- * harness that selected the guidance. Inventing a bucket instead would be worse:
+ * Logging those rows unedited is what produced the eight `unknown` outcomes in
+ * this repository's history, every one of them written by the same harness that
+ * selected the guidance. Inventing a bucket instead would be worse:
  * `not_used` and `irrelevant` both count towards retirement in agent-learning's
  * staleness policies, so a runner with nothing to say would vote to delete rules
  * it never read.
@@ -43,7 +43,7 @@ final readonly class RecallOutcomeDraft
         return $draft;
     }
 
-    /** Returns how many placeholder judgements were dropped. */
+    /** Returns how many pre-filled judgements were dropped. */
     public static function withholdInFile(string $path, string $reason): int
     {
         $raw = file_get_contents($path);
@@ -54,7 +54,10 @@ final readonly class RecallOutcomeDraft
         try {
             $draft = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new RuntimeException('Malformed outcome draft ' . $path . ': ' . $exception->getMessage());
+            throw new RuntimeException(
+                'Malformed outcome draft ' . $path . ': ' . $exception->getMessage(),
+                previous: $exception,
+            );
         }
         if (!is_array($draft)) {
             throw new RuntimeException('Outcome draft must be a JSON object: ' . $path);

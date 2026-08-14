@@ -337,11 +337,11 @@ final readonly class WorkflowCloseCommand
 
         $withheld = [];
         foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-            try {
-                $event = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
-            } catch (\JsonException) {
-                continue;
-            }
+            // An unreadable line yields no withholding, so the selection it
+            // described stays unaccounted for and the gate refuses the close.
+            // That is the safe direction: a corrupt record must not be able to
+            // excuse a missing judgement.
+            $event = json_decode($line, true);
             if (
                 is_array($event)
                 && ($event['task_id'] ?? null) === $taskId
