@@ -1,0 +1,38 @@
+{
+    "id": "proposal.2026-08-14.003",
+    "created_at": "2026-08-14T06:09:14+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-08.001",
+        "finding.2026-08-14.013"
+    ],
+    "reason": "The same assumption produced two separate silent failures a week apart: WorkingTreeSnapshotter treated a linked worktree as not Git-backed, and later init doctor plus init sync-githooks did the same, installing hook files Git was never pointed at. Both tested the filesystem shape of .git. Scope names the owner that answers the question and the static rule that rejects the shape test, because a rule enforced only by review has already failed twice here.",
+    "remaining_uncertainty": [],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Git repository detection",
+    "scope": [
+        "src/GitWorkTree.php",
+        "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php",
+        "src/Init/InitDoctorCommand.php",
+        "src/Init/InitSyncGitHooksCommand.php"
+    ],
+    "old": null,
+    "new": "Repository state is asked of Git, never inferred from the shape of .git. Production code that tests is_dir on a .git path fails analysis.",
+    "boundary": "Tests may assert the shape itself: proving that a linked worktree's .git is a file is what makes the defect reproducible.",
+    "validation": [
+        "vendor/bin/phpunit --filter GitWorkTreeDetectionTest",
+        "bash tools/project-phpstan-rules.sh"
+    ],
+    "scope_justification": "The same assumption produced two separate silent failures a week apart: WorkingTreeSnapshotter treated a linked worktree as not Git-backed, and later init doctor plus init sync-githooks did the same, installing hook files Git was never pointed at. Both tested the filesystem shape of .git. Scope names the owner that answers the question and the static rule that rejects the shape test, because a rule enforced only by review has already failed twice here.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "git.repository.state.asked.not.inferred",
+    "validation_case": {
+        "given": "a checkout created with git worktree add, where .git is a file",
+        "when": "code decides whether the path is a repository by testing is_dir on the .git entry",
+        "then": "a valid checkout is treated as non-Git and dependent setup is skipped with a warning rather than an error"
+    }
+}

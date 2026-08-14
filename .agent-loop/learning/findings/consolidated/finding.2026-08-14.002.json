@@ -1,0 +1,31 @@
+{
+    "id": "finding.2026-08-14.002",
+    "task_id": "HISTORY-PHPSTAN-001",
+    "session": "2026-08-14-history-extraction",
+    "created_at": "2026-08-14T03:31:00+02:00",
+    "created_by": "history-review",
+    "scope": [
+        "src/Workflow/WorkflowPlanCommand.php",
+        "phpstan/Rules",
+        "phpstan/project-rule-test.neon",
+        "tools/project-phpstan-rules.sh"
+    ],
+    "observation": "Commit c04dd88e restored PHPStan after 36 errors. Fourteen errors shared one source: @param and @return were written on the same PHPDoc line, so the parser consumed @return as description text and the declared return type disappeared. The same repair also removed a WorkflowLearningRoot::resolve() call whose value was deliberately discarded while workflow plan continued accepting the related options. Both defects are easy to reintroduce and both are cheaper to reject at their syntax than to diagnose from downstream type errors or split command semantics.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "PHPStan level 8 on commit c04dd88e047d9d6e5cda07f6c494e9604f8ac405",
+            "summary": "The repository history records 36 pre-existing PHPStan errors before the repair. Splitting fourteen single-line multi-tag PHPDocs restored their actual signatures and removed the cascading list-type errors."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "The same commit removed the ignored WorkflowLearningRoot::resolve() call from workflow plan because PLAN owns no Learning state. The frozen issue #96 shows the compatibility options remained accepted and ignored, so the semantic split survived after the dead call disappeared."
+        }
+    ],
+    "hypothesis": "When a syntax mistake erases a type contract or an ownership resolver is invoked only for side effects it does not have, downstream failures obscure the small local defect. Direct static rules make the failure precise and stop the pattern before it spreads.",
+    "validated_conclusion": "Put each PHPDoc type tag on its own line and reject multiple contract tags on one line. Do not discard the result of ProjectLayout path resolvers or WorkflowLearningRoot::resolve(); either consume the selected authority or remove the call and the option surface that implied it mattered.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

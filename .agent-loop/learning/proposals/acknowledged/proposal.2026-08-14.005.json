@@ -1,0 +1,32 @@
+{
+    "id": "proposal.2026-08-14.005",
+    "created_at": "2026-08-14T06:09:48+00:00",
+    "action": "NO_DURABLE_LEARNING",
+    "source_findings": [
+        "finding.2026-08-14.001",
+        "finding.2026-08-14.002"
+    ],
+    "reason": "The durable home for these defects is the project PHPStan rules that already reject them; restating an executable check as prose is the promotion this project refuses.",
+    "remaining_uncertainty": [],
+    "status": "acknowledged",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "existing_guidance_id": "phpstan/Rules/NoShellStringProcessCommandRule.php",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "syntax.level.defects.stay.in.static.rules",
+    "validation_case": {
+        "given": "a defect whose condition is visible in a single expression or docblock",
+        "when": "the lesson is recorded as prose in MEMORY.md instead of as a static rule",
+        "then": "the check is not run and the defect returns, as the second PHP_BINARY entrypoint without -n showed"
+    },
+    "target_type": null,
+    "target": null,
+    "scope": [],
+    "old": null,
+    "new": null,
+    "boundary": null,
+    "validation": [],
+    "acknowledged_by": "agent-loop-consolidation",
+    "acknowledged_at": "2026-08-14T06:10:30+00:00"
+}

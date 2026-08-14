@@ -1,0 +1,38 @@
+{
+    "id": "finding.2026-08-14.008",
+    "task_id": "GH-96",
+    "session": "2026-08-14-agent-loop-consolidation",
+    "created_at": "2026-08-14T07:10:00+02:00",
+    "created_by": "agent-loop-consolidation",
+    "scope": [
+        "src/Dispatcher.php",
+        "src/Workflow/WorkflowApproveCommand.php",
+        "src/ProjectLayout.php",
+        "tests/MapSearchIndexOwnershipTest.php",
+        "tests/WorkflowApproveSearchIndexEvidenceTest.php",
+        "tests/fixtures/real-upstream-adaptation/simple-php-code-parser-ast-context.json"
+    ],
+    "observation": "A real installed-consumer replay in voku/simple-php-code-parser (commit 93867be) asked for AST-from-string support, whose decisive evidence is the already-shipped PhpCodeParser::getAstFromString(). agent-map indexed 72 files including that symbol, but the governed context handed to the execution agent was 17 lines / 1035 bytes and contained neither PhpCodeParser nor getAstFromString - only the single in-scope class. The compiled Recall held four facts and no ranked fact at all. The cause was path ownership: WorkflowApproveCommand passes --map-search-index only when a file exists at ProjectLayout::mapSearchIndex() (.agent-loop/map/search.sqlite), but Dispatcher::resolveMapArgv() injected --root/--out/--index and never --database, so `agent-loop map search-index build` wrote to agent-map's own retired .agent-map/search.sqlite default. Approve then printed its ordinary success lines while compiling Recall with no ranked evidence.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "Same task, same scope, same ranking, same budget: with no index at the owned path the governed context was 17 lines / 1035 bytes with getAstFromString absent; after building the index at .agent-loop/map/search.sqlite it was 55 lines / 7496 bytes with getAstFromString and PhpCodeParser present. Frozen as tests/fixtures/real-upstream-adaptation/simple-php-code-parser-ast-context.json."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter MapSearchIndexOwnershipTest",
+            "summary": "Asserts the index lands at ProjectLayout::mapSearchIndex() and not at .agent-map/search.sqlite, that an explicit --database still wins, and that the map namespace advertises the command. Removing the --database injection fails the first case."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter WorkflowApproveSearchIndexEvidenceTest",
+            "summary": "Approve now warns and names the missing path and the command that builds it when ranked evidence is unavailable, and stays quiet when it is available."
+        }
+    ],
+    "hypothesis": "The known Map to Recall to Context loss was read as a ranking or budget problem. It was neither: the evidence channel was never connected, because one derived path had a reader and no writer. A degradation that produces a smaller but well-formed context is indistinguishable from success unless the workflow says it happened.",
+    "validated_conclusion": "A derived state path needs one owner for both reading and writing; ProjectLayout::mapSearchIndex() now governs both. When a decisive-evidence channel is unavailable, the governed workflow reports it rather than silently narrowing the context. The fix widened no search, changed no ranking, and raised no budget.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}
