@@ -210,6 +210,12 @@ final class AgentFacingPathGuidanceTest extends TestCase
                 $workflow . ' must dogfood the minimum released Recall version declared by composer.json.',
             );
         }
+
+        $promptHarness = (string) file_get_contents($root . '/tools/prompt-primitives-dogfood.php');
+        self::assertStringContainsString("$this->agentLoopRoot . '/composer.json'", $promptHarness);
+        self::assertStringContainsString("'voku/agent-recall-compiler' => $recallConstraint", $promptHarness);
+        self::assertStringContainsString("'voku/agent-recall-compiler' => $recallVersion", $promptHarness);
+        self::assertStringNotContainsString('0.11.999', $promptHarness);
     }
 
     public function testSelfShapeEvidenceUploadCoversPathsTheHarnessActuallyWrites(): void

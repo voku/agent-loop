@@ -224,12 +224,24 @@ final class PromptPrimitivesDogfood
 
     private function writeConsumerComposer(): void
     {
+        $candidateComposer = $this->jsonFile($this->agentLoopRoot . '/composer.json');
+        $require = $candidateComposer['require'] ?? null;
+        $recallConstraint = is_array($require) ? ($require['voku/agent-recall-compiler'] ?? null) : null;
+        if (!is_string($recallConstraint)
+            || !preg_match('/^\^(\d+\.\d+\.\d+)$/', $recallConstraint, $matches)
+        ) {
+            throw new PromptPrimitivesDogfoodFailure(
+                'Expected candidate agent-loop to declare voku/agent-recall-compiler with an exact caret floor.',
+            );
+        }
+        $recallVersion = $matches[1];
+
         $this->writeJson($this->consumerRoot . '/composer.json', [
             'name' => 'voku/prompt-primitives-dogfood-consumer',
             'type' => 'project',
             'require-dev' => [
                 'voku/agent-loop' => 'dev-main',
-                'voku/agent-recall-compiler' => '0.11.999',
+                'voku/agent-recall-compiler' => $recallConstraint,
             ],
             'repositories' => [
                 [
@@ -245,7 +257,7 @@ final class PromptPrimitivesDogfood
                     'url' => str_replace('\\', '/', $this->recallRoot),
                     'options' => [
                         'symlink' => false,
-                        'versions' => ['voku/agent-recall-compiler' => '0.11.999'],
+                        'versions' => ['voku/agent-recall-compiler' => $recallVersion],
                     ],
                 ],
             ],
