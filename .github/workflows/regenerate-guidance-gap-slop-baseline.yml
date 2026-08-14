@@ -1,0 +1,37 @@
+name: Regenerate guidance-gap slop baseline
+
+on:
+  push:
+    branches: ['agent/guidance-gap-prompt']
+    paths:
+      - '.github/workflows/regenerate-guidance-gap-slop-baseline.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/guidance-gap-prompt
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Regenerate with the same isolated scanner used by CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --prefer-dist --working-dir=tools/slop-scan
+          php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --generate-baseline
+          rm .github/workflows/regenerate-guidance-gap-slop-baseline.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add slop-baseline.json .github/workflows/regenerate-guidance-gap-slop-baseline.yml
+          git commit -m 'Regenerate guidance-gap slop baseline'
+          git push origin HEAD:agent/guidance-gap-prompt
