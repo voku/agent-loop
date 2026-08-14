@@ -49,6 +49,7 @@ final class Dispatcher
             'board:verify' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
             'learn' => $this->dispatchLearn($scriptName, $rest),
             'recall' => $this->dispatchRecall($scriptName, $rest),
+            'prompt' => $this->dispatchRecall($scriptName, ['prompt', ...$rest]),
             'session' => $this->dispatchSession($scriptName, $rest),
             'workflow' => $this->dispatchWorkflow($scriptName, $rest),
             'map' => $this->dispatchMap($scriptName, $rest),
@@ -446,6 +447,8 @@ final class Dispatcher
                   Durable findings, proposals, guidance and history (voku/agent-learning).
           recall  <compile|log-outcome>
                   Deterministic context/replay compilation (voku/agent-recall-compiler).
+          prompt  <future-work|guidance-gaps>
+                  Explicit Recall-owned prompt helpers; `guidance-gaps` is opt-in and never a default workflow stage.
           session <start|claim|checkpoint|record|close|list|show|validation|prune>
                   Pruneable per-Run working memory and raw validation observations (voku/agent-session).
           map     <build|refresh|search-index|search|discover|rank|impact|history|query|file|stale|
@@ -468,6 +471,7 @@ final class Dispatcher
           agent-loop edit help
           agent-loop learn help
           agent-loop recall help
+          agent-loop prompt guidance-gaps
 
         TXT;
 
