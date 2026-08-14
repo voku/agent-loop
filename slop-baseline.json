@@ -6,7 +6,7 @@
             "name": "slop-scan-php",
             "version": "0.1.0"
         },
-        "configHash": "c91e5df87eb9db95a50c71afc278098d7c0c67f708036da7a4b41386461603bb",
+        "configHash": "927a01cb74d3259888426895259c4350acf938e03f72d941c76e429ca4a5de89",
         "findingFingerprintVersion": 1
     },
     "summary": {
@@ -431,7 +431,7 @@
             "locations": [
                 {
                     "path": "src/Dispatcher.php",
-                    "line": 417,
+                    "line": 295,
                     "column": 1
                 },
                 {
@@ -445,9 +445,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "6d80b9aed639f852a73f4909c86506d2202e9d37c19918fa32a7160832f26e00",
+                        "fingerprint": "6b5fedfc017d05ca887c34c5db4b7d802d78726e4de35d99e431b530b2d3c645",
                         "path": "src/Dispatcher.php",
-                        "line": 417,
+                        "line": 295,
                         "column": 1
                     },
                     {
