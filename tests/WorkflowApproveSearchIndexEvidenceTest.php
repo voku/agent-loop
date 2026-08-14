@@ -68,6 +68,23 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         self::assertContains('--map-search-index', $result['recallArgs']);
     }
 
+    public function testApprovePrintsDeterministicRecallHandoffWithoutClaimingConsumption(): void
+    {
+        $result = $this->approve();
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString(
+            '[NEXT] vendor/bin/agent-loop workflow context ABC-123 --max-lines 120 --max-bytes 12000',
+            $result['output'],
+        );
+        self::assertStringContainsString(
+            '[NEXT] Read .agent-loop/recall/ABC-123/system.md before planning or modifying code.',
+            $result['output'],
+        );
+        self::assertStringNotContainsString('consumed=true', $result['output']);
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/ABC-123/brief_consumed.json');
+    }
+
     /** @return array{exit: int, output: string, recallArgs: list<string>} */
     private function approve(): array
     {
