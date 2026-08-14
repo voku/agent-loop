@@ -28,6 +28,7 @@ jobs:
             exit 1
           fi
 
+          frozen_main="$(git rev-parse HEAD)"
           for marker in "${markers[@]}"; do
             version="$(jq -er '.version' "$marker")"
             target="$(jq -er '.target_sha' "$marker")"
@@ -44,6 +45,10 @@ jobs:
               exit 1
             fi
             git cat-file -e "${target}^{commit}"
+            if ! git merge-base --is-ancestor "$target" "$frozen_main"; then
+              echo "Release target $target is not reachable from frozen main $frozen_main" >&2
+              exit 1
+            fi
             if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
               existing="$(git rev-list -n 1 "$version")"
               [[ "$existing" == "$target" ]] || { echo "Tag $version exists at $existing, expected $target" >&2; exit 1; }
