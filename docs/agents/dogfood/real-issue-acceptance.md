@@ -22,7 +22,7 @@ A run has three different kinds of evidence, and they must stay distinguishable.
 | Plane | Question it answers | Tool | Installed as |
 |---|---|---|---|
 | Structure | what code exists, where it is, what calls it | `voku/agent-map` | runtime dependency of `agent-loop` |
-| Intent | why the selected code is constrained: architecture rules, owners, refs, proof metadata | `voku/itp-context` | external tool |
+| Intent | why the selected code is constrained: architecture rules, owners, refs, proof metadata | `voku/itp-context` | runtime dependency of `agent-loop` |
 | Candidate quality | whether the candidate introduced explainable low-quality patterns | `voku/slop-scan` | external tool |
 
 The planes complement each other and none of them substitutes for another:
@@ -33,6 +33,20 @@ The planes complement each other and none of them substitutes for another:
 - `slop-scan` is a deterministic heuristic scanner over the candidate. It is
   deliberately downstream of implementation, and **a heuristic finding is not
   automatically a correctness failure.**
+
+`itp-context` is a runtime dependency rather than an external tool, and that is
+deliberate: `ArchitectureRules` ships in `src/` and implements
+`ItpContext\Contract\RuleIdentifier`, so loading a class agent-loop publishes
+would fatal if the package were dev-only. Anything that reflects over
+agent-loop's production classes - including this repository's own rule
+coverage test - hits exactly that path.
+
+The table above said "external tool" until this was checked against the
+dependency graph. Removing the package leaves the CLI, `verify` and
+`ProjectLayout` working, which is what made the claim look plausible; the
+suite's reflection sweep is what falsifies it.
+`voku/slop-scan` remains a genuine external tool, installed from its own
+Composer project.
 
 `itp-context` is designed for a small number of high-signal annotations. Coating
 a repository in attributes to raise a coverage number produces noise, not

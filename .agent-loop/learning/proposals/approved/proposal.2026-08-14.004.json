@@ -8,10 +8,10 @@
     ],
     "reason": "The tooling-isolation rule was learned from a real failure in which an in-process RuleTestCase broke unrelated agent-map tests, but its recorded canonical home was a shell script and a PHPStan config, neither of which can observe a newly added PHPUnit class. The rule was therefore true and unenforced for months. Replacing the canonical home with the static rule keeps the same rule and gives it a detector.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "approved",
     "proposed_by": "consolidation",
-    "approved_by": null,
-    "approved_at": null,
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:49:11+00:00",
     "target_type": "memory",
     "target": "Tooling test isolation",
     "scope": [

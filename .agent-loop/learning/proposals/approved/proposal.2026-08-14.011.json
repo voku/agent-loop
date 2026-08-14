@@ -7,10 +7,10 @@
     ],
     "reason": "Running the Learning pipeline for the first time broke the self-dogfood runner, because the runner detected finding evidence by directory rather than by identity and a consolidated finding leaves validated/. The scope is the runner itself, which is the only place this detection exists, and the rule generalises to any evidence check written against a lifecycle-managed artifact's current location.",
     "remaining_uncertainty": [],
-    "status": "candidate",
+    "status": "approved",
     "proposed_by": "consolidation",
-    "approved_by": null,
-    "approved_at": null,
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:49:11+00:00",
     "target_type": "memory",
     "target": "Learning evidence detection",
     "scope": [

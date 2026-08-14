@@ -10,10 +10,10 @@
     "remaining_uncertainty": [
         "Redirecting agent-map's PHPStan result cache needs a cache-location option in agent-map; no failing case has been produced yet."
     ],
-    "status": "candidate",
+    "status": "approved",
     "proposed_by": "consolidation",
-    "approved_by": null,
-    "approved_at": null,
+    "approved_by": "voku",
+    "approved_at": "2026-08-14T09:49:11+00:00",
     "target_type": "memory",
     "target": "Derived state paths",
     "scope": [

@@ -1,0 +1,35 @@
+{
+    "id": "finding.2026-08-14.892b26",
+    "task_id": "GH-96",
+    "session": "2026-08-14-self-shape",
+    "created_at": "2026-08-14T14:10:00+02:00",
+    "created_by": "agent-loop-shell-to-php",
+    "scope": [
+        "tools/self-shape-dogfood.php",
+        "tools/project-phpstan-rules.php",
+        "src/Dogfood"
+    ],
+    "observation": "Converting the two Bash dogfood runners to PHP was motivated by portability, but portability was the weakest part of the case: Git for Windows ships bash, so the shell scripts already ran cross-platform. The real defect was that a shell script cannot be unit tested, and both defects this gate shipped this month lived in decisions it made - a finding detector that watched findings/validated/ only, and a review status that was never read. Once the decisions moved into src/Dogfood/ they took eight unit tests immediately, including a Windows path-separator case the shell version could not have expressed. The conversion also produced a regression of its own: applying the repository's own hermetic-child-PHP rule, the new runner invoked PHP_BINARY with -n, which disables php.ini and therefore mbstring, and every agent-loop command failed with 'Call to undefined function mb_strlen()'.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "php tools/self-shape-dogfood.php",
+            "summary": "First run of the converted runner exited 255 at workflow approve: 'Error: Call to undefined function voku\\AgentRecallCompiler\\Provider\\mb_strlen()'. php -n -r 'function_exists(\"mb_strlen\")' confirms mbstring is absent under -n and present without it. After removing -n the same runner reported PASSED and governed its own conversion diff."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter SelfShapeEvidenceTest",
+            "summary": "Eight tests over decisions that had no test while they were Bash: consolidated findings still counting as recorded, de-duplication across a rename, unrelated paths ignored, Windows separators, MEMORY-without-evidence failing, and the projection assertions before and after Session pruning."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "PHPStan then rejected the new code twice with the project's own rules: the expected-diagnostic list for the retired-path rule contained the retired path and tripped it, and a nested-array walk re-annotated a natively typed variable. Both were fixed at the cause rather than suppressed."
+        }
+    ],
+    "hypothesis": "A rule distilled from one context reads as universal once it is written down. The hermeticity rule was earned by validation subprocesses, where a machine-local php.ini could change a lint result; applied to running our own CLI it removed an extension the CLI needs and turned a configuration risk into a hard failure.",
+    "validated_conclusion": "Convert a shell runner to PHP for testability, not for portability - and say so, because the portability argument does not survive contact with Git for Windows. Keep the runner orchestration-only and put every decision in a tested class. A static rule carries the scope it was earned in: -n belongs to validation subprocesses, not to invoking our own CLI, and applying it uniformly breaks commands that need extensions.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}

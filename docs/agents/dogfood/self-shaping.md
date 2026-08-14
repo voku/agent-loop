@@ -29,11 +29,11 @@ The validated source findings live under `.agent-loop/learning/findings/validate
 `MEMORY.md` contains only the reviewed durable rules. Objective recurrence prevention is pushed lower where possible:
 
 - `phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php` prevents `voku\\AgentLoop\\Workflow` from instantiating focused-package CLIs;
-- `tools/project-phpstan-rules.sh` proves that rule in a separate PHPStan process without contaminating PHPUnit;
+- `tools/project-phpstan-rules.php` proves that rule in a separate PHPStan process without contaminating PHPUnit;
 - workflow PHPUnit tests assert persisted session, brief, approval, verification, close behavior, and the one-active-session retry invariant instead of adapter argv;
 - `WorkingTreeSnapshotter` asks Git whether a path is a working tree instead of assuming `.git` must be a directory, so linked worktrees retain observed-diff evidence;
 - `tools/self-edit-dogfood.php` performs one deterministic mechanical edit in an isolated linked worktree and verifies the observed edit evidence;
-- `tools/self-shape-dogfood.sh` owns the repeatable repository lifecycle, derives changed-file scope from Git, records the real PR goal when CI provides it, preserves a complete raw diff, measures validation duration, and separates generated review input from external correctness review;
+- `tools/self-shape-dogfood.php` owns the repeatable repository lifecycle, derives changed-file scope from Git, records the real PR goal when CI provides it, preserves a complete raw diff, measures validation duration, and separates generated review input from external correctness review;
 - `.github/workflows/ci.yml` runs the isolated self-edit probe and then the normal self-shape runner with read-only/non-persisted repository credentials, passing only PR metadata already present in the event payload and uploading the evidence rather than granting either step write access;
 - `tools/release-set-dogfood.php` remains the separate installed-consumer contract.
 

@@ -1,0 +1,33 @@
+{
+    "id": "finding.2026-08-14.3b74fd",
+    "task_id": "GH-96",
+    "session": "2026-08-14-self-shape",
+    "created_at": "2026-08-14T14:45:00+02:00",
+    "created_by": "agent-loop-shell-to-php",
+    "scope": [
+        "MEMORY.md",
+        ".agent-loop/learning/proposals"
+    ],
+    "observation": "Applying the first batch of approved memory proposals wedged the proposal queue. proposal-mark-applied records applied_validation.target_content_hash as a sha256 of the whole target file, and AppliedGuidanceTargetValidator re-checks every already-applied record on each new transition. Two proposals applied cleanly; aligning MEMORY.md wording so the remaining seven could also be applied changed the file, which invalidated the two pinned hashes, and every subsequent proposal-mark-applied then failed on those earlier records rather than on itself. The store cannot be un-wedged through the CLI: nothing un-applies a proposal, and the only content that would satisfy the pinned hashes is the MEMORY.md that predates the alignment the later proposals require. A second, smaller finding surfaced first: the gate also checks that the approved wording appears verbatim in the target, which caught seven memory rows I had written in my own words rather than the reviewed text.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "agent-loop learn proposal-mark-applied --by voku --commit <sha> --validation build/memory-applied-validation.json proposal.2026-08-14.001",
+            "summary": "'proposal apply failed and was rolled back: .../applied/proposal.2026-08-14.007.json: applied guidance target_content_hash does not match target file: MEMORY.md'. The proposal being marked is 001; the record that fails is 007, applied earlier against a different MEMORY.md."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "proposal.2026-08-14.007 pins 6574f6f4...ddbe7 while MEMORY.md now hashes to bd40a1e6...b4d451. Both target_source_ref values are the whole file, so one rule's row edit invalidates every other rule's applied record."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Seven of nine proposals first failed with 'added guidance wording is not present in target', because the MEMORY rows had been written as paraphrases of the approved text. That check is correct and caught real drift between what was approved and what was published."
+        }
+    ],
+    "hypothesis": "A whole-file content hash treats MEMORY.md as if it carried one rule. It carries eighteen, each from a different proposal, so the pin encodes 'nothing else in this file may ever change' - which is false for any file that accumulates guidance, and guarantees a wedge as soon as two proposals are applied at different times.",
+    "validated_conclusion": "Applied-guidance evidence needs a reference narrower than the whole file - the row or anchor the proposal actually wrote - which is the separation of semantic target identity from physical canonical-home reference that agent-learning#11 already tracks. Until then, apply every approved memory proposal in one pass against a final target, and never edit the target between transitions. The verbatim-wording check is sound and should stay: it is what proved the published rows had drifted from the reviewed text.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "consolidated",
+    "sensitivity": "public"
+}
