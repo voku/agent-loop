@@ -191,6 +191,27 @@ final class AgentFacingPathGuidanceTest extends TestCase
         }
     }
 
+    public function testRecallCandidateDogfoodChecksOutTheDeclaredMinimumRelease(): void
+    {
+        $root = dirname(__DIR__);
+        $composer = json_decode((string) file_get_contents($root . '/composer.json'), true, 64, JSON_THROW_ON_ERROR);
+        self::assertIsArray($composer);
+        self::assertIsArray($composer['require'] ?? null);
+        $constraint = $composer['require']['voku/agent-recall-compiler'] ?? null;
+        self::assertIsString($constraint);
+        self::assertMatchesRegularExpression('/^\^\d+\.\d+\.\d+$/', $constraint);
+        $minimumRelease = substr($constraint, 1);
+
+        foreach (['acceptance-criteria-candidate.yml', 'prompt-primitives-candidate.yml'] as $workflow) {
+            $contents = (string) file_get_contents($root . '/.github/workflows/' . $workflow);
+            self::assertStringContainsString(
+                'ref: ' . $minimumRelease,
+                $contents,
+                $workflow . ' must dogfood the minimum released Recall version declared by composer.json.',
+            );
+        }
+    }
+
     public function testSelfShapeEvidenceUploadCoversPathsTheHarnessActuallyWrites(): void
     {
         $workflow = (string) file_get_contents(dirname(__DIR__) . '/.github/workflows/ci.yml');
