@@ -64,6 +64,26 @@ final class HostAssetPathOwnershipTest extends TestCase
         );
     }
 
+    public function testStatusAndSyncHooksAgreeOnAWindowsUncCodexHome(): void
+    {
+        putenv('CODEX_HOME=\\\\server\\share\\.codex');
+
+        $status = $this->capture(fn (): int => (new InitStatusCommand($this->root))->run([]));
+        $sync = $this->capture(fn (): int => (new InitSyncHooksCommand($this->root))->run([
+            '--agent=codex',
+            '--hooks-root=' . dirname(__DIR__) . '/docs/agents/codex-hooks',
+            '--dry-run',
+        ]));
+
+        self::assertStringContainsString('//server/share/.codex', $status, 'init status lost the UNC root.');
+        self::assertStringContainsString('//server/share/.codex', $sync, 'init sync-hooks lost the UNC root.');
+        self::assertStringNotContainsString(
+            $this->root . '/\\\\server',
+            $sync,
+            'init sync-hooks joined an absolute UNC CODEX_HOME onto the project root.',
+        );
+    }
+
     public function testAnEnvironmentDirectoryRelativeToTheProjectStaysInsideIt(): void
     {
         putenv('CODEX_HOME=vendor-codex/');
