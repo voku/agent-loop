@@ -5,7 +5,7 @@ description: Use agent-loop to compile, inspect, and govern task-scoped Recall/L
 
 # Agent Loop L2 Context
 
-Use this skill when a task needs `agent-loop` recall compilation, governed L2
+Use this skill when a task needs `agent-loop` Recall compilation, governed L2
 prompt construction, bounded context, map navigation, or evidence from the
 current repository.
 
@@ -45,11 +45,11 @@ vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 120
 vendor/bin/agent-loop workflow status <task-id>
 ```
 
-For standalone exploration, compile task-scoped Recall through Loop:
+For standalone exploration, compile task-scoped Recall through Loop and let the
+wrapper resolve the configured Learning and Recall roots:
 
 ```bash
 vendor/bin/agent-loop recall compile \
-  --root <learning-root-path> \
   --task <task-id> \
   --file <path-to-file-1> \
   --file <path-to-file-2>
@@ -114,7 +114,7 @@ configured task Recall root.
 These are evidence/harness inputs. They are not automatically injected into an
 agent and their presence does not prove an L1 prompt was constructed or executed.
 
-Use the project layout instead of assuming an old hard-coded Recall path:
+Use the project layout instead of assuming a hard-coded Recall path:
 
 ```bash
 vendor/bin/agent-loop init paths --format=json
@@ -188,11 +188,11 @@ vendor/bin/agent-loop review blindspots <task-id>
 vendor/bin/agent-loop review code <task-id>
 ```
 
-Record Recall outcomes only after actual work and validation happened:
+Record Recall outcomes only after actual work and validation happened. The Loop
+wrapper resolves the configured Learning root:
 
 ```bash
 vendor/bin/agent-loop recall log-outcome \
-  --root <learning-root> \
   --draft <recall-root>/<task-id>/recall-log.draft.json \
   --by <actor> \
   --commit <sha>
