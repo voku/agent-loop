@@ -19,9 +19,19 @@ All notable changes to this project will be documented in this file.
   directions: under `commit.cleanup=whitespace` Git stores the commentary a
   stripping rule would have skipped, and under `core.commentChar=;` a `#` line is
   content Git keeps while the `;` line is the one it drops. `verbatim` and
-  `scissors` are modelled too. `default` resolves to `strip`, because the hook
-  cannot observe whether an editor ran; that boundary is documented and pinned by
-  a test, and an explicit `commit.cleanup` is honoured exactly.
+  `scissors` are modelled too. The configured comment string is used verbatim,
+  trailing space included: `core.commentString = "; "` makes `; comment` a comment
+  and leaves `;not-a-comment` as content Git stores.
+- `core.commentChar`/`core.commentString` set to `auto` is refused with the
+  configuration to fix, rather than guessed. Git resolves `auto` while preparing
+  the buffer and then writes its own help lines with the character it chose, so
+  the file the hook receives always contains that character at the start of a
+  line and cannot be scanned to recover the decision - a replay concludes the
+  opposite of the truth. Modes that keep commentary never consult it and are
+  unaffected.
+- `default` resolves to `strip`, because the hook cannot observe whether an editor
+  ran; that boundary is documented and pinned by a test, and an explicit
+  `commit.cleanup` is honoured exactly.
 - Pre-commit checks no longer silently skip staged files whose names Git munges.
   Line-oriented `--name-only` C-quotes any pathname containing a non-ASCII byte,
   a tab, a double quote, a backslash or a newline - and `core.quotePath=false`
@@ -45,7 +55,7 @@ All notable changes to this project will be documented in this file.
 
 ### Validation
 
-- 64 new tests, each confirmed red before its fix and green after. The
+- 70 new tests, each confirmed red before its fix and green after. The
   commit-message and pre-commit tests drive a real repository and a real
   `git diff --cached` rather than a stub.
 - The cleanup modes are verified by committing for real under each setting and

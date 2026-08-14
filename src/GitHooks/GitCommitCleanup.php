@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\GitHooks;
 
+use InvalidArgumentException;
+
 /**
  * The only code that answers "what will Git store for this message".
  *
@@ -16,9 +18,14 @@ namespace voku\AgentLoop\GitHooks;
  * - `core.commentString` / `core.commentChar` decides what commentary *is*. With
  *   `core.commentChar=;` a `#` line is ordinary content Git keeps, and a `;` line
  *   is the comment Git drops - the exact opposite of the hardcoded assumption.
+ *   The value is used verbatim, trailing space included: `"; "` makes `; comment` a
+ *   comment and leaves `;not-a-comment` as content.
  *
  * Both were verified against Git rather than inferred: see the tests, which drive a
  * real repository through each mode and read back what Git committed.
+ *
+ * Where Git's answer cannot be read, none is invented - the hook refuses instead.
+ * That applies to `auto`, and only there.
  */
 final readonly class GitCommitCleanup
 {
@@ -28,17 +35,25 @@ final readonly class GitCommitCleanup
      */
     private const string SCISSORS = ' ------------------------ >8 ------------------------';
 
-    /**
-     * Git's own candidate list for `core.commentChar=auto`, in its order.
-     *
-     * @var list<string>
-     */
-    private const array AUTO_CANDIDATES = ['#', ';', '@', '!', '$', '%', '^', '&', '|', ':'];
-
     private function __construct(
         public string $mode,
         public string $commentString,
     ) {
+        // `auto` is resolved by Git when it prepares the buffer, and Git then writes its
+        // own help and status lines using whatever it chose. By the time the hook reads
+        // the file, every candidate Git picked is present in it - so scanning the buffer
+        // to recover the decision concludes the opposite of the truth: an ordinary
+        // `auto` resolves to `#`, the buffer is full of `#` lines, and a replay decides
+        // `#` was therefore unavailable. The decision is not recoverable, so it is not
+        // guessed. Modes that never consult the comment string are unaffected.
+        if ($commentString === 'auto' && $this->needsCommentString()) {
+            throw new InvalidArgumentException(
+                'Cannot determine what Git will treat as commentary: core.commentChar/core.commentString'
+                . ' is "auto" and commit.cleanup is "' . $mode . '", which removes commentary.'
+                . ' Git resolves "auto" before this hook runs and the choice cannot be read back.'
+                . ' Set core.commentChar to the literal character this repository uses.',
+            );
+        }
     }
 
     /**
@@ -49,12 +64,14 @@ final readonly class GitCommitCleanup
      */
     public static function fromRepository(string $rootPath): self
     {
-        $mode = self::gitConfig($rootPath, 'commit.cleanup') ?? 'default';
+        // The mode is a keyword, so surrounding whitespace carries nothing; the comment
+        // string is data, so it is taken exactly as Git reports it.
+        $mode = trim(self::gitConfig($rootPath, 'commit.cleanup') ?? 'default');
         $commentString = self::gitConfig($rootPath, 'core.commentString')
             ?? self::gitConfig($rootPath, 'core.commentChar')
             ?? '#';
 
-        return new self(strtolower($mode), $commentString === '' ? '#' : $commentString);
+        return new self(strtolower($mode === '' ? 'default' : $mode), $commentString);
     }
 
     public static function forMode(string $mode, string $commentString = '#'): self
@@ -86,11 +103,10 @@ final readonly class GitCommitCleanup
             return $lines;
         }
 
-        $commentString = $this->resolvedCommentString($lines);
-
         if ($this->mode === 'scissors') {
-            $lines = self::untilScissors($lines, $commentString);
+            $lines = self::untilScissors($lines, $this->commentString);
         } elseif ($this->stripsComments()) {
+            $commentString = $this->commentString;
             $lines = array_values(array_filter(
                 $lines,
                 static fn (string $line): bool => !str_starts_with($line, $commentString),
@@ -135,31 +151,10 @@ final readonly class GitCommitCleanup
         return $kept;
     }
 
-    /**
-     * `auto` is resolved by Git when it *prepares* the buffer, before the committer
-     * ever sees it, so the final file cannot be replayed to recover the choice. Git
-     * keeps its first candidate unless the text it is about to comment already uses
-     * it, which is what this reproduces; in practice the answer is `#`.
-     *
-     * @param list<string> $lines
-     */
-    private function resolvedCommentString(array $lines): string
+    /** Whether this mode has to know what commentary is in order to answer at all. */
+    private function needsCommentString(): bool
     {
-        if ($this->commentString !== 'auto') {
-            return $this->commentString;
-        }
-
-        foreach (self::AUTO_CANDIDATES as $candidate) {
-            foreach ($lines as $line) {
-                if (str_starts_with($line, $candidate)) {
-                    continue 2;
-                }
-            }
-
-            return $candidate;
-        }
-
-        return '#';
+        return $this->stripsComments() || $this->mode === 'scissors';
     }
 
     private static function gitConfig(string $rootPath, string $key): ?string
@@ -182,10 +177,16 @@ final readonly class GitCommitCleanup
         fclose($pipes[1]);
         fclose($pipes[2]);
 
-        if (proc_close($process) !== 0 || !is_string($stdout) || trim($stdout) === '') {
+        // Only the line terminator `git config` adds is removed. A comment string may
+        // legitimately end in a space - `core.commentString = "; "` makes `; comment` a
+        // comment while `;not-a-comment` is content - and trimming that space would drop
+        // a line Git stores, which is the blind spot this whole class exists to close.
+        $value = is_string($stdout) ? rtrim($stdout, "\r\n") : '';
+
+        if (proc_close($process) !== 0 || $value === '') {
             return null;
         }
 
-        return trim($stdout);
+        return $value;
     }
 }

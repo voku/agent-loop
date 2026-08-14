@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\GitHooks\CommitMessageValidator;
@@ -132,6 +133,103 @@ final class GitCommitCleanupTest extends TestCase
         );
     }
 
+    /**
+     * Git picks the comment string when it *prepares* the buffer and then writes its
+     * own help lines with the character it chose, so the file the hook receives always
+     * contains that character at the start of a line. Scanning it to recover the
+     * decision therefore concludes the opposite of the truth. This drives a real
+     * `auto` commit to show the contaminated buffer, and asserts the hook refuses
+     * rather than inventing an answer from it.
+     */
+    public function testAutoIsRefusedRatherThanInferredFromTheBuffer(): void
+    {
+        $this->git('config core.commentChar auto');
+        $seen = $this->commitThroughEditor("subject line\n\nbody line\n");
+
+        // Git resolved `auto` to `#` and commented its own help with it.
+        self::assertStringContainsString("\n# Please enter the commit message", $seen);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/auto.*cannot be read back/s');
+
+        GitCommitCleanup::fromRepository($this->root);
+    }
+
+    /**
+     * A mode that never consults the comment string has nothing to refuse.
+     *
+     * @param list<string> $expected
+     */
+    #[DataProvider('modesThatIgnoreCommentary')]
+    public function testAutoIsHarmlessForModesThatKeepCommentary(string $mode, array $expected): void
+    {
+        $cleanup = GitCommitCleanup::forMode($mode, 'auto');
+
+        self::assertSame($expected, $cleanup->committedLines("subject\n# kept\n"));
+    }
+
+    /** @return list<array{string, list<string>}> */
+    public static function modesThatIgnoreCommentary(): array
+    {
+        return [
+            ['whitespace', ['subject', '# kept']],
+            // verbatim keeps the trailing blank line the final newline produces.
+            ['verbatim', ['subject', '# kept', '']],
+        ];
+    }
+
+    /**
+     * A comment string may end in a space. `"; "` makes `; comment` commentary and
+     * leaves `;not-a-comment` as content Git stores, so trimming the configured value
+     * would drop a stored line - reopening the blind spot this class closes.
+     */
+    public function testATrailingSpaceInTheCommentStringIsSignificant(): void
+    {
+        $cleanup = GitCommitCleanup::forMode('strip', '; ');
+
+        self::assertSame(
+            ['subject', ';not-a-comment', 'body'],
+            $cleanup->committedLines("subject\n; a real comment\n;not-a-comment\nbody\n"),
+        );
+    }
+
+    /**
+     * The same value read back out of a real repository keeps its trailing space.
+     *
+     * No version gate: this asserts what *this* class does with what `git config --get`
+     * reports, and every Git stores and returns the value faithfully. Only the test
+     * below, which asserts Git's own cleanup behaviour, needs a Git that honours the
+     * setting.
+     */
+    public function testTheConfiguredCommentStringIsReadVerbatim(): void
+    {
+        $this->git("config core.commentString '; '");
+
+        $cleanup = GitCommitCleanup::fromRepository($this->root);
+
+        self::assertSame('; ', $cleanup->commentString);
+    }
+
+    /**
+     * And Git agrees: `; comment` is dropped, `;not-a-comment` is stored.
+     */
+    public function testGitAgreesThatOnlyTheSpacedFormIsCommentary(): void
+    {
+        $this->requireCommentStringSupport();
+        $this->git("config core.commentString '; '");
+        $this->git('config commit.cleanup strip');
+
+        $seen = $this->commitThroughEditor("subject line\n\n; a real comment\n;not-a-comment\nbody\n");
+        $stored = rtrim($this->git('log -1 --format=%B'), "\n");
+
+        self::assertStringNotContainsString('; a real comment', $stored);
+        self::assertStringContainsString(';not-a-comment', $stored);
+        self::assertSame(
+            $stored,
+            implode("\n", GitCommitCleanup::fromRepository($this->root)->committedLines($seen)),
+        );
+    }
+
     /** `verbatim` keeps everything, including the blank lines other modes trim. */
     public function testVerbatimKeepsEverything(): void
     {
@@ -167,6 +265,22 @@ final class GitCommitCleanupTest extends TestCase
         $cleanup = GitCommitCleanup::fromRepository($this->root . '/does-not-exist');
 
         self::assertTrue($cleanup->stripsComments());
+    }
+
+    /**
+     * `core.commentString` landed in Git 2.45; older Git parses the key and then
+     * ignores it, so asserting Git's behaviour against it would assert nothing. The
+     * unit-level expectations above still run everywhere.
+     */
+    private function requireCommentStringSupport(): void
+    {
+        $version = $this->git('--version');
+        if (preg_match('/(\d+)\.(\d+)/', $version, $matches) !== 1) {
+            self::markTestSkipped('Cannot read the Git version: ' . $version);
+        }
+        if ((int) $matches[1] * 1000 + (int) $matches[2] < 2045) {
+            self::markTestSkipped('core.commentString needs Git 2.45; found ' . trim($version));
+        }
     }
 
     private function forbidding(string $pattern): GitHookConfig
