@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\GitWorkTree;
 
 /**
  * Installs the package-owned Git hooks into a host repository and points Git at them.
@@ -194,8 +195,8 @@ final readonly class InitSyncGitHooksCommand
             return 0;
         }
 
-        if (!is_dir($this->rootPath . '/.git')) {
-            echo '[WARN] sync githooks: no .git directory found; skipped core.hooksPath and commit.template.' . "\n";
+        if (!GitWorkTree::detected($this->rootPath)) {
+            echo '[WARN] sync githooks: no Git working tree detected; skipped core.hooksPath and commit.template.' . "\n";
 
             return 0;
         }

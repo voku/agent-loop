@@ -1,0 +1,33 @@
+{
+  "id": "finding.2026-08-14.013",
+  "task_id": "GH-96",
+  "session": "2026-08-14-agent-loop-consolidation",
+  "created_at": "2026-08-14T05:10:00+02:00",
+  "created_by": "agent-loop-consolidation",
+  "scope": [
+    "src/GitWorkTree.php",
+    "src/Init/InitDoctorCommand.php",
+    "src/Init/InitSyncGitHooksCommand.php",
+    "tests/AgentLoopHistoricalEditReplayTest.php",
+    "tests/GitWorkTreeDetectionTest.php",
+    "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php"
+  ],
+  "observation": "Running the repository's own init commands inside a linked Git worktree (`git worktree add --detach`) reproduced two defects. `init doctor` reported `[WARN] Git: .git directory not found` for a valid checkout, and `init sync-githooks` wrote all six hook files and then printed `[WARN] sync githooks: no .git directory found; skipped core.hooksPath and commit.template`, so Git was never pointed at the hooks it had just installed. A third occurrence skipped the historical edit replay test in the same checkout. All three tested `is_dir($root . '/.git')`, but a linked worktree stores `.git` as a file. Two dogfood runners in the same tree already handled both shapes, so the assumption was inconsistent inside one repository.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "In a worktree created with `git worktree add --detach`, `php bin/agent-loop init doctor` printed `[WARN] Git: .git directory not found` and `php bin/agent-loop init sync-githooks` printed `[WARN] sync githooks: no .git directory found; skipped core.hooksPath and commit.template` while reporting `synced 6 hook file(s)`. After routing both through `GitWorkTree::detected()`, the same commands reported `[OK] Git: working tree detected` and `[OK] sync githooks: core.hooksPath=.githooks`."
+    },
+    {
+      "type": "test_result",
+      "command": "vendor/bin/phpunit --filter GitWorkTreeDetectionTest",
+      "summary": "Four assertions over a worktree the test creates itself. Reverting either production call site to `is_dir($root . '/.git')` fails the suite with two failures, so the regression falsifies the previous implementation rather than merely describing the new one."
+    }
+  ],
+  "hypothesis": "Filesystem shape was treated as a repository contract. Because the failure is a silent WARN rather than an error, the hook integration can be inert in exactly the checkout layout agents use most.",
+  "validated_conclusion": "Repository state is asked of Git, never inferred from the shape of `.git`. `GitWorkTree` owns the question; `NoGitDirectoryShapeAssumptionRule` fails production code that reintroduces the shape test. Tests stay out of the rule's scope because asserting that a linked worktree's `.git` really is a file is what makes the defect reproducible.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

@@ -38,3 +38,11 @@ services:
     class: voku\AgentLoop\PHPStan\Rules\NoCollapsedPhpDocTagsRule
     tags:
       - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoGitDirectoryShapeAssumptionRule
+    tags:
+      - phpstan.rules.rule
+  -
+    class: voku\AgentLoop\PHPStan\Rules\NoInProcessPhpstanRuleTestCaseRule
+    tags:
+      - phpstan.rules.rule
