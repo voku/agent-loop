@@ -287,8 +287,15 @@ final readonly class WorkflowCloseCommand
         // selection is accounted for is decided below, where the message can
         // name the guidance rather than the file.
         $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';
+        $outcomeLines = [];
+        if (is_file($outcomesPath)) {
+            $outcomeLines = file($outcomesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($outcomeLines === false) {
+                return 'cannot read history/outcomes.jsonl for selected guidance';
+            }
+        }
         $recorded = [];
-        foreach (file($outcomesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        foreach ($outcomeLines as $line) {
             try {
                 $outcome = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
             } catch (\JsonException) {
@@ -303,9 +310,14 @@ final readonly class WorkflowCloseCommand
                 $recorded[$outcome['guidance_id']] = true;
             }
         }
-        $withheld = $this->declaredWithholdings($learningRoot, $taskId, $compilationId);
+        $selected = array_values(array_unique($selected));
+        $selectedSet = array_fill_keys($selected, true);
+        $withheld = array_intersect_key(
+            $this->declaredWithholdings($learningRoot, $taskId, $compilationId),
+            $selectedSet,
+        );
         $missing = array_values(array_filter(
-            array_unique($selected),
+            $selected,
             static fn (string $id): bool => !isset($recorded[$id]) && !isset($withheld[$id]),
         ));
         if ($missing !== []) {
@@ -346,6 +358,7 @@ final readonly class WorkflowCloseCommand
                 is_array($event)
                 && ($event['task_id'] ?? null) === $taskId
                 && ($event['compilation_id'] ?? null) === $compilationId
+                && ($event['selected'] ?? null) === true
                 && is_string($event['guidance_id'] ?? null)
                 && is_string($event['outcome_withheld_reason'] ?? null)
                 && trim($event['outcome_withheld_reason']) !== ''
