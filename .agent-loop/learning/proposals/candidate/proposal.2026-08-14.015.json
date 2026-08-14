@@ -1,0 +1,35 @@
+{
+    "id": "proposal.2026-08-14.015",
+    "created_at": "2026-08-14T07:41:14+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-14.015"
+    ],
+    "reason": "Three defects survived every gate on this branch and were found only by reading the diff against its own removals. The scope names the two files the concrete regressions live in; the rule generalises to any change that replaces a construction-guaranteed invariant with an allocated or computed one, or that swaps a filesystem check for a process call.",
+    "remaining_uncertainty": [],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Blind-spot review of a diff",
+    "scope": [
+        "src/GitWorkTree.php",
+        "src/Init/InitDoctorCommand.php"
+    ],
+    "old": null,
+    "new": "Green gates measure the properties someone already thought to encode. Read a diff for what it removed: an invariant that held by construction needs an explicit assertion once its construction changes, a random source is injected rather than sampled by a test, and a process call is not a drop-in for a filesystem check because it can fail in ways that print.",
+    "boundary": "This is a review habit for changes that replace a mechanism. It is not a requirement to re-review unchanged code, and it does not add a lifecycle state.",
+    "validation": [
+        "vendor/bin/phpunit --filter GitWorkTreeDetectionTest",
+        "composer review:slop"
+    ],
+    "scope_justification": "Three defects survived every gate on this branch and were found only by reading the diff against its own removals. The scope names the two files the concrete regressions live in; the rule generalises to any change that replaces a construction-guaranteed invariant with an allocated or computed one, or that swaps a filesystem check for a process call.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "review.the.diff.for.what.it.removed",
+    "validation_case": {
+        "given": "a change that replaces a mechanism which guaranteed a property by construction",
+        "when": "every existing gate passes because no gate encoded that property",
+        "then": "the property is asserted explicitly, because it is no longer produced by the mechanism that replaced it"
+    }
+}

@@ -33,7 +33,12 @@ final readonly class GitWorkTree
             return null;
         }
 
-        $process = proc_open(
+        // Silenced deliberately, and only here: a machine without git makes
+        // proc_open emit "posix_spawn() failed" before returning false. The
+        // false is the answer we already handle, and the warning would be
+        // printed by `init doctor` - the one command whose job is to report
+        // calmly on an environment that may be missing things.
+        $process = @proc_open(
             $command,
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
