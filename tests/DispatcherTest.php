@@ -115,6 +115,34 @@ final class DispatcherTest extends TestCase
         }
     }
 
+    public function testConfiguredStateRootMovesTheWholeMapTree(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-map-root-' . bin2hex(random_bytes(6));
+        mkdir($root . '/src', 0o775, true);
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/src/LoopMapService.php', $this->mapFixture('LoopMapService'));
+        file_put_contents(
+            $root . '/.agent-loop/init.json',
+            json_encode(['version' => 1, 'paths' => ['state_root' => 'var/agent-state']], JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $this->assertRun(
+                ['agent-loop', 'map', 'build', '--paths=src'],
+                0,
+                ['Wrote 1 file(s),', $root . '/var/agent-state/map/php-symbols.json'],
+                $root,
+            );
+
+            self::assertFileExists($root . '/var/agent-state/map/php-symbols.json');
+            self::assertFileExists($root . '/var/agent-state/map/structural-cache.json');
+            self::assertDirectoryExists($root . '/var/agent-state/map/phpstan-cache');
+            self::assertDirectoryDoesNotExist($root . '/.agent-loop/map');
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testMemoryNamespaceUsesDefaultRootFile(): void
     {
         $this->assertRun(
