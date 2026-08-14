@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
 
 /** @internal */
@@ -181,6 +182,60 @@ final class InitInstallAssetsCommandTest extends TestCase
     public function testUnknownOptionFails(): void
     {
         self::assertSame(1, $this->runCommand(['--agent=codex', '--download'])['exit']);
+    }
+
+    public function testDeclaredGitHookPolicyIsActivatedInTheSameRun(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+        file_put_contents($this->root . '/.gitmessage', "# template\n");
+
+        $result = $this->runCommand(['--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.githooks/pre-commit');
+        self::assertSame('.githooks', trim($runner->mustRun(['git', 'config', '--get', 'core.hooksPath'])['stdout']));
+        self::assertSame('.gitmessage', trim($runner->mustRun(['git', 'config', '--get', 'commit.template'])['stdout']));
+    }
+
+    public function testGitConfigIsLeftAloneWhenTheRepositoryDeclaresNoHookPolicy(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+
+        $result = $this->runCommand(['--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.githooks');
+        self::assertSame(1, $runner->run(['git', 'config', '--get', 'core.hooksPath'])['exit_code']);
+    }
+
+    public function testSkipGitConfigInstallsHookFilesWithoutPointingGitAtThem(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+
+        $result = $this->runCommand(['--agent=codex', '--skip-git-config']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.githooks/pre-commit');
+        self::assertSame(1, $runner->run(['git', 'config', '--get', 'core.hooksPath'])['exit_code']);
     }
 
     /**

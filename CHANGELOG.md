@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- `init status` now opens with an `Activation:` section and closes with the exact
+  commands that finish the setup. It was the entry point the projected router
+  sends a fresh agent to, but it only ever reported *source* presence: a
+  repository where nothing was projected into any host - so no running agent
+  could read a single skill - printed `[OK] skills-root: ... (16 skill(s))`,
+  `[INFO] ... no manifest`, and exited 0, which is indistinguishable from a
+  healthy setup. It now reports the resolved CLI path, whether skills are
+  projected into a host at all, and whether `core.hooksPath`/`commit.template`
+  are active. None of those lines claims an agent *consumed* anything: a
+  projected skill is readable by the host, which is not the same as a session
+  having used it.
+- Activation commands are resolved against the repository they are printed in,
+  by the new `RepositoryActivation`. Every one of them used to be written for a
+  hypothetical consumer project. In agent-loop's own checkout `vendor/bin/agent-loop`
+  does not exist - Composer does not link the root package's own binaries - so the
+  first step of the projected router failed with "No such file or directory", and
+  the `init sync-githooks` that `init doctor` recommended would have installed a
+  second, untracked `.githooks/` beside the tracked `githooks/` sources instead of
+  maintaining them.
+- The router source keeps a `{{agent_loop_cli}}` placeholder that
+  `init sync-instructions` resolves per repository, and names what to do when the
+  CLI itself is missing and where to read the compiled Recall briefing after
+  `workflow approve`.
+- `init install-assets` now also activates the local Git integration when the
+  repository declares one in `.agent-loop/githooks.json`, so hook and commit-template
+  activation stops being a separate optional step that only `init doctor` mentioned.
+  `--skip-git-config` installs the hook files and leaves Git configuration alone.
+- `init doctor` no longer owns a second copy of the local Git integration checks;
+  it renders the shared ones, including the remediation command that works here.
+
+### Fixed
+
+- `init sync-githooks --adopt-existing` now adds the execute bit to an adopted
+  hook, keeping its content untouched. Adoption recorded a file as managed without
+  checking the one property that decides whether Git can run it at all.
+- The generated `githooks/lib/agent-loop-hooks.env` now pins `AGENT_LOOP_BIN` to the
+  resolved CLI path. `pre-commit` and `commit-msg` fall back to
+  `vendor/bin/agent-loop`, so in a repository whose own root package is agent-loop
+  every commit aborted with "vendor/bin/agent-loop: No such file or directory" the
+  moment the hooks were activated.
+- `githooks/agent-map-refresh.sh` is shipped executable. `post-checkout` and
+  `post-merge` `exec` it directly, so every checkout in a repository that adopts
+  the package's own hook sources ran into "Permission denied".
+- `init status` no longer reports the Recall consumer skills that
+  `init install-assets` re-exports from `agent-recall-compiler` as stale managed
+  entries. The projected set was compared against this repository's skills root
+  alone, so a successful install immediately produced a warning about itself.
+
 ### Fixed
 
 - `commit-msg` now judges the message Git will store instead of the file the

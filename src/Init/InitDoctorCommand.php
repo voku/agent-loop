@@ -6,7 +6,6 @@ namespace voku\AgentLoop\Init;
 
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
-use voku\AgentLoop\PathResolver;
 
 final readonly class InitDoctorCommand
 {
@@ -188,81 +187,15 @@ final readonly class InitDoctorCommand
      * package-owned hook directory/template. Surface that split explicitly:
      * source presence is not activation.
      *
+     * The remediation command is resolved against this repository, because the
+     * generic one installs a duplicate hook directory wherever the package-owned
+     * hooks already live under a different name.
+     *
      * @return list<InitCheckResult>
      */
     private function checkLocalGitIntegration(): array
     {
-        $root = rtrim($this->rootPath, '/');
-        if (!GitWorkTree::detected($root)) {
-            return [];
-        }
-
-        $results = [];
-        if (is_file($root . '/.agent-loop/githooks.json')) {
-            $hooksPath = GitWorkTree::configValue($root, 'core.hooksPath');
-            if ($hooksPath === null || $hooksPath === '') {
-                $results[] = InitCheckResult::warn('Git hooks: project policy exists but core.hooksPath is unset; run init sync-githooks');
-            } elseif (!$this->pointsToExecutableCurrentAgentLoopHooks($root, $hooksPath)) {
-                $results[] = InitCheckResult::warn(
-                    'Git hooks: core.hooksPath=' . $hooksPath
-                    . ' does not point to executable current agent-loop pre-commit/commit-msg hooks; run init sync-githooks',
-                );
-            } else {
-                $results[] = InitCheckResult::ok('Git hooks: active via core.hooksPath=' . $hooksPath);
-            }
-        }
-
-        if (is_file($root . '/.gitmessage')) {
-            $template = GitWorkTree::configValue($root, 'commit.template');
-            if ($template === null || $template === '') {
-                $results[] = InitCheckResult::warn('Commit template: .gitmessage exists but commit.template is unset; run init sync-githooks --commit-template=.gitmessage');
-            } elseif (!$this->configuredFileMatches($root, $template, $root . '/.gitmessage')) {
-                $results[] = InitCheckResult::warn(
-                    'Commit template: commit.template=' . $template
-                    . ' does not point to .gitmessage; run init sync-githooks --commit-template=.gitmessage',
-                );
-            } else {
-                $results[] = InitCheckResult::ok('Commit template: active via commit.template=' . $template);
-            }
-        }
-
-        return $results;
-    }
-
-    private function pointsToExecutableCurrentAgentLoopHooks(string $root, string $hooksPath): bool
-    {
-        $configuredRoot = PathResolver::join($root, $hooksPath);
-        $packageHooksRoot = dirname(__DIR__, 2) . '/githooks';
-
-        foreach (['pre-commit', 'commit-msg'] as $hook) {
-            $sourcePath = $packageHooksRoot . '/' . $hook;
-            $installedPath = $configuredRoot . '/' . $hook;
-            if (!is_file($sourcePath) || !is_file($installedPath)) {
-                return false;
-            }
-
-            $source = file_get_contents($sourcePath);
-            $installed = file_get_contents($installedPath);
-            if (!is_string($source) || !is_string($installed) || $source !== $installed) {
-                return false;
-            }
-            if (DIRECTORY_SEPARATOR === '/' && !is_executable($installedPath)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private function configuredFileMatches(string $root, string $configuredPath, string $expectedPath): bool
-    {
-        $configured = realpath(PathResolver::join($root, $configuredPath));
-        $expected = realpath($expectedPath);
-        if (!is_string($configured) || !is_string($expected)) {
-            return false;
-        }
-
-        return str_replace('\\', '/', $configured) === str_replace('\\', '/', $expected);
+        return (new RepositoryActivation($this->rootPath))->localGitIntegrationChecks();
     }
 
     /**

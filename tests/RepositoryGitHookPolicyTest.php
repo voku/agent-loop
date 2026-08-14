@@ -19,4 +19,21 @@ final class RepositoryGitHookPolicyTest extends TestCase
         self::assertTrue($config->checks[0]['per_file']);
         self::assertFileExists($root . '/.gitmessage');
     }
+
+    /**
+     * The package's own hook sources are adopted in place in this repository, so
+     * their tracked mode is what Git ends up running. `post-checkout` and
+     * `post-merge` `exec` the refresh script directly: shipping it without the
+     * execute bit turns every checkout into a "Permission denied" hook failure.
+     */
+    public function testExecutedHookSourcesAreShippedExecutable(): void
+    {
+        $root = dirname(__DIR__);
+        foreach (['pre-commit', 'commit-msg', 'post-checkout', 'post-merge', 'agent-map-refresh.sh'] as $hook) {
+            $path = $root . '/githooks/' . $hook;
+
+            self::assertFileExists($path);
+            self::assertTrue(is_executable($path), $hook . ' is executed by Git and must be executable.');
+        }
+    }
 }
