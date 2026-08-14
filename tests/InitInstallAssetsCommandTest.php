@@ -52,9 +52,11 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-discipline', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-investigate', $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync skills: install agent-recall-consumer', $result['output']);
+        self::assertStringContainsString('from 2 source root(s)', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync subagents: install agent-loop-investigator.toml', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync hooks: install hooks.json', $result['output']);
-        self::assertStringContainsString('package-owned guidance validated; no files written', $result['output']);
+        self::assertStringContainsString('first-party package guidance validated; no files written', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.codex');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
         self::assertStringNotContainsString('raw.githubusercontent.com', $result['output']);
@@ -73,6 +75,8 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-review/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-audit/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-dogfood/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/operating-prompts.json');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-surgical-builder.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-code-reviewer.toml');
@@ -96,7 +100,7 @@ final class InitInstallAssetsCommandTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
-        self::assertFileExists($this->root . '/.claude/skills/agent-loop-investigate/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.claude/agents/agent-loop-investigator.md');
         self::assertFileExists($this->root . '/.claude/agents/agent-loop-surgical-builder.md');
         self::assertFileExists($this->root . '/.claude/hooks/context.php');
@@ -134,6 +138,7 @@ final class InitInstallAssetsCommandTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.github/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.github/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-investigator.agent.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-surgical-builder.agent.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-code-reviewer.agent.md');
@@ -150,6 +155,10 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.github/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.agents/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.github/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.agents/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-surgical-builder.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-code-reviewer.toml');
