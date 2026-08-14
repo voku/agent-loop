@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+use voku\AgentLoop\Dogfood\MinimumReleasePin;
+
+// The class file, not the autoloader: a candidate workflow checks this
+// repository out and runs PHP against it without ever installing agent-loop's
+// own dependencies, because what it exercises is a separately installed
+// consumer. MinimumReleasePin depends on nothing but PHP, so it loads directly.
+require dirname(__DIR__) . '/src/Dogfood/MinimumReleasePin.php';
+
 final class PromptPrimitivesDogfoodFailure extends RuntimeException
 {
 }
@@ -224,24 +232,18 @@ final class PromptPrimitivesDogfood
 
     private function writeConsumerComposer(): void
     {
-        $candidateComposer = $this->jsonFile($this->agentLoopRoot . '/composer.json');
-        $require = $candidateComposer['require'] ?? null;
-        $recallConstraint = is_array($require) ? ($require['voku/agent-recall-compiler'] ?? null) : null;
-        if (!is_string($recallConstraint)
-            || !preg_match('/^\^(\d+\.\d+\.\d+)$/', $recallConstraint, $matches)
-        ) {
-            throw new PromptPrimitivesDogfoodFailure(
-                'Expected candidate agent-loop to declare voku/agent-recall-compiler with an exact caret floor.',
-            );
-        }
-        $recallVersion = $matches[1];
-
+        // Derived, not repeated: a path repository is canonical, so a sentinel
+        // left behind by a constraint bump makes the whole set uninstallable
+        // rather than falling back to Packagist.
+        $candidateVersion = MinimumReleasePin::pathRepositoryVersion(
+            MinimumReleasePin::declaredConstraint($this->agentLoopRoot . '/composer.json', 'voku/agent-recall-compiler'),
+        );
         $this->writeJson($this->consumerRoot . '/composer.json', [
             'name' => 'voku/prompt-primitives-dogfood-consumer',
             'type' => 'project',
             'require-dev' => [
                 'voku/agent-loop' => 'dev-main',
-                'voku/agent-recall-compiler' => $recallConstraint,
+                'voku/agent-recall-compiler' => $candidateVersion,
             ],
             'repositories' => [
                 [
@@ -257,7 +259,7 @@ final class PromptPrimitivesDogfood
                     'url' => str_replace('\\', '/', $this->recallRoot),
                     'options' => [
                         'symlink' => false,
-                        'versions' => ['voku/agent-recall-compiler' => $recallVersion],
+                        'versions' => ['voku/agent-recall-compiler' => $candidateVersion],
                     ],
                 ],
             ],
