@@ -79,11 +79,11 @@ final class PathResolver
      */
     public static function relativeTo(string $rootPath, string $absolutePath): string
     {
-        $root = rtrim(str_replace('\\', '/', $rootPath), '/');
+        $root = rtrim(str_replace('\\', '/', $rootPath), '/') . '/';
         $normalized = str_replace('\\', '/', $absolutePath);
 
-        return $root !== '' && str_starts_with($normalized, $root . '/')
-            ? substr($normalized, strlen($root) + 1)
+        return str_starts_with($normalized, $root)
+            ? substr($normalized, strlen($root))
             : $normalized;
     }
 }

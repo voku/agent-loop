@@ -2,7 +2,7 @@
     "id": "finding.2026-08-14.43dc53",
     "task_id": "GH-18",
     "session": "2026-08-14-path-authority-reduction",
-    "created_at": "2026-08-14T18:40:00+02:00",
+    "created_at": "2026-08-14T17:05:00+02:00",
     "created_by": "voku",
     "scope": [
         "src/Init/InitSyncHooksCommand.php",

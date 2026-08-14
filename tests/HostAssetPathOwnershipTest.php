@@ -95,6 +95,14 @@ final class HostAssetPathOwnershipTest extends TestCase
             PathResolver::relativeTo('/project', '/elsewhere/learning'),
             'a path outside the project must stay absolute rather than be mangled.',
         );
+        // A project checked out at the filesystem root has an empty root segment.
+        // Merging two implementations is exactly where that case gets dropped:
+        // one of them guarded against the empty segment and returned the input.
+        self::assertSame(
+            'project/file.php',
+            PathResolver::relativeTo('/', '/project/file.php'),
+            'a root of "/" stopped being a root.',
+        );
     }
 
     /** @param callable(): int $command */
