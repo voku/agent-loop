@@ -2,6 +2,8 @@
 
 This repository uses `voku/agent-loop` for governed coding work. Keep this file as a small router; detailed procedures live in the installed skills and CLI help.
 
+When this router is projected into a host instruction file, the content between the `agent-loop:project-instructions` markers is package-managed. Put project-specific rules outside those markers and refresh the managed block with `init install-assets` or `init sync-instructions` instead of editing it by hand.
+
 For non-trivial coding, review, debugging, or repository-maintenance tasks:
 
 - Start with `vendor/bin/agent-loop init status`. If expected skills, subagents, hooks, or tools are missing, use `vendor/bin/agent-loop init doctor` and fix the setup instead of silently bypassing it.
