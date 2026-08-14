@@ -89,6 +89,33 @@ final class InitSyncGitHooksCommandTest extends TestCase
         self::assertStringNotContainsString('hand-written', (string) file_get_contents($this->root . '/.githooks/post-merge'));
     }
 
+    public function testHookEnvironmentPinsTheCliPathThatExistsInThisRepository(): void
+    {
+        file_put_contents(
+            $this->root . '/composer.json',
+            json_encode(['name' => 'voku/agent-loop'], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES),
+        );
+
+        self::assertSame(0, $this->runGitHooksSync([])['exit']);
+
+        $environment = (string) file_get_contents($this->root . '/.githooks/lib/agent-loop-hooks.env');
+        self::assertStringContainsString("AGENT_LOOP_BIN='bin/agent-loop'", $environment);
+    }
+
+    public function testAdoptedHookKeepsItsContentButBecomesExecutable(): void
+    {
+        mkdir($this->root . '/.githooks', 0o775, true);
+        file_put_contents($this->root . '/.githooks/pre-commit', "#!/usr/bin/env bash\necho hand-written\n");
+        chmod($this->root . '/.githooks/pre-commit', 0o644);
+
+        $result = $this->runGitHooksSync(['--adopt-existing']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('execute bit added so Git can run it', $result['output']);
+        self::assertStringContainsString('hand-written', (string) file_get_contents($this->root . '/.githooks/pre-commit'));
+        self::assertTrue(is_executable($this->root . '/.githooks/pre-commit'));
+    }
+
     public function testMissingCommitTemplateFailsBeforeGitIsTouched(): void
     {
         $result = $this->runGitHooksSync(['--commit-template=.gitmessage']);

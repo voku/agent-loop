@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
-use ReflectionClass;
+use RuntimeException;
 use voku\AgentLoop\Cli\OptionTokens;
-use voku\AgentRecallCompiler\Cli as RecallCli;
 
 final readonly class InitInstallAssetsCommand
 {
@@ -142,6 +141,11 @@ final readonly class InitInstallAssetsCommand
             return $instructionsExit;
         }
 
+        $gitHooksExit = $this->activateLocalGitIntegration($tokens, $forwarded);
+        if ($gitHooksExit !== 0) {
+            return $gitHooksExit;
+        }
+
         if (!$agent->isAll()) {
             $canonicalAgent = $agent->canonicalName();
             if ($canonicalAgent === 'claude') {
@@ -162,18 +166,43 @@ final readonly class InitInstallAssetsCommand
         return 0;
     }
 
+    /**
+     * Activates the local Git integration this repository declared.
+     *
+     * Hook and commit-template activation used to be a separate, optional step
+     * that only `init doctor` mentioned, so repositories that tracked a hook
+     * policy routinely committed with the policy inert. It runs here only when
+     * `.agent-loop/githooks.json` exists - that file is how a repository opts in -
+     * and `--skip-git-config` still leaves Git configuration alone.
+     *
+     * @param list<string> $tokens
+     * @param list<string> $forwarded
+     */
+    private function activateLocalGitIntegration(array $tokens, array $forwarded): int
+    {
+        $activation = new RepositoryActivation($this->rootPath);
+        if (!$activation->declaresGitHookPolicy()) {
+            return 0;
+        }
+
+        $arguments = $activation->syncGitHooksTokens();
+        if (OptionTokens::hasFlag($tokens, 'skip-git-config')) {
+            $arguments[] = '--skip-git-config';
+        }
+
+        return (new InitSyncGitHooksCommand($this->rootPath))->run(
+            array_values(array_unique(array_merge($arguments, $forwarded))),
+        );
+    }
+
     /** @return list<string> */
     private function firstPartySkillRoots(string $packageRoot): array
     {
-        $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
-        if (!is_string($recallFile)) {
-            throw new InvalidArgumentException('Unable to resolve the installed agent-recall-compiler package path.');
+        try {
+            return FirstPartySkillRoots::resolve($packageRoot);
+        } catch (RuntimeException $exception) {
+            throw new InvalidArgumentException($exception->getMessage(), 0, $exception);
         }
-
-        return [
-            $packageRoot . '/docs/agents/skills',
-            dirname($recallFile, 2) . '/skills',
-        ];
     }
 
     /**
@@ -196,7 +225,7 @@ final readonly class InitInstallAssetsCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'extra-skills-root'];
-        $flagOptions = ['dry-run', 'force', 'adopt-existing'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];

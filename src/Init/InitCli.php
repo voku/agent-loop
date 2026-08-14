@@ -51,7 +51,7 @@ final readonly class InitCli
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init install-assets --agent=<agent|all> [--extra-skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
+          agent-loop init install-assets --agent=<agent|all> [--extra-skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing] [--skip-git-config]
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
@@ -66,11 +66,11 @@ final readonly class InitCli
           help              Show init help.
           doctor            Diagnose local setup and repo-managed agent asset hints.
           paths             Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
-          status            Show resolved init sources, aliases, and target manifests (read-only).
+          status            Show what is activated here: resolved CLI path, host projection, local Git integration, sources, aliases, target manifests, and the next activation command (read-only).
           tools             Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
           validate          Validate repo-managed agent asset definitions.
           install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles/hooks, and the host's always-on project instruction entrypoint.
+          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles/hooks, the host's always-on project instruction entrypoint, and - when the repository declares a hook policy - the local Git hook/commit-template activation.
           sync-skills       Prevalidate and merge one or more canonical skill roots into one managed client projection; duplicate skill IDs fail.
           sync-subagents    Sync repo-managed subagents into a client target directory.
           sync-hooks        Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).

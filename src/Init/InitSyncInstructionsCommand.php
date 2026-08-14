@@ -19,6 +19,8 @@ final readonly class InitSyncInstructionsCommand
     public const string BEGIN_MARKER = '<!-- agent-loop:project-instructions:begin -->';
     public const string END_MARKER = '<!-- agent-loop:project-instructions:end -->';
 
+    private const string CLI_PLACEHOLDER = '{{agent_loop_cli}}';
+
     public function __construct(private string $rootPath)
     {
     }
@@ -149,6 +151,13 @@ final readonly class InitSyncInstructionsCommand
         return substr($existing, 0, $begin) . $block . substr($existing, $after);
     }
 
+    /**
+     * The router is the only agent-loop text a host loads without being asked,
+     * so the commands in it have to be the ones that work here. The package
+     * source keeps a CLI token that projection resolves: a consumer gets
+     * `vendor/bin/agent-loop`, the package's own checkout gets `bin/agent-loop`,
+     * which is the only path that exists there.
+     */
     private function routerSource(): string
     {
         $path = dirname(__DIR__, 2) . '/docs/agents/project-instructions.md';
@@ -157,7 +166,11 @@ final readonly class InitSyncInstructionsCommand
             throw new RuntimeException('Package project instruction source is missing or empty: ' . $path);
         }
 
-        return $content;
+        return str_replace(
+            self::CLI_PLACEHOLDER,
+            (new RepositoryActivation($this->rootPath))->cliPath(),
+            $content,
+        );
     }
 
     private function readOptional(string $path): ?string

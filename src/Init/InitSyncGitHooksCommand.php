@@ -134,7 +134,17 @@ final readonly class InitSyncGitHooksCommand
         foreach (self::HOOK_ENTRIES as $entry) {
             $targetPath = $targetRoot . '/' . $entry;
             if (isset($adopted[$entry])) {
-                echo '[OK] sync githooks: adopted existing ' . $targetPath . ' into the manifest (content left untouched)' . "\n";
+                // Adoption keeps whatever the repository already wrote, but a hook
+                // Git cannot execute is not an installed hook. The execute bit is
+                // the one property that decides whether the file runs at all, so it
+                // is enforced even here; the content stays untouched.
+                $repaired = !$dryRun
+                    && in_array($entry, self::EXECUTABLE_ENTRIES, true)
+                    && !is_executable($targetPath)
+                    && chmod($targetPath, 0o755);
+
+                echo '[OK] sync githooks: adopted existing ' . $targetPath . ' into the manifest (content left untouched'
+                    . ($repaired ? '; execute bit added so Git can run it' : '') . ')' . "\n";
 
                 continue;
             }
@@ -241,6 +251,12 @@ final readonly class InitSyncGitHooksCommand
     private function renderEnvironment(array $tokens): string
     {
         $values = [
+            // The hooks fall back to `vendor/bin/agent-loop`, which does not exist
+            // in a repository whose own root package is agent-loop: every commit
+            // there died with "vendor/bin/agent-loop: No such file or directory".
+            // The resolved path is written out so the hooks never depend on that
+            // guess.
+            'AGENT_LOOP_BIN' => (new RepositoryActivation($this->rootPath))->cliPath(),
             'AGENT_LOOP_CONTAINER_SERVICE' => OptionTokens::value($tokens, 'container-service') ?? '',
             'AGENT_LOOP_CONTAINER_IMAGE' => OptionTokens::value($tokens, 'container-image') ?? '',
             'AGENT_LOOP_CONTAINER_WORKDIR' => OptionTokens::value($tokens, 'container-workdir') ?? '',

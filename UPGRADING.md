@@ -15,6 +15,28 @@ Do not hardcode `.agent-loop/` anywhere. It is the default, not the contract.
 
 ---
 
+## Activation is resolved against your repository
+
+`init status` now reports activation, not just sources: the resolved CLI path,
+whether skills are projected into a host at all, and whether `core.hooksPath`
+and `commit.template` are active. Its `Next:` lines are the exact commands for
+your repository. `init install-assets` additionally activates the local Git
+integration when the repository tracks `.agent-loop/githooks.json`; pass
+`--skip-git-config` to keep the previous behaviour of installing hook files
+without touching Git configuration.
+
+**Action:** rerun the asset installation once, then read the activation report:
+
+```bash
+vendor/bin/agent-loop init install-assets --agent=<your-agent>
+vendor/bin/agent-loop init status
+```
+
+Repositories that adopted the package's hook sources under a directory of their
+own get the execute bit repaired on the next `init sync-githooks` run.
+
+---
+
 ## Project instructions now route agents into installed capabilities
 
 `install-assets` now projects a small package-managed router into root

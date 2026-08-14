@@ -10,10 +10,18 @@ across the project root.
 Run this from the root of an existing Composer project:
 
 ```bash
+vendor/bin/agent-loop init status
 vendor/bin/agent-loop init scaffold
 vendor/bin/agent-loop init install-assets --agent=codex
-vendor/bin/agent-loop init doctor
+vendor/bin/agent-loop init status
 ```
+
+`init status` is the entry point, before and after. Its `Activation:` section
+reports the resolved CLI path, whether skills are projected into a host at all,
+and whether `core.hooksPath`/`commit.template` are active; its `Next:` lines are
+the exact commands for *this* repository. Use `init doctor` for the wider
+environment. A projected skill is readable by the host - that is not the same as
+a session having consumed it.
 
 Replace `codex` with the host you are actually going to use. Use `--agent=all`
 only when the repository intentionally manages every supported host. Project the
@@ -52,8 +60,10 @@ Composer/Git archives with one rule:
 /.agent-loop export-ignore
 ```
 
-If the repository tracks `.agent-loop/githooks.json`, install the package-owned
-local Git hooks as well. A tracked `.gitmessage` can be bound at the same time:
+When the repository tracks `.agent-loop/githooks.json`, `install-assets` already
+installed the package-owned local Git hooks and pointed `core.hooksPath` and
+`commit.template` at them. Use `--skip-git-config` to install the hook files
+without touching Git configuration, or run the activation on its own:
 
 ```bash
 vendor/bin/agent-loop init sync-githooks --commit-template=.gitmessage

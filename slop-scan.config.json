@@ -36,6 +36,12 @@
             "paths": [
                 "tools/agent-discipline-dogfood.php"
             ]
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "paths": [
+                "src/Init/InitStatusCommand.php"
+            ]
         }
     ],
     "scan": {

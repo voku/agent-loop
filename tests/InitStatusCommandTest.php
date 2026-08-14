@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\InitStatusCommand;
 
 /**
@@ -271,6 +272,79 @@ final class InitStatusCommandTest extends TestCase
         $result = $this->runStatus(['--bogus=value']);
 
         self::assertSame(1, $result['exit']);
+    }
+
+    public function testFreshRepositoryIsReportedAsUnactivatedInsteadOfHealthy(): void
+    {
+        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# demo\n");
+
+        $result = $this->runStatus([]);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('Activation:', $result['output']);
+        self::assertStringContainsString(
+            '[WARN] Host skills: not projected for any host, so no running agent can read them; run vendor/bin/agent-loop init install-assets --agent=',
+            $result['output'],
+        );
+        self::assertStringContainsString(
+            "Next:\n  vendor/bin/agent-loop init install-assets --agent=",
+            $result['output'],
+        );
+    }
+
+    public function testProjectedHostIsReportedAsProjectedWithoutClaimingConsumption(): void
+    {
+        $skillsTarget = $this->root . '/.claude/skills';
+        mkdir($skillsTarget, 0o775, true);
+        putenv('CLAUDE_SKILLS_DIR=' . $skillsTarget);
+        file_put_contents(
+            $skillsTarget . '/.agent-loop-manifest.json',
+            json_encode(['version' => 1, 'kind' => 'skills', 'agent' => 'claude', 'entries' => ['demo-skill']]),
+        );
+
+        $output = $this->runStatus([])['output'];
+
+        self::assertStringContainsString('[OK] Host skills: projected for claude', $output);
+        self::assertStringNotContainsString('init install-assets --agent=', $output);
+    }
+
+    public function testReExportedRecallSkillsAreNotReportedAsStaleRightAfterInstalling(): void
+    {
+        $skillsTarget = $this->root . '/.claude/skills';
+        mkdir($skillsTarget, 0o775, true);
+        putenv('CLAUDE_SKILLS_DIR=' . $skillsTarget);
+        file_put_contents(
+            $skillsTarget . '/.agent-loop-manifest.json',
+            json_encode([
+                'version' => 1,
+                'kind' => 'skills',
+                'agent' => 'claude',
+                'entries' => ['agent-recall-consumer'],
+            ]),
+        );
+
+        $output = $this->runStatus([])['output'];
+
+        self::assertStringContainsString('[OK] claude skills: no stale managed entries', $output);
+        self::assertStringNotContainsString('stale managed entries: agent-recall-consumer', $output);
+    }
+
+    public function testLocalGitIntegrationIsReportedByTheEntryCommandItself(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+
+        $output = $this->runStatus([])['output'];
+
+        self::assertStringContainsString('[WARN] Git hooks: project policy exists but core.hooksPath is unset', $output);
+        self::assertStringContainsString('  vendor/bin/agent-loop init sync-githooks --hooks-dir=.githooks', $output);
     }
 
     /**
