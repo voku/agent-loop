@@ -79,7 +79,7 @@ final readonly class GitCandidateEvidenceCommand
     private function required(array $tokens, string $name): string
     {
         $value = OptionTokens::value($tokens, $name);
-        if ($value === null) {
+        if ($value === null || $value === '') {
             throw new RuntimeException('Missing required option: --' . $name . '.');
         }
 
