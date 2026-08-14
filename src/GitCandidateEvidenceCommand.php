@@ -11,6 +11,15 @@ use voku\AgentLoop\Run\CanonicalJson;
 /** CLI adapter for the exact-candidate shipping evidence invariant. */
 final readonly class GitCandidateEvidenceCommand
 {
+    /** @var list<string> */
+    private const array VALUE_OPTIONS = [
+        'candidate-sha',
+        'integrated-sha',
+        'target-ref',
+        'release-tag',
+        'format',
+    ];
+
     public function __construct(private string $rootPath)
     {
     }
@@ -31,11 +40,12 @@ final readonly class GitCandidateEvidenceCommand
     public function run(array $tokens): int
     {
         $format = OptionTokens::value($tokens, 'format') ?? 'text';
-        if (!in_array($format, ['text', 'json'], true)) {
-            return $this->fail('--format must be text or json.', $format);
-        }
-
         try {
+            $this->validateTokens($tokens);
+            if (!in_array($format, ['text', 'json'], true)) {
+                throw new RuntimeException('--format must be text or json.');
+            }
+
             $evidence = (new GitCandidateEvidence($this->rootPath))->prove(
                 $this->required($tokens, 'candidate-sha'),
                 $this->required($tokens, 'integrated-sha'),
@@ -43,7 +53,7 @@ final readonly class GitCandidateEvidenceCommand
                 OptionTokens::value($tokens, 'release-tag'),
             );
         } catch (RuntimeException $exception) {
-            return $this->fail($exception->getMessage(), $format);
+            return $this->fail($exception->getMessage(), $format === 'json' ? 'json' : 'text');
         }
 
         if ($format === 'json') {
@@ -84,6 +94,39 @@ final readonly class GitCandidateEvidenceCommand
         }
 
         return $value;
+    }
+
+    /** @param list<string> $tokens */
+    private function validateTokens(array $tokens): void
+    {
+        $count = count($tokens);
+        for ($index = 0; $index < $count; ++$index) {
+            $token = $tokens[$index];
+            if (!str_starts_with($token, '--')) {
+                throw new RuntimeException('Unknown candidate evidence argument: ' . $token);
+            }
+
+            $raw = substr($token, 2);
+            $name = str_contains($raw, '=') ? strstr($raw, '=', true) : $raw;
+            if (!is_string($name) || !in_array($name, self::VALUE_OPTIONS, true)) {
+                throw new RuntimeException('Unknown candidate evidence option: --' . (is_string($name) ? $name : ''));
+            }
+
+            if (str_contains($raw, '=')) {
+                $value = substr($raw, strlen($name) + 1);
+                if ($value === '') {
+                    throw new RuntimeException('Missing value for --' . $name . '.');
+                }
+
+                continue;
+            }
+
+            $value = $tokens[$index + 1] ?? null;
+            if (!is_string($value) || $value === '' || str_starts_with($value, '--')) {
+                throw new RuntimeException('Missing value for --' . $name . '.');
+            }
+            ++$index;
+        }
     }
 
     private function fail(string $message, string $format): int
