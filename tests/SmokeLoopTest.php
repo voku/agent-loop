@@ -101,6 +101,12 @@ final class SmokeLoopTest extends TestCase
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
         ])['exit']);
+
+        // The approved task creates this implementation file. It must exist before
+        // validation so the governed dispatcher can derive the snapshot it records.
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Signup.php', "<?php\nfinal class Signup {}\n");
+
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'session', 'validation', 'record', 'task.001',
             '--contract-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
