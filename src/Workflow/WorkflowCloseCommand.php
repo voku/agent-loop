@@ -139,9 +139,9 @@ final readonly class WorkflowCloseCommand
                 $run,
                 $contract,
                 $session,
-                $boundary->implementation->digest,
                 $failures === [] ? 'satisfied' : 'accepted_risk',
                 $validation['obligations'],
+                $boundary->implementation->digest,
             );
             echo "[OK] workflow close: durable verification receipt persisted at {$receipt->path}\n";
 
