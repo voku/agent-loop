@@ -84,7 +84,7 @@ final readonly class WorkflowPlanCommand
         echo "[OK] workflow plan: candidate Contract {$action} for {$taskId->value} revision {$contract->revision}\n";
         echo "[OK] workflow plan: durable source {$contract->path}\n";
         echo "Next:\n";
-        echo "  agent-loop workflow approve {$taskId->value} --by {$options['by']}\n";
+        echo '  agent-loop workflow approve ' . $taskId->value . ' --by ' . self::shellArgument($options['by']) . "\n";
 
         return 0;
     }
@@ -104,6 +104,18 @@ final readonly class WorkflowPlanCommand
         }
 
         return $matches[0] ?? null;
+    }
+
+    /**
+     * Render one POSIX-shell argument without obscuring already-safe values.
+     */
+    private static function shellArgument(string $value): string
+    {
+        if (preg_match('~\A[A-Za-z0-9_@%+=:,./-]+\z~', $value) === 1) {
+            return $value;
+        }
+
+        return "'" . str_replace("'", "'\"'\"'", $value) . "'";
     }
 
     /**
