@@ -18,6 +18,7 @@ use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
 use voku\AgentLoop\Dogfood\SelfShapeEvidence;
+use voku\AgentLoop\Dogfood\SelfShapeMapScope;
 use voku\AgentLoop\Dogfood\SelfShapeRunRecovery;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\SessionStore;
@@ -140,10 +141,12 @@ $json($root . '/build/self-shape-input.json', [
 $loop(['learn', 'validate', '--root', '.agent-loop/learning']);
 
 // Approval compiles Recall. Build both map layers first or the governed briefing
-// cannot consume repository evidence that appears only after approval. `tools`
-// contains executable PHP maintained as part of this repository and can be in
-// the same governed PR scope as src/tests.
-$loop(['map', 'build', '--paths=src,tests,tools']);
+// cannot consume repository evidence that appears only after approval. Keep the
+// stable code/test/tool roots for useful repository context and add any changed
+// PHP implementation file outside those roots so approval never sees unmapped
+// governed scope.
+$mapPaths = (new SelfShapeMapScope())->paths($changedFiles);
+$loop(['map', 'build', '--paths=' . implode(',', $mapPaths)]);
 $loop(['map', 'search-index', 'build']);
 
 $plan = ['workflow', 'plan', TASK, '--by', PLANNER, '--base-commit', $base];
