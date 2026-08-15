@@ -87,6 +87,7 @@ final class WorkflowPlanNextCommandTest extends TestCase
             ], $root);
 
             self::assertSame(1, $result['exit'], $result['stderr']);
+            self::assertSame(1, $contracts->load('ABC-123')->revision);
             self::assertStringContainsString('If durable intent is unchanged, continue the existing Run.', $result['stderr']);
             self::assertStringContainsString(
                 'agent-loop session close ' . $session->id . ' --status dropped',
