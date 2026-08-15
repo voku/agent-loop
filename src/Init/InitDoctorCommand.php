@@ -161,9 +161,6 @@ final readonly class InitDoctorCommand
         if (!is_dir($root . '/' . $relative)) {
             return [];
         }
-        // Outside a working tree the advice would name .gitignore and
-        // .gitattributes for a repository that does not exist, which is worse
-        // than saying nothing.
         if (!GitWorkTree::detected($root) || GitWorkTree::ignores($root, $relative)) {
             return [];
         }
@@ -183,14 +180,6 @@ final readonly class InitDoctorCommand
     }
 
     /**
-     * A tracked project policy or template is inert until Git points at the
-     * package-owned hook directory/template. Surface that split explicitly:
-     * source presence is not activation.
-     *
-     * The remediation command is resolved against this repository, because the
-     * generic one installs a duplicate hook directory wherever the package-owned
-     * hooks already live under a different name.
-     *
      * @return list<InitCheckResult>
      */
     private function checkLocalGitIntegration(): array
@@ -257,11 +246,19 @@ final readonly class InitDoctorCommand
         $results = [];
         foreach (InitAgent::canonicalNames() as $agent) {
             $capabilities = [];
-            foreach (HostCapabilityMatrix::forAgent($agent) as $row) {
+            $rows = HostCapabilityMatrix::forAgent($agent);
+            foreach ($rows as $row) {
                 $capabilities[] = $row['capability']->value . '=' . $row['status']->value;
             }
 
             $results[] = InitCheckResult::info('Host capabilities [' . $agent . ']: ' . implode(', ', $capabilities));
+            foreach ($rows as $row) {
+                $results[] = InitCheckResult::info(
+                    'Host capability evidence [' . $agent . '/' . $row['capability']->value . ']:'
+                    . ' mechanism=' . $row['mechanism']
+                    . '; evidence=' . $row['evidence'],
+                );
+            }
         }
 
         return $results;
