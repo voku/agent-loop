@@ -8,9 +8,9 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentSession\Session;
-use voku\AgentLoop\ProjectLayout;
 
 final class RunVerificationReceiptStore
 {
@@ -25,11 +25,15 @@ final class RunVerificationReceiptStore
         GovernedRun $run,
         TaskContract $contract,
         Session $session,
+        string $implementationSnapshot,
         string $verdict,
         array $obligations,
     ): RunVerificationReceipt {
         if (!in_array($verdict, ['satisfied', 'unsatisfied'], true)) {
             throw new RuntimeException('Verification receipt verdict must be satisfied or unsatisfied.');
+        }
+        if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
+            throw new RuntimeException('Verification receipt implementation snapshot must be a sha256 digest.');
         }
         if ($contract->taskId !== $run->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Verification receipt task lineage does not match governed Run.');
@@ -55,6 +59,7 @@ final class RunVerificationReceiptStore
                 $existing->runId !== $run->runId
                 || $existing->contractRevision !== $contract->revision
                 || $existing->contractSha256 !== $run->contractSource['sha256']
+                || $existing->implementationSnapshot !== $implementationSnapshot
                 || $existing->verdict !== $verdict
                 || $existing->obligations !== $obligations
                 || $existing->sourceSessionId !== $session->id
@@ -75,6 +80,7 @@ final class RunVerificationReceiptStore
             $session->id,
             (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
             $this->path($run->taskId),
+            $implementationSnapshot,
         );
         $this->write($receipt);
 
@@ -120,7 +126,8 @@ final class RunVerificationReceiptStore
         } catch (JsonException $exception) {
             throw new RuntimeException('Invalid verification receipt JSON in ' . $path . ': ' . $exception->getMessage(), 0, $exception);
         }
-        if (!is_array($data) || ($data['schema_version'] ?? null) !== '1.0' || ($data['kind'] ?? null) !== 'run_verification_receipt') {
+        $schema = $data['schema_version'] ?? null;
+        if (!is_array($data) || !in_array($schema, ['1.0', '1.1'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
             throw new RuntimeException('Unsupported verification receipt schema in ' . $path . '.');
         }
         $taskId = $this->requiredString($data, 'task_id', $path);
@@ -134,6 +141,13 @@ final class RunVerificationReceiptStore
         $sha = $this->requiredString($data, 'contract_sha256', $path);
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $sha) !== 1) {
             throw new RuntimeException('Verification receipt contract_sha256 is invalid in ' . $path . '.');
+        }
+        $implementationSnapshot = null;
+        if ($schema === '1.1') {
+            $implementationSnapshot = $this->requiredString($data, 'implementation_snapshot', $path);
+            if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
+                throw new RuntimeException('Verification receipt implementation_snapshot is invalid in ' . $path . '.');
+            }
         }
         $verdict = $this->requiredString($data, 'verdict', $path);
         if (!in_array($verdict, ['satisfied', 'unsatisfied'], true)) {
@@ -181,6 +195,7 @@ final class RunVerificationReceiptStore
             $this->requiredString($data, 'source_session_id', $path),
             $this->requiredString($data, 'verified_at', $path),
             $path,
+            $implementationSnapshot,
         );
     }
 
