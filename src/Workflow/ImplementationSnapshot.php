@@ -31,28 +31,43 @@ final readonly class ImplementationSnapshot
             throw new RuntimeException('Implementation snapshot project root does not exist: ' . $rootPath);
         }
         $root = rtrim(str_replace('\\', '/', $root), '/');
-        $stateRoot = str_replace('\\', '/', (new ProjectLayout($root))->stateRoot());
-        $stateRelative = str_starts_with($stateRoot, $root . '/')
-            ? substr($stateRoot, strlen($root) + 1)
-            : '';
+        $layout = new ProjectLayout($root);
+        $stateRelative = self::projectRelativeRoot($root, $layout->stateRoot());
+        $generatedRoots = self::projectRelativeRoots($root, [
+            $layout->tasksRoot(),
+            $layout->sessionsRoot(),
+            $layout->recallRoot(),
+            $layout->runsRoot(),
+            $layout->contractsRoot(),
+            $layout->editRoot(),
+            $layout->risksRoot(),
+            $layout->mapRoot(),
+        ]);
+        $alwaysExcluded = [...$generatedRoots, '.git', 'vendor'];
+        $recursiveExcluded = $stateRelative === null
+            ? $alwaysExcluded
+            : [$stateRelative, ...$alwaysExcluded];
 
         /** @var array<string, string> $files */
         $files = [];
         foreach ($contract->scope as $scopePath) {
             $relative = self::normalizeRelative($scopePath);
-            if (self::excluded($relative, $stateRelative)) {
-                throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
-            }
             $absolute = $root . '/' . $relative;
             if (is_link($absolute)) {
                 throw new RuntimeException('Implementation snapshot refuses symlinked scope: ' . $relative);
             }
             if (is_file($absolute)) {
+                if (self::excluded($relative, $alwaysExcluded)) {
+                    throw new RuntimeException('Implementation snapshot scope is generated workflow/dependency metadata, not implementation content: ' . $relative);
+                }
                 $files[$relative] = self::hashFile($absolute, $relative);
                 continue;
             }
             if (!is_dir($absolute)) {
                 throw new RuntimeException('Implementation snapshot scoped path does not exist: ' . $relative);
+            }
+            if (($stateRelative !== null && self::inside($relative, $stateRelative)) || self::excluded($relative, $alwaysExcluded)) {
+                throw new RuntimeException('Implementation snapshot refuses workflow-state directories; scope durable state files explicitly: ' . $relative);
             }
 
             $before = count($files);
@@ -71,7 +86,7 @@ final readonly class ImplementationSnapshot
                 if (!$item->isFile()) {
                     continue;
                 }
-                if (self::excluded($fileRelative, $stateRelative)) {
+                if (self::excluded($fileRelative, $recursiveExcluded)) {
                     continue;
                 }
                 $files[$fileRelative] = self::hashFile($path, $fileRelative);
@@ -128,15 +143,51 @@ final readonly class ImplementationSnapshot
         return $path;
     }
 
-    private static function excluded(string $path, string $stateRelative): bool
+    /** @param list<string> $excludedRoots */
+    private static function excluded(string $path, array $excludedRoots): bool
     {
-        foreach (array_filter([$stateRelative, '.git', 'vendor']) as $excluded) {
-            if ($path === $excluded || str_starts_with($path, $excluded . '/')) {
+        foreach ($excludedRoots as $excluded) {
+            if (self::inside($path, $excluded)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static function inside(string $path, string $root): bool
+    {
+        return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
+    }
+
+    private static function projectRelativeRoot(string $projectRoot, string $path): ?string
+    {
+        $path = rtrim(str_replace('\\', '/', $path), '/');
+        if (!str_starts_with($path, $projectRoot . '/')) {
+            return null;
+        }
+
+        return substr($path, strlen($projectRoot) + 1);
+    }
+
+    /**
+     * @param list<string> $paths
+     * @return list<string>
+     */
+    private static function projectRelativeRoots(string $projectRoot, array $paths): array
+    {
+        $roots = [];
+        foreach ($paths as $path) {
+            $relative = self::projectRelativeRoot($projectRoot, $path);
+            if ($relative !== null) {
+                $roots[$relative] = true;
+            }
+        }
+
+        $result = array_keys($roots);
+        sort($result, SORT_STRING);
+
+        return $result;
     }
 
     private static function relative(string $root, string $path): string
