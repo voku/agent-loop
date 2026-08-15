@@ -17,6 +17,8 @@ use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowCloseReadiness;
+use voku\AgentLoop\Workflow\WorkflowCloseReadinessInspector;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentMap\Inspect\MapReadiness;
@@ -81,7 +83,7 @@ final readonly class RunManifestProjector
             'recall' => $this->recallReference($taskId, $disagreements),
             'execution_contract' => $this->executionContractReference($taskId),
             'edit' => $this->editReference($taskId),
-            'verification' => $this->verificationReference($taskId, $run, $disagreements),
+            'verification' => $this->verificationReference($taskId, $run, $contract, $session, $disagreements),
             'review' => $this->reviewReference($taskId, $disagreements),
             'learning' => $this->learningReference($run, $disagreements),
             'outcome_lineage' => [
@@ -399,9 +401,15 @@ final readonly class RunManifestProjector
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      * @return array<string, mixed>
      */
-    private function verificationReference(string $taskId, ?GovernedRun $run, array &$disagreements): array
-    {
-        $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId);
+    private function verificationReference(
+        string $taskId,
+        ?GovernedRun $run,
+        ?TaskContract $contract,
+        ?Session $session,
+        array &$disagreements,
+    ): array {
+        $store = new RunVerificationReceiptStore($this->rootPath);
+        $receipt = $store->find($taskId);
         if ($receipt !== null) {
             if ($run !== null && $receipt->runId !== $run->runId) {
                 $disagreements[] = [
@@ -429,12 +437,68 @@ final readonly class RunManifestProjector
             ];
         }
 
+        if (
+            $contract !== null
+            && $contract->status === TaskContract::APPROVED
+            && $run !== null
+            && $session !== null
+            && !$session->ephemeral
+        ) {
+            try {
+                $readiness = (new WorkflowCloseReadinessInspector($this->rootPath))->inspect($contract, $run, $session);
+            } catch (Throwable $exception) {
+                $disagreements[] = [
+                    'code' => 'verification.readiness_unreadable',
+                    'owner' => 'agent-loop',
+                    'message' => $exception->getMessage(),
+                ];
+
+                return ['owner' => 'agent-loop', 'state' => 'invalid', 'observation_mode' => 'checked'];
+            }
+
+            if ($readiness->isReady()) {
+                return [
+                    'owner' => 'agent-loop',
+                    'state' => 'ready',
+                    'observation_mode' => 'checked',
+                    'implementation_snapshot' => $readiness->boundary?->implementation->digest,
+                    'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
+                ];
+            }
+
+            $failure = $readiness->firstFailure();
+
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'blocked',
+                'observation_mode' => 'checked',
+                'gate' => $failure['gate'] ?? 'unknown',
+                'reason' => $failure['detail'] ?? 'workflow close readiness failed without detail',
+                'action' => $this->closeReadinessAction($taskId, $readiness),
+                'implementation_snapshot' => $readiness->boundary?->implementation->digest,
+            ];
+        }
+
         return [
             'owner' => 'agent-loop',
             'state' => 'pending_close',
             'observation_mode' => 'checked',
-            'path' => PathResolver::relativeTo($this->rootPath, (new RunVerificationReceiptStore($this->rootPath))->path($taskId)),
+            'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
         ];
+    }
+
+    private function closeReadinessAction(string $taskId, WorkflowCloseReadiness $readiness): string
+    {
+        $failure = $readiness->firstFailure();
+        if (($failure['gate'] ?? null) === 'validation') {
+            return $readiness->firstUnsatisfiedValidationCommand()
+                ?? 'agent-loop workflow status ' . $taskId . ' --format=json';
+        }
+        if (($failure['gate'] ?? null) === 'verify') {
+            return 'agent-loop verify --task-id=' . $taskId;
+        }
+
+        return 'agent-loop workflow status ' . $taskId . ' --format=json';
     }
 
     /**
@@ -592,14 +656,19 @@ final readonly class RunManifestProjector
         if (($references['learning']['state'] ?? null) !== 'decided') {
             return 'incomplete';
         }
-        if (($references['verification']['state'] ?? null) === 'failed') {
+
+        $verificationState = $references['verification']['state'] ?? null;
+        if (in_array($verificationState, ['failed', 'blocked', 'invalid'], true)) {
             return 'blocked';
         }
-        if (in_array($references['verification']['state'] ?? null, ['passed', 'accepted_risk'], true)) {
+        if (in_array($verificationState, ['passed', 'accepted_risk'], true)) {
             return $session === null || $session->status->isClosed() ? 'complete' : 'ready_to_close';
         }
+        if ($verificationState === 'ready') {
+            return 'ready_to_close';
+        }
 
-        return 'ready_to_close';
+        return 'incomplete';
     }
 
     /**
@@ -641,14 +710,23 @@ final readonly class RunManifestProjector
         if (($references['learning']['state'] ?? null) !== 'decided') {
             return 'agent-loop workflow learn ' . $taskId . ' --status no_durable_learning --by <actor> --reason "..."';
         }
-        if (!in_array($references['verification']['state'] ?? null, ['passed', 'accepted_risk'], true)) {
+        if (($references['verification']['state'] ?? null) === 'blocked') {
+            $action = $references['verification']['action'] ?? null;
+
+            return is_string($action) && $action !== ''
+                ? $action
+                : 'agent-loop workflow status ' . $taskId . ' --format=json';
+        }
+        if (($references['verification']['state'] ?? null) === 'ready') {
             return 'agent-loop workflow close ' . $taskId . ' --status done';
         }
-        if ($session === null || $session->status->isClosed()) {
-            return 'none';
+        if (in_array($references['verification']['state'] ?? null, ['passed', 'accepted_risk'], true)) {
+            return $session === null || $session->status->isClosed()
+                ? 'none'
+                : 'agent-loop workflow close ' . $taskId . ' --status done';
         }
 
-        return 'agent-loop workflow close ' . $taskId . ' --status done';
+        return 'agent-loop workflow status ' . $taskId . ' --format=json';
     }
 
     /** @return array{path: string, sha256: string} */
