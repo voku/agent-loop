@@ -1,0 +1,63 @@
+name: LOOP-132 final stale-evidence replay
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  governed-replay-and-cleanup:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: php -l tools/post-execution-evidence-replay.php
+      - name: Run governed A-to-B stale-evidence replay
+        run: php tools/post-execution-evidence-replay.php
+      - name: Preserve replay evidence
+        run: cp build/post-execution-evidence-replay/report.json /tmp/loop-132-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loop-132-final-replay-${{ github.sha }}
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            build/post-execution-evidence-replay/report.json
+            build/post-execution-evidence-replay/command-log.txt
+            build/post-execution-evidence-replay/stale-close.txt
+            build/post-execution-evidence-replay/close-b.txt
+            build/post-execution-evidence-replay/context.json
+            build/post-execution-evidence-replay/consumed-system.md
+            build/post-execution-evidence-replay/init-status.txt
+            build/post-execution-evidence-replay/.agent-loop/contracts/DEMO-1
+            build/post-execution-evidence-replay/.agent-loop/runs/DEMO-1
+            build/post-execution-evidence-replay/.agent-loop/recall/DEMO-1
+            build/post-execution-evidence-replay/.agent-loop/sessions
+      - name: Remove one-off replay harness after successful evidence capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'agent-loop-dogfood'
+          git config user.email 'agent-loop-dogfood@users.noreply.github.com'
+          git rm \
+            tools/post-execution-evidence-replay.php \
+            .github/workflows/post-execution-evidence-replay.yml \
+            .github/workflows/post-execution-evidence-replay-debug.yml \
+            .github/workflows/post-execution-evidence-replay-cleanup.yml
+          git commit \
+            -m 'dogfood: remove temporary LOOP-132 replay harness' \
+            -m "$(cat /tmp/loop-132-report.json)"
+          git push origin HEAD:${{ github.head_ref }}
