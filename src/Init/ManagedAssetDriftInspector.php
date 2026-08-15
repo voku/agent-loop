@@ -83,8 +83,6 @@ final readonly class ManagedAssetDriftInspector
 
                 if (InitSyncManifest::representationDigest($targetRoot, $entry) !== null) {
                     $states['project_owned'][] = $entry;
-                } else {
-                    $states['stale'][] = $entry;
                 }
             }
         }
