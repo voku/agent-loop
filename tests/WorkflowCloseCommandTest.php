@@ -259,6 +259,10 @@ final class WorkflowCloseCommandTest extends TestCase
 
     public function testAcceptRiskWithoutNamedOwnerIsRefused(): void
     {
+        $this->writeRecallMeta();
+        $this->writeReviewReport(['status' => 'ok']);
+        $this->breakVerifierForTask();
+
         $result = $this->runClose([
             'ABC-123', '--status', 'done',
             '--accept-risk', 'Manual review.',
