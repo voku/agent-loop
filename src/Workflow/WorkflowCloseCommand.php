@@ -15,6 +15,7 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
@@ -78,7 +79,7 @@ final readonly class WorkflowCloseCommand
             if ($session === null) {
                 $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId->value);
                 if ($receipt !== null) {
-                    $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+                    $manifestPath = $this->refreshCompleteManifest($taskId->value);
                     echo "[OK] workflow close: Session already pruned; durable close evidence remains at {$manifestPath}\n";
 
                     return 0;
@@ -87,8 +88,12 @@ final readonly class WorkflowCloseCommand
             }
 
             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
+            $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
             $validation = $this->validationSnapshot($contract, $session);
-            $failures = $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']);
+            $failures = array_merge(
+                $this->implementationEvidenceFailures($run, $learningRoot, $boundary),
+                $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']),
+            );
             foreach ($failures as $failure) {
                 echo "[FAIL] {$failure['gate']}: {$failure['detail']}\n";
             }
@@ -130,7 +135,7 @@ final readonly class WorkflowCloseCommand
                 echo "[OK] workflow close: disposable Session marked done\n";
             }
 
-            $manifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($taskId->value);
+            $manifestPath = $this->refreshCompleteManifest($taskId->value);
             echo "[OK] workflow close: final Run projection refreshed at {$manifestPath}\n";
 
             return 0;
@@ -165,6 +170,44 @@ final readonly class WorkflowCloseCommand
             if ($detail !== null) {
                 $failures[] = ['gate' => $gate, 'detail' => $detail];
             }
+        }
+
+        return $failures;
+    }
+
+    /**
+     * @return list<array{gate: string, detail: string}>
+     */
+    private function implementationEvidenceFailures(
+        GovernedRun $run,
+        string $learningRoot,
+        PostExecutionEvidenceBoundary $boundary,
+    ): array {
+        $failures = array_map(
+            static fn (string $detail): array => ['gate' => 'implementation_evidence', 'detail' => $detail],
+            $boundary->integrityFailures(),
+        );
+        $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
+        if ($decision === null) {
+            return $failures;
+        }
+
+        $validationSha256 = $boundary->validationEvidenceSha256();
+        $reviewSha256 = $boundary->reviewEvidenceSha256();
+        if (
+            $decision->contractRevision !== $boundary->implementation->contractRevision
+            || $decision->implementationSnapshot !== $boundary->implementation->digest
+            || $decision->validationEvidenceSha256 !== $validationSha256
+            || $decision->reviewEvidenceSha256 !== $reviewSha256
+        ) {
+            $failures[] = [
+                'gate' => 'implementation_evidence',
+                'detail' => sprintf(
+                    'stale Learning decision: expected Contract revision %d and implementation snapshot %s with current validation/review evidence',
+                    $boundary->implementation->contractRevision,
+                    $boundary->implementation->digest,
+                ),
+            ];
         }
 
         return $failures;
@@ -407,6 +450,19 @@ final readonly class WorkflowCloseCommand
         }
 
         return 'agent-loop verify failed';
+    }
+
+    private function refreshCompleteManifest(string $taskId): string
+    {
+        $path = (new RunManifestTransitionWriter($this->rootPath))->write($taskId);
+        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
+        if ($manifest->state !== 'complete') {
+            throw new RuntimeException(
+                'Final Run projection is not complete after close: ' . $manifest->state . '. Refusing successful close.',
+            );
+        }
+
+        return $path;
     }
 
     private function sessionForRun(GovernedRun $run): ?Session
