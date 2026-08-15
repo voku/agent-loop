@@ -46,7 +46,7 @@ final readonly class InitCli
         Usage:
           agent-loop init help
           agent-loop init doctor [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
-          agent-loop init paths [--format=text|json]
+          agent-loop init paths [--format=text|json|toon]
           agent-loop init status [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]

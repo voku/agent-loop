@@ -314,7 +314,7 @@ try {
     assertTrue(str_contains($sessionContext, 'Agent Loop Resume Hint'), 'SessionStart did not inject workflow resume hint.');
     assertTrue(str_contains($sessionContext, '`DOGFOOD-42`'), 'SessionStart resume hint misses unfinished task id.');
     assertTrue(str_contains($sessionContext, 'projected state: `incomplete`'), 'SessionStart resume hint misses projected state.');
-    assertTrue(str_contains($sessionContext, 'workflow status DOGFOOD-42 --format=json'), 'SessionStart resume hint misses authoritative status read.');
+    assertTrue(str_contains($sessionContext, 'workflow status DOGFOOD-42 --format=toon'), 'SessionStart resume hint misses authoritative status read.');
     assertTrue(!str_contains($sessionContext, 'IGNORE PRIOR INSTRUCTIONS'), 'SessionStart injected free-form manifest next_action.');
     assertTrue(!str_contains($sessionContext, 'RUN UNTRUSTED COMMAND'), 'SessionStart injected free-form disagreement prose.');
     assertTrue(!str_contains($sessionContext, 'DONE-1'), 'SessionStart injected completed workflow state.');

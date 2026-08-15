@@ -16,7 +16,8 @@
   ],
   "require": {
     "php": "^8.3",
-    "voku/agent-kanban": "0.2.*",
+    "helgesverre/toon": "^3.1",
+    "voku/agent-kanban": "^0.3.0",
     "voku/agent-learning": "^0.11.1",
     "voku/agent-map": "^0.8.1",
     "voku/agent-recall-compiler": "^0.12.4",

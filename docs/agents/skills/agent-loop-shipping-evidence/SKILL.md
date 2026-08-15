@@ -19,7 +19,7 @@ vendor/bin/agent-loop verify \
   --candidate-sha=<full-source-candidate-sha> \
   --integrated-sha=<full-integrated-sha> \
   --target-ref=<target-branch-or-frozen-target-ref> \
-  --format=json
+  --format=toon
 ```
 
 The check resolves the target ref once to an exact commit SHA and proves:
@@ -32,6 +32,10 @@ A changed squash tree fails and requires validation of the actual integrated
 candidate. A branch name, PR number, `merged=true`, or the statement that a
 branch once had a merged PR is never enough.
 
+`--format=toon` is the agent-facing default because this is a read-only
+structured projection. Use `--format=json` only when another machine consumer
+explicitly requires JSON. The evidence calculation itself is identical.
+
 ## Release Claim
 
 For a release claim add the exact tag:
@@ -42,7 +46,7 @@ vendor/bin/agent-loop verify \
   --integrated-sha=<full-integrated-sha> \
   --target-ref=main \
   --release-tag=<version> \
-  --format=json
+  --format=toon
 ```
 
 The evidence records both the tag object identity and its peeled release commit,
