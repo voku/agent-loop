@@ -25,17 +25,14 @@ final class RunVerificationReceiptStore
         GovernedRun $run,
         TaskContract $contract,
         Session $session,
+        string $implementationSnapshot,
         string $verdict,
         array $obligations,
-        ?string $implementationSnapshot = null,
     ): RunVerificationReceipt {
         if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
             throw new RuntimeException('Verification receipt verdict must be satisfied, unsatisfied, or accepted_risk.');
         }
-        if (
-            $implementationSnapshot !== null
-            && preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1
-        ) {
+        if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
             throw new RuntimeException('Verification receipt implementation snapshot must be a sha256 digest.');
         }
         if ($contract->taskId !== $run->taskId || $session->taskId !== $run->taskId) {
@@ -98,7 +95,7 @@ final class RunVerificationReceiptStore
         }
         $contents = file_get_contents($path);
         if (!is_string($contents)) {
-            throw new RuntimeException('Unable to read verification receipt: ' . $path);
+            throw new RuntimeException('Unable to read run verification receipt: ' . $path);
         }
 
         return $this->decode($contents, $path, $taskId);
@@ -113,12 +110,12 @@ final class RunVerificationReceiptStore
     {
         $directory = dirname($receipt->path);
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
-            throw new RuntimeException('Unable to create verification receipt directory: ' . $directory);
+            throw new RuntimeException('Unable to create run verification directory: ' . $directory);
         }
         $tmp = $receipt->path . '.tmp.' . bin2hex(random_bytes(6));
         if (file_put_contents($tmp, CanonicalJson::pretty($receipt->toArray())) === false || !rename($tmp, $receipt->path)) {
             @unlink($tmp);
-            throw new RuntimeException('Unable to write verification receipt: ' . $receipt->path);
+            throw new RuntimeException('Unable to write run verification receipt: ' . $receipt->path);
         }
     }
 
@@ -127,7 +124,7 @@ final class RunVerificationReceiptStore
         try {
             $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new RuntimeException('Invalid verification receipt JSON in ' . $path . ': ' . $exception->getMessage(), 0, $exception);
+            throw new RuntimeException('Invalid run verification receipt JSON in ' . $path . ': ' . $exception->getMessage(), 0, $exception);
         }
         $schema = is_array($data) ? ($data['schema_version'] ?? null) : null;
         if (!is_array($data) || !in_array($schema, ['1.0', '1.1'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
