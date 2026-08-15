@@ -66,10 +66,12 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertFileExists($this->root . '/.claude/hooks/policy.php');
         self::assertFileDoesNotExist($this->root . '/.claude/hooks.json');
 
-        $manifest = json_decode((string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'), true);
+        $manifest = json_decode((string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(2, $manifest['version']);
         self::assertSame('claude', $manifest['agent']);
-        self::assertContains('settings.json#hooks', $manifest['entries']);
-        self::assertContains('hooks/policy.php', $manifest['entries']);
+        self::assertContains('settings.json#hooks', array_column($manifest['entries'], 'target'));
+        self::assertContains('hooks/policy.php', array_column($manifest['entries'], 'target'));
+        self::assertContains('pre-tool-guardrail', $manifest['required_capabilities']);
     }
 
     public function testSyncRefusesUnmanagedHooksKeyUntilForced(): void
@@ -97,6 +99,10 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('adopted existing hooks key', $result['output']);
         self::assertSame('echo hand-written', $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command']);
+
+        $manifest = json_decode((string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
+        $entries = array_column($manifest['entries'], null, 'target');
+        self::assertTrue($entries['settings.json#hooks']['adopted']);
     }
 
     public function testDryRunWritesNothing(): void

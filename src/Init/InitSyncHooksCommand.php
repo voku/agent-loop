@@ -115,8 +115,21 @@ final readonly class InitSyncHooksCommand
         }
 
         $desiredEntries = [self::CLAUDE_SETTINGS_HOOKS_ENTRY];
+        $projectionSources = [
+            self::CLAUDE_SETTINGS_HOOKS_ENTRY => ManagedAssetSource::fromPath(
+                $this->rootPath,
+                $hooksRoot . '/hooks.json',
+                'hooks:claude:settings-hooks',
+            ),
+        ];
         foreach ($definition->scriptNames() as $scriptName) {
-            $desiredEntries[] = 'hooks/' . $scriptName;
+            $entry = 'hooks/' . $scriptName;
+            $desiredEntries[] = $entry;
+            $projectionSources[$entry] = ManagedAssetSource::fromPath(
+                $this->rootPath,
+                $hooksRoot . '/' . $entry,
+                'hooks:claude:' . $entry,
+            );
         }
         sort($desiredEntries);
 
@@ -207,7 +220,11 @@ final readonly class InitSyncHooksCommand
         }
 
         if (!$dryRun) {
-            $manifest->write($desiredEntries);
+            $manifest->writeProjections(
+                $projectionSources,
+                $this->hookCapabilities(),
+                array_keys($adopted),
+            );
         }
 
         echo '[OK] sync hooks: synced ' . count($definition->scriptNames()) . ' hook file(s) into ' . $targetRoot . "\n";
@@ -223,8 +240,9 @@ final readonly class InitSyncHooksCommand
 
     private function syncHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
     {
-        $errors = CodexHooksDefinition::validationErrors($paths->absoluteHooksRoot());
-        if ($errors === [] && !is_file($paths->absoluteHooksRoot() . '/hooks.json') && !is_dir($paths->absoluteHooksRoot() . '/hooks')) {
+        $hooksRoot = $paths->absoluteHooksRoot();
+        $errors = CodexHooksDefinition::validationErrors($hooksRoot);
+        if ($errors === [] && !is_file($hooksRoot . '/hooks.json') && !is_dir($hooksRoot . '/hooks')) {
             echo '[WARN] sync hooks: no hooks found under ' . $paths->hooksRoot() . "\n";
 
             return 0;
@@ -239,7 +257,7 @@ final readonly class InitSyncHooksCommand
         }
 
         try {
-            $definition = CodexHooksDefinition::fromRoot($paths->absoluteHooksRoot());
+            $definition = CodexHooksDefinition::fromRoot($hooksRoot);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -256,8 +274,21 @@ final readonly class InitSyncHooksCommand
         }
 
         $desiredEntries = ['hooks.json'];
+        $projectionSources = [
+            'hooks.json' => ManagedAssetSource::fromPath(
+                $this->rootPath,
+                $hooksRoot . '/hooks.json',
+                'hooks:codex:hooks.json',
+            ),
+        ];
         foreach ($definition->scriptNames() as $scriptName) {
-            $desiredEntries[] = 'hooks/' . $scriptName;
+            $entry = 'hooks/' . $scriptName;
+            $desiredEntries[] = $entry;
+            $projectionSources[$entry] = ManagedAssetSource::fromPath(
+                $this->rootPath,
+                $hooksRoot . '/' . $entry,
+                'hooks:codex:' . $entry,
+            );
         }
         sort($desiredEntries);
 
@@ -313,7 +344,7 @@ final readonly class InitSyncHooksCommand
                     continue;
                 }
 
-                $sourceFile = $paths->absoluteHooksRoot() . '/hooks/' . $scriptName;
+                $sourceFile = $hooksRoot . '/hooks/' . $scriptName;
                 $content = file_get_contents($sourceFile);
                 if (!is_string($content)) {
                     fwrite(\STDERR, 'Unable to read hook script: ' . $sourceFile . "\n");
@@ -325,13 +356,27 @@ final readonly class InitSyncHooksCommand
                 echo '[OK] sync hooks: installed ' . $scriptName . ' -> ' . $targetFile . "\n";
             }
 
-            $manifest->write($desiredEntries);
+            $manifest->writeProjections(
+                $projectionSources,
+                $this->hookCapabilities(),
+                array_keys($adopted),
+            );
         }
 
         echo '[OK] sync hooks: synced ' . count($definition->scriptNames()) . ' hook file(s) into ' . $targetRoot . "\n";
         echo "[IMPORTANT] Open '/hooks' in Codex to review and trust the updated repository-local hooks.\n";
 
         return 0;
+    }
+
+    /** @return list<HostCapability> */
+    private function hookCapabilities(): array
+    {
+        return [
+            HostCapability::SessionBootstrap,
+            HostCapability::SubagentBootstrap,
+            HostCapability::PreToolGuardrail,
+        ];
     }
 
     private function resolveTargetRoot(): string

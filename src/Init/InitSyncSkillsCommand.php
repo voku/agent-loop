@@ -146,6 +146,14 @@ final readonly class InitSyncSkillsCommand
 
         $desiredEntries = array_keys($skillFiles);
         sort($desiredEntries);
+        $projectionSources = [];
+        foreach ($skillFiles as $entry => $skillFile) {
+            $projectionSources[$entry] = ManagedAssetSource::fromPath(
+                $this->rootPath,
+                dirname($skillFile),
+                'skill:' . $entry,
+            );
+        }
 
         $adopted = [];
         foreach ($desiredEntries as $entry) {
@@ -202,7 +210,11 @@ final readonly class InitSyncSkillsCommand
                 return 1;
             }
 
-            $manifest->write($desiredEntries);
+            $manifest->writeProjections(
+                $projectionSources,
+                [HostCapability::SkillProjection],
+                array_keys($adopted),
+            );
         }
 
         echo '[OK] sync skills: synced ' . count($skillFiles) . ' skill file(s) for ' . $agent . ' into ' . $targetRoot . ' from ' . count($skillRoots) . ' source root(s)' . "\n";
