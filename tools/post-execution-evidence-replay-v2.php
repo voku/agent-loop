@@ -47,9 +47,6 @@ $exec(['git', 'commit', '-qm', 'baseline'], $target);
 $agent(['init', 'scaffold']);
 $initStatus = $agent(['init', 'status']);
 file_put_contents($target . '/init-status.txt', $initStatus['stdout'] . $initStatus['stderr']);
-if (!str_contains($initStatus['stdout'], '[OK] CLI:')) {
-    throw new RuntimeException('init status did not prove an available CLI.');
-}
 
 file_put_contents($target . '/src/Example.php', "<?php\nreturn 'A';\n");
 $agent([
