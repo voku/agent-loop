@@ -43,6 +43,22 @@ final class ImplementationSnapshotTest extends TestCase
         self::assertSame(1, $a->contractRevision);
     }
 
+    public function testExternalWorkflowStateRootDoesNotBecomeImplementationScope(): void
+    {
+        $externalStateRoot = sys_get_temp_dir() . '/agent-loop-external-state-' . bin2hex(random_bytes(6));
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'version' => 1,
+                'paths' => ['state_root' => $externalStateRoot],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $snapshot = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-EXT-1', ['src/A.php']));
+
+        self::assertSame(['src/A.php'], array_column($snapshot->files, 'path'));
+    }
+
     public function testSnapshotIsStableAcrossScopeOrderingAndNeedsNoGitCommit(): void
     {
         $left = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-2', ['src/B.php', 'src/A.php']));
