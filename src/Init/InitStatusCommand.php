@@ -71,12 +71,16 @@ final readonly class InitStatusCommand
         echo "\n";
 
         $staleLines = [];
+        $driftLines = [];
         echo "Target manifests:\n";
         foreach ($this->buildManifestTargets($paths) as $target) {
-            [$manifestLine, $staleLine] = $this->reportManifestTarget($target);
+            [$manifestLine, $staleLine, $targetDriftLines] = $this->reportManifestTarget($target);
             echo $manifestLine . "\n";
             if ($staleLine !== null) {
                 $staleLines[] = $staleLine;
+            }
+            foreach ($targetDriftLines as $driftLine) {
+                $driftLines[] = $driftLine;
             }
         }
         echo "\n";
@@ -84,6 +88,15 @@ final readonly class InitStatusCommand
         echo "Stale managed entries:\n";
         foreach ($staleLines as $staleLine) {
             echo $staleLine . "\n";
+        }
+
+        echo "\nManaged asset drift:\n";
+        if ($driftLines === []) {
+            echo "[INFO] no projected managed assets with drift evidence\n";
+        } else {
+            foreach ($driftLines as $driftLine) {
+                echo $driftLine . "\n";
+            }
         }
 
         $nextCommands = $this->buildNextCommands($activation, $projectedAgents, $gitIntegrationChecks);
@@ -213,37 +226,43 @@ final readonly class InitStatusCommand
             ['label' => 'copilot skills', 'targetRoot' => $this->resolveSkillsTargetRoot('copilot'), 'kind' => 'skills', 'agent' => 'copilot', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'antigravity skills', 'targetRoot' => $this->resolveSkillsTargetRoot('antigravity'), 'kind' => 'skills', 'agent' => 'antigravity', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'codex subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('codex'), 'kind' => 'subagents', 'agent' => 'codex', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.toml')],
+            ['label' => 'claude subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('claude'), 'kind' => 'subagents', 'agent' => 'claude', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
             ['label' => 'copilot subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('copilot'), 'kind' => 'subagents', 'agent' => 'copilot', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.agent.md')],
             ['label' => 'antigravity subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('antigravity'), 'kind' => 'subagents', 'agent' => 'antigravity', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
             ['label' => 'codex hooks', 'targetRoot' => $this->resolveHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'codex', 'desiredEntries' => $this->hooksDesiredEntries($paths)],
+            ['label' => 'claude hooks', 'targetRoot' => $this->resolveClaudeHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'claude', 'desiredEntries' => $this->claudeHooksDesiredEntries($paths)],
         ];
     }
 
     /**
      * @param array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null} $target
      *
-     * @return array{0: string, 1: ?string}
+     * @return array{0: string, 1: ?string, 2: list<string>}
      */
     private function reportManifestTarget(array $target): array
     {
         $label = $target['label'];
         $targetRoot = $target['targetRoot'];
+        $desiredEntries = $target['desiredEntries'];
 
         $manifestPath = rtrim($targetRoot, '/') . '/' . InitSyncManifest::fileName();
         if (!is_file($manifestPath)) {
-            return ['[INFO] ' . $label . ': no manifest at ' . $manifestPath, null];
+            return [
+                '[INFO] ' . $label . ': no manifest at ' . $manifestPath,
+                null,
+                $this->unmanagedTargetLines($label, $targetRoot, $desiredEntries),
+            ];
         }
 
         try {
             $manifest = InitSyncManifest::load($targetRoot, $target['kind'], $target['agent']);
         } catch (InvalidArgumentException $exception) {
-            return ['[WARN] ' . $label . ': ' . $exception->getMessage(), null];
+            return ['[WARN] ' . $label . ': ' . $exception->getMessage(), null, []];
         }
 
-        $managedEntryCount = count($manifest->staleEntries([]));
+        $managedEntryCount = count($manifest->managedEntries());
         $manifestLine = '[OK] ' . $label . ': manifest found (' . $managedEntryCount . ' managed entrie(s))';
 
-        $desiredEntries = $target['desiredEntries'];
         if ($desiredEntries === null) {
             $staleLine = '[INFO] ' . $label . ': stale entries not checked (source invalid)';
         } else {
@@ -253,7 +272,75 @@ final readonly class InitStatusCommand
                 : '[WARN] ' . $label . ': stale managed entries: ' . implode(', ', $staleEntries);
         }
 
-        return [$manifestLine, $staleLine];
+        $states = ManagedAssetDriftInspector::inspect(
+            $manifest,
+            $targetRoot,
+            $target['agent'],
+            $desiredEntries,
+        );
+
+        return [$manifestLine, $staleLine, $this->driftLines($label, $states)];
+    }
+
+    /**
+     * @param list<string>|null $desiredEntries
+     * @return list<string>
+     */
+    private function unmanagedTargetLines(string $label, string $targetRoot, ?array $desiredEntries): array
+    {
+        if ($desiredEntries === null) {
+            return [];
+        }
+
+        $projectOwned = [];
+        foreach ($desiredEntries as $entry) {
+            if (InitSyncManifest::representationDigest($targetRoot, $entry) !== null) {
+                $projectOwned[] = $entry;
+            }
+        }
+        if ($projectOwned === []) {
+            return [];
+        }
+
+        sort($projectOwned, SORT_STRING);
+
+        return ['[INFO] ' . $label . ': unmanaged/project-owned: ' . implode(', ', $projectOwned)];
+    }
+
+    /**
+     * @param array{
+     *     current:list<string>,
+     *     locally_modified:list<string>,
+     *     stale:list<string>,
+     *     incompatible:list<string>,
+     *     project_owned:list<string>,
+     *     unverifiable:list<string>
+     * } $states
+     * @return list<string>
+     */
+    private function driftLines(string $label, array $states): array
+    {
+        $lines = [];
+        if ($states['current'] !== []) {
+            $lines[] = '[OK] ' . $label . ': current: ' . implode(', ', $states['current']);
+        }
+        if ($states['locally_modified'] !== []) {
+            $lines[] = '[WARN] ' . $label . ': locally modified: ' . implode(', ', $states['locally_modified']);
+        }
+        if ($states['stale'] !== []) {
+            $lines[] = '[WARN] ' . $label . ': stale: ' . implode(', ', $states['stale']);
+        }
+        if ($states['incompatible'] !== []) {
+            $lines[] = '[WARN] ' . $label . ': incompatible with installed runtime capabilities: ' . implode(', ', $states['incompatible']);
+        }
+        if ($states['project_owned'] !== []) {
+            $lines[] = '[INFO] ' . $label . ': unmanaged/project-owned: ' . implode(', ', $states['project_owned']);
+        }
+        if ($states['unverifiable'] !== []) {
+            $lines[] = '[WARN] ' . $label . ': drift evidence unavailable for legacy managed entries; resync to establish a baseline: ' . implode(', ', $states['unverifiable']);
+        }
+
+        return $lines;
     }
 
     /**
@@ -383,6 +470,36 @@ final readonly class InitStatusCommand
         return $entries;
     }
 
+    /**
+     * @return list<string>|null
+     */
+    private function claudeHooksDesiredEntries(AgentAssetSourcePaths $paths): ?array
+    {
+        $hooksRoot = $paths->absoluteClaudeHooksRoot();
+        if (!is_file($hooksRoot . '/hooks.json')) {
+            return [];
+        }
+
+        if (ClaudeHooksDefinition::validationErrors($hooksRoot) !== []) {
+            return null;
+        }
+
+        try {
+            $definition = ClaudeHooksDefinition::fromRoot($hooksRoot);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+
+        $entries = ['settings.json#hooks'];
+        foreach ($definition->scriptNames() as $scriptName) {
+            $entries[] = 'hooks/' . $scriptName;
+        }
+
+        sort($entries);
+
+        return $entries;
+    }
+
     private function resolveSkillsTargetRoot(string $agent): string
     {
         return match ($agent) {
@@ -399,6 +516,7 @@ final readonly class InitStatusCommand
         return match ($agent) {
             'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
                 ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
+            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
             default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
         };
@@ -407,6 +525,11 @@ final readonly class InitStatusCommand
     private function resolveHooksTargetRoot(): string
     {
         return PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME') ?? $this->rootPath . '/.codex';
+    }
+
+    private function resolveClaudeHooksTargetRoot(): string
+    {
+        return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
     }
 
     /**
