@@ -161,6 +161,9 @@ final readonly class InitDoctorCommand
         if (!is_dir($root . '/' . $relative)) {
             return [];
         }
+        // Outside a working tree the advice would name .gitignore and
+        // .gitattributes for a repository that does not exist, which is worse
+        // than saying nothing.
         if (!GitWorkTree::detected($root) || GitWorkTree::ignores($root, $relative)) {
             return [];
         }
@@ -180,6 +183,14 @@ final readonly class InitDoctorCommand
     }
 
     /**
+     * A tracked project policy or template is inert until Git points at the
+     * package-owned hook directory/template. Surface that split explicitly:
+     * source presence is not activation.
+     *
+     * The remediation command is resolved against this repository, because the
+     * generic one installs a duplicate hook directory wherever the package-owned
+     * hooks already live under a different name.
+     *
      * @return list<InitCheckResult>
      */
     private function checkLocalGitIntegration(): array
