@@ -48,7 +48,7 @@ $agent(['init', 'scaffold']);
 $initStatus = $agent(['init', 'status']);
 file_put_contents($target . '/init-status.txt', $initStatus['stdout'] . $initStatus['stderr']);
 
-file_put_contents($target . '/src/Example.php', "<?php\nreturn 'A';\n");
+file_put_contents($target . '/src/Example.php', "<?php\nfinal class Example { public static function value(): string { return 'A'; } }\n");
 $agent([
     'workflow', 'plan', 'DEMO-1',
     '--by', 'chatgpt-host',
@@ -87,7 +87,7 @@ $lint();
 $recordValidation();
 $reviewAndLearn('Implementation A evidence boundary recorded before any implementation commit.');
 
-file_put_contents($target . '/src/Example.php', "<?php\nreturn 'B';\n");
+file_put_contents($target . '/src/Example.php', "<?php\nfinal class Example { public static function value(): string { return 'B'; } }\n");
 $stale = $agent(['workflow', 'close', 'DEMO-1', '--status', 'done'], false);
 $staleText = $stale['stdout'] . $stale['stderr'];
 file_put_contents($target . '/stale-close.txt', $staleText);
