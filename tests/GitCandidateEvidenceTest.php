@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use HelgeSverre\Toon\Toon;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Dogfood\ProcessRunner;
@@ -152,6 +153,14 @@ final class GitCandidateEvidenceTest extends TestCase
         self::assertSame('ok', $decoded['status'] ?? null);
         self::assertSame($candidate, $decoded['candidate_sha'] ?? null);
         self::assertSame($candidate, $decoded['target_sha'] ?? null);
+
+        $toonCommand = $command;
+        $toonCommand[count($toonCommand) - 1] = '--format=toon';
+        $toonResult = $runner->mustRun($toonCommand);
+        $toon = Toon::decode($toonResult['stdout']);
+        self::assertIsArray($toon);
+        self::assertSame($decoded, $toon);
+        self::assertLessThan(strlen($result['stdout']), strlen($toonResult['stdout']));
 
         $typo = $runner->run([...$command, '--release-tga=1.2.3']);
         self::assertSame(1, $typo['exit_code']);
