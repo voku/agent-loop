@@ -41,7 +41,8 @@ try {
         json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
     );
 
-    $mismatch = runFixtureCommand($root, ['vendor/bin/agent-loop', 'init', 'status']);
+    $statusCommand = ['vendor/bin/agent-loop', 'init', 'status', '--skills-root=managed-skills'];
+    $mismatch = runFixtureCommand($root, $statusCommand);
     $incompatible = '[WARN] codex skills: incompatible with installed runtime capabilities: demo-skill';
     if (!str_contains($mismatch, $incompatible)) {
         throw new RuntimeException('Installed runtime did not diagnose deliberate managed capability drift.');
@@ -56,7 +57,7 @@ try {
         '--skills-root=managed-skills',
         '--force',
     ]);
-    $repaired = runFixtureCommand($root, ['vendor/bin/agent-loop', 'init', 'status']);
+    $repaired = runFixtureCommand($root, $statusCommand);
     $current = '[OK] codex skills: current: demo-skill';
     if (!str_contains($repaired, $current) || str_contains($repaired, $incompatible)) {
         throw new RuntimeException('Managed capability drift repair did not restore a current projection baseline.');
