@@ -29,8 +29,8 @@ final class RunVerificationReceiptStore
         string $verdict,
         array $obligations,
     ): RunVerificationReceipt {
-        if (!in_array($verdict, ['satisfied', 'unsatisfied'], true)) {
-            throw new RuntimeException('Verification receipt verdict must be satisfied or unsatisfied.');
+        if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
+            throw new RuntimeException('Verification receipt verdict must be satisfied, unsatisfied, or accepted_risk.');
         }
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
             throw new RuntimeException('Verification receipt implementation snapshot must be a sha256 digest.');
@@ -126,7 +126,7 @@ final class RunVerificationReceiptStore
         } catch (JsonException $exception) {
             throw new RuntimeException('Invalid verification receipt JSON in ' . $path . ': ' . $exception->getMessage(), 0, $exception);
         }
-        $schema = $data['schema_version'] ?? null;
+        $schema = is_array($data) ? ($data['schema_version'] ?? null) : null;
         if (!is_array($data) || !in_array($schema, ['1.0', '1.1'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
             throw new RuntimeException('Unsupported verification receipt schema in ' . $path . '.');
         }
@@ -150,7 +150,7 @@ final class RunVerificationReceiptStore
             }
         }
         $verdict = $this->requiredString($data, 'verdict', $path);
-        if (!in_array($verdict, ['satisfied', 'unsatisfied'], true)) {
+        if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
             throw new RuntimeException('Verification receipt verdict is invalid in ' . $path . '.');
         }
         $obligations = $data['obligations'] ?? null;
