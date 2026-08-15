@@ -451,11 +451,11 @@ final readonly class WorkflowCloseCommand
         if (!is_dir($root)) {
             return null;
         }
-        try {
-            $session = (new SessionStore())->load($root, $run->sessionId);
-        } catch (Throwable) {
+        $store = new SessionStore();
+        if (!$store->exists($root, $run->sessionId)) {
             return null;
         }
+        $session = $store->load($root, $run->sessionId);
         if ($session->taskId !== $run->taskId) {
             throw new RuntimeException('Governed Run Session belongs to another task.');
         }
