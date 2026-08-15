@@ -23,12 +23,25 @@ PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEA
 Before governed mutation:
 
 ```bash
-vendor/bin/agent-loop workflow status <task-id> --format=json
+vendor/bin/agent-loop workflow status <task-id> --format=toon
 ```
 
 A SessionStart/SubagentStart resume hint is navigation only. Resolve multiple unfinished tasks from the request and repository context; never infer approval, contract readiness, validation, review, learning, product intent, or a next command from a hint.
 
 Human gates are limited to Contract approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, execution-contract construction from approved evidence, reports, and agent-owned checkpoints remain agent work.
+
+## Token-Efficient Boundaries
+
+Spend context on evidence and decisions, not serialization overhead.
+
+- Inside PHP orchestration, call the owning dependency's typed public API. Do not render CLI/JSON output only to parse it again in the same process.
+- At an agent-facing CLI boundary, request only the fields/details needed for the current decision. Prefer TOON for lossless structured reads when the command supports `--format=toon`.
+- Keep text when it is already the smaller task-specific summary (`workflow context`, `workflow report`, focused diagnostics).
+- Keep canonical JSON for durable, hashed, replayable, schema-owned, or explicitly interoperable artifacts. Never rewrite stored evidence to TOON merely to save prompt tokens.
+- Projection drops whole unused fields. It never silently truncates a selected value.
+- A missing projected key means “not requested”, not “unset”.
+
+This is a consumer rule, not permission for Loop to reimplement a dependency's selection or rendering semantics. Prefer the owner's public API/format and release it first when the capability is not yet installable.
 
 ## Prompt Controls
 
@@ -44,10 +57,10 @@ Both controls use the normal approved operating-prompt policy. They are L1-only 
 State behavior, non-goals, owner, validation, and contract state briefly. Trace the real call path before changing shared behavior:
 
 ```bash
-vendor/bin/agent-loop map query <symbol>
-vendor/bin/agent-loop map related <symbol>
-vendor/bin/agent-loop map file <path>
-vendor/bin/agent-loop map changed --base=<ref>
+vendor/bin/agent-loop map query <symbol> --format=toon
+vendor/bin/agent-loop map related <symbol> --format=toon
+vendor/bin/agent-loop map file <path> --format=toon
+vendor/bin/agent-loop map changed --base=<ref> --format=toon
 ```
 
 Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
