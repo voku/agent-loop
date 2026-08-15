@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\InitStatusCommand;
+use voku\AgentLoop\Init\InitSyncSkillsCommand;
 
 /**
  * @internal
@@ -26,7 +27,18 @@ final class InitStatusCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-init-status-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'CLAUDE_SKILLS_DIR', 'COPILOT_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
+        $this->backupEnv([
+            'CODEX_HOME',
+            'CODEX_SKILLS_DIR',
+            'CODEX_AGENTS_DIR',
+            'CLAUDE_SKILLS_DIR',
+            'CLAUDE_AGENTS_DIR',
+            'CLAUDE_CONFIG_DIR',
+            'COPILOT_SKILLS_DIR',
+            'ANTIGRAVITY_SKILLS_DIR',
+            'COPILOT_AGENTS_DIR',
+            'ANTIGRAVITY_AGENTS_DIR',
+        ]);
     }
 
     protected function tearDown(): void
@@ -163,6 +175,8 @@ final class InitStatusCommandTest extends TestCase
 
         self::assertStringContainsString('[INFO] codex skills: no manifest at ' . $this->root . '/.codex/skills/.agent-loop-manifest.json', $result['output']);
         self::assertStringContainsString('[INFO] codex subagents: no manifest at ' . $this->root . '/.codex/agents/.agent-loop-manifest.json', $result['output']);
+        self::assertStringContainsString('[INFO] claude subagents: no manifest at ' . $this->root . '/.claude/agents/.agent-loop-manifest.json', $result['output']);
+        self::assertStringContainsString('[INFO] claude hooks: no manifest at ' . $this->root . '/.claude/.agent-loop-manifest.json', $result['output']);
     }
 
     public function testStatusReportsManifestFoundWhenManifestExists(): void
@@ -178,6 +192,7 @@ final class InitStatusCommandTest extends TestCase
         $result = $this->runStatus([]);
 
         self::assertStringContainsString('[OK] codex skills: manifest found (1 managed entrie(s))', $result['output']);
+        self::assertStringContainsString('drift evidence unavailable for legacy managed entries', $result['output']);
     }
 
     public function testStatusReportsCodexSubagentManifestAndStaleEntries(): void
@@ -233,6 +248,85 @@ final class InitStatusCommandTest extends TestCase
         $result = $this->runStatus([]);
 
         self::assertStringContainsString('[OK] codex skills: no stale managed entries', $result['output']);
+    }
+
+    public function testStatusDistinguishesCurrentLocalModificationAndStaleSource(): void
+    {
+        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $target = $this->root . '/.codex/skills/demo-skill/SKILL.md';
+        mkdir(dirname($source), 0o775, true);
+        file_put_contents($source, "# Demo\n");
+
+        $sync = $this->runSyncSkills(['--agent=codex']);
+        self::assertSame(0, $sync['exit'], $sync['output']);
+        self::assertStringContainsString('[OK] codex skills: current: demo-skill', $this->runStatus([])['output']);
+
+        file_put_contents($target, "# Local edit\n");
+        self::assertStringContainsString('[WARN] codex skills: locally modified: demo-skill', $this->runStatus([])['output']);
+
+        $repair = $this->runSyncSkills(['--agent=codex']);
+        self::assertSame(0, $repair['exit'], $repair['output']);
+        self::assertStringContainsString('[OK] codex skills: current: demo-skill', $this->runStatus([])['output']);
+
+        file_put_contents($source, "# Upgraded source\n");
+        self::assertStringContainsString('[WARN] codex skills: stale: demo-skill', $this->runStatus([])['output']);
+    }
+
+    public function testStatusKeepsAdoptedAssetProjectOwned(): void
+    {
+        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $target = $this->root . '/.codex/skills/demo-skill/SKILL.md';
+        mkdir(dirname($source), 0o775, true);
+        mkdir(dirname($target), 0o775, true);
+        file_put_contents($source, "# Canonical\n");
+        file_put_contents($target, "# Existing project-owned content\n");
+
+        $sync = $this->runSyncSkills(['--agent=codex', '--adopt-existing']);
+        self::assertSame(0, $sync['exit'], $sync['output']);
+
+        $output = $this->runStatus([])['output'];
+        self::assertStringContainsString('[INFO] codex skills: unmanaged/project-owned: demo-skill', $output);
+        self::assertStringNotContainsString('[OK] codex skills: current: demo-skill', $output);
+    }
+
+    public function testStatusReportsCapabilityMismatchAndResyncRepairsBaseline(): void
+    {
+        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        mkdir(dirname($source), 0o775, true);
+        file_put_contents($source, "# Demo\n");
+
+        $sync = $this->runSyncSkills(['--agent=codex']);
+        self::assertSame(0, $sync['exit'], $sync['output']);
+
+        $manifestPath = $this->root . '/.codex/skills/.agent-loop-manifest.json';
+        $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+        $manifest['required_capabilities'] = ['future-runtime-capability'];
+        file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+
+        self::assertStringContainsString(
+            '[WARN] codex skills: incompatible with installed runtime capabilities: demo-skill',
+            $this->runStatus([])['output'],
+        );
+
+        $repair = $this->runSyncSkills(['--agent=codex']);
+        self::assertSame(0, $repair['exit'], $repair['output']);
+        $output = $this->runStatus([])['output'];
+        self::assertStringContainsString('[OK] codex skills: current: demo-skill', $output);
+        self::assertStringNotContainsString('incompatible with installed runtime capabilities: demo-skill', $output);
+    }
+
+    public function testStatusReportsExistingUnmanagedAssetWithoutManifestAsProjectOwned(): void
+    {
+        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $target = $this->root . '/.codex/skills/demo-skill/SKILL.md';
+        mkdir(dirname($source), 0o775, true);
+        mkdir(dirname($target), 0o775, true);
+        file_put_contents($source, "# Canonical\n");
+        file_put_contents($target, "# Project owned\n");
+
+        $output = $this->runStatus([])['output'];
+
+        self::assertStringContainsString('[INFO] codex skills: unmanaged/project-owned: demo-skill', $output);
     }
 
     public function testStatusWarnsButContinuesOnInvalidManifest(): void
@@ -345,6 +439,21 @@ final class InitStatusCommandTest extends TestCase
 
         self::assertStringContainsString('[WARN] Git hooks: project policy exists but core.hooksPath is unset', $output);
         self::assertStringContainsString('  vendor/bin/agent-loop init sync-githooks --hooks-dir=.githooks', $output);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{exit: int, output: string}
+     */
+    private function runSyncSkills(array $tokens): array
+    {
+        $command = new InitSyncSkillsCommand($this->root);
+
+        ob_start();
+        $exit = $command->run($tokens);
+        $output = (string) ob_get_clean();
+
+        return ['exit' => $exit, 'output' => $output];
     }
 
     /**
