@@ -258,24 +258,62 @@ final readonly class WorkflowApproveCommand
 
     private function writeGovernedRecallInput(GovernedRun $run, TaskContract $contract): string
     {
-        $path = dirname($run->path) . '/recall-input.json';
+        $directory = dirname($run->path);
+        $this->writeRunContractSnapshot($directory . '/contract.json', $run, $contract);
+
+        $path = $directory . '/recall-input.json';
         $input = [
             'schema_version' => '1.0',
             'kind' => 'governed_recall_input',
             'run_id' => $run->runId,
             'contract' => [
-                'path' => '../../contracts/' . $contract->taskId . '/contract.json',
+                'path' => 'contract.json',
                 'sha256' => $run->contractSource['sha256'],
                 'revision' => $contract->revision,
             ],
         ];
         $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
         if (file_put_contents($tmp, CanonicalJson::pretty($input)) === false || !rename($tmp, $path)) {
-            @unlink($tmp);
+            if (is_file($tmp) && !unlink($tmp)) {
+                throw new RuntimeException('Unable to remove temporary governed Recall input: ' . $tmp);
+            }
             throw new RuntimeException('Unable to persist governed Recall input: ' . $path);
         }
 
         return $path;
+    }
+
+    private function writeRunContractSnapshot(string $path, GovernedRun $run, TaskContract $contract): void
+    {
+        $contents = file_get_contents($contract->path);
+        if (!is_string($contents)) {
+            throw new RuntimeException('Unable to read approved Contract for governed Run snapshot: ' . $contract->path);
+        }
+
+        $digest = 'sha256:' . hash('sha256', $contents);
+        if (!hash_equals($run->contractSource['sha256'], $digest)) {
+            throw new RuntimeException('Approved Contract digest changed before governed Run snapshot could be persisted.');
+        }
+
+        if (is_file($path)) {
+            $existing = file_get_contents($path);
+            if (!is_string($existing)) {
+                throw new RuntimeException('Unable to read governed Run Contract snapshot: ' . $path);
+            }
+            if (!hash_equals($contents, $existing)) {
+                throw new RuntimeException('Governed Run Contract snapshot does not match the approved Contract source: ' . $path);
+            }
+
+            return;
+        }
+
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, $contents) === false || !rename($tmp, $path)) {
+            if (is_file($tmp) && !unlink($tmp)) {
+                throw new RuntimeException('Unable to remove temporary governed Run Contract snapshot: ' . $tmp);
+            }
+            throw new RuntimeException('Unable to persist governed Run Contract snapshot: ' . $path);
+        }
     }
 
     private function printRecallHandoff(string $taskId): void
