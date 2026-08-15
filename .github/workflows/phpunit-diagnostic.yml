@@ -1,10 +1,10 @@
-name: Temporary PHPUnit diagnostic
+name: Temporary composer gate diagnostic
 
 on:
   pull_request:
 
 jobs:
-  phpunit-diagnostic:
+  composer-gate-diagnostic:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,17 +18,17 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Capture PHPUnit result
+      - name: Capture composer ci result
         shell: bash
         run: |
           set +e
           mkdir -p build
-          vendor/bin/phpunit --testdox > build/phpunit-diagnostic.txt 2>&1
+          composer ci > build/composer-ci-diagnostic.txt 2>&1
           status=$?
-          printf '\nEXIT_CODE=%s\n' "$status" >> build/phpunit-diagnostic.txt
+          printf '\nEXIT_CODE=%s\n' "$status" >> build/composer-ci-diagnostic.txt
           exit 0
       - uses: actions/upload-artifact@v4
         with:
-          name: phpunit-diagnostic-${{ github.sha }}
+          name: composer-ci-diagnostic-${{ github.sha }}
           if-no-files-found: error
-          path: build/phpunit-diagnostic.txt
+          path: build/composer-ci-diagnostic.txt
