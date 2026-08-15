@@ -11,6 +11,7 @@ use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
 use voku\AgentSession\SessionStore;
@@ -109,6 +110,71 @@ final class PostExecutionEvidenceStalenessTest extends TestCase
 
         self::assertSame(1, $exit, $output);
         self::assertStringContainsString('stale review evidence', $output);
+    }
+
+    public function testLearningForImplementationACannotCloseImplementationBAfterFreshValidationAndReview(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create('STALE-3', 'Freeze Learning identity.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
+        $contract = $contracts->approve('STALE-3', 'fixture');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'STALE-3', by: 'fixture');
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
+        $a = ImplementationSnapshot::capture($this->root, $contract);
+
+        $this->writeRecallMeta('STALE-3');
+        (new ValidationEvidenceStore())->record(
+            $session,
+            $contract->revision,
+            'php -l src/Foo.php',
+            ValidationStatus::PASSED,
+            0,
+            recordedBy: 'fixture',
+            implementationSnapshot: $a->digest,
+        );
+        $this->writeReview('STALE-3', [
+            'status' => 'ok',
+            'contract_revision' => $contract->revision,
+            'implementation_snapshot' => $a->digest,
+        ]);
+        $boundaryA = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
+        $validationA = $boundaryA->validationEvidenceSha256();
+        $reviewA = $boundaryA->reviewEvidenceSha256();
+        self::assertNotNull($validationA);
+        self::assertNotNull($reviewA);
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
+            $run->runId,
+            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
+            'fixture',
+            'Decision observed implementation A.',
+            contractRevision: $contract->revision,
+            implementationSnapshot: $a->digest,
+            validationEvidenceSha256: $validationA,
+            reviewEvidenceSha256: $reviewA,
+        );
+
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'B';\n");
+        $b = ImplementationSnapshot::capture($this->root, $contract);
+        (new ValidationEvidenceStore())->record(
+            $session,
+            $contract->revision,
+            'php -l src/Foo.php',
+            ValidationStatus::PASSED,
+            0,
+            recordedBy: 'fixture',
+            implementationSnapshot: $b->digest,
+        );
+        $this->writeReview('STALE-3', [
+            'status' => 'ok',
+            'contract_revision' => $contract->revision,
+            'implementation_snapshot' => $b->digest,
+        ]);
+
+        ob_start();
+        $exit = (new WorkflowCloseCommand($this->root))->run(['STALE-3', '--status', 'done']);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(1, $exit, $output);
+        self::assertStringContainsString('stale Learning decision', $output);
     }
 
     private function writeRecallMeta(string $taskId): void
