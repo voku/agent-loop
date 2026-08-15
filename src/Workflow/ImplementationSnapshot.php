@@ -31,8 +31,10 @@ final readonly class ImplementationSnapshot
             throw new RuntimeException('Implementation snapshot project root does not exist: ' . $rootPath);
         }
         $root = rtrim(str_replace('\\', '/', $root), '/');
-        $stateRoot = (new ProjectLayout($root))->stateRoot();
-        $stateRelative = self::relative($root, $stateRoot);
+        $stateRoot = str_replace('\\', '/', (new ProjectLayout($root))->stateRoot());
+        $stateRelative = str_starts_with($stateRoot, $root . '/')
+            ? substr($stateRoot, strlen($root) + 1)
+            : '';
 
         /** @var array<string, string> $files */
         $files = [];
