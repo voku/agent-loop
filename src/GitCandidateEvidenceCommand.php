@@ -48,8 +48,8 @@ final readonly class GitCandidateEvidenceCommand
         $format = OptionTokens::value($tokens, 'format') ?? 'text';
         try {
             $this->validateTokens($tokens);
-            if (!in_array($format, ['text', 'json'], true)) {
-                throw new RuntimeException('--format must be text or json.');
+            if (!in_array($format, ['text', 'json', 'toon'], true)) {
+                throw new RuntimeException('--format must be text, json, or toon.');
             }
 
             $evidence = (new GitCandidateEvidence($this->rootPath))->prove(
@@ -59,11 +59,16 @@ final readonly class GitCandidateEvidenceCommand
                 OptionTokens::value($tokens, 'release-tag'),
             );
         } catch (RuntimeException $exception) {
-            return $this->fail($exception->getMessage(), $format === 'json' ? 'json' : 'text');
+            return $this->fail($exception->getMessage(), $format);
         }
 
         if ($format === 'json') {
             echo CanonicalJson::pretty($evidence);
+
+            return 0;
+        }
+        if ($format === 'toon') {
+            echo AgentOutput::toon($evidence);
 
             return 0;
         }
@@ -139,6 +144,8 @@ final readonly class GitCandidateEvidenceCommand
     {
         if ($format === 'json') {
             echo CanonicalJson::pretty(['status' => 'fail', 'error' => $message]);
+        } elseif ($format === 'toon') {
+            echo AgentOutput::toon(['status' => 'fail', 'error' => $message]);
         } else {
             fwrite(STDERR, '[FAIL] candidate evidence: ' . $message . "\n");
         }
