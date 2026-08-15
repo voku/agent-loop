@@ -19,14 +19,15 @@ final readonly class RunVerificationReceipt
         public string $sourceSessionId,
         public string $verifiedAt,
         public string $path,
+        public ?string $implementationSnapshot = null,
     ) {
     }
 
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return [
-            'schema_version' => '1.0',
+        $data = [
+            'schema_version' => $this->implementationSnapshot === null ? '1.0' : '1.1',
             'kind' => 'run_verification_receipt',
             'run_id' => $this->runId,
             'task_id' => $this->taskId,
@@ -37,5 +38,10 @@ final readonly class RunVerificationReceipt
             'source_session_id' => $this->sourceSessionId,
             'verified_at' => $this->verifiedAt,
         ];
+        if ($this->implementationSnapshot !== null) {
+            $data['implementation_snapshot'] = $this->implementationSnapshot;
+        }
+
+        return $data;
     }
 }
