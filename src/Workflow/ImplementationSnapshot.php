@@ -66,7 +66,7 @@ final readonly class ImplementationSnapshot
             if (!is_dir($absolute)) {
                 throw new RuntimeException('Implementation snapshot scoped path does not exist: ' . $relative);
             }
-            if (($stateRelative !== null && self::inside($relative, $stateRelative)) || self::excluded($relative, $alwaysExcluded)) {
+            if (($stateRelative !== null && self::excluded($relative, [$stateRelative])) || self::excluded($relative, $alwaysExcluded)) {
                 throw new RuntimeException('Implementation snapshot refuses workflow-state directories; scope durable state files explicitly: ' . $relative);
             }
 
@@ -147,17 +147,12 @@ final readonly class ImplementationSnapshot
     private static function excluded(string $path, array $excludedRoots): bool
     {
         foreach ($excludedRoots as $excluded) {
-            if (self::inside($path, $excluded)) {
+            if ($path === $excluded || str_starts_with($path, rtrim($excluded, '/') . '/')) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    private static function inside(string $path, string $root): bool
-    {
-        return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
     }
 
     private static function projectRelativeRoot(string $projectRoot, string $path): ?string
