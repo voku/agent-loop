@@ -5,11 +5,35 @@ declare(strict_types=1);
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 
 $repositoryRoot = dirname(__DIR__, 2);
-$autoload = $repositoryRoot . '/vendor/autoload.php';
+$rootAutoload = $repositoryRoot . '/vendor/autoload.php';
+$autoloadCandidates = [];
+if (is_dir($repositoryRoot . '/vendor/voku/agent-loop')) {
+    $autoloadCandidates[] = $rootAutoload;
+}
+$isolatedAutoloads = glob($repositoryRoot . '/tools/*/vendor/autoload.php');
+if (is_array($isolatedAutoloads)) {
+    sort($isolatedAutoloads, SORT_STRING);
+    foreach ($isolatedAutoloads as $isolatedAutoload) {
+        $autoloadCandidates[] = $isolatedAutoload;
+    }
+}
+if (!in_array($rootAutoload, $autoloadCandidates, true)) {
+    $autoloadCandidates[] = $rootAutoload;
+}
+
+foreach ($autoloadCandidates as $autoload) {
+    if (!is_file($autoload)) {
+        continue;
+    }
+
+    require_once $autoload;
+    if (class_exists(AgentDisciplineHook::class)) {
+        break;
+    }
+}
+
 $sourceRoot = $repositoryRoot . '/src';
-if (is_file($autoload)) {
-    require $autoload;
-} elseif (is_dir($sourceRoot)) {
+if (!class_exists(AgentDisciplineHook::class) && is_dir($sourceRoot)) {
     // Running from a checkout with no installed dependencies. Register the
     // package's own PSR-4 root rather than requiring one class by hand: a
     // hand-maintained list silently breaks the hook the moment the hook gains
@@ -25,7 +49,9 @@ if (is_file($autoload)) {
             require $file;
         }
     });
-} else {
+}
+
+if (!class_exists(AgentDisciplineHook::class)) {
     fwrite(STDERR, "agent-loop hook runtime is unavailable.\n");
     exit(1);
 }
