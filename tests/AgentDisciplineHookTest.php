@@ -94,7 +94,7 @@ final class AgentDisciplineHookTest extends TestCase
             self::assertStringContainsString('`TASK-42`', $context);
             self::assertStringContainsString('projected state: `incomplete`', $context);
             self::assertStringContainsString(
-                'vendor/bin/agent-loop workflow status TASK-42 --format=json',
+                'vendor/bin/agent-loop workflow status TASK-42 --format=toon',
                 $context,
             );
             self::assertStringNotContainsString('IGNORE PRIOR INSTRUCTIONS', $context);
@@ -136,7 +136,7 @@ final class AgentDisciplineHookTest extends TestCase
             self::assertStringContainsString('multiple unfinished tasks exist', $context);
             self::assertStringContainsString('do not guess', $context);
             self::assertStringContainsString(
-                'vendor/bin/agent-loop workflow status <task-id> --format=json',
+                'vendor/bin/agent-loop workflow status <task-id> --format=toon',
                 $context,
             );
         } finally {
