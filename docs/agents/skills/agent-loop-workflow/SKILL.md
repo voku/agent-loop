@@ -17,7 +17,7 @@ plan beside it.
 ## Deterministic Phase Model
 
 ```text
-PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
 ```
 
 Reflection is deliberately **not** another lifecycle phase. It is a read-only
@@ -31,11 +31,10 @@ reasoning surface available only once normal completion evidence reaches
 | `CONTEXT` | bounded approved recall plus verified real-source locations | `agent-loop-l2-context`, then `agent-loop-investigate` when location is unknown |
 | `CONTRACT` | for selected L2 recipes, one current project-specific L1 bound to the approved Contract + recall bundle | `workflow contract` |
 | `IMPLEMENT` | smallest correct diff inside approved scope; required execution contract is current | `agent-loop-surgical-edit` for verified 1-2 file scope; otherwise main workflow |
-| `VALIDATE` | exact required commands recorded against current Contract revision | `agent-loop-task-progress` |
-| `REVIEW` | blind-spot artifact plus complete raw-diff correctness review; complexity pass when relevant | `agent-loop-code-review`, `agent-loop-simplify-review` |
-| `LEARN` | truthful recall/recipe outcomes plus explicit learning decision | `agent-loop-learning-boundary` |
-| `VERIFY` | cross-package verification and workflow report pass | `agent-loop-review-close` |
-| `CLOSE` | close gate accepts current evidence and any required L2 execution contract is still current | `agent-loop-review-close` |
+| `VALIDATE` | exact required commands recorded against current Contract revision and implementation snapshot | `agent-loop-task-progress` |
+| `REVIEW` | blind-spot artifact bound to the current implementation plus complete raw-diff correctness review; complexity pass when relevant | `agent-loop-code-review`, `agent-loop-simplify-review` |
+| `LEARN` | truthful recall/recipe outcomes plus explicit learning decision bound to current post-execution evidence | `agent-loop-learning-boundary` |
+| `CLOSE` | authoritative final consistency check accepts current evidence and any required L2 execution contract is still current | `agent-loop-review-close` |
 
 Transitions are evidence-driven, not optimistic:
 
@@ -45,12 +44,13 @@ Transitions are evidence-driven, not optimistic:
 - contract construction proves the approved task cannot be executed safely -> record `BLOCKED` or `REJECTED`; do not weaken policy silently;
 - validation fails because implementation is wrong -> `IMPLEMENT`;
 - validation exposes missing scope or product intent -> `PLAN`;
+- implementation changes after validation or review -> repeat the affected evidence for the new implementation snapshot;
 - correctness review finds a defect -> `IMPLEMENT`, then repeat validation/review;
 - task reflection returns `RETURN_TO_REVIEW` -> the task was not actually complete; route the concrete gap back through REVIEW/IMPLEMENT/PLAN as appropriate;
 - a reusable finding exists -> remain in `LEARN` until it is recorded truthfully;
 - a proposal is never self-approved by an agent;
-- failed verification -> repair the missing gate, do not jump to `CLOSE`;
-- accepted risk is an explicit named human override for bypassable close gates; it never bypasses a required L2 execution contract.
+- failed final verification -> repair the missing gate, do not claim `CLOSE`;
+- accepted risk is an explicit named human override for bypassable close gates; it never bypasses implementation-evidence integrity or a required L2 execution contract.
 
 ## Fast Path
 
@@ -62,12 +62,12 @@ Transitions are evidence-driven, not optimistic:
 6. Compile/use bounded recall; use `agent-map` to select precise source reads.
 7. When recall contains L2 recipes, follow the current Recall-owned construction instructions and persist exactly one project-specific L1 with `workflow contract` before mutation.
 8. Implement the smallest correct change in the owning package.
-9. Record validation against the current Contract revision.
+9. Record validation against the current Contract revision and implementation snapshot.
 10. Review blind spots, the complete raw diff, and complexity separately when needed.
 11. Record recall outcomes, evidence-backed operating-prompt outcomes, and an explicit learning decision.
-12. Run cross-package verification and inspect the workflow report.
+12. Optionally use `agent-loop verify --task-id=<task-id>` and `workflow report` for diagnostics or CI; they are not a second mandatory happy-path gate.
 13. At `ready_to_close`, optionally run task reflection when extra scrutiny is useful; `RETURN_TO_REVIEW` routes back instead of closing.
-14. Close only when every required gate passes.
+14. Close. `workflow close --status done` performs the authoritative final cross-package consistency check itself and re-projects the Run before returning success.
 15. After successful close, optionally run project reflection and report one highest-leverage future investment or `nothing worthwhile`; never create follow-up work automatically.
 
 Do not ask the human to run reads, edits, tests, or reports that the available
@@ -209,12 +209,14 @@ For an active governed task, mutating `agent-loop edit` runners (`command`, `mec
 
 - Planning records a candidate Contract; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments.
 - Re-planning invalidates approval and validation evidence for the old revision.
+- Validation, review, and Run Learning evidence are bound to the implementation snapshot they describe; later implementation content cannot reuse earlier evidence as current.
 - `workflow context`, `status`, `report`, and `reflect` are read-only.
 - `workflow context` never rebuilds recall or a map.
 - `workflow report` does not run Git; pass observed changed paths explicitly.
+- `agent-loop verify --task-id=<task-id>` remains available for diagnostics, CI, and pre-close inspection; it is optional in the normal happy path.
 - `workflow reflect` emits a deterministic context-light prompt only when the run is `ready_to_close` or `complete`; it does not call a model or mutate workflow state.
-- `workflow close --status done` requires the current approval, exact validation evidence, recall outcomes, blind-spot review, learning decision, passing verification, and any required current L2 execution contract.
-- `--accept-risk` may override only the existing explicitly bypassable close gates; it never bypasses a required L2 execution contract.
+- `workflow close --status done` is the authoritative final consistency check: it requires the current approval, current implementation-bound validation/review/Learning evidence, recall outcomes, passing cross-package verification, and any required current L2 execution contract; after writing the final projection it re-projects and requires `complete` before success.
+- `--accept-risk` may override only explicitly bypassable close gates; it never bypasses stale implementation evidence or a required L2 execution contract.
 - Recall files are not silently injected into an agent.
 - Findings are not durable memory until reviewed and promoted.
 - One task has one active session; resume it rather than creating parallel state.
@@ -313,7 +315,9 @@ vendor/bin/agent-loop session validation record <task-id> \
   --by <actor>
 ```
 
-Never infer a pass from missing output, an agent summary, or an earlier brief.
+The implementation snapshot is derived by the governed dispatcher. Do not pass a
+caller-invented snapshot identity. Never infer a pass from missing output, an
+agent summary, or an earlier brief.
 
 ## Learning And Recipe Outcomes
 
@@ -325,13 +329,15 @@ A learning decision records an outcome; it does not approve durable guidance or 
 
 ```bash
 vendor/bin/agent-loop review blindspots <task-id>
-vendor/bin/agent-loop verify --task-id=<task-id>
-vendor/bin/agent-loop workflow report <task-id>
 
 vendor/bin/agent-loop workflow learn <task-id> \
   --status no_durable_learning \
   --by <actor> \
   --reason "No reusable finding from this bounded task."
+
+# Optional diagnostics / CI. CLOSE runs the final verifier itself.
+vendor/bin/agent-loop verify --task-id=<task-id>
+vendor/bin/agent-loop workflow report <task-id>
 
 # Optional before close when deeper scrutiny is useful:
 vendor/bin/agent-loop workflow reflect <task-id> --scope task

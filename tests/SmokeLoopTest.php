@@ -8,6 +8,8 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\TaskContractStore;
 
 /** End-to-end proof that the installed package boundaries cooperate. */
 final class SmokeLoopTest extends TestCase
@@ -99,21 +101,35 @@ final class SmokeLoopTest extends TestCase
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
         ])['exit']);
+
+        // The approved task creates this implementation file. It must exist before
+        // validation so the governed dispatcher can derive the snapshot it records.
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Signup.php', "<?php\nfinal class Signup {}\n");
+
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'session', 'validation', 'record', 'task.001',
             '--contract-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
             '--status', 'passed', '--exit-code', '0', '--duration-ms', '12', '--by', 'tester',
         ])['exit']);
+
+        $contract = (new TaskContractStore($this->root))->load('task.001');
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        mkdir($this->root . '/.agent-loop/recall/task.001/reviews', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/task.001/reviews/task.001.blindspots.json',
+            json_encode([
+                'status' => 'ok',
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+            ], JSON_THROW_ON_ERROR),
+        );
+
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'learn', 'task.001',
             '--status', 'no_durable_learning', '--by', 'tester',
             '--reason', 'The smoke run produced no reusable guidance.',
         ])['exit']);
-        mkdir($this->root . '/.agent-loop/recall/task.001/reviews', 0o775, true);
-        file_put_contents(
-            $this->root . '/.agent-loop/recall/task.001/reviews/task.001.blindspots.json',
-            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
-        );
 
         $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
         self::assertSame(0, $context['exit']);
@@ -134,11 +150,8 @@ final class SmokeLoopTest extends TestCase
     }
 
     /**
-
      * @param list<string> $argv
-
      * @return array{exit: int, output: string}
-
      */
     private function dispatch(array $argv): array
     {

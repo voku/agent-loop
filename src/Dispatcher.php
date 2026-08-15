@@ -10,6 +10,9 @@ use voku\AgentMap\Cli\CliApplication as AgentMapCli;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\TaskContract;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
@@ -84,6 +87,11 @@ final class Dispatcher
             $resolved[] = $this->layout()->sessionsRoot();
         }
 
+        $resolved = $this->bindGovernedValidation($resolved);
+        if ($resolved === null) {
+            return 1;
+        }
+
         return (new SessionCli())->run($this->subArgv($scriptName, $resolved));
     }
 
@@ -99,7 +107,12 @@ final class Dispatcher
     /** @param list<string> $rest */
     private function dispatchReview(string $scriptName, array $rest): int
     {
-        return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $this->resolveReviewArgv($rest)));
+        $resolved = $this->bindGovernedReview($this->resolveReviewArgv($rest));
+        if ($resolved === null) {
+            return 1;
+        }
+
+        return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $resolved));
     }
 
     /** @param list<string> $rest */
@@ -144,6 +157,75 @@ final class Dispatcher
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $rest
+     * @return list<string>|null
+     */
+    private function bindGovernedValidation(array $rest): ?array
+    {
+        if (($rest[0] ?? null) !== 'validation' || ($rest[1] ?? null) !== 'record') {
+            return $rest;
+        }
+        $sessionId = $rest[2] ?? null;
+        if (!is_string($sessionId) || $sessionId === '') {
+            return $rest;
+        }
+        $sessionRoot = $this->optionValue($rest, 'root') ?? $this->layout()->sessionsRoot();
+        $store = new SessionStore();
+        if (!$store->exists($sessionRoot, $sessionId)) {
+            return $rest;
+        }
+        $session = $store->load($sessionRoot, $sessionId);
+        $contract = (new TaskContractStore($this->rootPath))->find($session->taskId);
+        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
+            return $rest;
+        }
+        if ($this->hasOption($rest, 'implementation-snapshot')) {
+            echo "[ERROR] Governed validation snapshot identity is derived by agent-loop; do not pass --implementation-snapshot.\n";
+
+            return null;
+        }
+        $revision = $this->optionValue($rest, 'contract-revision');
+        if ($revision === null || filter_var($revision, FILTER_VALIDATE_INT) === false || (int) $revision !== $contract->revision) {
+            echo "[ERROR] Governed validation must record current Contract revision {$contract->revision}.\n";
+
+            return null;
+        }
+        $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
+
+        return array_merge($rest, ['--implementation-snapshot', $snapshot->digest]);
+    }
+
+    /**
+     * @param list<string> $rest
+     * @return list<string>|null
+     */
+    private function bindGovernedReview(array $rest): ?array
+    {
+        if (($rest[0] ?? null) !== 'blindspots') {
+            return $rest;
+        }
+        $taskId = $rest[1] ?? null;
+        if (!is_string($taskId) || !$this->isSafeTaskId($taskId)) {
+            return $rest;
+        }
+        $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        if ($contract === null || $contract->status !== TaskContract::APPROVED) {
+            return $rest;
+        }
+        if ($this->hasOption($rest, 'contract-revision') || $this->hasOption($rest, 'implementation-snapshot')) {
+            echo "[ERROR] Governed review evidence identity is derived by agent-loop; do not pass Contract/snapshot binding options.\n";
+
+            return null;
+        }
+        $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
+
+        return array_merge($rest, [
+            '--contract-revision', (string) $contract->revision,
+            '--implementation-snapshot', $snapshot->digest,
+        ]);
     }
 
     /**

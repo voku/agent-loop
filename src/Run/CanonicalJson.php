@@ -15,7 +15,7 @@ use RuntimeException;
  */
 final class CanonicalJson
 {
-    /** @param array<string, mixed> $value */
+    /** @param array<array-key, mixed> $value */
     public static function pretty(array $value): string
     {
         try {

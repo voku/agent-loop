@@ -11,6 +11,8 @@ use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
@@ -129,9 +131,13 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     public function testSuccessfulCliClosePersistsFinalDurableProjection(): void
     {
         $session = $this->prepareApprovedRun();
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+
         $contract = (new TaskContractStore($this->root))->load('ABC-123');
         $run = (new GovernedRunStore($this->root))->find('ABC-123');
         self::assertNotNull($run);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         (new ValidationEvidenceStore())->record(
             $session,
@@ -141,17 +147,31 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             0,
             10,
             'lars',
+            implementationSnapshot: $snapshot->digest,
         );
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            json_encode([
+                'status' => 'ok',
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+            ], JSON_THROW_ON_ERROR),
+        );
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
+        $validationSha256 = $boundary->validationEvidenceSha256();
+        $reviewSha256 = $boundary->reviewEvidenceSha256();
+        self::assertNotNull($validationSha256);
+        self::assertNotNull($reviewSha256);
         (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
             'No durable learning from manifest transition fixture.',
-        );
-        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
-        file_put_contents(
-            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
-            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
+            contractRevision: $contract->revision,
+            implementationSnapshot: $snapshot->digest,
+            validationEvidenceSha256: $validationSha256,
+            reviewEvidenceSha256: $reviewSha256,
         );
 
         $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
@@ -160,7 +180,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertSame(0, $exit, $output);
-        self::assertStringContainsString('final Run projection refreshed', $output);
+        self::assertStringContainsString('final Run projection is complete', $output);
         self::assertFileExists($this->root . '/.agent-loop/runs/ABC-123/verification.json');
         $manifest = $this->manifest();
         self::assertSame($run->runId, $this->stringField($manifest, 'run_id'));

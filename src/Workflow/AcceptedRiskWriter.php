@@ -21,28 +21,26 @@ use voku\AgentLoop\ProjectLayout;
  */
 final readonly class AcceptedRiskWriter
 {
+    private ProjectLayout $layout;
+
     public function __construct(private string $rootPath)
     {
+        $this->layout = new ProjectLayout($rootPath);
     }
 
     public function relativePath(string $taskId): string
     {
-        return $this->layout()->display($this->absolutePath($taskId, 'md'));
+        return $this->layout->display($this->absolutePath($taskId, 'md'));
     }
 
     public function relativeJsonPath(string $taskId): string
     {
-        return $this->layout()->display($this->absolutePath($taskId, 'json'));
+        return $this->layout->display($this->absolutePath($taskId, 'json'));
     }
 
     private function absolutePath(string $taskId, string $extension): string
     {
-        return $this->layout()->risksRoot() . '/' . $taskId . '.accepted-risk.' . $extension;
-    }
-
-    private function layout(): ProjectLayout
-    {
-        return new ProjectLayout($this->rootPath);
+        return $this->layout->risksRoot() . '/' . $taskId . '.accepted-risk.' . $extension;
     }
 
     /**
@@ -51,7 +49,7 @@ final readonly class AcceptedRiskWriter
      */
     public function write(string $taskId, string $reason, string $acceptedBy, array $failures = []): string
     {
-        $dir = $this->layout()->risksRoot();
+        $dir = $this->layout->risksRoot();
         if (!is_dir($dir) && !mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new RuntimeException('Could not create accepted-risk directory: ' . $dir);
         }

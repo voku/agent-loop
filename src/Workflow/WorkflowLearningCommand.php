@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentSession\SessionStore;
 
 final readonly class WorkflowLearningCommand
 {
@@ -22,8 +25,40 @@ final readonly class WorkflowLearningCommand
         try {
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parse(array_slice($args, 1));
+            $contract = (new TaskContractStore($this->rootPath))->load($taskId->value);
+            if ($contract->status !== TaskContract::APPROVED) {
+                throw new RuntimeException('Learning requires the current durable Task Contract to be approved.');
+            }
             $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
                 ?? throw new InvalidArgumentException('No governed Run exists for task ' . $taskId->value . '.');
+            if ($run->contractRevision !== $contract->revision) {
+                throw new RuntimeException(sprintf(
+                    'Learning requires the governed Run to bind current Contract revision %d; Run binds revision %d.',
+                    $contract->revision,
+                    $run->contractRevision,
+                ));
+            }
+
+            $sessionRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
+            $session = (new SessionStore())->load($sessionRoot, $run->sessionId);
+            if ($session->taskId !== $taskId->value) {
+                throw new RuntimeException('Run-bound Session belongs to another task.');
+            }
+
+            $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+            $integrityFailures = $boundary->integrityFailures();
+            if ($integrityFailures !== []) {
+                throw new RuntimeException('Learning evidence is stale: ' . implode('; ', $integrityFailures));
+            }
+            $validationEvidenceSha256 = $boundary->validationEvidenceSha256();
+            if ($validationEvidenceSha256 === null) {
+                throw new RuntimeException('Learning requires current validation evidence for every Contract validation command.');
+            }
+            $reviewEvidenceSha256 = $boundary->reviewEvidenceSha256();
+            if ($reviewEvidenceSha256 === null) {
+                throw new RuntimeException('Learning requires a current blind-spot review bound to the current Contract revision and implementation snapshot.');
+            }
+
             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
             $decision = (new RunLearningDecisionStore($learningRoot))->record(
                 $run->runId,
@@ -32,8 +67,12 @@ final readonly class WorkflowLearningCommand
                 $options['reason'],
                 $options['findingIds'],
                 $options['followUp'],
+                contractRevision: $contract->revision,
+                implementationSnapshot: $boundary->implementation->digest,
+                validationEvidenceSha256: $validationEvidenceSha256,
+                reviewEvidenceSha256: $reviewEvidenceSha256,
             );
-            echo "[OK] workflow learn: {$decision->decision->value} recorded for {$run->runId}\n";
+            echo "[OK] workflow learn: {$decision->decision->value} recorded for {$run->runId} at implementation {$boundary->implementation->digest}\n";
 
             return 0;
         } catch (Throwable $exception) {

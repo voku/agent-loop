@@ -12,6 +12,8 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
@@ -61,6 +63,11 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
 
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+
+        $contract = $contracts->load('ABC-123');
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
         $sessions = new SessionStore();
         $sessionList = $sessions->all($this->root . '/.agent-loop/sessions');
         self::assertCount(1, $sessionList);
@@ -76,17 +83,31 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             0,
             12,
             'lars',
+            implementationSnapshot: $snapshot->digest,
         );
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
+            json_encode([
+                'status' => 'ok',
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+            ], JSON_THROW_ON_ERROR),
+        );
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
+        $validationSha256 = $boundary->validationEvidenceSha256();
+        $reviewSha256 = $boundary->reviewEvidenceSha256();
+        self::assertNotNull($validationSha256);
+        self::assertNotNull($reviewSha256);
         (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
             'No durable learning emerged from this regression proof.',
-        );
-        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
-        file_put_contents(
-            $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
-            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
+            contractRevision: $contract->revision,
+            implementationSnapshot: $snapshot->digest,
+            validationEvidenceSha256: $validationSha256,
+            reviewEvidenceSha256: $reviewSha256,
         );
 
         $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);

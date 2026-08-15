@@ -10,6 +10,8 @@ use RecursiveIteratorIterator;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
 use voku\AgentSession\SessionStatus;
@@ -28,6 +30,8 @@ final class WorkflowCloseCommandTest extends TestCase
         $this->root = sys_get_temp_dir() . '/agent-loop-close-' . bin2hex(random_bytes(4));
         mkdir($this->root, 0o775, true);
         mkdir($this->root . '/.agent-loop/learning', 0o775, true);
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
         $this->prepareGovernedRun();
     }
 
@@ -102,11 +106,6 @@ final class WorkflowCloseCommandTest extends TestCase
 
     public function testCloseAcceptsSelectedGuidanceWhoseAbsentOutcomeWasDeclared(): void
     {
-        // A Run that compiled guidance it never consulted has nothing truthful
-        // to say about it, and every bucket it could pick moves a promotion or
-        // retirement gate. What this gate owns is that the silence was
-        // deliberate, so a declared withholding closes and the case above -
-        // guidance that simply never appears - still does not.
         $this->writeRecallMeta([
             'task_id' => 'ABC-123',
             'compilation_id' => 'compilation.abc.002',
@@ -163,8 +162,7 @@ final class WorkflowCloseCommandTest extends TestCase
         string $guidanceId,
         string $withheldReason,
         bool $selected = true,
-    ): void
-    {
+    ): void {
         $history = $this->root . '/.agent-loop/learning/history';
         if (!is_dir($history)) {
             mkdir($history, 0o775, true);
@@ -223,6 +221,7 @@ final class WorkflowCloseCommandTest extends TestCase
         $receipt = json_decode((string) file_get_contents($this->verificationReceipt()), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame($this->runId, $receipt['run_id'] ?? null);
         self::assertSame(1, $receipt['contract_revision'] ?? null);
+        self::assertMatchesRegularExpression('/^sha256:[a-f0-9]{64}$/', (string) ($receipt['implementation_snapshot'] ?? ''));
         self::assertSame('satisfied', $receipt['verdict'] ?? null);
         self::assertSame('vendor/bin/phpunit', $receipt['obligations'][0]['command'] ?? null);
         self::assertSame('passed', $receipt['obligations'][0]['status'] ?? null);
@@ -260,6 +259,10 @@ final class WorkflowCloseCommandTest extends TestCase
 
     public function testAcceptRiskWithoutNamedOwnerIsRefused(): void
     {
+        $this->writeRecallMeta();
+        $this->writeReviewReport(['status' => 'ok']);
+        $this->breakVerifierForTask();
+
         $result = $this->runClose([
             'ABC-123', '--status', 'done',
             '--accept-risk', 'Manual review.',
@@ -298,11 +301,8 @@ final class WorkflowCloseCommandTest extends TestCase
     }
 
     /**
-
      * @param list<string> $args
-
      * @return array{exit: int, output: string}
-
      */
     private function runClose(array $args = ['ABC-123', '--status', 'done']): array
     {
@@ -325,6 +325,7 @@ final class WorkflowCloseCommandTest extends TestCase
             'lars',
         );
         $contract = $contracts->approve('ABC-123', 'lars');
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $this->sessionId = $session->id;
@@ -339,12 +340,7 @@ final class WorkflowCloseCommandTest extends TestCase
             0,
             10,
             'lars',
-        );
-        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
-            $run->runId,
-            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
-            'lars',
-            'No durable learning from this close fixture.',
+            implementationSnapshot: $snapshot->digest,
         );
     }
 
@@ -378,15 +374,38 @@ final class WorkflowCloseCommandTest extends TestCase
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/meta.json', json_encode($meta, JSON_THROW_ON_ERROR));
     }
 
-    /** @param array<string, string> $data */
+    /** @param array<string, string|int> $data */
     private function writeReviewReport(array $data): void
     {
         if (!is_dir($this->root . '/.agent-loop/recall/ABC-123/reviews')) {
             mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         }
+        $contract = (new TaskContractStore($this->root))->load('ABC-123');
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', $this->sessionId);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        $data += [
+            'contract_revision' => $contract->revision,
+            'implementation_snapshot' => $snapshot->digest,
+        ];
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode($data, JSON_THROW_ON_ERROR),
+        );
+
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
+        $validationSha256 = $boundary->validationEvidenceSha256();
+        $reviewSha256 = $boundary->reviewEvidenceSha256();
+        self::assertNotNull($validationSha256);
+        self::assertNotNull($reviewSha256);
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
+            $this->runId,
+            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
+            'lars',
+            'No durable learning from this close fixture.',
+            contractRevision: $contract->revision,
+            implementationSnapshot: $snapshot->digest,
+            validationEvidenceSha256: $validationSha256,
+            reviewEvidenceSha256: $reviewSha256,
         );
     }
 
