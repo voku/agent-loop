@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use voku\AgentKanban\Cli\CliApplication;
+use voku\AgentKanban\Config\BoardConfig;
 
 /**
  * Creates the smallest local state needed for the governed workflow.
@@ -50,6 +51,7 @@ final readonly class InitScaffoldCommand
 
         foreach ([
             [$stateRoot . '/todo/cards', $this->relative($root, $stateRoot . '/todo/cards')],
+            [$stateRoot . '/todo/archive', $this->relative($root, $stateRoot . '/todo/archive')],
             [$stateRoot . '/tasks', $this->relative($root, $stateRoot . '/tasks')],
             [$sessionsRoot, $this->relative($root, $sessionsRoot)],
             [$learningRoot . '/findings', $this->relative($root, $learningRoot . '/findings')],
@@ -57,6 +59,19 @@ final readonly class InitScaffoldCommand
             $this->ensureDirectory($directory, $display, $dryRun);
         }
 
+        $boardConfig = new BoardConfig(
+            projectPrefix: 'DEMO',
+            archiveDirectory: 'todo/archive',
+        );
+        $this->ensureFile(
+            $stateRoot . '/todo/kanban.config.json',
+            $this->relative($root, $stateRoot . '/todo/kanban.config.json'),
+            json_encode(
+                $boardConfig->toArray(),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ) . "\n",
+            $dryRun,
+        );
         $this->ensureFile($stateRoot . '/todo/board.md', $this->relative($root, $stateRoot . '/todo/board.md'), <<<'MD'
 # Board Metadata
 
