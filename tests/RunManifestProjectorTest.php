@@ -13,6 +13,7 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
@@ -183,6 +184,11 @@ MD
     /** @return array{0: SessionStore, 1: Session, 2: string} */
     private function preparedRun(string $reviewStatus, bool $withReceipt): array
     {
+        if (!is_dir($this->root . '/src')) {
+            mkdir($this->root . '/src', 0o775, true);
+        }
+        file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
             'ABC-123',
@@ -193,6 +199,7 @@ MD
             'lars',
         );
         $contract = $contracts->approve('ABC-123', 'lars');
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         $sessions = new SessionStore();
         $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
@@ -227,6 +234,7 @@ MD
                 $run,
                 $contract,
                 $session,
+                $snapshot->digest,
                 'satisfied',
                 [[
                     'command' => 'vendor/bin/phpunit',
