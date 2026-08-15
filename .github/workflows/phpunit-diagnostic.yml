@@ -1,0 +1,34 @@
+name: Temporary PHPUnit diagnostic
+
+on:
+  pull_request:
+
+jobs:
+  phpunit-diagnostic:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Capture PHPUnit result
+        shell: bash
+        run: |
+          set +e
+          mkdir -p build
+          vendor/bin/phpunit --testdox > build/phpunit-diagnostic.txt 2>&1
+          status=$?
+          printf '\nEXIT_CODE=%s\n' "$status" >> build/phpunit-diagnostic.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-diagnostic-${{ github.sha }}
+          if-no-files-found: error
+          path: build/phpunit-diagnostic.txt
