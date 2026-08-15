@@ -25,7 +25,7 @@
     "boundary": "Tests may assert the shape itself: proving that a linked worktree's .git is a file is what makes the defect reproducible.",
     "validation": [
         "vendor/bin/phpunit --filter GitWorkTreeDetectionTest",
-        "bash tools/project-phpstan-rules.sh"
+        "php tools/project-phpstan-rules.php"
     ],
     "scope_justification": "The same assumption produced two separate silent failures a week apart: WorkingTreeSnapshotter treated a linked worktree as not Git-backed, and later init doctor plus init sync-githooks did the same, installing hook files Git was never pointed at. Both tested the filesystem shape of .git. Scope names the owner that answers the question and the static rule that rejects the shape test, because a rule enforced only by review has already failed twice here.",
     "learning_decision": "ADD_LEARNING_NOTE",
