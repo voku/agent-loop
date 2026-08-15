@@ -8,9 +8,9 @@ use InvalidArgumentException;
 use ItpContext\Attribute\Rule;
 use RuntimeException;
 use Throwable;
-use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\AgentLoopVerifier;
+use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
@@ -21,8 +21,6 @@ use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
-use voku\AgentSession\ValidationEvidence;
-use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
 
 #[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
@@ -51,9 +49,6 @@ final readonly class WorkflowCloseCommand
             $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
                 ?? throw new RuntimeException('Successful close requires a governed Run.');
 
-            // Checked before the bypassable gates: accepted risk may waive missing
-            // evidence, but it may never close a Run against a Contract revision
-            // the Run was not approved for.
             $binding = $this->runContractBindingFailure($run, $contract);
             if ($binding !== null) {
                 echo "[FAIL] workflow close: {$binding}\n";
@@ -89,11 +84,22 @@ final readonly class WorkflowCloseCommand
 
             $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
             $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
-            $validation = $this->validationSnapshot($contract, $session);
-            $failures = array_merge(
-                $this->implementationEvidenceFailures($run, $learningRoot, $boundary),
-                $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']),
-            );
+            $integrityFailures = $boundary->integrityFailures();
+            $learningBindingFailure = $this->learningBindingFailure($run, $learningRoot, $boundary);
+            if ($learningBindingFailure !== null) {
+                $integrityFailures[] = $learningBindingFailure;
+            }
+            if ($integrityFailures !== []) {
+                foreach ($integrityFailures as $failure) {
+                    echo "[FAIL] integrity: {$failure}\n";
+                }
+                echo "[FAIL] workflow close: stale post-execution evidence cannot be accepted as risk; session was not closed.\n";
+
+                return 1;
+            }
+
+            $validation = $this->validationSnapshot($contract, $boundary);
+            $failures = $this->runGates($contract, $run, $session, $learningRoot, $validation['detail']);
             foreach ($failures as $failure) {
                 echo "[FAIL] {$failure['gate']}: {$failure['detail']}\n";
             }
@@ -121,11 +127,20 @@ final readonly class WorkflowCloseCommand
                 echo "[OK] workflow close: gates passed\n";
             }
 
+            $currentSnapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
+            if (!hash_equals($boundary->implementation->digest, $currentSnapshot->digest)) {
+                echo "[FAIL] integrity: implementation changed after post-execution evidence was evaluated.\n";
+                echo "[FAIL] workflow close: session was not closed.\n";
+
+                return 1;
+            }
+
             $receipt = (new RunVerificationReceiptStore($this->rootPath))->record(
                 $run,
                 $contract,
                 $session,
-                $validation['detail'] === null ? 'satisfied' : 'unsatisfied',
+                $boundary->implementation->digest,
+                $failures === [] ? 'satisfied' : 'accepted_risk',
                 $validation['obligations'],
             );
             echo "[OK] workflow close: durable verification receipt persisted at {$receipt->path}\n";
@@ -136,7 +151,7 @@ final readonly class WorkflowCloseCommand
             }
 
             $manifestPath = $this->refreshCompleteManifest($taskId->value);
-            echo "[OK] workflow close: final Run projection refreshed at {$manifestPath}\n";
+            echo "[OK] workflow close: final Run projection is complete at {$manifestPath}\n";
 
             return 0;
         } catch (Throwable $exception) {
@@ -176,61 +191,18 @@ final readonly class WorkflowCloseCommand
     }
 
     /**
-     * @return list<array{gate: string, detail: string}>
-     */
-    private function implementationEvidenceFailures(
-        GovernedRun $run,
-        string $learningRoot,
-        PostExecutionEvidenceBoundary $boundary,
-    ): array {
-        $failures = array_map(
-            static fn (string $detail): array => ['gate' => 'implementation_evidence', 'detail' => $detail],
-            $boundary->integrityFailures(),
-        );
-        $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
-        if ($decision === null) {
-            return $failures;
-        }
-
-        $validationSha256 = $boundary->validationEvidenceSha256();
-        $reviewSha256 = $boundary->reviewEvidenceSha256();
-        if (
-            $decision->contractRevision !== $boundary->implementation->contractRevision
-            || $decision->implementationSnapshot !== $boundary->implementation->digest
-            || $decision->validationEvidenceSha256 !== $validationSha256
-            || $decision->reviewEvidenceSha256 !== $reviewSha256
-        ) {
-            $failures[] = [
-                'gate' => 'implementation_evidence',
-                'detail' => sprintf(
-                    'stale Learning decision: expected Contract revision %d and implementation snapshot %s with current validation/review evidence',
-                    $boundary->implementation->contractRevision,
-                    $boundary->implementation->digest,
-                ),
-            ];
-        }
-
-        return $failures;
-    }
-
-    /**
      * @return array{detail: string|null, obligations: list<array{command: string, status: string, exit_code: int|null, executed_at: string|null, recorded_by: string|null, duration_ms: int|null}>}
      */
-    private function validationSnapshot(TaskContract $contract, Session $session): array
+    private function validationSnapshot(TaskContract $contract, PostExecutionEvidenceBoundary $boundary): array
     {
-        $evidence = (new ValidationEvidenceStore())->all($session);
         $missing = [];
         $obligations = [];
-        foreach ($contract->validation as $command) {
-            $matching = array_values(array_filter(
-                $evidence,
-                static fn (ValidationEvidence $item): bool => $item->contractRevision === $contract->revision && $item->command === $command,
-            ));
-            $latest = $matching === [] ? null : $matching[count($matching) - 1];
+        foreach ($contract->validation as $index => $command) {
+            $latest = $boundary->validationEvidence[$index] ?? null;
             if ($latest?->status !== ValidationStatus::PASSED) {
-                $missing[] = $command . ' (' . ($latest === null ? 'no evidence' : $latest->status->value) . ')';
+                $missing[] = $command . ' (' . ($latest === null ? 'no current evidence' : $latest->status->value) . ')';
             } else {
-                echo "[OK] validation: {$command} (exit {$latest->exitCode}, Contract revision {$contract->revision})\n";
+                echo "[OK] validation: {$command} (exit {$latest->exitCode}, Contract revision {$contract->revision}, implementation {$boundary->implementation->digest})\n";
             }
             $obligations[] = [
                 'command' => $command,
@@ -243,7 +215,7 @@ final readonly class WorkflowCloseCommand
         }
 
         return [
-            'detail' => $missing === [] ? null : 'validation evidence missing or not passed for: ' . implode(', ', $missing),
+            'detail' => $missing === [] ? null : 'validation evidence missing or not passed for current implementation: ' . implode(', ', $missing),
             'obligations' => $obligations,
         ];
     }
@@ -291,6 +263,31 @@ final readonly class WorkflowCloseCommand
         return null;
     }
 
+    private function learningBindingFailure(
+        GovernedRun $run,
+        string $learningRoot,
+        PostExecutionEvidenceBoundary $boundary,
+    ): ?string {
+        $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
+        if ($decision === null) {
+            return null;
+        }
+        if (
+            $decision->contractRevision !== $boundary->implementation->contractRevision
+            || $decision->implementationSnapshot !== $boundary->implementation->digest
+            || $decision->validationEvidenceSha256 !== $boundary->validationEvidenceSha256()
+            || $decision->reviewEvidenceSha256 !== $boundary->reviewEvidenceSha256()
+        ) {
+            return sprintf(
+                'stale Learning decision: current Contract revision %d / implementation %s no longer matches the decision evidence boundary',
+                $boundary->implementation->contractRevision,
+                $boundary->implementation->digest,
+            );
+        }
+
+        return null;
+    }
+
     private function checkRecallOutcomeGate(string $taskId, string $learningRoot): ?string
     {
         $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
@@ -325,10 +322,6 @@ final readonly class WorkflowCloseCommand
         if (!is_string($compilationId) || trim($compilationId) === '') {
             return 'selected guidance without a compilation id';
         }
-        // An absent outcomes file is no longer a failure in itself: a Run that
-        // withheld every judgement writes no outcome at all. Whether each
-        // selection is accounted for is decided below, where the message can
-        // name the guidance rather than the file.
         $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';
         $outcomeLines = [];
         if (is_file($outcomesPath)) {
@@ -366,11 +359,6 @@ final readonly class WorkflowCloseCommand
         if ($missing !== []) {
             return 'missing explicit recall outcome for: ' . implode(', ', $missing);
         }
-        // A judgement is not the only honest close-out. A Run that compiled
-        // guidance it never consulted has nothing truthful to say about it, and
-        // every available bucket moves a promotion or retirement gate. What this
-        // gate owns is that the silence was deliberate: a declared withholding
-        // passes, a guidance that simply never appears does not.
         echo '[OK] recall outcomes: ' . (count($selected) - count($withheld)) . ' judged, '
             . count($withheld) . " withheld with a stated reason, for " . count($selected)
             . " selected guidance item(s)\n";
@@ -378,11 +366,7 @@ final readonly class WorkflowCloseCommand
         return null;
     }
 
-    /**
-     * Selected guidance whose absent outcome was declared at log time.
-     *
-     * @return array<string, true>
-     */
+    /** @return array<string, true> */
     private function declaredWithholdings(string $learningRoot, string $taskId, string $compilationId): array
     {
         $path = rtrim($learningRoot, '/') . '/history/recall-selections.jsonl';
@@ -392,10 +376,6 @@ final readonly class WorkflowCloseCommand
 
         $withheld = [];
         foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-            // An unreadable line yields no withholding, so the selection it
-            // described stays unaccounted for and the gate refuses the close.
-            // That is the safe direction: a corrupt record must not be able to
-            // excuse a missing judgement.
             $event = json_decode($line, true);
             if (
                 is_array($event)
@@ -444,7 +424,7 @@ final readonly class WorkflowCloseCommand
     private function checkVerifyGate(string $taskId): ?string
     {
         if ((new AgentLoopVerifier($this->rootPath))->run(['--task-id=' . $taskId]) === 0) {
-            echo "[OK] verify: agent-loop verify passed\n";
+            echo "[OK] verify: final consistency check passed\n";
 
             return null;
         }
