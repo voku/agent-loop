@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
+use voku\AgentLoop\AgentOutput;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
@@ -29,6 +30,11 @@ final readonly class WorkflowStatusCommand
 
             if ($options['format'] === 'json') {
                 echo CanonicalJson::pretty([
+                    'manifest' => $manifest->toArray(),
+                    'storage' => $storage,
+                ]);
+            } elseif ($options['format'] === 'toon') {
+                echo AgentOutput::toon([
                     'manifest' => $manifest->toArray(),
                     'storage' => $storage,
                 ]);
@@ -263,14 +269,11 @@ final readonly class WorkflowStatusCommand
     }
 
     /**
-
      * @param list<string> $tokens
-
      * @return array{
-     *     format: 'text'|'json',
+     *     format: 'text'|'json'|'toon',
      *     expect: 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete'|null
      * }
-
      */
     private function parseOptions(array $tokens): array
     {
@@ -303,12 +306,12 @@ final readonly class WorkflowStatusCommand
         return ['format' => $format, 'expect' => $expect];
     }
 
-    /** @return 'text'|'json' */
+    /** @return 'text'|'json'|'toon' */
     private function format(string $value): string
     {
         $format = strtolower(trim($value));
-        if (!in_array($format, ['text', 'json'], true)) {
-            throw new InvalidArgumentException('--format must be text or json.');
+        if (!in_array($format, ['text', 'json', 'toon'], true)) {
+            throw new InvalidArgumentException('--format must be text, json, or toon.');
         }
 
         return $format;
