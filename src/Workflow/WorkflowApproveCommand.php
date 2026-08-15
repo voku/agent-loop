@@ -274,10 +274,11 @@ final readonly class WorkflowApproveCommand
         ];
         $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
         if (file_put_contents($tmp, CanonicalJson::pretty($input)) === false || !rename($tmp, $path)) {
-            if (is_file($tmp) && !unlink($tmp)) {
-                throw new RuntimeException('Unable to remove temporary governed Recall input: ' . $tmp);
-            }
-            throw new RuntimeException('Unable to persist governed Recall input: ' . $path);
+            $cleanupFailed = is_file($tmp) && !unlink($tmp);
+            throw new RuntimeException(
+                'Unable to persist governed Recall input: ' . $path
+                . ($cleanupFailed ? ' (temporary file left behind: ' . $tmp . ')' : ''),
+            );
         }
 
         return $path;
@@ -309,10 +310,11 @@ final readonly class WorkflowApproveCommand
 
         $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
         if (file_put_contents($tmp, $contents) === false || !rename($tmp, $path)) {
-            if (is_file($tmp) && !unlink($tmp)) {
-                throw new RuntimeException('Unable to remove temporary governed Run Contract snapshot: ' . $tmp);
-            }
-            throw new RuntimeException('Unable to persist governed Run Contract snapshot: ' . $path);
+            $cleanupFailed = is_file($tmp) && !unlink($tmp);
+            throw new RuntimeException(
+                'Unable to persist governed Run Contract snapshot: ' . $path
+                . ($cleanupFailed ? ' (temporary file left behind: ' . $tmp . ')' : ''),
+            );
         }
     }
 
