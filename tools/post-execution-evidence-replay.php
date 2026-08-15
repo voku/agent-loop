@@ -55,8 +55,6 @@ $run([
     '--validation', 'php -l src/Example.php',
     '--behavior-anchor', 'A evidence must be rejected after B; B evidence must close to complete without a separate pre-close verify.',
 ]);
-$run(['map', 'build', '--paths=src']);
-$run(['map', 'search-index', 'build']);
 $run(['workflow', 'approve', 'DEMO-1', '--by', 'voku']);
 $context = $run(['workflow', 'context', 'DEMO-1', '--format', 'json']);
 file_put_contents($target . '/context.json', $context['stdout']);
