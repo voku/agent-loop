@@ -261,17 +261,16 @@ final class InitSyncManifest
             if ($hash === false) {
                 return null;
             }
-            $files[$relative] = 'sha256:' . $hash;
+            $files[$relative] = $hash;
         }
         ksort($files, SORT_STRING);
 
-        try {
-            $encoded = json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return null;
+        $context = hash_init('sha256');
+        foreach ($files as $relative => $hash) {
+            hash_update($context, strlen($relative) . ':' . $relative . strlen($hash) . ':' . $hash);
         }
 
-        return 'sha256:' . hash('sha256', $encoded);
+        return 'sha256:' . hash_final($context);
     }
 
     public static function representationDigest(string $targetRoot, string $entry): ?string
@@ -293,20 +292,12 @@ final class InitSyncManifest
         if (!is_string($raw)) {
             return null;
         }
-        try {
-            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-            if (!is_array($decoded) || !array_key_exists($fragment, $decoded)) {
-                return null;
-            }
-            $encoded = json_encode(
-                [$fragment => self::normalizeJson($decoded[$fragment])],
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-            );
-        } catch (JsonException) {
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !array_key_exists($fragment, $decoded)) {
             return null;
         }
 
-        return 'sha256:' . hash('sha256', $encoded);
+        return 'sha256:' . hash('sha256', serialize([$fragment => self::normalizeJson($decoded[$fragment])]));
     }
 
     /**
