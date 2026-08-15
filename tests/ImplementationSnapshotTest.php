@@ -60,6 +60,16 @@ final class ImplementationSnapshotTest extends TestCase
         ImplementationSnapshot::capture($this->root, $this->contract('SNAP-4', ['src/Missing.php']));
     }
 
+    public function testSymlinkInsideScopedDirectoryIsNeverSilentlySkipped(): void
+    {
+        self::assertTrue(symlink('A.php', $this->root . '/src/Linked.php'));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('src/Linked.php');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-5', ['src']));
+    }
+
     /** @param list<string> $scope */
     private function contract(string $taskId, array $scope): \voku\AgentLoop\Workflow\TaskContract
     {
