@@ -179,10 +179,6 @@ final class InitSyncManifest
         $entries = [];
 
         foreach ($sources as $target => $source) {
-            if (!$source instanceof ManagedAssetSource) {
-                throw new InvalidArgumentException('Managed projection source must be a ManagedAssetSource for target: ' . $target);
-            }
-
             $sourceDigest = self::digestPath($source->path);
             if ($sourceDigest === null) {
                 throw new InvalidArgumentException('Managed projection source is missing or unreadable: ' . $source->path);
