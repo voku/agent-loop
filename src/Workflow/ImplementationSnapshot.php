@@ -58,11 +58,17 @@ final readonly class ImplementationSnapshot
                 new RecursiveDirectoryIterator($absolute, RecursiveDirectoryIterator::SKIP_DOTS),
             );
             foreach ($iterator as $item) {
-                if (!$item instanceof SplFileInfo || !$item->isFile() || $item->isLink()) {
+                if (!$item instanceof SplFileInfo) {
                     continue;
                 }
                 $path = str_replace('\\', '/', $item->getPathname());
                 $fileRelative = self::relative($root, $path);
+                if ($item->isLink()) {
+                    throw new RuntimeException('Implementation snapshot refuses symlinked path inside approved scope: ' . $fileRelative);
+                }
+                if (!$item->isFile()) {
+                    continue;
+                }
                 if (self::excluded($fileRelative, $stateRelative)) {
                     continue;
                 }
@@ -112,7 +118,7 @@ final readonly class ImplementationSnapshot
             throw new RuntimeException('Implementation snapshot scope must be repository-relative: ' . $path);
         }
         foreach (explode('/', $path) as $segment) {
-            if ($segment === '' || $segment === '..') {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
                 throw new RuntimeException('Implementation snapshot scope escapes or ambiguously addresses the repository: ' . $path);
             }
         }
