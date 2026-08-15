@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\AgentOutput;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -38,6 +39,11 @@ final readonly class InitPathsCommand
 
             return 0;
         }
+        if ($format === 'toon') {
+            echo AgentOutput::toon($paths);
+
+            return 0;
+        }
 
         $width = max(1, ...array_map(strlen(...), array_keys($paths)));
         foreach ($paths as $name => $path) {
@@ -50,7 +56,7 @@ final readonly class InitPathsCommand
 
     /**
      * @param list<string> $tokens
-     * @return 'text'|'json'
+     * @return 'text'|'json'|'toon'
      */
     private function parse(array $tokens): string
     {
@@ -61,11 +67,11 @@ final readonly class InitPathsCommand
                 continue;
             }
 
-            throw new InvalidArgumentException('supported option is --format=text|json, got ' . $token . '.');
+            throw new InvalidArgumentException('supported option is --format=text|json|toon, got ' . $token . '.');
         }
 
-        if ($format !== 'text' && $format !== 'json') {
-            throw new InvalidArgumentException('--format must be text or json.');
+        if (!in_array($format, ['text', 'json', 'toon'], true)) {
+            throw new InvalidArgumentException('--format must be text, json, or toon.');
         }
 
         return $format;
