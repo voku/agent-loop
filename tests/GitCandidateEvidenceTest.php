@@ -165,6 +165,14 @@ final class GitCandidateEvidenceTest extends TestCase
         $typo = $runner->run([...$command, '--release-tga=1.2.3']);
         self::assertSame(1, $typo['exit_code']);
         self::assertStringContainsString('Unknown candidate evidence option: --release-tga', $typo['stdout'] . $typo['stderr']);
+
+        $toonTypo = $runner->run([...$toonCommand, '--release-tga=1.2.3']);
+        self::assertSame(1, $toonTypo['exit_code']);
+        self::assertSame('', $toonTypo['stderr']);
+        $toonError = Toon::decode($toonTypo['stdout']);
+        self::assertIsArray($toonError);
+        self::assertSame('fail', $toonError['status'] ?? null);
+        self::assertStringContainsString('Unknown candidate evidence option: --release-tga', (string) ($toonError['error'] ?? ''));
     }
 
     private function repository(): string
