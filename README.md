@@ -38,10 +38,23 @@ vendor/bin/agent-loop
 
 ## Start a repository
 
-Create the minimum local workflow structure and a clearly marked example task:
+Create the minimum local workflow infrastructure without inventing a board
+identity or fake task:
 
 ```bash
 vendor/bin/agent-loop init scaffold
+```
+
+For a real board, provide its project prefix explicitly:
+
+```bash
+vendor/bin/agent-loop init scaffold --prefix=PROJECT
+```
+
+For the tutorial flow, opt into the example board and task:
+
+```bash
+vendor/bin/agent-loop init scaffold --demo
 vendor/bin/agent-loop board card show DEMO-1
 ```
 
@@ -357,7 +370,6 @@ vendor/bin/agent-loop edit verify \
 cross-package workflow state. They are intentionally different gates.
 
 ## Governed task workflow
-
 Plan the exact scope and validation contract:
 
 ```bash

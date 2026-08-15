@@ -28,7 +28,7 @@ final class CompactLayoutIntegrationTest extends TestCase
 
     public function testScaffoldKeepsWorkflowStateUnderOneDirectory(): void
     {
-        $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold']);
+        $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold', '--demo']);
 
         self::assertSame(0, $scaffold['exit'], $scaffold['output']);
         self::assertFileExists($this->root . '/.agent-loop/init.json');
