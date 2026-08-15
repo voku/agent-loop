@@ -14,7 +14,7 @@ use voku\AgentLoop\PathResolver;
  * agent, not a hypothetical Composer consumer. The root package uses
  * bin/agent-loop and its tracked githooks/ directory; consumers normally use
  * vendor/bin/agent-loop and .githooks/. Consumers whose PHP floor cannot host
- * agent-loop may install it as an isolated Composer tool under tools/*/.
+ * agent-loop may install it as an isolated Composer tool below tools/.
  */
 final readonly class RepositoryActivation
 {
