@@ -68,6 +68,11 @@ final class GovernedRecallInputArchiveTest extends TestCase
         self::assertSame('approved', $firstSnapshot['status'] ?? null);
         self::assertSame(1, $firstSnapshot['revision'] ?? null);
 
+        $runBeforeResume = $this->json($activeRunDirectory . '/run.json');
+        self::assertSame(0, $this->approve('ABC-123'));
+        self::assertSame($runBeforeResume, $this->json($activeRunDirectory . '/run.json'));
+        self::assertSame($firstContractBytes, file_get_contents($activeContractSnapshot));
+
         $sessions = new SessionStore();
         $firstSessions = $sessions->all($this->root . '/.agent-loop/sessions');
         self::assertCount(1, $firstSessions);
