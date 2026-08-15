@@ -104,8 +104,16 @@ final readonly class InitSyncSubagentsCommand
             default => '.md',
         };
         $desiredEntries = [];
+        $projectionSources = [];
         foreach (array_keys($definitions) as $sourceFile) {
-            $desiredEntries[] = basename($sourceFile, '.md') . $targetSuffix;
+            $name = basename($sourceFile, '.md');
+            $entry = $name . $targetSuffix;
+            $desiredEntries[] = $entry;
+            $projectionSources[$entry] = ManagedAssetSource::fromPath(
+                $this->rootPath,
+                $sourceFile,
+                'subagent:' . $name,
+            );
         }
         sort($desiredEntries);
 
@@ -164,7 +172,11 @@ final readonly class InitSyncSubagentsCommand
                 return 1;
             }
 
-            $manifest->write($desiredEntries);
+            $manifest->writeProjections(
+                $projectionSources,
+                [HostCapability::SubagentProjection],
+                array_keys($adopted),
+            );
         }
 
         echo '[OK] sync subagents: synced ' . count($definitions) . ' subagent file(s) for ' . $agent . ' into ' . $targetRoot . "\n";
