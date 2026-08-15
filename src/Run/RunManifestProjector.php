@@ -411,12 +411,19 @@ final readonly class RunManifestProjector
                 ];
             }
 
+            $state = match ($receipt->verdict) {
+                'satisfied' => 'passed',
+                'accepted_risk' => 'accepted_risk',
+                default => 'failed',
+            };
+
             return [
                 'owner' => 'agent-loop',
-                'state' => $receipt->verdict === 'satisfied' ? 'passed' : 'failed',
+                'state' => $state,
                 'observation_mode' => 'checked',
                 'run_id' => $receipt->runId,
                 'contract_revision' => $receipt->contractRevision,
+                'implementation_snapshot' => $receipt->implementationSnapshot,
                 'source_session_id' => $receipt->sourceSessionId,
                 'source' => $this->artifact($receipt->path),
             ];
@@ -588,7 +595,7 @@ final readonly class RunManifestProjector
         if (($references['verification']['state'] ?? null) === 'failed') {
             return 'blocked';
         }
-        if (($references['verification']['state'] ?? null) === 'passed') {
+        if (in_array($references['verification']['state'] ?? null, ['passed', 'accepted_risk'], true)) {
             return $session === null || $session->status->isClosed() ? 'complete' : 'ready_to_close';
         }
 
@@ -617,10 +624,10 @@ final readonly class RunManifestProjector
             return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
         }
         if ($contract->status !== TaskContract::APPROVED || $run === null) {
-            return 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>';
+            return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
         }
         if (($references['recall']['state'] ?? null) !== 'compiled') {
-            return 'agent-loop workflow approve ' . $taskId . ' --by <human-actor>';
+            return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
         }
         if (in_array($references['execution_contract']['state'] ?? null, ['missing', 'pending_recall'], true)) {
             return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
@@ -634,7 +641,7 @@ final readonly class RunManifestProjector
         if (($references['learning']['state'] ?? null) !== 'decided') {
             return 'agent-loop workflow learn ' . $taskId . ' --status no_durable_learning --by <actor> --reason "..."';
         }
-        if (($references['verification']['state'] ?? null) !== 'passed') {
+        if (!in_array($references['verification']['state'] ?? null, ['passed', 'accepted_risk'], true)) {
             return 'agent-loop workflow close ' . $taskId . ' --status done';
         }
         if ($session === null || $session->status->isClosed()) {
