@@ -13,7 +13,8 @@ use voku\AgentLoop\PathResolver;
  * Printed activation instructions must describe the repository in front of the
  * agent, not a hypothetical Composer consumer. The root package uses
  * bin/agent-loop and its tracked githooks/ directory; consumers normally use
- * vendor/bin/agent-loop and .githooks/.
+ * vendor/bin/agent-loop and .githooks/. Consumers whose PHP floor cannot host
+ * agent-loop may install it as an isolated Composer tool under tools/*/.
  */
 final readonly class RepositoryActivation
 {
@@ -39,8 +40,13 @@ final readonly class RepositoryActivation
         }
 
         $alternative = $expected === 'bin/agent-loop' ? 'vendor/bin/agent-loop' : 'bin/agent-loop';
+        if (is_file($this->absolute($alternative))) {
+            return $alternative;
+        }
 
-        return is_file($this->absolute($alternative)) ? $alternative : $expected;
+        $isolatedToolCli = $this->isolatedToolCliPath();
+
+        return $isolatedToolCli ?? $expected;
     }
 
     public function cliAvailable(): bool
@@ -217,6 +223,21 @@ final readonly class RepositoryActivation
         }
 
         return !is_file($target . '/' . InitSyncManifest::fileName());
+    }
+
+    private function isolatedToolCliPath(): ?string
+    {
+        $matches = glob($this->absolute('tools/*/vendor/bin/agent-loop'));
+        if (!is_array($matches)) {
+            return null;
+        }
+
+        $matches = array_values(array_filter($matches, is_file(...)));
+        if (count($matches) !== 1) {
+            return null;
+        }
+
+        return PathResolver::relativeTo($this->rootPath, $matches[0]);
     }
 
     private function isRootPackage(): bool
