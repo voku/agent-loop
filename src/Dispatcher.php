@@ -173,11 +173,11 @@ final class Dispatcher
             return $rest;
         }
         $sessionRoot = $this->optionValue($rest, 'root') ?? $this->layout()->sessionsRoot();
-        try {
-            $session = (new SessionStore())->load($sessionRoot, $sessionId);
-        } catch (\RuntimeException) {
+        $store = new SessionStore();
+        if (!$store->exists($sessionRoot, $sessionId)) {
             return $rest;
         }
+        $session = $store->load($sessionRoot, $sessionId);
         $contract = (new TaskContractStore($this->rootPath))->find($session->taskId);
         if ($contract === null || $contract->status !== TaskContract::APPROVED) {
             return $rest;
@@ -193,13 +193,7 @@ final class Dispatcher
 
             return null;
         }
-        try {
-            $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
-        } catch (\Throwable $exception) {
-            echo '[ERROR] Cannot bind governed validation: ' . $exception->getMessage() . "\n";
-
-            return null;
-        }
+        $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
 
         return array_merge($rest, ['--implementation-snapshot', $snapshot->digest]);
     }
@@ -226,13 +220,7 @@ final class Dispatcher
 
             return null;
         }
-        try {
-            $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
-        } catch (\Throwable $exception) {
-            echo '[ERROR] Cannot bind governed review: ' . $exception->getMessage() . "\n";
-
-            return null;
-        }
+        $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
 
         return array_merge($rest, [
             '--contract-revision', (string) $contract->revision,
