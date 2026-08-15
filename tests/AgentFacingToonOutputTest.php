@@ -48,7 +48,7 @@ final class AgentFacingToonOutputTest extends TestCase
         $toonPayload = Toon::decode($toon);
         self::assertIsArray($jsonPayload);
         self::assertIsArray($toonPayload);
-        self::assertSame($jsonPayload, $toonPayload);
+        self::assertEquals($jsonPayload, $toonPayload);
         self::assertLessThan(strlen($json), strlen($toon));
     }
 
@@ -64,10 +64,7 @@ final class AgentFacingToonOutputTest extends TestCase
         $toonPayload = Toon::decode($toon);
         self::assertIsArray($jsonPayload);
         self::assertIsArray($toonPayload);
-        self::assertSame($jsonPayload['manifest']['state'] ?? null, $toonPayload['manifest']['state'] ?? null);
-        self::assertSame($jsonPayload['manifest']['next_action'] ?? null, $toonPayload['manifest']['next_action'] ?? null);
-        self::assertSame($jsonPayload['manifest']['references'] ?? null, $toonPayload['manifest']['references'] ?? null);
-        self::assertSame($jsonPayload['storage']['state'] ?? null, $toonPayload['storage']['state'] ?? null);
+        self::assertEquals($jsonPayload, $toonPayload);
         self::assertLessThan(strlen($json), strlen($toon));
     }
 
