@@ -37,8 +37,11 @@ final readonly class WorkflowPlanCommand
             if ($activeSession !== null) {
                 throw new RuntimeException(
                     'Cannot revise Contract for ' . $taskId->value . ' while governed Session ' . $activeSession->id
-                    . ' is active. Continue the existing Run, or if it is abandoned run `agent-loop session close '
-                    . $activeSession->id . ' --status dropped` before changing durable intent.',
+                    . ' is active. If durable intent is unchanged, continue the existing Run. If scope or policy changed, '
+                    . 'close the current Session with `agent-loop session close ' . $activeSession->id
+                    . ' --status dropped`, rerun `agent-loop workflow plan ' . $taskId->value
+                    . ' ...`, and obtain approval for the new Contract revision. Replacement approval preserves the prior '
+                    . 'Run in history and creates a new Session/Run; never reuse one Session across Contract revisions.',
                 );
             }
 

@@ -9,7 +9,9 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
+use voku\AgentSession\SessionStore;
 
 final class WorkflowPlanNextCommandTest extends TestCase
 {
@@ -62,20 +64,72 @@ final class WorkflowPlanNextCommandTest extends TestCase
         }
     }
 
+    public function testActiveSessionFailureExplainsTheGovernedReplanSupersessionHandoff(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-replan-handoff-' . bin2hex(random_bytes(6));
+        mkdir($root, 0o775, true);
+
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create('ABC-123', 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
+            $contracts->approve('ABC-123', 'lars');
+            $session = (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123', null, 'lars');
+
+            $result = $this->runProcess([
+                PHP_BINARY,
+                dirname(__DIR__) . '/bin/agent-loop',
+                'workflow', 'plan', 'ABC-123',
+                '--by', 'lars',
+                '--file', 'src/Foo.php',
+                '--file', 'phpstan.neon',
+                '--goal', 'Expanded scope.',
+                '--validation', 'vendor/bin/phpunit',
+            ], $root);
+
+            self::assertSame(1, $result['exit'], $result['stderr']);
+            self::assertSame(1, $contracts->load('ABC-123')->revision);
+            self::assertStringContainsString('If durable intent is unchanged, continue the existing Run.', $result['stderr']);
+            self::assertStringContainsString(
+                'agent-loop session close ' . $session->id . ' --status dropped',
+                $result['stderr'],
+            );
+            self::assertStringContainsString('rerun `agent-loop workflow plan ABC-123 ...`', $result['stderr']);
+            self::assertStringContainsString('Replacement approval preserves the prior Run in history', $result['stderr']);
+            self::assertStringContainsString('never reuse one Session across Contract revisions', $result['stderr']);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     private function roundTripShellArgument(string $rendered): string
+    {
+        $result = $this->runProcess(['sh', '-c', 'set -- ' . $rendered . '; printf %s "$1"']);
+        if ($result['exit'] !== 0) {
+            throw new RuntimeException('POSIX shell probe failed: ' . $result['stderr']);
+        }
+
+        return $result['stdout'];
+    }
+
+    /**
+     * @param list<string> $command
+     * @return array{exit: int, stdout: string, stderr: string}
+     */
+    private function runProcess(array $command, ?string $cwd = null): array
     {
         $pipes = [];
         $process = proc_open(
-            ['sh', '-c', 'set -- ' . $rendered . '; printf %s "$1"'],
+            $command,
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
                 2 => ['pipe', 'w'],
             ],
             $pipes,
+            $cwd,
         );
         if (!is_resource($process)) {
-            throw new RuntimeException('Unable to start POSIX shell probe.');
+            throw new RuntimeException('Unable to start process probe.');
         }
 
         fclose($pipes[0]);
@@ -85,11 +139,11 @@ final class WorkflowPlanNextCommandTest extends TestCase
         fclose($pipes[2]);
         $exit = proc_close($process);
 
-        if ($exit !== 0 || $stdout === false || $stderr === false) {
-            throw new RuntimeException('POSIX shell probe failed: ' . ($stderr === false ? '' : $stderr));
+        if ($stdout === false || $stderr === false) {
+            throw new RuntimeException('Unable to read process probe output.');
         }
 
-        return $stdout;
+        return ['exit' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
     }
 
     private function removeDirectory(string $path): void

@@ -28,6 +28,22 @@ vendor/bin/agent-loop workflow plan <task-id> \
 `workflow plan` creates or revises a candidate Contract. It deliberately creates
 neither a Session nor a Run and does **not** compile Recall yet.
 
+### Re-planning an active governed Run
+
+`PLAN` re-entry is a supersession handoff, not an in-place mutation of the
+current Run. If scope or task policy changes while a governed Session is active:
+
+1. stop using the old Contract as implementation authority;
+2. close that Session with `session close <session-id> --status dropped`;
+3. rerun `workflow plan <task-id> ...` with the corrected durable intent;
+4. obtain named human approval for the new Contract revision;
+5. let `workflow approve` create the replacement Session/Run and archive the
+   superseded Run evidence.
+
+If durable intent did **not** change, continue the existing Run instead. Never
+close a Session merely to bypass a gate, and never reuse one Session across two
+Contract revisions.
+
 When ranked map evidence is expected, establish both the semantic map and its
 separate Search index **before approval**:
 
