@@ -84,7 +84,10 @@ final readonly class InitScaffoldCommand
         }
 
         if ($demo) {
-            $this->ensureDemoTaskAndCard($root, $stateRoot, $dryRun);
+            $demoExit = $this->ensureDemoTaskAndCard($root, $stateRoot, $dryRun);
+            if ($demoExit !== 0) {
+                return $demoExit;
+            }
         }
 
         $hasBoardIdentity = $boardConfig !== null || is_file($boardConfigPath) || is_file($boardMetadataPath);
@@ -126,7 +129,7 @@ final readonly class InitScaffoldCommand
         return 0;
     }
 
-    private function ensureDemoTaskAndCard(string $root, string $stateRoot, bool $dryRun): void
+    private function ensureDemoTaskAndCard(string $root, string $stateRoot, bool $dryRun): int
     {
         $this->ensureFile($stateRoot . '/tasks/DEMO-1.md', $this->relative($root, $stateRoot . '/tasks/DEMO-1.md'), <<<'MD'
 # DEMO-1: Add a small validated change
@@ -141,12 +144,12 @@ MD
         if (is_file($cardPath) || is_file($stateRoot . '/todo/jira/' . self::EXAMPLE_TASK_ID . '.md')) {
             echo '[SKIP] ' . $cardDisplay . ' already exists' . "\n";
 
-            return;
+            return 0;
         }
         if ($dryRun) {
             echo '[DRY-RUN] would create ' . $cardDisplay . "\n";
 
-            return;
+            return 0;
         }
 
         $board = new CliApplication($stateRoot);
@@ -175,9 +178,14 @@ MD
             ob_end_clean();
         }
         if ($exit !== 0) {
-            throw new \RuntimeException('Could not create the example board card.');
+            fwrite(STDERR, '[FAIL] init scaffold: could not create the example board card.' . "\n");
+
+            return $exit;
         }
+
         echo '[CREATE] ' . $cardDisplay . "\n";
+
+        return 0;
     }
 
     private function printBoardNext(bool $hasBoardIdentity, bool $demo): void
