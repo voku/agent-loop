@@ -36,15 +36,14 @@ final readonly class ManagedAssetDriftInspector
         $desired = $desiredEntries === null ? null : array_fill_keys($desiredEntries, true);
 
         foreach ($manifest->managedEntries() as $entry) {
-            if ($desired !== null && !isset($desired[$entry])) {
-                $states['stale'][] = $entry;
-
-                continue;
-            }
-
             $metadata = $manifest->entry($entry);
             if (!$manifest->hasDriftEvidence() || $metadata === null || $metadata['source_path'] === null || $metadata['source_sha256'] === null || $metadata['representation_sha256'] === null) {
                 $states['unverifiable'][] = $entry;
+
+                continue;
+            }
+            if ($desired !== null && !isset($desired[$entry])) {
+                $states['stale'][] = $entry;
 
                 continue;
             }
