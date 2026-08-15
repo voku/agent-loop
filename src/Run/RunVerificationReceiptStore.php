@@ -25,14 +25,17 @@ final class RunVerificationReceiptStore
         GovernedRun $run,
         TaskContract $contract,
         Session $session,
-        string $implementationSnapshot,
         string $verdict,
         array $obligations,
+        ?string $implementationSnapshot = null,
     ): RunVerificationReceipt {
         if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
             throw new RuntimeException('Verification receipt verdict must be satisfied, unsatisfied, or accepted_risk.');
         }
-        if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
+        if (
+            $implementationSnapshot !== null
+            && preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1
+        ) {
             throw new RuntimeException('Verification receipt implementation snapshot must be a sha256 digest.');
         }
         if ($contract->taskId !== $run->taskId || $session->taskId !== $run->taskId) {
@@ -128,7 +131,7 @@ final class RunVerificationReceiptStore
         }
         $schema = is_array($data) ? ($data['schema_version'] ?? null) : null;
         if (!is_array($data) || !in_array($schema, ['1.0', '1.1'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
-            throw new RuntimeException('Unsupported verification receipt schema in ' . $path . '.');
+            throw new RuntimeException('Unsupported run verification receipt schema in ' . $path . '.');
         }
         $taskId = $this->requiredString($data, 'task_id', $path);
         if ($taskId !== $expectedTaskId) {
