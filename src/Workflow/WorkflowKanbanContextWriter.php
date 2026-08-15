@@ -14,8 +14,8 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
 
 /**
- * Board owns parsing and card policy. Workflow only writes a small, stable
- * projection beside the approved session brief for recall to consume.
+ * Board owns parsing and card policy. Workflow only writes the fields Recall
+ * actually consumes, preserving the complete value of every selected field.
  */
 final readonly class WorkflowKanbanContextWriter
 {
@@ -58,29 +58,15 @@ final readonly class WorkflowKanbanContextWriter
                 'lane' => $card->lane->toString(),
                 'status' => $card->status->toString(),
                 'priority' => $card->priority,
-                'summary' => $this->excerpt($card->summary, 1200),
-                'next_action' => $this->excerpt($card->nextAction, 1200),
-                'validation' => $this->excerpt($card->validation, 1200),
-                'task_brief' => $this->excerpt($card->taskBrief, 3000),
-                'handoff_notes' => $this->excerpt($card->handoffNotes, 3000),
+                'next_action' => $card->nextAction,
             ],
         ];
-        $json = json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+        $json = json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
         $path = $session->path . '/kanban-context.json';
         if (file_put_contents($path, $json) === false) {
             throw new RuntimeException('Could not write kanban context: ' . $path);
         }
 
         return $path;
-    }
-
-    private function excerpt(string $value, int $maxChars): string
-    {
-        $normalized = trim(str_replace(["\r\n", "\r"], "\n", $value));
-        if (mb_strlen($normalized, 'UTF-8') <= $maxChars) {
-            return $normalized;
-        }
-
-        return rtrim(mb_strcut($normalized, 0, $maxChars, 'UTF-8')) . "\n[truncated by workflow projection]";
     }
 }

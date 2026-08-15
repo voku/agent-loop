@@ -257,12 +257,12 @@ final readonly class AgentDisciplineHook
         if (count($unfinished) === 1) {
             $taskId = $unfinished[0]['task_id'];
             $lines[] = sprintf(
-                '- before any governed mutation: `vendor/bin/agent-loop workflow status %s --format=json`.',
+                '- before any governed mutation: `vendor/bin/agent-loop workflow status %s --format=toon`.',
                 $taskId,
             );
         } else {
             $lines[] = '- multiple unfinished tasks exist. Resolve the task from the current request/repository context; do not guess.';
-            $lines[] = '- before any governed mutation, run `vendor/bin/agent-loop workflow status <task-id> --format=json` for the resolved task.';
+            $lines[] = '- before any governed mutation, run `vendor/bin/agent-loop workflow status <task-id> --format=toon` for the resolved task.';
         }
 
         $lines[] = '- do not infer approval, validation, review, learning, intent, or a next command from this hint.';
