@@ -109,6 +109,14 @@ final readonly class WorkflowCloseCommand
                 return 1;
             }
 
+            $currentSnapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
+            if (!hash_equals($boundary->implementation->digest, $currentSnapshot->digest)) {
+                echo "[FAIL] integrity: implementation changed after post-execution evidence was evaluated.\n";
+                echo "[FAIL] workflow close: session was not closed.\n";
+
+                return 1;
+            }
+
             $acceptedRisk = $options['acceptRisk'] !== null;
             if ($acceptedRisk) {
                 if ($options['acceptRiskBy'] === null) {
@@ -125,14 +133,6 @@ final readonly class WorkflowCloseCommand
                 echo "[WARN] workflow close: accepted risk recorded at {$path}\n";
             } else {
                 echo "[OK] workflow close: gates passed\n";
-            }
-
-            $currentSnapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
-            if (!hash_equals($boundary->implementation->digest, $currentSnapshot->digest)) {
-                echo "[FAIL] integrity: implementation changed after post-execution evidence was evaluated.\n";
-                echo "[FAIL] workflow close: session was not closed.\n";
-
-                return 1;
             }
 
             $receipt = (new RunVerificationReceiptStore($this->rootPath))->record(
