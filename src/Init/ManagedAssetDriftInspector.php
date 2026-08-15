@@ -90,11 +90,10 @@ final readonly class ManagedAssetDriftInspector
             }
         }
 
-        foreach ($states as &$entries) {
-            $entries = array_values(array_unique($entries));
-            sort($entries, SORT_STRING);
+        foreach (array_keys($states) as $state) {
+            $states[$state] = array_values(array_unique($states[$state]));
+            sort($states[$state], SORT_STRING);
         }
-        unset($entries);
 
         return $states;
     }
