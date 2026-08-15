@@ -43,6 +43,51 @@ final class ImplementationSnapshotTest extends TestCase
         self::assertSame(1, $a->contractRevision);
     }
 
+    public function testExplicitDurableWorkflowPolicyFileCanBeImplementationScope(): void
+    {
+        $relative = '.agent-loop/learning/proposals/approved/proposal.test.json';
+        $absolute = $this->root . '/' . $relative;
+        mkdir(dirname($absolute), 0o775, true);
+        file_put_contents($absolute, "{\"rule\":\"A\"}\n");
+        $contract = $this->contract('SNAP-POLICY-1', [$relative]);
+
+        $before = ImplementationSnapshot::capture($this->root, $contract);
+        self::assertSame([$relative], array_column($before->files, 'path'));
+
+        file_put_contents($absolute, "{\"rule\":\"B\"}\n");
+        $after = ImplementationSnapshot::capture($this->root, $contract);
+
+        self::assertNotSame($before->digest, $after->digest);
+    }
+
+    public function testGeneratedWorkflowEvidenceFileRemainsExcludedEvenWhenExplicitlyScoped(): void
+    {
+        $relative = '.agent-loop/runs/run-test.json';
+        $absolute = $this->root . '/' . $relative;
+        mkdir(dirname($absolute), 0o775, true);
+        file_put_contents($absolute, "{}\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('generated workflow/dependency metadata');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-RUN-1', [$relative]));
+    }
+
+    public function testWorkflowStateDirectoryCannotBeRecursivelyScoped(): void
+    {
+        $directory = $this->root . '/.agent-loop/learning/proposals/approved';
+        mkdir($directory, 0o775, true);
+        file_put_contents($directory . '/proposal.test.json', "{}\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('scope durable state files explicitly');
+
+        ImplementationSnapshot::capture(
+            $this->root,
+            $this->contract('SNAP-POLICY-DIR-1', ['.agent-loop/learning/proposals/approved']),
+        );
+    }
+
     public function testExternalWorkflowStateRootDoesNotBecomeImplementationScope(): void
     {
         $externalStateRoot = sys_get_temp_dir() . '/agent-loop-external-state-' . bin2hex(random_bytes(6));
