@@ -106,6 +106,17 @@ final class SelfShapeEvidenceTest extends TestCase
         self::assertNotSame([], $assertion->afterPrune($damaged, 'run:X:1'));
     }
 
+    public function testSyntheticSelfShapeDoesNotClaimAgentRecallConsumption(): void
+    {
+        $runner = file_get_contents(dirname(__DIR__) . '/tools/self-shape-dogfood.php');
+
+        self::assertIsString($runner);
+        self::assertStringContainsString(
+            "'recall_system_consumption_by_agent' => 'not_exercised'",
+            $runner,
+        );
+    }
+
     /** @return array<string, mixed> */
     private function projection(string $sessionState): array
     {
