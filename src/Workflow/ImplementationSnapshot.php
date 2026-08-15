@@ -105,7 +105,9 @@ final readonly class ImplementationSnapshot
     private static function normalizeRelative(string $path): string
     {
         $path = trim(str_replace('\\', '/', $path));
-        $path = ltrim($path, './');
+        if (str_starts_with($path, './')) {
+            $path = substr($path, 2);
+        }
         if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:\//', $path) === 1) {
             throw new RuntimeException('Implementation snapshot scope must be repository-relative: ' . $path);
         }
