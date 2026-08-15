@@ -121,7 +121,7 @@ $snapshots = array_values(array_unique(array_filter(array_column($rows, 'impleme
 if (count($rows) !== 2 || count($snapshots) !== 2) {
     throw new RuntimeException('Expected append-only A/B validation history with two distinct snapshots.');
 }
-$gitStatus = $exec(['git', 'status', '--porcelain'], $target);
+$gitStatus = $exec(['git', 'status', '--porcelain', '--untracked-files=all'], $target);
 if (!str_contains($gitStatus['stdout'], 'src/Example.php')) {
     throw new RuntimeException('Replay did not preserve an uncommitted implementation state.');
 }
