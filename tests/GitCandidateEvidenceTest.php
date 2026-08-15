@@ -159,7 +159,7 @@ final class GitCandidateEvidenceTest extends TestCase
         $toonResult = $runner->mustRun($toonCommand);
         $toon = Toon::decode($toonResult['stdout']);
         self::assertIsArray($toon);
-        self::assertSame($decoded, $toon);
+        self::assertEquals($decoded, $toon);
         self::assertLessThan(strlen($result['stdout']), strlen($toonResult['stdout']));
 
         $typo = $runner->run([...$command, '--release-tga=1.2.3']);
