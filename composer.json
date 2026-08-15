@@ -14,13 +14,18 @@
       "homepage": "https://github.com/voku"
     }
   ],
+  "repositories": [
+    {"type": "vcs", "url": "https://github.com/voku/agent-session.git"},
+    {"type": "vcs", "url": "https://github.com/voku/agent-learning.git"},
+    {"type": "vcs", "url": "https://github.com/voku/agent-recall-compiler.git"}
+  ],
   "require": {
     "php": "^8.3",
     "voku/agent-kanban": "0.2.*",
-    "voku/agent-learning": "^0.11.1",
+    "voku/agent-learning": "dev-agent/implementation-snapshot-evidence as 0.12.0",
     "voku/agent-map": "^0.8.1",
-    "voku/agent-recall-compiler": "^0.12.4",
-    "voku/agent-session": "^0.5.0",
+    "voku/agent-recall-compiler": "dev-agent/implementation-snapshot-review as 0.13.0",
+    "voku/agent-session": "dev-agent/implementation-snapshot-evidence as 0.6.0",
     "voku/itp-context": "^0.3.0"
   },
   "require-dev": {
