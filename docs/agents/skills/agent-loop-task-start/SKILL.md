@@ -37,9 +37,10 @@ vendor/bin/agent-loop map search-index build
 vendor/bin/agent-loop map summary
 ```
 
-`map build` does not create `.agent-loop/map/search.sqlite`. `workflow approve`
+`map build` does not create `<map-root>/search.sqlite`. `workflow approve`
 compiles governed Recall immediately, so an index built afterwards cannot
-contribute ranked map evidence to that first briefing.
+contribute ranked map evidence to that first briefing. Resolve `map_root` with
+`vendor/bin/agent-loop init paths --format=json` instead of assuming its location.
 
 A named human must approve the exact revision before implementation; approval
 prepares the governed Run/Session and compiles Recall from that sealed Contract.
