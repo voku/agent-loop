@@ -16,8 +16,8 @@ use PHPStan\Rules\RuleErrorBuilder;
  * `PHPStan\Testing\RuleTestCase` boots a PHPStan container inside the test
  * process. agent-loop's PHPUnit run also loads `agent-map`, which performs its
  * own Composer-based PHPStan discovery there, and the two containers do not
- * coexist. The isolation is currently a shell convention
- * (`tools/project-phpstan-rules.sh`); this rule makes reintroducing the
+ * coexist. The isolation is owned by the dedicated PHP runner
+ * (`tools/project-phpstan-rules.php`); this rule makes reintroducing the
  * in-process variant fail analysis instead of failing mysteriously at runtime.
  *
  * @implements Rule<Class_>
@@ -42,7 +42,7 @@ final class NoInProcessPhpstanRuleTestCaseRule implements Rule
 
         return [
             RuleErrorBuilder::message(
-                'Project PHPStan rule fixtures must run in an isolated PHPStan process; do not extend PHPStan\\Testing\\RuleTestCase in the PHPUnit suite. Assert the rule through tools/project-phpstan-rules.sh instead.',
+                'Project PHPStan rule fixtures must run in an isolated PHPStan process; do not extend PHPStan\\Testing\\RuleTestCase in the PHPUnit suite. Assert the rule through php tools/project-phpstan-rules.php instead.',
             )->identifier('agentLoop.phpstan.inProcessRuleTestCase')->build(),
         ];
     }
