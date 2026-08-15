@@ -32,7 +32,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('agent-loop init install-plan', $help['output']);
         self::assertStringContainsString('agent-loop init install-assets', $help['output']);
         self::assertStringContainsString('agent-loop init sync-instructions', $help['output']);
-        self::assertStringContainsString('init scaffold [--agent=<agent|all>]', $help['output']);
+        self::assertStringContainsString('init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo]', $help['output']);
         self::assertStringContainsString('init status', $help['output']);
         self::assertStringNotContainsString('rtk', strtolower($help['output']));
 
@@ -106,7 +106,7 @@ final class InitCliTest extends TestCase
     {
         file_put_contents($this->root . '/composer.json', "{\"name\": \"demo/project\"}\n");
 
-        $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold']);
+        $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold', '--demo']);
         self::assertSame(0, $scaffold['exit'], $scaffold['output']);
         self::assertStringContainsString('[WARN] Host assets were not projected because --agent was not provided.', $scaffold['output']);
         self::assertStringContainsString('init install-assets --agent=<codex|claude|copilot|antigravity>', $scaffold['output']);
