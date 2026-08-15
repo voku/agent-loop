@@ -38,8 +38,8 @@ final class AgentFacingToonOutputTest extends TestCase
 
     public function testInitPathsToonPreservesTheJsonProjectionWithFewerBytes(): void
     {
-        [$jsonExit, $json] = $this->capture(static fn (): int => (new InitPathsCommand($this->root))->run(['--format=json']));
-        [$toonExit, $toon] = $this->capture(static fn (): int => (new InitPathsCommand($this->root))->run(['--format=toon']));
+        [$jsonExit, $json] = $this->capture(fn (): int => (new InitPathsCommand($this->root))->run(['--format=json']));
+        [$toonExit, $toon] = $this->capture(fn (): int => (new InitPathsCommand($this->root))->run(['--format=toon']));
 
         self::assertSame(0, $jsonExit);
         self::assertSame(0, $toonExit);
@@ -54,8 +54,8 @@ final class AgentFacingToonOutputTest extends TestCase
 
     public function testWorkflowStatusToonPreservesMachineMeaningWithFewerBytes(): void
     {
-        [$jsonExit, $json] = $this->capture(static fn (): int => (new WorkflowStatusCommand($this->root))->run(['ABC-123', '--format=json']));
-        [$toonExit, $toon] = $this->capture(static fn (): int => (new WorkflowStatusCommand($this->root))->run(['ABC-123', '--format=toon']));
+        [$jsonExit, $json] = $this->capture(fn (): int => (new WorkflowStatusCommand($this->root))->run(['ABC-123', '--format=json']));
+        [$toonExit, $toon] = $this->capture(fn (): int => (new WorkflowStatusCommand($this->root))->run(['ABC-123', '--format=toon']));
 
         self::assertSame(0, $jsonExit);
         self::assertSame(0, $toonExit);
