@@ -5,7 +5,7 @@ description: Governed agent-* orchestration: resumable state, map-first navigati
 
 # Agent Loop Discipline
 
-Persisted workflow state beats conversational state. Keep orchestration, evidence, navigation, and human attention bounded.
+Rule: persisted workflow state beats conversational state. Keep orchestration, evidence, navigation, and human attention bounded.
 
 ## Governed Workflow
 
@@ -37,7 +37,7 @@ Human gates are Contract approval, real risk/irreversible action, and genuinely 
 ## Prompt Controls
 
 When selected by the approved Contract:
-- `checkpoint-autonomy`: at its explicit anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never fabricate human approval.
+- `checkpoint-autonomy`: at its explicit anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never persist a synthetic human/self approval.
 - `momentum`: reuse still-valid files, symbols, commands, constraints, decisions, and evidence; re-check authority/freshness when they may have changed.
 
 These are L1 controls. They do not create an L2 gate by themselves.
