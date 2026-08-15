@@ -57,17 +57,18 @@ Transitions are evidence-driven, not optimistic:
 1. Inspect prior history only when earlier decisions materially affect the task.
 2. Resolve existing task/session state and reuse the stable task id.
 3. Plan explicit goal, scope, non-goals, behavior anchors, exact validation, and any selected operating-prompt recipe + explicit arguments.
-4. Approve that exact revision through a named human actor.
-5. Compile/use bounded recall; use `agent-map` to select precise source reads.
-6. When recall contains L2 recipes, follow the current Recall-owned construction instructions and persist exactly one project-specific L1 with `workflow contract` before mutation.
-7. Implement the smallest correct change in the owning package.
-8. Record validation against the current Contract revision.
-9. Review blind spots, the complete raw diff, and complexity separately when needed.
-10. Record recall outcomes, evidence-backed operating-prompt outcomes, and an explicit learning decision.
-11. Run cross-package verification and inspect the workflow report.
-12. At `ready_to_close`, optionally run task reflection when extra scrutiny is useful; `RETURN_TO_REVIEW` routes back instead of closing.
-13. Close only when every required gate passes.
-14. After successful close, optionally run project reflection and report one highest-leverage future investment or `nothing worthwhile`; never create follow-up work automatically.
+4. When PHP scope or ranked map evidence applies, build or refresh the semantic map and build its separate Search index before approval.
+5. Approve that exact revision through a named human actor.
+6. Compile/use bounded recall; use `agent-map` to select precise source reads.
+7. When recall contains L2 recipes, follow the current Recall-owned construction instructions and persist exactly one project-specific L1 with `workflow contract` before mutation.
+8. Implement the smallest correct change in the owning package.
+9. Record validation against the current Contract revision.
+10. Review blind spots, the complete raw diff, and complexity separately when needed.
+11. Record recall outcomes, evidence-backed operating-prompt outcomes, and an explicit learning decision.
+12. Run cross-package verification and inspect the workflow report.
+13. At `ready_to_close`, optionally run task reflection when extra scrutiny is useful; `RETURN_TO_REVIEW` routes back instead of closing.
+14. Close only when every required gate passes.
+15. After successful close, optionally run project reflection and report one highest-leverage future investment or `nothing worthwhile`; never create follow-up work automatically.
 
 Do not ask the human to run reads, edits, tests, or reports that the available
 tools can run. Human interaction is reserved for approval, genuine ambiguity,
@@ -85,6 +86,8 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --behavior-anchor "request -> service -> persisted state" \
   --validation "vendor/bin/phpunit tests/FocusedTest.php"
 
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map search-index build
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 ```
 
@@ -100,9 +103,16 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"coverage-mutation","arguments":{"minimum_percentage_points":10,"mutation_command":"vendor/bin/infection"}}'
 
+vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map search-index build
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
+
+`map build` and `map search-index build` are separate operations. Approval compiles
+governed Recall immediately, so build the Search index first when ranked map
+evidence is expected. Resolve configurable map paths through `agent-loop init
+paths`; do not assume a physical state directory.
 
 Recall owns the reusable recipe schema and L2 construction semantics. Loop owns
 selection persistence in the Contract, approval, execution-contract binding, and
@@ -164,10 +174,12 @@ vendor/bin/agent-loop workflow contract <task-id> \
 
 `REJECTED` is used when an implementation/approach violated the approved contract and must be discarded/reconstructed rather than repaired by negotiating around the violation.
 
-Continue source navigation after the contract is current:
+Continue source navigation after the contract is current. Refresh generated
+navigation state when source changed rather than pretending the pre-approval
+snapshot is eternal:
 
 ```bash
-vendor/bin/agent-loop map build --paths=src,tests
+vendor/bin/agent-loop map refresh
 vendor/bin/agent-loop map query <symbol>
 vendor/bin/agent-loop map related <symbol>
 ```
@@ -262,9 +274,9 @@ from persisted artifacts or observed command results, never from intention.
 
 ## Navigation And Evidence
 
-Generated `.agent-loop/map` files are disposable navigation state. Query them through
-the CLI, then inspect the selected real source. Do not dump map databases into a
-prompt.
+Generated map files are disposable navigation state. Resolve the configured
+`map_root`, query them through the CLI, then inspect the selected real source.
+Do not dump map databases into a prompt.
 
 Keep complete and unchanged:
 
