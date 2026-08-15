@@ -111,7 +111,7 @@ final readonly class WorkflowPlanCommand
      */
     private static function shellArgument(string $value): string
     {
-        if (preg_match('/\A[A-Za-z0-9_@%+=:,./-]+\z/', $value) === 1) {
+        if (preg_match('~\A[A-Za-z0-9_@%+=:,./-]+\z~', $value) === 1) {
             return $value;
         }
 
