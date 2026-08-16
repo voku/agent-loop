@@ -7,14 +7,27 @@ across the project root.
 
 ## 1. Bootstrap the repository and agent host
 
-Run this from the root of an existing Composer project:
+Run this from the root of an existing Composer project. This quick-start uses
+the explicit tutorial board so the later commands have a concrete `DEMO-1` task:
 
 ```bash
 vendor/bin/agent-loop init status
-vendor/bin/agent-loop init scaffold
+vendor/bin/agent-loop init scaffold --demo
 vendor/bin/agent-loop init install-assets --agent=codex
 vendor/bin/agent-loop init status
 ```
+
+For a real repository, prefer its actual board identity instead of tutorial
+data:
+
+```bash
+vendor/bin/agent-loop init scaffold --prefix=PROJECT
+```
+
+Bare `init scaffold` creates only the workflow infrastructure. It deliberately
+does not invent a project prefix, board card, or task. Board commands become
+available once the repository supplies a real `--prefix` (or existing board
+configuration), while `--demo` is the explicit tutorial path.
 
 `init status` is the entry point, before and after. Its `Activation:` section
 reports the resolved CLI path, whether skills are projected into a host at all,
@@ -29,15 +42,18 @@ assets **before starting the agent session that should use them**. Installing a
 skill during an already-running session proves installation, not that the
 current agent retroactively consumed it.
 
-The scaffold creates the canonical layout:
+With `--demo`, the scaffold creates the canonical layout plus explicit tutorial
+state:
 
 ```text
 .agent-loop/
   init.json
   todo/
+    kanban.config.json
     board.md
     cards/
       DEMO-1.md
+    archive/
   tasks/
     DEMO-1.md
   sessions/
@@ -50,8 +66,8 @@ Recall output, map indexes, run manifests, and edit bundles are created below
 `.agent-loop/edit` when those capabilities are used.
 
 Existing files are left untouched. Use `--dry-run` to inspect the scaffold
-without writing anything. There is no layout switch: `.agent-loop/` is the
-workflow-state root.
+without writing anything. `--prefix` and `--demo` are mutually exclusive. There
+is no layout switch: `.agent-loop/` is the workflow-state root.
 
 For package/library repositories, local workflow state can be kept out of
 Composer/Git archives with one rule:
@@ -75,7 +91,8 @@ the authority in such a host instead of pretending the hook ran.
 
 ## 2. Inspect or create a task
 
-`DEMO-1` is a normal example task, not a special workflow mode:
+`DEMO-1` is the normal example task created by explicit `--demo` mode, not a
+special workflow state:
 
 ```bash
 vendor/bin/agent-loop board card show DEMO-1

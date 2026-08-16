@@ -17,7 +17,7 @@ PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEA
 2. Resume its active session; never create a parallel active session.
 3. Mutation requires the approved Contract.
 4. Selected L2 policy also requires a current `ready` execution contract bound to that Contract revision and recall bundle.
-5. Scope/policy drift returns to PLAN; changed Recall returns an L2 contract to CONTRACT.
+5. Scope/policy drift returns to PLAN through supersession: close the active Session as dropped, revise durable intent, obtain approval for the new revision, then use the replacement Session/Run while preserving prior Run history. Never revise across Contract revisions inside one Session. Changed Recall returns an L2 contract to CONTRACT.
 6. Use `agent-loop-workflow` for phase mechanics and evidence requirements.
 
 ```bash

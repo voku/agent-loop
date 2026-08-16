@@ -174,7 +174,7 @@ final class ReleaseSetDogfood
 
     private function scaffold(): void
     {
-        $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold']);
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold', '--demo']);
         $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
         $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
 

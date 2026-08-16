@@ -6,6 +6,7 @@ namespace voku\AgentLoop;
 
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
+use voku\AgentLearning\FindingExporter;
 use voku\AgentMap\Cli\CliApplication as AgentMapCli;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
@@ -66,12 +67,49 @@ final class Dispatcher
     /** @param list<string> $rest */
     private function dispatchLearn(string $scriptName, array $rest): int
     {
-        if (!in_array($rest[0] ?? 'help', ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
+        $command = $rest[0] ?? 'help';
+        if ($command === 'finding-export') {
+            return $this->dispatchFindingExport(array_slice($rest, 1));
+        }
+
+        if (!in_array($command, ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
             $rest[] = '--root';
             $rest[] = $this->layout()->learningRoot();
         }
 
-        return (new LearningCli())->run($this->subArgv($scriptName, $rest));
+        $exit = (new LearningCli())->run($this->subArgv($scriptName, $rest));
+        if ($exit === 0 && in_array($command, ['help', '--help', '-h', ''], true)) {
+            echo "\nagent-loop extension:\n";
+            echo "  finding-export --target-package PACKAGE --source-repository OWNER/REPO [--root PATH]\n";
+        }
+
+        return $exit;
+    }
+
+    /** @param list<string> $tokens */
+    private function dispatchFindingExport(array $tokens): int
+    {
+        $targetPackage = $this->optionValue($tokens, 'target-package');
+        $sourceRepository = $this->optionValue($tokens, 'source-repository');
+        if ($targetPackage === null || $sourceRepository === null) {
+            fwrite(STDERR, "[FAIL] learn finding-export: --target-package and --source-repository are required.\n");
+
+            return 1;
+        }
+
+        try {
+            echo (new FindingExporter())->export(
+                $this->optionValue($tokens, 'root') ?? $this->layout()->learningRoot(),
+                $targetPackage,
+                $sourceRepository,
+            );
+
+            return 0;
+        } catch (\Throwable $throwable) {
+            fwrite(STDERR, '[FAIL] learn finding-export: ' . $throwable->getMessage() . "\n");
+
+            return 1;
+        }
     }
 
     /** @param list<string> $rest */
@@ -403,7 +441,7 @@ final class Dispatcher
                   Recall, board and Learning owner boundaries.
           board:verify
                   Verify only the kanban board projection.
-          learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-transition>
+          learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-export|finding-transition>
                   Durable findings, proposals, guidance and history (voku/agent-learning).
           recall  <compile|log-outcome>
                   Deterministic context/replay compilation (voku/agent-recall-compiler).
