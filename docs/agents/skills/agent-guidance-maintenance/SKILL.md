@@ -158,9 +158,6 @@ subjective style preferences into noisy PHPStan rules.
 ```bash
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
-vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
-vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
-vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
 vendor/bin/agent-loop init doctor
 composer dogfood:discipline
 vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|DispatcherTest'
