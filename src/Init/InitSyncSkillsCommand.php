@@ -261,6 +261,7 @@ final readonly class InitSyncSkillsCommand
             RecursiveIteratorIterator::SELF_FIRST,
         );
         $cliPath = (new RepositoryActivation($this->rootPath))->cliPath();
+        $vendorRoot = dirname(dirname($cliPath));
 
         foreach ($iterator as $item) {
             $relativePath = substr($item->getPathname(), strlen(rtrim($sourceDir, '/')) + 1);
@@ -280,12 +281,27 @@ final readonly class InitSyncSkillsCommand
             }
 
             $content = file_get_contents($item->getPathname());
-            if (is_string($content) && str_contains($content, 'vendor/bin/agent-loop')) {
-                if (file_put_contents($destinationPath, str_replace('vendor/bin/agent-loop', $cliPath, $content)) === false) {
-                    throw new InvalidArgumentException('Unable to write projected skill file: ' . $item->getPathname());
-                }
+            if (is_string($content)) {
+                $projected = str_replace(
+                    [
+                        'vendor/bin/agent-loop',
+                        'vendor/bin/agent-recall-compiler',
+                        'vendor/voku/agent-recall-compiler/',
+                    ],
+                    [
+                        $cliPath,
+                        $vendorRoot . '/bin/agent-recall-compiler',
+                        $vendorRoot . '/voku/agent-recall-compiler/',
+                    ],
+                    $content,
+                );
+                if ($projected !== $content) {
+                    if (file_put_contents($destinationPath, $projected) === false) {
+                        throw new InvalidArgumentException('Unable to write projected skill file: ' . $item->getPathname());
+                    }
 
-                continue;
+                    continue;
+                }
             }
 
             if (!copy($item->getPathname(), $destinationPath)) {

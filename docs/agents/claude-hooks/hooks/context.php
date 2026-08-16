@@ -5,55 +5,12 @@ declare(strict_types=1);
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 
 $repositoryRoot = dirname(__DIR__, 2);
-$rootAutoload = $repositoryRoot . '/vendor/autoload.php';
-$autoloadCandidates = [];
-if (is_dir($repositoryRoot . '/vendor/voku/agent-loop')) {
-    $autoloadCandidates[] = $rootAutoload;
-}
-$isolatedAutoloads = glob($repositoryRoot . '/tools/*/vendor/autoload.php');
-if (is_array($isolatedAutoloads)) {
-    sort($isolatedAutoloads, SORT_STRING);
-    foreach ($isolatedAutoloads as $isolatedAutoload) {
-        $autoloadCandidates[] = $isolatedAutoload;
-    }
-}
-if (!in_array($rootAutoload, $autoloadCandidates, true)) {
-    $autoloadCandidates[] = $rootAutoload;
-}
-
-foreach ($autoloadCandidates as $autoload) {
-    if (!is_file($autoload)) {
-        continue;
-    }
-
-    require_once $autoload;
-    if (class_exists(AgentDisciplineHook::class)) {
-        break;
-    }
-}
-
-$sourceRoot = $repositoryRoot . '/src';
-if (!class_exists(AgentDisciplineHook::class) && is_dir($sourceRoot)) {
-    // Running from a checkout with no installed dependencies. Register the
-    // package's own PSR-4 root rather than requiring one class by hand: a
-    // hand-maintained list silently breaks the hook the moment the hook gains
-    // a collaborator, and the hook is what injects context into every session.
-    spl_autoload_register(static function (string $class) use ($sourceRoot): void {
-        $prefix = 'voku\\AgentLoop\\';
-        if (!str_starts_with($class, $prefix)) {
-            return;
-        }
-        $relative = str_replace('\\', '/', substr($class, strlen($prefix)));
-        $file = $sourceRoot . '/' . $relative . '.php';
-        if (is_file($file)) {
-            require $file;
-        }
-    });
-}
-
-if (!class_exists(AgentDisciplineHook::class)) {
-    fwrite(STDERR, "agent-loop hook runtime is unavailable.\n");
-    exit(1);
+$runtimeReady = require __DIR__ . '/runtime.php';
+if ($runtimeReady !== true) {
+    // Projected hooks are optional tooling. A clean checkout may run them before
+    // Composer installed the tool project, and the host PHP may be below the
+    // agent-loop runtime floor. Neither condition should break the host session.
+    exit(0);
 }
 
 $event = 'SessionStart';
