@@ -14,13 +14,13 @@
     "target_type": "memory",
     "target": "Learning evidence detection",
     "scope": [
-        "tools/self-shape-dogfood.php"
+        "tools/self-shape-dogfood.sh"
     ],
     "old": null,
     "new": "Detect learning evidence by finding identity across every findings state directory, not by the directory a finding currently occupies. A MEMORY.md change with no finding evidence fails the gate rather than selecting a status around it.",
     "boundary": "Applies to gates that infer what a change recorded. It does not change which statuses workflow learn accepts.",
     "validation": [
-        "php tools/self-shape-dogfood.php"
+        "bash tools/self-shape-dogfood.sh"
     ],
     "scope_justification": "Running the Learning pipeline for the first time broke the self-dogfood runner, because the runner detected finding evidence by directory rather than by identity and a consolidated finding leaves validated/. The scope is the runner itself, which is the only place this detection exists, and the rule generalises to any evidence check written against a lifecycle-managed artifact's current location.",
     "learning_decision": "ADD_LEARNING_NOTE",

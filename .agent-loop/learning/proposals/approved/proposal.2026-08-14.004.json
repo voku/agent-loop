@@ -16,14 +16,14 @@
     "target": "Tooling test isolation",
     "scope": [
         "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
-        "tools/project-phpstan-rules.php",
+        "tools/project-phpstan-rules.sh",
         "phpstan/project-rule-test.neon"
     ],
     "old": "tools/project-phpstan-rules.sh and phpstan/project-rule-test.neon",
-    "new": "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php and tools/project-phpstan-rules.php",
+    "new": "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php and tools/project-phpstan-rules.sh",
     "boundary": "The rule governs where fixtures execute; it does not restrict what the fixtures may assert.",
     "validation": [
-        "php tools/project-phpstan-rules.php"
+        "bash tools/project-phpstan-rules.sh"
     ],
     "scope_justification": "The tooling-isolation rule was learned from a real failure in which an in-process RuleTestCase broke unrelated agent-map tests, but its recorded canonical home was a shell script and a PHPStan config, neither of which can observe a newly added PHPUnit class. The rule was therefore true and unenforced for months. Replacing the canonical home with the static rule keeps the same rule and gives it a detector.",
     "learning_decision": "ADD_LEARNING_NOTE",
