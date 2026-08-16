@@ -593,6 +593,13 @@ final class ReleaseSetDogfood
             'vendor/bin/agent-loop', 'init', 'sync-instructions', '--agent=codex', '--dry-run',
         ]);
         $this->artifact($path);
+
+        $manifestPath = $this->consumerRoot . '/.codex/skills/.agent-loop-manifest.json';
+        $this->assertFile($manifestPath);
+        $manifestEvidencePath = $this->artifactRoot . '/evidence/projected-codex-skills-manifest.json';
+        if (!copy($manifestPath, $manifestEvidencePath)) {
+            throw new ReleaseSetFailure('Unable to retain projected Codex skills manifest evidence.');
+        }
     }
 
     private function assertFile(string $path): void
