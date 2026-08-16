@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use ParseError;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 /**
  * Client-agnostic reader and validator for a repository-local hook bundle.
  *
- * A bundle is one `hooks.json` plus the PHP scripts it references under `hooks/`.
+ * A bundle is one `hooks.json` plus every package-owned file under `hooks/`.
  * Clients differ only in the directory their commands must point at and in the
- * events they are required to declare.
+ * events they are required to declare. Registered scripts are entrypoints, not
+ * the complete runtime dependency bundle.
  */
 final readonly class HooksDefinition
 {
@@ -46,13 +50,57 @@ final readonly class HooksDefinition
             throw new InvalidArgumentException('hooks.json is not valid JSON');
         }
 
-        return new self($content, self::referencedScriptNames($decoded, $clientDirectory));
+        return new self($content, self::bundleFileNames($hooksRoot));
     }
 
-    /** @return list<string> */
+    /**
+     * Every package-owned file installed under the client's `hooks/` directory.
+     * Registered event entrypoints are a subset of this complete runtime bundle.
+     *
+     * @return list<string>
+     */
     public function scriptNames(): array
     {
         return $this->scriptNames;
+    }
+
+    /**
+     * Returns every regular file owned by the canonical `hooks/` bundle,
+     * relative to that directory and sorted deterministically.
+     *
+     * @return list<string>
+     */
+    public static function bundleFileNames(string $hooksRoot): array
+    {
+        $root = rtrim($hooksRoot, '/') . '/hooks';
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $files = [];
+        $normalizedRoot = rtrim(str_replace('\\', '/', $root), '/') . '/';
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $item) {
+            if (!$item->isFile()) {
+                continue;
+            }
+
+            $path = str_replace('\\', '/', $item->getPathname());
+            if (!str_starts_with($path, $normalizedRoot)) {
+                continue;
+            }
+
+            $relative = substr($path, strlen($normalizedRoot));
+            if ($relative !== '') {
+                $files[$relative] = $relative;
+            }
+        }
+
+        ksort($files);
+
+        return array_values($files);
     }
 
     public function hooksJsonContent(): string
@@ -178,65 +226,38 @@ final readonly class HooksDefinition
             $scriptPath = $hookScriptsRoot . '/' . $scriptName;
             if (!is_file($scriptPath)) {
                 $errors[] = 'Referenced hook script is missing: hooks/' . $scriptName;
+            }
+        }
+
+        foreach (self::bundleFileNames($hooksRoot) as $bundleFile) {
+            $path = $hookScriptsRoot . '/' . $bundleFile;
+            if (!is_readable($path)) {
+                $errors[] = 'Hook bundle file is not readable: hooks/' . $bundleFile;
 
                 continue;
             }
-            if (!is_readable($scriptPath)) {
-                $errors[] = 'Referenced hook script is not readable: hooks/' . $scriptName;
+
+            $bundleContent = file_get_contents($path);
+            if (!is_string($bundleContent) || trim($bundleContent) === '') {
+                $errors[] = 'Hook bundle file is empty: hooks/' . $bundleFile;
 
                 continue;
             }
 
-            $scriptContent = file_get_contents($scriptPath);
-            if (!is_string($scriptContent) || trim($scriptContent) === '') {
-                $errors[] = 'Referenced hook script is empty: hooks/' . $scriptName;
+            if (!str_ends_with(strtolower($bundleFile), '.php')) {
+                continue;
+            }
+
+            try {
+                if (token_get_all($bundleContent, TOKEN_PARSE) === []) {
+                    $errors[] = 'Hook PHP syntax error in hooks/' . $bundleFile . ': parser returned no tokens';
+                }
+            } catch (ParseError $exception) {
+                $errors[] = 'Hook PHP syntax error in hooks/' . $bundleFile . ': ' . $exception->getMessage();
             }
         }
 
         return $errors;
-    }
-
-    /**
-     * @param array<string, mixed> $decoded
-     * @return list<string>
-     */
-    private static function referencedScriptNames(array $decoded, string $clientDirectory): array
-    {
-        $scriptNames = [];
-        $hooks = $decoded['hooks'] ?? [];
-        if (!is_array($hooks)) {
-            return [];
-        }
-
-        foreach ($hooks as $eventGroups) {
-            if (!is_array($eventGroups)) {
-                continue;
-            }
-            foreach ($eventGroups as $eventGroup) {
-                if (!is_array($eventGroup)) {
-                    continue;
-                }
-
-                $hookEntries = $eventGroup['hooks'] ?? null;
-                if (!is_array($hookEntries)) {
-                    continue;
-                }
-                foreach ($hookEntries as $hookEntry) {
-                    if (!is_array($hookEntry) || !is_string($hookEntry['command'] ?? null)) {
-                        continue;
-                    }
-
-                    $scriptName = self::scriptNameFromCommand($hookEntry['command'], $clientDirectory);
-                    if ($scriptName !== null) {
-                        $scriptNames[$scriptName] = $scriptName;
-                    }
-                }
-            }
-        }
-
-        ksort($scriptNames);
-
-        return array_values($scriptNames);
     }
 
     private static function scriptNameFromCommand(string $command, string $clientDirectory): ?string
