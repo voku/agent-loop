@@ -145,6 +145,7 @@ final readonly class InitSyncSubagentsCommand
             echo '[OK] sync subagents: removed stale ' . $targetPath . "\n";
         }
 
+        $cliPath = (new RepositoryActivation($this->rootPath))->cliPath();
         foreach ($definitions as $sourceFile => $definition) {
             $entry = basename($sourceFile, '.md') . $targetSuffix;
             $targetFile = $targetRoot . '/' . $entry;
@@ -161,7 +162,8 @@ final readonly class InitSyncSubagentsCommand
                 continue;
             }
 
-            $this->writeFile($targetFile, $definition->renderForClient($agent) . "\n");
+            $rendered = str_replace('vendor/bin/agent-loop', $cliPath, $definition->renderForClient($agent));
+            $this->writeFile($targetFile, $rendered . "\n");
             echo '[OK] sync subagents: installed ' . basename($targetFile) . ' -> ' . $targetFile . "\n";
         }
 
