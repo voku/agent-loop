@@ -34,6 +34,12 @@ final class HostCapabilityMatrixTest extends TestCase
         foreach (InitAgent::canonicalNames() as $agent) {
             self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::SkillProjection));
             self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::SubagentProjection));
+
+            foreach ([HostCapability::SkillProjection, HostCapability::SubagentProjection] as $capability) {
+                $description = HostCapabilityMatrix::describe($agent, $capability);
+                self::assertSame('adapter+installed-projection', $description['evidence']);
+                self::assertNotSame('', $description['mechanism']);
+            }
         }
     }
 
@@ -47,11 +53,37 @@ final class HostCapabilityMatrixTest extends TestCase
         ];
 
         foreach ($hookBacked as $capability) {
-            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('codex', $capability));
-            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('claude', $capability));
-            self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status('copilot', $capability));
-            self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status('antigravity', $capability));
+            foreach (['codex', 'claude'] as $agent) {
+                self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status($agent, $capability));
+                self::assertSame(
+                    'adapter+installed-projection;live-runtime-unverified',
+                    HostCapabilityMatrix::describe($agent, $capability)['evidence'],
+                );
+            }
+
+            foreach (['copilot', 'antigravity'] as $agent) {
+                self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
+                $description = HostCapabilityMatrix::describe($agent, $capability);
+                self::assertSame('no-agent-loop-projector', $description['evidence']);
+                self::assertSame('no agent-loop host-native projector', $description['mechanism']);
+            }
         }
+    }
+
+    public function testKnownNativeMechanismsAreExplainedWithoutClaimingRuntimeExecution(): void
+    {
+        self::assertSame(
+            'SKILL.md -> GitHub Copilot skills directory',
+            HostCapabilityMatrix::describe('copilot', HostCapability::SkillProjection)['mechanism'],
+        );
+        self::assertSame(
+            'Codex hooks.json + repository-local command hooks',
+            HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
+        );
+        self::assertSame(
+            'Claude settings.json#hooks + repository-local command hooks',
+            HostCapabilityMatrix::describe('claude', HostCapability::SessionBootstrap)['mechanism'],
+        );
     }
 
     public function testUnknownCanonicalAgentIsRejected(): void
