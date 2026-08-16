@@ -25,8 +25,8 @@ php tools/release-set-dogfood.php \
 ```
 
 The runner itself has no Composer dependencies. It stages only the candidate
-package metadata, `src/`, and `bin/`; the candidate's development `vendor/`
-directory is never copied into the consumer fixture.
+package metadata, `src/`, `bin/`, and `docs/agents/`; the candidate's
+development `vendor/` directory is never copied into the consumer fixture.
 
 ## Installed topology
 
@@ -35,6 +35,7 @@ clean temporary workspace
 ├── candidate-agent-loop/
 │   ├── composer.json
 │   ├── bin/
+│   ├── docs/agents/
 │   └── src/
 ├── consumer/
 │   ├── composer.json
@@ -63,7 +64,8 @@ The first executable gate covers:
 6. English behavior search;
 7. German behavior search with the original UTF-8 argument preserved;
 8. a structural no-answer query that must not return a known fixture symbol;
-9. idempotent scaffold creation;
+9. Codex host projection plus installed guidance/CLI agreement for `init status`
+   and dry-run `init sync-instructions`;
 10. an ephemeral experiment excluded from repository-wide verification;
 11. a governed task through plan and approval;
 12. a deterministic fixture-owned exact source change;
@@ -132,7 +134,8 @@ This first slice does **not** complete issue #20.
   `edit verify` path without leaking verifier-owned answers.
 - Search-index snapshot mismatch needs the versioned readiness contract from
   `agent-map#2` rather than test code parsing SQLite internals.
-- Guidance/runtime mismatch needs capability metadata from `agent-loop#21`.
+- Installed projection/CLI agreement is now release-gated, but live host runtime
+  behavior still requires explicit runtime evidence before being called supported.
 - The current gate proves one candidate `agent-loop` plus its resolved focused
   dependencies. Compatibility edges are added only when a supported edge is
   named, not by generating every version combination humans can imagine.
