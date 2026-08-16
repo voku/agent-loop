@@ -130,6 +130,13 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-release-set
           --report=${{ github.workspace }}/build/release-set-report.json
           --keep
+      - name: Retain projected Codex manifest evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="${RUNNER_TEMP}/agent-loop-release-set/consumer/.codex/skills/.agent-loop-manifest.json"
+          test -f "${manifest}"
+          cp "${manifest}" "${GITHUB_WORKSPACE}/build/projected-codex-skills-manifest.json"
       - name: Run installed first-party asset dogfood
         shell: bash
         run: |
@@ -222,6 +229,7 @@ jobs:
             build/release-set-report.json
             build/installed-assets-dogfood.json
             build/installed-host-capabilities.txt
+            build/projected-codex-skills-manifest.json
             ${{ runner.temp }}/agent-loop-release-set/artifacts
 
   slop-scan:
