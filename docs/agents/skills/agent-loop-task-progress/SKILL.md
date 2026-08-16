@@ -113,22 +113,18 @@ A summary supports navigation. It is not code review or diagnostic evidence.
 
 ## Before Review And Close
 
+Record the review-ready checkpoint here, then hand the task to the installed
+`agent-loop-review-close` skill. That skill owns the primary code review,
+blind-spot review, Recall outcomes, Learning-root validation, Run learning
+decision, verification, reporting, accepted-risk boundary, and final close.
+Do not duplicate that sequence here; it previously drifted into skipping the
+primary review and hard-coding `no_durable_learning`.
+
 ```bash
 vendor/bin/agent-loop session checkpoint <task-id> \
   --title "Ready for review" \
-  --body "Implementation complete; full diff reviewed; required validation passed."
-
-vendor/bin/agent-loop review blindspots <task-id>
-vendor/bin/agent-loop verify --task-id=<task-id>
-vendor/bin/agent-loop workflow status <task-id>
-
-vendor/bin/agent-loop workflow learn <task-id> \
-  --status no_durable_learning \
-  --by <actor> \
-  --reason "No reusable finding from this bounded task."
+  --body "Implementation complete; full diff inspected; required validation evidence recorded."
 ```
-
-The learning decision records an outcome; it does not approve guidance.
 
 ## Completion Check
 
