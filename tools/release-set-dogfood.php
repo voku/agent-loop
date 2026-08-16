@@ -174,9 +174,10 @@ final class ReleaseSetDogfood
 
     private function scaffold(): void
     {
-        $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold', '--demo']);
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold', '--demo', '--agent=codex']);
         $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
         $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
+        $this->assertProjectedHostInstructions();
 
         $status = $this->status('DEMO-1');
         $this->assertReference($status, 'board', 'linked');
@@ -425,7 +426,7 @@ final class ReleaseSetDogfood
                 copy($source, $this->candidateRoot . '/' . $file);
             }
         }
-        foreach (['src', 'bin'] as $directory) {
+        foreach (['src', 'bin', 'docs/agents'] as $directory) {
             $this->copyTree($this->repositoryRoot . '/' . $directory, $this->candidateRoot . '/' . $directory);
         }
     }
@@ -556,6 +557,33 @@ final class ReleaseSetDogfood
         $target = $this->artifactRoot . '/evidence/' . basename($path);
         $this->mkdir(dirname($target));
         copy($path, $target);
+    }
+
+    private function assertProjectedHostInstructions(): void
+    {
+        $path = $this->consumerRoot . '/AGENTS.md';
+        $this->assertFile($path);
+        $content = file_get_contents($path);
+        if (!is_string($content)) {
+            throw new ReleaseSetFailure('Projected host instructions are unreadable: ' . $path);
+        }
+
+        foreach ([
+            '<!-- agent-loop:project-instructions:begin -->',
+            'vendor/bin/agent-loop init status',
+            'init sync-instructions',
+            '<!-- agent-loop:project-instructions:end -->',
+        ] as $expected) {
+            if (!str_contains($content, $expected)) {
+                throw new ReleaseSetFailure('Projected host instructions are missing release route: ' . $expected);
+            }
+        }
+
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'status']);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'init', 'sync-instructions', '--agent=codex', '--dry-run',
+        ]);
+        $this->artifact($path);
     }
 
     private function assertFile(string $path): void
