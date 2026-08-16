@@ -164,16 +164,8 @@ MD
                 '--lane=READY',
                 '--status=Selected',
                 '--summary=Generated example task for your first governed workflow.',
+                '--brief=Choose one small real change, then record the validation that proves it.',
             ]);
-            if ($exit === 0) {
-                $exit = $board->run([
-                    'agent-loop',
-                    'card',
-                    'update',
-                    self::EXAMPLE_TASK_ID,
-                    '--brief=Choose one small real change, then record the validation that proves it.',
-                ]);
-            }
         } finally {
             ob_end_clean();
         }
