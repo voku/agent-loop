@@ -257,11 +257,19 @@ final readonly class InitDoctorCommand
         $results = [];
         foreach (InitAgent::canonicalNames() as $agent) {
             $capabilities = [];
-            foreach (HostCapabilityMatrix::forAgent($agent) as $row) {
+            $rows = HostCapabilityMatrix::forAgent($agent);
+            foreach ($rows as $row) {
                 $capabilities[] = $row['capability']->value . '=' . $row['status']->value;
             }
 
             $results[] = InitCheckResult::info('Host capabilities [' . $agent . ']: ' . implode(', ', $capabilities));
+            foreach ($rows as $row) {
+                $results[] = InitCheckResult::info(
+                    'Host capability evidence [' . $agent . '/' . $row['capability']->value . ']:'
+                    . ' mechanism=' . $row['mechanism']
+                    . '; evidence=' . $row['evidence'],
+                );
+            }
         }
 
         return $results;
