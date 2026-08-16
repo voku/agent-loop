@@ -174,9 +174,32 @@ final class ReleaseSetDogfood
 
     private function scaffold(): void
     {
-        $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold', '--demo']);
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'scaffold', '--demo', '--agent=codex']);
         $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
         $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
+        $this->assertFile($this->consumerRoot . '/AGENTS.md');
+        $this->assertFile($this->consumerRoot . '/.codex/skills/.agent-loop-manifest.json');
+
+        $instructions = (string) file_get_contents($this->consumerRoot . '/AGENTS.md');
+        if (str_contains($instructions, '{{agent_loop_cli}}')) {
+            throw new ReleaseSetFailure('Projected Codex router retained the unresolved agent-loop CLI placeholder.');
+        }
+        foreach (['vendor/bin/agent-loop init status', 'init sync-instructions'] as $expectedInstruction) {
+            if (!str_contains($instructions, $expectedInstruction)) {
+                throw new ReleaseSetFailure('Projected Codex router is missing expected installed guidance: ' . $expectedInstruction);
+            }
+        }
+
+        // Exercise the installed package boundary for the router's activation
+        // front doors. Mutation-capable instruction refresh is probed as a
+        // dry-run; the workflow status/approve routes are exercised below by
+        // the existing lifecycle rather than copied into another command list.
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'status']);
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'doctor']);
+        $this->mustRun(['vendor/bin/agent-loop', 'init', 'sync-instructions', '--agent=codex', '--dry-run']);
+
+        $this->artifact($this->consumerRoot . '/AGENTS.md');
+        $this->artifact($this->consumerRoot . '/.codex/skills/.agent-loop-manifest.json');
 
         $status = $this->status('DEMO-1');
         $this->assertReference($status, 'board', 'linked');
@@ -425,7 +448,7 @@ final class ReleaseSetDogfood
                 copy($source, $this->candidateRoot . '/' . $file);
             }
         }
-        foreach (['src', 'bin'] as $directory) {
+        foreach (['src', 'bin', 'docs/agents'] as $directory) {
             $this->copyTree($this->repositoryRoot . '/' . $directory, $this->candidateRoot . '/' . $directory);
         }
     }
