@@ -260,6 +260,7 @@ final readonly class InitSyncSkillsCommand
             new RecursiveDirectoryIterator($sourceDir, RecursiveDirectoryIterator::SKIP_DOTS),
             RecursiveIteratorIterator::SELF_FIRST,
         );
+        $cliPath = (new RepositoryActivation($this->rootPath))->cliPath();
 
         foreach ($iterator as $item) {
             $relativePath = substr($item->getPathname(), strlen(rtrim($sourceDir, '/')) + 1);
@@ -276,6 +277,15 @@ final readonly class InitSyncSkillsCommand
             $destinationDir = dirname($destinationPath);
             if (!is_dir($destinationDir) && !mkdir($destinationDir, 0o775, true) && !is_dir($destinationDir)) {
                 throw new InvalidArgumentException('Unable to create directory: ' . $destinationDir);
+            }
+
+            $content = file_get_contents($item->getPathname());
+            if (is_string($content) && str_contains($content, 'vendor/bin/agent-loop')) {
+                if (file_put_contents($destinationPath, str_replace('vendor/bin/agent-loop', $cliPath, $content)) === false) {
+                    throw new InvalidArgumentException('Unable to write projected skill file: ' . $item->getPathname());
+                }
+
+                continue;
             }
 
             if (!copy($item->getPathname(), $destinationPath)) {
