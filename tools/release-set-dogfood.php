@@ -581,7 +581,7 @@ final class ReleaseSetDogfood
 
         foreach ([
             'vendor/bin/agent-loop init status',
-            'vendor/bin/agent-loop init sync-instructions',
+            'init sync-instructions',
         ] as $expected) {
             if (!str_contains($managedContent, $expected)) {
                 throw new ReleaseSetFailure('Projected host instructions are missing release route: ' . $expected);
