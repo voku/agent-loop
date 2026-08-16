@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.5 - 2026-08-16
+
+### Added
+
+- `learn finding-export` exposes package-targeted validated Learning findings as deterministic JSON while `agent-learning` keeps Finding validation, lifecycle, and filtering authority.
+
+### Changed
+
+- Requires `voku/agent-learning ^0.13.0` and `voku/agent-recall-compiler ^0.13.1`; Recall regression hunting now treats its numeric floor as a bounded probe budget rather than a defect quota.
+- Package-owned projected guidance uses the resolved Composer tool root for agent-loop and Recall paths, and the review/close guidance has one owner instead of duplicated close sequences.
+
+### Fixed
+
+- Claude hooks now share one package-owned runtime probe, no-op below PHP 8.3 before Composer loads, and only consider the known root or `tools/agent-loop` autoload locations instead of scanning arbitrary tool projects.
+- `init status` trusts persisted v2 first-party projection source evidence, so a clean installed consumer no longer reports freshly installed skills, subagents, or hook helpers as stale.
+- Task-start and guidance-maintenance examples now preserve persisted-task preflight and behavior anchors without duplicating per-client projection validation commands.
+
+### Validation
+
+- PHP 8.3/8.4/8.5, diagnostics, acceptance/prompt candidate dogfoods, installed release-set, execution-contract, slop review, and self-shape were green on the merged owner candidates.
+- `voku/httpful#34` replayed the exact merged candidate through an isolated PHP 8.3 tool project, regenerated package-owned Claude assets, passed `init validate`, and asserted skills, subagents, and hooks are current with no stale-managed warnings.
+
 ## 0.16.4 - 2026-08-16
 
 ### Changed
