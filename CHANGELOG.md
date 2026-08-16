@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.4 - 2026-08-16
+
 ### Changed
 
 - `init status` now opens with an `Activation:` section and closes with the exact
