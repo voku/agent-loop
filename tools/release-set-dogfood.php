@@ -568,13 +568,22 @@ final class ReleaseSetDogfood
             throw new ReleaseSetFailure('Projected host instructions are unreadable: ' . $path);
         }
 
+        $beginMarker = '<!-- agent-loop:project-instructions:begin -->';
+        $endMarker = '<!-- agent-loop:project-instructions:end -->';
+        $begin = strpos($content, $beginMarker);
+        $end = $begin === false
+            ? false
+            : strpos($content, $endMarker, $begin + strlen($beginMarker));
+        if ($begin === false || $end === false) {
+            throw new ReleaseSetFailure('Projected host instructions have invalid managed markers: ' . $path);
+        }
+        $managedContent = substr($content, $begin, ($end + strlen($endMarker)) - $begin);
+
         foreach ([
-            '<!-- agent-loop:project-instructions:begin -->',
             'vendor/bin/agent-loop init status',
-            'init sync-instructions',
-            '<!-- agent-loop:project-instructions:end -->',
+            'vendor/bin/agent-loop init sync-instructions',
         ] as $expected) {
-            if (!str_contains($content, $expected)) {
+            if (!str_contains($managedContent, $expected)) {
                 throw new ReleaseSetFailure('Projected host instructions are missing release route: ' . $expected);
             }
         }
