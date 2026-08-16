@@ -178,7 +178,8 @@ final class ReleaseSetDogfood
         $this->assertFile($this->consumerRoot . '/.agent-loop/tasks/DEMO-1.md');
         $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
         $this->assertFile($this->consumerRoot . '/AGENTS.md');
-        $this->assertFile($this->consumerRoot . '/.codex/skills/.agent-loop-manifest.json');
+        $manifestPath = $this->consumerRoot . '/.codex/skills/.agent-loop-manifest.json';
+        $this->assertFile($manifestPath);
 
         $instructions = (string) file_get_contents($this->consumerRoot . '/AGENTS.md');
         if (str_contains($instructions, '{{agent_loop_cli}}')) {
@@ -199,7 +200,7 @@ final class ReleaseSetDogfood
         $this->mustRun(['vendor/bin/agent-loop', 'init', 'sync-instructions', '--agent=codex', '--dry-run']);
 
         $this->artifact($this->consumerRoot . '/AGENTS.md');
-        $this->artifact($this->consumerRoot . '/.codex/skills/.agent-loop-manifest.json');
+        $this->artifact($manifestPath, 'codex-skills-manifest.json');
 
         $status = $this->status('DEMO-1');
         $this->assertReference($status, 'board', 'linked');
@@ -573,10 +574,10 @@ final class ReleaseSetDogfood
         ]);
     }
 
-    private function artifact(string $path): void
+    private function artifact(string $path, ?string $name = null): void
     {
         $this->assertFile($path);
-        $target = $this->artifactRoot . '/evidence/' . basename($path);
+        $target = $this->artifactRoot . '/evidence/' . ($name ?? basename($path));
         $this->mkdir(dirname($target));
         copy($path, $target);
     }
