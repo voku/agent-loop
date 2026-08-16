@@ -7,7 +7,7 @@ on:
       - '.github/workflows/prepare-status-first-party-projection.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   prepare:
@@ -17,6 +17,7 @@ jobs:
         with:
           ref: agent/status-first-party-projection
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -117,13 +118,17 @@ jobs:
           test.write_text(text)
           PY
 
-          rm .github/workflows/prepare-status-first-party-projection.yml
           composer install --no-interaction --prefer-dist
           vendor/bin/phpunit --filter 'InitStatusCommandTest'
           git diff --check
+          mkdir -p build/status-first-party-projection/src/Init build/status-first-party-projection/tests
+          cp src/Init/InitStatusCommand.php build/status-first-party-projection/src/Init/InitStatusCommand.php
+          cp tests/InitStatusCommandTest.php build/status-first-party-projection/tests/InitStatusCommandTest.php
+          git diff -- src/Init/InitStatusCommand.php tests/InitStatusCommandTest.php > build/status-first-party-projection/change.patch
 
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/Init/InitStatusCommand.php tests/InitStatusCommandTest.php .github/workflows/prepare-status-first-party-projection.yml
-          git commit -m 'fix: keep installed first-party projections current in status'
-          git push origin HEAD:agent/status-first-party-projection
+      - name: Upload tested source
+        uses: actions/upload-artifact@v4
+        with:
+          name: status-first-party-projection
+          path: build/status-first-party-projection
+          if-no-files-found: error
