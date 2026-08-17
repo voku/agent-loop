@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\WorkflowStatusCommand;
 
 /** @internal */
@@ -29,16 +30,19 @@ final class NonAuthoritativeManifestCacheTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
+    public function testExplicitStoredProjectionReadStillRejectsUnsupportedSchema(): void
+    {
+        $this->writeUnsupportedManifest();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unsupported run-manifest schema version');
+
+        (new RunManifestStore($this->root))->read('ABC-123');
+    }
+
     public function testUnsupportedPersistedProjectionCannotBlockFreshOwnerBackedStatus(): void
     {
-        file_put_contents(
-            $this->root . '/.agent-loop/runs/ABC-123/manifest.json',
-            json_encode([
-                'schema_version' => '0.0',
-                'task_id' => 'ABC-123',
-                'state' => 'complete',
-            ], JSON_THROW_ON_ERROR),
-        );
+        $this->writeUnsupportedManifest();
 
         ob_start();
         try {
@@ -59,6 +63,18 @@ final class NonAuthoritativeManifestCacheTest extends TestCase
         self::assertStringContainsString(
             'Unsupported run-manifest schema version',
             (string) ($status['storage']['reason'] ?? ''),
+        );
+    }
+
+    private function writeUnsupportedManifest(): void
+    {
+        file_put_contents(
+            $this->root . '/.agent-loop/runs/ABC-123/manifest.json',
+            json_encode([
+                'schema_version' => '0.0',
+                'task_id' => 'ABC-123',
+                'state' => 'complete',
+            ], JSON_THROW_ON_ERROR),
         );
     }
 
