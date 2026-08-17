@@ -47,6 +47,13 @@ final readonly class InitInstallAssetsCommand
             echo $message . "\n";
         }
 
+        $withHooks = OptionTokens::hasFlag($tokens, 'with-hooks');
+        if ($withHooks && !$agent->isAll() && !in_array($agent->canonicalName(), ['codex', 'claude'], true)) {
+            fwrite(\STDERR, '--with-hooks is only supported for codex, claude, or all.' . "\n");
+
+            return 1;
+        }
+
         $packageRoot = dirname(__DIR__, 2);
         try {
             $skillRoots = $this->firstPartySkillRoots($packageRoot);
@@ -59,6 +66,9 @@ final readonly class InitInstallAssetsCommand
         $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
         $installsSubagents = $agent->isAll()
             || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
+        $hookAgents = !$withHooks
+            ? []
+            : ($agent->isAll() ? ['codex', 'claude'] : [$agent->canonicalName()]);
 
         foreach ($skillRoots as $skillRoot) {
             if (!is_dir($skillRoot)) {
@@ -71,6 +81,14 @@ final readonly class InitInstallAssetsCommand
             fwrite(\STDERR, 'Bundled subagents root is missing: ' . $subagentsRoot . "\n");
 
             return 1;
+        }
+        foreach ($hookAgents as $hookAgent) {
+            $hooksRoot = $packageRoot . '/docs/agents/' . $hookAgent . '-hooks';
+            if (!is_file($hooksRoot . '/hooks.json')) {
+                fwrite(\STDERR, 'Bundled ' . $hookAgent . ' hooks are missing: ' . $hooksRoot . '/hooks.json' . "\n");
+
+                return 1;
+            }
         }
 
         $dryRun = in_array('--dry-run', $tokens, true);
@@ -106,6 +124,17 @@ final readonly class InitInstallAssetsCommand
             }
         }
 
+        foreach ($hookAgents as $hookAgent) {
+            $hooksRoot = $packageRoot . '/docs/agents/' . $hookAgent . '-hooks';
+            $hooksExit = (new InitSyncHooksCommand($this->rootPath))->run(array_merge(
+                ['--agent=' . $hookAgent, '--hooks-root=' . $hooksRoot],
+                $forwarded,
+            ));
+            if ($hooksExit !== 0) {
+                return $hooksExit;
+            }
+        }
+
         $instructionArguments = [
             '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
         ];
@@ -122,7 +151,9 @@ final readonly class InitInstallAssetsCommand
             return $gitHooksExit;
         }
 
-        echo '[INFO] install assets: executable host hooks were not registered; use `init sync-hooks --agent=codex` or `init sync-hooks --agent=claude` explicitly.' . "\n";
+        echo $withHooks
+            ? '[IMPORTANT] install assets: executable host hooks were explicitly requested with --with-hooks.' . "\n"
+            : '[INFO] install assets: executable host hooks were not registered; rerun with --with-hooks to opt in.' . "\n";
 
         $sourceDescription = $extraSkillRoots === []
             ? 'first-party package guidance'
@@ -194,7 +225,7 @@ final readonly class InitInstallAssetsCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'extra-skills-root'];
-        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config', 'with-hooks'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];
