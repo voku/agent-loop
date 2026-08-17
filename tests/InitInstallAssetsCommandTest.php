@@ -65,6 +65,17 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringNotContainsString('plugin marketplace', strtolower($result['output']));
     }
 
+    public function testCodexWithHooksDryRunShowsExactHookTargetsWithoutWriting(): void
+    {
+        $result = $this->runCommand(['--agent=codex', '--with-hooks', '--dry-run']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync hooks: install hooks.json', $result['output']);
+        self::assertStringContainsString('[DRY-RUN] sync hooks: install context.php', $result['output']);
+        self::assertStringContainsString('executable host hooks were explicitly requested with --with-hooks', $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.codex');
+    }
+
     public function testCodexInstallsBundledSkillsAndRolesWithoutExecutableHooks(): void
     {
         $result = $this->runCommand(['--agent=codex']);
@@ -118,7 +129,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertDirectoryDoesNotExist($this->root . '/.codex/agents');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
         self::assertStringContainsString('executable host hooks were not registered', $result['output']);
-        self::assertStringContainsString('init sync-hooks --agent=claude', $result['output']);
+        self::assertStringContainsString('rerun with --with-hooks to opt in', $result['output']);
 
         $settings = json_decode((string) file_get_contents($this->root . '/.claude/settings.json'), true, 64, JSON_THROW_ON_ERROR);
         self::assertSame([
@@ -152,6 +163,15 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringContainsString('executable host hooks were not registered', $result['output']);
     }
 
+    public function testUnsupportedHostRejectsWithHooksBeforeWriting(): void
+    {
+        $result = $this->runCommand(['--agent=copilot', '--with-hooks']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('--with-hooks is only supported for codex, claude, or all', $result['output']);
+        self::assertDirectoryDoesNotExist($this->root . '/.github');
+    }
+
     public function testAllInstallsSkillsAndSubagentRolesWithoutExecutableHooks(): void
     {
         $result = $this->runCommand(['--agent=all']);
@@ -179,6 +199,18 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.claude/hooks/context.php');
         self::assertFileDoesNotExist($this->root . '/.claude/settings.json');
         self::assertStringContainsString('executable host hooks were not registered', $result['output']);
+    }
+
+    public function testAllWithHooksExplicitlyInstallsCodexAndClaudeHooks(): void
+    {
+        $result = $this->runCommand(['--agent=all', '--with-hooks']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.codex/hooks.json');
+        self::assertFileExists($this->root . '/.codex/hooks/context.php');
+        self::assertFileExists($this->root . '/.claude/hooks/context.php');
+        self::assertFileExists($this->root . '/.claude/settings.json');
+        self::assertStringContainsString('executable host hooks were explicitly requested with --with-hooks', $result['output']);
     }
 
     public function testUnknownAgentFails(): void
