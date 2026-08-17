@@ -5,19 +5,15 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
-use LogicException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
-use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
-use voku\AgentLoop\Run\RunPolicyEvaluation;
-use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
  * Read-only facade over existing workflow owner artifacts for coding-agent hosts.
  *
  * It deliberately owns no lifecycle state. Owner-backed facts are projected by
- * RunManifestProjector and lifecycle permissions come from RunPolicyEvaluator.
+ * RunManifestProjector and lifecycle permissions come from the manifest policy.
  */
 final readonly class HostFrontDoorCommand
 {
@@ -66,7 +62,7 @@ final readonly class HostFrontDoorCommand
         }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
-        $policy = $this->policyFor($manifest);
+        $policy = $manifest->policy;
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
 
         $payload = [
@@ -120,7 +116,7 @@ final readonly class HostFrontDoorCommand
         $this->validateFinishTokens($tokens);
         $format = $this->format($tokens);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
-        $policy = $this->policyFor($manifest);
+        $policy = $manifest->policy;
         $complete = $policy->state === 'complete';
 
         $payload = [
@@ -147,27 +143,6 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->state === 'blocked' ? 2 : 1;
-    }
-
-    private function policyFor(RunManifest $manifest): RunPolicyEvaluation
-    {
-        $policy = (new RunPolicyEvaluator())->evaluate(
-            $manifest->taskId,
-            $manifest->mode,
-            $manifest->references,
-            $manifest->disagreements,
-        );
-        if ($policy->state !== $manifest->state || $policy->nextAction !== $manifest->nextAction) {
-            throw new LogicException(sprintf(
-                'Lifecycle policy disagrees with the current manifest projection: state %s/%s, next action %s/%s.',
-                $policy->state,
-                $manifest->state,
-                $policy->nextAction,
-                $manifest->nextAction,
-            ));
-        }
-
-        return $policy;
     }
 
     /** @param list<string> $tokens */
