@@ -144,6 +144,7 @@ jobs:
               and ($journey.final_complete == true)
               and ($journey.commands | map(.phase) == ["unprepared", "governed_ready", "verified_no_mutation", "ready_to_close", "complete"])
               and ($journey.commands[0].next_action | contains("workflow plan DEMO-1"))
+              and ($journey.commands[1].next_action == "composer test")
               and ($journey.commands[2].state == "ready_to_close")
               and ($journey.commands[2].mutation_ready == false)
               and ($journey.commands[2].next_action == "agent-loop workflow close DEMO-1 --status done")
