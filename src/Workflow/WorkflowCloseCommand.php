@@ -14,6 +14,7 @@ use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
@@ -82,9 +83,10 @@ final readonly class WorkflowCloseCommand
 
             $acceptedRisk = $options['acceptRisk'] !== null;
             if (!$acceptedRisk) {
-                $policy = (new RunManifestProjector($this->rootPath))->project($taskId->value)->policy;
+                $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
                 if (!$policy->ordinaryCloseAllowed) {
-                    echo "[FAIL] workflow close: canonical lifecycle policy denied ordinary close; session was not closed.\n";
+                    echo "[FAIL] workflow close: gates failed; session was not closed.\n";
                     if ($policy->nextAction !== 'none') {
                         echo "[ACTION REQUIRED] {$policy->nextAction}\n";
                     }
