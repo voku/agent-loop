@@ -58,27 +58,17 @@ recall/                       -> .agent-loop/recall/
 .agent-map/                   -> .agent-loop/map/
 ```
 
-### One path the mapping does not cover
+### Embedded map artifacts stay inside the workflow root
 
-`agent-map` writes its PHPStan result cache to a hardcoded
-`.agent-map/phpstan-cache/`, with no option to redirect it, so `map build`
-recreates that directory even in a fully migrated repository. It is a cache,
-not workflow state, and it is regenerated on demand — but it is several
-megabytes and it lands outside `.agent-loop/`, so a library repository has to
-exclude it explicitly:
+Current `agent-loop` injects `.agent-loop/map/` as the artifact root for its
+embedded `agent-map` commands. The symbol index, search database, and tool-owned
+caches therefore stay below that injected root.
 
-```gitignore
-/.agent-map/
-```
-
-```gitattributes
-/.agent-map export-ignore
-```
-
-Until `agent-map` accepts a cache location, this is the one place where the
-mapping above is aspirational rather than complete. Do not read the leftover
-`/.agent-map/` line in this repository's own `.gitignore` as migration residue:
-it is load-bearing for exactly this reason.
+The `.agent-map/ -> .agent-loop/map/` entry above is historical migration
+guidance for repositories that used older releases. A pre-existing
+`.agent-map/` is not deleted automatically because it may contain historical
+or user-owned state; migrate or remove it explicitly after verifying the
+repository no longer depends on it.
 
 After moving existing state, run `agent-loop verify` before removing the old
 locations. Focused package CLI options can still select a genuinely custom path
