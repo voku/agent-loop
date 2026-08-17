@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.6 - 2026-08-17
+
+### Changed
+
+- Requires `voku/agent-session ^0.6.1`, whose owner API can rehydrate pruneable working memory at an exact already-authoritative Session identity.
+
+### Fixed
+
+- `workflow approve` now resumes an existing governed Run after its bound pruneable Session disappears by recreating that exact Run-owned Session ID. It no longer generates a fresh date/random Session and then collides with the Run's durable identity.
+- Resume refuses a different active Session for the same task and refuses a surviving non-active bound Session instead of silently rebinding durable Run lineage. New Contract revisions still use the existing supersession path.
+
+### Validation
+
+- The regression binds a Run to historical Session `2001-02-03-abc-123-r1-deadbeef`, removes working memory, reruns `workflow approve`, and proves both Run ID and Session ID stay unchanged. A second regression proves a conflicting active Session cannot steal that Run.
+- PHP 8.3/8.4/8.5, PHPStan, project PHPStan rules, diagnostics, acceptance/prompt candidate dogfoods, installed release-set, execution-contract, slop review, self-shape, AccessLint and CodeRabbit were green on the exact merge candidate.
+
+
 ## 0.16.5 - 2026-08-16
 
 ### Added
