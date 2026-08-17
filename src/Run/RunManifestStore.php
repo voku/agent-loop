@@ -68,17 +68,36 @@ final readonly class RunManifestStore
     }
 
     /**
-     * @return array{state: 'missing'|'current'|'stale', path: string, current_sha256: string, stored_sha256: string|null}
+     * @return array{
+     *     state: 'missing'|'current'|'stale',
+     *     path: string,
+     *     current_sha256: string,
+     *     stored_sha256: string|null,
+     *     reason?: string
+     * }
      */
     public function status(RunManifest $manifest): array
     {
         $currentJson = $manifest->toJson();
         $currentSha = hash('sha256', $currentJson);
-        $stored = $this->read($manifest->taskId);
+        $relativePath = PathResolver::relativeTo($this->rootPath, $this->path($manifest->taskId));
+
+        try {
+            $stored = $this->read($manifest->taskId);
+        } catch (RuntimeException $exception) {
+            return [
+                'state' => 'stale',
+                'path' => $relativePath,
+                'current_sha256' => 'sha256:' . $currentSha,
+                'stored_sha256' => null,
+                'reason' => $exception->getMessage(),
+            ];
+        }
+
         if ($stored === null) {
             return [
                 'state' => 'missing',
-                'path' => PathResolver::relativeTo($this->rootPath, $this->path($manifest->taskId)),
+                'path' => $relativePath,
                 'current_sha256' => 'sha256:' . $currentSha,
                 'stored_sha256' => null,
             ];
@@ -89,7 +108,7 @@ final readonly class RunManifestStore
 
         return [
             'state' => hash_equals($storedSha, $currentSha) ? 'current' : 'stale',
-            'path' => PathResolver::relativeTo($this->rootPath, $this->path($manifest->taskId)),
+            'path' => $relativePath,
             'current_sha256' => 'sha256:' . $currentSha,
             'stored_sha256' => 'sha256:' . $storedSha,
         ];
