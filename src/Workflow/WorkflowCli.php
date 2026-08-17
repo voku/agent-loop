@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
+
 final readonly class WorkflowCli
 {
+    private string $rootPath;
+
+    private Closure $recallRunner;
+
     /** @param callable(list<string>): int $recallRunner */
-    public function __construct(
-        private string $rootPath,
-        private mixed $recallRunner,
-    ) {
+    public function __construct(string $rootPath, callable $recallRunner)
+    {
+        $this->rootPath = $rootPath;
+        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -22,7 +28,7 @@ final readonly class WorkflowCli
         return match ($command) {
             'help', '--help', '-h', '' => $this->printHelp(),
             'plan' => (new WorkflowPlanCommand($this->rootPath))->run($rest),
-            'approve' => (new WorkflowApproveCommand($this->rootPath, $this->recallRunner))->run($rest),
+            'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
@@ -54,7 +60,7 @@ Usage:
 
 Commands:
   plan      Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
-  approve   Approve the exact Contract revision, prepare/resume its governed Run and working Session, then compile Run-bound Recall.
+  approve   Approve the exact Contract revision after required pre-approval discovery. APPROVE creates no Session, Run or Recall output.
   contract  Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
   status    Show the read-only cross-package Run projection and one next action; --expect makes an exact state CI-assertable.
   manifest  Inspect or atomically persist the cross-package Run projection.
@@ -73,7 +79,7 @@ Built-in L1 control prompts:
   They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
 Governed flow:
-  PLAN -> APPROVE/PREPARE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+  PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 
 Ownership:
   Contract/approval and Run lifecycle are durable agent-loop state.
