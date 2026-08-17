@@ -6,6 +6,14 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 
+/**
+ * Static catalog of capabilities implemented by agent-loop host adapters.
+ *
+ * This class intentionally says nothing about whether a host executable is
+ * installed in the current environment or whether a lifecycle hook has run.
+ * Runtime discovery belongs to HostRuntimeProbe; live lifecycle evidence must
+ * come from an actual host execution.
+ */
 final readonly class HostCapabilityMatrix
 {
     /**
@@ -13,7 +21,7 @@ final readonly class HostCapabilityMatrix
      *     capability: HostCapability,
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
-     *     evidence: 'adapter+installed-projection'|'adapter+installed-projection;live-runtime-unverified'|'no-agent-loop-projector'
+     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'no-agent-loop-projector'
      * }>
      */
     public static function forAgent(string $canonicalAgent): array
@@ -43,7 +51,7 @@ final readonly class HostCapabilityMatrix
      * @return array{
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
-     *     evidence: 'adapter+installed-projection'|'adapter+installed-projection;live-runtime-unverified'|'no-agent-loop-projector'
+     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'no-agent-loop-projector'
      * }
      */
     public static function describe(string $canonicalAgent, HostCapability $capability): array
@@ -54,7 +62,7 @@ final readonly class HostCapabilityMatrix
             return [
                 'status' => HostCapabilityStatus::Supported,
                 'mechanism' => self::projectionMechanism($canonicalAgent, $capability),
-                'evidence' => 'adapter+installed-projection',
+                'evidence' => 'adapter-declared',
             ];
         }
 
@@ -62,7 +70,7 @@ final readonly class HostCapabilityMatrix
             return [
                 'status' => HostCapabilityStatus::Degraded,
                 'mechanism' => self::hookMechanism($canonicalAgent),
-                'evidence' => 'adapter+installed-projection;live-runtime-unverified',
+                'evidence' => 'adapter-declared;live-runtime-unverified',
             ];
         }
 
