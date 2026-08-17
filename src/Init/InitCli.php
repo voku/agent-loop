@@ -70,10 +70,10 @@ final readonly class InitCli
           tools             Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
           validate          Validate repo-managed agent asset definitions.
           install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles/hooks, the host's always-on project instruction entrypoint, and - when the repository declares a hook policy - the local Git hook/commit-template activation.
+          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles, the host's always-on project instruction entrypoint, and - when the repository declares a hook policy - the local Git hook/commit-template activation. Executable host hooks require explicit sync-hooks.
           sync-skills       Prevalidate and merge one or more canonical skill roots into one managed client projection; duplicate skill IDs fail.
           sync-subagents    Sync repo-managed subagents into a client target directory.
-          sync-hooks        Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
+          sync-hooks        Explicitly register repo-managed executable hooks in a client target (Codex hooks.json, or the Claude settings.json hooks key). Use --dry-run to inspect exact targets before mutation.
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
