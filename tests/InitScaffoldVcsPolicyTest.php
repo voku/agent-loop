@@ -95,6 +95,7 @@ final class InitScaffoldVcsPolicyTest extends TestCase
     private function gitExit(array $arguments): int
     {
         $command = array_merge(['git', '-C', $this->root], $arguments);
+        $pipes = [];
         $process = proc_open(
             $command,
             [
