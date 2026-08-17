@@ -120,11 +120,14 @@ final readonly class RunPolicyEvaluator
         if ($this->referenceState($references, 'contract') === 'missing') {
             return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
         }
-        if ($this->referenceState($references, 'contract') !== 'approved' || $mode !== 'governed') {
+        if ($this->referenceState($references, 'contract') !== 'approved') {
             return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
         }
+        if ($mode !== 'governed') {
+            return 'agent-loop enter ' . $taskId;
+        }
         if ($this->referenceState($references, 'recall') !== 'compiled') {
-            return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
+            return 'agent-loop enter ' . $taskId;
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['missing', 'pending_recall'], true)) {
             return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
