@@ -1,0 +1,56 @@
+name: Prepare 0.16.6 release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-0166-helper.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Insert release notes and remove helper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('CHANGELOG.md')
+          text = path.read_text()
+          marker = '## Unreleased\n'
+          section = '''## 0.16.6 - 2026-08-17\n\n### Changed\n\n- Requires `voku/agent-session ^0.6.1`, whose owner API can rehydrate pruneable working memory at an exact already-authoritative Session identity.\n\n### Fixed\n\n- `workflow approve` now resumes an existing governed Run after its bound pruneable Session disappears by recreating that exact Run-owned Session ID. It no longer generates a fresh date/random Session and then collides with the Run's durable identity.\n- Resume refuses a different active Session for the same task and refuses a surviving non-active bound Session instead of silently rebinding durable Run lineage. New Contract revisions still use the existing supersession path.\n\n### Validation\n\n- The regression binds a Run to historical Session `2001-02-03-abc-123-r1-deadbeef`, removes working memory, reruns `workflow approve`, and proves both Run ID and Session ID stay unchanged. A second regression proves a conflicting active Session cannot steal that Run.\n- PHP 8.3/8.4/8.5, PHPStan, project PHPStan rules, diagnostics, acceptance/prompt candidate dogfoods, installed release-set, execution-contract, slop review, self-shape, AccessLint and CodeRabbit were green on the exact merge candidate.\n\n'''
+          if '## 0.16.6 - 2026-08-17' in text:
+              raise SystemExit('0.16.6 already documented')
+          if text.count(marker) != 1:
+              raise SystemExit('unexpected Unreleased marker count')
+          path.write_text(text.replace(marker, marker + '\n' + section, 1))
+          PY
+          rm .github/workflows/release-0166-helper.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md .github/workflows/release-0166-helper.yml
+          git diff --cached --check
+          git commit -m 'release: prepare 0.16.6'
+          git push origin HEAD:main
+          echo "TARGET_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Request exact release tag
+        shell: bash
+        run: |
+          mkdir -p .release
+          cat > .release/0.16.6.json <<JSON
+          {
+            "target_sha": "${TARGET_SHA}",
+            "version": "0.16.6"
+          }
+          JSON
+          git add .release/0.16.6.json
+          git diff --cached --check
+          git commit -m 'release: request 0.16.6'
+          git push origin HEAD:main
