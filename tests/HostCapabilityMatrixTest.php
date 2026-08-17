@@ -37,7 +37,7 @@ final class HostCapabilityMatrixTest extends TestCase
 
             foreach ([HostCapability::SkillProjection, HostCapability::SubagentProjection] as $capability) {
                 $description = HostCapabilityMatrix::describe($agent, $capability);
-                self::assertSame('adapter+installed-projection', $description['evidence']);
+                self::assertSame('adapter-declared', $description['evidence']);
                 self::assertNotSame('', $description['mechanism']);
             }
         }
@@ -56,12 +56,12 @@ final class HostCapabilityMatrixTest extends TestCase
             foreach (['codex', 'claude'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status($agent, $capability));
                 self::assertSame(
-                    'adapter+installed-projection;live-runtime-unverified',
+                    'adapter-declared;live-runtime-unverified',
                     HostCapabilityMatrix::describe($agent, $capability)['evidence'],
                 );
             }
 
-            foreach (['copilot', 'antigravity'] as $agent) {
+            foreach (['copilot', 'gemini', 'antigravity'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
                 $description = HostCapabilityMatrix::describe($agent, $capability);
                 self::assertSame('no-agent-loop-projector', $description['evidence']);
