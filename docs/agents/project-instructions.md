@@ -1,6 +1,6 @@
 ## agent-loop workflow router
 
-This repository uses `voku/agent-loop` for governed coding work. Keep this always-on router small; detailed procedures live in the installed skills and CLI help.
+This repository uses `voku/agent-loop` for governed coding work. Keep this always-on router small; detailed procedures live in the installed skills and CLI help. Troubleshooting only: use `{{agent_loop_cli}} init status` to inspect setup and `init sync-instructions` when managed instruction projection itself needs repair.
 
 For a durable task id:
 
