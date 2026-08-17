@@ -26,15 +26,8 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowRunPreparer
 {
-    private string $rootPath;
-
-    private Closure $recallRunner;
-
-    /** @param callable(list<string>): int $recallRunner */
-    public function __construct(string $rootPath, callable $recallRunner)
+    public function __construct(private string $rootPath)
     {
-        $this->rootPath = $rootPath;
-        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     public function discoveryReadiness(TaskContract $contract): MapReadiness
@@ -45,12 +38,17 @@ final readonly class WorkflowRunPreparer
         return $readiness;
     }
 
-    public function prepare(TaskContract $contract, MapReadiness $mapReadiness): WorkflowRunPreparationResult
-    {
+    /** @param callable(list<string>): int $recallRunner */
+    public function prepare(
+        TaskContract $contract,
+        MapReadiness $mapReadiness,
+        callable $recallRunner,
+    ): WorkflowRunPreparationResult {
         if ($contract->status !== TaskContract::APPROVED) {
             throw new RuntimeException('Governed Run preparation requires an approved Contract.');
         }
 
+        $runner = Closure::fromCallable($recallRunner);
         $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
         $session = $this->prepareSession($contract);
         $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
@@ -102,7 +100,7 @@ final readonly class WorkflowRunPreparer
             }
         }
 
-        $exit = ($this->recallRunner)($recallArgs);
+        $exit = $runner($recallArgs);
         if ($exit !== 0) {
             return new WorkflowRunPreparationResult(
                 $run,
