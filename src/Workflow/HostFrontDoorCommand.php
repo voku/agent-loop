@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -20,11 +21,15 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
  */
 final readonly class HostFrontDoorCommand
 {
+    private string $rootPath;
+
+    private ?Closure $recallRunner;
+
     /** @param null|callable(list<string>): int $recallRunner */
-    public function __construct(
-        private string $rootPath,
-        private mixed $recallRunner = null,
-    ) {
+    public function __construct(string $rootPath, ?callable $recallRunner = null)
+    {
+        $this->rootPath = $rootPath;
+        $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -175,7 +180,7 @@ final readonly class HostFrontDoorCommand
 
     private function prepareApprovedRun(string $taskId): void
     {
-        if (!is_callable($this->recallRunner)) {
+        if ($this->recallRunner === null) {
             throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
         }
 
