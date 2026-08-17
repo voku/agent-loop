@@ -1,0 +1,78 @@
+name: Apply issue 181
+
+on:
+  push:
+    branches: [fix/pruned-session-resume]
+    paths: ['.github/workflows/issue181-apply.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/pruned-session-resume
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Patch exact resume boundary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          composer = Path('composer.json')
+          text = composer.read_text()
+          old = '"voku/agent-session": "^0.6.0"'
+          new = '"voku/agent-session": "^0.6.1"'
+          assert text.count(old) == 1, text.count(old)
+          composer.write_text(text.replace(old, new))
+
+          store = Path('src/Run/GovernedRunStore.php')
+          text = store.read_text()
+          old = '''        $contractHash = hash_file('sha256', $contract->path);\n        if ($contractHash === false) {\n            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);\n        }\n        $contractSource = [\n            'path' => PathResolver::relativeTo($this->rootPath, $contract->path),\n            'sha256' => 'sha256:' . $contractHash,\n        ];\n'''
+          assert text.count(old) == 1, text.count(old)
+          text = text.replace(old, '        $contractSource = $this->contractSource($contract);\n')
+          anchor = '''    public function path(string $taskId): string\n'''
+          addition = '''    public function findForContract(TaskContract $contract): ?GovernedRun\n    {\n        $existing = $this->find($contract->taskId);\n        if ($existing === null) {\n            return null;\n        }\n\n        return $existing->contractRevision === $contract->revision\n            && $existing->contractSource === $this->contractSource($contract)\n                ? $existing\n                : null;\n    }\n\n'''
+          assert text.count(anchor) == 1, text.count(anchor)
+          text = text.replace(anchor, addition + anchor)
+          anchor = '    private function newRun('
+          helper = '''    /** @return array{path: string, sha256: string} */\n    private function contractSource(TaskContract $contract): array\n    {\n        $contractHash = hash_file('sha256', $contract->path);\n        if ($contractHash === false) {\n            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);\n        }\n\n        return [\n            'path' => PathResolver::relativeTo($this->rootPath, $contract->path),\n            'sha256' => 'sha256:' . $contractHash,\n        ];\n    }\n\n'''
+          assert text.count(anchor) == 1, text.count(anchor)
+          text = text.replace(anchor, helper + anchor)
+          store.write_text(text)
+
+          approve = Path('src/Workflow/WorkflowApproveCommand.php')
+          text = approve.read_text()
+          old = '''    private function prepareSession(TaskContract $contract): Session\n    {\n        $existing = $this->activeSession($contract->taskId);\n        if ($existing !== null) {\n            return $existing;\n        }\n\n        return (new SessionStore())->create(\n            (new ProjectLayout($this->rootPath))->sessionsRoot(),\n            $contract->taskId,\n            sprintf('%s-r%d-%s', $contract->taskId, $contract->revision, bin2hex(random_bytes(4))),\n            $contract->plannedBy,\n            $contract->baseCommit,\n        );\n    }\n'''
+          new = '''    private function prepareSession(TaskContract $contract): Session\n    {\n        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();\n        $sessions = new SessionStore();\n        $active = $this->activeSession($contract->taskId);\n        $boundRun = (new GovernedRunStore($this->rootPath))->findForContract($contract);\n\n        if ($boundRun !== null) {\n            if ($active !== null) {\n                if ($active->id !== $boundRun->sessionId) {\n                    throw new RuntimeException(sprintf(\n                        'Governed Run %s is bound to missing Session %s, but active Session %s exists for task %s.',\n                        $boundRun->runId,\n                        $boundRun->sessionId,\n                        $active->id,\n                        $contract->taskId,\n                    ));\n                }\n\n                return $active;\n            }\n\n            if ($sessions->exists($sessionsRoot, $boundRun->sessionId)) {\n                throw new RuntimeException(sprintf(\n                    'Governed Run %s is bound to Session %s, but that Session exists and is not active.',\n                    $boundRun->runId,\n                    $boundRun->sessionId,\n                ));\n            }\n\n            return $sessions->rehydrate(\n                $sessionsRoot,\n                $boundRun->sessionId,\n                $contract->taskId,\n                $contract->plannedBy,\n                $contract->baseCommit,\n            );\n        }\n\n        if ($active !== null) {\n            return $active;\n        }\n\n        return $sessions->create(\n            $sessionsRoot,\n            $contract->taskId,\n            sprintf('%s-r%d-%s', $contract->taskId, $contract->revision, bin2hex(random_bytes(4))),\n            $contract->plannedBy,\n            $contract->baseCommit,\n        );\n    }\n'''
+          assert text.count(old) == 1, text.count(old)
+          approve.write_text(text.replace(old, new))
+
+          test = Path('tests/WorkflowPrunedSessionDurabilityTest.php')
+          text = test.read_text()
+          anchor = '''    private function writeRecallMeta(): void\n'''
+          method = '''    public function testApprovedRunRehydratesItsExactHistoricalSessionAfterWorkingMemoryDisappears(): void\n    {\n        $contracts = new TaskContractStore($this->root);\n        $contracts->create(\n            'ABC-123',\n            'Resume the same governed Run after working memory disappears.',\n            ['README.md'],\n            ['Do not rebind Run identity.'],\n            ['vendor/bin/phpunit'],\n            'lars',\n        );\n        $contract = $contracts->approve('ABC-123', 'lars');\n\n        $sessions = new SessionStore();\n        $session = $sessions->rehydrate(\n            $this->root . '/.agent-loop/sessions',\n            '2001-02-03-abc-123-r1-deadbeef',\n            'ABC-123',\n            'lars',\n            $contract->baseCommit,\n        );\n        $run = (new GovernedRunStore($this->root))->prepare(\n            $contract,\n            $session,\n            $this->root . '/.agent-loop/learning',\n        );\n        $this->removeDirectory($session->path);\n        self::assertDirectoryDoesNotExist($session->path);\n\n        $approve = new WorkflowApproveCommand(\n            $this->root,\n            function (array $argv): int {\n                $this->writeRecallMeta();\n\n                return 0;\n            },\n        );\n        ob_start();\n        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));\n        ob_end_clean();\n\n        $rehydrated = $sessions->load($this->root . '/.agent-loop/sessions', $session->id);\n        self::assertSame('2001-02-03-abc-123-r1-deadbeef', $rehydrated->id);\n        self::assertSame(SessionStatus::ACTIVE, $rehydrated->status);\n        self::assertSame('ABC-123', $rehydrated->taskId);\n\n        $resumedRun = (new GovernedRunStore($this->root))->find('ABC-123');\n        self::assertNotNull($resumedRun);\n        self::assertSame($run->runId, $resumedRun->runId);\n        self::assertSame($session->id, $resumedRun->sessionId);\n    }\n\n'''
+          assert text.count(anchor) == 1, text.count(anchor)
+          test.write_text(text.replace(anchor, method + anchor))
+          PY
+      - name: Install released owner API and validate
+        run: |
+          composer update voku/agent-session --with-dependencies --no-interaction
+          composer ci
+      - name: Commit bounded change and remove helper
+        run: |
+          rm .github/workflows/issue181-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add composer.json composer.lock src/Run/GovernedRunStore.php src/Workflow/WorkflowApproveCommand.php tests/WorkflowPrunedSessionDurabilityTest.php .github/workflows/issue181-apply.yml
+          git diff --cached --check
+          git commit -m 'fix: resume governed Run after Session pruning (#181)'
+          git push origin HEAD:fix/pruned-session-resume
