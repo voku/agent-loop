@@ -45,10 +45,14 @@ final class InitSyncInstructionsCommandTest extends TestCase
         $agents = (string) file_get_contents($this->root . '/AGENTS.md');
         self::assertStringContainsString(InitSyncInstructionsCommand::BEGIN_MARKER, $agents);
         self::assertStringContainsString('agent-loop workflow router', $agents);
-        self::assertStringContainsString('agent-loop-*', $agents);
-        self::assertStringContainsString('agent-map', $agents);
-        self::assertStringContainsString('agent-recall-compiler', $agents);
-        self::assertStringContainsString('init status', $agents);
+        self::assertStringContainsString('agent-loop enter <task-id>', $agents);
+        self::assertStringContainsString('Mutation: ready', $agents);
+        self::assertStringContainsString('agent-loop finish <task-id>', $agents);
+        self::assertStringContainsString('Complete: yes', $agents);
+        self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
+        self::assertStringContainsString('init sync-instructions', $agents);
+        self::assertStringNotContainsString('agent-map', $agents);
+        self::assertStringNotContainsString('agent-recall-compiler', $agents);
         self::assertFileDoesNotExist($this->root . '/CLAUDE.md');
         self::assertFileDoesNotExist($this->root . '/GEMINI.md');
     }
@@ -61,10 +65,10 @@ final class InitSyncInstructionsCommandTest extends TestCase
 
         self::assertSame(0, $exit, $output);
         self::assertFileExists($this->root . '/AGENTS.md');
-        self::assertStringContainsString(
-            'agent-loop workflow router',
-            (string) file_get_contents($this->root . '/AGENTS.md'),
-        );
+        $router = (string) file_get_contents($this->root . '/AGENTS.md');
+        self::assertStringContainsString('agent-loop workflow router', $router);
+        self::assertStringContainsString('agent-loop enter <task-id>', $router);
+        self::assertStringContainsString('agent-loop finish <task-id>', $router);
         self::assertStringContainsString('[OK] sync instructions: updated AGENTS.md.', $output);
     }
 
@@ -77,7 +81,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         $claude = (string) file_get_contents($this->root . '/CLAUDE.md');
         $gemini = (string) file_get_contents($this->root . '/GEMINI.md');
 
-        self::assertStringContainsString('agent-loop workflow router', $agents);
+        self::assertStringContainsString('agent-loop enter <task-id>', $agents);
+        self::assertStringContainsString('agent-loop finish <task-id>', $agents);
         self::assertStringContainsString('@AGENTS.md', $claude);
         self::assertStringNotContainsString('agent-loop workflow router', $claude);
         self::assertStringContainsString('@./AGENTS.md', $gemini);
@@ -98,6 +103,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString("# Project rules\n\nKeep this human-owned text.", $updated);
         self::assertStringContainsString("# More project rules\nStill human-owned.", $updated);
         self::assertStringNotContainsString('old generated text', $updated);
+        self::assertStringContainsString('agent-loop enter <task-id>', $updated);
+        self::assertStringContainsString('agent-loop finish <task-id>', $updated);
         self::assertSame(1, substr_count($updated, InitSyncInstructionsCommand::BEGIN_MARKER));
         self::assertSame(1, substr_count($updated, InitSyncInstructionsCommand::END_MARKER));
     }
@@ -146,7 +153,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
 
         $consumerRouter = (string) file_get_contents($this->root . '/AGENTS.md');
-        self::assertStringContainsString('`vendor/bin/agent-loop init status`', $consumerRouter);
+        self::assertStringContainsString('`vendor/bin/agent-loop enter <task-id>`', $consumerRouter);
+        self::assertStringContainsString('`vendor/bin/agent-loop finish <task-id>`', $consumerRouter);
         self::assertStringNotContainsString('{{agent_loop_cli}}', $consumerRouter);
 
         file_put_contents(
@@ -157,7 +165,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
 
         $packageRouter = (string) file_get_contents($this->root . '/AGENTS.md');
-        self::assertStringContainsString('`bin/agent-loop init status`', $packageRouter);
+        self::assertStringContainsString('`bin/agent-loop enter <task-id>`', $packageRouter);
+        self::assertStringContainsString('`bin/agent-loop finish <task-id>`', $packageRouter);
         self::assertStringNotContainsString('`vendor/bin/agent-loop', $packageRouter);
     }
 
