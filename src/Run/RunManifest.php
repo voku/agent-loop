@@ -24,8 +24,6 @@ final readonly class RunManifest
     public RunPolicyEvaluation $policy;
 
     /**
-     * @param 'ephemeral'|'governed'|'planned'|'legacy_inferred' $mode
-     * @param 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete' $state
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
