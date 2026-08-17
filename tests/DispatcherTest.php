@@ -66,6 +66,55 @@ final class DispatcherTest extends TestCase
         }
     }
 
+    public function testDelegatedBoardAcceptsEqualsAndSpacedLongOptionValues(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-board-' . bin2hex(random_bytes(6));
+        mkdir($root . '/.agent-loop/todo', 0o775, true);
+        file_put_contents($root . '/.agent-loop/todo/board.md', "- **Project prefix:** SLOP\n");
+
+        try {
+            foreach ([['--by=Claude'], ['--by', 'Claude']] as $byTokens) {
+                $this->assertRun(
+                    [
+                        'agent-loop',
+                        'board',
+                        'card',
+                        'claim',
+                        'SLOP-1',
+                        ...$byTokens,
+                        '--move-to-doing',
+                        '--format=json',
+                        '--compact',
+                    ],
+                    2,
+                    ['"exception":"NotFoundException"', '"cardId":"SLOP-1"'],
+                    $root,
+                );
+            }
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testDelegatedBoardValidationErrorsStayUserFacing(): void
+    {
+        $this->assertRun(
+            [
+                'agent-loop',
+                'board',
+                'card',
+                'claim',
+                'SLOP-1',
+                '--by',
+                '--move-to-doing',
+                '--format=json',
+                '--compact',
+            ],
+            1,
+            ['"exception":"ValidationException"', 'Option --by requires a non-empty value.'],
+        );
+    }
+
     public function testWorkflowNamespaceRoutesToGovernedWorkflowCli(): void
     {
         $dispatcher = new Dispatcher('.');
