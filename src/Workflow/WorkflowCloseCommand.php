@@ -86,7 +86,7 @@ final readonly class WorkflowCloseCommand
                 $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
                 $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
                 if (!$policy->ordinaryCloseAllowed) {
-                    echo "[FAIL] workflow close: gates failed; session was not closed.\n";
+                    echo "[FAIL] workflow close: lifecycle state is {$policy->state}; session was not closed.\n";
                     if ($policy->nextAction !== 'none') {
                         echo "[ACTION REQUIRED] {$policy->nextAction}\n";
                     }
