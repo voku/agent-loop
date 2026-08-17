@@ -704,6 +704,16 @@ final readonly class RunManifestProjector
         if (in_array($references['execution_contract']['state'] ?? null, ['blocked', 'rejected', 'invalid', 'stale'], true)) {
             return 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
+        if (
+            ($references['verification']['state'] ?? null) === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'validation'
+        ) {
+            $action = $references['verification']['action'] ?? null;
+
+            return is_string($action) && $action !== ''
+                ? $action
+                : 'agent-loop workflow status ' . $taskId . ' --format=json';
+        }
         if (in_array($references['review']['state'] ?? null, ['missing', 'invalid', 'fail'], true)) {
             return 'agent-loop review blindspots ' . $taskId;
         }
