@@ -39,7 +39,7 @@ final readonly class InitSyncSubagentsCommand
         }
 
         try {
-            $agent = InitAgent::parse($agentValue, ['codex', 'claude', 'copilot', 'antigravity'], true, $config['agents']);
+            $agent = InitAgent::parse($agentValue, InitAgent::canonicalNames(), true, $config['agents']);
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -55,7 +55,7 @@ final readonly class InitSyncSubagentsCommand
         $force = OptionTokens::hasFlag($tokens, 'force');
         $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
-        $agents = $agent->isAll() ? ['codex', 'claude', 'copilot', 'antigravity'] : [$agent->canonicalName()];
+        $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
             $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
@@ -194,7 +194,9 @@ final readonly class InitSyncSubagentsCommand
                 ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
-            default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
+            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+            default => throw new InvalidArgumentException('Unsupported subagent sync target: ' . $agent),
         };
     }
 
@@ -203,8 +205,10 @@ final readonly class InitSyncSubagentsCommand
         return match ($agent) {
             'codex' => '[INFO] Start a fresh Codex session if the project agent registry needs to be reloaded.',
             'claude' => '[INFO] Start a fresh Claude Code session so the project agent registry is re-read.',
+            'gemini' => '[INFO] Start a fresh Gemini CLI session so the project agent registry is re-read.',
             'antigravity' => "[INFO] Run '/agents reload' in your active Antigravity CLI session if needed.",
-            default => '[INFO] Reload the active Copilot agent registry if needed.',
+            'copilot' => '[INFO] Reload the active Copilot agent registry if needed.',
+            default => throw new InvalidArgumentException('Unsupported subagent sync target: ' . $agent),
         };
     }
 
