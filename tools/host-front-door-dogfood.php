@@ -39,13 +39,13 @@ foreach (array_slice($argv, 1) as $argument) {
 }
 
 $fail = static function (string $message): never {
-    fwrite(STDERR, $message . "\n");
-    exit(1);
+    throw new RuntimeException($message);
 };
 
 $workspace = sys_get_temp_dir() . '/agent-loop-host-front-door-dogfood-' . bin2hex(random_bytes(6));
 if (!mkdir($workspace, 0o775, true) && !is_dir($workspace)) {
-    $fail('Unable to create isolated dogfood workspace: ' . $workspace);
+    fwrite(STDERR, 'Unable to create isolated dogfood workspace: ' . $workspace . "\n");
+    exit(1);
 }
 
 $removeTree = static function (string $directory): void {
@@ -103,7 +103,10 @@ $frontDoor = static function (array $arguments) use ($root, $workspace): array {
     ];
 };
 
-/** @return array<string, mixed> */
+/**
+ * @param array{exit: int, stdout: string, stderr: string} $result
+ * @return array<string, mixed>
+ */
 $jsonOutput = static function (array $result): array {
     if ($result['stdout'] === '') {
         throw new RuntimeException('Front door produced no JSON output: ' . $result['stderr']);
@@ -115,6 +118,9 @@ $jsonOutput = static function (array $result): array {
 
     return $decoded;
 };
+
+$failure = null;
+$encodedReport = null;
 
 try {
     $sourceDirectory = $workspace . '/src';
@@ -274,6 +280,23 @@ try {
         $fail('Final finish did not accept the completed Run.');
     }
 
+    $seenSignatures = [];
+    $repeatedSameStateCommands = 0;
+    foreach ($commands as $command) {
+        $signature = json_encode([
+            $command['command'],
+            $command['state'],
+            $command['mutation_ready'] ?? null,
+            $command['complete'] ?? null,
+            $command['next_action'] ?? null,
+        ], JSON_THROW_ON_ERROR);
+        if (isset($seenSignatures[$signature])) {
+            ++$repeatedSameStateCommands;
+            continue;
+        }
+        $seenSignatures[$signature] = true;
+    }
+
     $report = [
         'schema_version' => '1.0',
         'task_id' => TASK,
@@ -283,7 +306,7 @@ try {
             $commands,
             static fn (array $command): bool => $command['exit'] !== 0,
         )),
-        'repeated_same_state_commands' => 0,
+        'repeated_same_state_commands' => $repeatedSameStateCommands,
         'manual_corrections' => 0,
         'hidden_prerequisite_repairs' => 0,
         'context_lines' => count($contextLines),
@@ -294,21 +317,37 @@ try {
         'commands' => $commands,
     ];
 
-    $encoded = json_encode(
+    $encodedReport = json_encode(
         $report,
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
     ) . "\n";
-    echo $encoded;
 
     if ($reportPath !== null) {
         $directory = dirname($reportPath);
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
             $fail('Unable to create report directory: ' . $directory);
         }
-        if (file_put_contents($reportPath, $encoded) === false) {
+        if (file_put_contents($reportPath, $encodedReport) === false) {
             $fail('Unable to write dogfood report: ' . $reportPath);
         }
     }
-} finally {
-    $removeTree($workspace);
+} catch (Throwable $exception) {
+    $failure = $exception;
 }
+
+try {
+    $removeTree($workspace);
+} catch (Throwable $cleanupFailure) {
+    $failure ??= $cleanupFailure;
+}
+
+if ($failure !== null) {
+    fwrite(STDERR, 'Host front-door dogfood: FAILED: ' . $failure->getMessage() . "\n");
+    exit(1);
+}
+if (!is_string($encodedReport)) {
+    fwrite(STDERR, "Host front-door dogfood: FAILED: report was not produced.\n");
+    exit(1);
+}
+
+echo $encodedReport;
