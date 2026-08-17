@@ -148,7 +148,7 @@ final readonly class HostFrontDoorCommand
 
     private function mutationReady(RunManifest $manifest): bool
     {
-        if ($manifest->mode !== 'governed' || $manifest->disagreements !== []) {
+        if ($manifest->state !== 'incomplete' || $manifest->mode !== 'governed' || $manifest->disagreements !== []) {
             return false;
         }
 

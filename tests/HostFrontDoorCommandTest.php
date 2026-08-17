@@ -71,10 +71,19 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame($before, $this->snapshotFiles(), 'enter must not modify governed workflow artifacts.');
     }
 
-    public function testFinishRejectsReadyToCloseAndAcceptsOnlyActuallyCompleteRun(): void
+    public function testReadyToCloseCannotReopenMutationAndFinishAcceptsOnlyActuallyCompleteRun(): void
     {
         [$sessions, $session] = $this->prepareGovernedRun(withCloseEvidence: true);
         $before = $this->snapshotFiles();
+
+        $entry = $this->runBinary(['enter', 'ABC-123', '--format=json']);
+
+        self::assertSame(0, $entry['exit'], $entry['stderr']);
+        $entryPayload = $this->json($entry['stdout']);
+        self::assertFalse($entryPayload['mutation_ready']);
+        self::assertSame('ready_to_close', $entryPayload['manifest']['state']);
+        self::assertSame('agent-loop workflow close ABC-123 --status done', $entryPayload['next_action']);
+        self::assertSame($before, $this->snapshotFiles(), 'enter must stay read-only and must not reopen mutation after verification.');
 
         $ready = $this->runBinary(['finish', 'ABC-123', '--format=json']);
 

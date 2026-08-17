@@ -41,6 +41,9 @@ final class ReleaseSetDogfood
     /** @var list<array<string, string>> */
     private array $friction = [];
 
+    /** @var list<array<string, mixed>> */
+    private array $frontDoorJourney = [];
+
     private string $scenario = 'bootstrap';
     private int $commandNumber = 0;
 
@@ -185,6 +188,15 @@ final class ReleaseSetDogfood
             'vendor/bin/agent-loop', 'workflow', 'status', 'DEMO-1',
             '--format=json', '--expect=complete',
         ], [1]);
+
+        $entry = $this->frontDoor('unprepared', ['enter', 'DEMO-1', '--format=json'], [1]);
+        if (($entry['mutation_ready'] ?? null) !== false) {
+            throw new ReleaseSetFailure('Unprepared host front door did not fail closed.');
+        }
+        $nextAction = $entry['next_action'] ?? null;
+        if (!is_string($nextAction) || !str_contains($nextAction, 'workflow plan DEMO-1')) {
+            throw new ReleaseSetFailure('Unprepared host front door did not return the canonical plan prerequisite.');
+        }
     }
 
     private function ephemeral(): void
@@ -242,6 +254,17 @@ final class ReleaseSetDogfood
             if (is_file($directory . '/work-brief.json') || is_file($directory . '/approval.json') || is_file($directory . '/learning-decision.json')) {
                 throw new ReleaseSetFailure('Session contains removed durable authority artifacts.');
             }
+        }
+
+        $entry = $this->frontDoor(
+            'governed_ready',
+            ['enter', 'DEMO-1', '--format=json', '--max-lines=40', '--max-bytes=4096'],
+        );
+        if (($entry['mutation_ready'] ?? null) !== true) {
+            throw new ReleaseSetFailure('Governed host front door did not report mutation readiness.');
+        }
+        if (($entry['context_lines'] ?? 0) < 1 || ($entry['context_lines'] ?? 0) > 40 || ($entry['context_bytes'] ?? 0) > 4096) {
+            throw new ReleaseSetFailure('Governed host front door exceeded or omitted its bounded context.');
         }
     }
 
@@ -304,6 +327,23 @@ final class ReleaseSetDogfood
     private function close(): void
     {
         $this->mustRun(['vendor/bin/agent-loop', 'verify', '--task-id=DEMO-1']);
+
+        $verified = $this->frontDoor('verified_no_mutation', ['enter', 'DEMO-1', '--format=json']);
+        if (($verified['mutation_ready'] ?? null) !== false || ($verified['state'] ?? null) !== 'ready_to_close') {
+            throw new ReleaseSetFailure('Verified host front door reopened mutation instead of preserving ready_to_close.');
+        }
+        if (($verified['next_action'] ?? null) !== 'agent-loop workflow close DEMO-1 --status done') {
+            throw new ReleaseSetFailure('Verified host front door did not return the canonical close action.');
+        }
+
+        $premature = $this->frontDoor('ready_to_close', ['finish', 'DEMO-1', '--format=json'], [1]);
+        if (($premature['complete'] ?? null) !== false || ($premature['state'] ?? null) !== 'ready_to_close') {
+            throw new ReleaseSetFailure('Host front door accepted completion before workflow close.');
+        }
+        if (($premature['next_action'] ?? null) !== 'agent-loop workflow close DEMO-1 --status done') {
+            throw new ReleaseSetFailure('Premature finish did not return the canonical close action.');
+        }
+
         $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'close', 'DEMO-1', '--status', 'done']);
         $status = $this->status('DEMO-1', 'complete');
         if (($status['manifest']['state'] ?? null) !== 'complete') {
@@ -311,6 +351,15 @@ final class ReleaseSetDogfood
         }
         $this->assertReference($status, 'verification', 'passed');
         $this->assertReference($status, 'session', 'done');
+
+        $complete = $this->frontDoor('complete', ['finish', 'DEMO-1', '--format=json']);
+        if (($complete['complete'] ?? null) !== true || ($complete['state'] ?? null) !== 'complete') {
+            throw new ReleaseSetFailure('Host front door did not accept the completed Run.');
+        }
+        if (($complete['next_action'] ?? null) !== 'none') {
+            throw new ReleaseSetFailure('Completed finish exposed another action.');
+        }
+
         $this->artifact($this->consumerRoot . '/.agent-loop/runs/DEMO-1/verification.json');
     }
 
@@ -338,6 +387,72 @@ final class ReleaseSetDogfood
         }
         $this->writeJson($this->artifactRoot . '/post-prune-status.json', $status);
         $this->writeJson($this->artifactRoot . '/post-prune-report.json', $decoded);
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @param list<int> $allowedExitCodes
+     * @return array<string, mixed>
+     */
+    private function frontDoor(string $phase, array $arguments, array $allowedExitCodes = [0]): array
+    {
+        $result = $this->mustRun(['vendor/bin/agent-loop', ...$arguments], $allowedExitCodes);
+        $payload = $this->json($result['stdout'], 'host front door ' . $phase);
+        $contextLines = is_array($payload['context']['lines'] ?? null) ? $payload['context']['lines'] : [];
+        $entry = [
+            'command' => $arguments[0] ?? 'unknown',
+            'phase' => $phase,
+            'exit' => $result['exit'],
+            'state' => $payload['manifest']['state'] ?? null,
+            'mutation_ready' => $payload['mutation_ready'] ?? null,
+            'complete' => $payload['complete'] ?? null,
+            'next_action' => $payload['next_action'] ?? null,
+            'context_lines' => count($contextLines),
+            'context_bytes' => array_sum(array_map(
+                static fn (mixed $line): int => strlen((string) $line) + 1,
+                $contextLines,
+            )),
+        ];
+        $this->frontDoorJourney[] = $entry;
+
+        return $entry;
+    }
+
+    /** @return array<string, mixed> */
+    private function frontDoorJourneyReport(): array
+    {
+        $signatures = array_map(
+            static fn (array $entry): string => json_encode([
+                $entry['command'] ?? null,
+                $entry['state'] ?? null,
+            ], JSON_THROW_ON_ERROR),
+            $this->frontDoorJourney,
+        );
+        $mutationReadyTransition = array_values(array_map(
+            static fn (array $entry): bool => $entry['mutation_ready'],
+            array_filter(
+                $this->frontDoorJourney,
+                static fn (array $entry): bool => is_bool($entry['mutation_ready'] ?? null),
+            ),
+        ));
+        $ready = $this->frontDoorJourney[1] ?? [];
+        $premature = $this->frontDoorJourney[3] ?? [];
+        $complete = $this->frontDoorJourney[4] ?? [];
+
+        return [
+            'front_door_commands' => count($this->frontDoorJourney),
+            'failed_front_door_commands' => count(array_filter(
+                $this->frontDoorJourney,
+                static fn (array $entry): bool => ($entry['exit'] ?? 0) !== 0,
+            )),
+            'repeated_same_state_commands' => count($signatures) - count(array_unique($signatures)),
+            'context_lines' => $ready['context_lines'] ?? 0,
+            'context_bytes' => $ready['context_bytes'] ?? 0,
+            'mutation_ready_transition' => $mutationReadyTransition,
+            'premature_done_caught' => ($premature['exit'] ?? null) === 1 && ($premature['complete'] ?? null) === false,
+            'final_complete' => ($complete['exit'] ?? null) === 0 && ($complete['complete'] ?? null) === true,
+            'commands' => $this->frontDoorJourney,
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -543,6 +658,7 @@ final class ReleaseSetDogfood
             'result' => $failed ? 'failed' : 'passed',
             'release_set' => is_file($this->consumerRoot . '/composer.lock') ? $this->resolvedPackages() : [],
             'scenarios' => $this->scenarios,
+            'front_door_journey' => $this->frontDoorJourneyReport(),
             'friction' => $this->friction,
             'platform' => [
                 'php' => PHP_VERSION,
