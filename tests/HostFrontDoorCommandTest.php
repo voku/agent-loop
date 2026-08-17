@@ -1,0 +1,249 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Tests;
+
+use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use RuntimeException;
+use voku\AgentLearning\RunLearningDecisionStatus;
+use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunVerificationReceiptStore;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStatus;
+use voku\AgentSession\SessionStore;
+
+final class HostFrontDoorCommandTest extends TestCase
+{
+    private string $root;
+
+    protected function setUp(): void
+    {
+        $this->root = sys_get_temp_dir() . '/agent-loop-host-front-door-' . bin2hex(random_bytes(4));
+        if (!mkdir($this->root, 0o775, true) && !is_dir($this->root)) {
+            throw new RuntimeException('Unable to create test root: ' . $this->root);
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeTree($this->root);
+    }
+
+    public function testEnterMissingWorkflowIsReadOnlyAndPointsToCanonicalPlanAction(): void
+    {
+        $before = $this->snapshotFiles();
+        $result = $this->runBinary(['enter', 'ABC-123', '--format=json']);
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        $payload = $this->json($result['stdout']);
+        self::assertSame('enter', $payload['command']);
+        self::assertFalse($payload['mutation_ready']);
+        self::assertSame('legacy_inferred', $payload['manifest']['mode']);
+        self::assertStringContainsString('workflow plan ABC-123', $payload['next_action']);
+        self::assertSame($before, $this->snapshotFiles(), 'enter must not create workflow state.');
+    }
+
+    public function testEnterReportsMutationReadyFromExistingGovernedOwnerArtifacts(): void
+    {
+        $this->prepareGovernedRun();
+        $before = $this->snapshotFiles();
+
+        $result = $this->runBinary(['enter', 'ABC-123', '--format=json', '--max-lines=40', '--max-bytes=4096']);
+
+        self::assertSame(0, $result['exit'], $result['stderr']);
+        $payload = $this->json($result['stdout']);
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame('governed', $payload['manifest']['mode']);
+        self::assertSame('approved', $payload['manifest']['references']['contract']['state']);
+        self::assertSame('current', $payload['manifest']['references']['approval']['state']);
+        self::assertSame('active', $payload['manifest']['references']['session']['state']);
+        self::assertSame('compiled', $payload['manifest']['references']['recall']['state']);
+        self::assertSame('not_required', $payload['manifest']['references']['execution_contract']['state']);
+        self::assertSame($payload['manifest']['next_action'], $payload['next_action']);
+        self::assertSame('ABC-123', $payload['context']['task_id']);
+        self::assertLessThanOrEqual(40, count($payload['context']['lines']));
+        self::assertSame($before, $this->snapshotFiles(), 'enter must not modify governed workflow artifacts.');
+    }
+
+    public function testFinishRejectsReadyToCloseAndAcceptsOnlyActuallyCompleteRun(): void
+    {
+        [$sessions, $session] = $this->prepareGovernedRun(withCloseEvidence: true);
+        $before = $this->snapshotFiles();
+
+        $ready = $this->runBinary(['finish', 'ABC-123', '--format=json']);
+
+        self::assertSame(1, $ready['exit'], $ready['stderr']);
+        $readyPayload = $this->json($ready['stdout']);
+        self::assertFalse($readyPayload['complete']);
+        self::assertSame('ready_to_close', $readyPayload['manifest']['state']);
+        self::assertSame('agent-loop workflow close ABC-123 --status done', $readyPayload['next_action']);
+        self::assertSame($before, $this->snapshotFiles(), 'finish must not close the Run itself.');
+
+        $sessions->setStatus($session, SessionStatus::DONE);
+        $afterOwnerClose = $this->snapshotFiles();
+        $complete = $this->runBinary(['finish', 'ABC-123', '--format=json']);
+
+        self::assertSame(0, $complete['exit'], $complete['stderr']);
+        $completePayload = $this->json($complete['stdout']);
+        self::assertTrue($completePayload['complete']);
+        self::assertSame('complete', $completePayload['manifest']['state']);
+        self::assertSame('none', $completePayload['next_action']);
+        self::assertSame($afterOwnerClose, $this->snapshotFiles(), 'finish must remain read-only after completion.');
+    }
+
+    /** @return array{0: SessionStore, 1: Session} */
+    private function prepareGovernedRun(bool $withCloseEvidence = false): array
+    {
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/Foo.php', "<?php\nfinal class Foo {}\n");
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
+            'Exercise the host front door.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'lars',
+        );
+        $contract = $contracts->approve('ABC-123', 'lars');
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+
+        $sessions = new SessionStore();
+        $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
+        $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
+
+        $recallDirectory = $this->root . '/.agent-loop/recall/ABC-123';
+        if (!mkdir($recallDirectory, 0o775, true) && !is_dir($recallDirectory)) {
+            throw new RuntimeException('Unable to create recall directory.');
+        }
+        file_put_contents(
+            $recallDirectory . '/meta.json',
+            json_encode([
+                'schema_version' => '1.0',
+                'task_id' => 'ABC-123',
+                'compilation_id' => 'ABC-123-001',
+                'bundle_sha256' => str_repeat('a', 64),
+                'selected_guidance' => [],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        if (!$withCloseEvidence) {
+            return [$sessions, $session];
+        }
+
+        $reviewDirectory = $recallDirectory . '/reviews';
+        if (!mkdir($reviewDirectory, 0o775, true) && !is_dir($reviewDirectory)) {
+            throw new RuntimeException('Unable to create review directory.');
+        }
+        file_put_contents(
+            $reviewDirectory . '/ABC-123.blindspots.json',
+            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
+        );
+        (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
+            $run->runId,
+            RunLearningDecisionStatus::NO_DURABLE_LEARNING,
+            'lars',
+            'No durable learning from the front-door fixture.',
+        );
+        (new RunVerificationReceiptStore($this->root))->record(
+            $run,
+            $contract,
+            $session,
+            $snapshot->digest,
+            'satisfied',
+            [[
+                'command' => 'vendor/bin/phpunit',
+                'status' => 'passed',
+                'exit_code' => 0,
+                'executed_at' => '2026-08-17T10:00:00+00:00',
+                'recorded_by' => 'lars',
+                'duration_ms' => 10,
+            ]],
+        );
+
+        return [$sessions, $session];
+    }
+
+    /** @param list<string> $args
+     *  @return array{exit: int, stdout: string, stderr: string}
+     */
+    private function runBinary(array $args): array
+    {
+        $pipes = [];
+        $process = proc_open(
+            [PHP_BINARY, dirname(__DIR__) . '/bin/agent-loop', ...$args],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $this->root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('Unable to start agent-loop binary.');
+        }
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [
+            'exit' => proc_close($process),
+            'stdout' => is_string($stdout) ? $stdout : '',
+            'stderr' => is_string($stderr) ? $stderr : '',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function json(string $json): array
+    {
+        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+
+        return $decoded;
+    }
+
+    /** @return list<string> */
+    private function snapshotFiles(): array
+    {
+        $files = [];
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
+        ) as $item) {
+            if ($item->isFile()) {
+                $files[] = str_replace($this->root . '/', '', $item->getPathname());
+            }
+        }
+        sort($files, SORT_STRING);
+
+        return $files;
+    }
+
+    private function removeTree(string $directory): void
+    {
+        if (!is_dir($directory)) {
+            return;
+        }
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        ) as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+        rmdir($directory);
+    }
+}
