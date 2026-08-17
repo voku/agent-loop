@@ -400,9 +400,10 @@ final class ReleaseSetDogfood
             'complete' => $payload['complete'] ?? null,
             'next_action' => $payload['next_action'] ?? null,
             'context_lines' => count($contextLines),
-            'context_bytes' => $contextLines === []
-                ? 0
-                : strlen(implode("\n", array_map(static fn (mixed $line): string => (string) $line, $contextLines))),
+            'context_bytes' => array_sum(array_map(
+                static fn (mixed $line): int => strlen((string) $line) + 1,
+                $contextLines,
+            )),
         ];
         $this->frontDoorJourney[] = $entry;
 
