@@ -130,6 +130,27 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-release-set
           --report=${{ github.workspace }}/build/release-set-report.json
           --keep
+      - name: Verify emitted release-set root authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer_json="${RUNNER_TEMP}/agent-loop-release-set/consumer/composer.json"
+          jq -e '
+            ((.require // {}) | has("voku/agent-loop") | not)
+            and (. ["require-dev"]["voku/agent-loop"] == "dev-main")
+          ' "${composer_json}" >/dev/null
+          for package in \
+            voku/agent-kanban \
+            voku/agent-learning \
+            voku/agent-map \
+            voku/agent-recall-compiler \
+            voku/agent-session
+          do
+            jq -e --arg package "${package}" '
+              ((.require // {}) | has($package) | not)
+              and ((.["require-dev"] // {}) | has($package) | not)
+            ' "${composer_json}" >/dev/null
+          done
       - name: Run installed first-party asset dogfood
         shell: bash
         run: |
@@ -222,6 +243,7 @@ jobs:
             build/release-set-report.json
             build/installed-assets-dogfood.json
             build/installed-host-capabilities.txt
+            ${{ runner.temp }}/agent-loop-release-set/consumer/composer.json
             ${{ runner.temp }}/agent-loop-release-set/artifacts
 
   slop-scan:
