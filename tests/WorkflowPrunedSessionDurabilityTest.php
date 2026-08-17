@@ -201,6 +201,58 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         self::assertSame($session->id, $resumedRun->sessionId);
     }
 
+    public function testApprovedRunRefusesDifferentActiveSessionWhenBoundWorkingMemoryIsMissing(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
+            'Do not let unrelated working memory steal a governed Run.',
+            ['README.md'],
+            ['Do not rebind Run identity.'],
+            ['vendor/bin/phpunit'],
+            'lars',
+        );
+        $contract = $contracts->approve('ABC-123', 'lars');
+
+        $sessionsRoot = $this->root . '/.agent-loop/sessions';
+        $sessions = new SessionStore();
+        $boundSession = $sessions->rehydrate(
+            $sessionsRoot,
+            '2001-02-03-abc-123-r1-deadbeef',
+            'ABC-123',
+            'lars',
+            $contract->baseCommit,
+        );
+        $runStore = new GovernedRunStore($this->root);
+        $run = $runStore->prepare(
+            $contract,
+            $boundSession,
+            $this->root . '/.agent-loop/learning',
+        );
+        $this->removeDirectory($boundSession->path);
+        self::assertDirectoryDoesNotExist($boundSession->path);
+
+        $conflictingSession = $sessions->create(
+            $sessionsRoot,
+            'ABC-123',
+            'unrelated-active-session',
+            'other-agent',
+            $contract->baseCommit,
+        );
+
+        $approve = new WorkflowApproveCommand($this->root, static fn (array $argv): int => 0);
+        ob_start();
+        self::assertSame(1, $approve->run(['ABC-123', '--by', 'lars']));
+        ob_end_clean();
+
+        self::assertFalse($sessions->exists($sessionsRoot, $boundSession->id));
+        self::assertTrue($sessions->exists($sessionsRoot, $conflictingSession->id));
+        $storedRun = $runStore->find('ABC-123');
+        self::assertNotNull($storedRun);
+        self::assertSame($run->runId, $storedRun->runId);
+        self::assertSame($boundSession->id, $storedRun->sessionId);
+    }
+
     private function writeRecallMeta(): void
     {
         mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
