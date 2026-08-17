@@ -50,16 +50,10 @@ final class InitDoctorHostRuntimeTest extends TestCase
     {
         $this->createExecutable('gemini');
 
-        ob_start();
-        $exit = (new InitDoctorCommand(
-            $this->root,
-            new HostRuntimeProbe($this->binRoot),
-        ))->run([]);
-        $output = (string) ob_get_clean();
+        $output = $this->runDoctor();
 
-        self::assertSame(0, $exit);
         self::assertStringContainsString(
-            '[INFO] Host runtime [gemini]: available; command=gemini; path=' . $this->binRoot . DIRECTORY_SEPARATOR . 'gemini',
+            '[INFO] Host runtime [gemini]: available; command=gemini; path=' . $this->executablePath('gemini'),
             $output,
         );
         self::assertStringContainsString('[INFO] Host runtime [codex]: missing; command=codex', $output);
@@ -77,6 +71,16 @@ final class InitDoctorHostRuntimeTest extends TestCase
     {
         $this->createExecutable('codex');
 
+        $output = $this->runDoctor();
+
+        self::assertStringContainsString(
+            '[INFO] Host runtime [codex]: available; command=codex; path=' . $this->executablePath('codex'),
+            $output,
+        );
+        self::assertStringContainsString(
+            'Host capability evidence [codex/session-bootstrap]: mechanism=Codex hooks.json + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
+            $output,
+        );
         self::assertSame(
             HostCapabilityStatus::Degraded,
             HostCapabilityMatrix::status('codex', HostCapability::SessionBootstrap),
@@ -91,14 +95,43 @@ final class InitDoctorHostRuntimeTest extends TestCase
         );
     }
 
+    private function runDoctor(): string
+    {
+        ob_start();
+        $exit = (new InitDoctorCommand(
+            $this->root,
+            new HostRuntimeProbe($this->binRoot, self::pathExt()),
+        ))->run([]);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit);
+
+        return $output;
+    }
+
     private function createExecutable(string $name): void
     {
-        $path = $this->binRoot . '/' . $name;
+        $path = $this->executablePath($name);
         if (file_put_contents($path, "#!/bin/sh\nexit 0\n") === false) {
             throw new RuntimeException('Unable to create fake host binary: ' . $path);
         }
         if (DIRECTORY_SEPARATOR === '/' && !chmod($path, 0o755)) {
             throw new RuntimeException('Unable to make fake host binary executable: ' . $path);
         }
+    }
+
+    private function executablePath(string $name): string
+    {
+        return $this->binRoot . DIRECTORY_SEPARATOR . self::executableFileName($name);
+    }
+
+    private static function executableFileName(string $name): string
+    {
+        return DIRECTORY_SEPARATOR === '\\' ? $name . '.EXE' : $name;
+    }
+
+    private static function pathExt(): ?string
+    {
+        return DIRECTORY_SEPARATOR === '\\' ? '.EXE' : null;
     }
 }
