@@ -416,9 +416,6 @@ final class ReleaseSetDogfood
             static fn (array $entry): string => json_encode([
                 $entry['command'] ?? null,
                 $entry['state'] ?? null,
-                $entry['mutation_ready'] ?? null,
-                $entry['complete'] ?? null,
-                $entry['next_action'] ?? null,
             ], JSON_THROW_ON_ERROR),
             $this->frontDoorJourney,
         );
