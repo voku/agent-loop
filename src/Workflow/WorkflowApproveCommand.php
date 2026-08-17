@@ -242,13 +242,49 @@ final readonly class WorkflowApproveCommand
 
     private function prepareSession(TaskContract $contract): Session
     {
-        $existing = $this->activeSession($contract->taskId);
-        if ($existing !== null) {
-            return $existing;
+        $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        $sessions = new SessionStore();
+        $active = $this->activeSession($contract->taskId);
+        $boundRun = (new GovernedRunStore($this->rootPath))->findForContract($contract);
+
+        if ($boundRun !== null) {
+            if ($active !== null) {
+                if ($active->id !== $boundRun->sessionId) {
+                    throw new RuntimeException(sprintf(
+                        'Governed Run %s is bound to missing Session %s, but active Session %s exists for task %s.',
+                        $boundRun->runId,
+                        $boundRun->sessionId,
+                        $active->id,
+                        $contract->taskId,
+                    ));
+                }
+
+                return $active;
+            }
+
+            if ($sessions->exists($sessionsRoot, $boundRun->sessionId)) {
+                throw new RuntimeException(sprintf(
+                    'Governed Run %s is bound to Session %s, but that Session exists and is not active.',
+                    $boundRun->runId,
+                    $boundRun->sessionId,
+                ));
+            }
+
+            return $sessions->rehydrate(
+                $sessionsRoot,
+                $boundRun->sessionId,
+                $contract->taskId,
+                $contract->plannedBy,
+                $contract->baseCommit,
+            );
         }
 
-        return (new SessionStore())->create(
-            (new ProjectLayout($this->rootPath))->sessionsRoot(),
+        if ($active !== null) {
+            return $active;
+        }
+
+        return $sessions->create(
+            $sessionsRoot,
             $contract->taskId,
             sprintf('%s-r%d-%s', $contract->taskId, $contract->revision, bin2hex(random_bytes(4))),
             $contract->plannedBy,

@@ -34,14 +34,7 @@ final class GovernedRunStore
         }
         $learningRootReference = $this->portableLearningRoot($learningRoot);
 
-        $contractHash = hash_file('sha256', $contract->path);
-        if ($contractHash === false) {
-            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);
-        }
-        $contractSource = [
-            'path' => PathResolver::relativeTo($this->rootPath, $contract->path),
-            'sha256' => 'sha256:' . $contractHash,
-        ];
+        $contractSource = $this->contractSource($contract);
 
         $existing = $this->find($contract->taskId);
         if ($existing !== null) {
@@ -115,9 +108,36 @@ final class GovernedRunStore
         return $this->decode($contents, $path, $taskId);
     }
 
+    public function findForContract(TaskContract $contract): ?GovernedRun
+    {
+        $existing = $this->find($contract->taskId);
+        if ($existing === null) {
+            return null;
+        }
+
+        return $existing->contractRevision === $contract->revision
+            && $existing->contractSource === $this->contractSource($contract)
+                ? $existing
+                : null;
+    }
+
     public function path(string $taskId): string
     {
         return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/run.json';
+    }
+
+    /** @return array{path: string, sha256: string} */
+    private function contractSource(TaskContract $contract): array
+    {
+        $contractHash = hash_file('sha256', $contract->path);
+        if ($contractHash === false) {
+            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);
+        }
+
+        return [
+            'path' => PathResolver::relativeTo($this->rootPath, $contract->path),
+            'sha256' => 'sha256:' . $contractHash,
+        ];
     }
 
     /** @param array{path: string, sha256: string} $contractSource */
