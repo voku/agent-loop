@@ -48,6 +48,20 @@ final class InitSyncGitHooksCommandTest extends TestCase
         self::assertSame('.gitmessage', $this->gitConfig('commit.template'));
     }
 
+    public function testSyncApprovesCurrentTrackedHookPolicy(): void
+    {
+        $this->writeHookPolicy('printf approved');
+
+        $result = $this->runGitHooksSync([]);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->policyApprovalPath());
+        self::assertSame(
+            hash_file('sha256', $this->root . '/.agent-loop/githooks.json') . "\n",
+            file_get_contents($this->policyApprovalPath()),
+        );
+    }
+
     public function testInstalledHooksPassShellSyntaxCheck(): void
     {
         self::assertSame(0, $this->runGitHooksSync([])['exit']);
@@ -127,11 +141,14 @@ final class InitSyncGitHooksCommandTest extends TestCase
 
     public function testDryRunWritesNothing(): void
     {
+        $this->writeHookPolicy('printf not-approved-by-dry-run');
+
         $result = $this->runGitHooksSync(['--dry-run']);
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync githooks: install post-merge', $result['output']);
         self::assertFileDoesNotExist($this->root . '/.githooks/post-merge');
+        self::assertFileDoesNotExist($this->policyApprovalPath());
         self::assertSame('', $this->gitConfig('core.hooksPath'));
     }
 
@@ -175,6 +192,39 @@ final class InitSyncGitHooksCommandTest extends TestCase
         $output = (string) ob_get_clean();
 
         return ['exit' => $exit, 'output' => $output];
+    }
+
+    private function writeHookPolicy(string $command): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/githooks.json',
+            json_encode(
+                [
+                    'pre_commit' => [
+                        'checks' => [[
+                            'name' => 'test',
+                            'command' => $command,
+                        ]],
+                    ],
+                ],
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+            ) . "\n",
+        );
+    }
+
+    private function policyApprovalPath(): string
+    {
+        $output = [];
+        exec(
+            'git -C ' . escapeshellarg($this->root) . ' rev-parse --git-path ' . escapeshellarg('agent-loop/githooks-policy.sha256') . ' 2>/dev/null',
+            $output,
+            $exitCode,
+        );
+        self::assertSame(0, $exitCode);
+        $path = trim(implode("\n", $output));
+
+        return str_starts_with($path, '/') ? $path : $this->root . '/' . $path;
     }
 
     private function gitConfig(string $key): string
