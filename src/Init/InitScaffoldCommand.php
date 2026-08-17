@@ -19,6 +19,14 @@ final readonly class InitScaffoldCommand
 {
     private const string EXAMPLE_TASK_ID = 'DEMO-1';
 
+    private const string VCS_POLICY = <<<'GITIGNORE'
+/map/
+/recall/
+/sessions/
+/edit/
+/tool-inventory.json
+GITIGNORE;
+
     public function __construct(private string $rootPath)
     {
     }
@@ -43,6 +51,7 @@ final readonly class InitScaffoldCommand
         $root = rtrim($this->rootPath, '/');
         $stateRoot = $root . '/.agent-loop';
         $configPath = $stateRoot . '/init.json';
+        $vcsPolicyPath = $stateRoot . '/.gitignore';
         $boardConfigPath = $stateRoot . '/todo/kanban.config.json';
         $boardMetadataPath = $stateRoot . '/todo/board.md';
         $sessionsRoot = $stateRoot . '/sessions';
@@ -54,6 +63,7 @@ final readonly class InitScaffoldCommand
         } else {
             echo '[SKIP] .agent-loop/init.json already exists' . "\n";
         }
+        $this->ensureFile($vcsPolicyPath, '.agent-loop/.gitignore', self::VCS_POLICY . "\n", $dryRun);
 
         foreach ([
             [$stateRoot . '/todo/cards', $this->relative($root, $stateRoot . '/todo/cards')],
