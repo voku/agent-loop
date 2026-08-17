@@ -39,6 +39,32 @@ final class InitScaffoldArchiveTest extends TestCase
         self::assertStringContainsString('init scaffold --prefix=<PROJECT>', $result['output']);
     }
 
+    public function testScaffoldCreatesScopedVcsPolicyWithoutTouchingRootIgnore(): void
+    {
+        $rootIgnore = "/vendor/\n/project-cache/\n";
+        file_put_contents($this->root . '/.gitignore', $rootIgnore);
+
+        $first = $this->dispatch(['agent-loop', 'init', 'scaffold', '--prefix=SHD']);
+
+        self::assertSame(0, $first['exit'], $first['output']);
+        self::assertSame($rootIgnore, file_get_contents($this->root . '/.gitignore'));
+        self::assertSame(
+            "/map/\n/recall/\n/sessions/\n/edit/\n/tool-inventory.json\n",
+            file_get_contents($this->root . '/.agent-loop/.gitignore'),
+        );
+        self::assertStringContainsString('[CREATE] .agent-loop/.gitignore', $first['output']);
+
+        $second = $this->dispatch(['agent-loop', 'init', 'scaffold', '--prefix=SHD']);
+
+        self::assertSame(0, $second['exit'], $second['output']);
+        self::assertStringContainsString('[SKIP] .agent-loop/.gitignore already exists', $second['output']);
+        self::assertSame($rootIgnore, file_get_contents($this->root . '/.gitignore'));
+        self::assertSame(
+            "/map/\n/recall/\n/sessions/\n/edit/\n/tool-inventory.json\n",
+            file_get_contents($this->root . '/.agent-loop/.gitignore'),
+        );
+    }
+
     public function testExplicitPrefixCreatesEmptyLifecycleCompleteBoard(): void
     {
         $result = $this->dispatch(['agent-loop', 'init', 'scaffold', '--prefix=SHD']);
@@ -89,6 +115,7 @@ final class InitScaffoldArchiveTest extends TestCase
         $dryRun = $this->dispatch(['agent-loop', 'init', 'scaffold', '--demo', '--dry-run']);
 
         self::assertSame(0, $dryRun['exit'], $dryRun['output']);
+        self::assertStringContainsString('[DRY-RUN] would create .agent-loop/.gitignore', $dryRun['output']);
         self::assertStringContainsString('[DRY-RUN] would create .agent-loop/todo/archive/', $dryRun['output']);
         self::assertStringContainsString('[DRY-RUN] would create .agent-loop/todo/kanban.config.json', $dryRun['output']);
         self::assertStringContainsString('[DRY-RUN] would create .agent-loop/tasks/DEMO-1.md', $dryRun['output']);
