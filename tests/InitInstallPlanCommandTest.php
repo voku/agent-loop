@@ -60,13 +60,16 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertOfflineContract($result['output']);
     }
 
-    public function testGeminiAliasResolvesToAntigravity(): void
+    public function testInstallPlanForGeminiUsesGeminiAssets(): void
     {
-        $result = $this->runInstallPlan(['--profile=wsl2', '--agent=gemini']);
+        $result = $this->runInstallPlan(['--profile=wsl2', '--agent=gemini-cli']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('[WARN] Agent "gemini" is treated as a legacy Google coding-agent alias.', $result['output']);
-        self::assertStringContainsString('init install-assets --agent=antigravity', $result['output']);
+        self::assertStringNotContainsString('legacy', strtolower($result['output']));
+        self::assertStringContainsString('Agent: gemini', $result['output']);
+        self::assertStringContainsString('init install-assets --agent=gemini', $result['output']);
+        self::assertStringContainsString('Restart Gemini CLI inside WSL2', $result['output']);
+        self::assertOfflineContract($result['output']);
     }
 
     public function testUnknownProfileFails(): void

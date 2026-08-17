@@ -34,7 +34,7 @@ final readonly class InitInstallPlanCommand
         }
 
         try {
-            $agent = InitAgent::parse($requestedAgent, ['codex', 'claude', 'copilot', 'antigravity']);
+            $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -114,9 +114,13 @@ final readonly class InitInstallPlanCommand
             'claude' => <<<TXT
             Restart Claude Code inside {$environment} so it reloads repository skills.
             TXT,
-            default => <<<TXT
+            'gemini' => <<<TXT
+            Restart Gemini CLI inside {$environment} so it reloads repository skills and agents.
+            TXT,
+            'antigravity' => <<<TXT
             Restart Antigravity inside {$environment} so it reloads repository skills and agents.
             TXT,
+            default => throw new InvalidArgumentException('Unsupported install-plan agent: ' . $agent),
         };
     }
 

@@ -11,7 +11,7 @@ final readonly class InitAgent
     /**
      * @var list<string>
      */
-    private const array CANONICAL = ['codex', 'claude', 'copilot', 'antigravity'];
+    private const array CANONICAL = ['codex', 'claude', 'copilot', 'gemini', 'antigravity'];
 
     private function __construct(
         private string $canonicalName,
@@ -101,7 +101,7 @@ final readonly class InitAgent
 
         $messages = [];
         if (($config['status'] ?? '') === 'legacy_alias' && $requestedName !== $canonical) {
-            $messages[] = '[WARN] Agent "' . $requestedName . '" is treated as a legacy Google coding-agent alias.';
+            $messages[] = '[WARN] Agent "' . $requestedName . '" is treated as a legacy coding-agent alias.';
             $messages[] = '[INFO] Using canonical agent "' . $canonical . '".';
         }
 
@@ -117,7 +117,7 @@ final readonly class InitAgent
     private static function resolveBuiltInAlias(string $requestedName): ?array
     {
         return match ($requestedName) {
-            'codex', 'claude', 'copilot', 'antigravity' => [
+            'codex', 'claude', 'copilot', 'gemini', 'antigravity' => [
                 'canonical' => $requestedName,
                 'messages' => [],
             ],
@@ -133,16 +133,13 @@ final readonly class InitAgent
                 'canonical' => 'copilot',
                 'messages' => [],
             ],
+            'gemini-cli' => [
+                'canonical' => 'gemini',
+                'messages' => [],
+            ],
             'agy', 'google-antigravity' => [
                 'canonical' => 'antigravity',
                 'messages' => [],
-            ],
-            'gemini', 'gemini-cli' => [
-                'canonical' => 'antigravity',
-                'messages' => [
-                    '[WARN] Agent "' . $requestedName . '" is treated as a legacy Google coding-agent alias.',
-                    '[INFO] Using canonical agent "antigravity".',
-                ],
             ],
             default => null,
         };

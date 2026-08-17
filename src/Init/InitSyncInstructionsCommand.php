@@ -64,7 +64,7 @@ final readonly class InitSyncInstructionsCommand
                 $this->syncImportFile('CLAUDE.md', '@AGENTS.md', $dryRun);
             }
 
-            if ($agent->isAll() || $agent->canonicalName() === 'antigravity') {
+            if ($agent->isAll() || in_array($agent->canonicalName(), ['gemini', 'antigravity'], true)) {
                 $this->syncImportFile('GEMINI.md', '@./AGENTS.md', $dryRun);
             }
         } catch (RuntimeException $exception) {

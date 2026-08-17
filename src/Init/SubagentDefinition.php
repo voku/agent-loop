@@ -102,13 +102,14 @@ final readonly class SubagentDefinition
             'description' => $this->description,
         ];
 
-        if ($client === 'antigravity') {
+        if (in_array($client, ['gemini', 'antigravity'], true)) {
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
         } elseif (!in_array($client, ['copilot', 'claude'], true)) {
             // Claude Code reads the same name/description frontmatter as Copilot,
-            // without Copilot's `.agent.md` suffix and without Antigravity's runtime keys.
+            // without Copilot's `.agent.md` suffix. Gemini-compatible hosts also
+            // receive local-agent runtime keys supported by their Markdown format.
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
 

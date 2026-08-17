@@ -233,7 +233,9 @@ final readonly class InitSyncSkillsCommand
                 ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/skills' : $this->rootPath . '/.codex/skills'),
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
-            default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
+            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
+            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
+            default => throw new InvalidArgumentException('Unsupported skill sync target: ' . $agent),
         };
     }
 
@@ -241,6 +243,7 @@ final readonly class InitSyncSkillsCommand
     {
         return match ($agent) {
             'copilot' => "[INFO] Run '/skills reload' in your active Copilot CLI session if needed.",
+            'gemini' => '[INFO] Start a fresh Gemini CLI session if the project skill registry needs to be reloaded.',
             'antigravity' => "[INFO] Run '/skills reload' in your active Antigravity CLI session if needed.",
             default => null,
         };

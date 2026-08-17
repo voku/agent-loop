@@ -27,7 +27,7 @@ final class InitSyncCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-init-sync-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'CLAUDE_AGENTS_DIR', 'COPILOT_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
+        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'GEMINI_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'CLAUDE_AGENTS_DIR', 'COPILOT_AGENTS_DIR', 'GEMINI_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
     }
 
     protected function tearDown(): void
@@ -58,6 +58,7 @@ final class InitSyncCommandTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertFileExists($this->root . '/.claude/agents/demo-role.md');
         self::assertFileExists($this->root . '/.github/agents/demo-role.agent.md');
+        self::assertFileExists($this->root . '/.gemini/agents/demo-role.md');
         self::assertFileExists($this->root . '/.agents/agents/demo-role.md');
 
         $manifest = json_decode((string) file_get_contents($this->root . '/.claude/agents/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
@@ -116,16 +117,17 @@ final class InitSyncCommandTest extends TestCase
         self::assertStringContainsString('unmanaged target already exists', $result['output']);
     }
 
-    public function testSyncSkillsAllowsGeminiAliasForAntigravityTarget(): void
+    public function testSyncSkillsUsesGeminiTargetWithoutAliasWarning(): void
     {
         mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
         file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
 
-        $result = $this->runSyncSkills(['--agent=gemini']);
+        $result = $this->runSyncSkills(['--agent=gemini-cli']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('[INFO] Using canonical agent "antigravity".', $result['output']);
-        self::assertFileExists($this->root . '/.agents/skills/demo-skill/SKILL.md');
+        self::assertStringNotContainsString('legacy', strtolower($result['output']));
+        self::assertFileExists($this->root . '/.gemini/skills/demo-skill/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.agents/skills/demo-skill/SKILL.md');
     }
 
     public function testSyncSubagentsRendersCodexTargets(): void
