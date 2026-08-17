@@ -49,7 +49,7 @@ final readonly class InitInstallAssetsCommand
 
         $withHooks = OptionTokens::hasFlag($tokens, 'with-hooks');
         if ($withHooks && !$agent->isAll() && !in_array($agent->canonicalName(), ['codex', 'claude'], true)) {
-            fwrite(\STDERR, '--with-hooks is only supported for codex, claude, or all.' . "\n");
+            echo '[FAIL] install assets: --with-hooks is only supported for codex, claude, or all.' . "\n";
 
             return 1;
         }
