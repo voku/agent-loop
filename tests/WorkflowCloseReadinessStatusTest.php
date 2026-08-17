@@ -141,7 +141,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             'lars',
             'Readiness regression fixture has no durable learning.',
             contractRevision: $contract->revision,
-            implementationSnapshot: $boundary->implementation->digest,
+            implementationSnapshot: $snapshot->digest,
             validationEvidenceSha256: $validationSha,
             reviewEvidenceSha256: $reviewSha,
         );
