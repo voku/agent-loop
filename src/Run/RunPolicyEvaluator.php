@@ -33,7 +33,7 @@ final readonly class RunPolicyEvaluator
         return new RunPolicyEvaluation(
             $state,
             $this->mutationAllowed($state, $mode, $references, $disagreements),
-            $state === 'ready_to_close',
+            in_array($state, ['ready_to_close', 'complete'], true),
             $this->blockers($state, $references, $disagreements),
             $this->nextAction($taskId, $mode, $references, $disagreements),
         );
