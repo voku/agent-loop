@@ -189,17 +189,7 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('agent-loop enter cannot prepare a Contract that is not approved.');
         }
 
-        $runner = $this->recallRunner;
-        /** @param list<string> $args */
-        $quietRecallRunner = static function (array $args) use ($runner): int {
-            ob_start();
-            try {
-                return $runner($args);
-            } finally {
-                ob_end_clean();
-            }
-        };
-        $preparer = new WorkflowRunPreparer($this->rootPath, $quietRecallRunner);
+        $preparer = new WorkflowRunPreparer($this->rootPath, $this->runRecallQuietly(...));
         $mapReadiness = $preparer->discoveryReadiness($contract);
         $result = $preparer->prepare($contract, $mapReadiness);
         if (!$result->recallCompiled()) {
@@ -207,6 +197,21 @@ final readonly class HostFrontDoorCommand
                 'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code '
                 . $result->recallExitCode . '.',
             );
+        }
+    }
+
+    /** @param list<string> $args */
+    private function runRecallQuietly(array $args): int
+    {
+        if ($this->recallRunner === null) {
+            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
+        }
+
+        ob_start();
+        try {
+            return ($this->recallRunner)($args);
+        } finally {
+            ob_end_clean();
         }
     }
 
