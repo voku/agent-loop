@@ -44,7 +44,7 @@ PHP,
         $this->removeDirectory($this->root);
     }
 
-    public function testHookRefreshExplicitlyUsesStructuralOnlyBackend(): void
+    public function testCheckoutRefreshExplicitlySelectsStructuralBackend(): void
     {
         $capture = $this->root . '/captured-argv.json';
         $environment = getenv();
@@ -73,14 +73,14 @@ PHP,
         $argv = json_decode((string) file_get_contents($capture), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($argv);
         self::assertContains('refresh', $argv);
-        self::assertContains('--structural-only', $argv);
+        self::assertContains('--backend=structural', $argv);
         self::assertSame(
             [],
             array_values(array_filter(
                 $argv,
                 static fn (mixed $argument): bool => is_string($argument) && str_starts_with($argument, '--phpstan-'),
             )),
-            'A Git hook must not opt into project-controlled PHPStan execution.',
+            'The checkout trust transition must not inherit branch-controlled PHPStan execution policy.',
         );
     }
 
