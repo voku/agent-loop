@@ -190,6 +190,7 @@ final readonly class HostFrontDoorCommand
         }
 
         $runner = $this->recallRunner;
+        /** @param list<string> $args */
         $quietRecallRunner = static function (array $args) use ($runner): int {
             ob_start();
             try {
