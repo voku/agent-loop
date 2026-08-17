@@ -56,14 +56,9 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
-        $codexHooksRoot = $packageRoot . '/docs/agents/codex-hooks';
-        $claudeHooksRoot = $packageRoot . '/docs/agents/claude-hooks';
         $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
         $installsSubagents = $agent->isAll()
             || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
-        $hookAgents = $agent->isAll()
-            ? ['codex', 'claude']
-            : (in_array($agent->canonicalName(), ['codex', 'claude'], true) ? [$agent->canonicalName()] : []);
 
         foreach ($skillRoots as $skillRoot) {
             if (!is_dir($skillRoot)) {
@@ -76,14 +71,6 @@ final readonly class InitInstallAssetsCommand
             fwrite(\STDERR, 'Bundled subagents root is missing: ' . $subagentsRoot . "\n");
 
             return 1;
-        }
-        foreach ($hookAgents as $hookAgent) {
-            $hooksRoot = $hookAgent === 'codex' ? $codexHooksRoot : $claudeHooksRoot;
-            if (!is_file($hooksRoot . '/hooks.json')) {
-                fwrite(\STDERR, 'Bundled ' . $hookAgent . ' hooks are missing: ' . $hooksRoot . '/hooks.json' . "\n");
-
-                return 1;
-            }
         }
 
         $dryRun = in_array('--dry-run', $tokens, true);
@@ -119,17 +106,6 @@ final readonly class InitInstallAssetsCommand
             }
         }
 
-        foreach ($hookAgents as $hookAgent) {
-            $hooksRoot = $hookAgent === 'codex' ? $codexHooksRoot : $claudeHooksRoot;
-            $hooksExit = (new InitSyncHooksCommand($this->rootPath))->run(array_merge(
-                ['--agent=' . $hookAgent, '--hooks-root=' . $hooksRoot],
-                $forwarded,
-            ));
-            if ($hooksExit !== 0) {
-                return $hooksExit;
-            }
-        }
-
         $instructionArguments = [
             '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
         ];
@@ -146,14 +122,7 @@ final readonly class InitInstallAssetsCommand
             return $gitHooksExit;
         }
 
-        if (!$agent->isAll()) {
-            $canonicalAgent = $agent->canonicalName();
-            if ($canonicalAgent === 'claude') {
-                echo '[INFO] install assets: installed portable skills, bundled subagent roles, and repository discipline hooks for claude; installed project instructions.' . "\n";
-            } elseif (in_array($canonicalAgent, ['copilot', 'antigravity'], true)) {
-                echo '[INFO] install assets: installed portable skills, bundled subagent roles, and project instructions for ' . $canonicalAgent . '; repository discipline hooks are currently available for codex and claude.' . "\n";
-            }
-        }
+        echo '[INFO] install assets: executable host hooks were not registered; use `init sync-hooks --agent=codex` or `init sync-hooks --agent=claude` explicitly.' . "\n";
 
         $sourceDescription = $extraSkillRoots === []
             ? 'first-party package guidance'
