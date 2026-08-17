@@ -59,7 +59,8 @@ final class NonAuthoritativeManifestCacheTest extends TestCase
 
         self::assertSame('incomplete', $status['manifest']['state'] ?? null);
         self::assertSame('stale', $status['storage']['state'] ?? null);
-        self::assertNull($status['storage']['stored_sha256'] ?? 'unexpected');
+        self::assertArrayHasKey('stored_sha256', $status['storage']);
+        self::assertNull($status['storage']['stored_sha256']);
         self::assertStringContainsString(
             'Unsupported run-manifest schema version',
             (string) ($status['storage']['reason'] ?? ''),
