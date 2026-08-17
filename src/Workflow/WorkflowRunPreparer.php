@@ -32,14 +32,19 @@ final readonly class WorkflowRunPreparer
     ) {
     }
 
-    public function prepare(TaskContract $contract): WorkflowRunPreparationResult
+    public function discoveryReadiness(TaskContract $contract): MapReadiness
+    {
+        $readiness = $this->mapReadiness();
+        $this->assertDiscoveryReady($contract, $readiness);
+
+        return $readiness;
+    }
+
+    public function prepare(TaskContract $contract, MapReadiness $mapReadiness): WorkflowRunPreparationResult
     {
         if ($contract->status !== TaskContract::APPROVED) {
             throw new RuntimeException('Governed Run preparation requires an approved Contract.');
         }
-
-        $mapReadiness = $this->mapReadiness();
-        $this->assertDiscoveryReady($contract, $mapReadiness);
 
         $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
         $session = $this->prepareSession($contract);
