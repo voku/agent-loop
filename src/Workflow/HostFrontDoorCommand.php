@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use LogicException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
  * Read-only facade over existing workflow owner artifacts for coding-agent hosts.
  *
- * It deliberately owns no lifecycle state. The manifest remains the canonical
- * state/next-action projection; this class only adds a derived mutation-ready
- * signal for the entry boundary and a strict complete-only completion gate.
+ * It deliberately owns no lifecycle state. Owner-backed facts are projected by
+ * RunManifestProjector and lifecycle permissions come from RunPolicyEvaluator.
  */
 final readonly class HostFrontDoorCommand
 {
@@ -64,15 +66,15 @@ final readonly class HostFrontDoorCommand
         }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        $policy = $this->policyFor($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
-        $mutationReady = $this->mutationReady($manifest);
 
         $payload = [
             'schema_version' => '1.0',
             'command' => 'enter',
             'task_id' => $taskId->value,
-            'mutation_ready' => $mutationReady,
-            'next_action' => $manifest->nextAction,
+            'mutation_ready' => $policy->mutationAllowed,
+            'next_action' => $policy->nextAction,
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
@@ -83,9 +85,9 @@ final readonly class HostFrontDoorCommand
             echo 'agent-loop enter ' . $taskId->value . "\n";
             echo 'Run: ' . $manifest->runId . "\n";
             echo 'Mode: ' . $manifest->mode . "\n";
-            echo 'State: ' . $manifest->state . "\n";
-            echo 'Mutation: ' . ($mutationReady ? 'ready' : 'not_ready') . "\n";
-            echo 'Next: ' . $manifest->nextAction . "\n";
+            echo 'State: ' . $policy->state . "\n";
+            echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
+            echo 'Next: ' . $policy->nextAction . "\n";
             if ($manifest->disagreements !== []) {
                 echo 'Disagreements: ' . count($manifest->disagreements) . "\n";
             }
@@ -93,14 +95,14 @@ final readonly class HostFrontDoorCommand
             echo implode("\n", $context['lines']) . "\n";
         }
 
-        if ($manifest->state === 'blocked') {
+        if ($policy->state === 'blocked') {
             return 2;
         }
-        if (in_array($manifest->state, ['ready_to_close', 'complete'], true)) {
+        if (in_array($policy->state, ['ready_to_close', 'complete'], true)) {
             return 0;
         }
 
-        return $mutationReady ? 0 : 1;
+        return $policy->mutationAllowed ? 0 : 1;
     }
 
     /** @param list<string> $args */
@@ -118,14 +120,15 @@ final readonly class HostFrontDoorCommand
         $this->validateFinishTokens($tokens);
         $format = $this->format($tokens);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
-        $complete = $manifest->state === 'complete';
+        $policy = $this->policyFor($manifest);
+        $complete = $policy->state === 'complete';
 
         $payload = [
             'schema_version' => '1.0',
             'command' => 'finish',
             'task_id' => $taskId->value,
             'complete' => $complete,
-            'next_action' => $manifest->nextAction,
+            'next_action' => $policy->nextAction,
             'manifest' => $manifest->toArray(),
         ];
 
@@ -134,36 +137,37 @@ final readonly class HostFrontDoorCommand
         } else {
             echo 'agent-loop finish ' . $taskId->value . "\n";
             echo 'Run: ' . $manifest->runId . "\n";
-            echo 'State: ' . $manifest->state . "\n";
+            echo 'State: ' . $policy->state . "\n";
             echo 'Complete: ' . ($complete ? 'yes' : 'no') . "\n";
-            echo 'Next: ' . $manifest->nextAction . "\n";
+            echo 'Next: ' . $policy->nextAction . "\n";
         }
 
         if ($complete) {
             return 0;
         }
 
-        return $manifest->state === 'blocked' ? 2 : 1;
+        return $policy->state === 'blocked' ? 2 : 1;
     }
 
-    private function mutationReady(RunManifest $manifest): bool
+    private function policyFor(RunManifest $manifest): RunPolicyEvaluation
     {
-        if ($manifest->state !== 'incomplete' || $manifest->mode !== 'governed' || $manifest->disagreements !== []) {
-            return false;
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            $manifest->taskId,
+            $manifest->mode,
+            $manifest->references,
+            $manifest->disagreements,
+        );
+        if ($policy->state !== $manifest->state || $policy->nextAction !== $manifest->nextAction) {
+            throw new LogicException(sprintf(
+                'Lifecycle policy disagrees with the current manifest projection: state %s/%s, next action %s/%s.',
+                $policy->state,
+                $manifest->state,
+                $policy->nextAction,
+                $manifest->nextAction,
+            ));
         }
 
-        return $this->referenceState($manifest, 'contract') === 'approved'
-            && $this->referenceState($manifest, 'approval') === 'current'
-            && $this->referenceState($manifest, 'session') === 'active'
-            && $this->referenceState($manifest, 'recall') === 'compiled'
-            && in_array($this->referenceState($manifest, 'execution_contract'), ['ready', 'not_required'], true);
-    }
-
-    private function referenceState(RunManifest $manifest, string $name): ?string
-    {
-        $state = $manifest->references[$name]['state'] ?? null;
-
-        return is_string($state) ? $state : null;
+        return $policy;
     }
 
     /** @param list<string> $tokens */
