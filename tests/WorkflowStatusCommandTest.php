@@ -110,6 +110,18 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('workflow approve ABC-123', $approved);
 
         $this->writeRecall();
+        self::assertStringContainsString('vendor/bin/phpunit', $this->statusText('ABC-123'));
+
+        (new ValidationEvidenceStore())->record(
+            $session,
+            $contract->revision,
+            'vendor/bin/phpunit',
+            ValidationStatus::PASSED,
+            0,
+            10,
+            'lars',
+            implementationSnapshot: $snapshot->digest,
+        );
         self::assertStringContainsString('review blindspots ABC-123', $this->statusText('ABC-123'));
 
         mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
@@ -123,16 +135,6 @@ final class WorkflowStatusCommandTest extends TestCase
         );
         self::assertStringContainsString('workflow learn ABC-123', $this->statusText('ABC-123'));
 
-        (new ValidationEvidenceStore())->record(
-            $session,
-            $contract->revision,
-            'vendor/bin/phpunit',
-            ValidationStatus::PASSED,
-            0,
-            10,
-            'lars',
-            implementationSnapshot: $snapshot->digest,
-        );
         $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
         $validationSha = $boundary->validationEvidenceSha256();
         $reviewSha = $boundary->reviewEvidenceSha256();
