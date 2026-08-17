@@ -46,7 +46,7 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertFalse($payload['mutation_ready']);
         self::assertSame('legacy_inferred', $payload['manifest']['mode']);
         self::assertStringContainsString('workflow plan ABC-123', $payload['next_action']);
-        self::assertSame($before, $this->snapshotFiles(), 'enter must not create workflow state.');
+        self::assertSame($before, $this->snapshotFiles(), 'enter must not create or modify workflow state.');
     }
 
     public function testEnterReportsMutationReadyFromExistingGovernedOwnerArtifacts(): void
@@ -83,7 +83,7 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertFalse($readyPayload['complete']);
         self::assertSame('ready_to_close', $readyPayload['manifest']['state']);
         self::assertSame('agent-loop workflow close ABC-123 --status done', $readyPayload['next_action']);
-        self::assertSame($before, $this->snapshotFiles(), 'finish must not close the Run itself.');
+        self::assertSame($before, $this->snapshotFiles(), 'finish must not close or modify the Run itself.');
 
         $sessions->setStatus($session, SessionStatus::DONE);
         $afterOwnerClose = $this->snapshotFiles();
@@ -224,9 +224,15 @@ final class HostFrontDoorCommandTest extends TestCase
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
         ) as $item) {
-            if ($item->isFile()) {
-                $files[] = str_replace($this->root . '/', '', $item->getPathname());
+            if (!$item->isFile()) {
+                continue;
             }
+
+            $hash = hash_file('sha256', $item->getPathname());
+            if (!is_string($hash)) {
+                throw new RuntimeException('Unable to hash test file: ' . $item->getPathname());
+            }
+            $files[] = str_replace($this->root . '/', '', $item->getPathname()) . ':' . $hash;
         }
         sort($files, SORT_STRING);
 
