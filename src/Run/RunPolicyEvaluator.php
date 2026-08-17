@@ -12,6 +12,16 @@ namespace voku\AgentLoop\Run;
  */
 final readonly class RunPolicyEvaluator
 {
+    public function evaluateManifest(RunManifest $manifest): RunPolicyEvaluation
+    {
+        return $this->evaluate(
+            $manifest->taskId,
+            $manifest->mode,
+            $manifest->references,
+            $manifest->disagreements,
+        );
+    }
+
     /**
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
