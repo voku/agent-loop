@@ -12,10 +12,7 @@ namespace voku\AgentLoop\Run;
  */
 final readonly class RunPolicyEvaluation
 {
-    /**
-     * @param 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete' $state
-     * @param list<array{code: string, owner: string, message: string}> $blockers
-     */
+    /** @param list<array{code: string, owner: string, message: string}> $blockers */
     public function __construct(
         public string $state,
         public bool $mutationAllowed,
