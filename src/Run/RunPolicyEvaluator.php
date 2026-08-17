@@ -13,7 +13,6 @@ namespace voku\AgentLoop\Run;
 final readonly class RunPolicyEvaluator
 {
     /**
-     * @param 'ephemeral'|'governed'|'planned'|'legacy_inferred' $mode
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
@@ -31,10 +30,8 @@ final readonly class RunPolicyEvaluator
     }
 
     /**
-     * @param 'ephemeral'|'governed'|'planned'|'legacy_inferred' $mode
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
-     * @return 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete'
      */
     private function state(string $mode, array $references, array $disagreements): string
     {
@@ -78,8 +75,6 @@ final readonly class RunPolicyEvaluator
     }
 
     /**
-     * @param 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete' $state
-     * @param 'ephemeral'|'governed'|'planned'|'legacy_inferred' $mode
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
@@ -97,7 +92,6 @@ final readonly class RunPolicyEvaluator
     }
 
     /**
-     * @param 'ephemeral'|'governed'|'planned'|'legacy_inferred' $mode
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
@@ -158,7 +152,6 @@ final readonly class RunPolicyEvaluator
     }
 
     /**
-     * @param 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete' $state
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      * @return list<array{code: string, owner: string, message: string}>
