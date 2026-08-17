@@ -66,8 +66,8 @@ final readonly class WorkflowCloseReadinessInspector
 
         foreach ([
             'recall' => $this->checkRecallGate($contract->taskId),
-            'review' => $this->checkReviewGate($contract->taskId),
             'validation' => ['detail' => $validation['detail'], 'message' => null],
+            'review' => $this->checkReviewGate($contract->taskId),
             'recall_outcomes' => $this->checkRecallOutcomeGate($contract->taskId, $learningRoot),
             'learning_decision' => $this->checkLearningDecisionGate($run, $learningRoot),
             'edit_verification' => $this->checkEditVerificationGate($contract->taskId),
