@@ -50,6 +50,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString('perform the approved host-native work', $agents);
         self::assertStringContainsString('next governed close-out action', $agents);
         self::assertStringContainsString('is not another mutation prerequisite', $agents);
+        self::assertStringContainsString('Mutation: not_ready', $agents);
+        self::assertStringContainsString('do not mutate and follow `Next:`', $agents);
         self::assertStringContainsString('agent-loop finish <task-id>', $agents);
         self::assertStringContainsString('Complete: yes', $agents);
         self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
