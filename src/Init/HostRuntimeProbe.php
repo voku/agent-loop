@@ -74,7 +74,7 @@ final readonly class HostRuntimeProbe
 
         foreach (explode(PATH_SEPARATOR, $path) as $directory) {
             if ($directory === '') {
-                continue;
+                $directory = '.';
             }
 
             foreach ($extensions as $extension) {
