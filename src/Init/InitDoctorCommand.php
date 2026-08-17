@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\ProjectLayout;
 
 final readonly class InitDoctorCommand
 {
@@ -52,7 +53,12 @@ final readonly class InitDoctorCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
+        $requestedConfig = OptionTokens::value($tokens, 'config');
+        $layout = new ProjectLayout($this->rootPath);
+        $canonicalConfig = $layout->configPath();
+        $config = (new InitConfigLoader($this->rootPath))->load(
+            $requestedConfig ?? (is_file($canonicalConfig) ? $layout->display($canonicalConfig) : null),
+        );
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
@@ -74,7 +80,7 @@ final readonly class InitDoctorCommand
     {
         return [
             $this->checkPhpVersion(),
-            ...$this->checkComposer(),
+            $this->checkComposer(),
             $this->checkGit(),
             ...$this->checkLocalGitIntegration(),
             ...$this->checkMakefiles(),
@@ -100,41 +106,24 @@ final readonly class InitDoctorCommand
         return InitCheckResult::warn('PHP: ' . \PHP_VERSION . ' detected, expected >= 8.3');
     }
 
-    /**
-     * @return list<InitCheckResult>
-     */
-    private function checkComposer(): array
+    private function checkComposer(): InitCheckResult
     {
         $composerFile = rtrim($this->rootPath, '/') . '/composer.json';
         if (!is_file($composerFile)) {
-            return [InitCheckResult::warn('Composer: composer.json not found')];
+            return InitCheckResult::warn('Composer: composer.json not found');
         }
 
         $content = file_get_contents($composerFile);
         if (!is_string($content)) {
-            return [InitCheckResult::warn('Composer: invalid composer.json')];
+            return InitCheckResult::warn('Composer: invalid composer.json');
         }
 
         $decoded = json_decode($content, true);
         if (!is_array($decoded)) {
-            return [InitCheckResult::warn('Composer: invalid composer.json')];
+            return InitCheckResult::warn('Composer: invalid composer.json');
         }
 
-        $results = [InitCheckResult::ok('Composer: composer.json found')];
-
-        $scripts = $decoded['scripts'] ?? null;
-        $scriptNames = is_array($scripts) ? array_keys($scripts) : [];
-        $requiredScripts = ['ci', 'test', 'phpstan'];
-        $missingScripts = array_values(array_diff($requiredScripts, $scriptNames));
-        if ($missingScripts === []) {
-            $results[] = InitCheckResult::ok('Composer scripts: found ci, test, phpstan');
-
-            return $results;
-        }
-
-        $results[] = InitCheckResult::warn('Composer scripts: missing ' . implode(', ', $missingScripts));
-
-        return $results;
+        return InitCheckResult::ok('Composer: composer.json found');
     }
 
     private function checkGit(): InitCheckResult

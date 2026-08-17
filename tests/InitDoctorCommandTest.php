@@ -39,20 +39,23 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[WARN] Make: no Makefile found', $result['output']);
     }
 
-    public function testDoctorReportsValidComposerAndScriptsFound(): void
+    public function testDoctorAcceptsValidComposerWithoutEnforcingScriptNames(): void
     {
         file_put_contents($this->root . '/composer.json', json_encode([
             'scripts' => [
-                'ci' => 'composer ci',
+                'lint' => 'php -l src',
+                'analyse' => 'phpstan analyse',
                 'test' => 'phpunit',
-                'phpstan' => 'phpstan analyse',
+                'scan:self' => 'php tools/scan.php',
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
 
         $result = $this->runDoctor([]);
 
         self::assertStringContainsString('[OK] Composer: composer.json found', $result['output']);
-        self::assertStringContainsString('[OK] Composer scripts: found ci, test, phpstan', $result['output']);
+        self::assertStringNotContainsString('Composer scripts:', $result['output']);
+        self::assertStringNotContainsString('missing ci', $result['output']);
+        self::assertStringNotContainsString('missing phpstan', $result['output']);
     }
 
     public function testDoctorWarnsOnInvalidComposerJson(): void
@@ -96,8 +99,37 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[OK] Skills: 1 repo-managed skill file(s) found under custom/skills', $result['output']);
     }
 
+    public function testDoctorReadsCanonicalRepositoryPolicyByDefault(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        mkdir($this->root . '/.ai/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/.ai/skills/demo-skill/SKILL.md', "# Demo\n");
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'version' => 1,
+            'paths' => [
+                'skills_root' => '.ai/skills',
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+
+        $result = $this->runDoctor([]);
+
+        self::assertStringContainsString('[INFO] skills-root: .ai/skills', $result['output']);
+        self::assertStringContainsString('[OK] Skills: 1 repo-managed skill file(s) found under .ai/skills', $result['output']);
+        self::assertStringNotContainsString('docs/agents/skills/*/SKILL.md', $result['output']);
+    }
+
     public function testDoctorReportsConfigProvidedPaths(): void
     {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        mkdir($this->root . '/canonical-skills/canonical', 0o775, true);
+        file_put_contents($this->root . '/canonical-skills/canonical/SKILL.md', "# Canonical\n");
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'version' => 1,
+            'paths' => [
+                'skills_root' => 'canonical-skills',
+            ],
+        ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+
         mkdir($this->root . '/config-skills/demo-skill', 0o775, true);
         file_put_contents($this->root . '/config-skills/demo-skill/SKILL.md', "# Demo\n");
         file_put_contents($this->root . '/.agent-loop.init.json', json_encode([
@@ -116,6 +148,7 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[INFO] subagents-root: config-subagents', $result['output']);
         self::assertStringContainsString('[INFO] hooks-root: config-hooks', $result['output']);
         self::assertStringContainsString('[INFO] tools-root: config-tools', $result['output']);
+        self::assertStringNotContainsString('[INFO] skills-root: canonical-skills', $result['output']);
     }
 
     public function testDoctorWarnsOnInvalidConfigJson(): void
