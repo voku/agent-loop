@@ -138,6 +138,38 @@ Record that overlap is unknown and continue from current repository evidence.
 Do not turn this preflight into a new lifecycle state, benchmark service, or
 requirement to inspect unrelated repository history.
 
+## External Reference Preflight
+
+Use this preflight **only** when the task is explicitly defined relative to an
+external implementation, specification, prior version, or upstream repository.
+For ordinary local implementation work, skip it.
+
+Before running `workflow plan` or sealing scope for approval:
+
+1. identify the external authority/reference and the exact user term being
+   mapped, such as `checks`, `features`, `parity`, `port`, or `adapt`;
+2. inspect a bounded top-level inventory plus the directly relevant
+   implementation, documentation, configuration, and test surfaces;
+3. state what is included, excluded, and still unknown before choosing the
+   Contract scope;
+4. distinguish a direct port from an adaptation where language, runtime, or
+   product semantics differ;
+5. do not claim parity from a partial inventory.
+
+For example, `adapt upstream checks` must not silently become `port upstream
+rules` merely because a rules directory is the first surface discovered. First
+inventory the bounded reference surface, then intentionally scope to one rule or
+feature if that is the desired task.
+
+If part of the external reference is unavailable, record that surface as unknown
+and continue with the evidence that is available unless the missing information
+prevents an honest Contract from being sealed. Do not manufacture parity claims,
+a replacement reference, or hidden assumptions merely to keep PLAN moving.
+
+This is a front-door evidence check, not a new lifecycle state. Do not turn it
+into automatic scraping/cloning, a mandatory full-repository crawl, a reference
+database, or another orchestration command.
+
 ## Task ID
 
 Use the ticket or issue id from your board (e.g. `ABC-123`, `PROJ-42`).
@@ -242,6 +274,7 @@ This skill owns:
 - the opening step of a governed agent-loop task in a consuming repository
 - choosing a task id, actor, file scope, non-goals, explicit acceptance criteria, behavior anchors, and validation commands
 - checking bounded prior/parallel work when the host exposes relevant history, and falsifying the strongest existing candidate before creating a competing implementation
+- inventorying a bounded external reference surface before PLAN when the task is explicitly defined by an upstream implementation, specification, or prior version
 - establishing map and Search readiness before approval when ranked map evidence is expected
 - understanding that `workflow plan` creates/revises a candidate Contract and `workflow approve` creates the governed working state and compiles Recall from its approved revision
 - obtaining human approval before implementation and inspecting the bounded context
