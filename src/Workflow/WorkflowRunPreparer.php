@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
@@ -25,11 +26,15 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowRunPreparer
 {
+    private string $rootPath;
+
+    private Closure $recallRunner;
+
     /** @param callable(list<string>): int $recallRunner */
-    public function __construct(
-        private string $rootPath,
-        private mixed $recallRunner,
-    ) {
+    public function __construct(string $rootPath, callable $recallRunner)
+    {
+        $this->rootPath = $rootPath;
+        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     public function discoveryReadiness(TaskContract $contract): MapReadiness
