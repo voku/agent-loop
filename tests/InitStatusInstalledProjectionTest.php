@@ -69,8 +69,10 @@ final class InitStatusInstalledProjectionTest extends TestCase
         self::assertStringContainsString('agent-loop-task-start', $statusOutput);
         self::assertStringContainsString('[OK] claude subagents: current:', $statusOutput);
         self::assertStringContainsString('agent-loop-code-reviewer.md', $statusOutput);
-        self::assertStringContainsString('[OK] claude hooks: current:', $statusOutput);
-        self::assertStringContainsString('hooks/runtime.php', $statusOutput);
+        self::assertStringContainsString('[INFO] claude hooks: no manifest at ', $statusOutput);
+        self::assertFileDoesNotExist($this->root . '/.claude/.agent-loop-manifest.json');
+        self::assertStringNotContainsString('[OK] claude hooks: current:', $statusOutput);
+        self::assertStringNotContainsString('hooks/runtime.php', $statusOutput);
         self::assertStringNotContainsString('[WARN] claude skills: stale managed entries', $statusOutput);
         self::assertStringNotContainsString('[WARN] claude subagents: stale managed entries', $statusOutput);
         self::assertStringNotContainsString('[WARN] claude hooks: stale managed entries', $statusOutput);

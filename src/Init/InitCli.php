@@ -51,7 +51,7 @@ final readonly class InitCli
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init install-assets --agent=<agent|all> [--extra-skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing] [--skip-git-config]
+          agent-loop init install-assets --agent=<agent|all> [--extra-skills-root=PATH ...] [--with-hooks] [--dry-run] [--force] [--adopt-existing] [--skip-git-config]
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
@@ -70,10 +70,10 @@ final readonly class InitCli
           tools             Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
           validate          Validate repo-managed agent asset definitions.
           install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
-          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles/hooks, the host's always-on project instruction entrypoint, and - when the repository declares a hook policy - the local Git hook/commit-template activation.
+          install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles, the host's always-on project instruction entrypoint, and - when the repository declares a hook policy - the local Git hook/commit-template activation. Add --with-hooks to explicitly register bundled executable Codex/Claude host hooks.
           sync-skills       Prevalidate and merge one or more canonical skill roots into one managed client projection; duplicate skill IDs fail.
           sync-subagents    Sync repo-managed subagents into a client target directory.
-          sync-hooks        Sync repo-managed hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key).
+          sync-hooks        Explicitly sync repo-managed executable hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key). Use --dry-run to inspect exact targets before mutation.
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.

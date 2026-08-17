@@ -47,6 +47,13 @@ final readonly class InitInstallAssetsCommand
             echo $message . "\n";
         }
 
+        $withHooks = OptionTokens::hasFlag($tokens, 'with-hooks');
+        if ($withHooks && !$agent->isAll() && !in_array($agent->canonicalName(), ['codex', 'claude'], true)) {
+            echo '[FAIL] install assets: --with-hooks is only supported for codex, claude, or all.' . "\n";
+
+            return 1;
+        }
+
         $packageRoot = dirname(__DIR__, 2);
         try {
             $skillRoots = $this->firstPartySkillRoots($packageRoot);
@@ -56,14 +63,12 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
         $subagentsRoot = $packageRoot . '/docs/agents/subagents';
-        $codexHooksRoot = $packageRoot . '/docs/agents/codex-hooks';
-        $claudeHooksRoot = $packageRoot . '/docs/agents/claude-hooks';
         $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
         $installsSubagents = $agent->isAll()
             || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
-        $hookAgents = $agent->isAll()
-            ? ['codex', 'claude']
-            : (in_array($agent->canonicalName(), ['codex', 'claude'], true) ? [$agent->canonicalName()] : []);
+        $hookAgents = !$withHooks
+            ? []
+            : ($agent->isAll() ? ['codex', 'claude'] : [$agent->canonicalName()]);
 
         foreach ($skillRoots as $skillRoot) {
             if (!is_dir($skillRoot)) {
@@ -78,7 +83,7 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
         foreach ($hookAgents as $hookAgent) {
-            $hooksRoot = $hookAgent === 'codex' ? $codexHooksRoot : $claudeHooksRoot;
+            $hooksRoot = $packageRoot . '/docs/agents/' . $hookAgent . '-hooks';
             if (!is_file($hooksRoot . '/hooks.json')) {
                 fwrite(\STDERR, 'Bundled ' . $hookAgent . ' hooks are missing: ' . $hooksRoot . '/hooks.json' . "\n");
 
@@ -120,7 +125,7 @@ final readonly class InitInstallAssetsCommand
         }
 
         foreach ($hookAgents as $hookAgent) {
-            $hooksRoot = $hookAgent === 'codex' ? $codexHooksRoot : $claudeHooksRoot;
+            $hooksRoot = $packageRoot . '/docs/agents/' . $hookAgent . '-hooks';
             $hooksExit = (new InitSyncHooksCommand($this->rootPath))->run(array_merge(
                 ['--agent=' . $hookAgent, '--hooks-root=' . $hooksRoot],
                 $forwarded,
@@ -146,14 +151,9 @@ final readonly class InitInstallAssetsCommand
             return $gitHooksExit;
         }
 
-        if (!$agent->isAll()) {
-            $canonicalAgent = $agent->canonicalName();
-            if ($canonicalAgent === 'claude') {
-                echo '[INFO] install assets: installed portable skills, bundled subagent roles, and repository discipline hooks for claude; installed project instructions.' . "\n";
-            } elseif (in_array($canonicalAgent, ['copilot', 'antigravity'], true)) {
-                echo '[INFO] install assets: installed portable skills, bundled subagent roles, and project instructions for ' . $canonicalAgent . '; repository discipline hooks are currently available for codex and claude.' . "\n";
-            }
-        }
+        echo $withHooks
+            ? '[IMPORTANT] install assets: executable host hooks were explicitly requested with --with-hooks.' . "\n"
+            : '[INFO] install assets: executable host hooks were not registered; rerun with --with-hooks to opt in.' . "\n";
 
         $sourceDescription = $extraSkillRoots === []
             ? 'first-party package guidance'
@@ -225,7 +225,7 @@ final readonly class InitInstallAssetsCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'extra-skills-root'];
-        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config', 'with-hooks'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];

@@ -47,7 +47,8 @@ Do not begin with generated copies under `.codex/`, `.claude/`, `.github/`, or
 ## Package-owned Versus Host-owned
 
 - `init install-assets` always reads the assets shipped inside the installed
-  `voku/agent-loop` package.
+  `voku/agent-loop` package. It projects non-executable host assets by default;
+  bundled executable Codex/Claude hooks require explicit `--with-hooks`.
 - `init sync-skills`, `sync-subagents`, and `sync-hooks` read the host's resolved
   canonical roots and support config/CLI overrides.
 - Package-owned repository hooks currently target Codex and Claude. Both call the
@@ -157,7 +158,7 @@ subjective style preferences into noisy PHPStan rules.
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
-vendor/bin/agent-loop init install-assets --agent=all --dry-run
+vendor/bin/agent-loop init install-assets --agent=all --with-hooks --dry-run
 vendor/bin/agent-loop init doctor
 composer dogfood:discipline
 vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|DispatcherTest'
