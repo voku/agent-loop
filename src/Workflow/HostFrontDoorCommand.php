@@ -189,9 +189,9 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('agent-loop enter cannot prepare a Contract that is not approved.');
         }
 
-        $preparer = new WorkflowRunPreparer($this->rootPath, $this->runRecallQuietly(...));
+        $preparer = new WorkflowRunPreparer($this->rootPath);
         $mapReadiness = $preparer->discoveryReadiness($contract);
-        $result = $preparer->prepare($contract, $mapReadiness);
+        $result = $preparer->prepare($contract, $mapReadiness, $this->runRecallQuietly(...));
         if (!$result->recallCompiled()) {
             throw new RuntimeException(
                 'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code '
