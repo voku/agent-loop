@@ -56,6 +56,7 @@ final readonly class HostRuntimeProbe
         ];
     }
 
+    /** @return non-empty-string|null */
     private function resolveExecutable(string $command): ?string
     {
         $path = $this->path ?? getenv('PATH');
