@@ -43,7 +43,7 @@ jobs:
           addition = '''    public function findForContract(TaskContract $contract): ?GovernedRun\n    {\n        $existing = $this->find($contract->taskId);\n        if ($existing === null) {\n            return null;\n        }\n\n        return $existing->contractRevision === $contract->revision\n            && $existing->contractSource === $this->contractSource($contract)\n                ? $existing\n                : null;\n    }\n\n'''
           assert text.count(anchor) == 1, text.count(anchor)
           text = text.replace(anchor, addition + anchor)
-          anchor = '    private function newRun('
+          anchor = '''    /** @param array{path: string, sha256: string} $contractSource */\n    private function newRun('''
           helper = '''    /** @return array{path: string, sha256: string} */\n    private function contractSource(TaskContract $contract): array\n    {\n        $contractHash = hash_file('sha256', $contract->path);\n        if ($contractHash === false) {\n            throw new RuntimeException('Unable to hash approved Contract: ' . $contract->path);\n        }\n\n        return [\n            'path' => PathResolver::relativeTo($this->rootPath, $contract->path),\n            'sha256' => 'sha256:' . $contractHash,\n        ];\n    }\n\n'''
           assert text.count(anchor) == 1, text.count(anchor)
           text = text.replace(anchor, helper + anchor)
