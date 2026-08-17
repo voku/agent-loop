@@ -72,7 +72,7 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertSame('governed', $payload['manifest']['mode']);
         self::assertSame('not_configured', $payload['manifest']['references']['board']['state']);
         self::assertSame('missing', $payload['manifest']['references']['map']['state']);
-        self::assertSame('missing', $payload['manifest']['references']['search_index']['state']);
+        self::assertSame('unavailable', $payload['manifest']['references']['search_index']['state']);
         self::assertSame('not_required', $payload['manifest']['references']['execution_contract']['state']);
         self::assertSame('none', $payload['manifest']['references']['edit']['state']);
         self::assertStringContainsString('agent-map: index missing', implode("\n", $payload['context']['skipped']));
