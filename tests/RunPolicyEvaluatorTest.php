@@ -81,6 +81,30 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertSame('agent-loop workflow close ABC-123 --status done', $policy->nextAction);
     }
 
+    public function testCompleteRunKeepsCloseIdempotentWithoutReopeningMutation(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'ABC-123',
+            'governed',
+            $this->references(
+                contract: 'approved',
+                approval: 'current',
+                session: 'done',
+                recall: 'compiled',
+                executionContract: 'not_required',
+                verification: 'passed',
+                review: 'ok',
+                learning: 'decided',
+            ),
+            [],
+        );
+
+        self::assertSame('complete', $policy->state);
+        self::assertFalse($policy->mutationAllowed);
+        self::assertTrue($policy->ordinaryCloseAllowed);
+        self::assertSame('none', $policy->nextAction);
+    }
+
     public function testDisagreementFailsClosedWithTheSameObservableBlocker(): void
     {
         $disagreement = [
