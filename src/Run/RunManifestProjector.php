@@ -104,10 +104,17 @@ final readonly class RunManifestProjector
         $runId = $ephemeral
             ? 'session:' . $session->id
             : ($run !== null ? $run->runId : ($contract !== null ? 'task:' . $taskId . ':planned' : 'task:' . $taskId . ':legacy'));
-        $state = $this->overallState($session, $contract, $run, $references, $disagreements);
-        $nextAction = $this->nextAction($taskId, $session, $contract, $run, $references, $disagreements);
+        $policy = (new RunPolicyEvaluator())->evaluate($taskId, $mode, $references, $disagreements);
 
-        return new RunManifest($taskId, $runId, $mode, $state, $references, $disagreements, $nextAction);
+        return new RunManifest(
+            $taskId,
+            $runId,
+            $mode,
+            $policy->state,
+            $references,
+            $disagreements,
+            $policy->nextAction,
+        );
     }
 
     /**
@@ -619,124 +626,6 @@ final readonly class RunManifestProjector
         }
 
         return $reference;
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
-     */
-    private function overallState(
-        ?Session $session,
-        ?TaskContract $contract,
-        ?GovernedRun $run,
-        array $references,
-        array $disagreements,
-    ): string {
-        if ($disagreements !== []) {
-            return 'blocked';
-        }
-        if ($session !== null && $session->ephemeral) {
-            return 'experiment';
-        }
-        if ($contract === null || $contract->status !== TaskContract::APPROVED || $run === null) {
-            return 'incomplete';
-        }
-        if (($references['recall']['state'] ?? null) !== 'compiled') {
-            return 'incomplete';
-        }
-        if (in_array($references['execution_contract']['state'] ?? null, ['blocked', 'rejected', 'invalid', 'stale'], true)) {
-            return 'blocked';
-        }
-        if (($references['review']['state'] ?? null) === 'fail') {
-            return 'blocked';
-        }
-        if (in_array($references['review']['state'] ?? null, ['missing', 'invalid'], true)) {
-            return 'incomplete';
-        }
-        if (($references['learning']['state'] ?? null) !== 'decided') {
-            return 'incomplete';
-        }
-
-        $verificationState = $references['verification']['state'] ?? null;
-        if (in_array($verificationState, ['failed', 'blocked', 'invalid'], true)) {
-            return 'blocked';
-        }
-        if (in_array($verificationState, ['passed', 'accepted_risk'], true)) {
-            return $session === null || $session->status->isClosed() ? 'complete' : 'ready_to_close';
-        }
-        if ($verificationState === 'ready') {
-            return 'ready_to_close';
-        }
-
-        return 'incomplete';
-    }
-
-    /**
-     * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
-     */
-    private function nextAction(
-        string $taskId,
-        ?Session $session,
-        ?TaskContract $contract,
-        ?GovernedRun $run,
-        array $references,
-        array $disagreements,
-    ): string {
-        if ($disagreements !== []) {
-            return 'agent-loop workflow manifest ' . $taskId . ' --format=json';
-        }
-        if ($session !== null && $session->ephemeral) {
-            return 'agent-loop session close ' . $session->id . ' --status dropped';
-        }
-        if ($contract === null) {
-            return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
-        }
-        if ($contract->status !== TaskContract::APPROVED || $run === null) {
-            return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
-        }
-        if (($references['recall']['state'] ?? null) !== 'compiled') {
-            return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
-        }
-        if (in_array($references['execution_contract']['state'] ?? null, ['missing', 'pending_recall'], true)) {
-            return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
-        }
-        if (in_array($references['execution_contract']['state'] ?? null, ['blocked', 'rejected', 'invalid', 'stale'], true)) {
-            return 'agent-loop workflow status ' . $taskId . ' --format=json';
-        }
-        if (
-            ($references['verification']['state'] ?? null) === 'blocked'
-            && ($references['verification']['gate'] ?? null) === 'validation'
-        ) {
-            $action = $references['verification']['action'] ?? null;
-
-            return is_string($action) && $action !== ''
-                ? $action
-                : 'agent-loop workflow status ' . $taskId . ' --format=json';
-        }
-        if (in_array($references['review']['state'] ?? null, ['missing', 'invalid', 'fail'], true)) {
-            return 'agent-loop review blindspots ' . $taskId;
-        }
-        if (($references['learning']['state'] ?? null) !== 'decided') {
-            return 'agent-loop workflow learn ' . $taskId . ' --status no_durable_learning --by <actor> --reason "..."';
-        }
-        if (($references['verification']['state'] ?? null) === 'blocked') {
-            $action = $references['verification']['action'] ?? null;
-
-            return is_string($action) && $action !== ''
-                ? $action
-                : 'agent-loop workflow status ' . $taskId . ' --format=json';
-        }
-        if (($references['verification']['state'] ?? null) === 'ready') {
-            return 'agent-loop workflow close ' . $taskId . ' --status done';
-        }
-        if (in_array($references['verification']['state'] ?? null, ['passed', 'accepted_risk'], true)) {
-            return $session === null || $session->status->isClosed()
-                ? 'none'
-                : 'agent-loop workflow close ' . $taskId . ' --status done';
-        }
-
-        return 'agent-loop workflow status ' . $taskId . ' --format=json';
     }
 
     /** @return array{path: string, sha256: string} */
