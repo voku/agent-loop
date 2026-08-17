@@ -54,7 +54,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         [$closeExit, $closeOutput] = $this->runClose();
         self::assertSame(1, $closeExit);
         self::assertStringContainsString($reason, $closeOutput);
-        self::assertStringContainsString('gates failed; session was not closed', $closeOutput);
+        self::assertStringContainsString('lifecycle state is blocked; session was not closed', $closeOutput);
     }
 
     public function testPassingCurrentValidationMakesStatusReadyThenCloseComplete(): void

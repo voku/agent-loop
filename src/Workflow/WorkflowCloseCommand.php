@@ -14,6 +14,7 @@ use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
@@ -79,10 +80,24 @@ final readonly class WorkflowCloseCommand
             foreach ($readiness->gateFailures as $failure) {
                 echo "[FAIL] {$failure['gate']}: {$failure['detail']}\n";
             }
-            if ($readiness->gateFailures !== [] && $options['acceptRisk'] === null) {
-                echo "[FAIL] workflow close: gates failed; session was not closed.\n";
 
-                return 1;
+            $acceptedRisk = $options['acceptRisk'] !== null;
+            if (!$acceptedRisk) {
+                $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                if (!$policy->ordinaryCloseAllowed) {
+                    echo "[FAIL] workflow close: lifecycle state is {$policy->state}; session was not closed.\n";
+                    if ($policy->nextAction !== 'none') {
+                        echo "[ACTION REQUIRED] {$policy->nextAction}\n";
+                    }
+
+                    return 1;
+                }
+                if ($readiness->gateFailures !== []) {
+                    throw new RuntimeException(
+                        'Canonical lifecycle policy authorized ordinary close while close readiness still reported gate failures.',
+                    );
+                }
             }
 
             $boundary = $readiness->boundary
@@ -95,7 +110,6 @@ final readonly class WorkflowCloseCommand
                 return 1;
             }
 
-            $acceptedRisk = $options['acceptRisk'] !== null;
             if ($acceptedRisk) {
                 if ($options['acceptRiskBy'] === null) {
                     echo "[FAIL] workflow close: --accept-risk also requires --accept-risk-by <name>.\n";
