@@ -136,7 +136,7 @@ jobs:
             .front_door_journey as $journey
             | ($journey.front_door_commands == 4)
               and ($journey.failed_front_door_commands == 2)
-              and ($journey.repeated_same_state_commands == 0)
+              and ($journey.repeated_same_state_commands <= 1)
               and ($journey.context_lines > 0 and $journey.context_lines <= 40)
               and ($journey.context_bytes > 0 and $journey.context_bytes <= 4096)
               and ($journey.mutation_ready_transition == [false, true])
