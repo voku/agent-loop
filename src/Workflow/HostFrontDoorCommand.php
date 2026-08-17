@@ -5,21 +5,26 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
- * Read-only facade over existing workflow owner artifacts for coding-agent hosts.
+ * Host-facing lifecycle front door for governed coding work.
  *
- * It deliberately owns no lifecycle state. Owner-backed facts are projected by
- * RunManifestProjector and lifecycle permissions come from RunPolicyEvaluator.
+ * `enter` may reconcile deterministic post-approval preparation, but it never
+ * approves Contract scope or invents other authority-bearing decisions.
  */
 final readonly class HostFrontDoorCommand
 {
-    public function __construct(private string $rootPath)
-    {
+    /** @param null|callable(list<string>): int $recallRunner */
+    public function __construct(
+        private string $rootPath,
+        private mixed $recallRunner = null,
+    ) {
     }
 
     /** @param list<string> $args */
@@ -47,7 +52,7 @@ final readonly class HostFrontDoorCommand
     {
         if ($this->helpRequested($args)) {
             echo "Usage: agent-loop enter <task-id> [--format text|json] [--max-lines N] [--max-bytes N]\n";
-            echo "Read-only: project current workflow truth and bounded context before host mutation.\n";
+            echo "Prepare deterministic post-approval workflow state and project bounded context before host mutation.\n";
 
             return 0;
         }
@@ -63,6 +68,11 @@ final readonly class HostFrontDoorCommand
         }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        if ($this->needsPreparation($manifest)) {
+            $this->prepareApprovedRun($taskId->value);
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        }
+
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
 
@@ -144,6 +154,54 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->state === 'blocked' ? 2 : 1;
+    }
+
+    private function needsPreparation(RunManifest $manifest): bool
+    {
+        if (in_array($manifest->state, ['blocked', 'experiment', 'ready_to_close', 'complete'], true)) {
+            return false;
+        }
+        if (($manifest->references['contract']['state'] ?? null) !== TaskContract::APPROVED) {
+            return false;
+        }
+        if (($manifest->references['approval']['state'] ?? null) !== 'current') {
+            return false;
+        }
+
+        return $manifest->mode !== 'governed'
+            || ($manifest->references['session']['state'] ?? null) !== 'active'
+            || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
+    }
+
+    private function prepareApprovedRun(string $taskId): void
+    {
+        if (!is_callable($this->recallRunner)) {
+            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
+        }
+
+        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+        if ($contract->status !== TaskContract::APPROVED) {
+            throw new RuntimeException('agent-loop enter cannot prepare a Contract that is not approved.');
+        }
+
+        $runner = $this->recallRunner;
+        $quietRecallRunner = static function (array $args) use ($runner): int {
+            ob_start();
+            try {
+                return $runner($args);
+            } finally {
+                ob_end_clean();
+            }
+        };
+        $preparer = new WorkflowRunPreparer($this->rootPath, $quietRecallRunner);
+        $mapReadiness = $preparer->discoveryReadiness($contract);
+        $result = $preparer->prepare($contract, $mapReadiness);
+        if (!$result->recallCompiled()) {
+            throw new RuntimeException(
+                'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code '
+                . $result->recallExitCode . '.',
+            );
+        }
     }
 
     /** @param list<string> $tokens */
