@@ -8,12 +8,13 @@ use InvalidArgumentException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
  * Read-only facade over existing workflow owner artifacts for coding-agent hosts.
  *
  * It deliberately owns no lifecycle state. Owner-backed facts are projected by
- * RunManifestProjector and lifecycle permissions come from the manifest policy.
+ * RunManifestProjector and lifecycle permissions come from RunPolicyEvaluator.
  */
 final readonly class HostFrontDoorCommand
 {
@@ -62,7 +63,7 @@ final readonly class HostFrontDoorCommand
         }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
-        $policy = $manifest->policy;
+        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
 
         $payload = [
@@ -116,7 +117,7 @@ final readonly class HostFrontDoorCommand
         $this->validateFinishTokens($tokens);
         $format = $this->format($tokens);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
-        $policy = $manifest->policy;
+        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $complete = $policy->state === 'complete';
 
         $payload = [
