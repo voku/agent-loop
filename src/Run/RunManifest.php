@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
-use LogicException;
-
 /**
  * A task-scoped projection of the owning package artifacts that form one run.
  *
@@ -17,12 +15,6 @@ final readonly class RunManifest
 {
     public const string SCHEMA_VERSION = '1.0';
 
-    public string $state;
-
-    public string $nextAction;
-
-    public RunPolicyEvaluation $policy;
-
     /**
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
@@ -31,24 +23,11 @@ final readonly class RunManifest
         public string $taskId,
         public string $runId,
         public string $mode,
-        string $state,
+        public string $state,
         public array $references,
         public array $disagreements,
-        string $nextAction,
+        public string $nextAction,
     ) {
-        $this->policy = (new RunPolicyEvaluator())->evaluate($taskId, $mode, $references, $disagreements);
-        if ($this->policy->state !== $state || $this->policy->nextAction !== $nextAction) {
-            throw new LogicException(sprintf(
-                'Lifecycle policy disagrees with legacy manifest derivation: state %s/%s, next action %s/%s.',
-                $this->policy->state,
-                $state,
-                $this->policy->nextAction,
-                $nextAction,
-            ));
-        }
-
-        $this->state = $this->policy->state;
-        $this->nextAction = $this->policy->nextAction;
     }
 
     /** @return array<string, mixed> */
