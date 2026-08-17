@@ -54,7 +54,7 @@ final class GitHookPolicyTrustTest extends TestCase
         self::assertFileExists($this->marker);
 
         unlink($this->marker);
-        $this->writePolicy($this->markerCommand() . ' --changed');
+        $this->writePolicy($this->markerCommand(), 'branch-controlled-changed');
 
         $changedExit = (new GitHooksCli($this->root))->run(['pre-commit']);
         self::assertNotSame(0, $changedExit);
@@ -78,7 +78,7 @@ final class GitHookPolicyTrustTest extends TestCase
         return escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($code);
     }
 
-    private function writePolicy(string $command): void
+    private function writePolicy(string $command, string $name = 'branch-controlled'): void
     {
         file_put_contents(
             $this->root . '/.agent-loop/githooks.json',
@@ -86,7 +86,7 @@ final class GitHookPolicyTrustTest extends TestCase
                 [
                     'pre_commit' => [
                         'checks' => [[
-                            'name' => 'branch-controlled',
+                            'name' => $name,
                             'command' => $command,
                         ]],
                     ],
