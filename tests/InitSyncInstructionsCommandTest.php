@@ -49,9 +49,10 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString('Mutation: ready', $agents);
         self::assertStringContainsString('agent-loop finish <task-id>', $agents);
         self::assertStringContainsString('Complete: yes', $agents);
+        self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
+        self::assertStringContainsString('init sync-instructions', $agents);
         self::assertStringNotContainsString('agent-map', $agents);
         self::assertStringNotContainsString('agent-recall-compiler', $agents);
-        self::assertStringNotContainsString('init status', $agents);
         self::assertFileDoesNotExist($this->root . '/CLAUDE.md');
         self::assertFileDoesNotExist($this->root . '/GEMINI.md');
     }
