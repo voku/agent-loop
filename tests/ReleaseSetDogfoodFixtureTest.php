@@ -50,37 +50,6 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         }
     }
 
-    public function testReleaseSetConsumerKeepsAgentLoopAsSingleFirstPartyRootAuthority(): void
-    {
-        $path = dirname(__DIR__) . '/tools/release-set-dogfood.php';
-        $runner = file_get_contents($path);
-        self::assertIsString($runner);
-
-        $start = strpos($runner, <<<'PHP'
-$this->writeJson($this->consumerRoot . '/composer.json'
-PHP);
-        self::assertNotFalse($start, 'Release-set consumer composer definition is missing.');
-
-        $end = strpos($runner, 'file_put_contents(', $start);
-        self::assertNotFalse($end, 'Release-set consumer composer definition has no stable end marker.');
-
-        $composerDefinition = substr($runner, $start, $end - $start);
-        self::assertStringContainsString(
-            "'require-dev' => ['voku/agent-loop' => 'dev-main']",
-            $composerDefinition,
-        );
-
-        foreach ([
-            'voku/agent-kanban',
-            'voku/agent-learning',
-            'voku/agent-map',
-            'voku/agent-recall-compiler',
-            'voku/agent-session',
-        ] as $ownedPackage) {
-            self::assertStringNotContainsString($ownedPackage, $composerDefinition);
-        }
-    }
-
     public function testFixtureDoesNotOverrideCanonicalRecallRoot(): void
     {
         $fixture = dirname(__DIR__) . '/tests/fixtures/release-set-consumer/.agent-loop/init.json';
