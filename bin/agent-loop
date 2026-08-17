@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\GitCandidateEvidenceCommand;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentMap\Cli\DiscoveryCliApplication;
 
 // The outer autoloader comes first on purpose. When this package is installed as a dependency its
@@ -28,6 +29,11 @@ foreach ($autoloadCandidates as $autoloadCandidate) {
 if (!class_exists(Dispatcher::class)) {
     fwrite(STDERR, "Cannot find Composer autoload file for voku/agent-loop.\n");
     exit(1);
+}
+
+$frontDoor = $argv[1] ?? null;
+if (in_array($frontDoor, ['enter', 'finish'], true)) {
+    exit((new HostFrontDoorCommand(getcwd()))->run($frontDoor, array_slice($argv, 2)));
 }
 
 $verifyArgv = array_slice($argv, 2);
