@@ -54,9 +54,10 @@ final readonly class InitDoctorCommand
         }
 
         $requestedConfig = OptionTokens::value($tokens, 'config');
-        $canonicalConfig = (new ProjectLayout($this->rootPath))->configPath();
+        $layout = new ProjectLayout($this->rootPath);
+        $canonicalConfig = $layout->configPath();
         $config = (new InitConfigLoader($this->rootPath))->load(
-            $requestedConfig ?? (is_file($canonicalConfig) ? $canonicalConfig : null),
+            $requestedConfig ?? (is_file($canonicalConfig) ? $layout->display($canonicalConfig) : null),
         );
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
