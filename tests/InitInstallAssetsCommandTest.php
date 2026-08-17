@@ -56,7 +56,8 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-recall-consumer', $result['output']);
         self::assertStringContainsString('from 2 source root(s)', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync subagents: install agent-loop-investigator.toml', $result['output']);
-        self::assertStringContainsString('[DRY-RUN] sync hooks: install hooks.json', $result['output']);
+        self::assertStringNotContainsString('[DRY-RUN] sync hooks:', $result['output']);
+        self::assertStringContainsString('executable host hooks were not registered', $result['output']);
         self::assertStringContainsString('first-party package guidance validated; no files written', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.codex');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
@@ -64,7 +65,7 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringNotContainsString('plugin marketplace', strtolower($result['output']));
     }
 
-    public function testCodexInstallsBundledSkillsRolesAndHooks(): void
+    public function testCodexInstallsBundledSkillsAndRolesWithoutExecutableHooks(): void
     {
         $result = $this->runCommand(['--agent=codex']);
 
@@ -81,10 +82,11 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-surgical-builder.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-code-reviewer.toml');
-        self::assertFileExists($this->root . '/.codex/hooks.json');
-        self::assertFileExists($this->root . '/.codex/hooks/context.php');
-        self::assertFileExists($this->root . '/.codex/hooks/pre_tool_use_policy.php');
+        self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
+        self::assertFileDoesNotExist($this->root . '/.codex/hooks/context.php');
+        self::assertFileDoesNotExist($this->root . '/.codex/hooks/pre_tool_use_policy.php');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
+        self::assertStringContainsString('executable host hooks were not registered', $result['output']);
         self::assertStringContainsString('without downloading remote code', $result['output']);
     }
 
@@ -95,8 +97,14 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
     }
 
-    public function testClaudeInstallsPortableSkillsSubagentRolesAndHooks(): void
+    public function testClaudePreservesExistingSettingsAndDoesNotRegisterExecutableHooks(): void
     {
+        mkdir($this->root . '/.claude', 0o775, true);
+        file_put_contents($this->root . '/.claude/settings.json', json_encode([
+            'model' => 'opus',
+            'theme' => 'auto',
+        ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+
         $result = $this->runCommand(['--agent=claude']);
 
         self::assertSame(0, $result['exit'], $result['output']);
@@ -104,23 +112,19 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.claude/agents/agent-loop-investigator.md');
         self::assertFileExists($this->root . '/.claude/agents/agent-loop-surgical-builder.md');
-        self::assertFileExists($this->root . '/.claude/hooks/context.php');
-        self::assertFileExists($this->root . '/.claude/hooks/pre_tool_use_policy.php');
-        self::assertFileExists($this->root . '/.claude/settings.json');
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/context.php');
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/pre_tool_use_policy.php');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
         self::assertDirectoryDoesNotExist($this->root . '/.codex/agents');
         self::assertDirectoryDoesNotExist($this->root . '/.github/agents');
-        self::assertStringContainsString('repository discipline hooks for claude', $result['output']);
+        self::assertStringContainsString('executable host hooks were not registered', $result['output']);
+        self::assertStringContainsString('init sync-hooks --agent=claude', $result['output']);
 
         $settings = json_decode((string) file_get_contents($this->root . '/.claude/settings.json'), true, 64, JSON_THROW_ON_ERROR);
-        self::assertIsArray($settings);
-        self::assertArrayHasKey('SessionStart', $settings['hooks']);
-        self::assertArrayHasKey('SubagentStart', $settings['hooks']);
-        self::assertArrayHasKey('PreToolUse', $settings['hooks']);
-        self::assertSame(
-            'php .claude/hooks/context.php --event=SessionStart',
-            $settings['hooks']['SessionStart'][0]['hooks'][0]['command'],
-        );
+        self::assertSame([
+            'model' => 'opus',
+            'theme' => 'auto',
+        ], $settings);
     }
 
     public function testClaudeDryRunInstallsNothing(): void
@@ -128,7 +132,8 @@ final class InitInstallAssetsCommandTest extends TestCase
         $result = $this->runCommand(['--agent=claude', '--dry-run']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('[DRY-RUN] sync hooks: write hooks key', $result['output']);
+        self::assertStringNotContainsString('[DRY-RUN] sync hooks:', $result['output']);
+        self::assertStringContainsString('executable host hooks were not registered', $result['output']);
         self::assertFileDoesNotExist($this->root . '/.claude/settings.json');
         self::assertDirectoryDoesNotExist($this->root . '/.claude/hooks');
     }
@@ -144,10 +149,10 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.github/agents/agent-loop-surgical-builder.agent.md');
         self::assertFileExists($this->root . '/.github/agents/agent-loop-code-reviewer.agent.md');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
-        self::assertStringContainsString('repository discipline hooks are currently available for codex and claude', $result['output']);
+        self::assertStringContainsString('executable host hooks were not registered', $result['output']);
     }
 
-    public function testAllInstallsSkillsSubagentRolesAndCodexAndClaudeHooks(): void
+    public function testAllInstallsSkillsAndSubagentRolesWithoutExecutableHooks(): void
     {
         $result = $this->runCommand(['--agent=all']);
 
@@ -169,9 +174,11 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-investigator.md');
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-surgical-builder.md');
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-code-reviewer.md');
-        self::assertFileExists($this->root . '/.codex/hooks/context.php');
-        self::assertFileExists($this->root . '/.claude/hooks/context.php');
-        self::assertFileExists($this->root . '/.claude/settings.json');
+        self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
+        self::assertFileDoesNotExist($this->root . '/.codex/hooks/context.php');
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/context.php');
+        self::assertFileDoesNotExist($this->root . '/.claude/settings.json');
+        self::assertStringContainsString('executable host hooks were not registered', $result['output']);
     }
 
     public function testUnknownAgentFails(): void
