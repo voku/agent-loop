@@ -95,6 +95,29 @@ When a requirement matters to completion, make it explicit at PLAN time so it
 survives approval, Recall, status, and review rather than depending on chat
 memory.
 
+## Test-Driven Implementation Selection
+
+For behavior-changing implementation work with a repository-supported automated
+test seam, prefer selecting Recall's `test-driven-development` L2 recipe at PLAN
+time. The selection becomes part of the approved Contract instead of relying on
+a conversational reminder that an acting agent may forget:
+
+```bash
+--operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+--operating-prompt '{"id":"test-driven-development","arguments":{}}'
+```
+
+For a specific bug claim whose first question is whether the failure can be
+reproduced at all, use the narrower `reproduce-before-fix` recipe. Do not stack
+both merely because their test-first surfaces overlap; select the engineering
+method whose constraint actually matters to the task.
+
+Recall owns the recipe semantics. Agent Loop owns selection persistence and the
+execution-contract gate. Do not restate RED/GREEN/REFACTOR rules here or create a
+second TDD policy in Loop. When no meaningful automated test seam exists, keep
+the ordinary Contract validation explicit rather than manufacturing a recipe
+selection for ceremony.
+
 ## Historical Context Preflight
 
 Before opening a non-trivial, repeated, or failure-driven task, use `ctx` if it
