@@ -34,8 +34,10 @@ final readonly class InitDoctorCommand
         'install_codex_hooks',
     ];
 
-    public function __construct(private string $rootPath)
-    {
+    public function __construct(
+        private string $rootPath,
+        private ?HostRuntimeProbe $runtimeProbe = null,
+    ) {
     }
 
     /**
@@ -161,9 +163,6 @@ final readonly class InitDoctorCommand
         if (!is_dir($root . '/' . $relative)) {
             return [];
         }
-        // Outside a working tree the advice would name .gitignore and
-        // .gitattributes for a repository that does not exist, which is worse
-        // than saying nothing.
         if (!GitWorkTree::detected($root) || GitWorkTree::ignores($root, $relative)) {
             return [];
         }
@@ -183,14 +182,6 @@ final readonly class InitDoctorCommand
     }
 
     /**
-     * A tracked project policy or template is inert until Git points at the
-     * package-owned hook directory/template. Surface that split explicitly:
-     * source presence is not activation.
-     *
-     * The remediation command is resolved against this repository, because the
-     * generic one installs a duplicate hook directory wherever the package-owned
-     * hooks already live under a different name.
-     *
      * @return list<InitCheckResult>
      */
     private function checkLocalGitIntegration(): array
@@ -232,7 +223,6 @@ final readonly class InitDoctorCommand
 
                 if (preg_match('/^' . preg_quote($target, '/') . '\s*:/m', $content) === 1) {
                     $foundTargets[] = $target;
-
                     break;
                 }
             }
@@ -240,7 +230,6 @@ final readonly class InitDoctorCommand
 
         if ($foundTargets === []) {
             $results[] = InitCheckResult::warn('Make agent assets: no migration-compatible agent asset targets found');
-
             return $results;
         }
 
@@ -255,7 +244,21 @@ final readonly class InitDoctorCommand
     private function checkHostCapabilities(): array
     {
         $results = [];
+        $runtimeProbe = $this->runtimeProbe ?? new HostRuntimeProbe();
         foreach (InitAgent::canonicalNames() as $agent) {
+            $runtime = $runtimeProbe->probe($agent);
+            $runtimeMessage = 'Host runtime [' . $agent . ']: ' . $runtime['status'];
+            if ($runtime['command'] !== null) {
+                $runtimeMessage .= '; command=' . $runtime['command'];
+            }
+            if ($runtime['path'] !== null) {
+                $runtimeMessage .= '; path=' . $runtime['path'];
+            }
+            if ($runtime['status'] === 'unprobed') {
+                $runtimeMessage .= '; evidence=no stable CLI probe configured';
+            }
+            $results[] = InitCheckResult::info($runtimeMessage);
+
             $capabilities = [];
             $rows = HostCapabilityMatrix::forAgent($agent);
             foreach ($rows as $row) {

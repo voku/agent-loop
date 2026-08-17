@@ -30,25 +30,28 @@ final class InitDoctorHostCapabilityTest extends TestCase
             self::assertStringContainsString('Host capabilities [claude]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertStringContainsString('Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertMatchesRegularExpression('/Host capabilities \[copilot\]: [^\n]*repository-hooks=unsupported/', $output);
+            self::assertStringContainsString('Host capabilities [gemini]: skill-projection=supported, subagent-projection=supported', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \[gemini\]: [^\n]*repository-hooks=unsupported/', $output);
             self::assertStringContainsString('Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertMatchesRegularExpression('/Host capabilities \[antigravity\]: [^\n]*repository-hooks=unsupported/', $output);
 
             self::assertStringContainsString(
-                'Host capability evidence [codex/skill-projection]: mechanism=SKILL.md -> Codex skills directory; evidence=adapter+installed-projection',
+                'Host capability evidence [codex/skill-projection]: mechanism=SKILL.md -> Codex skills directory; evidence=adapter-declared',
                 $output,
             );
             self::assertStringContainsString(
-                'Host capability evidence [codex/pre-tool-guardrail]: mechanism=Codex hooks.json + repository-local command hooks; evidence=adapter+installed-projection;live-runtime-unverified',
+                'Host capability evidence [codex/pre-tool-guardrail]: mechanism=Codex hooks.json + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
                 $output,
             );
             self::assertStringContainsString(
-                'Host capability evidence [claude/session-bootstrap]: mechanism=Claude settings.json#hooks + repository-local command hooks; evidence=adapter+installed-projection;live-runtime-unverified',
+                'Host capability evidence [claude/session-bootstrap]: mechanism=Claude settings.json#hooks + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
                 $output,
             );
             self::assertStringContainsString(
                 'Host capability evidence [copilot/pre-tool-guardrail]: mechanism=no agent-loop host-native projector; evidence=no-agent-loop-projector',
                 $output,
             );
+            self::assertStringContainsString('Host runtime [gemini]: ', $output);
             self::assertStringNotContainsString('live-runtime-observed', $output);
             self::assertSame($before, scandir($root));
         } finally {
