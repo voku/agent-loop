@@ -328,6 +328,14 @@ final class ReleaseSetDogfood
     {
         $this->mustRun(['vendor/bin/agent-loop', 'verify', '--task-id=DEMO-1']);
 
+        $verified = $this->frontDoor('verified_no_mutation', ['enter', 'DEMO-1', '--format=json']);
+        if (($verified['mutation_ready'] ?? null) !== false || ($verified['state'] ?? null) !== 'ready_to_close') {
+            throw new ReleaseSetFailure('Verified host front door reopened mutation instead of preserving ready_to_close.');
+        }
+        if (($verified['next_action'] ?? null) !== 'agent-loop workflow close DEMO-1 --status done') {
+            throw new ReleaseSetFailure('Verified host front door did not return the canonical close action.');
+        }
+
         $premature = $this->frontDoor('ready_to_close', ['finish', 'DEMO-1', '--format=json'], [1]);
         if (($premature['complete'] ?? null) !== false || ($premature['state'] ?? null) !== 'ready_to_close') {
             throw new ReleaseSetFailure('Host front door accepted completion before workflow close.');
@@ -428,8 +436,8 @@ final class ReleaseSetDogfood
             ),
         ));
         $ready = $this->frontDoorJourney[1] ?? [];
-        $premature = $this->frontDoorJourney[2] ?? [];
-        $complete = $this->frontDoorJourney[3] ?? [];
+        $premature = $this->frontDoorJourney[3] ?? [];
+        $complete = $this->frontDoorJourney[4] ?? [];
 
         return [
             'front_door_commands' => count($this->frontDoorJourney),
