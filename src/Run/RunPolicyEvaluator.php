@@ -35,7 +35,7 @@ final readonly class RunPolicyEvaluator
             $this->mutationAllowed($state, $mode, $references, $disagreements),
             in_array($state, ['ready_to_close', 'complete'], true),
             $this->blockers($state, $references, $disagreements),
-            $this->nextAction($taskId, $mode, $references, $disagreements),
+            $this->nextAction($taskId, $state, $mode, $references, $disagreements),
         );
     }
 
@@ -105,8 +105,13 @@ final readonly class RunPolicyEvaluator
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
-    private function nextAction(string $taskId, string $mode, array $references, array $disagreements): string
-    {
+    private function nextAction(
+        string $taskId,
+        string $state,
+        string $mode,
+        array $references,
+        array $disagreements,
+    ): string {
         if ($disagreements !== []) {
             return 'agent-loop workflow manifest ' . $taskId . ' --format=json';
         }
@@ -123,10 +128,17 @@ final readonly class RunPolicyEvaluator
         if ($this->referenceState($references, 'contract') !== 'approved') {
             return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
         }
-        if ($mode !== 'governed') {
-            return 'agent-loop enter ' . $taskId;
+        if ($this->referenceState($references, 'approval') !== 'current') {
+            return 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
-        if ($this->referenceState($references, 'recall') !== 'compiled') {
+        if (
+            $state === 'incomplete'
+            && (
+                $mode !== 'governed'
+                || $this->referenceState($references, 'session') !== 'active'
+                || $this->referenceState($references, 'recall') !== 'compiled'
+            )
+        ) {
             return 'agent-loop enter ' . $taskId;
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['missing', 'pending_recall'], true)) {
