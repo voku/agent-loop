@@ -116,7 +116,8 @@ final class SmokeLoopTest extends TestCase
         self::assertSame(1, $firstFinish['exit'], $firstFinish['output']);
         $firstPayload = $this->json($firstFinish['output']);
         self::assertFalse($firstPayload['complete'] ?? true);
-        self::assertSame('passed', $firstPayload['manifest']['references']['verification']['validation'][0]['status'] ?? null);
+        self::assertSame('blocked', $firstPayload['manifest']['references']['verification']['state'] ?? null);
+        self::assertSame('review', $firstPayload['manifest']['references']['verification']['gate'] ?? null);
         self::assertSame('unacknowledged', $firstPayload['manifest']['references']['review']['state'] ?? null);
 
         $review = (new WorkflowReviewReportReader($this->root))->read('task.001');
