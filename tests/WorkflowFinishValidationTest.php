@@ -46,7 +46,7 @@ final class WorkflowFinishValidationTest extends TestCase
 
         self::assertSame(1, $first['exit']);
         self::assertFalse($first['payload']['complete'] ?? true);
-        self::assertSame('agent-loop review blindspots FINISH-1', $first['payload']['next_action'] ?? null);
+        self::assertStringContainsString('--reviewed-report-sha256', (string) ($first['payload']['next_action'] ?? ''));
 
         $evidence = (new ValidationEvidenceStore())->all($session);
         self::assertCount(1, $evidence);
@@ -61,7 +61,7 @@ final class WorkflowFinishValidationTest extends TestCase
         $second = $this->finish('FINISH-1');
 
         self::assertSame(1, $second['exit']);
-        self::assertSame('agent-loop review blindspots FINISH-1', $second['payload']['next_action'] ?? null);
+        self::assertStringContainsString('--reviewed-report-sha256', (string) ($second['payload']['next_action'] ?? ''));
         self::assertCount(1, (new ValidationEvidenceStore())->all($session), 'Current passing evidence must be reused, not duplicated.');
     }
 
@@ -115,6 +115,7 @@ final class WorkflowFinishValidationTest extends TestCase
                 'output_hashes' => [],
             ], JSON_THROW_ON_ERROR),
         );
+        file_put_contents($recallDirectory . '/validation-plan.md', "# Validation\n\nRun the approved commands.\n");
 
         return [$validation, $session];
     }
