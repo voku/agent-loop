@@ -465,7 +465,10 @@ final readonly class HostFrontDoorCommand
         ];
     }
 
-    /** @param list<string> $tokens @return list<FinishFindingInput> */
+    /**
+     * @param list<string> $tokens
+     * @return list<FinishFindingInput>
+     */
     private function findingInputs(array $tokens): array
     {
         $observations = $this->optionValues($tokens, 'finding-observation');
@@ -503,7 +506,10 @@ final readonly class HostFrontDoorCommand
         return $inputs;
     }
 
-    /** @param list<string> $tokens @return list<string> */
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
     private function optionValues(array $tokens, string $name): array
     {
         $values = [];
