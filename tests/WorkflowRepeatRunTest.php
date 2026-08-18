@@ -11,6 +11,7 @@ use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
@@ -91,6 +92,73 @@ final class WorkflowRepeatRunTest extends TestCase
         self::assertIsArray($archivedRun);
         self::assertSame($firstRun->runId, $archivedRun['run_id'] ?? null);
         self::assertSame(1, $archivedRun['contract_revision'] ?? null);
+    }
+
+    public function testNewApprovedRevisionRetiresActiveOldSessionBeforeRunSupersession(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'SELF-SHAPE',
+            'Govern the first active candidate.',
+            ['src/Foo.php'],
+            [],
+            ['composer ci'],
+            'agent-loop-self-shape',
+        );
+
+        self::assertSame(0, $this->approve());
+        self::assertSame(0, $this->enter());
+
+        $layout = new ProjectLayout($this->root);
+        $sessions = new SessionStore();
+        $firstSessions = $sessions->all($layout->sessionsRoot());
+        self::assertCount(1, $firstSessions);
+        $firstSession = $firstSessions[0];
+        self::assertSame(SessionStatus::ACTIVE, $firstSession->status);
+
+        $runs = new GovernedRunStore($this->root);
+        $firstRun = $runs->find('SELF-SHAPE');
+        self::assertNotNull($firstRun);
+        self::assertSame(1, $firstRun->contractRevision);
+
+        $contracts->revise(
+            'SELF-SHAPE',
+            'Govern the second active candidate.',
+            ['src/Foo.php'],
+            [],
+            ['composer ci'],
+            'agent-loop-self-shape',
+        );
+        self::assertSame(0, $this->approve());
+
+        $stale = (new RunManifestProjector($this->root))->project('SELF-SHAPE');
+        self::assertSame('incomplete', $stale->state);
+        self::assertSame('agent-loop enter SELF-SHAPE', $stale->nextAction);
+        self::assertSame(2, $stale->references['contract']['revision'] ?? null);
+        self::assertSame(1, $stale->references['contract']['run_revision'] ?? null);
+
+        self::assertSame(0, $this->enter());
+
+        $retired = $sessions->load($layout->sessionsRoot(), $firstSession->id);
+        self::assertSame(SessionStatus::DROPPED, $retired->status);
+
+        $allSessions = $sessions->all($layout->sessionsRoot());
+        $activeSessions = array_values(array_filter(
+            $allSessions,
+            static fn ($session): bool => $session->status === SessionStatus::ACTIVE,
+        ));
+        self::assertCount(1, $activeSessions);
+        $secondSession = $activeSessions[0];
+        self::assertNotSame($firstSession->id, $secondSession->id);
+
+        $secondRun = $runs->find('SELF-SHAPE');
+        self::assertNotNull($secondRun);
+        self::assertNotSame($firstRun->runId, $secondRun->runId);
+        self::assertSame(2, $secondRun->contractRevision);
+        self::assertSame($secondSession->id, $secondRun->sessionId);
+
+        $archivedRuns = glob($layout->runHistoryRoot('SELF-SHAPE') . '/*/run.json') ?: [];
+        self::assertCount(1, $archivedRuns);
     }
 
     private function approve(): int
