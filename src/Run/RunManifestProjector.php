@@ -82,7 +82,7 @@ final readonly class RunManifestProjector
             'approval' => $this->approvalReference($contract),
             'map' => $this->mapReference($mapReadiness),
             'search_index' => $this->searchIndexReference($mapReadiness),
-            'recall' => $this->recallReference($taskId, $disagreements),
+            'recall' => $this->recallReference($taskId, $run, $contract, $disagreements),
             'execution_contract' => $this->executionContractReference($taskId),
             'edit' => $this->editReference($taskId),
             'verification' => $this->verificationReference($taskId, $run, $contract, $session, $disagreements),
@@ -330,8 +330,12 @@ final readonly class RunManifestProjector
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      * @return array<string, mixed>
      */
-    private function recallReference(string $taskId, array &$disagreements): array
-    {
+    private function recallReference(
+        string $taskId,
+        ?GovernedRun $run,
+        ?TaskContract $contract,
+        array &$disagreements,
+    ): array {
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         $metaPath = $directory . '/meta.json';
         if (!is_file($metaPath)) {
@@ -357,6 +361,18 @@ final readonly class RunManifestProjector
             ];
         }
 
+        $bindingFailure = $this->recallBindingFailure($directory, $meta, $run, $contract);
+        if ($bindingFailure !== null) {
+            return [
+                'owner' => 'agent-recall-compiler',
+                'state' => 'stale',
+                'observation_mode' => 'checked',
+                'reason' => $bindingFailure,
+                'compilation_id' => is_string($meta['compilation_id'] ?? null) ? $meta['compilation_id'] : null,
+                'source' => $this->artifact($metaPath),
+            ];
+        }
+
         return [
             'owner' => 'agent-recall-compiler',
             'state' => ($meta['blocked'] ?? false) === true ? 'blocked' : 'compiled',
@@ -366,6 +382,49 @@ final readonly class RunManifestProjector
             'snapshot_sha256' => is_string($meta['snapshot_sha256'] ?? null) ? $meta['snapshot_sha256'] : null,
             'source' => $this->artifact($metaPath),
         ];
+    }
+
+    /** @param array<string, mixed> $meta */
+    private function recallBindingFailure(
+        string $directory,
+        array $meta,
+        ?GovernedRun $run,
+        ?TaskContract $contract,
+    ): ?string {
+        if ($run === null || $contract === null) {
+            return null;
+        }
+
+        $bundlePath = $directory . '/recall.bundle.json';
+        if (!is_file($bundlePath)) {
+            return is_string($meta['snapshot_sha256'] ?? null)
+                ? 'Recall output is incomplete for the current governed Run: recall.bundle.json is missing.'
+                : null;
+        }
+
+        try {
+            $bundle = $this->decodeJson($bundlePath);
+        } catch (RuntimeException $exception) {
+            return 'Recall bundle is unreadable for the current governed Run: ' . $exception->getMessage();
+        }
+
+        $task = $bundle['task'] ?? null;
+        $bundleTaskId = is_array($task) ? ($task['id'] ?? null) : null;
+        $bundleRevision = is_array($task) ? ($task['revision'] ?? null) : null;
+        if (
+            $bundleTaskId !== $run->taskId
+            || $bundleTaskId !== $contract->taskId
+            || $bundleRevision !== $run->contractRevision
+            || $bundleRevision !== $contract->revision
+        ) {
+            return sprintf(
+                'Recall bundle does not match the current governed Run/Contract binding (Run revision %d, Contract revision %d).',
+                $run->contractRevision,
+                $contract->revision,
+            );
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */
@@ -419,6 +478,15 @@ final readonly class RunManifestProjector
         array &$disagreements,
     ): array {
         $store = new RunVerificationReceiptStore($this->rootPath);
+        if ($this->approvedContractSupersedesRun($run, $contract)) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'pending_close',
+                'observation_mode' => 'checked',
+                'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
+            ];
+        }
+
         $receipt = $store->find($taskId);
         if ($receipt !== null) {
             if ($run !== null && $receipt->runId !== $run->runId) {
@@ -444,15 +512,6 @@ final readonly class RunManifestProjector
                 'implementation_snapshot' => $receipt->implementationSnapshot,
                 'source_session_id' => $receipt->sourceSessionId,
                 'source' => $this->artifact($receipt->path),
-            ];
-        }
-
-        if ($this->approvedContractSupersedesRun($run, $contract)) {
-            return [
-                'owner' => 'agent-loop',
-                'state' => 'pending_close',
-                'observation_mode' => 'checked',
-                'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
             ];
         }
 

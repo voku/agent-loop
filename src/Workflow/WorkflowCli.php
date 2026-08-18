@@ -79,7 +79,7 @@ Built-in L1 control prompts:
   They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
 Governed flow:
-  PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+  PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
 
 Ownership:
   Contract/approval and Run lifecycle are durable agent-loop state.
