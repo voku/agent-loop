@@ -35,7 +35,19 @@ final class WorkflowReportCommandTest extends TestCase
         $this->writeValidation(1, 'vendor/bin/phpunit tests/FooTest.php', ValidationStatus::PASSED, 0);
         $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => ['src/Foo.php']], JSON_THROW_ON_ERROR));
         $this->write('.agent-loop/recall/ABC-123/recall-log.draft.json', '{}');
-        $this->write('.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json', json_encode(['status' => 'warn'], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json', json_encode([
+            'version' => 2,
+            'task_id' => 'ABC-123',
+            'status' => 'warn',
+            'contract_revision' => 1,
+            'implementation_snapshot' => null,
+            'findings' => [[
+                'id' => 'fixture_warning',
+                'severity' => 'WARN',
+                'message' => 'Fixture warning.',
+                'evidence' => ['Report command projection fixture.'],
+            ]],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
         $this->write('.agent-loop/risks/ABC-123.accepted-risk.md', "# Accepted risk\n");
 
         $result = $this->runReport(['ABC-123', '--changed-file', 'src/Foo.php', '--changed-file', 'docs/Outside.md']);
@@ -127,11 +139,8 @@ final class WorkflowReportCommandTest extends TestCase
     }
 
     /**
-
      * @param list<string> $args
-
      * @return array{exit: int, output: string}
-
      */
     private function runReport(array $args): array
     {
