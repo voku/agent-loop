@@ -59,7 +59,7 @@ final readonly class ImplementationSnapshot
                 throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
             }
             if (!is_dir($absolute)) {
-                throw new RuntimeException('Implementation snapshot scoped path does not exist: ' . $relative);
+                throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
             }
 
             $before = count($files);
@@ -84,11 +84,11 @@ final readonly class ImplementationSnapshot
                 $files[$fileRelative] = self::hashFile($path, $fileRelative);
             }
             if (count($files) === $before) {
-                throw new RuntimeException('Implementation snapshot scoped directory contains no implementation files: ' . $relative);
+                throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped directory contains no implementation files yet: ' . $relative);
             }
         }
         if ($files === []) {
-            throw new RuntimeException('Implementation snapshot requires at least one scoped implementation file.');
+            throw new ImplementationSnapshotUnavailable('Implementation snapshot has no scoped implementation files yet.');
         }
 
         ksort($files, SORT_STRING);

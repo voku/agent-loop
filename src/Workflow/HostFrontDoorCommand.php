@@ -21,6 +21,8 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
  */
 final readonly class HostFrontDoorCommand
 {
+    private const string STDOUT_DISCARD_FILTER = 'agent-loop.stdout-discard';
+
     private string $rootPath;
 
     private ?Closure $recallRunner;
@@ -74,9 +76,10 @@ final readonly class HostFrontDoorCommand
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $preparationFailure = null;
+        $preparationWarning = null;
         if ($this->needsPreparation($manifest)) {
             try {
-                $this->prepareApprovedRun($taskId->value);
+                $preparationWarning = $this->prepareApprovedRun($taskId->value);
             } catch (Throwable $exception) {
                 if ($format !== 'json') {
                     throw $exception;
@@ -88,6 +91,11 @@ final readonly class HostFrontDoorCommand
 
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
+        $warnings = $preparationWarning === null ? [] : [[
+            'code' => 'enter.ranked_search_unavailable',
+            'owner' => 'agent-map',
+            'message' => $preparationWarning,
+        ]];
 
         $payload = [
             'schema_version' => '1.0',
@@ -95,6 +103,7 @@ final readonly class HostFrontDoorCommand
             'task_id' => $taskId->value,
             'mutation_ready' => $preparationFailure === null && $policy->mutationAllowed,
             'next_action' => $policy->nextAction,
+            'warnings' => $warnings,
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
@@ -115,6 +124,9 @@ final readonly class HostFrontDoorCommand
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
             echo 'Next: ' . $policy->nextAction . "\n";
+            foreach ($warnings as $warning) {
+                echo '[WARN] ' . $warning['message'] . "\n";
+            }
             if ($manifest->disagreements !== []) {
                 echo 'Disagreements: ' . count($manifest->disagreements) . "\n";
             }
@@ -191,12 +203,19 @@ final readonly class HostFrontDoorCommand
             return false;
         }
 
+        $contractRevision = $manifest->references['contract']['revision'] ?? null;
+        $runRevision = $manifest->references['contract']['run_revision'] ?? null;
+        $runBindingStale = is_int($contractRevision)
+            && is_int($runRevision)
+            && $contractRevision !== $runRevision;
+
         return $manifest->mode !== 'governed'
+            || $runBindingStale
             || ($manifest->references['session']['state'] ?? null) !== 'active'
             || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
     }
 
-    private function prepareApprovedRun(string $taskId): void
+    private function prepareApprovedRun(string $taskId): ?string
     {
         if ($this->recallRunner === null) {
             throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
@@ -216,6 +235,8 @@ final readonly class HostFrontDoorCommand
                 . $result->recallExitCode . '.',
             );
         }
+
+        return $result->searchWarning;
     }
 
     /** @param list<string> $args */
@@ -225,6 +246,20 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
         }
 
+        if (!in_array(self::STDOUT_DISCARD_FILTER, stream_get_filters(), true)) {
+            if (!class_exists(StdoutDiscardFilter::class)) {
+                throw new RuntimeException('Unable to load the front-door STDOUT discard filter.');
+            }
+            if (!stream_filter_register(self::STDOUT_DISCARD_FILTER, StdoutDiscardFilter::class)) {
+                throw new RuntimeException('Unable to register the front-door STDOUT discard filter.');
+            }
+        }
+
+        $filter = stream_filter_append(STDOUT, self::STDOUT_DISCARD_FILTER, STREAM_FILTER_WRITE);
+        if ($filter === false) {
+            throw new RuntimeException('Unable to silence nested Recall STDOUT for the front-door response.');
+        }
+
         $level = ob_get_level();
         ob_start(static fn (string $buffer): string => '');
         try {
@@ -232,6 +267,9 @@ final readonly class HostFrontDoorCommand
         } finally {
             while (ob_get_level() > $level) {
                 ob_end_clean();
+            }
+            if (!stream_filter_remove($filter)) {
+                throw new RuntimeException('Unable to restore STDOUT after nested Recall compilation.');
             }
         }
     }

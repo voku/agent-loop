@@ -54,6 +54,9 @@ final readonly class RunPolicyEvaluator
         if ($mode !== 'governed' || $this->referenceState($references, 'contract') !== 'approved') {
             return 'incomplete';
         }
+        if (!$this->runMatchesCurrentContract($references)) {
+            return 'incomplete';
+        }
         if ($this->referenceState($references, 'recall') !== 'compiled') {
             return 'incomplete';
         }
@@ -96,6 +99,7 @@ final readonly class RunPolicyEvaluator
 
         return $this->referenceState($references, 'contract') === 'approved'
             && $this->referenceState($references, 'approval') === 'current'
+            && $this->runMatchesCurrentContract($references)
             && $this->referenceState($references, 'session') === 'active'
             && $this->referenceState($references, 'recall') === 'compiled'
             && in_array($this->referenceState($references, 'execution_contract'), ['ready', 'not_required'], true);
@@ -135,6 +139,7 @@ final readonly class RunPolicyEvaluator
             $state === 'incomplete'
             && (
                 $mode !== 'governed'
+                || !$this->runMatchesCurrentContract($references)
                 || $this->referenceState($references, 'session') !== 'active'
                 || $this->referenceState($references, 'recall') !== 'compiled'
             )
@@ -224,6 +229,18 @@ final readonly class RunPolicyEvaluator
             'owner' => 'agent-loop',
             'message' => 'Lifecycle policy is blocked by current owner facts.',
         ]];
+    }
+
+    /** @param array<string, array<string, mixed>> $references */
+    private function runMatchesCurrentContract(array $references): bool
+    {
+        $contractRevision = $references['contract']['revision'] ?? null;
+        $runRevision = $references['contract']['run_revision'] ?? null;
+        if (!is_int($contractRevision) || $runRevision === null) {
+            return true;
+        }
+
+        return is_int($runRevision) && $runRevision === $contractRevision;
     }
 
     /** @param array<string, array<string, mixed>> $references */

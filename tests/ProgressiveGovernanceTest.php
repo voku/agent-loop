@@ -46,9 +46,18 @@ final class ProgressiveGovernanceTest extends TestCase
             'planner',
         );
 
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/search.sqlite');
+        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root), 'SIMPLE-1'));
+        self::assertSame(TaskContract::APPROVED, $contracts->load('SIMPLE-1')->status);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/SIMPLE-1');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/SIMPLE-1/meta.json');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/search.sqlite');
+
         $recallCalls = 0;
-        $approve = new WorkflowApproveCommand(
-            $this->root,
+        [$exit, $payload] = $this->enter(
+            'SIMPLE-1',
             function (array $argv) use (&$recallCalls): int {
                 ++$recallCalls;
                 $this->writeRecallMeta('SIMPLE-1');
@@ -57,17 +66,8 @@ final class ProgressiveGovernanceTest extends TestCase
             },
         );
 
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/search.sqlite');
-        self::assertSame(0, $this->approve($approve, 'SIMPLE-1'));
-        self::assertSame(1, $recallCalls);
-        self::assertSame(TaskContract::APPROVED, $contracts->load('SIMPLE-1')->status);
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/search.sqlite');
-
-        [$exit, $payload] = $this->enter('SIMPLE-1');
-
         self::assertSame(0, $exit);
+        self::assertSame(1, $recallCalls);
         self::assertTrue($payload['mutation_ready']);
         self::assertSame('governed', $payload['manifest']['mode']);
         self::assertSame('not_configured', $payload['manifest']['references']['board']['state']);
@@ -201,18 +201,7 @@ final class ProgressiveGovernanceTest extends TestCase
             'planner',
         );
 
-        $recallCalls = 0;
-        $approve = new WorkflowApproveCommand(
-            $this->root,
-            static function (array $argv) use (&$recallCalls): int {
-                ++$recallCalls;
-
-                return 0;
-            },
-        );
-
-        self::assertSame(1, $this->approve($approve, 'HARD-1'));
-        self::assertSame(0, $recallCalls);
+        self::assertSame(1, $this->approve(new WorkflowApproveCommand($this->root), 'HARD-1'));
         self::assertSame(TaskContract::CANDIDATE, $contracts->load('HARD-1')->status);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/HARD-1');
     }

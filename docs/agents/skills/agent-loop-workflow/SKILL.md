@@ -1,6 +1,6 @@
 ---
 name: agent-loop-workflow
-description: Use the governed agent-loop state machine for planning, approval, bounded context, L2 execution contracts, implementation evidence, review, learning decisions, verification, safe closure, and optional post-task reflection.
+description: Use the governed agent-loop state machine for planning, approval, deterministic enter preparation, bounded context, L2 execution contracts, implementation evidence, review, learning decisions, verification, safe closure, and optional post-task reflection.
 ---
 
 # Agent Loop Workflow
@@ -17,7 +17,7 @@ plan beside it.
 ## Deterministic Phase Model
 
 ```text
-PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
+PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
 ```
 
 Reflection is deliberately **not** another lifecycle phase. It is a read-only
@@ -28,7 +28,7 @@ reasoning surface available only once normal completion evidence reaches
 |---|---|---|
 | `PLAN` | candidate Contract with goal, scope, non-goals, behavior anchors, validation, and selected operating-prompt policy when used | `agent-loop-task-start` |
 | `APPROVE` | named human approval of that exact Contract revision | human gate |
-| `CONTEXT` | bounded approved recall plus verified real-source locations | `agent-loop-l2-context`, then `agent-loop-investigate` when location is unknown |
+| `ENTER/PREPARE` | current governed Run + active Run-bound Session + current Run-bound Recall, plus bounded approved context | `agent-loop enter <task-id>`; then `agent-loop-l2-context` / `agent-loop-investigate` only when deeper source location is needed |
 | `CONTRACT` | for selected L2 recipes, one current project-specific L1 bound to the approved Contract + recall bundle | `workflow contract` |
 | `IMPLEMENT` | smallest correct diff inside approved scope; required execution contract is current | `agent-loop-surgical-edit` for verified 1-2 file scope; otherwise main workflow |
 | `VALIDATE` | exact required commands recorded against current Contract revision and implementation snapshot | `agent-loop-task-progress` |
@@ -39,7 +39,7 @@ reasoning surface available only once normal completion evidence reaches
 Transitions are evidence-driven, not optimistic:
 
 - scope or task policy exceeds the approved Contract -> `PLAN` and obtain approval again;
-- approval/recompile changes the recall bundle -> any prior execution contract becomes superseded/stale -> `CONTRACT`;
+- a newer approved Contract or enter/recompile changes the recall bundle -> any prior execution contract becomes superseded/stale -> `ENTER/PREPARE`, then `CONTRACT` when L2 applies;
 - required L2 contract is missing, stale, or invalid -> `CONTRACT`, never `IMPLEMENT`;
 - contract construction proves the approved task cannot be executed safely -> record `BLOCKED` or `REJECTED`; do not weaken policy silently;
 - validation fails because implementation is wrong -> `IMPLEMENT`;
@@ -58,8 +58,8 @@ Transitions are evidence-driven, not optimistic:
 2. Resolve existing task/session state and reuse the stable task id.
 3. Plan explicit goal, scope, non-goals, behavior anchors, exact validation, and any selected operating-prompt recipe + explicit arguments.
 4. When PHP scope or ranked map evidence applies, build or refresh the semantic map and build its separate Search index before approval.
-5. Approve that exact revision through a named human actor.
-6. Compile/use bounded recall; use `agent-map` to select precise source reads.
+5. Approve that exact revision through a named human actor. Approval records authority only; it does not allocate Run/Session/Recall state.
+6. Run `agent-loop enter <task-id>` to deterministically prepare/reconcile the governed Run, Session, and Recall and return bounded context; use `agent-map` to select deeper source reads when needed.
 7. When recall contains L2 recipes, follow the current Recall-owned construction instructions and persist exactly one project-specific L1 with `workflow contract` before mutation.
 8. Implement the smallest correct change in the owning package.
 9. Record validation against the current Contract revision and implementation snapshot.
@@ -89,6 +89,7 @@ vendor/bin/agent-loop workflow plan <task-id> \
 vendor/bin/agent-loop map build --paths=src,tests
 vendor/bin/agent-loop map search-index build
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
+vendor/bin/agent-loop enter <task-id> --max-lines 120 --max-bytes 12000
 ```
 
 With a reusable L2 recipe, selection is part of the Contract that gets approved.
@@ -106,13 +107,14 @@ vendor/bin/agent-loop workflow plan <task-id> \
 vendor/bin/agent-loop map build --paths=src,tests
 vendor/bin/agent-loop map search-index build
 vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
-vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
+vendor/bin/agent-loop enter <task-id> --max-lines 120 --max-bytes 12000
 ```
 
-`map build` and `map search-index build` are separate operations. Approval compiles
-governed Recall immediately, so build the Search index first when ranked map
-evidence is expected. Resolve configurable map paths through `agent-loop init
-paths`; do not assume a physical state directory.
+`map build` and `map search-index build` are separate operations. The first
+`enter` after approval compiles governed Recall as part of deterministic
+preparation, so build the Search index before approval when ranked map evidence
+is expected. Resolve configurable map paths through `agent-loop init paths`; do
+not assume a physical state directory.
 
 Recall owns the reusable recipe schema and L2 construction semantics. Loop owns
 selection persistence in the Contract, approval, execution-contract binding, and
@@ -201,13 +203,15 @@ The metadata binds the document to the current:
 - selected L2 prompt semantics/arguments;
 - content digest and actor.
 
-Re-planning and approving a newer brief supersedes the prior recall task directory, so an old execution contract cannot silently remain current. `workflow status` and `workflow manifest` expose `execution_contract` as `missing`, `ready`, `stale`, `blocked`, `rejected`, or `invalid` when the gate applies.
+Re-planning and approving a newer brief makes the existing Run/Recall binding stale. The next `enter` retires superseded working memory, archives the old Run/Recall binding, and prepares the newly approved revision, so an old execution contract cannot silently remain current. `workflow status` and `workflow manifest` expose `execution_contract` as `missing`, `ready`, `stale`, `blocked`, `rejected`, or `invalid` when the gate applies.
 
 For an active governed task, mutating `agent-loop edit` runners (`command`, `mechanical`, `auto`) require the current L2 execution contract to be `ready`. Read-only prompt/context preparation remains possible before that gate. Context-independent L1-only recipes do not require a synthetic L2 construction pass.
 
 ## Workflow Boundary
 
-- Planning records a candidate Contract; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments.
+- Planning records a candidate Contract; approval seals its exact revision, including selected operating-prompt manifest/recipes/arguments, and creates no Run, Session, or Recall output.
+- `agent-loop enter` owns deterministic post-approval preparation/reconciliation and returns bounded task context; repeated enter on the current binding is idempotent.
+- When a newer approved revision supersedes an active Run, enter retires the old Run-bound Session before replacing the Run/Recall binding; it never creates parallel active Sessions.
 - Re-planning invalidates approval and validation evidence for the old revision.
 - Validation, review, and Run Learning evidence are bound to the implementation snapshot they describe; later implementation content cannot reuse earlier evidence as current.
 - `workflow context`, `status`, `report`, and `reflect` are read-only.
@@ -219,7 +223,7 @@ For an active governed task, mutating `agent-loop edit` runners (`command`, `mec
 - `--accept-risk` may override only explicitly bypassable close gates; it never bypasses stale implementation evidence or a required L2 execution contract.
 - Recall files are not silently injected into an agent.
 - Findings are not durable memory until reviewed and promoted.
-- One task has one active session; resume it rather than creating parallel state.
+- One task has one active session; resume it for the current Run binding, and let enter retire it deterministically when a newer approved revision supersedes that Run.
 
 ## Optional Reflection
 

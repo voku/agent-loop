@@ -140,7 +140,7 @@ $json($root . '/build/self-shape-input.json', [
 
 $loop(['learn', 'validate', '--root', '.agent-loop/learning']);
 
-// Approval compiles Recall. Build both map layers first or the governed briefing
+// `enter` compiles Recall. Build both map layers first or the governed briefing
 // cannot consume repository evidence that appears only after approval. Stable
 // roots keep broad discovery useful while changed PHP outside those roots must
 // be indexed explicitly so approval and the map observe the same governed scope.
@@ -160,6 +160,9 @@ $loop([
     '--behavior-anchor', 'real pull-request diff -> durable Contract -> governed Run -> bounded context -> observed validation -> review -> durable Learning decision -> Verification receipt -> pruneable Session',
 ]);
 $loop(['workflow', 'approve', TASK, '--by', $options['approver']]);
+// Approval only records authority. The governed Run, Session and Recall output
+// that every projection below reads are prepared by `enter`.
+$loop(['enter', TASK]);
 
 $decode = static function (string $raw) use ($fail): array {
     try {

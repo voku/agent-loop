@@ -12,6 +12,7 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -51,17 +52,10 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             'lars',
         );
 
-        $approve = new WorkflowApproveCommand(
-            $this->root,
-            function (array $argv): int {
-                $this->writeRecallMeta();
-
-                return 0;
-            },
-        );
         ob_start();
-        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
+        self::assertSame(0, $this->enter());
 
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
@@ -178,17 +172,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         $this->removeDirectory($session->path);
         self::assertDirectoryDoesNotExist($session->path);
 
-        $approve = new WorkflowApproveCommand(
-            $this->root,
-            function (array $argv): int {
-                $this->writeRecallMeta();
-
-                return 0;
-            },
-        );
-        ob_start();
-        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
-        ob_end_clean();
+        self::assertSame(0, $this->enter());
 
         $rehydrated = $sessions->load($this->root . '/.agent-loop/sessions', $session->id);
         self::assertSame('2001-02-03-abc-123-r1-deadbeef', $rehydrated->id);
@@ -240,10 +224,17 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             $contract->baseCommit,
         );
 
-        $approve = new WorkflowApproveCommand($this->root, static fn (array $argv): int => 0);
         ob_start();
-        self::assertSame(1, $approve->run(['ABC-123', '--by', 'lars']));
+        $exit = (new HostFrontDoorCommand(
+            $this->root,
+            function (array $argv): int {
+                $this->writeRecallMeta();
+
+                return 0;
+            },
+        ))->run('enter', ['ABC-123', '--format=json']);
         ob_end_clean();
+        self::assertSame(1, $exit);
 
         self::assertFalse($sessions->exists($sessionsRoot, $boundSession->id));
         self::assertTrue($sessions->exists($sessionsRoot, $conflictingSession->id));
@@ -253,11 +244,31 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         self::assertSame($boundSession->id, $storedRun->sessionId);
     }
 
+    private function enter(): int
+    {
+        ob_start();
+        try {
+            return (new HostFrontDoorCommand(
+                $this->root,
+                function (array $argv): int {
+                    $this->writeRecallMeta();
+
+                    return 0;
+                },
+            ))->run('enter', ['ABC-123', '--format=json']);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
     private function writeRecallMeta(): void
     {
-        mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
+        $directory = $this->root . '/.agent-loop/recall/ABC-123';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0o775, true);
+        }
         file_put_contents(
-            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
+            $directory . '/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',

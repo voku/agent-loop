@@ -7,6 +7,9 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
+use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentSession\SessionStatus;
@@ -50,6 +53,7 @@ final class GovernedRecallInputArchiveTest extends TestCase
         );
 
         self::assertSame(0, $this->approve('ABC-123'));
+        self::assertSame(0, $this->enter('ABC-123'));
 
         $activeRunDirectory = $this->root . '/.agent-loop/runs/ABC-123';
         $activeRecallInput = $activeRunDirectory . '/recall-input.json';
@@ -69,7 +73,7 @@ final class GovernedRecallInputArchiveTest extends TestCase
         self::assertSame(1, $firstSnapshot['revision'] ?? null);
 
         $runBeforeResume = $this->json($activeRunDirectory . '/run.json');
-        self::assertSame(0, $this->approve('ABC-123'));
+        self::assertSame(0, $this->enter('ABC-123'));
         self::assertSame($runBeforeResume, $this->json($activeRunDirectory . '/run.json'));
         self::assertSame($firstContractBytes, file_get_contents($activeContractSnapshot));
 
@@ -88,6 +92,7 @@ final class GovernedRecallInputArchiveTest extends TestCase
         );
 
         self::assertSame(0, $this->approve('ABC-123'));
+        self::assertSame(0, $this->enter('ABC-123'));
         self::assertSame(2, $contracts->load('ABC-123')->revision);
         self::assertSame('approved', $contracts->load('ABC-123')->status);
 
@@ -122,13 +127,47 @@ final class GovernedRecallInputArchiveTest extends TestCase
     {
         ob_start();
         try {
-            return (new WorkflowApproveCommand(
-                $this->root,
-                static fn (array $arguments): int => 0,
-            ))->run([$taskId, '--by', 'lars']);
+            return (new WorkflowApproveCommand($this->root))->run([$taskId, '--by', 'lars']);
         } finally {
             ob_end_clean();
         }
+    }
+
+    private function enter(string $taskId): int
+    {
+        ob_start();
+        try {
+            return (new HostFrontDoorCommand(
+                $this->root,
+                function (array $arguments) use ($taskId): int {
+                    $this->writeRecallMeta($taskId);
+
+                    return 0;
+                },
+            ))->run('enter', [$taskId, '--format=json']);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    private function writeRecallMeta(string $taskId): void
+    {
+        $directory = RecallOutputRoot::resolve($this->root) . '/' . $taskId;
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create Recall fixture directory.');
+        }
+        file_put_contents(
+            $directory . '/meta.json',
+            json_encode([
+                'schema_version' => '1.0',
+                'task_id' => $taskId,
+                'compilation_id' => $taskId . '-' . bin2hex(random_bytes(4)),
+                'bundle_sha256' => str_repeat('a', 64),
+                'selected_guidance' => [],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
     }
 
     /** @return array<string, mixed> */

@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentSession\SessionStore;
@@ -29,7 +30,7 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
         $this->rm($this->root);
     }
 
-    public function testNewApprovalArchivesPreviousRecallBeforeCompilationStarts(): void
+    public function testEnterArchivesPreviousRecallBeforeCompilationStarts(): void
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'New task scope.', ['src/New.php'], [], ['vendor/bin/phpunit'], 'lars');
@@ -48,13 +49,23 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
             json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
         );
 
-        $command = new WorkflowApproveCommand($this->root, static fn (array $argv): int => 7);
+        ob_start();
+        $approveExit = (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']);
+        ob_end_clean();
+
+        self::assertSame(0, $approveExit);
+        self::assertDirectoryExists($this->root . '/.agent-loop/recall/ABC-123');
+        self::assertSame([], (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
+        self::assertNull((new GovernedRunStore($this->root))->find('ABC-123'));
 
         ob_start();
-        $exit = $command->run(['ABC-123', '--by', 'lars']);
-        $output = (string) ob_get_clean();
+        $enterExit = (new HostFrontDoorCommand($this->root, static fn (array $argv): int => 7))->run(
+            'enter',
+            ['ABC-123', '--format=json'],
+        );
+        ob_end_clean();
 
-        self::assertSame(7, $exit);
+        self::assertSame(1, $enterExit);
         $contract = $contracts->load('ABC-123');
         self::assertSame('lars', $contract->approvedBy);
         $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');
@@ -63,7 +74,6 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
         self::assertNotNull($run);
         self::assertSame($sessions[0]->id, $run->sessionId);
         self::assertSame($contract->revision, $run->contractRevision);
-        self::assertStringContainsString('superseded recall output archived', $output);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/recall/ABC-123');
 
         $archives = glob($this->root . '/.agent-loop/recall/ABC-123.superseded-*', GLOB_ONLYDIR) ?: [];

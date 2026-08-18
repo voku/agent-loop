@@ -34,10 +34,10 @@ final readonly class ExecutionContractDogfood
             }
 
             // Discovery has to exist before the Contract can be approved and
-            // Recall freezes its governed context. This harness previously
-            // reached approval first and only let `edit --map-paths` build map
-            // state later, which reproduced the exact dogfood bypass the
-            // production workflow now rejects.
+            // `enter` freezes its governed Recall context. This harness
+            // previously reached approval first and only let `edit --map-paths`
+            // build map state later, which reproduced the exact dogfood bypass
+            // the production workflow now rejects.
             $this->runCommand([
                 PHP_BINARY, 'bin/agent-loop', 'map', 'build', '--paths=tests/fixtures/self-shape',
             ], $worktree);
@@ -58,6 +58,20 @@ final readonly class ExecutionContractDogfood
                 PHP_BINARY, 'bin/agent-loop', 'workflow', 'approve', self::TASK,
                 '--by', 'dogfood-approver',
             ], $worktree);
+
+            // Approval only records authority. `enter` owns the deterministic
+            // Run/Session/Recall preparation that produces the briefing below.
+            // It still withholds mutation here, because this L2 task owes an
+            // execution contract that the gate assertions below then prove.
+            $prepared = $this->runCommand([
+                PHP_BINARY, 'bin/agent-loop', 'enter', self::TASK,
+            ], $worktree, throwOnFailure: false);
+            if ($prepared['exit_code'] !== 1) {
+                throw new ExecutionContractDogfoodFailure(
+                    'enter must prepare the governed Run and still withhold mutation before the execution contract exists; got exit '
+                    . $prepared['exit_code'] . '.',
+                );
+            }
 
             $system = $this->read($worktree . '/.agent-loop/recall/' . self::TASK . '/system.md');
             if (!str_contains($system, '## L2 Operational Prompt Construction')) {

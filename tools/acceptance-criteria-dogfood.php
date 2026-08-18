@@ -45,6 +45,13 @@ final class AcceptanceCriteriaDogfood
                 '--by', 'ci-approval-fixture',
             ]);
             $this->assertContract('approved');
+            $entered = $this->runCommand([
+                'vendor/bin/agent-loop', 'enter', self::TASK_ID, '--format=json',
+            ]);
+            $entry = $this->json($entered['stdout'], 'agent-loop enter');
+            if (($entry['mutation_ready'] ?? null) !== true) {
+                throw new AcceptanceCriteriaDogfoodFailure('Approved consumer did not become mutation-ready through enter.');
+            }
             $this->assertRecall();
             $this->assertWorkflowProjections();
 
