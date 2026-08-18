@@ -12,8 +12,10 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentLoop\Workflow\WorkflowStatusCommand;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -49,7 +51,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame('validation', $status['manifest']['references']['verification']['gate'] ?? null);
         $reason = (string) ($status['manifest']['references']['verification']['reason'] ?? '');
         self::assertStringContainsString('vendor/bin/phpunit (failed)', $reason);
-        self::assertSame('vendor/bin/phpunit', $status['manifest']['next_action'] ?? null);
+        self::assertSame('agent-loop finish ABC-123', $status['manifest']['next_action'] ?? null);
 
         [$closeExit, $closeOutput] = $this->runClose();
         self::assertSame(1, $closeExit);
@@ -67,7 +69,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame(0, $readyExit);
         self::assertSame('ready_to_close', $ready['manifest']['state'] ?? null);
         self::assertSame('ready', $ready['manifest']['references']['verification']['state'] ?? null);
-        self::assertSame('agent-loop workflow close ABC-123 --status done', $ready['manifest']['next_action'] ?? null);
+        self::assertSame('agent-loop finish ABC-123', $ready['manifest']['next_action'] ?? null);
 
         [$closeExit, $closeOutput] = $this->runClose();
         self::assertSame(0, $closeExit, $closeOutput);
@@ -112,10 +114,13 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
                 'status' => 'ok',
                 'contract_revision' => $contract->revision,
                 'implementation_snapshot' => $snapshot->digest,
-            ], JSON_THROW_ON_ERROR),
+                'findings' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
 
         (new ValidationEvidenceStore())->record(
@@ -127,6 +132,17 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             10,
             'lars',
             implementationSnapshot: $snapshot->digest,
+        );
+
+        $review = (new WorkflowReviewReportReader($this->root))->read('ABC-123');
+        self::assertSame('unacknowledged', $review['status']);
+        self::assertNotNull($review['sha256']);
+        (new ReviewAcknowledgementStore($this->root))->record(
+            $run,
+            $contract,
+            $snapshot,
+            $review['sha256'],
+            'lars',
         );
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
