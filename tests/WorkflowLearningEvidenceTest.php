@@ -80,10 +80,18 @@ final class WorkflowLearningEvidenceTest extends TestCase
         file_put_contents(
             $reviewRoot . '/LEARN-FAILED-1.blindspots.json',
             json_encode([
+                'version' => 2,
+                'task_id' => 'LEARN-FAILED-1',
                 'status' => 'fail',
                 'contract_revision' => $contract->revision,
                 'implementation_snapshot' => $snapshot->digest,
-            ], JSON_THROW_ON_ERROR),
+                'findings' => [[
+                    'id' => 'fixture_failure',
+                    'severity' => 'FAIL',
+                    'message' => 'Current failed evidence requires a learning decision.',
+                    'evidence' => ['php -l src/Foo.php failed for the current implementation.'],
+                ]],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
 
         $exit = (new WorkflowLearningCommand($this->root))->run([
