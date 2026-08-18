@@ -153,8 +153,7 @@ final class WorkflowPlanCommandTest extends TestCase
 
         try {
             self::assertSame(0, $this->approve($root));
-            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
-            self::assertNull((new GovernedRunStore($root))->find('ABC-123'));
+            $this->assertNoPreparedRunState($root);
 
             $exit = $this->enter(
                 $root,
@@ -328,6 +327,12 @@ CARD
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    private function assertNoPreparedRunState(string $root): void
+    {
+        self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+        self::assertNull((new GovernedRunStore($root))->find('ABC-123'));
     }
 
     private function approve(string $root): int
