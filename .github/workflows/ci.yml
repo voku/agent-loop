@@ -135,20 +135,20 @@ jobs:
           jq -e '
             .front_door_journey as $journey
             | ($journey.front_door_commands == 5)
-              and ($journey.failed_front_door_commands == 2)
-              and ($journey.repeated_same_state_commands <= 1)
+              and ($journey.failed_front_door_commands == 3)
+              and ($journey.repeated_same_state_commands <= 2)
               and ($journey.context_lines > 0 and $journey.context_lines <= 40)
               and ($journey.context_bytes > 0 and $journey.context_bytes <= 4096)
               and ($journey.mutation_ready_transition == [false, true, false])
               and ($journey.premature_done_caught == true)
               and ($journey.final_complete == true)
-              and ($journey.commands | map(.phase) == ["unprepared", "governed_ready", "verified_no_mutation", "ready_to_close", "complete"])
+              and ($journey.commands | map(.phase) == ["unprepared", "governed_ready", "verified_no_mutation", "unacknowledged_review", "complete"])
               and ($journey.commands[0].next_action | contains("workflow plan DEMO-1"))
-              and ($journey.commands[1].next_action == "composer test")
-              and ($journey.commands[2].state == "ready_to_close")
+              and ($journey.commands[1].next_action == "agent-loop finish DEMO-1")
+              and ($journey.commands[2].state == "incomplete")
               and ($journey.commands[2].mutation_ready == false)
-              and ($journey.commands[2].next_action == "agent-loop workflow close DEMO-1 --status done")
-              and ($journey.commands[3].next_action == "agent-loop workflow close DEMO-1 --status done")
+              and ($journey.commands[2].next_action | startswith("agent-loop finish DEMO-1 --reviewed-report-sha256 sha256:"))
+              and ($journey.commands[3].next_action == $journey.commands[2].next_action)
               and ($journey.commands[4].next_action == "none")
           ' build/release-set-report.json >/dev/null
       - name: Verify emitted release-set root authority
