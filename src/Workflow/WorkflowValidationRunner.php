@@ -92,7 +92,7 @@ final readonly class WorkflowValidationRunner
         $nullDevice = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $pipes = [];
         $process = proc_open(
-            $command,
+            $this->shellCommandArgv($command),
             [
                 0 => ['file', $nullDevice, 'r'],
                 1 => ['file', $nullDevice, 'a'],
@@ -111,6 +111,16 @@ final readonly class WorkflowValidationRunner
         }
 
         return $exitCode;
+    }
+
+    /** @return list<string> */
+    private function shellCommandArgv(string $command): array
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            return ['cmd.exe', '/d', '/s', '/c', $command];
+        }
+
+        return ['/bin/sh', '-c', $command];
     }
 
     private function assertBinding(TaskContract $contract, GovernedRun $run, Session $session): void
