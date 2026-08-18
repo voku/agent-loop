@@ -125,7 +125,10 @@ final class InitToolsProjectComposerTest extends TestCase
     {
         file_put_contents(
             $this->root . '/composer.json',
-            json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+            json_encode(
+                $composer,
+                \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR,
+            ) . "\n",
         );
     }
 
