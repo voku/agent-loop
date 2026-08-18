@@ -58,6 +58,20 @@ final readonly class InitToolsCommand
         ],
     ];
 
+    /**
+     * These PHPStan extensions are useful to an agent only when they participate
+     * in the host project's PHPStan process. Putting them in an isolated tools/
+     * Composer project would create a second dependency graph and analyze the
+     * wrong runtime. Presence here means direct root Composer configuration, not
+     * that the package has already been installed into vendor/.
+     *
+     * @var array<string, non-empty-string>
+     */
+    private const array PROJECT_COMPOSER_TOOLS = [
+        'voku/phpstan-agent-format' => 'compact agent-facing PHPStan formatter',
+        'voku/phpstan-rules' => 'additional PHPStan rules',
+    ];
+
     private const int DEFAULT_MAX_AGE_SECONDS = 3600;
 
     public function __construct(private string $rootPath)
@@ -99,6 +113,7 @@ final readonly class InitToolsCommand
 
         echo "agent-loop init tools\n\n";
         echo $this->render($report, $useCache, $cachePath);
+        echo $this->renderProjectComposerTools();
 
         return 0;
     }
@@ -295,6 +310,87 @@ final readonly class InitToolsCommand
         return implode("\n", $lines) . "\n";
     }
 
+    private function renderProjectComposerTools(): string
+    {
+        $requirements = $this->projectComposerToolRequirements();
+        if ($requirements === null) {
+            return "\n" . InitCheckResult::info(
+                'project-integrated PHPStan tools: root composer.json missing or unreadable',
+            )->render() . "\n";
+        }
+
+        $lines = ["", 'Project-integrated PHPStan tools:'];
+        $missing = [];
+        foreach (self::PROJECT_COMPOSER_TOOLS as $package => $purpose) {
+            $requirement = $requirements[$package] ?? null;
+            if ($requirement === null) {
+                $lines[] = InitCheckResult::info(
+                    $package . ': not configured in root Composer (' . $purpose . ')',
+                )->render();
+                $missing[] = $package;
+
+                continue;
+            }
+
+            $message = $package . ': configured in root Composer ' . $requirement['section']
+                . ' (' . $requirement['constraint'] . '; ' . $purpose . ')';
+            $lines[] = $requirement['section'] === 'require-dev'
+                ? InitCheckResult::ok($message)->render()
+                : InitCheckResult::warn($message . '; dev tooling should normally live in require-dev')->render();
+        }
+
+        if ($missing !== []) {
+            $lines[] = InitCheckResult::info(
+                'root Composer install: composer require --dev ' . implode(' ', $missing),
+            )->render();
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * @return array<string, array{section: 'require'|'require-dev', constraint: non-empty-string}>|null
+     */
+    private function projectComposerToolRequirements(): ?array
+    {
+        $composerPath = rtrim($this->rootPath, '/') . '/composer.json';
+        if (!is_file($composerPath)) {
+            return null;
+        }
+
+        $content = file_get_contents($composerPath);
+        if (!is_string($content)) {
+            return null;
+        }
+
+        $composer = json_decode($content, true);
+        if (!is_array($composer)) {
+            return null;
+        }
+
+        $requirements = [];
+        foreach (['require', 'require-dev'] as $section) {
+            $sectionRequirements = $composer[$section] ?? null;
+            if (!is_array($sectionRequirements)) {
+                continue;
+            }
+
+            foreach (self::PROJECT_COMPOSER_TOOLS as $package => $_purpose) {
+                $constraint = $sectionRequirements[$package] ?? null;
+                if (!is_string($constraint) || trim($constraint) === '') {
+                    continue;
+                }
+
+                $requirements[$package] = [
+                    'section' => $section,
+                    'constraint' => trim($constraint),
+                ];
+            }
+        }
+
+        return $requirements;
+    }
+
     private function formatAge(int $seconds): string
     {
         if ($seconds < 60) {
@@ -394,6 +490,11 @@ final readonly class InitToolsCommand
         this package does not install: a project-local installation (vendor/bin
         or an isolated tools/ project) is preferred over an ambient PATH build.
         Use the reported path to invoke them; absence is a legitimate state.
+
+        Project-integrated PHPStan extensions are different: they must be direct
+        root Composer dependencies so they participate in the same PHPStan process
+        as the repository under analysis. Their root configuration is reported
+        separately and missing packages get one explicit composer require command.
 
         Options:
           --refresh       Force a re-probe even if the cache is still fresh.
