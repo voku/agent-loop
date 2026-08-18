@@ -4,19 +4,29 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use InvalidArgumentException;
 use ItpContext\Attribute\Rule;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Init\RepositoryActivation;
+use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\RecallOutputRoot;
 
 #[Rule(ArchitectureRules::TypedPackageApisInsideWorkflow)]
 #[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
 final readonly class WorkflowApproveCommand
 {
-    public function __construct(private string $rootPath)
+    private string $rootPath;
+
+    private Closure $recallRunner;
+
+    /** @param callable(list<string>): int $recallRunner */
+    public function __construct(string $rootPath, callable $recallRunner)
     {
+        $this->rootPath = $rootPath;
+        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -34,9 +44,11 @@ final readonly class WorkflowApproveCommand
         try {
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
+            $preparer = new WorkflowRunPreparer($this->rootPath);
+            $mapReadiness = $preparer->discoveryReadiness($contract);
+            $alreadyApproved = $contract->status === TaskContract::APPROVED;
 
-            if ($contract->status !== TaskContract::APPROVED) {
-                (new WorkflowRunPreparer($this->rootPath))->discoveryReadiness($contract);
+            if (!$alreadyApproved) {
                 $contract = $contracts->approve($taskId->value, $options['by']);
                 echo "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
 
@@ -45,26 +57,66 @@ final readonly class WorkflowApproveCommand
                     echo "[OK] workflow approve: superseded recall output archived at {$archive}\n";
                 }
             } else {
-                echo "[OK] workflow approve: current Contract revision is already approved\n";
+                echo "[OK] workflow approve: current Contract revision was already approved; resuming Run preparation\n";
             }
 
-            $cli = (new RepositoryActivation($this->rootPath))->cliPath();
-            echo "[NEXT] {$cli} enter {$taskId->value}\n";
+            $result = $preparer->prepare($contract, $mapReadiness, $this->recallRunner);
+            echo "[OK] workflow approve: governed Run {$result->run->runId} prepared for Contract revision {$contract->revision}\n";
+            echo "[OK] workflow approve: working Session {$result->session->id} attached to governed Run {$result->run->runId}\n";
+            echo '[OK] workflow approve: governed Run bound to durable Learning root '
+                . PathResolver::relativeTo($this->rootPath, $result->learningRoot) . "\n";
+            echo "[OK] workflow approve: approved-state Run projection refreshed at {$result->preparedManifestPath}\n";
+
+            if ($result->searchWarning !== null) {
+                echo '[WARN] workflow approve: ' . $result->searchWarning . "\n";
+            }
+            if (!$result->recallCompiled()) {
+                fwrite(
+                    STDERR,
+                    "[FAIL] workflow approve: Contract and governed Run remain resumable, but recall compilation failed. Rerun the same workflow approve command after fixing compiler input.\n",
+                );
+
+                return $result->recallExitCode;
+            }
+
+            $compiledManifestPath = $result->compiledManifestPath;
+            if ($compiledManifestPath === null) {
+                throw new RuntimeException('Recall compilation succeeded without a compiled-state Run projection.');
+            }
+
+            echo "[OK] workflow approve: Contract approved and governed Recall compiled for {$taskId->value}\n";
+            echo "[OK] workflow approve: compiled-state Run projection refreshed at {$compiledManifestPath}\n";
+            $this->printRecallHandoff($taskId->value);
 
             return 0;
         } catch (RuntimeException $exception) {
             fwrite(
                 STDERR,
                 '[FAIL] workflow approve: ' . $exception->getMessage()
-                . "\n[ACTION REQUIRED] Repair the reported approval prerequisite and rerun workflow approve.\n",
+                . "\n[ACTION REQUIRED] Inspect agent-loop workflow status {$taskId->value} --format=json and rerun workflow approve after repair.\n",
             );
 
             return 1;
         } catch (Throwable $exception) {
-            fwrite(STDERR, '[FAIL] workflow approve: ' . $exception->getMessage() . "\n");
+            fwrite(
+                STDERR,
+                '[FAIL] workflow approve: durable Contract may be approved, but Run preparation failed: '
+                . $exception->getMessage()
+                . "\n[ACTION REQUIRED] Inspect agent-loop workflow status {$taskId->value} --format=json and rerun workflow approve after repair.\n",
+            );
 
             return 1;
         }
+    }
+
+    private function printRecallHandoff(string $taskId): void
+    {
+        $cli = (new RepositoryActivation($this->rootPath))->cliPath();
+        $systemPath = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/system.md';
+        $displaySystemPath = RecallOutputRoot::relativeTo($this->rootPath, $systemPath);
+
+        echo "[NEXT] {$cli} workflow context {$taskId} --max-lines 120 --max-bytes 12000\n";
+        echo "[NEXT] Read {$displaySystemPath} before planning or modifying code.\n";
     }
 
     /**
