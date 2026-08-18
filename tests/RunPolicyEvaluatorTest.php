@@ -34,6 +34,76 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertStringContainsString('workflow plan ABC-123', $policy->nextAction);
     }
 
+    public function testApprovedPlannedWorkPointsToEnterWithoutMutationAuthority(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'ABC-123',
+            'planned',
+            $this->references(
+                contract: 'approved',
+                approval: 'current',
+                session: 'missing',
+                recall: 'missing',
+                executionContract: 'not_required',
+                verification: 'pending_close',
+                review: 'missing',
+                learning: 'unavailable',
+            ),
+            [],
+        );
+
+        self::assertSame('incomplete', $policy->state);
+        self::assertFalse($policy->mutationAllowed);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+        self::assertSame('agent-loop enter ABC-123', $policy->nextAction);
+    }
+
+    public function testApprovedContractWithoutCurrentApprovalDoesNotRouteToEnter(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'ABC-123',
+            'planned',
+            $this->references(
+                contract: 'approved',
+                approval: 'missing',
+                session: 'missing',
+                recall: 'missing',
+                executionContract: 'not_required',
+                verification: 'pending_close',
+                review: 'missing',
+                learning: 'unavailable',
+            ),
+            [],
+        );
+
+        self::assertSame('incomplete', $policy->state);
+        self::assertFalse($policy->mutationAllowed);
+        self::assertSame('agent-loop workflow status ABC-123 --format=json', $policy->nextAction);
+    }
+
+    public function testInactiveGovernedSessionRoutesToEnterBeforeExecutionContract(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'ABC-123',
+            'governed',
+            $this->references(
+                contract: 'approved',
+                approval: 'current',
+                session: 'missing',
+                recall: 'compiled',
+                executionContract: 'missing',
+                verification: 'pending_close',
+                review: 'missing',
+                learning: 'missing',
+            ),
+            [],
+        );
+
+        self::assertSame('incomplete', $policy->state);
+        self::assertFalse($policy->mutationAllowed);
+        self::assertSame('agent-loop enter ABC-123', $policy->nextAction);
+    }
+
     public function testGovernedRunAuthorizesMutationButSurfacesDeterministicValidationFirst(): void
     {
         $references = $this->references(

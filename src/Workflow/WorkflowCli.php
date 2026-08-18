@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
+
 final readonly class WorkflowCli
 {
+    private string $rootPath;
+
+    private Closure $recallRunner;
+
     /** @param callable(list<string>): int $recallRunner */
-    public function __construct(
-        private string $rootPath,
-        private mixed $recallRunner,
-    ) {
+    public function __construct(string $rootPath, callable $recallRunner)
+    {
+        $this->rootPath = $rootPath;
+        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -73,7 +79,7 @@ Built-in L1 control prompts:
   They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
 Governed flow:
-  PLAN -> APPROVE/PREPARE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
+  PLAN -> APPROVE/PREPARE -> ENTER -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
 
 Ownership:
   Contract/approval and Run lifecycle are durable agent-loop state.

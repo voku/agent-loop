@@ -4,22 +4,32 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
- * Read-only facade over existing workflow owner artifacts for coding-agent hosts.
+ * Host-facing lifecycle front door for governed coding work.
  *
- * It deliberately owns no lifecycle state. Owner-backed facts are projected by
- * RunManifestProjector and lifecycle permissions come from RunPolicyEvaluator.
+ * `enter` may reconcile deterministic post-approval preparation, but it never
+ * approves Contract scope or invents other authority-bearing decisions.
  */
 final readonly class HostFrontDoorCommand
 {
-    public function __construct(private string $rootPath)
+    private string $rootPath;
+
+    private ?Closure $recallRunner;
+
+    /** @param null|callable(list<string>): int $recallRunner */
+    public function __construct(string $rootPath, ?callable $recallRunner = null)
     {
+        $this->rootPath = $rootPath;
+        $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -47,7 +57,7 @@ final readonly class HostFrontDoorCommand
     {
         if ($this->helpRequested($args)) {
             echo "Usage: agent-loop enter <task-id> [--format text|json] [--max-lines N] [--max-bytes N]\n";
-            echo "Read-only: project current workflow truth and bounded context before host mutation.\n";
+            echo "Prepare deterministic post-approval workflow state and project bounded context before host mutation.\n";
 
             return 0;
         }
@@ -63,6 +73,19 @@ final readonly class HostFrontDoorCommand
         }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        $preparationFailure = null;
+        if ($this->needsPreparation($manifest)) {
+            try {
+                $this->prepareApprovedRun($taskId->value);
+            } catch (Throwable $exception) {
+                if ($format !== 'json') {
+                    throw $exception;
+                }
+                $preparationFailure = $exception;
+            }
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        }
+
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
 
@@ -70,11 +93,18 @@ final readonly class HostFrontDoorCommand
             'schema_version' => '1.0',
             'command' => 'enter',
             'task_id' => $taskId->value,
-            'mutation_ready' => $policy->mutationAllowed,
+            'mutation_ready' => $preparationFailure === null && $policy->mutationAllowed,
             'next_action' => $policy->nextAction,
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
+        if ($preparationFailure !== null) {
+            $payload['blockers'] = [[
+                'code' => 'enter.preparation_failed',
+                'owner' => 'agent-loop',
+                'message' => $preparationFailure->getMessage(),
+            ]];
+        }
 
         if ($format === 'json') {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
@@ -92,6 +122,9 @@ final readonly class HostFrontDoorCommand
             echo implode("\n", $context['lines']) . "\n";
         }
 
+        if ($preparationFailure !== null) {
+            return 1;
+        }
         if ($policy->state === 'blocked') {
             return 2;
         }
@@ -144,6 +177,63 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->state === 'blocked' ? 2 : 1;
+    }
+
+    private function needsPreparation(RunManifest $manifest): bool
+    {
+        if (in_array($manifest->state, ['blocked', 'experiment', 'ready_to_close', 'complete'], true)) {
+            return false;
+        }
+        if (($manifest->references['contract']['state'] ?? null) !== TaskContract::APPROVED) {
+            return false;
+        }
+        if (($manifest->references['approval']['state'] ?? null) !== 'current') {
+            return false;
+        }
+
+        return $manifest->mode !== 'governed'
+            || ($manifest->references['session']['state'] ?? null) !== 'active'
+            || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
+    }
+
+    private function prepareApprovedRun(string $taskId): void
+    {
+        if ($this->recallRunner === null) {
+            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
+        }
+
+        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+        if ($contract->status !== TaskContract::APPROVED) {
+            throw new RuntimeException('agent-loop enter cannot prepare a Contract that is not approved.');
+        }
+
+        $preparer = new WorkflowRunPreparer($this->rootPath);
+        $mapReadiness = $preparer->discoveryReadiness($contract);
+        $result = $preparer->prepare($contract, $mapReadiness, $this->runRecallQuietly(...));
+        if (!$result->recallCompiled()) {
+            throw new RuntimeException(
+                'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code '
+                . $result->recallExitCode . '.',
+            );
+        }
+    }
+
+    /** @param list<string> $args */
+    private function runRecallQuietly(array $args): int
+    {
+        if ($this->recallRunner === null) {
+            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
+        }
+
+        $level = ob_get_level();
+        ob_start(static fn (string $buffer): string => '');
+        try {
+            return ($this->recallRunner)($args);
+        } finally {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
+        }
     }
 
     /** @param list<string> $tokens */

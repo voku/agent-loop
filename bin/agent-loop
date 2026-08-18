@@ -31,9 +31,17 @@ if (!class_exists(Dispatcher::class)) {
     exit(1);
 }
 
+$dispatcher = new Dispatcher(getcwd());
 $frontDoor = $argv[1] ?? null;
 if (in_array($frontDoor, ['enter', 'finish'], true)) {
-    exit((new HostFrontDoorCommand(getcwd()))->run($frontDoor, array_slice($argv, 2)));
+    $scriptName = $argv[0] ?? 'agent-loop';
+    $recallRunner = static fn (array $recallRest): int => $dispatcher->run([
+        $scriptName,
+        'recall',
+        ...$recallRest,
+    ]);
+
+    exit((new HostFrontDoorCommand(getcwd(), $recallRunner))->run($frontDoor, array_slice($argv, 2)));
 }
 
 $verifyArgv = array_slice($argv, 2);
@@ -53,7 +61,7 @@ if (($argv[1] ?? null) === 'map') {
 
 // INFO: The bare binary wires no JiraIssueProvider; `board jira-sync` is only available
 //       when a host constructs the Dispatcher with its own provider.
-$exit = (new Dispatcher(getcwd()))->run($argv);
+$exit = $dispatcher->run($argv);
 if ($discovery instanceof DiscoveryCliApplication && is_array($mapArgv) && $discovery->shouldAppendToGeneralHelp($mapArgv)) {
     echo $discovery->helpOverview();
 }

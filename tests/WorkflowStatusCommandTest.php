@@ -107,7 +107,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('Contract:', $approved);
         self::assertStringContainsString('revision 1', $approved);
         self::assertStringContainsString('revision 1 by lars', $approved);
-        self::assertStringContainsString('workflow approve ABC-123', $approved);
+        self::assertStringContainsString('agent-loop enter ABC-123', $approved);
 
         $this->writeRecall();
         self::assertStringContainsString('vendor/bin/phpunit', $this->statusText('ABC-123'));

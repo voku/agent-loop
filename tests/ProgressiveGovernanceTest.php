@@ -78,6 +78,112 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertStringContainsString('agent-map: index missing', implode("\n", $payload['context']['skipped']));
     }
 
+    public function testEnterPreparesAlreadyApprovedSimpleTaskExactlyOnce(): void
+    {
+        file_put_contents($this->root . '/docs/note.txt', "current\n");
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ENTER-1',
+            'Prepare one already-approved bounded text change.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $contracts->approve('ENTER-1', 'approver');
+
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/ENTER-1');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
+
+        $recallCalls = 0;
+        $recallRunner = function (array $argv) use (&$recallCalls): int {
+            ++$recallCalls;
+            $this->writeRecallMeta('ENTER-1');
+
+            return 0;
+        };
+
+        [$firstExit, $firstPayload] = $this->enter('ENTER-1', $recallRunner);
+
+        self::assertSame(0, $firstExit);
+        self::assertSame(1, $recallCalls);
+        self::assertTrue($firstPayload['mutation_ready']);
+        self::assertSame('governed', $firstPayload['manifest']['mode']);
+        self::assertSame('active', $firstPayload['manifest']['references']['session']['state']);
+        self::assertSame('compiled', $firstPayload['manifest']['references']['recall']['state']);
+        self::assertDirectoryExists($this->root . '/.agent-loop/runs/ENTER-1');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
+
+        [$secondExit, $secondPayload] = $this->enter('ENTER-1', $recallRunner);
+
+        self::assertSame(0, $secondExit);
+        self::assertSame(1, $recallCalls, 'Repeated enter must not recompile already-current Recall.');
+        self::assertTrue($secondPayload['mutation_ready']);
+        self::assertSame($firstPayload['manifest']['run_id'], $secondPayload['manifest']['run_id']);
+        self::assertSame(
+            $firstPayload['manifest']['references']['session']['session_id'],
+            $secondPayload['manifest']['references']['session']['session_id'],
+        );
+    }
+
+    public function testEnterJsonReportsPreparationFailureAsMachineReadableBlocker(): void
+    {
+        file_put_contents($this->root . '/docs/note.txt', "current\n");
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'FAIL-1',
+            'Keep preparation failure observable to machine callers.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $contracts->approve('FAIL-1', 'approver');
+
+        [$exit, $payload] = $this->enter('FAIL-1', static fn (array $argv): int => 7);
+
+        self::assertSame(1, $exit);
+        self::assertFalse($payload['mutation_ready']);
+        self::assertSame('enter.preparation_failed', $payload['blockers'][0]['code'] ?? null);
+        self::assertStringContainsString('Recall compilation failed with exit code 7', $payload['blockers'][0]['message'] ?? '');
+        self::assertSame('governed', $payload['manifest']['mode']);
+        self::assertSame('active', $payload['manifest']['references']['session']['state']);
+        self::assertSame('missing', $payload['manifest']['references']['recall']['state']);
+        self::assertSame('agent-loop enter FAIL-1', $payload['next_action']);
+    }
+
+    public function testEnterJsonPreservesCallerBufferWhenRecallRunnerClosesItsOwnBuffer(): void
+    {
+        file_put_contents($this->root . '/docs/note.txt', "current\n");
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'BUFFER-1',
+            'Keep the host JSON document intact across Recall output handling.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $contracts->approve('BUFFER-1', 'approver');
+
+        $runner = function (array $argv): int {
+            echo "discarded recall output\n";
+            ob_end_flush();
+            $this->writeRecallMeta('BUFFER-1');
+
+            return 0;
+        };
+
+        [$exit, $payload] = $this->enter('BUFFER-1', $runner);
+
+        self::assertSame(0, $exit);
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame('compiled', $payload['manifest']['references']['recall']['state']);
+    }
+
     public function testExistingPhpTaskEscalatesToDiscoveryWithoutWeakeningContractAuthority(): void
     {
         if (!mkdir($this->root . '/src', 0o775, true) && !is_dir($this->root . '/src')) {
@@ -121,12 +227,15 @@ final class ProgressiveGovernanceTest extends TestCase
         }
     }
 
-    /** @return array{0: int, 1: array<string, mixed>} */
-    private function enter(string $taskId): array
+    /**
+     * @param null|callable(list<string>): int $recallRunner
+     * @return array{0: int, 1: array<string, mixed>}
+     */
+    private function enter(string $taskId, ?callable $recallRunner = null): array
     {
         ob_start();
         try {
-            $exit = (new HostFrontDoorCommand($this->root))->run('enter', [$taskId, '--format=json']);
+            $exit = (new HostFrontDoorCommand($this->root, $recallRunner))->run('enter', [$taskId, '--format=json']);
             $output = ob_get_contents();
         } finally {
             ob_end_clean();
