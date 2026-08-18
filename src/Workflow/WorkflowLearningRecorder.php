@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
-use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\RunLearningDecision;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -18,7 +18,7 @@ final readonly class WorkflowLearningRecorder
     {
     }
 
-    /** @param list<string> $findingIds */
+    /** @param list<FinishFindingInput> $findingInputs */
     public function record(
         GovernedRun $run,
         TaskContract $contract,
@@ -26,7 +26,7 @@ final readonly class WorkflowLearningRecorder
         string $decisionValue,
         string $decidedBy,
         string $reason,
-        array $findingIds = [],
+        array $findingInputs = [],
         ?string $followUpRef = null,
     ): RunLearningDecision {
         $decision = RunLearningDecisionStatus::tryFrom($decisionValue)
@@ -38,6 +38,9 @@ final readonly class WorkflowLearningRecorder
         }
         if ($run->taskId !== $contract->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Finish learning disposition does not match the governed task lineage.');
+        }
+        if ($findingInputs !== [] && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
+            throw new RuntimeException('Finish Finding content is only valid with --learning findings_recorded.');
         }
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -59,16 +62,25 @@ final readonly class WorkflowLearningRecorder
         }
 
         $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
-        if ($findingIds !== []) {
-            $validated = (new LearningRepositoryValidator())->validate($learningRoot);
-            foreach ($findingIds as $findingId) {
-                $finding = $validated->findingsById[$findingId] ?? null;
-                if ($finding === null) {
-                    throw new RuntimeException('Learning Finding does not exist in the owner repository: ' . $findingId . '.');
-                }
-                if ($finding->taskId !== $run->taskId) {
-                    throw new RuntimeException('Learning Finding belongs to another task: ' . $findingId . '.');
-                }
+        $findingIds = [];
+        if ($findingInputs !== []) {
+            $creator = new FindingCreator();
+            $evidence = $this->findingEvidence($boundary, $reviewSha256);
+            foreach ($findingInputs as $input) {
+                $created = $creator->createValidated(
+                    root: $learningRoot,
+                    taskId: $run->taskId,
+                    session: $session->id,
+                    createdBy: $decidedBy,
+                    scope: $contract->scope,
+                    observation: $input->observation,
+                    evidence: $evidence,
+                    hypothesis: $input->hypothesis,
+                    validatedConclusion: $input->validatedConclusion,
+                    confidence: $input->confidence,
+                    sensitivity: $input->sensitivity,
+                );
+                $findingIds[] = $created->finding->id;
             }
         }
 
@@ -84,5 +96,34 @@ final readonly class WorkflowLearningRecorder
             $validationSha256,
             $reviewSha256,
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function findingEvidence(PostExecutionEvidenceBoundary $boundary, string $reviewSha256): array
+    {
+        $evidence = [];
+        foreach ($boundary->validationEvidence as $validation) {
+            if ($validation === null) {
+                continue;
+            }
+            $evidence[] = [
+                'type' => 'test_result',
+                'command' => $validation->command,
+                'summary' => sprintf(
+                    'Observed %s with exit code %d for implementation %s.',
+                    $validation->status->value,
+                    $validation->exitCode,
+                    $validation->implementationSnapshot ?? 'unbound',
+                ),
+            ];
+        }
+        $evidence[] = [
+            'type' => 'manual_verification',
+            'summary' => 'Exact blind-spot report acknowledged: ' . $reviewSha256 . '.',
+        ];
+
+        return $evidence;
     }
 }
