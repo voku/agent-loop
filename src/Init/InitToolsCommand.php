@@ -377,13 +377,18 @@ final readonly class InitToolsCommand
 
             foreach (self::PROJECT_COMPOSER_TOOLS as $package => $_purpose) {
                 $constraint = $sectionRequirements[$package] ?? null;
-                if (!is_string($constraint) || trim($constraint) === '') {
+                if (!is_string($constraint)) {
+                    continue;
+                }
+
+                $constraint = trim($constraint);
+                if ($constraint === '') {
                     continue;
                 }
 
                 $requirements[$package] = [
                     'section' => $section,
-                    'constraint' => trim($constraint),
+                    'constraint' => $constraint,
                 ];
             }
         }
