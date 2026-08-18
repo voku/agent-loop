@@ -53,6 +53,13 @@ final class PromptPrimitivesDogfood
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
                 '--by', self::APPROVER,
             ]);
+            $entered = $this->runCommand([
+                'vendor/bin/agent-loop', 'enter', self::TASK_ID, '--format=json',
+            ]);
+            $entry = $this->json($entered['stdout'], 'agent-loop enter');
+            if (($entry['mutation_ready'] ?? null) !== true) {
+                throw new PromptPrimitivesDogfoodFailure('Approved L1-only consumer did not become mutation-ready through enter.');
+            }
             $this->assertCompiledControls();
             $this->validate();
             $this->review();
@@ -232,9 +239,6 @@ final class PromptPrimitivesDogfood
 
     private function writeConsumerComposer(): void
     {
-        // Derived, not repeated: a path repository is canonical, so a sentinel
-        // left behind by a constraint bump makes the whole set uninstallable
-        // rather than falling back to Packagist.
         $candidateVersion = MinimumReleasePin::pathRepositoryVersion(
             MinimumReleasePin::declaredConstraint($this->agentLoopRoot . '/composer.json', 'voku/agent-recall-compiler'),
         );
