@@ -203,7 +203,14 @@ final readonly class HostFrontDoorCommand
             return false;
         }
 
+        $contractRevision = $manifest->references['contract']['revision'] ?? null;
+        $runRevision = $manifest->references['contract']['run_revision'] ?? null;
+        $runBindingStale = is_int($contractRevision)
+            && is_int($runRevision)
+            && $contractRevision !== $runRevision;
+
         return $manifest->mode !== 'governed'
+            || $runBindingStale
             || ($manifest->references['session']['state'] ?? null) !== 'active'
             || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
     }
