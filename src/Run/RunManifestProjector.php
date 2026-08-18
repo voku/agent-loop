@@ -626,33 +626,6 @@ final readonly class RunManifestProjector
             'observation_mode' => 'checked',
             'path' => PathResolver::relativeTo($this->rootPath, $path),
         ];
-        if ($readiness->staleEntries !== []) {
-            $reference['stale_entries'] = $readiness->staleEntries;
-        }
-
-        return $reference;
-    }
-
-    /** @return array<string, mixed> */
-    private function searchIndexReference(MapReadiness $readiness): array
-    {
-        return $this->agentMapArtifactReference(
-            $readiness->searchState,
-            $readiness->searchPath,
-            $readiness->searchSnapshot,
-            $readiness->searchFailure,
-        );
-    }
-
-    /** @return array<string, mixed> */
-    private function agentMapArtifactReference(string $state, string $path, ?string $snapshot, ?string $failure): array
-    {
-        $reference = [
-            'owner' => 'agent-map',
-            'state' => $state,
-            'observation_mode' => 'checked',
-            'path' => PathResolver::relativeTo($this->rootPath, $path),
-        ];
         if ($snapshot !== null) {
             $reference['snapshot'] = $snapshot;
         }
