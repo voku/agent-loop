@@ -7,8 +7,11 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentSession\SessionStatus;
@@ -41,11 +44,9 @@ final class WorkflowRepeatRunTest extends TestCase
             ['composer ci'],
             'agent-loop-self-shape',
         );
-        $approve = new WorkflowApproveCommand($this->root, static fn (array $argv): int => 0);
 
-        ob_start();
-        self::assertSame(0, $approve->run(['SELF-SHAPE', '--by', 'fixture-approver']));
-        ob_end_clean();
+        self::assertSame(0, $this->approve());
+        self::assertSame(0, $this->enter());
 
         $layout = new ProjectLayout($this->root);
         $sessions = new SessionStore();
@@ -70,9 +71,8 @@ final class WorkflowRepeatRunTest extends TestCase
             'agent-loop-self-shape',
         );
 
-        ob_start();
-        self::assertSame(0, $approve->run(['SELF-SHAPE', '--by', 'fixture-approver']));
-        ob_end_clean();
+        self::assertSame(0, $this->approve());
+        self::assertSame(0, $this->enter());
 
         $secondSessions = $sessions->all($layout->sessionsRoot());
         self::assertCount(1, $secondSessions);
@@ -91,6 +91,53 @@ final class WorkflowRepeatRunTest extends TestCase
         self::assertIsArray($archivedRun);
         self::assertSame($firstRun->runId, $archivedRun['run_id'] ?? null);
         self::assertSame(1, $archivedRun['contract_revision'] ?? null);
+    }
+
+    private function approve(): int
+    {
+        ob_start();
+        try {
+            return (new WorkflowApproveCommand($this->root))->run(['SELF-SHAPE', '--by', 'fixture-approver']);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    private function enter(): int
+    {
+        ob_start();
+        try {
+            return (new HostFrontDoorCommand(
+                $this->root,
+                function (array $argv): int {
+                    $this->writeRecallMeta();
+
+                    return 0;
+                },
+            ))->run('enter', ['SELF-SHAPE', '--format=json']);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    private function writeRecallMeta(): void
+    {
+        $directory = RecallOutputRoot::resolve($this->root) . '/SELF-SHAPE';
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create Recall fixture directory.');
+        }
+        file_put_contents(
+            $directory . '/meta.json',
+            json_encode([
+                'schema_version' => '1.0',
+                'task_id' => 'SELF-SHAPE',
+                'compilation_id' => 'SELF-SHAPE-' . bin2hex(random_bytes(4)),
+                'bundle_sha256' => str_repeat('a', 64),
+                'selected_guidance' => [],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
     }
 
     private function removeDirectory(string $path): void
