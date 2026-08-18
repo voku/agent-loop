@@ -48,7 +48,17 @@ final readonly class WorkflowCloseReadinessInspector
         }
 
         $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
-        $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        try {
+            $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        } catch (ImplementationSnapshotUnavailable $exception) {
+            return new WorkflowCloseReadiness(
+                null,
+                [],
+                [['gate' => 'implementation', 'detail' => $exception->getMessage()]],
+                [],
+                [],
+            );
+        }
         foreach ($boundary->integrityFailures() as $detail) {
             $nonWaivable[] = ['gate' => 'integrity', 'detail' => $detail];
         }
