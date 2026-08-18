@@ -9,15 +9,21 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStore;
 
 /**
  * Host-facing lifecycle front door for governed coding work.
  *
- * `enter` may reconcile deterministic post-approval preparation, but it never
- * approves Contract scope or invents other authority-bearing decisions.
+ * `enter` may reconcile deterministic post-approval preparation, while `finish`
+ * may collect deterministic validation evidence. Neither command invents an
+ * authority-bearing approval, review judgment, learning decision, or risk acceptance.
  */
 final readonly class HostFrontDoorCommand
 {
@@ -152,7 +158,7 @@ final readonly class HostFrontDoorCommand
     {
         if ($this->helpRequested($args)) {
             echo "Usage: agent-loop finish <task-id> [--format text|json]\n";
-            echo "Read-only: permit a done claim only after the canonical Run manifest is complete.\n";
+            echo "Execute deterministic close-out evidence and report the next authority-bearing decision or completion state.\n";
 
             return 0;
         }
@@ -163,8 +169,20 @@ final readonly class HostFrontDoorCommand
         $format = $this->format($tokens);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
-        $complete = $policy->state === 'complete';
 
+        if ($policy->mutationAllowed) {
+            $contract = (new TaskContractStore($this->rootPath))->load($taskId->value);
+            $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
+                ?? throw new RuntimeException('agent-loop finish requires a governed Run before validation can execute.');
+            $session = $this->sessionForRun($run)
+                ?? throw new RuntimeException('agent-loop finish requires the active Session bound to the governed Run.');
+            (new WorkflowValidationRunner($this->rootPath))->run($contract, $run, $session);
+
+            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+            $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+        }
+
+        $complete = $policy->state === 'complete';
         $payload = [
             'schema_version' => '1.0',
             'command' => 'finish',
@@ -237,6 +255,24 @@ final readonly class HostFrontDoorCommand
         }
 
         return $result->searchWarning;
+    }
+
+    private function sessionForRun(GovernedRun $run): ?Session
+    {
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        if (!is_dir($root)) {
+            return null;
+        }
+        $store = new SessionStore();
+        if (!$store->exists($root, $run->sessionId)) {
+            return null;
+        }
+        $session = $store->load($root, $run->sessionId);
+        if ($session->taskId !== $run->taskId) {
+            throw new RuntimeException('Governed Run Session belongs to another task.');
+        }
+
+        return $session;
     }
 
     /** @param list<string> $args */
