@@ -4,19 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use Closure;
-
 final readonly class WorkflowCli
 {
-    private string $rootPath;
-
-    private Closure $recallRunner;
-
-    /** @param callable(list<string>): int $recallRunner */
-    public function __construct(string $rootPath, callable $recallRunner)
+    public function __construct(private string $rootPath)
     {
-        $this->rootPath = $rootPath;
-        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -34,7 +25,7 @@ final readonly class WorkflowCli
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
-            'reflect' => (new WorkflowReflectCommand($this->rootPath, $this->recallRunner))->run($rest),
+            'reflect' => (new WorkflowReflectCommand($this->rootPath))->run($rest),
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
             default => $this->unknown($command),
@@ -58,17 +49,26 @@ Usage:
   agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
 
-Commands:
-  plan      Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
-  approve   Approve the exact Contract revision only; deterministic Run/Session/Recall preparation belongs to `agent-loop enter`.
-  contract  Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
-  status    Show the read-only cross-package Run projection and one next action; --expect makes an exact state CI-assertable.
+Normal governed lifecycle:
+  agent-loop workflow plan <task-id> ...
+  agent-loop workflow approve <task-id> --by <actor>
+  agent-loop enter <task-id>
+  <host-native implementation>
+  agent-loop finish <task-id>
+
+`enter` owns deterministic Run / Session / Recall preparation after approval.
+`finish` owns deterministic validation, review preparation, evidence binding and ordinary close.
+When human or agent judgment is required, `finish` returns the exact next authority-bearing input instead of fabricating it.
+
+Specialist / recovery commands:
+  contract  Persist an explicit L1 execution decision when selected policy requires one.
+  status    Inspect canonical lifecycle policy and its one next action.
   manifest  Inspect or atomically persist the cross-package Run projection.
-  context   Render bounded read-only context from the durable Contract and current owner artifacts.
-  report    Show an auditable task/Run completion report.
-  reflect   Emit a context-light project/task future-work prompt only after the task is review-ready or complete; never mutates workflow state.
-  learn     Record the durable Run Learning close-out through agent-learning.
-  close     Close the governed Run through safety gates and preserve durable close evidence.
+  context   Render bounded read-only context from durable Contract and current owner artifacts.
+  report    Render an auditable completion report.
+  reflect   Emit the Recall-owned future-work prompt after review readiness or completion.
+  learn     Record Learning directly for advanced/manual recovery; ordinary close-out uses `finish`.
+  close     Perform specialist/manual close or explicit accepted-risk recovery; ordinary close-out uses `finish`.
 
 Built-in L1 control prompts:
   Source checkout manifest: `resources/operating-prompts.json`.
@@ -78,14 +78,12 @@ Built-in L1 control prompts:
   Select either or both through the normal `--operating-prompt-manifest` + `--operating-prompt` Contract policy.
   They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
-Governed flow:
-  PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
-
 Ownership:
-  Contract/approval and Run lifecycle are durable agent-loop state.
+  Contract approval is authority-bearing durable agent-loop state.
+  Run lifecycle policy is durable agent-loop state; deterministic lifecycle preparation/reconciliation belongs to `enter` / `finish`.
   Session is pruneable working memory and raw run-local observations.
-  Recall owns deterministic briefing/verification-plan artifacts.
-  agent-learning owns durable Learning close-out and guidance evolution.
+  Recall owns deterministic briefing, review and reflection semantics.
+  agent-learning owns durable Findings and Run Learning close-out.
 
 For ungoverned experiments use `agent-loop session start --ephemeral`; there is no workflow shortcut that can masquerade as governed work.
 
