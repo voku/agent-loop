@@ -195,7 +195,15 @@ final class PostExecutionEvidenceStalenessTest extends TestCase
     {
         $directory = $this->root . '/.agent-loop/recall/' . $taskId . '/reviews';
         mkdir($directory, 0o775, true);
-        file_put_contents($directory . '/' . $taskId . '.blindspots.json', json_encode($report, JSON_THROW_ON_ERROR));
+        $report += [
+            'version' => 2,
+            'task_id' => $taskId,
+            'findings' => [],
+        ];
+        file_put_contents(
+            $directory . '/' . $taskId . '.blindspots.json',
+            json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
     }
 
     private function removeDirectory(string $directory): void
