@@ -43,31 +43,22 @@ final class WorkflowApproveDiscoveryGuardTest extends TestCase
             'planner',
         );
 
-        $recallCalls = 0;
-        $command = new WorkflowApproveCommand(
-            $this->root,
-            static function (array $argv) use (&$recallCalls): int {
-                ++$recallCalls;
-
-                return 0;
-            },
-        );
+        $command = new WorkflowApproveCommand($this->root);
 
         self::assertSame(1, $this->approve($command));
         self::assertSame(TaskContract::CANDIDATE, $contracts->load('ABC-123')->status);
-        self::assertSame(0, $recallCalls);
 
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']));
         file_put_contents($source, $this->phpFixture('FooChanged'));
 
         self::assertSame(1, $this->approve($command));
         self::assertSame(TaskContract::CANDIDATE, $contracts->load('ABC-123')->status);
-        self::assertSame(0, $recallCalls);
 
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'refresh']));
         self::assertSame(0, $this->approve($command));
         self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
-        self::assertSame(1, $recallCalls);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/ABC-123');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/ABC-123/meta.json');
     }
 
     public function testNonPhpAndNotYetExistingPhpScopeDoNotInventDiscoveryRequirements(): void
@@ -91,10 +82,10 @@ final class WorkflowApproveDiscoveryGuardTest extends TestCase
             'planner',
         );
 
-        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root, static fn (array $argv): int => 0), 'DOC-1'));
+        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root), 'DOC-1'));
         self::assertSame(TaskContract::APPROVED, $contracts->load('DOC-1')->status);
 
-        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root, static fn (array $argv): int => 0), 'NEW-1'));
+        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root), 'NEW-1'));
         self::assertSame(TaskContract::APPROVED, $contracts->load('NEW-1')->status);
     }
 
