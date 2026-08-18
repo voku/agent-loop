@@ -260,9 +260,9 @@ if (!is_file($blindSpotReport)) {
     $fail('Missing blind-spot report: ' . $blindSpotReport);
 }
 
-// The status is read, not inferred from the exit code: `workflow close` owns
-// the gate that refuses a missing, invalid or fail report, so the harness
-// records the residual result instead of asserting a second copy of it.
+// The status is read, not inferred from the exit code: `finish` owns the gate
+// that refuses a missing, invalid or fail report, so the harness records the
+// residual result instead of asserting a second copy of it.
 $blindSpots = $decode((string) file_get_contents($blindSpotReport));
 $blindSpotStatus = $blindSpots['status'] ?? null;
 if (!is_string($blindSpotStatus)) {
@@ -305,7 +305,17 @@ foreach ($changedFiles as $file) {
     $reportArgs = [...$reportArgs, '--changed-file', $file];
 }
 file_put_contents($root . '/build/self-shape-report.json', $loop($reportArgs)['stdout']);
-$loop(['workflow', 'close', TASK, '--status', 'done']);
+
+// Close-out is owned by `finish`. The first call reconciles deterministic
+// validation and review evidence and then reports the exact persisted
+// review-report identity it requires; acknowledging that identity is the
+// authority-bearing decision that lets the same command close the Run.
+$pendingClose = $runner->run([PHP_BINARY, 'bin/agent-loop', 'finish', TASK, '--format', 'json']);
+$reviewDigest = $decode($pendingClose['stdout'])['manifest']['references']['review']['source']['sha256'] ?? null;
+if (!is_string($reviewDigest) || !str_starts_with($reviewDigest, 'sha256:')) {
+    $fail('finish did not expose the exact review-report identity it requires to close.');
+}
+$loop(['finish', TASK, '--reviewed-report-sha256', $reviewDigest, '--by', PLANNER]);
 
 $assertion = new RunProjectionAssertion();
 $statusRaw = $loop(['workflow', 'status', TASK, '--format', 'json'])['stdout'];

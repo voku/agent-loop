@@ -39,7 +39,7 @@ final class WorkflowReportCommandTest extends TestCase
             'version' => 2,
             'task_id' => 'ABC-123',
             'status' => 'warn',
-            'contract_revision' => 1,
+            'contract_revision' => null,
             'implementation_snapshot' => null,
             'findings' => [[
                 'id' => 'fixture_warning',

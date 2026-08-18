@@ -185,6 +185,13 @@ final readonly class HostFrontDoorCommand
                     }
                     $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
                     $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                } elseif (($manifest->references['review']['state'] ?? null) === 'invalid') {
+                    // An unreadable persisted report blocks the Run, but reconciling
+                    // the review report is finish's own job. Let the review preparer
+                    // refuse to replace it so the failure names the report instead of
+                    // dead-ending in a generic blocked state nothing can act on.
+                    [$contract] = $this->currentRunContext($taskId->value);
+                    (new WorkflowReviewPreparer($this->rootPath))->prepare($contract);
                 }
 
                 if ($this->hasCurrentFinishBoundary($manifest)) {

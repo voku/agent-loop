@@ -73,7 +73,12 @@ final class WorkflowFinishValidationTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertFalse($result['payload']['complete'] ?? true);
-        self::assertSame($command, $result['payload']['next_action'] ?? null);
+        self::assertSame('agent-loop finish FINISH-2', $result['payload']['next_action'] ?? null);
+        self::assertSame(
+            $command,
+            $result['payload']['manifest']['references']['verification']['action'] ?? null,
+            'The observed failing validation command must stay visible in the manifest.',
+        );
 
         $evidence = (new ValidationEvidenceStore())->all($session);
         self::assertCount(1, $evidence);

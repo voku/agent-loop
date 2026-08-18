@@ -130,7 +130,7 @@ final class RunVerificationReceiptStore
         if (!is_array($data) || !in_array($schema, ['1.0', '1.1'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
             throw new RuntimeException('Unsupported run verification receipt schema in ' . $path . '.');
         }
-        $taskId = $this->requiredString($data, 'task_id', $path);
+        $taskId = PersistedJson::requiredString($data, 'task_id', $path);
         if ($taskId !== $expectedTaskId) {
             throw new RuntimeException('Verification receipt task id does not match requested task: ' . $path);
         }
@@ -138,18 +138,18 @@ final class RunVerificationReceiptStore
         if (!is_int($revision) || $revision < 1) {
             throw new RuntimeException('Verification receipt contract_revision must be positive in ' . $path . '.');
         }
-        $sha = $this->requiredString($data, 'contract_sha256', $path);
+        $sha = PersistedJson::requiredString($data, 'contract_sha256', $path);
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $sha) !== 1) {
             throw new RuntimeException('Verification receipt contract_sha256 is invalid in ' . $path . '.');
         }
         $implementationSnapshot = null;
         if ($schema === '1.1') {
-            $implementationSnapshot = $this->requiredString($data, 'implementation_snapshot', $path);
+            $implementationSnapshot = PersistedJson::requiredString($data, 'implementation_snapshot', $path);
             if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
                 throw new RuntimeException('Verification receipt implementation_snapshot is invalid in ' . $path . '.');
             }
         }
-        $verdict = $this->requiredString($data, 'verdict', $path);
+        $verdict = PersistedJson::requiredString($data, 'verdict', $path);
         if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
             throw new RuntimeException('Verification receipt verdict is invalid in ' . $path . '.');
         }
@@ -162,8 +162,8 @@ final class RunVerificationReceiptStore
             if (!is_array($obligation)) {
                 throw new RuntimeException('Verification receipt obligation must be an object in ' . $path . '.');
             }
-            $command = $this->requiredString($obligation, 'command', $path . '#obligation');
-            $status = $this->requiredString($obligation, 'status', $path . '#obligation');
+            $command = PersistedJson::requiredString($obligation, 'command', $path . '#obligation');
+            $status = PersistedJson::requiredString($obligation, 'status', $path . '#obligation');
             if (!in_array($status, ['passed', 'failed', 'missing'], true)) {
                 throw new RuntimeException('Verification receipt obligation status is invalid in ' . $path . '.');
             }
@@ -186,28 +186,17 @@ final class RunVerificationReceiptStore
         }
 
         return new RunVerificationReceipt(
-            $this->requiredString($data, 'run_id', $path),
+            PersistedJson::requiredString($data, 'run_id', $path),
             $taskId,
             $revision,
             $sha,
             $verdict,
             $normalized,
-            $this->requiredString($data, 'source_session_id', $path),
-            $this->requiredString($data, 'verified_at', $path),
+            PersistedJson::requiredString($data, 'source_session_id', $path),
+            PersistedJson::requiredString($data, 'verified_at', $path),
             $path,
             $implementationSnapshot,
         );
-    }
-
-    /** @param array<string, mixed> $data */
-    private function requiredString(array $data, string $key, string $path): string
-    {
-        $value = $data[$key] ?? null;
-        if (!is_string($value) || trim($value) === '') {
-            throw new RuntimeException($path . ' requires non-empty ' . $key . '.');
-        }
-
-        return trim($value);
     }
 
     private function nullableString(mixed $value, string $path): ?string
