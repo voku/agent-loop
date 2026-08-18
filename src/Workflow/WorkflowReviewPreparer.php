@@ -32,9 +32,14 @@ final readonly class WorkflowReviewPreparer
         $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
         $reader = new WorkflowReviewReportReader($this->rootPath);
         $current = $reader->read($contract->taskId);
+        if ($current['exists'] && $current['invalid']) {
+            throw new RuntimeException(
+                'Refusing to replace invalid persisted blind-spot report during finish reconciliation: '
+                . $reader->absolutePath($contract->taskId),
+            );
+        }
         if (
             $current['exists']
-            && !$current['invalid']
             && $current['contract_revision'] === $contract->revision
             && $current['implementation_snapshot'] === $snapshot->digest
         ) {
