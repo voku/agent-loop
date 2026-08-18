@@ -184,10 +184,12 @@ final class InitCliTest extends TestCase
             preg_match('/--reviewed-report-sha256 (sha256:[a-f0-9]{64})/', $pending['output'], $matches),
             'finish must advertise the exact review report identity it requires: ' . $pending['output'],
         );
+        $reviewDigest = $matches[1] ?? null;
+        self::assertIsString($reviewDigest);
 
         $close = $this->dispatch([
             'agent-loop', 'finish', 'DEMO-1',
-            '--reviewed-report-sha256', $matches[1],
+            '--reviewed-report-sha256', $reviewDigest,
             '--by', 'tester',
         ]);
         self::assertSame(0, $close['exit'], $close['output']);
