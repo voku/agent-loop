@@ -63,10 +63,12 @@ final readonly class RunPolicyEvaluator
         if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected', 'invalid', 'stale'], true)) {
             return 'blocked';
         }
-        if ($this->referenceState($references, 'review') === 'fail') {
+
+        $reviewState = $this->referenceState($references, 'review');
+        if ($reviewState === 'fail') {
             return 'blocked';
         }
-        if (in_array($this->referenceState($references, 'review'), ['missing', 'invalid'], true)) {
+        if (in_array($reviewState, ['missing', 'invalid', 'stale', 'unacknowledged'], true)) {
             return 'incomplete';
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
@@ -94,6 +96,14 @@ final readonly class RunPolicyEvaluator
     private function mutationAllowed(string $state, string $mode, array $references, array $disagreements): bool
     {
         if ($state !== 'incomplete' || $mode !== 'governed' || $disagreements !== []) {
+            return false;
+        }
+
+        // Once the current review exists and is waiting for acknowledgement, or
+        // has already been acknowledged, implementation work is no longer open.
+        // A stale/missing review may still describe changed implementation and
+        // therefore does not by itself revoke mutation authority.
+        if (in_array($this->referenceState($references, 'review'), ['unacknowledged', 'ok', 'warn'], true)) {
             return false;
         }
 
@@ -152,30 +162,43 @@ final readonly class RunPolicyEvaluator
         if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected', 'invalid', 'stale'], true)) {
             return 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
+
         if (
             $this->referenceState($references, 'verification') === 'blocked'
             && ($references['verification']['gate'] ?? null) === 'validation'
         ) {
-            return $this->referenceAction($references, 'verification')
-                ?? 'agent-loop workflow status ' . $taskId . ' --format=json';
+            return 'agent-loop finish ' . $taskId;
         }
-        if (in_array($this->referenceState($references, 'review'), ['missing', 'invalid', 'fail'], true)) {
+
+        $reviewState = $this->referenceState($references, 'review');
+        if (in_array($reviewState, ['missing', 'invalid', 'stale'], true)) {
+            return 'agent-loop finish ' . $taskId;
+        }
+        if ($reviewState === 'unacknowledged') {
+            $digest = $this->reviewDigest($references);
+
+            return $digest === null
+                ? 'agent-loop workflow manifest ' . $taskId . ' --format=json'
+                : 'agent-loop finish ' . $taskId . ' --reviewed-report-sha256 ' . $digest . ' --by <actor>';
+        }
+        if ($reviewState === 'fail') {
             return 'agent-loop review blindspots ' . $taskId;
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
-            return 'agent-loop workflow learn ' . $taskId . ' --status no_durable_learning --by <actor> --reason "..."';
+            return 'agent-loop finish ' . $taskId
+                . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason "..." --by <actor>';
         }
         if ($this->referenceState($references, 'verification') === 'blocked') {
             return $this->referenceAction($references, 'verification')
                 ?? 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
         if ($this->referenceState($references, 'verification') === 'ready') {
-            return 'agent-loop workflow close ' . $taskId . ' --status done';
+            return 'agent-loop finish ' . $taskId;
         }
         if (in_array($this->referenceState($references, 'verification'), ['passed', 'accepted_risk'], true)) {
             return $this->sessionClosedOrMissing($references)
                 ? 'none'
-                : 'agent-loop workflow close ' . $taskId . ' --status done';
+                : 'agent-loop finish ' . $taskId;
         }
 
         return 'agent-loop workflow status ' . $taskId . ' --format=json';
@@ -247,6 +270,15 @@ final readonly class RunPolicyEvaluator
     private function sessionClosedOrMissing(array $references): bool
     {
         return in_array($this->referenceState($references, 'session'), ['missing', 'done', 'dropped'], true);
+    }
+
+    /** @param array<string, array<string, mixed>> $references */
+    private function reviewDigest(array $references): ?string
+    {
+        $source = $references['review']['source'] ?? null;
+        $digest = is_array($source) ? ($source['sha256'] ?? null) : null;
+
+        return is_string($digest) && preg_match('/^sha256:[a-f0-9]{64}$/', $digest) === 1 ? $digest : null;
     }
 
     /** @param array<string, array<string, mixed>> $references */
