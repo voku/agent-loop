@@ -11,6 +11,7 @@ use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -57,14 +58,14 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertSame([], (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
     }
 
-    public function testApproveCanResumeCompilationAfterContractWasAlreadyApproved(): void
+    public function testEnterCanResumeCompilationAfterContractWasAlreadyApproved(): void
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
         $contracts->approve('ABC-123', 'lars');
         $recallCalls = 0;
 
-        $command = new WorkflowApproveCommand(
+        $command = new HostFrontDoorCommand(
             $this->root,
             function (array $argv) use (&$recallCalls): int {
                 ++$recallCalls;
@@ -75,12 +76,11 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         );
 
         ob_start();
-        $exit = $command->run(['ABC-123', '--by', 'lars']);
-        $output = (string) ob_get_clean();
+        $exit = $command->run('enter', ['ABC-123', '--format=json']);
+        ob_end_clean();
 
         self::assertSame(0, $exit);
         self::assertSame(1, $recallCalls);
-        self::assertStringContainsString('already approved; resuming Run preparation', $output);
 
         $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');
         self::assertCount(1, $sessions);
@@ -98,19 +98,28 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
 
         ob_start();
-        $firstExit = (new WorkflowApproveCommand($this->root, static fn (array $argv): int => 7))->run([
-            'ABC-123', '--by', 'lars',
-        ]);
+        $approveExit = (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']);
         ob_end_clean();
 
-        self::assertSame(7, $firstExit);
+        self::assertSame(0, $approveExit);
         self::assertSame('approved', $contracts->load('ABC-123')->status);
+        self::assertNull((new GovernedRunStore($this->root))->find('ABC-123'));
+        self::assertSame([], (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
+
+        ob_start();
+        $firstExit = (new HostFrontDoorCommand(
+            $this->root,
+            static fn (array $argv): int => 7,
+        ))->run('enter', ['ABC-123', '--format=json']);
+        ob_end_clean();
+
+        self::assertSame(1, $firstExit);
         $firstRun = (new GovernedRunStore($this->root))->find('ABC-123');
         self::assertNotNull($firstRun);
         self::assertCount(1, (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
         self::assertSame('missing', $this->referenceState($this->manifest(), 'recall'));
 
-        $second = new WorkflowApproveCommand(
+        $second = new HostFrontDoorCommand(
             $this->root,
             function (array $argv): int {
                 $this->writeRecallMeta();
@@ -119,7 +128,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             },
         );
         ob_start();
-        $secondExit = $second->run(['ABC-123', '--by', 'lars']);
+        $secondExit = $second->run('enter', ['ABC-123', '--format=json']);
         ob_end_clean();
 
         self::assertSame(0, $secondExit);
@@ -195,16 +204,17 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        $command = new WorkflowApproveCommand(
+
+        ob_start();
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, (new HostFrontDoorCommand(
             $this->root,
             function (array $argv): int {
                 $this->writeRecallMeta();
 
                 return 0;
             },
-        );
-        ob_start();
-        self::assertSame(0, $command->run(['ABC-123', '--by', 'lars']));
+        ))->run('enter', ['ABC-123', '--format=json']));
         ob_end_clean();
 
         $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');
