@@ -315,7 +315,7 @@ final class GovernedRunStore
             throw new RuntimeException('Unsupported governed Run schema in ' . $path . '.');
         }
 
-        $taskId = $this->requiredString($data, 'task_id', $path);
+        $taskId = PersistedJson::requiredString($data, 'task_id', $path);
         if ($taskId !== $expectedTaskId) {
             throw new RuntimeException('Governed Run task id does not match requested task: ' . $path);
         }
@@ -327,20 +327,20 @@ final class GovernedRunStore
         if (!is_array($source)) {
             throw new RuntimeException('Governed Run contract_source must be an object in ' . $path . '.');
         }
-        $sourcePath = $this->requiredString($source, 'path', $path . '#contract_source');
-        $sourceHash = $this->requiredString($source, 'sha256', $path . '#contract_source');
+        $sourcePath = PersistedJson::requiredString($source, 'path', $path . '#contract_source');
+        $sourceHash = PersistedJson::requiredString($source, 'sha256', $path . '#contract_source');
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $sourceHash) !== 1) {
             throw new RuntimeException('Governed Run contract_source.sha256 is invalid in ' . $path . '.');
         }
 
         return new GovernedRun(
-            $this->requiredString($data, 'run_id', $path),
+            PersistedJson::requiredString($data, 'run_id', $path),
             $taskId,
             $revision,
             ['path' => $sourcePath, 'sha256' => $sourceHash],
-            $this->requiredString($data, 'session_id', $path),
+            PersistedJson::requiredString($data, 'session_id', $path),
             $this->optionalLearningRoot($data, $path),
-            $this->requiredString($data, 'prepared_at', $path),
+            PersistedJson::requiredString($data, 'prepared_at', $path),
             $path,
         );
     }
@@ -386,17 +386,6 @@ final class GovernedRunStore
         }
         if (!is_string($value) || trim($value) === '' || PathResolver::isAbsolute($value)) {
             throw new RuntimeException($path . ' learning_root must be a project-relative path or null.');
-        }
-
-        return trim($value);
-    }
-
-    /** @param array<string, mixed> $data */
-    private function requiredString(array $data, string $key, string $path): string
-    {
-        $value = $data[$key] ?? null;
-        if (!is_string($value) || trim($value) === '') {
-            throw new RuntimeException($path . ' requires non-empty ' . $key . '.');
         }
 
         return trim($value);

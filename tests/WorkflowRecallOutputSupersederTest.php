@@ -46,7 +46,14 @@ final class WorkflowRecallOutputSupersederTest extends TestCase
         );
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
-            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
+            json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
+                'status' => 'ok',
+                'contract_revision' => null,
+                'implementation_snapshot' => null,
+                'findings' => [],
+            ], JSON_THROW_ON_ERROR),
         );
 
         ob_start();

@@ -88,6 +88,11 @@ final class ProgressiveCloseoutOrderTest extends TestCase
         self::assertSame('validation', $status['manifest']['references']['verification']['gate'] ?? null);
         self::assertSame(
             'vendor/bin/phpunit --testsuite unit',
+            $status['manifest']['references']['verification']['action'] ?? null,
+            'The blocked verification reference must still name the unsatisfied validation command.',
+        );
+        self::assertSame(
+            'agent-loop finish SIMPLE-2',
             $status['manifest']['next_action'] ?? null,
             'The next action should satisfy the earliest deterministic evidence gap before asking for review or Learning judgment.',
         );

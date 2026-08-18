@@ -11,6 +11,7 @@ use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentLoop\Run\PersistedJson;
 
 final readonly class ReviewAcknowledgementStore
 {
@@ -146,7 +147,7 @@ final readonly class ReviewAcknowledgementStore
             throw new RuntimeException('Unsupported review acknowledgement schema in ' . $path . '.');
         }
 
-        $taskId = $this->requiredString($data, 'task_id', $path);
+        $taskId = PersistedJson::requiredString($data, 'task_id', $path);
         if ($taskId !== $expectedTaskId) {
             throw new RuntimeException('Review acknowledgement belongs to another task: ' . $path);
         }
@@ -158,26 +159,15 @@ final readonly class ReviewAcknowledgementStore
         $reportSha256 = $this->digest($data['report_sha256'] ?? null, 'report_sha256', $path);
 
         return new ReviewAcknowledgement(
-            runId: $this->requiredString($data, 'run_id', $path),
+            runId: PersistedJson::requiredString($data, 'run_id', $path),
             taskId: $taskId,
             contractRevision: $revision,
             implementationSnapshot: $snapshot,
             reportSha256: $reportSha256,
-            acknowledgedBy: $this->requiredString($data, 'acknowledged_by', $path),
-            acknowledgedAt: $this->requiredString($data, 'acknowledged_at', $path),
+            acknowledgedBy: PersistedJson::requiredString($data, 'acknowledged_by', $path),
+            acknowledgedAt: PersistedJson::requiredString($data, 'acknowledged_at', $path),
             path: $path,
         );
-    }
-
-    /** @param array<string, mixed> $data */
-    private function requiredString(array $data, string $key, string $path): string
-    {
-        $value = $data[$key] ?? null;
-        if (!is_string($value) || trim($value) === '') {
-            throw new RuntimeException($path . ' requires non-empty ' . $key . '.');
-        }
-
-        return trim($value);
     }
 
     private function digest(mixed $value, string $name, string $path): string

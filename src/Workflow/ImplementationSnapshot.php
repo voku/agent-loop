@@ -18,6 +18,7 @@ final readonly class ImplementationSnapshot
 
     /** @param list<array{path: string, sha256: string}> $files */
     private function __construct(
+        public string $taskId,
         public int $contractRevision,
         public array $files,
         public string $digest,
@@ -96,6 +97,8 @@ final readonly class ImplementationSnapshot
         foreach ($files as $path => $sha256) {
             $entries[] = ['path' => $path, 'sha256' => $sha256];
         }
+        // The task id identifies the snapshot but is not hashed: adding it would
+        // invalidate every digest already persisted in verification evidence.
         $payload = [
             'schema_version' => self::VERSION,
             'contract_revision' => $contract->revision,
@@ -103,7 +106,7 @@ final readonly class ImplementationSnapshot
         ];
         $digest = 'sha256:' . hash('sha256', CanonicalJson::pretty($payload));
 
-        return new self($contract->revision, $entries, $digest);
+        return new self($contract->taskId, $contract->revision, $entries, $digest);
     }
 
     /** @return array{schema_version:string,contract_revision:int,files:list<array{path:string,sha256:string}>,digest:string} */
