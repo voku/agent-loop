@@ -105,6 +105,38 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-4'));
     }
 
+    public function testFinishFailsClosedWithoutReplacingInvalidPersistedReviewReport(): void
+    {
+        [$runId, $sessionId] = $this->prepareRun('FINISH-5');
+        $reviewDirectory = $this->root . '/.agent-loop/recall/FINISH-5/reviews';
+        mkdir($reviewDirectory, 0o775, true);
+        $reviewPath = $reviewDirectory . '/FINISH-5.blindspots.json';
+        $malformedReport = '{"version":2,"task_id":"FINISH-5","status":"ok","findings":';
+        file_put_contents($reviewPath, $malformedReport);
+
+        $result = $this->finish('FINISH-5', ['--format=json']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertFalse($result['payload']['complete'] ?? true);
+        self::assertSame('finish.closeout_failed', $result['payload']['blockers'][0]['code'] ?? null);
+        self::assertStringContainsString(
+            'Refusing to replace invalid persisted blind-spot report during finish reconciliation',
+            (string) ($result['payload']['blockers'][0]['message'] ?? ''),
+        );
+        self::assertSame($malformedReport, file_get_contents($reviewPath));
+        self::assertNull((new ReviewAcknowledgementStore($this->root))->find('FINISH-5'));
+        self::assertSame(
+            SessionStatus::ACTIVE,
+            (new SessionStore())->load($this->root . '/.agent-loop/sessions', $sessionId)->status,
+        );
+
+        $run = (new GovernedRunStore($this->root))->find('FINISH-5');
+        self::assertNotNull($run);
+        self::assertNull(
+            (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId),
+        );
+    }
+
     /** @return array{0: string, 1: string} */
     private function prepareRun(string $taskId): array
     {
