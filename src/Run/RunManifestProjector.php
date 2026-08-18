@@ -47,16 +47,18 @@ final readonly class RunManifestProjector
 
         if ($run !== null && $contract !== null) {
             if ($run->contractRevision !== $contract->revision) {
-                $disagreements[] = [
-                    'code' => 'run.contract_revision_mismatch',
-                    'owner' => 'agent-loop',
-                    'message' => sprintf(
-                        'Run %s references Contract revision %d while current revision is %d.',
-                        $run->runId,
-                        $run->contractRevision,
-                        $contract->revision,
-                    ),
-                ];
+                if (!$this->approvedContractSupersedesRun($run, $contract)) {
+                    $disagreements[] = [
+                        'code' => 'run.contract_revision_mismatch',
+                        'owner' => 'agent-loop',
+                        'message' => sprintf(
+                            'Run %s references Contract revision %d while current revision is %d.',
+                            $run->runId,
+                            $run->contractRevision,
+                            $contract->revision,
+                        ),
+                    ];
+                }
             } else {
                 $hash = hash_file('sha256', $contract->path);
                 if ($hash === false || !hash_equals($run->contractSource['sha256'], 'sha256:' . $hash)) {
@@ -444,6 +446,15 @@ final readonly class RunManifestProjector
             ];
         }
 
+        if ($this->approvedContractSupersedesRun($run, $contract)) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'pending_close',
+                'observation_mode' => 'checked',
+                'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
+            ];
+        }
+
         if (
             $contract !== null
             && $contract->status === TaskContract::APPROVED
@@ -615,6 +626,33 @@ final readonly class RunManifestProjector
             'observation_mode' => 'checked',
             'path' => PathResolver::relativeTo($this->rootPath, $path),
         ];
+        if ($readiness->staleEntries !== []) {
+            $reference['stale_entries'] = $readiness->staleEntries;
+        }
+
+        return $reference;
+    }
+
+    /** @return array<string, mixed> */
+    private function searchIndexReference(MapReadiness $readiness): array
+    {
+        return $this->agentMapArtifactReference(
+            $readiness->searchState,
+            $readiness->searchPath,
+            $readiness->searchSnapshot,
+            $readiness->searchFailure,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function agentMapArtifactReference(string $state, string $path, ?string $snapshot, ?string $failure): array
+    {
+        $reference = [
+            'owner' => 'agent-map',
+            'state' => $state,
+            'observation_mode' => 'checked',
+            'path' => PathResolver::relativeTo($this->rootPath, $path),
+        ];
         if ($snapshot !== null) {
             $reference['snapshot'] = $snapshot;
         }
@@ -626,6 +664,14 @@ final readonly class RunManifestProjector
         }
 
         return $reference;
+    }
+
+    private function approvedContractSupersedesRun(?GovernedRun $run, ?TaskContract $contract): bool
+    {
+        return $run !== null
+            && $contract !== null
+            && $contract->status === TaskContract::APPROVED
+            && $run->contractRevision < $contract->revision;
     }
 
     /** @return array{path: string, sha256: string} */
