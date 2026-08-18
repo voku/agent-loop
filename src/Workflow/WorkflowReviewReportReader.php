@@ -4,21 +4,22 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Throwable;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentRecallCompiler\Review\ReviewReportReader;
 
+/**
+ * Workflow-shaped projection over agent-recall-compiler's typed report reader.
+ *
+ * The owner package validates report version, task identity, findings and stored
+ * status. agent-loop only adds repository-relative addressing for its manifest.
+ */
 final readonly class WorkflowReviewReportReader
 {
     public function __construct(private string $rootPath)
     {
     }
 
-    /**
-     * `agent-recall-compiler review` writes its report as a `reviews/`
-     * subfolder of the same `--output-dir` it read its compiled recall
-     * inputs from; `Dispatcher::resolveReviewArgv()` defaults that
-     * `--output-dir` to `<recall-root>/<task-id>`, so the report lands at
-     * `<recall-root>/<task-id>/reviews/<task-id>.blindspots.json`.
-     */
     public function absolutePath(string $taskId): string
     {
         return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/reviews/' . $taskId . '.blindspots.json';
@@ -41,43 +42,23 @@ final readonly class WorkflowReviewReportReader
      */
     public function read(string $taskId): array
     {
-        $path = $this->absolutePath($taskId);
-        if (!is_file($path)) {
+        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        try {
+            $artifact = (new ReviewReportReader($this->rootPath))->read($taskId, $outputDirectory);
+        } catch (Throwable) {
+            return $this->invalid();
+        }
+        if ($artifact === null) {
             return $this->missing();
-        }
-        $contents = file_get_contents($path);
-        if (!is_string($contents)) {
-            return $this->invalid();
-        }
-
-        $data = json_decode($contents, true);
-        if (!is_array($data) || !isset($data['status']) || !is_string($data['status'])) {
-            return $this->invalid();
-        }
-
-        $status = strtolower($data['status']);
-        if (!in_array($status, ['ok', 'warn', 'fail'], true)) {
-            return $this->invalid();
-        }
-        $revision = $data['contract_revision'] ?? null;
-        $snapshot = $data['implementation_snapshot'] ?? null;
-        if (($revision === null) !== ($snapshot === null)) {
-            return $this->invalid();
-        }
-        if ($revision !== null && (!is_int($revision) || $revision < 1)) {
-            return $this->invalid();
-        }
-        if ($snapshot !== null && (!is_string($snapshot) || preg_match('/^sha256:[a-f0-9]{64}$/', $snapshot) !== 1)) {
-            return $this->invalid();
         }
 
         return [
             'exists' => true,
-            'status' => $status,
+            'status' => $artifact->report->status(),
             'invalid' => false,
-            'contract_revision' => $revision,
-            'implementation_snapshot' => $snapshot,
-            'sha256' => 'sha256:' . hash('sha256', $contents),
+            'contract_revision' => $artifact->report->contractRevision,
+            'implementation_snapshot' => $artifact->report->implementationSnapshot,
+            'sha256' => $artifact->sha256,
         ];
     }
 
