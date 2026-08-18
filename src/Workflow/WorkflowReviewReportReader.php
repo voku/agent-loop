@@ -4,21 +4,24 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Throwable;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentRecallCompiler\Review\ReviewReportReader;
 
+/**
+ * Workflow-shaped projection over agent-recall-compiler's typed report reader.
+ *
+ * The owner package validates report structure. agent-loop then checks whether
+ * that exact persisted report is current for this Run/Contract/implementation
+ * and whether an authority-bearing acknowledgement names its exact SHA-256.
+ */
 final readonly class WorkflowReviewReportReader
 {
     public function __construct(private string $rootPath)
     {
     }
 
-    /**
-     * `agent-recall-compiler review` writes its report as a `reviews/`
-     * subfolder of the same `--output-dir` it read its compiled recall
-     * inputs from; `Dispatcher::resolveReviewArgv()` defaults that
-     * `--output-dir` to `<recall-root>/<task-id>`, so the report lands at
-     * `<recall-root>/<task-id>/reviews/<task-id>.blindspots.json`.
-     */
     public function absolutePath(string $taskId): string
     {
         return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/reviews/' . $taskId . '.blindspots.json';
@@ -30,80 +33,110 @@ final readonly class WorkflowReviewReportReader
     }
 
     /**
+     * `status` is a lifecycle fact, not merely the report's internal verdict:
+     * current `ok`/`warn` reports remain `unacknowledged` until the exact report
+     * identity is acknowledged; a report bound to another implementation is `stale`.
+     *
      * @return array{
      *   exists: bool,
      *   status: string|null,
+     *   report_status: string|null,
      *   invalid: bool,
      *   contract_revision: int|null,
      *   implementation_snapshot: string|null,
-     *   sha256: string|null
+     *   sha256: string|null,
+     *   acknowledged_by: string|null
      * }
      */
     public function read(string $taskId): array
     {
-        $path = $this->absolutePath($taskId);
-        if (!is_file($path)) {
+        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        try {
+            $artifact = (new ReviewReportReader($this->rootPath))->read($taskId, $outputDirectory);
+        } catch (Throwable) {
+            return $this->invalid();
+        }
+        if ($artifact === null) {
             return $this->missing();
         }
-        $contents = file_get_contents($path);
-        if (!is_string($contents)) {
-            return $this->invalid();
-        }
 
-        $data = json_decode($contents, true);
-        if (!is_array($data) || !isset($data['status']) || !is_string($data['status'])) {
-            return $this->invalid();
-        }
+        $reportStatus = $artifact->report->status();
+        $status = $reportStatus;
+        $acknowledgedBy = null;
 
-        $status = strtolower($data['status']);
-        if (!in_array($status, ['ok', 'warn', 'fail'], true)) {
-            return $this->invalid();
-        }
-        $revision = $data['contract_revision'] ?? null;
-        $snapshot = $data['implementation_snapshot'] ?? null;
-        if (($revision === null) !== ($snapshot === null)) {
-            return $this->invalid();
-        }
-        if ($revision !== null && (!is_int($revision) || $revision < 1)) {
-            return $this->invalid();
-        }
-        if ($snapshot !== null && (!is_string($snapshot) || preg_match('/^sha256:[a-f0-9]{64}$/', $snapshot) !== 1)) {
+        try {
+            $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+            $run = (new GovernedRunStore($this->rootPath))->find($taskId);
+            if (
+                $contract !== null
+                && $run !== null
+                && $contract->status === TaskContract::APPROVED
+                && $run->contractRevision === $contract->revision
+            ) {
+                $implementation = ImplementationSnapshot::capture($this->rootPath, $contract);
+                $reportCurrent = $artifact->report->contractRevision === $contract->revision
+                    && $artifact->report->implementationSnapshot !== null
+                    && hash_equals($artifact->report->implementationSnapshot, $implementation->digest);
+
+                if (!$reportCurrent) {
+                    $status = 'stale';
+                } elseif (in_array($reportStatus, ['ok', 'warn'], true)) {
+                    $acknowledgement = (new ReviewAcknowledgementStore($this->rootPath))->find($taskId);
+                    $acknowledged = $acknowledgement !== null
+                        && $acknowledgement->runId === $run->runId
+                        && $acknowledgement->contractRevision === $contract->revision
+                        && hash_equals($acknowledgement->implementationSnapshot, $implementation->digest)
+                        && hash_equals($acknowledgement->reportSha256, $artifact->sha256);
+                    if ($acknowledged) {
+                        $acknowledgedBy = $acknowledgement->acknowledgedBy;
+                    } else {
+                        $status = 'unacknowledged';
+                    }
+                }
+            }
+        } catch (Throwable) {
             return $this->invalid();
         }
 
         return [
             'exists' => true,
             'status' => $status,
+            'report_status' => $reportStatus,
             'invalid' => false,
-            'contract_revision' => $revision,
-            'implementation_snapshot' => $snapshot,
-            'sha256' => 'sha256:' . hash('sha256', $contents),
+            'contract_revision' => $artifact->report->contractRevision,
+            'implementation_snapshot' => $artifact->report->implementationSnapshot,
+            'sha256' => $artifact->sha256,
+            'acknowledged_by' => $acknowledgedBy,
         ];
     }
 
-    /** @return array{exists:false,status:null,invalid:false,contract_revision:null,implementation_snapshot:null,sha256:null} */
+    /** @return array{exists:false,status:null,report_status:null,invalid:false,contract_revision:null,implementation_snapshot:null,sha256:null,acknowledged_by:null} */
     private function missing(): array
     {
         return [
             'exists' => false,
             'status' => null,
+            'report_status' => null,
             'invalid' => false,
             'contract_revision' => null,
             'implementation_snapshot' => null,
             'sha256' => null,
+            'acknowledged_by' => null,
         ];
     }
 
-    /** @return array{exists:true,status:null,invalid:true,contract_revision:null,implementation_snapshot:null,sha256:null} */
+    /** @return array{exists:true,status:null,report_status:null,invalid:true,contract_revision:null,implementation_snapshot:null,sha256:null,acknowledged_by:null} */
     private function invalid(): array
     {
         return [
             'exists' => true,
             'status' => null,
+            'report_status' => null,
             'invalid' => true,
             'contract_revision' => null,
             'implementation_snapshot' => null,
             'sha256' => null,
+            'acknowledged_by' => null,
         ];
     }
 }

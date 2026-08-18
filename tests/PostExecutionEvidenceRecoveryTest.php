@@ -13,8 +13,10 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
@@ -148,7 +150,23 @@ final class PostExecutionEvidenceRecoveryTest extends TestCase
             'contract_revision' => $contractRevision,
             'implementation_snapshot' => $implementationSnapshot,
             'findings' => [],
-        ], JSON_THROW_ON_ERROR));
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+
+        $contract = (new TaskContractStore($this->root))->load($taskId);
+        $run = (new GovernedRunStore($this->root))->find($taskId);
+        self::assertNotNull($run);
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+        self::assertSame($implementationSnapshot, $snapshot->digest);
+        $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
+        self::assertSame('unacknowledged', $review['status']);
+        self::assertNotNull($review['sha256']);
+        (new ReviewAcknowledgementStore($this->root))->record(
+            $run,
+            $contract,
+            $snapshot,
+            $review['sha256'],
+            'fixture',
+        );
     }
 
     private function removeDirectory(string $directory): void

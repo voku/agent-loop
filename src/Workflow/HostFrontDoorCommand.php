@@ -9,15 +9,22 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStore;
+use voku\AgentSession\ValidationStatus;
 
 /**
  * Host-facing lifecycle front door for governed coding work.
  *
- * `enter` may reconcile deterministic post-approval preparation, but it never
- * approves Contract scope or invents other authority-bearing decisions.
+ * `enter` reconciles deterministic post-approval preparation. `finish` collects
+ * deterministic close-out evidence and accepts only explicit authority-bearing
+ * review / Learning inputs. Neither command invents approval, judgment, or risk.
  */
 final readonly class HostFrontDoorCommand
 {
@@ -151,8 +158,8 @@ final readonly class HostFrontDoorCommand
     private function finish(array $args): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop finish <task-id> [--format text|json]\n";
-            echo "Read-only: permit a done claim only after the canonical Run manifest is complete.\n";
+            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning STATUS --learning-reason TEXT --by ACTOR] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF]\n";
+            echo "Reconcile deterministic validation/review evidence, bind explicit judgments, create Learning Findings through their owner, and close when canonical policy permits.\n";
 
             return 0;
         }
@@ -161,10 +168,101 @@ final readonly class HostFrontDoorCommand
         $tokens = array_slice($args, 1);
         $this->validateFinishTokens($tokens);
         $format = $this->format($tokens);
+        $options = $this->finishOptions($tokens);
+        $closeoutFailure = null;
+
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
-        $complete = $policy->state === 'complete';
 
+        if ($policy->state !== 'complete') {
+            try {
+                if ($policy->mutationAllowed) {
+                    [$contract, $run, $session] = $this->currentRunContext($taskId->value);
+                    (new WorkflowValidationRunner($this->rootPath))->run($contract, $run, $session);
+                    $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+                    if ($this->validationComplete($boundary)) {
+                        (new WorkflowReviewPreparer($this->rootPath))->prepare($contract);
+                    }
+                    $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                    $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                } elseif (($manifest->references['review']['state'] ?? null) === 'invalid') {
+                    // An unreadable persisted report blocks the Run, but reconciling
+                    // the review report is finish's own job. Let the review preparer
+                    // refuse to replace it so the failure names the report instead of
+                    // dead-ending in a generic blocked state nothing can act on.
+                    [$contract] = $this->currentRunContext($taskId->value);
+                    (new WorkflowReviewPreparer($this->rootPath))->prepare($contract);
+                }
+
+                if ($this->hasCurrentFinishBoundary($manifest)) {
+                    [$contract, $run, $session] = $this->currentRunContext($taskId->value);
+                    $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+                    $reviewSha256 = $boundary->reviewEvidenceSha256();
+                    $review = (new WorkflowReviewReportReader($this->rootPath))->read($taskId->value);
+
+                    if ($options['reviewedReportSha256'] !== null) {
+                        if (
+                            $reviewSha256 === null
+                            || $review['invalid']
+                            || !in_array($review['report_status'], ['ok', 'warn'], true)
+                        ) {
+                            throw new RuntimeException('Review acknowledgement requires a current non-failing blind-spot report.');
+                        }
+                        if (!hash_equals($reviewSha256, $options['reviewedReportSha256'])) {
+                            throw new RuntimeException('Provided review report identity does not match the exact current blind-spot report.');
+                        }
+                        if ($options['by'] === null) {
+                            throw new RuntimeException('--reviewed-report-sha256 requires --by <actor>.');
+                        }
+                        (new ReviewAcknowledgementStore($this->rootPath))->record(
+                            $run,
+                            $contract,
+                            $boundary->implementation,
+                            $reviewSha256,
+                            $options['by'],
+                        );
+                        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                    }
+
+                    if ($options['learning'] !== null) {
+                        if ($options['by'] === null || $options['learningReason'] === null) {
+                            throw new RuntimeException('--learning requires --by <actor> and --learning-reason <text>.');
+                        }
+                        if (!in_array($manifest->references['review']['state'] ?? null, ['ok', 'warn'], true)) {
+                            throw new RuntimeException('Learning disposition requires acknowledgement of the exact current review report first.');
+                        }
+                        (new WorkflowLearningRecorder($this->rootPath))->record(
+                            $run,
+                            $contract,
+                            $session,
+                            $options['learning'],
+                            $options['by'],
+                            $options['learningReason'],
+                            $options['findingInputs'],
+                            $options['followUpRef'],
+                        );
+                        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                    }
+                }
+
+                if ($policy->ordinaryCloseAllowed && $policy->state !== 'complete') {
+                    $this->closeOrdinaryRun($taskId->value);
+                    $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                    $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                }
+            } catch (Throwable $exception) {
+                if ($format !== 'json') {
+                    throw $exception;
+                }
+                $closeoutFailure = $exception;
+                $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+            }
+        }
+
+        $complete = $closeoutFailure === null && $policy->state === 'complete';
         $payload = [
             'schema_version' => '1.0',
             'command' => 'finish',
@@ -173,6 +271,15 @@ final readonly class HostFrontDoorCommand
             'next_action' => $policy->nextAction,
             'manifest' => $manifest->toArray(),
         ];
+        if ($closeoutFailure !== null) {
+            $payload['blockers'] = [[
+                'code' => 'finish.closeout_failed',
+                'owner' => 'agent-loop',
+                'message' => $closeoutFailure->getMessage(),
+            ]];
+        } elseif ($policy->blockers !== []) {
+            $payload['blockers'] = $policy->blockers;
+        }
 
         if ($format === 'json') {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
@@ -184,6 +291,9 @@ final readonly class HostFrontDoorCommand
             echo 'Next: ' . $policy->nextAction . "\n";
         }
 
+        if ($closeoutFailure !== null) {
+            return 1;
+        }
         if ($complete) {
             return 0;
         }
@@ -237,6 +347,189 @@ final readonly class HostFrontDoorCommand
         }
 
         return $result->searchWarning;
+    }
+
+    /** @return array{0: TaskContract, 1: GovernedRun, 2: Session} */
+    private function currentRunContext(string $taskId): array
+    {
+        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+        $run = (new GovernedRunStore($this->rootPath))->find($taskId)
+            ?? throw new RuntimeException('agent-loop finish requires a governed Run.');
+        $session = $this->sessionForRun($run)
+            ?? throw new RuntimeException('agent-loop finish requires the active Session bound to the governed Run.');
+
+        if ($contract->status !== TaskContract::APPROVED || $contract->revision !== $run->contractRevision) {
+            throw new RuntimeException('agent-loop finish requires the governed Run to match the current approved Contract.');
+        }
+
+        return [$contract, $run, $session];
+    }
+
+    private function sessionForRun(GovernedRun $run): ?Session
+    {
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        if (!is_dir($root)) {
+            return null;
+        }
+        $store = new SessionStore();
+        if (!$store->exists($root, $run->sessionId)) {
+            return null;
+        }
+        $session = $store->load($root, $run->sessionId);
+        if ($session->taskId !== $run->taskId) {
+            throw new RuntimeException('Governed Run Session belongs to another task.');
+        }
+
+        return $session;
+    }
+
+    private function validationComplete(PostExecutionEvidenceBoundary $boundary): bool
+    {
+        foreach ($boundary->validationEvidence as $evidence) {
+            if ($evidence === null || $evidence->status !== ValidationStatus::PASSED) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function hasCurrentFinishBoundary(RunManifest $manifest): bool
+    {
+        if ($manifest->mode !== 'governed') {
+            return false;
+        }
+        if (($manifest->references['contract']['state'] ?? null) !== TaskContract::APPROVED) {
+            return false;
+        }
+        if (($manifest->references['approval']['state'] ?? null) !== 'current') {
+            return false;
+        }
+        $contractRevision = $manifest->references['contract']['revision'] ?? null;
+        $runRevision = $manifest->references['contract']['run_revision'] ?? null;
+        if (is_int($contractRevision) && is_int($runRevision) && $contractRevision !== $runRevision) {
+            return false;
+        }
+
+        return ($manifest->references['session']['state'] ?? null) === 'active'
+            && ($manifest->references['recall']['state'] ?? null) === 'compiled'
+            && in_array($manifest->references['execution_contract']['state'] ?? null, ['ready', 'not_required'], true);
+    }
+
+    private function closeOrdinaryRun(string $taskId): void
+    {
+        $level = ob_get_level();
+        ob_start(static fn (string $buffer): string => '');
+        try {
+            $exitCode = (new WorkflowCloseCommand($this->rootPath))->run([$taskId, '--status', 'done']);
+        } finally {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
+        }
+        if ($exitCode !== 0) {
+            throw new RuntimeException('Canonical ordinary close failed after lifecycle policy reported ready_to_close.');
+        }
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{
+     *   reviewedReportSha256: string|null,
+     *   by: string|null,
+     *   learning: string|null,
+     *   learningReason: string|null,
+     *   findingInputs: list<FinishFindingInput>,
+     *   followUpRef: string|null
+     * }
+     */
+    private function finishOptions(array $tokens): array
+    {
+        $reviewedReportSha256 = OptionTokens::value($tokens, 'reviewed-report-sha256');
+        if ($reviewedReportSha256 !== null && preg_match('/^sha256:[a-f0-9]{64}$/', $reviewedReportSha256) !== 1) {
+            throw new InvalidArgumentException('--reviewed-report-sha256 must be a sha256:<64 lowercase hex> digest.');
+        }
+
+        $learning = OptionTokens::value($tokens, 'learning');
+        if ($learning !== null && !in_array($learning, ['no_durable_learning', 'findings_recorded', 'follow_up_required'], true)) {
+            throw new InvalidArgumentException('--learning must be no_durable_learning, findings_recorded, or follow_up_required.');
+        }
+
+        return [
+            'reviewedReportSha256' => $reviewedReportSha256,
+            'by' => OptionTokens::value($tokens, 'by'),
+            'learning' => $learning,
+            'learningReason' => OptionTokens::value($tokens, 'learning-reason'),
+            'findingInputs' => $this->findingInputs($tokens),
+            'followUpRef' => OptionTokens::value($tokens, 'follow-up-ref'),
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<FinishFindingInput>
+     */
+    private function findingInputs(array $tokens): array
+    {
+        $observations = $this->optionValues($tokens, 'finding-observation');
+        $hypotheses = $this->optionValues($tokens, 'finding-hypothesis');
+        $conclusions = $this->optionValues($tokens, 'finding-conclusion');
+        $confidences = $this->optionValues($tokens, 'finding-confidence');
+        $sensitivities = $this->optionValues($tokens, 'finding-sensitivity');
+        $counts = array_unique([
+            count($observations),
+            count($hypotheses),
+            count($conclusions),
+            count($confidences),
+            count($sensitivities),
+        ]);
+        if ($counts === [0]) {
+            return [];
+        }
+        if (count($counts) !== 1 || $observations === []) {
+            throw new InvalidArgumentException(
+                'Each finish Finding requires one aligned --finding-observation, --finding-hypothesis, --finding-conclusion, --finding-confidence, and --finding-sensitivity.',
+            );
+        }
+
+        $inputs = [];
+        foreach ($observations as $index => $observation) {
+            $inputs[] = new FinishFindingInput(
+                $observation,
+                $hypotheses[$index],
+                $conclusions[$index],
+                $confidences[$index],
+                $sensitivities[$index],
+            );
+        }
+
+        return $inputs;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function optionValues(array $tokens, string $name): array
+    {
+        $values = [];
+        $prefix = '--' . $name . '=';
+        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
+            $token = $tokens[$index];
+            if ($token === '--' . $name) {
+                $value = $tokens[$index + 1] ?? null;
+                if (is_string($value) && $value !== '') {
+                    $values[] = $value;
+                }
+                ++$index;
+                continue;
+            }
+            if (str_starts_with($token, $prefix)) {
+                $values[] = substr($token, strlen($prefix));
+            }
+        }
+
+        return $values;
     }
 
     /** @param list<string> $args */
@@ -314,7 +607,19 @@ final readonly class HostFrontDoorCommand
     /** @param list<string> $tokens */
     private function validateFinishTokens(array $tokens): void
     {
-        $this->validateTokens($tokens, ['format']);
+        $this->validateTokens($tokens, [
+            'format',
+            'reviewed-report-sha256',
+            'by',
+            'learning',
+            'learning-reason',
+            'finding-observation',
+            'finding-hypothesis',
+            'finding-conclusion',
+            'finding-confidence',
+            'finding-sensitivity',
+            'follow-up-ref',
+        ]);
     }
 
     /**

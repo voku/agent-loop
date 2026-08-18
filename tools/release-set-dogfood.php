@@ -339,23 +339,36 @@ final class ReleaseSetDogfood
     {
         $this->mustRun(['vendor/bin/agent-loop', 'verify', '--task-id=DEMO-1']);
 
-        $verified = $this->frontDoor('verified_no_mutation', ['enter', 'DEMO-1', '--format=json']);
-        if (($verified['mutation_ready'] ?? null) !== false || ($verified['state'] ?? null) !== 'ready_to_close') {
-            throw new ReleaseSetFailure('Verified host front door reopened mutation instead of preserving ready_to_close.');
+        // The deterministic report exists, but acknowledging it is an
+        // authority-bearing decision. Until an actor names its exact identity,
+        // the front door reopens neither mutation nor completion.
+        $reviewDigest = $this->status('DEMO-1')['manifest']['references']['review']['source']['sha256'] ?? null;
+        if (!is_string($reviewDigest) || !str_starts_with($reviewDigest, 'sha256:')) {
+            throw new ReleaseSetFailure('Verified Run did not expose an exact review-report identity.');
         }
-        if (($verified['next_action'] ?? null) !== 'agent-loop workflow close DEMO-1 --status done') {
-            throw new ReleaseSetFailure('Verified host front door did not return the canonical close action.');
+        $acknowledgeAction = 'agent-loop finish DEMO-1 --reviewed-report-sha256 ' . $reviewDigest . ' --by <actor>';
+
+        $verified = $this->frontDoor('verified_no_mutation', ['enter', 'DEMO-1', '--format=json'], [1]);
+        if (($verified['mutation_ready'] ?? null) !== false) {
+            throw new ReleaseSetFailure('Verified host front door reopened mutation instead of asking for review acknowledgement.');
+        }
+        if (($verified['next_action'] ?? null) !== $acknowledgeAction) {
+            throw new ReleaseSetFailure('Verified host front door did not return the canonical acknowledgement action.');
         }
 
-        $premature = $this->frontDoor('ready_to_close', ['finish', 'DEMO-1', '--format=json'], [1]);
-        if (($premature['complete'] ?? null) !== false || ($premature['state'] ?? null) !== 'ready_to_close') {
-            throw new ReleaseSetFailure('Host front door accepted completion before workflow close.');
+        $premature = $this->frontDoor('unacknowledged_review', ['finish', 'DEMO-1', '--format=json'], [1]);
+        if (($premature['complete'] ?? null) !== false) {
+            throw new ReleaseSetFailure('Host front door accepted completion before the review report was acknowledged.');
         }
-        if (($premature['next_action'] ?? null) !== 'agent-loop workflow close DEMO-1 --status done') {
-            throw new ReleaseSetFailure('Premature finish did not return the canonical close action.');
+        if (($premature['next_action'] ?? null) !== $acknowledgeAction) {
+            throw new ReleaseSetFailure('Premature finish did not return the canonical acknowledgement action.');
         }
 
-        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'close', 'DEMO-1', '--status', 'done']);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'finish', 'DEMO-1',
+            '--reviewed-report-sha256', $reviewDigest,
+            '--by', 'release-set-gate',
+        ]);
         $status = $this->status('DEMO-1', 'complete');
         if (($status['manifest']['state'] ?? null) !== 'complete') {
             throw new ReleaseSetFailure('CLOSE did not produce complete durable Run state.');

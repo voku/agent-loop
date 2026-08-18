@@ -14,7 +14,9 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
 use voku\AgentMap\Index\FileEntry;
@@ -218,10 +220,37 @@ MD
                 'output_hashes' => [],
             ], JSON_THROW_ON_ERROR),
         );
+        $findings = $reviewStatus === 'fail'
+            ? [[
+                'id' => 'fixture_failure',
+                'severity' => 'FAIL',
+                'message' => 'Fixture failure.',
+                'evidence' => ['Projector fixture evidence.'],
+            ]]
+            : [];
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
-            json_encode(['status' => $reviewStatus], JSON_THROW_ON_ERROR),
+            json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
+                'status' => $reviewStatus,
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+                'findings' => $findings,
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
+        if ($reviewStatus === 'ok') {
+            $review = (new WorkflowReviewReportReader($this->root))->read('ABC-123');
+            self::assertSame('unacknowledged', $review['status']);
+            self::assertNotNull($review['sha256']);
+            (new ReviewAcknowledgementStore($this->root))->record(
+                $run,
+                $contract,
+                $snapshot,
+                $review['sha256'],
+                'lars',
+            );
+        }
         (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,

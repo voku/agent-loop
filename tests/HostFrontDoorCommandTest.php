@@ -13,10 +13,15 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
+use voku\AgentSession\ValidationEvidenceStore;
+use voku\AgentSession\ValidationStatus;
 
 final class HostFrontDoorCommandTest extends TestCase
 {
@@ -104,9 +109,9 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame($before, $this->snapshotFiles(), 'enter must not modify governed workflow artifacts.');
     }
 
-    public function testReadyToCloseCannotReopenMutationAndFinishAcceptsOnlyActuallyCompleteRun(): void
+    public function testReadyToCloseCannotReopenMutationAndFinishClosesOrdinaryRun(): void
     {
-        [$sessions, $session] = $this->prepareGovernedRun(withCloseEvidence: true);
+        [, $session] = $this->prepareGovernedRun(withCloseEvidence: true);
         $before = $this->snapshotFiles();
 
         $entry = $this->runBinary(['enter', 'ABC-123', '--format=json']);
@@ -115,20 +120,22 @@ final class HostFrontDoorCommandTest extends TestCase
         $entryPayload = $this->json($entry['stdout']);
         self::assertFalse($entryPayload['mutation_ready']);
         self::assertSame('ready_to_close', $entryPayload['manifest']['state']);
-        self::assertSame('agent-loop workflow close ABC-123 --status done', $entryPayload['next_action']);
         self::assertSame($before, $this->snapshotFiles(), 'enter must stay read-only and must not reopen mutation after verification.');
 
         $ready = $this->runBinary(['finish', 'ABC-123', '--format=json']);
 
-        self::assertSame(1, $ready['exit'], $ready['stderr']);
+        self::assertSame(0, $ready['exit'], $ready['stderr']);
         $readyPayload = $this->json($ready['stdout']);
-        self::assertFalse($readyPayload['complete']);
-        self::assertSame('ready_to_close', $readyPayload['manifest']['state']);
-        self::assertSame('agent-loop workflow close ABC-123 --status done', $readyPayload['next_action']);
-        self::assertSame($before, $this->snapshotFiles(), 'finish must not close or modify the Run itself.');
+        self::assertTrue($readyPayload['complete']);
+        self::assertSame('complete', $readyPayload['manifest']['state']);
+        self::assertSame('none', $readyPayload['next_action']);
+        self::assertSame(
+            SessionStatus::DONE,
+            (new SessionStore())->load($this->root . '/.agent-loop/sessions', $session->id)->status,
+        );
+        self::assertNotNull((new RunVerificationReceiptStore($this->root))->find('ABC-123'));
 
-        $sessions->setStatus($session, SessionStatus::DONE);
-        $afterOwnerClose = $this->snapshotFiles();
+        $afterClose = $this->snapshotFiles();
         $complete = $this->runBinary(['finish', 'ABC-123', '--format=json']);
 
         self::assertSame(0, $complete['exit'], $complete['stderr']);
@@ -136,7 +143,7 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertTrue($completePayload['complete']);
         self::assertSame('complete', $completePayload['manifest']['state']);
         self::assertSame('none', $completePayload['next_action']);
-        self::assertSame($afterOwnerClose, $this->snapshotFiles(), 'finish must remain read-only after completion.');
+        self::assertSame($afterClose, $this->snapshotFiles(), 'finish must be read-only after completion.');
     }
 
     /** @return array{0: SessionStore, 1: Session} */
@@ -185,34 +192,58 @@ final class HostFrontDoorCommandTest extends TestCase
             return [$sessions, $session];
         }
 
+        (new ValidationEvidenceStore())->record(
+            $session,
+            $contract->revision,
+            'vendor/bin/phpunit',
+            ValidationStatus::PASSED,
+            0,
+            10,
+            'lars',
+            implementationSnapshot: $snapshot->digest,
+        );
+
         $reviewDirectory = $recallDirectory . '/reviews';
         if (!mkdir($reviewDirectory, 0o775, true) && !is_dir($reviewDirectory)) {
             throw new RuntimeException('Unable to create review directory.');
         }
         file_put_contents(
             $reviewDirectory . '/ABC-123.blindspots.json',
-            json_encode(['status' => 'ok'], JSON_THROW_ON_ERROR),
+            json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
+                'status' => 'ok',
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+                'findings' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
+
+        $review = (new WorkflowReviewReportReader($this->root))->read('ABC-123');
+        self::assertSame('unacknowledged', $review['status']);
+        self::assertNotNull($review['sha256']);
+        (new ReviewAcknowledgementStore($this->root))->record(
+            $run,
+            $contract,
+            $snapshot,
+            $review['sha256'],
+            'lars',
+        );
+
+        $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
+        $validationSha256 = $boundary->validationEvidenceSha256();
+        $reviewSha256 = $boundary->reviewEvidenceSha256();
+        self::assertNotNull($validationSha256);
+        self::assertNotNull($reviewSha256);
         (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->record(
             $run->runId,
             RunLearningDecisionStatus::NO_DURABLE_LEARNING,
             'lars',
             'No durable learning from the front-door fixture.',
-        );
-        (new RunVerificationReceiptStore($this->root))->record(
-            $run,
-            $contract,
-            $session,
-            $snapshot->digest,
-            'satisfied',
-            [[
-                'command' => 'vendor/bin/phpunit',
-                'status' => 'passed',
-                'exit_code' => 0,
-                'executed_at' => '2026-08-17T10:00:00+00:00',
-                'recorded_by' => 'lars',
-                'duration_ms' => 10,
-            ]],
+            contractRevision: $contract->revision,
+            implementationSnapshot: $snapshot->digest,
+            validationEvidenceSha256: $validationSha256,
+            reviewEvidenceSha256: $reviewSha256,
         );
 
         return [$sessions, $session];

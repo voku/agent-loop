@@ -9,8 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
-use voku\AgentLoop\Workflow\ImplementationSnapshot;
-use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 
 /** End-to-end proof that the installed package boundaries cooperate. */
 final class SmokeLoopTest extends TestCase
@@ -91,64 +90,62 @@ final class SmokeLoopTest extends TestCase
         self::assertStringContainsString('is stale (hash no longer matches meta.json)', $result['output']);
     }
 
-    public function testGovernedCompletionFlowUsesOnlyRecordedOwnerArtifacts(): void
+    public function testGovernedCompletionFlowUsesEnterAndFinishInsteadOfManualOwnerChoreography(): void
     {
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'plan', 'task.001', '--by', 'tester',
             '--file', 'src/Signup.php',
             '--goal', 'Keep completion evidence auditable.',
-            '--validation', 'vendor/bin/phpunit tests/SignupTest.php',
+            '--validation', 'php -l src/Signup.php',
         ])['exit']);
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
         ])['exit']);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'enter', 'task.001'])['exit']);
 
-        // The approved task creates this implementation file. It must exist before
-        // validation so the governed dispatcher can derive the snapshot it records.
+        $enter = $this->dispatch(['agent-loop', 'enter', 'task.001', '--format=json']);
+        self::assertSame(0, $enter['exit'], $enter['output']);
+        $enterPayload = $this->json($enter['output']);
+        self::assertTrue($enterPayload['mutation_ready'] ?? false);
+        self::assertSame('compiled', $enterPayload['manifest']['references']['recall']['state'] ?? null);
+
+        // Host-native implementation remains outside the lifecycle engine.
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Signup.php', "<?php\nfinal class Signup {}\n");
 
-        self::assertSame(0, $this->dispatch([
-            'agent-loop', 'session', 'validation', 'record', 'task.001',
-            '--contract-revision', '1', '--command', 'vendor/bin/phpunit tests/SignupTest.php',
-            '--status', 'passed', '--exit-code', '0', '--duration-ms', '12', '--by', 'tester',
-        ])['exit']);
+        $firstFinish = $this->dispatch(['agent-loop', 'finish', 'task.001', '--format=json']);
+        self::assertSame(1, $firstFinish['exit'], $firstFinish['output']);
+        $firstPayload = $this->json($firstFinish['output']);
+        self::assertFalse($firstPayload['complete'] ?? true);
+        self::assertSame('blocked', $firstPayload['manifest']['references']['verification']['state'] ?? null);
+        self::assertSame('review', $firstPayload['manifest']['references']['verification']['gate'] ?? null);
+        self::assertSame('unacknowledged', $firstPayload['manifest']['references']['review']['state'] ?? null);
 
-        $contract = (new TaskContractStore($this->root))->load('task.001');
-        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
-        mkdir($this->root . '/.agent-loop/recall/task.001/reviews', 0o775, true);
-        file_put_contents(
-            $this->root . '/.agent-loop/recall/task.001/reviews/task.001.blindspots.json',
-            json_encode([
-                'status' => 'ok',
-                'contract_revision' => $contract->revision,
-                'implementation_snapshot' => $snapshot->digest,
-            ], JSON_THROW_ON_ERROR),
+        $review = (new WorkflowReviewReportReader($this->root))->read('task.001');
+        self::assertSame('unacknowledged', $review['status']);
+        self::assertNotNull($review['sha256']);
+        self::assertSame(
+            'agent-loop finish task.001 --reviewed-report-sha256 ' . $review['sha256'] . ' --by <actor>',
+            $firstPayload['next_action'] ?? null,
         );
 
-        self::assertSame(0, $this->dispatch([
-            'agent-loop', 'workflow', 'learn', 'task.001',
-            '--status', 'no_durable_learning', '--by', 'tester',
-            '--reason', 'The smoke run produced no reusable guidance.',
-        ])['exit']);
-
-        $context = $this->dispatch(['agent-loop', 'workflow', 'context', 'task.001']);
-        self::assertSame(0, $context['exit']);
-        self::assertStringContainsString('Keep completion evidence auditable.', $context['output']);
-        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php', $context['output']);
+        $complete = $this->dispatch([
+            'agent-loop', 'finish', 'task.001', '--format=json',
+            '--reviewed-report-sha256', $review['sha256'],
+            '--learning', 'no_durable_learning',
+            '--learning-reason', 'The smoke run produced no reusable guidance.',
+            '--by', 'tester',
+        ]);
+        self::assertSame(0, $complete['exit'], $complete['output']);
+        $completePayload = $this->json($complete['output']);
+        self::assertTrue($completePayload['complete'] ?? false);
+        self::assertSame('complete', $completePayload['manifest']['state'] ?? null);
+        self::assertSame('none', $completePayload['next_action'] ?? null);
+        self::assertFileExists($this->root . '/.agent-loop/runs/task.001/verification.json');
 
         $report = $this->dispatch(['agent-loop', 'workflow', 'report', 'task.001']);
         self::assertSame(0, $report['exit']);
-        self::assertStringContainsString('[passed] vendor/bin/phpunit tests/SignupTest.php via session', $report['output']);
+        self::assertStringContainsString('[passed] php -l src/Signup.php via session', $report['output']);
         self::assertStringContainsString('Run decision no_durable_learning', $report['output']);
-
-        $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'task.001', '--status', 'done']);
-        self::assertSame(0, $close['exit'], $close['output']);
-        self::assertStringContainsString('[OK] validation:', $close['output']);
-        self::assertStringContainsString('[OK] learning decision:', $close['output']);
-        self::assertStringContainsString('durable verification receipt persisted', $close['output']);
-        self::assertFileExists($this->root . '/.agent-loop/runs/task.001/verification.json');
     }
 
     /**
@@ -181,6 +178,15 @@ final class SmokeLoopTest extends TestCase
         }
 
         return ['exit' => $exit, 'output' => $output];
+    }
+
+    /** @return array<string, mixed> */
+    private function json(string $json): array
+    {
+        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+
+        return $decoded;
     }
 
     private function copyDirectory(string $source, string $destination): void

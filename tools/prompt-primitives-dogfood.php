@@ -78,18 +78,27 @@ final class PromptPrimitivesDogfood
                 '--reason', 'The candidate dogfood exercised existing prompt-control semantics without producing a new durable rule.',
             ]);
             $this->runCommand(['vendor/bin/agent-loop', 'verify', '--task-id=' . self::TASK_ID]);
-            $this->assertState('ready_to_close');
+
+            // The deterministic report already exists from review(), but
+            // acknowledging it is an authority-bearing decision. `finish` will
+            // not reopen ready_to_close as an observable status any more: a
+            // single acknowledge-and-close call now carries the Run straight
+            // from incomplete to complete.
+            $reviewDigest = $this->status()['manifest']['references']['review']['source']['sha256'] ?? null;
+            if (!is_string($reviewDigest) || !str_starts_with($reviewDigest, 'sha256:')) {
+                throw new PromptPrimitivesDogfoodFailure('Verified Run did not expose an exact review-report identity.');
+            }
+            $this->runCommand([
+                'vendor/bin/agent-loop', 'finish', self::TASK_ID,
+                '--reviewed-report-sha256', $reviewDigest,
+                '--by', self::PLANNER,
+            ]);
+            $this->assertState('complete');
 
             $projectReflection = $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'reflect', self::TASK_ID, '--scope', 'project',
             ]);
             $this->assertContains($projectReflection['stdout'], 'future work in this project meaningfully better', 'project reflection');
-
-            $this->runCommand([
-                'vendor/bin/agent-loop', 'workflow', 'close', self::TASK_ID,
-                '--status', 'done',
-            ]);
-            $this->assertState('complete');
 
             $taskReflection = $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'reflect', self::TASK_ID, '--scope', 'task',

@@ -14,10 +14,12 @@ use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
@@ -162,11 +164,25 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
                 'status' => 'ok',
                 'contract_revision' => $contract->revision,
                 'implementation_snapshot' => $snapshot->digest,
-            ], JSON_THROW_ON_ERROR),
+                'findings' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
+        $review = (new WorkflowReviewReportReader($this->root))->read('ABC-123');
+        self::assertSame('unacknowledged', $review['status']);
+        self::assertNotNull($review['sha256']);
+        (new ReviewAcknowledgementStore($this->root))->record(
+            $run,
+            $contract,
+            $snapshot,
+            $review['sha256'],
+            'lars',
+        );
+
         $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
         $validationSha256 = $boundary->validationEvidenceSha256();
         $reviewSha256 = $boundary->reviewEvidenceSha256();

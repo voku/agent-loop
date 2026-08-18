@@ -124,7 +124,7 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertSame('incomplete', $policy->state);
         self::assertTrue($policy->mutationAllowed);
         self::assertFalse($policy->ordinaryCloseAllowed);
-        self::assertSame('composer test', $policy->nextAction);
+        self::assertSame('agent-loop finish ABC-123', $policy->nextAction);
     }
 
     public function testReadyToCloseNeverReopensMutation(): void
@@ -148,7 +148,7 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertSame('ready_to_close', $policy->state);
         self::assertFalse($policy->mutationAllowed);
         self::assertTrue($policy->ordinaryCloseAllowed);
-        self::assertSame('agent-loop workflow close ABC-123 --status done', $policy->nextAction);
+        self::assertSame('agent-loop finish ABC-123', $policy->nextAction);
     }
 
     public function testCompleteRunKeepsCloseIdempotentWithoutReopeningMutation(): void

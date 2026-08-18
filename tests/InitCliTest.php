@@ -177,7 +177,21 @@ final class InitCliTest extends TestCase
         $verify = $this->dispatch(['agent-loop', 'verify', '--task-id=DEMO-1']);
         self::assertSame(0, $verify['exit'], $verify['output']);
 
-        $close = $this->dispatch(['agent-loop', 'workflow', 'close', 'DEMO-1', '--status', 'done']);
+        $pending = $this->dispatch(['agent-loop', 'finish', 'DEMO-1']);
+        self::assertSame(1, $pending['exit'], $pending['output']);
+        self::assertSame(
+            1,
+            preg_match('/--reviewed-report-sha256 (sha256:[a-f0-9]{64})/', $pending['output'], $matches),
+            'finish must advertise the exact review report identity it requires: ' . $pending['output'],
+        );
+        $reviewDigest = $matches[1] ?? null;
+        self::assertIsString($reviewDigest);
+
+        $close = $this->dispatch([
+            'agent-loop', 'finish', 'DEMO-1',
+            '--reviewed-report-sha256', $reviewDigest,
+            '--by', 'tester',
+        ]);
         self::assertSame(0, $close['exit'], $close['output']);
         self::assertFileExists($this->root . '/.agent-loop/runs/DEMO-1/verification.json');
     }
