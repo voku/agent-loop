@@ -101,6 +101,7 @@ final class SmokeLoopTest extends TestCase
         self::assertSame(0, $this->dispatch([
             'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
         ])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'enter', 'task.001'])['exit']);
 
         // The approved task creates this implementation file. It must exist before
         // validation so the governed dispatcher can derive the snapshot it records.
