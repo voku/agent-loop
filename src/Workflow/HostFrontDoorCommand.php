@@ -21,6 +21,8 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
  */
 final readonly class HostFrontDoorCommand
 {
+    private const string STDOUT_DISCARD_FILTER = 'agent-loop.stdout-discard';
+
     private string $rootPath;
 
     private ?Closure $recallRunner;
@@ -237,6 +239,20 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
         }
 
+        if (!in_array(self::STDOUT_DISCARD_FILTER, stream_get_filters(), true)) {
+            if (!class_exists(StdoutDiscardFilter::class)) {
+                throw new RuntimeException('Unable to load the front-door STDOUT discard filter.');
+            }
+            if (!stream_filter_register(self::STDOUT_DISCARD_FILTER, StdoutDiscardFilter::class)) {
+                throw new RuntimeException('Unable to register the front-door STDOUT discard filter.');
+            }
+        }
+
+        $filter = stream_filter_append(STDOUT, self::STDOUT_DISCARD_FILTER, STREAM_FILTER_WRITE);
+        if ($filter === false) {
+            throw new RuntimeException('Unable to silence nested Recall STDOUT for the front-door response.');
+        }
+
         $level = ob_get_level();
         ob_start(static fn (string $buffer): string => '');
         try {
@@ -244,6 +260,9 @@ final readonly class HostFrontDoorCommand
         } finally {
             while (ob_get_level() > $level) {
                 ob_end_clean();
+            }
+            if (!stream_filter_remove($filter)) {
+                throw new RuntimeException('Unable to restore STDOUT after nested Recall compilation.');
             }
         }
     }
