@@ -218,7 +218,7 @@ final readonly class WorkflowRunPreparer
             if ($active !== null) {
                 if ($active->id !== $boundRun->sessionId) {
                     throw new RuntimeException(sprintf(
-                        'Governed Run %s is bound to missing Session %s, but active Session %s exists for task %s.',
+                        'Governed Run %s is bound to Session %s, but a different active Session %s exists for task %s.',
                         $boundRun->runId,
                         $boundRun->sessionId,
                         $active->id,
