@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use Closure;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -28,17 +27,8 @@ use voku\AgentSession\ValidationStatus;
  */
 final readonly class HostFrontDoorCommand
 {
-    private const string STDOUT_DISCARD_FILTER = 'agent-loop.stdout-discard';
-
-    private string $rootPath;
-
-    private ?Closure $recallRunner;
-
-    /** @param null|callable(list<string>): int $recallRunner */
-    public function __construct(string $rootPath, ?callable $recallRunner = null)
+    public function __construct(private string $rootPath)
     {
-        $this->rootPath = $rootPath;
-        $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -320,10 +310,6 @@ final readonly class HostFrontDoorCommand
 
     private function prepareApprovedRun(string $taskId): ?string
     {
-        if ($this->recallRunner === null) {
-            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
-        }
-
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
         if ($contract->status !== TaskContract::APPROVED) {
             throw new RuntimeException('agent-loop enter cannot prepare a Contract that is not approved.');
@@ -331,13 +317,7 @@ final readonly class HostFrontDoorCommand
 
         $preparer = new WorkflowRunPreparer($this->rootPath);
         $mapReadiness = $preparer->discoveryReadiness($contract);
-        $result = $preparer->prepare($contract, $mapReadiness, $this->runRecallQuietly(...));
-        if (!$result->recallCompiled()) {
-            throw new RuntimeException(
-                'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code '
-                . $result->recallExitCode . '.',
-            );
-        }
+        $result = $preparer->prepare($contract, $mapReadiness);
 
         return $result->searchWarning;
     }
@@ -517,41 +497,6 @@ final readonly class HostFrontDoorCommand
         }
 
         return $values;
-    }
-
-    /** @param list<string> $args */
-    private function runRecallQuietly(array $args): int
-    {
-        if ($this->recallRunner === null) {
-            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
-        }
-
-        if (!in_array(self::STDOUT_DISCARD_FILTER, stream_get_filters(), true)) {
-            if (!class_exists(StdoutDiscardFilter::class)) {
-                throw new RuntimeException('Unable to load the front-door STDOUT discard filter.');
-            }
-            if (!stream_filter_register(self::STDOUT_DISCARD_FILTER, StdoutDiscardFilter::class)) {
-                throw new RuntimeException('Unable to register the front-door STDOUT discard filter.');
-            }
-        }
-
-        $filter = stream_filter_append(STDOUT, self::STDOUT_DISCARD_FILTER, STREAM_FILTER_WRITE);
-        if ($filter === false) {
-            throw new RuntimeException('Unable to silence nested Recall STDOUT for the front-door response.');
-        }
-
-        $level = ob_get_level();
-        ob_start(static fn (string $buffer): string => '');
-        try {
-            return ($this->recallRunner)($args);
-        } finally {
-            while (ob_get_level() > $level) {
-                ob_end_clean();
-            }
-            if (!stream_filter_remove($filter)) {
-                throw new RuntimeException('Unable to restore STDOUT after nested Recall compilation.');
-            }
-        }
     }
 
     /** @param list<string> $tokens */
