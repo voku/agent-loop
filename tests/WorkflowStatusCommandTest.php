@@ -14,7 +14,9 @@ use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentLoop\Workflow\WorkflowStatusCommand;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
@@ -110,7 +112,7 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('agent-loop enter ABC-123', $approved);
 
         $this->writeRecall();
-        self::assertStringContainsString('vendor/bin/phpunit', $this->statusText('ABC-123'));
+        self::assertStringContainsString('agent-loop finish ABC-123', $this->statusText('ABC-123'));
 
         (new ValidationEvidenceStore())->record(
             $session,
@@ -122,18 +124,34 @@ final class WorkflowStatusCommandTest extends TestCase
             'lars',
             implementationSnapshot: $snapshot->digest,
         );
-        self::assertStringContainsString('review blindspots ABC-123', $this->statusText('ABC-123'));
+        self::assertStringContainsString('agent-loop finish ABC-123', $this->statusText('ABC-123'));
 
         mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
             json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
                 'status' => 'ok',
                 'contract_revision' => $contract->revision,
                 'implementation_snapshot' => $snapshot->digest,
-            ], JSON_THROW_ON_ERROR),
+                'findings' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
-        self::assertStringContainsString('workflow learn ABC-123', $this->statusText('ABC-123'));
+        $review = (new WorkflowReviewReportReader($this->root))->read('ABC-123');
+        self::assertSame('unacknowledged', $review['status']);
+        self::assertNotNull($review['sha256']);
+        $reviewAction = $this->statusText('ABC-123');
+        self::assertStringContainsString('agent-loop finish ABC-123 --reviewed-report-sha256 ' . $review['sha256'], $reviewAction);
+
+        (new ReviewAcknowledgementStore($this->root))->record(
+            $run,
+            $contract,
+            $snapshot,
+            $review['sha256'],
+            'lars',
+        );
+        self::assertStringContainsString('agent-loop finish ABC-123 --learning', $this->statusText('ABC-123'));
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
         $validationSha = $boundary->validationEvidenceSha256();
@@ -150,7 +168,7 @@ final class WorkflowStatusCommandTest extends TestCase
             validationEvidenceSha256: $validationSha,
             reviewEvidenceSha256: $reviewSha,
         );
-        self::assertStringContainsString('workflow close ABC-123 --status done', $this->statusText('ABC-123'));
+        self::assertStringContainsString('agent-loop finish ABC-123', $this->statusText('ABC-123'));
     }
 
     public function testEphemeralSessionIsExperimentAndAsksToBeClosed(): void
