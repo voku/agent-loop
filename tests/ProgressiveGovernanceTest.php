@@ -127,6 +127,63 @@ final class ProgressiveGovernanceTest extends TestCase
         );
     }
 
+    public function testEnterJsonReportsPreparationFailureAsMachineReadableBlocker(): void
+    {
+        file_put_contents($this->root . '/docs/note.txt', "current\n");
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'FAIL-1',
+            'Keep preparation failure observable to machine callers.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $contracts->approve('FAIL-1', 'approver');
+
+        [$exit, $payload] = $this->enter('FAIL-1', static fn (array $argv): int => 7);
+
+        self::assertSame(1, $exit);
+        self::assertFalse($payload['mutation_ready']);
+        self::assertSame('enter.preparation_failed', $payload['blockers'][0]['code'] ?? null);
+        self::assertStringContainsString('Recall compilation failed with exit code 7', $payload['blockers'][0]['message'] ?? '');
+        self::assertSame('governed', $payload['manifest']['mode']);
+        self::assertSame('active', $payload['manifest']['references']['session']['state']);
+        self::assertSame('missing', $payload['manifest']['references']['recall']['state']);
+        self::assertSame('agent-loop enter FAIL-1', $payload['next_action']);
+    }
+
+    public function testEnterJsonPreservesCallerBufferWhenRecallRunnerClosesItsOwnBuffer(): void
+    {
+        file_put_contents($this->root . '/docs/note.txt', "current\n");
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'BUFFER-1',
+            'Keep the host JSON document intact across Recall output handling.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $contracts->approve('BUFFER-1', 'approver');
+
+        $runner = function (array $argv): int {
+            echo "discarded recall output\n";
+            ob_end_flush();
+            $this->writeRecallMeta('BUFFER-1');
+
+            return 0;
+        };
+
+        [$exit, $payload] = $this->enter('BUFFER-1', $runner);
+
+        self::assertSame(0, $exit);
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame('compiled', $payload['manifest']['references']['recall']['state']);
+    }
+
     public function testExistingPhpTaskEscalatesToDiscoveryWithoutWeakeningContractAuthority(): void
     {
         if (!mkdir($this->root . '/src', 0o775, true) && !is_dir($this->root . '/src')) {
