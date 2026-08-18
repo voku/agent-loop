@@ -242,17 +242,14 @@ final class ReleaseSetDogfood
         $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'release-set-gate']);
         $status = $this->status('DEMO-1');
         $this->assertReference($status, 'approval', 'current');
-        $this->assertReference($status, 'recall', 'compiled');
-        $runId = $status['manifest']['run_id'] ?? null;
-        if (!is_string($runId) || !str_starts_with($runId, 'run:')) {
-            throw new ReleaseSetFailure('APPROVE did not create durable Run identity.');
+        $this->assertReference($status, 'recall', 'missing');
+        if (is_file($this->consumerRoot . '/.agent-loop/runs/DEMO-1/run.json')) {
+            throw new ReleaseSetFailure('APPROVE allocated durable Run identity before enter.');
         }
-        $this->writeJson($this->artifactRoot . '/run-before-close.json', ['run_id' => $runId]);
-        $this->artifact($this->consumerRoot . '/.agent-loop/runs/DEMO-1/run.json');
-
         foreach (glob($this->consumerRoot . '/.agent-loop/sessions/*', GLOB_ONLYDIR) ?: [] as $directory) {
-            if (is_file($directory . '/work-brief.json') || is_file($directory . '/approval.json') || is_file($directory . '/learning-decision.json')) {
-                throw new ReleaseSetFailure('Session contains removed durable authority artifacts.');
+            $sessionFile = $directory . '/session.json';
+            if (is_file($sessionFile) && ($this->jsonFile($sessionFile)['task_id'] ?? null) === 'DEMO-1') {
+                throw new ReleaseSetFailure('APPROVE allocated pruneable DEMO-1 Session state before enter.');
             }
         }
 
@@ -266,10 +263,27 @@ final class ReleaseSetDogfood
         if (($entry['context_lines'] ?? 0) < 1 || ($entry['context_lines'] ?? 0) > 40 || ($entry['context_bytes'] ?? 0) > 4096) {
             throw new ReleaseSetFailure('Governed host front door exceeded or omitted its bounded context.');
         }
+
+        $status = $this->status('DEMO-1');
+        $this->assertReference($status, 'recall', 'compiled');
+        $this->assertReference($status, 'session', 'active');
+        $runId = $status['manifest']['run_id'] ?? null;
+        if (!is_string($runId) || !str_starts_with($runId, 'run:')) {
+            throw new ReleaseSetFailure('ENTER did not create durable Run identity.');
+        }
+        $this->writeJson($this->artifactRoot . '/run-before-close.json', ['run_id' => $runId]);
+        $this->artifact($this->consumerRoot . '/.agent-loop/runs/DEMO-1/run.json');
+
+        foreach (glob($this->consumerRoot . '/.agent-loop/sessions/*', GLOB_ONLYDIR) ?: [] as $directory) {
+            if (is_file($directory . '/work-brief.json') || is_file($directory . '/approval.json') || is_file($directory . '/learning-decision.json')) {
+                throw new ReleaseSetFailure('Session contains removed durable authority artifacts.');
+            }
+        }
     }
 
     private function implement(): void
     {
+        $before = $this->status('DEMO-1')['manifest']['run_id'] ?? null;
         $this->mustRun([PHP_BINARY, 'tools/apply-change.php']);
         $this->mustRun([
             'vendor/bin/agent-map', 'refresh', '--root=.', '--index=.agent-loop/map/php-symbols.json', '--out=.agent-loop/map/php-symbols.json',
@@ -277,12 +291,9 @@ final class ReleaseSetDogfood
         $this->mustRun([
             'vendor/bin/agent-map', 'search-index', 'refresh', '--root=.', '--index=.agent-loop/map/php-symbols.json', '--database=.agent-loop/map/search.sqlite',
         ]);
-        // Recompile context after the actual edit while preserving the same Run.
-        $before = $this->status('DEMO-1')['manifest']['run_id'] ?? null;
-        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'release-set-gate']);
         $after = $this->status('DEMO-1')['manifest']['run_id'] ?? null;
         if (!is_string($before) || $after !== $before) {
-            throw new ReleaseSetFailure('Recall refresh changed durable Run identity.');
+            throw new ReleaseSetFailure('Implementation or Map refresh changed durable Run identity.');
         }
         $this->artifact($this->consumerRoot . '/src/RetryPolicy.php');
     }
