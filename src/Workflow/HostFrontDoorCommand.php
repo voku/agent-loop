@@ -74,9 +74,10 @@ final readonly class HostFrontDoorCommand
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         $preparationFailure = null;
+        $preparationWarning = null;
         if ($this->needsPreparation($manifest)) {
             try {
-                $this->prepareApprovedRun($taskId->value);
+                $preparationWarning = $this->prepareApprovedRun($taskId->value);
             } catch (Throwable $exception) {
                 if ($format !== 'json') {
                     throw $exception;
@@ -88,6 +89,11 @@ final readonly class HostFrontDoorCommand
 
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
+        $warnings = $preparationWarning === null ? [] : [[
+            'code' => 'enter.ranked_search_unavailable',
+            'owner' => 'agent-map',
+            'message' => $preparationWarning,
+        ]];
 
         $payload = [
             'schema_version' => '1.0',
@@ -95,6 +101,7 @@ final readonly class HostFrontDoorCommand
             'task_id' => $taskId->value,
             'mutation_ready' => $preparationFailure === null && $policy->mutationAllowed,
             'next_action' => $policy->nextAction,
+            'warnings' => $warnings,
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
@@ -115,6 +122,9 @@ final readonly class HostFrontDoorCommand
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
             echo 'Next: ' . $policy->nextAction . "\n";
+            foreach ($warnings as $warning) {
+                echo '[WARN] ' . $warning['message'] . "\n";
+            }
             if ($manifest->disagreements !== []) {
                 echo 'Disagreements: ' . count($manifest->disagreements) . "\n";
             }
@@ -196,7 +206,7 @@ final readonly class HostFrontDoorCommand
             || ($manifest->references['recall']['state'] ?? null) !== 'compiled';
     }
 
-    private function prepareApprovedRun(string $taskId): void
+    private function prepareApprovedRun(string $taskId): ?string
     {
         if ($this->recallRunner === null) {
             throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
@@ -216,6 +226,8 @@ final readonly class HostFrontDoorCommand
                 . $result->recallExitCode . '.',
             );
         }
+
+        return $result->searchWarning;
     }
 
     /** @param list<string> $args */
