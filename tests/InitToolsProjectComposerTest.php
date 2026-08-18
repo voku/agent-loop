@@ -52,14 +52,8 @@ final class InitToolsProjectComposerTest extends TestCase
 
         $output = $this->runTools();
 
-        self::assertStringContainsString(
-            '[INFO] voku/phpstan-agent-format: not configured in root Composer',
-            $output,
-        );
-        self::assertStringContainsString(
-            '[INFO] voku/phpstan-rules: not configured in root Composer',
-            $output,
-        );
+        self::assertStringContainsString('[INFO] voku/phpstan-agent-format: not configured in root Composer', $output);
+        self::assertStringContainsString('[INFO] voku/phpstan-rules: not configured in root Composer', $output);
         self::assertStringContainsString(
             '[INFO] root Composer install: composer require --dev voku/phpstan-agent-format voku/phpstan-rules',
             $output,
@@ -77,14 +71,8 @@ final class InitToolsProjectComposerTest extends TestCase
 
         $output = $this->runTools();
 
-        self::assertStringContainsString(
-            '[OK] voku/phpstan-agent-format: configured in root Composer require-dev (^0.1;',
-            $output,
-        );
-        self::assertStringContainsString(
-            '[OK] voku/phpstan-rules: configured in root Composer require-dev (^6.0;',
-            $output,
-        );
+        self::assertStringContainsString('[OK] voku/phpstan-agent-format: configured in root Composer require-dev (^0.1;', $output);
+        self::assertStringContainsString('[OK] voku/phpstan-rules: configured in root Composer require-dev (^6.0;', $output);
         self::assertStringNotContainsString('root Composer install:', $output);
     }
 
@@ -101,11 +89,27 @@ final class InitToolsProjectComposerTest extends TestCase
 
         $output = $this->runTools();
 
-        self::assertStringContainsString(
-            '[WARN] voku/phpstan-agent-format: configured in root Composer require (^0.1;',
-            $output,
-        );
+        self::assertStringContainsString('[WARN] voku/phpstan-agent-format: configured in root Composer require (^0.1;', $output);
         self::assertStringContainsString('dev tooling should normally live in require-dev', $output);
+        self::assertStringNotContainsString('root Composer install:', $output);
+    }
+
+    public function testRuntimeRequirementWinsWhenPackageExistsInBothComposerSections(): void
+    {
+        $this->writeComposer([
+            'require' => [
+                'voku/phpstan-agent-format' => '^0.1',
+            ],
+            'require-dev' => [
+                'voku/phpstan-agent-format' => '^0.2',
+                'voku/phpstan-rules' => '^6.0',
+            ],
+        ]);
+
+        $output = $this->runTools();
+
+        self::assertStringContainsString('[WARN] voku/phpstan-agent-format: configured in root Composer require (^0.1;', $output);
+        self::assertStringNotContainsString('[OK] voku/phpstan-agent-format: configured in root Composer require-dev', $output);
         self::assertStringNotContainsString('root Composer install:', $output);
     }
 
