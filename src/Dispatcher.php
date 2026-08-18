@@ -11,6 +11,7 @@ use voku\AgentMap\Cli\CliApplication as AgentMapCli;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -23,8 +24,8 @@ use voku\AgentSession\SessionStore;
 /**
  * Unified entrypoint for the governed agentic-coding loop.
  *
- * Delegated package CLIs keep their own commands while ProjectLayout owns the
- * repository-local workflow-state defaults shared by the umbrella commands.
+ * Delegated package CLIs keep their own specialist commands while lifecycle
+ * orchestration stays in agent-loop and embeds owner semantics through typed APIs.
  */
 final class Dispatcher
 {
@@ -45,6 +46,7 @@ final class Dispatcher
         $rest = array_slice($argv, 2);
 
         return match ($namespace) {
+            'enter', 'finish' => (new HostFrontDoorCommand($this->rootPath))->run($namespace, $rest),
             'edit' => (new EditCommand($this->rootPath))->run($rest),
             'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
@@ -53,7 +55,7 @@ final class Dispatcher
             'recall' => $this->dispatchRecall($scriptName, $rest),
             'prompt' => $this->dispatchRecall($scriptName, ['prompt', ...$rest]),
             'session' => $this->dispatchSession($scriptName, $rest),
-            'workflow' => $this->dispatchWorkflow($scriptName, $rest),
+            'workflow' => $this->dispatchWorkflow($rest),
             'map' => $this->dispatchMap($scriptName, $rest),
             'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             'review' => $this->dispatchReview($scriptName, $rest),
@@ -134,12 +136,9 @@ final class Dispatcher
     }
 
     /** @param list<string> $rest */
-    private function dispatchWorkflow(string $scriptName, array $rest): int
+    private function dispatchWorkflow(array $rest): int
     {
-        return (new WorkflowCli(
-            $this->rootPath,
-            fn (array $recallRest): int => $this->dispatchRecall($scriptName, $recallRest),
-        ))->run($rest);
+        return (new WorkflowCli($this->rootPath))->run($rest);
     }
 
     /** @param list<string> $rest */
@@ -427,8 +426,14 @@ final class Dispatcher
         agent-loop - unified CLI for the governed agentic-coding loop.
 
         Usage:
+          agent-loop enter <task-id> [options]
+          agent-loop finish <task-id> [options]
           agent-loop edit CLASS::METHOD [options] -- INSTRUCTION
           agent-loop <namespace> <command> [options]
+
+        Lifecycle:
+          enter   Prepare deterministic post-approval Run / Session / Recall state and return bounded mutation context.
+          finish  Execute deterministic close-out work, request exact authority-bearing judgments when needed, and close ordinary ready runs.
 
         Namespaces:
           edit    CLASS::METHOD [options] -- INSTRUCTION
@@ -444,7 +449,7 @@ final class Dispatcher
           learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-export|finding-transition>
                   Durable findings, proposals, guidance and history (voku/agent-learning).
           recall  <compile|log-outcome>
-                  Deterministic context/replay compilation (voku/agent-recall-compiler).
+                  Specialist deterministic context/replay compilation (voku/agent-recall-compiler).
           prompt  <future-work|guidance-gaps>
                   Explicit Recall-owned prompt helpers; `guidance-gaps` is opt-in and never a default workflow stage.
           session <start|claim|checkpoint|record|close|list|show|validation|prune>
@@ -456,20 +461,22 @@ final class Dispatcher
           memory  <validate|review>
                   MEMORY.md structure validation and promotion review (voku/agent-loop).
           workflow
-                  Durable governed workflow orchestration commands.
+                  Durable Contract, policy inspection and specialist/recovery workflow commands.
           review  <blindspots|code>
-                  Deterministic review helpers from voku/agent-recall-compiler.
+                  Specialist review helpers from voku/agent-recall-compiler.
           init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
           help    Show this help.
 
         Repository layout:
           Workflow state lives below `.agent-loop/`; the project/source root remains unchanged.
 
-        Run a namespace with `help` for its own command list, e.g.:
+        Normal governed flow:
+          workflow plan -> workflow approve -> enter -> host-native implementation -> finish
+
+        Run a namespace with `help` for specialist command lists, e.g.:
+          agent-loop workflow help
           agent-loop edit help
           agent-loop learn help
-          agent-loop recall help
-          agent-loop prompt guidance-gaps
 
         TXT;
 
