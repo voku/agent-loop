@@ -30,6 +30,10 @@ final class NoShellStringProcessCommandRule implements Rule
     {
         $namespace = $scope->getNamespace();
         $command = $node->getArgs()[0]->value ?? null;
+        $class = $scope->getClassReflection();
+        $intentionalShellBoundary = $class !== null
+            && $class->getName() === 'voku\\AgentLoop\\Workflow\\WorkflowValidationRunner'
+            && $scope->getFunctionName() === 'executeDeclaredValidationShell';
         if (
             !$node->name instanceof Name
             || strtolower($node->name->toString()) !== 'proc_open'
@@ -39,6 +43,7 @@ final class NoShellStringProcessCommandRule implements Rule
             || !str_starts_with($namespace, 'voku\\AgentLoop')
             || str_starts_with($namespace, 'voku\\AgentLoop\\Tests')
             || str_starts_with($namespace, 'voku\\AgentLoop\\PHPStan')
+            || $intentionalShellBoundary
         ) {
             return [];
         }
