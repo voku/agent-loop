@@ -124,6 +124,48 @@ final class InitToolsProjectComposerTest extends TestCase
         self::assertStringNotContainsString('configured in root Composer', $output);
     }
 
+    public function testCliDogfoodReadsTheConsumerRootComposerState(): void
+    {
+        $this->writeComposer([
+            'require-dev' => [
+                'voku/phpstan-agent-format' => '^0.1',
+                'voku/phpstan-rules' => '^6.0',
+            ],
+        ]);
+
+        $output = $this->runCliTools();
+
+        self::assertStringContainsString('[OK] voku/phpstan-agent-format: configured in root Composer require-dev', $output);
+        self::assertStringContainsString('[OK] voku/phpstan-rules: configured in root Composer require-dev', $output);
+        self::assertStringNotContainsString('root Composer install:', $output);
+
+        $this->writeComposer([
+            'require' => [
+                'voku/phpstan-agent-format' => '^0.1',
+            ],
+            'require-dev' => [
+                'voku/phpstan-rules' => '^6.0',
+            ],
+        ]);
+
+        $output = $this->runCliTools();
+
+        self::assertStringContainsString('[WARN] voku/phpstan-agent-format: configured in root Composer require', $output);
+        self::assertStringContainsString('dev tooling should normally live in require-dev', $output);
+        self::assertStringNotContainsString('root Composer install:', $output);
+
+        unlink($this->root . '/composer.json');
+
+        $output = $this->runCliTools();
+
+        self::assertStringContainsString(
+            '[INFO] project-integrated PHPStan tools: root composer.json missing or unreadable',
+            $output,
+        );
+        self::assertStringNotContainsString('configured in root Composer', $output);
+        self::assertStringNotContainsString('root Composer install:', $output);
+    }
+
     /** @param array<string, mixed> $composer */
     private function writeComposer(array $composer): void
     {
@@ -147,6 +189,23 @@ final class InitToolsProjectComposerTest extends TestCase
         self::assertSame(0, $exit);
 
         return $output;
+    }
+
+    private function runCliTools(): string
+    {
+        $command = sprintf(
+            'cd %s && %s %s init tools --refresh 2>&1',
+            escapeshellarg($this->root),
+            escapeshellarg(\PHP_BINARY),
+            escapeshellarg(dirname(__DIR__) . '/bin/agent-loop'),
+        );
+        $lines = [];
+        $exit = 0;
+        exec($command, $lines, $exit);
+
+        self::assertSame(0, $exit, implode("\n", $lines));
+
+        return implode("\n", $lines) . "\n";
     }
 
     private function removeDirectory(string $path): void
