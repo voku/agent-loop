@@ -167,8 +167,17 @@ final readonly class WorkflowCloseReadinessInspector
         if ($report['invalid']) {
             return ['detail' => 'invalid blind-spot report ' . $relative, 'message' => null];
         }
+        if ($report['status'] === 'stale') {
+            return ['detail' => 'blind-spot report is stale for the current implementation', 'message' => null];
+        }
+        if ($report['status'] === 'unacknowledged') {
+            return ['detail' => 'blind-spot report has not been acknowledged by exact current report identity', 'message' => null];
+        }
         if ($report['status'] === 'fail') {
             return ['detail' => 'blind-spot report status is fail', 'message' => null];
+        }
+        if (!in_array($report['status'], ['ok', 'warn'], true)) {
+            return ['detail' => 'blind-spot report has unsupported lifecycle status', 'message' => null];
         }
 
         return ['detail' => null, 'message' => '[OK] review: found ' . $relative . ' with status ' . $report['status']];
