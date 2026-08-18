@@ -6,7 +6,10 @@ namespace voku\AgentLoop\Tests;
 
 use PDO;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
@@ -140,26 +143,28 @@ final class WorkflowPlanCommandTest extends TestCase
         }
     }
 
-    public function testApproveCreatesRunAndSessionWithoutSessionOwnedContractCopy(): void
+    public function testEnterCreatesRunAndSessionWithoutSessionOwnedContractCopy(): void
     {
-        $root = $this->root('approve');
+        $root = $this->root('enter');
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'planner');
         /** @var list<list<string>> $recallCalls */
         $recallCalls = [];
-        $command = new WorkflowApproveCommand(
-            $root,
-            static function (array $argv) use (&$recallCalls): int {
-                $recallCalls[] = $argv;
-
-                return 0;
-            },
-        );
 
         try {
-            ob_start();
-            $exit = $command->run(['ABC-123', '--by', 'lars']);
-            $output = (string) ob_get_clean();
+            self::assertSame(0, $this->approve($root));
+            self::assertSame([], (new SessionStore())->all($root . '/.agent-loop/sessions'));
+            self::assertNull((new GovernedRunStore($root))->find('ABC-123'));
+
+            $exit = $this->enter(
+                $root,
+                function (array $argv) use (&$recallCalls, $root): int {
+                    $recallCalls[] = $argv;
+                    $this->writeRecallMeta($root);
+
+                    return 0;
+                },
+            );
 
             self::assertSame(0, $exit);
             $contract = $contracts->load('ABC-123');
@@ -180,13 +185,12 @@ final class WorkflowPlanCommandTest extends TestCase
             self::assertSame([
                 ['compile', '--root', $root . '/.agent-loop/learning', '--task', 'ABC-123', '--task-brief', $recallInput],
             ], $recallCalls);
-            self::assertStringContainsString('governed Run', $output);
         } finally {
             $this->removeDirectory($root);
         }
     }
 
-    public function testApproveBuildsRecallInputFromOwnedArtifacts(): void
+    public function testEnterBuildsRecallInputFromOwnedArtifacts(): void
     {
         $root = $this->root('recall-input');
         $learningRoot = $root . '/.agent-loop/learning';
@@ -228,19 +232,18 @@ CARD
         $contracts->create('ABC-123', 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
         /** @var list<list<string>> $recallCalls */
         $recallCalls = [];
-        $command = new WorkflowApproveCommand(
-            $root,
-            static function (array $argv) use (&$recallCalls): int {
-                $recallCalls[] = $argv;
-
-                return 0;
-            },
-        );
 
         try {
-            ob_start();
-            self::assertSame(0, $command->run(['ABC-123', '--by', 'lars']));
-            ob_end_clean();
+            self::assertSame(0, $this->approve($root));
+            self::assertSame(0, $this->enter(
+                $root,
+                function (array $argv) use (&$recallCalls, $root): int {
+                    $recallCalls[] = $argv;
+                    $this->writeRecallMeta($root);
+
+                    return 0;
+                },
+            ));
 
             $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
@@ -262,34 +265,30 @@ CARD
         }
     }
 
-    public function testApproveCanResumeRecallAfterCompilationFailureWithoutRecreatingRun(): void
+    public function testEnterCanResumeRecallAfterCompilationFailureWithoutRecreatingRun(): void
     {
         $root = $this->root('resume');
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
 
         try {
-            ob_start();
-            $firstExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 7))->run([
-                'ABC-123', '--by', 'lars',
-            ]);
-            ob_end_clean();
-
-            self::assertSame(7, $firstExit);
+            self::assertSame(0, $this->approve($root));
+            self::assertSame(1, $this->enter($root, static fn (array $argv): int => 7));
             self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
             $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
             $firstRun = (new GovernedRunStore($root))->find('ABC-123');
             self::assertNotNull($firstRun);
 
-            ob_start();
-            $secondExit = (new WorkflowApproveCommand($root, static fn (array $argv): int => 0))->run([
-                'ABC-123', '--by', 'lars',
-            ]);
-            $output = (string) ob_get_clean();
+            self::assertSame(0, $this->enter(
+                $root,
+                function (array $argv) use ($root): int {
+                    $this->writeRecallMeta($root);
 
-            self::assertSame(0, $secondExit);
-            self::assertStringContainsString('already approved; resuming Run preparation', $output);
+                    return 0;
+                },
+            ));
+
             self::assertSame($firstRun->runId, (new GovernedRunStore($root))->find('ABC-123')?->runId);
             self::assertCount(1, (new SessionStore())->all($root . '/.agent-loop/sessions'));
         } finally {
@@ -297,7 +296,7 @@ CARD
         }
     }
 
-    public function testApproveRejectsMissingConfiguredRecallDocumentManifestBeforeCompilation(): void
+    public function testEnterRejectsMissingConfiguredRecallDocumentManifestBeforeCompilation(): void
     {
         $root = $this->root('missing-project-policy');
         mkdir($root . '/.agent-loop', 0o775, true);
@@ -314,24 +313,62 @@ CARD
             'lars',
         );
         $recallCalled = false;
-        $command = new WorkflowApproveCommand(
-            $root,
-            static function (array $argv) use (&$recallCalled): int {
-                $recallCalled = true;
-
-                return 0;
-            },
-        );
 
         try {
-            ob_start();
-            self::assertSame(1, $command->run(['ABC-123', '--by', 'lars']));
-            ob_end_clean();
+            self::assertSame(0, $this->approve($root));
+            self::assertSame(1, $this->enter(
+                $root,
+                static function (array $argv) use (&$recallCalled): int {
+                    $recallCalled = true;
 
+                    return 0;
+                },
+            ));
             self::assertFalse($recallCalled);
         } finally {
             $this->removeDirectory($root);
         }
+    }
+
+    private function approve(string $root): int
+    {
+        ob_start();
+        try {
+            return (new WorkflowApproveCommand($root))->run(['ABC-123', '--by', 'lars']);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    /** @param callable(list<string>): int $runner */
+    private function enter(string $root, callable $runner): int
+    {
+        ob_start();
+        try {
+            return (new HostFrontDoorCommand($root, $runner))->run('enter', ['ABC-123', '--format=json']);
+        } finally {
+            ob_end_clean();
+        }
+    }
+
+    private function writeRecallMeta(string $root): void
+    {
+        $directory = RecallOutputRoot::resolve($root) . '/ABC-123';
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create Recall fixture directory.');
+        }
+        file_put_contents(
+            $directory . '/meta.json',
+            json_encode([
+                'schema_version' => '1.0',
+                'task_id' => 'ABC-123',
+                'compilation_id' => 'ABC-123-001',
+                'bundle_sha256' => str_repeat('a', 64),
+                'selected_guidance' => [],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
     }
 
     private function writeReadyMapAndSearch(string $root, string $snapshot): void
