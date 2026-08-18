@@ -15,9 +15,14 @@ final class TaskStartTddPromptSelectionTest extends TestCase
             dirname(__DIR__) . '/docs/agents/skills/agent-loop-task-start/SKILL.md',
         );
 
-        self::assertStringContainsString('test-driven-development', $skill);
-        self::assertStringContainsString('behavior-changing', $skill);
-        self::assertStringContainsString('reproduce-before-fix', $skill);
+        self::assertMatchesRegularExpression(
+            '/For behavior-changing.*?test-driven-development.*?--operating-prompt-manifest.*?--operating-prompt/s',
+            $skill,
+        );
+        self::assertMatchesRegularExpression(
+            '/For a specific bug claim.*?reproduce-before-fix.*?Do not stack\s+both/s',
+            $skill,
+        );
         self::assertStringContainsString('Recall owns the recipe semantics', $skill);
         self::assertStringContainsString('Do not restate RED/GREEN/REFACTOR', $skill);
     }
