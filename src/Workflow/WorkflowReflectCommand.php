@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentRecallCompiler\Reflection\FutureWorkPromptBuilder;
 
 final readonly class WorkflowReflectCommand
 {
-    /**
-     * @param callable(list<string>): int $recallRunner
-     * @param null|callable(string): string $stateResolver
-     */
-    public function __construct(
-        private string $rootPath,
-        private mixed $recallRunner,
-        private mixed $stateResolver = null,
-    ) {
+    private ?Closure $stateResolver;
+
+    /** @param null|callable(string): string $stateResolver */
+    public function __construct(private string $rootPath, ?callable $stateResolver = null)
+    {
+        $this->stateResolver = $stateResolver === null ? null : Closure::fromCallable($stateResolver);
     }
 
     /** @param list<string> $args */
@@ -37,7 +36,9 @@ final readonly class WorkflowReflectCommand
                 );
             }
 
-            return ($this->recallRunner)(['prompt', 'future-work', '--scope', $scope]);
+            echo (new FutureWorkPromptBuilder())->buildFromString($scope) . "\n";
+
+            return 0;
         } catch (Throwable $exception) {
             fwrite(STDERR, '[FAIL] workflow reflect: ' . $exception->getMessage() . "\n");
 
