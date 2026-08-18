@@ -73,8 +73,16 @@ final readonly class HostFrontDoorCommand
         }
 
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        $preparationFailure = null;
         if ($this->needsPreparation($manifest)) {
-            $this->prepareApprovedRun($taskId->value);
+            try {
+                $this->prepareApprovedRun($taskId->value);
+            } catch (Throwable $exception) {
+                if ($format !== 'json') {
+                    throw $exception;
+                }
+                $preparationFailure = $exception;
+            }
             $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
         }
 
@@ -85,11 +93,18 @@ final readonly class HostFrontDoorCommand
             'schema_version' => '1.0',
             'command' => 'enter',
             'task_id' => $taskId->value,
-            'mutation_ready' => $policy->mutationAllowed,
+            'mutation_ready' => $preparationFailure === null && $policy->mutationAllowed,
             'next_action' => $policy->nextAction,
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
+        if ($preparationFailure !== null) {
+            $payload['blockers'] = [[
+                'code' => 'enter.preparation_failed',
+                'owner' => 'agent-loop',
+                'message' => $preparationFailure->getMessage(),
+            ]];
+        }
 
         if ($format === 'json') {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
@@ -107,6 +122,9 @@ final readonly class HostFrontDoorCommand
             echo implode("\n", $context['lines']) . "\n";
         }
 
+        if ($preparationFailure !== null) {
+            return 1;
+        }
         if ($policy->state === 'blocked') {
             return 2;
         }
@@ -207,11 +225,14 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
         }
 
-        ob_start();
+        $level = ob_get_level();
+        ob_start(static fn (string $buffer): string => '');
         try {
             return ($this->recallRunner)($args);
         } finally {
-            ob_end_clean();
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
         }
     }
 
