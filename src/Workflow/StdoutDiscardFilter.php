@@ -16,7 +16,7 @@ final class StdoutDiscardFilter extends php_user_filter
      */
     public function filter($in, $out, &$consumed, bool $closing): int
     {
-        while (($bucket = stream_bucket_make_writeable($in)) !== false) {
+        while (($bucket = stream_bucket_make_writeable($in)) !== null) {
             $consumed += $bucket->datalen;
             $bucket->data = '';
             $bucket->datalen = 0;
