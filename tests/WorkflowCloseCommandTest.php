@@ -12,8 +12,10 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
+use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
+use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
@@ -374,7 +376,7 @@ final class WorkflowCloseCommandTest extends TestCase
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/meta.json', json_encode($meta, JSON_THROW_ON_ERROR));
     }
 
-    /** @param array<string, string|int> $data */
+    /** @param array{status: 'ok'|'warn'|'fail'} $data */
     private function writeReviewReport(array $data): void
     {
         if (!is_dir($this->root . '/.agent-loop/recall/ABC-123/reviews')) {
@@ -382,14 +384,51 @@ final class WorkflowCloseCommandTest extends TestCase
         }
         $contract = (new TaskContractStore($this->root))->load('ABC-123');
         $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', $this->sessionId);
+        $run = (new GovernedRunStore($this->root))->find('ABC-123');
+        self::assertNotNull($run);
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
-        $data += [
-            'contract_revision' => $contract->revision,
-            'implementation_snapshot' => $snapshot->digest,
-        ];
+        $findings = match ($data['status']) {
+            'ok' => [],
+            'warn' => [[
+                'id' => 'fixture_warn',
+                'severity' => 'WARN',
+                'message' => 'Fixture warning.',
+                'evidence' => ['Fixture evidence.'],
+            ]],
+            'fail' => [[
+                'id' => 'fixture_fail',
+                'severity' => 'FAIL',
+                'message' => 'Fixture failure.',
+                'evidence' => ['Fixture evidence.'],
+            ]],
+        };
         file_put_contents(
             $this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json',
-            json_encode($data, JSON_THROW_ON_ERROR),
+            json_encode([
+                'version' => 2,
+                'task_id' => 'ABC-123',
+                'status' => $data['status'],
+                'contract_revision' => $contract->revision,
+                'implementation_snapshot' => $snapshot->digest,
+                'findings' => $findings,
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+
+        $review = (new WorkflowReviewReportReader($this->root))->read('ABC-123');
+        self::assertNotNull($review['sha256']);
+        if ($data['status'] === 'fail') {
+            self::assertSame('fail', $review['status']);
+
+            return;
+        }
+
+        self::assertSame('unacknowledged', $review['status']);
+        (new ReviewAcknowledgementStore($this->root))->record(
+            $run,
+            $contract,
+            $snapshot,
+            $review['sha256'],
+            'lars',
         );
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->root, $contract, $session);
