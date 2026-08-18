@@ -16,6 +16,7 @@ use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\Session;
+use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -217,8 +218,9 @@ final readonly class WorkflowRunPreparer
     {
         $sessionsRoot = (new ProjectLayout($this->rootPath))->sessionsRoot();
         $sessions = new SessionStore();
+        $runs = new GovernedRunStore($this->rootPath);
         $active = $this->activeSession($contract->taskId);
-        $boundRun = (new GovernedRunStore($this->rootPath))->findForContract($contract);
+        $boundRun = $runs->findForContract($contract);
 
         if ($boundRun !== null) {
             if ($active !== null) {
@@ -250,6 +252,42 @@ final readonly class WorkflowRunPreparer
                 $contract->plannedBy,
                 $contract->baseCommit,
             );
+        }
+
+        $currentRun = $runs->find($contract->taskId);
+        if ($currentRun !== null) {
+            if ($currentRun->contractRevision >= $contract->revision) {
+                throw new RuntimeException(sprintf(
+                    'Governed Run %s is bound to Contract revision %d and cannot be reconciled to approved revision %d.',
+                    $currentRun->runId,
+                    $currentRun->contractRevision,
+                    $contract->revision,
+                ));
+            }
+
+            if ($active !== null) {
+                if ($active->id !== $currentRun->sessionId) {
+                    throw new RuntimeException(sprintf(
+                        'Governed Run %s is bound to Session %s, but a different active Session %s exists for task %s.',
+                        $currentRun->runId,
+                        $currentRun->sessionId,
+                        $active->id,
+                        $contract->taskId,
+                    ));
+                }
+                $sessions->setStatus($active, SessionStatus::DROPPED);
+                $active = null;
+            } elseif ($sessions->exists($sessionsRoot, $currentRun->sessionId)) {
+                $superseded = $sessions->load($sessionsRoot, $currentRun->sessionId);
+                if (!$superseded->status->isClosed()) {
+                    throw new RuntimeException(sprintf(
+                        'Governed Run %s cannot be superseded while Session %s is %s.',
+                        $currentRun->runId,
+                        $superseded->id,
+                        $superseded->status->value,
+                    ));
+                }
+            }
         }
 
         if ($active !== null) {
