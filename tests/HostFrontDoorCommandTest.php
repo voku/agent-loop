@@ -49,6 +49,39 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame($before, $this->snapshotFiles(), 'enter must not create or modify workflow state.');
     }
 
+    public function testEnterJsonRemainsOneDocumentWhileRecallIsPrepared(): void
+    {
+        $docsDirectory = $this->root . '/docs';
+        if (!mkdir($docsDirectory, 0o775, true) && !is_dir($docsDirectory)) {
+            throw new RuntimeException('Unable to create docs directory.');
+        }
+        file_put_contents($docsDirectory . '/note.txt', "current\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning root.');
+        }
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'JSON-1',
+            'Prepare one bounded text change.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'lars',
+        );
+        $contracts->approve('JSON-1', 'lars');
+
+        $result = $this->runBinary(['enter', 'JSON-1', '--format=json']);
+
+        self::assertSame(0, $result['exit'], $result['stderr']);
+        $payload = $this->json($result['stdout']);
+        self::assertSame('enter', $payload['command']);
+        self::assertSame('JSON-1', $payload['task_id']);
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame('compiled', $payload['manifest']['references']['recall']['state']);
+        self::assertFileExists($this->root . '/.agent-loop/recall/JSON-1/meta.json');
+    }
+
     public function testEnterReportsMutationReadyFromExistingGovernedOwnerArtifacts(): void
     {
         $this->prepareGovernedRun();
