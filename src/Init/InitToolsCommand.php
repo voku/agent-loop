@@ -369,13 +369,15 @@ final readonly class InitToolsCommand
         }
 
         $requirements = [];
-        foreach (['require', 'require-dev'] as $section) {
+        // Runtime placement wins when a package appears in both sections so we
+        // never hide the stronger warning behind an otherwise valid dev entry.
+        foreach (['require-dev', 'require'] as $section) {
             $sectionRequirements = $composer[$section] ?? null;
             if (!is_array($sectionRequirements)) {
                 continue;
             }
 
-            foreach (self::PROJECT_COMPOSER_TOOLS as $package => $_purpose) {
+            foreach (array_keys(self::PROJECT_COMPOSER_TOOLS) as $package) {
                 $constraint = $sectionRequirements[$package] ?? null;
                 if (!is_string($constraint)) {
                     continue;
