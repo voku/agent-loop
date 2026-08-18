@@ -78,7 +78,7 @@ final readonly class RunManifestProjector
         $references = [
             'board' => $this->boardReference($taskId, $disagreements),
             'session' => $this->sessionReference($session, $run),
-            'contract' => $this->contractReference($contract),
+            'contract' => $this->contractReference($contract, $run),
             'approval' => $this->approvalReference($contract),
             'map' => $this->mapReference($mapReadiness),
             'search_index' => $this->searchIndexReference($mapReadiness),
@@ -282,7 +282,7 @@ final readonly class RunManifestProjector
     }
 
     /** @return array<string, mixed> */
-    private function contractReference(?TaskContract $contract): array
+    private function contractReference(?TaskContract $contract, ?GovernedRun $run): array
     {
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'missing', 'observation_mode' => 'checked'];
@@ -293,6 +293,7 @@ final readonly class RunManifestProjector
             'state' => $contract->status,
             'observation_mode' => 'checked',
             'revision' => $contract->revision,
+            'run_revision' => $run?->contractRevision,
             'goal' => $contract->goal,
             'acceptance_criteria' => $contract->acceptanceCriteria,
             'source' => $this->artifact($contract->path),
