@@ -11,6 +11,7 @@ use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -124,13 +125,18 @@ final class GovernedRunPortabilityTest extends TestCase
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Survive relocation.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
 
-        $approve = new WorkflowApproveCommand($this->root, function (array $argv): int {
-            $this->writeRecallMeta();
-
-            return 0;
-        });
         ob_start();
-        self::assertSame(0, $approve->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        ob_end_clean();
+        ob_start();
+        self::assertSame(0, (new HostFrontDoorCommand(
+            $this->root,
+            function (array $argv): int {
+                $this->writeRecallMeta();
+
+                return 0;
+            },
+        ))->run('enter', ['ABC-123', '--format=json']));
         ob_end_clean();
 
         mkdir($this->root . '/src', 0o775, true);
@@ -209,9 +215,12 @@ final class GovernedRunPortabilityTest extends TestCase
 
     private function writeRecallMeta(): void
     {
-        mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
+        $directory = $this->root . '/.agent-loop/recall/ABC-123';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0o775, true);
+        }
         file_put_contents(
-            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
+            $directory . '/meta.json',
             json_encode([
                 'schema_version' => '1.0',
                 'task_id' => 'ABC-123',
