@@ -119,6 +119,7 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         /** @var list<string> $recallArgs */
         $recallArgs = [];
         $runner = function (array $argv) use (&$recallArgs): int {
+            /** @var list<string> $argv */
             $recallArgs = $argv;
             $this->writeRecallMeta();
 
@@ -140,6 +141,7 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         if (!is_array($payload)) {
             throw new RuntimeException('Enter did not return a JSON object.');
         }
+        /** @var array<string, mixed> $payload */
 
         return ['exit' => $exit, 'payload' => $payload, 'recallArgs' => $recallArgs];
     }
