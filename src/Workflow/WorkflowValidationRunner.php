@@ -38,7 +38,7 @@ final readonly class WorkflowValidationRunner
             }
 
             $started = hrtime(true);
-            $exitCode = $this->execute($command);
+            $exitCode = $this->executeDeclaredValidationShell($command);
             $durationMs = max(0, (int) ((hrtime(true) - $started) / 1_000_000));
 
             $after = ImplementationSnapshot::capture($this->rootPath, $contract);
@@ -87,12 +87,12 @@ final readonly class WorkflowValidationRunner
         return false;
     }
 
-    private function execute(string $command): int
+    private function executeDeclaredValidationShell(string $command): int
     {
         $nullDevice = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $pipes = [];
         $process = proc_open(
-            $this->shellCommandArgv($command),
+            $command,
             [
                 0 => ['file', $nullDevice, 'r'],
                 1 => ['file', $nullDevice, 'a'],
@@ -111,16 +111,6 @@ final readonly class WorkflowValidationRunner
         }
 
         return $exitCode;
-    }
-
-    /** @return list<string> */
-    private function shellCommandArgv(string $command): array
-    {
-        if (PHP_OS_FAMILY === 'Windows') {
-            return ['cmd.exe', '/d', '/s', '/c', $command];
-        }
-
-        return ['/bin/sh', '-c', $command];
     }
 
     private function assertBinding(TaskContract $contract, GovernedRun $run, Session $session): void
