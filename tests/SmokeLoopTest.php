@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContractStore;
 
@@ -159,8 +160,25 @@ final class SmokeLoopTest extends TestCase
         $dispatcher = new Dispatcher($this->root);
 
         ob_start();
-        $exit = $dispatcher->run($argv);
-        $output = (string) ob_get_clean();
+        try {
+            $frontDoor = $argv[1] ?? null;
+            if (in_array($frontDoor, ['enter', 'finish'], true)) {
+                $scriptName = $argv[0] ?? 'agent-loop';
+                $exit = (new HostFrontDoorCommand(
+                    $this->root,
+                    static fn (array $recallRest): int => $dispatcher->run([
+                        $scriptName,
+                        'recall',
+                        ...$recallRest,
+                    ]),
+                ))->run($frontDoor, array_slice($argv, 2));
+            } else {
+                $exit = $dispatcher->run($argv);
+            }
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
 
         return ['exit' => $exit, 'output' => $output];
     }
