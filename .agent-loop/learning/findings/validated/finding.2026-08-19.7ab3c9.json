@@ -1,0 +1,35 @@
+{
+  "id": "finding.2026-08-19.7ab3c9",
+  "task_id": "GH-234",
+  "session": "2026-08-19-gh-234-phase-g1-learning-absorption-audit",
+  "created_at": "2026-08-19T20:26:10+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "src/AgentGuidance/AgentDisciplineHook.php"
+  ],
+  "observation": "Phase G1 audited whether this repository absorbs its own recorded learning, measured at merged main 3cdb639. It records 48 findings: 31 consolidated and 17 validated but unconsolidated. Absorption by the day a finding was created is 8/8 on 2026-08-07, 4/4 on 08-08, 1/1 on 08-12, 18/24 on 08-14 and 0/11 on 08-19. The mechanism worked and then stopped: every finding recorded during the two days of heaviest architectural work, Phases E and F, is unabsorbed, and the oldest item in the backlog has waited five days. The Learning owner already ships the gate for exactly this. 'agent-loop learn backlog' lists unconsolidated validated findings and exits 1 while any remain; it exits 1 right now with 17. Nothing runs it. Grepping composer.json, every GitHub workflow, every file under tools/ and every tracked githook finds no reference to it, nor to 'learn dream' or 'learn guidance-evaluate'. composer ci wires no agent-learning subcommand at all: its '@composer validate --strict' step is Composer's own manifest check, unrelated to 'agent-loop learn validate'. So the repository's green CI has never at any point reflected the health of its learning system. The recursion is exact: finding.2026-08-14.b4f597 records that every guidance outcome this repository had was written by the component that chose the guidance, and that the metric built to detect that absence read a perfect score against it. That finding is itself one of the 17 unabsorbed, and 'learn validate' still reports 'Guidance outcomes: 0'. The system recorded that its learning loop was not closing, and did not absorb the record.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "At 3cdb639: 'bin/agent-loop learn backlog' exits 1 and prints 'Unconsolidated validated findings: 17'. 'grep -rn' over composer.json, .github/workflows, tools/ and githooks/ returns no reference to the backlog, dream or guidance-evaluate subcommands. The composer 'ci' script is ['@composer validate --strict', '@test', '@phpstan', '@test:project-phpstan-rules', '@context:validate', '@dogfood:discipline'] - no learning gate among them."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "First metric discarded as tautological rather than reported. Counting findings cited by a proposal's source_findings gave 31 of 48 absorbed, but set comparison proved cited == consolidated exactly, with zero validated findings cited and zero consolidated findings uncited. That number restates which directory a finding sits in and measures nothing independent. The non-tautological measure is the owner's own backlog gate and its exit code."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Second correction, so the audit does not overstate its scope. 'learn history-status' also exits 1 on this checkout, but .agent-loop/learning/history/ is gitignored: it is a local projection cache, not repository state, and 'learn history-rebuild' restored it in 2 ms with no git change at all. That is a fresh-checkout artifact, not a defect, and it is also a wiring hazard - history-status added naively to CI would fail on every fresh checkout unless a rebuild ran first. Exactly one gate, backlog, fails on tracked repository state."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "The 17 unconsolidated findings span 2026-08-14 and 2026-08-19, and 'learn validate' reports 48 findings, 18 proposals, 0 recall selections and 0 guidance outcomes. The proposal pipeline is 9 acknowledged, 7 approved, 2 applied."
+    }
+  ],
+  "hypothesis": "Absorption did not stop because the mechanism broke. It stopped because nothing makes the backlog visible: the only surface that reports it is a command no gate, hook, workflow or dogfood invokes, so the count can grow from zero to seventeen without producing a single signal anywhere a human or agent already looks. A gate whose exit code nothing consumes is indistinguishable from no gate at all.",
+  "validated_conclusion": "Surface the backlog where attention already is, and do not confuse that with consolidating it. The repair adds one observation to the SessionStart discipline hook, beside the resume hint that already reports unfinished runs, asking the Learning owner through FindingRepository::loadValidated() rather than recounting findings - agent-loop must not re-derive what counts as unconsolidated, which is the ownership defect #219 removed. It is deliberately an observation and not a blocker: Slice E7 removed lifecycle policy from always-on host assets and this must not smuggle any back. Explicitly rejected: wiring 'learn backlog' into composer ci. That would turn every unrelated pull request red until 17 findings are consolidated, and consolidation is model work rather than a mechanical step, so the red light would be routed around rather than obeyed. The measured defect is that the backlog is invisible, not that CI lacks another way to fail. Consolidating the 17 findings remains outstanding and is deliberately not attempted in this slice; making the number visible does not make it smaller.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

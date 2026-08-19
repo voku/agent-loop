@@ -7,6 +7,8 @@ namespace voku\AgentLoop\AgentGuidance;
 use JsonException;
 use RuntimeException;
 use UnexpectedValueException;
+use Throwable;
+use voku\AgentLearning\FindingRepository;
 use voku\AgentLoop\ProjectLayout;
 
 final readonly class AgentDisciplineHook
@@ -131,7 +133,9 @@ final readonly class AgentDisciplineHook
             ));
         }
 
-        $context = $this->workflowResumeHint() . $this->disciplineContext($clientDirectory);
+        $context = $this->workflowResumeHint()
+            . $this->learningBacklogHint()
+            . $this->disciplineContext($clientDirectory);
 
         return [
             'hookEventName' => $event,
@@ -207,6 +211,64 @@ final readonly class AgentDisciplineHook
         - Hooks are behavioral guardrails, never correctness or security boundaries.
         - Never claim validation that was not executed.
         TEXT;
+    }
+
+    /**
+     * Surface how much recorded learning is still unabsorbed.
+     *
+     * The Learning owner already decides what counts as unconsolidated and
+     * exposes it; agent-loop asks rather than recounting findings itself. The
+     * backlog is otherwise reachable only through a command nothing runs, which
+     * is how it grew from zero to seventeen across two days of work without a
+     * single signal. See Phase G1.
+     */
+    private function learningBacklogHint(): string
+    {
+        if (!class_exists(FindingRepository::class)) {
+            return '';
+        }
+
+        $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
+        if (!is_dir($root . '/findings/validated')) {
+            return '';
+        }
+
+        try {
+            $unconsolidated = (new FindingRepository())->loadValidated($root);
+        } catch (Throwable $exception) {
+            // The owner refused to read its own repository. Reporting that is
+            // the point of this hint; silently omitting it would hide exactly
+            // the kind of state this observation exists to surface. Bootstrap
+            // context still must not fail, so it is reported, not thrown.
+            return $this->learningObservation([
+                '- the Learning owner could not read its repository: ' . $exception->getMessage(),
+                '- `vendor/bin/agent-loop learn validate` reports this authoritatively.',
+            ]);
+        }
+        if ($unconsolidated === []) {
+            return '';
+        }
+
+        return $this->learningObservation([
+            sprintf(
+                '- observed: %d validated finding(s) recorded but not yet consolidated.',
+                count($unconsolidated),
+            ),
+            '- `vendor/bin/agent-loop learn backlog` lists them; consolidation stays an explicit decision.',
+        ]);
+    }
+
+    /** @param list<string> $lines */
+    private function learningObservation(array $lines): string
+    {
+        return implode("\n", [
+            '## Agent Loop Learning Backlog',
+            '',
+            ...$lines,
+            '- this is an observation, not a blocker, and not a next command.',
+            '',
+            '',
+        ]);
     }
 
     private function workflowResumeHint(): string
