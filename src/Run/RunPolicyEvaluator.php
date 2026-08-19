@@ -101,10 +101,6 @@ final readonly class RunPolicyEvaluator
             return false;
         }
 
-        // Once the current review exists and is waiting for acknowledgement, or
-        // has already been acknowledged, implementation work is no longer open.
-        // A stale/missing review may still describe changed implementation and
-        // therefore does not by itself revoke mutation authority.
         if (in_array($this->referenceState($references, 'review'), ['unacknowledged', 'ok', 'warn'], true)) {
             return false;
         }
@@ -120,10 +116,6 @@ final readonly class RunPolicyEvaluator
     /**
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
-     */
-    /**
-     * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
      * @return array{action: string, kind: string}
      */
     private function nextStep(
@@ -133,11 +125,6 @@ final readonly class RunPolicyEvaluator
         array $references,
         array $disagreements,
     ): array {
-        // The declared validation is failing for the current implementation.
-        // No command advances that: `finish` re-runs the same failing
-        // obligation and returns the same refusal, which is the self-loop the
-        // E3 dogfood reproduced. The required step is host-native work, so the
-        // canonical action says so rather than naming a command.
         if (
             $this->referenceState($references, 'verification') === 'blocked'
             && ($references['verification']['gate'] ?? null) === 'validation'
@@ -153,10 +140,14 @@ final readonly class RunPolicyEvaluator
         }
 
         $action = $this->nextAction($taskId, $state, $mode, $references, $disagreements);
+        if ($action === 'none') {
+            return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE];
+        }
+        if (preg_match('/<[A-Za-z0-9_.|:-]+>/', $action) === 1) {
+            return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_HUMAN_DECISION];
+        }
 
-        return $action === 'none'
-            ? ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE]
-            : $this->command($action);
+        return $this->command($action);
     }
 
     /** @return array{action: string, kind: string} */
@@ -187,12 +178,9 @@ final readonly class RunPolicyEvaluator
                 : 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
         if ($this->referenceState($references, 'contract') === 'missing') {
-            return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
+            return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal <goal> --validation <validation>';
         }
         if ($this->referenceState($references, 'contract') !== 'approved') {
-            // Obeying next_action must make progress. When the approval owner
-            // reports a repair that has to run first, naming approve here would
-            // return the same action after the same deterministic refusal.
             $repair = $references['approval']['repair_action'] ?? null;
             if (is_string($repair) && $repair !== '') {
                 return $repair;
@@ -237,7 +225,7 @@ final readonly class RunPolicyEvaluator
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
             return 'agent-loop finish ' . $taskId
-                . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason "..." --by <actor>';
+                . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason <learning-reason> --by <actor>';
         }
         if ($this->referenceState($references, 'verification') === 'blocked') {
             return $this->referenceAction($references, 'verification')
