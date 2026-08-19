@@ -1,0 +1,34 @@
+{
+    "id": "finding.2026-08-19.d84777",
+    "task_id": "GH-205",
+    "session": "2026-08-19-gh-205-slice-e3-host-dogfood",
+    "created_at": "2026-08-19T10:43:22+00:00",
+    "created_by": "agent-loop-self-discovery",
+    "scope": [
+        "src/Run/RunPolicyEvaluator.php",
+        "src/Workflow/HostFrontDoorCommand.php"
+    ],
+    "observation": "The E3 falsification target found a second non-convergent canonical action, on a different lifecycle stage than the one #221 fixed, and this one hides behind well-formed JSON. When a Contract validation obligation fails, finish --format=json returns next_action='agent-loop finish <task>' with manifest.state=incomplete and references.verification state=blocked, gate=validation, reason='validation evidence missing or not passed for current implementation'. Executing that action re-runs the same failing validation and returns byte-identical output. A host obeying next_action alone therefore loops indefinitely: this was observed for ten consecutive iterations before the driver capped it. Unlike the map case fixed in #221, the escape signal does exist in the structured result, but in a different field: enter --format=json reports mutation_ready=true in the same state, which is the kernel saying the next real step is host-native mutation. next_action nonetheless names a lifecycle command that cannot advance.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "On main e01e941 with a failing validation obligation, finish --format=json returned next_action=agent-loop finish E3-001 and exit 1 on ten consecutive iterations with identical state=incomplete and references.verification gate=validation. The driver flagged same-state plus same-action plus same-refusal from the second repetition onward."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "In the identical stuck state, enter --format=json reported mutation_ready=true while next_action remained agent-loop finish E3-001. The structured result therefore contains the escape signal, but not in the field the host is told to obey."
+        },
+        {
+            "type": "file_reference",
+            "path": "tests/CanonicalNextActionConvergenceTest.php",
+            "line": 1,
+            "summary": "At main e01e941: the convergence regression added by #221 covers only the discovery-repair stage (map missing and stale) and would not have detected the validation-failure self-loop described here."
+        }
+    ],
+    "hypothesis": "The convergence invariant established in #221 is weaker than it appears, because it was stated over next_action while the signal that actually breaks a loop can live in a sibling field. Where the genuinely required step is irreducible model work rather than a command, next_action has nothing correct to name, and currently names the command that will refuse. A host that follows the documented contract - obey next_action - is therefore incorrect exactly when the required action is to think and edit, which is the most common failure in ordinary work.",
+    "validated_conclusion": "Record before repairing, per the E3 instruction. The candidate shapes are materially different and the choice is a policy decision: next_action could name the irreducible model step rather than a command, or the contract could be restated as 'obey next_action unless mutation_ready is true, in which case mutate' - which is weaker, because it makes the host combine two fields and reintroduces host-side interpretation of which field has authority. The second shape is the one #221 explicitly rejected for the warning-plus-action case, so accepting it here would be inconsistent. Whichever is chosen, the convergence regression should be extended to cover a failing validation obligation, because the current test only covers the discovery-repair stage and would not have caught this.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
