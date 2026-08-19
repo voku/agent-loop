@@ -1,0 +1,41 @@
+{
+  "id": "finding.2026-08-19.9c41ab",
+  "task_id": "GH-205",
+  "session": "2026-08-19-gh-205-phase-f4-recovery-census",
+  "created_at": "2026-08-19T19:01:25+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "src/Workflow/HostFrontDoorCommand.php"
+  ],
+  "observation": "Phase F4 completed the recovery census the F0 findings left open, measuring twelve states on clean consumers at merged main 0f837bc. The three states F0 reported as unmeasured are now resolved. Invalid execution-contract binding was unmeasurable in F0 because that fixture never produced an execution contract at all: selecting an operating prompt requires --operating-prompt-manifest, which F0 omitted, so no L2 binding existed. With the manifest supplied, the whole L2 path is reachable and five execution-contract states were measured directly. Execution contract missing, invalid and stale each route to decision_required naming the authoring step; blocked and rejected each route to decision_required carrying the owner's minimum_contract_change and the governed supersession boundary added in #230, confirmed here on a live consumer rather than in unit fixtures. Release-set mismatch is resolved as out of scope rather than unmeasured: ReleaseSetCandidateSelection governs which release set the installed dogfood gate exercises, and no per-task lifecycle reference for it exists, so there is no recovery state to converge. The two branches F0 proved non-convergent are now convergent: review.report_invalid advances in one obeyed command via agent-loop review blindspots, and recall.meta_invalid returns host_work instead of a read-only diagnostic, both confirming #228 outside its own tests. A dirty-failure test was added to the method: an execution-contract authoring attempt was refused, and hashing every durable artifact before and after showed exit code 1 and zero mutation, so a failed repair does not leave state the next attempt consumes. Two states are tolerated rather than recovered: a second active Session never surfaces as a blocker, and a corrupted derived run manifest is neither repaired nor reported, because the lifecycle re-derives from owner artifacts instead of reading it. The one measured non-convergent state is new. An approved Contract selecting an operating prompt the declared manifest cannot resolve makes enter refuse deterministically and then report next_action 'agent-loop enter <task>' with kind=command, unchanged across four consecutive iterations, so obeying the canonical action reproduces the refusal forever. This is a fourth distinct non-convergence shape: #221 named a command a precondition refused, #223 named a command where model work was required, #228 named a read-only diagnostic, and here the kernel names the very command that just failed.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "At 0f837bc, two independent causes reproduce the same branch. An unknown operating prompt id and a level-2 prompt selected without its required template argument both produce next_action 'agent-loop enter <task>' with kind=command and blockers[0] message 'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code 1.' - byte-identical for both causes. Obeying the action three to four consecutive times left state, kind and action unchanged."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "The distinguishing cause exists but is discarded. voku/agent-recall-compiler Cli.php writes 'Error: unknown operating prompt id: no-such-capability' and 'Error: operating prompt adversarial-review is missing arguments: minimum_failure_modes' to STDERR and returns exit code 1. The front door installs a STDOUT discard filter for the nested owner CLI and captures nothing from STDERR, and the recall runner contract returns only an int, so the exception carries the exit code alone."
+    },
+    {
+      "type": "file_reference",
+      "path": "src/Workflow/HostFrontDoorCommand.php",
+      "line": 100,
+      "summary": "At 0f837bc the front door catches the preparation failure, re-projects the manifest, and evaluates policy on that manifest. The failure is attached to payload.blockers but never reaches the evaluator, so the canonical step is derived as though preparation had simply not run yet - which is why the derived action is enter."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Measurement error corrected during this census rather than reported as a defect: the harness merged stdout and stderr, which made '--format=json' appear to emit prose before its JSON. Re-measuring the streams separately showed stdout is valid JSON alone and the owner text is on stderr. There is no JSON channel corruption."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "After relaying the owner's captured STDERR and carrying the refusal as a disagreement, the same two consumers no longer name enter, return kind=host_work, and carry the owner's distinct cause. Obeying the guidance escapes: revising the prompt selection through workflow plan --supersede then approve made recall compile and advanced the lifecycle to the next genuine decision. The four new regression tests fail on unmodified code, one of them printing 'agent-loop enter PREP-001' as the actual value."
+    }
+  ],
+  "hypothesis": "The convergence invariant has been enforced where the manifest can see the blocker, because every earlier repair carried an owner-observed fact into the projection. This case is the first where the deciding fact is held by the front door at runtime and never enters the projection at all, so the policy reasons over a manifest that is accurate but incomplete. The generic risk is not prompt policy specifically: any preparation step that refuses without leaving a trace in owner artifacts will derive its next action from a state that looks merely unprepared.",
+  "validated_conclusion": "Relay, do not re-derive. agent-loop must not learn the recall compiler's prompt-resolution rules to explain this failure - that would repeat the ownership defect #219 fixed. The owning package already produces the precise, actionable cause; the kernel's only fault is discarding it. Capturing the nested STDERR and carrying the refusal as a disagreement reuses the routing #228 already established and adds no new concept, no RecoveryManager and no second state machine. Do not over-read this: only two causes were reproduced, so the residual branch for unreproduced preparation failures still depends on the owner writing a usable message, and that limitation is recorded rather than pre-emptively generalised. Two follow-up candidates are recorded and deliberately not built here: workflow plan and workflow approve accept and durably approve an operating prompt selection that cannot resolve, deferring the failure past the approval boundary; and the disagreement repair path classifies every owner repair_action as a command without the placeholder check the ordinary path applies, which is latent today because no current repair_action carries a placeholder.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
