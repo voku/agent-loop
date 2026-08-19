@@ -123,13 +123,48 @@ jobs:
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
       - name: Lint dogfood runner
-        run: php -l tools/release-set-dogfood.php
+        run: |
+          php -l tools/release-set-dogfood.php
+          php -l tools/proportional-governance-measurement.php
       - name: Run clean consumer lifecycle
         run: >-
           php tools/release-set-dogfood.php
           --workspace=${{ runner.temp }}/agent-loop-release-set
           --report=${{ github.workspace }}/build/release-set-report.json
           --keep
+      - name: Derive Phase-G measurement contract
+        run: >-
+          php tools/proportional-governance-measurement.php
+          --workspace=${{ runner.temp }}/agent-loop-release-set
+          --report=${{ github.workspace }}/build/release-set-report.json
+      - name: Verify Phase-G measurement contract
+        run: |
+          jq -e '
+            (.schema_version == "2.0")
+            and (.result == "passed")
+            and (.governance_measurement.schema_version == "1.0")
+            and (.governance_measurement.scope == "ordinary_installed_consumer")
+            and (.governance_measurement.lifecycle_commands >= 4)
+            and (.governance_measurement.specialist_commands >= 1)
+            and (.governance_measurement.manual_preparation_commands == 0)
+            and (.governance_measurement.manual_repair_commands == 0)
+            and (.governance_measurement.repeated_same_state_calls == .front_door_journey.repeated_same_state_commands)
+            and (.governance_measurement.context_lines == .front_door_journey.context_lines)
+            and (.governance_measurement.context_bytes == .front_door_journey.context_bytes)
+            and (.governance_measurement.workflow_output_bytes > 0)
+            and (.governance_measurement.validation_output_bytes > 0)
+            and (.governance_measurement.capability_activation | keys == [
+              "execution_contract", "learning", "map", "recall", "review", "session", "verification"
+            ])
+            and (.governance_measurement.capability_activation | all(. == null or type == "boolean"))
+            and (.governance_measurement.capability_activation.map == true)
+            and (.governance_measurement.capability_activation.recall == true)
+            and (.governance_measurement.capability_activation.session == true)
+            and (.governance_measurement.capability_activation.review == true)
+            and (.governance_measurement.capability_activation.learning == true)
+            and (.governance_measurement.capability_activation.verification == true)
+            and (.recovery_convergence | length == 6)
+          ' build/release-set-report.json >/dev/null
       - name: Verify host front-door journey evidence
         run: |
           jq -e '
