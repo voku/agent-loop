@@ -194,7 +194,7 @@ PHP);
     {
         file_put_contents($this->root . '/.agent-loop/recall/MAP-69/facts.json', json_encode([
             'schema_version' => '1.0',
-            'bundle_sha256' => 'bundle-map-69',
+            'bundle_sha256' => hash('sha256', 'bundle-map-69'),
             'facts' => [[
                 'id' => 'map.search.candidates',
                 'type' => 'navigation_candidates',
@@ -228,7 +228,7 @@ PHP);
     {
         file_put_contents($this->root . '/.agent-loop/recall/MAP-69/facts.json', json_encode([
             'schema_version' => '1.0',
-            'bundle_sha256' => 'bundle-map-69-test-evidence',
+            'bundle_sha256' => hash('sha256', 'bundle-map-69-test-evidence'),
             'facts' => [
                 [
                     'id' => 'map.scope.leaf',
