@@ -151,6 +151,29 @@ jobs:
               and ($journey.commands[3].next_action == $journey.commands[2].next_action)
               and ($journey.commands[4].next_action == "none")
           ' build/release-set-report.json >/dev/null
+      - name: Verify Phase-F recovery convergence evidence
+        run: |
+          jq -e '
+            .recovery_convergence as $recovery
+            | ($recovery | length == 6)
+              and (($recovery | map(.scenario)) == [
+                    "recovery.absent-discovery",
+                    "recovery.failed-validation",
+                    "recovery.recall-meta-invalid",
+                    "recovery.review-report-invalid",
+                    "recovery.execution-contract-blocked",
+                    "recovery.preparation-refusal"
+                  ])
+              and (($recovery | map(select(.obeyed == true) | .scenario)) == [
+                    "recovery.absent-discovery",
+                    "recovery.review-report-invalid"
+                  ])
+              and (($recovery | map(.kind)) == [
+                    "command", "host_work", "host_work",
+                    "command", "decision_required", "host_work"
+                  ])
+              and ($recovery | all(.action | length > 0))
+          ' build/release-set-report.json >/dev/null
       - name: Verify emitted release-set root authority
         shell: bash
         run: |
