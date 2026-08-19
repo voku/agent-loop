@@ -75,7 +75,7 @@ final class ExecutionContractRecoveryRoutingTest extends TestCase
         }
     }
 
-    public function testBlockedExecutionContractRequiresIntentSupersessionInsteadOfArtifactReconstruction(): void
+    public function testBlockedExecutionContractRequiresNonLossyIntentSupersessionDecision(): void
     {
         $policy = $this->policy('F2-BLOCKED', [
             'owner' => 'agent-loop',
@@ -86,11 +86,11 @@ final class ExecutionContractRecoveryRoutingTest extends TestCase
 
         self::assertSame('blocked', $policy->state);
         self::assertSame('decision_required', $policy->nextActionKind);
-        self::assertSame(
-            'agent-loop workflow plan F2-BLOCKED --by <actor> --file <path> --goal <revised-goal> --validation <validation> --supersede',
-            $policy->nextAction,
-        );
+        self::assertStringContainsString('Expand the approved scope.', $policy->nextAction);
+        self::assertStringContainsString('workflow plan --supersede', $policy->nextAction);
+        self::assertStringContainsString('explicit approval remains required', $policy->nextAction);
         self::assertStringNotContainsString('workflow contract F2-BLOCKED --status ready', $policy->nextAction);
+        self::assertStringNotContainsString('<path>', $policy->nextAction);
     }
 
     /** @param array<string, mixed> $executionContract */
