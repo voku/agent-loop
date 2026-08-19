@@ -22,6 +22,7 @@ const ORDINARY_SCENARIOS = [
 ];
 
 const PREPARATION_SCENARIOS = ['workflow.plan', 'workflow.approve'];
+const PRE_LIFECYCLE_PREPARATION_SCENARIOS = ['map.consumer-boundary'];
 const CAPABILITIES = ['map', 'recall', 'session', 'execution_contract', 'review', 'learning', 'verification'];
 const INACTIVE_STATES = ['missing', 'unavailable', 'not_configured', 'not_required', 'not-required', 'none'];
 
@@ -74,6 +75,42 @@ function ordinaryCommands(array $report): array
             continue;
         }
         if (!in_array($id, ORDINARY_SCENARIOS, true) && !str_starts_with($id, 'workflow.repair.')) {
+            continue;
+        }
+        $commands = $scenario['commands'] ?? null;
+        if (!is_array($commands)) {
+            throw new InvalidArgumentException('Scenario ' . $id . ' is missing commands.');
+        }
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                throw new InvalidArgumentException('Scenario ' . $id . ' contains a malformed command.');
+            }
+            $result[] = ['scenario' => $id, 'command' => $command];
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * @param array<string, mixed> $report
+ * @param list<string> $scenarioIds
+ * @return list<array{scenario: non-empty-string, command: array<string, mixed>}>
+ */
+function commandsForScenarios(array $report, array $scenarioIds): array
+{
+    $scenarios = $report['scenarios'] ?? null;
+    if (!is_array($scenarios)) {
+        throw new InvalidArgumentException('Release-set report is missing scenarios.');
+    }
+
+    $result = [];
+    foreach ($scenarios as $scenario) {
+        if (!is_array($scenario)) {
+            throw new InvalidArgumentException('Release-set report contains a malformed scenario.');
+        }
+        $id = $scenario['id'] ?? null;
+        if (!is_string($id) || !in_array($id, $scenarioIds, true)) {
             continue;
         }
         $commands = $scenario['commands'] ?? null;
@@ -238,12 +275,21 @@ function measurement(string $workspace, array $report): array
         }
     }
 
+    $preLifecyclePreparation = 0;
+    foreach (commandsForScenarios($report, PRE_LIFECYCLE_PREPARATION_SCENARIOS) as $entry) {
+        if (isPreparation(display($entry['command']))) {
+            ++$preLifecyclePreparation;
+        }
+    }
+
     return [
         'schema_version' => '1.0',
         'scope' => 'ordinary_installed_consumer',
         'lifecycle_commands' => $lifecycle,
         'specialist_commands' => $specialist,
         'manual_preparation_commands' => $preparation,
+        'pre_lifecycle_preparation_commands' => $preLifecyclePreparation,
+        'total_manual_preparation_commands' => $preparation + $preLifecyclePreparation,
         'manual_repair_commands' => $repair,
         'repeated_same_state_calls' => $frontDoor['repeated_same_state_commands'],
         'context_lines' => $frontDoor['context_lines'],
