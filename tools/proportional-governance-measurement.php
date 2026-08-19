@@ -70,7 +70,10 @@ function ordinaryCommands(array $report): array
             throw new InvalidArgumentException('Release-set report contains a malformed scenario.');
         }
         $id = $scenario['id'] ?? null;
-        if (!is_string($id) || $id === '' || !in_array($id, ORDINARY_SCENARIOS, true)) {
+        if (!is_string($id) || $id === '') {
+            continue;
+        }
+        if (!in_array($id, ORDINARY_SCENARIOS, true) && !str_starts_with($id, 'workflow.repair.')) {
             continue;
         }
         $commands = $scenario['commands'] ?? null;
