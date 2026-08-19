@@ -1,0 +1,37 @@
+{
+    "id": "finding.2026-08-19.82221f",
+    "task_id": "GH-205",
+    "session": "2026-08-19-gh-205-phase-f0-recovery-census",
+    "created_at": "2026-08-19T14:36:23+00:00",
+    "created_by": "agent-loop-self-discovery",
+    "scope": [
+        "src/Run/RunPolicyEvaluator.php"
+    ],
+    "observation": "Phase F0 measured the recovery surface on merged main e43857a with deterministic fixtures and no product change. Five of eight intended states were genuinely produced; three fixtures were no-ops and are reported as unmeasured rather than as results. Measured and converging: a stale map after source drift returns kind=command naming finish; a failed validation obligation returns kind=host_work; a second active Session for the same task did not block the lifecycle at all, which is tolerance rather than demonstrated recovery. Measured and NOT converging, twice: a corrupted Recall metadata document produces disagreement recall.meta_invalid owned by agent-recall-compiler, and a blind-spot report whose status is fail produces disagreement review.report_invalid. In both the canonical next_action is 'agent-loop workflow manifest <task> --format=json' with kind=command, unchanged across three consecutive iterations. Both trace to one branch: RunPolicyEvaluator::nextAction() returns that manifest command whenever disagreements is non-empty. workflow manifest --format=json is read-only, so it cannot alter the state that produced the disagreement; the action is non-convergent by construction for every disagreement, not only these two owners. The disagreement records already carry owner and code, so the kernel knows who owns the broken artifact and what is wrong with it, and still names a diagnostic instead of a repair.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "At e43857a, corrupting .agent-loop/recall/<task>/meta.json yields disagreement recall.meta_invalid (owner agent-recall-compiler) and next_action=agent-loop workflow manifest <task> --format=json with kind=command; obeying it three consecutive times left state, action and kind identical. Setting a blind-spot report status to fail yields disagreement review.report_invalid and reproduces the same action and the same three-iteration non-convergence."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Converging cases measured at the same revision: stale map after source drift -> kind=command naming finish, converges in one repair; failed validation obligation -> kind=host_work; unacknowledged review -> kind=decision_required carrying the computed report digest. These confirm #221, #223 and #224 hold where a gate rather than a disagreement is the blocker."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Fixture audit, so the census is not over-read. Three intended states were not produced and carry no evidence: the invalid execution-contract binding fixture found no execution-contract.json because no L2 policy was selected; the unavailable-capability fixture failed at workflow plan so no Contract existed and the measurement reflected a missing Contract instead; the release-set mismatch case was never attempted. A second active Session was created successfully but did not surface as a blocker, so that row records tolerance, not recovery."
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Run/RunPolicyEvaluator.php",
+            "line": 137,
+            "summary": "At e43857a: nextAction() returns agent-loop workflow manifest <task> --format=json whenever $disagreements is non-empty. This is the single branch both non-convergent cases route through."
+        }
+    ],
+    "hypothesis": "The convergence work in Slice E covered gates, which are expected states with known repairs, but did not cover disagreements, which are unexpected states. A single fallback branch handles all of them by naming the inspection command, which is a reasonable default for a human reader and an infinite loop for a host told to obey next_action. Because the branch is generic, every current and future disagreement code inherits the defect regardless of owner.",
+    "validated_conclusion": "F1 should make disagreement-driven routing convergent using the shape already established, not a new subsystem. #221 carried an owner-supplied repair as approval.repair_action, and #223 introduced kinds for steps that are not commands. A disagreement should likewise carry the owning package's repair when one exists, and where none exists the canonical step should be host_work or decision_required rather than a read-only command. Explicitly do not build a RecoveryManager, a repair framework, or a second state machine: this is one branch with two proven instances. Also do not generalise the census beyond its evidence - invalid execution-contract binding, unavailable selected capability and release-set mismatch were not measured, so no claim is made about them.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
