@@ -7,15 +7,16 @@ namespace voku\AgentLoop\Workflow;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 
 /**
  * Archives derived recall output before a newly approved brief revision is
  * compiled into the canonical task directory.
  *
  * Without this boundary, a failed recompile could leave the previous revision's
- * `meta.json` and review in place, making the new approval appear prepared and
- * reviewed when it was neither. The old output is retained for audit instead of
- * being deleted or silently reused.
+ * compiled output and review in place, making the new approval appear prepared
+ * and reviewed when it was neither. The old output is retained for audit instead
+ * of being deleted or silently reused.
  */
 final readonly class WorkflowRecallOutputSuperseder
 {
@@ -30,7 +31,7 @@ final readonly class WorkflowRecallOutputSuperseder
             return null;
         }
 
-        $identitySource = $directory . '/meta.json';
+        $identitySource = (new CompiledRecallOutputReader())->identityPath($directory);
         $digest = is_file($identitySource) ? hash_file('sha256', $identitySource) : false;
         $suffix = $digest === false ? 'unknown' : substr($digest, 0, 12);
         $archive = $directory . '.superseded-' . $suffix;
