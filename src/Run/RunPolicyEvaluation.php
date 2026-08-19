@@ -14,7 +14,7 @@ final readonly class RunPolicyEvaluation
 {
     public const string KIND_COMMAND = 'command';
     public const string KIND_HOST_WORK = 'host_work';
-    public const string KIND_HUMAN_DECISION = 'human_decision';
+    public const string KIND_DECISION_REQUIRED = 'decision_required';
     public const string KIND_NONE = 'none';
 
     /** @param list<array{code: string, owner: string, message: string}> $blockers */
@@ -27,12 +27,12 @@ final readonly class RunPolicyEvaluation
         /**
          * How the host must treat nextAction.
          *
-         * command        - execute it as written
-         * host_work      - irreducible model work; nextAction describes it and
-         *                  is not a command, so executing it is always wrong
-         * human_decision - authoritative input is still required before the
-         *                  described command can be executed
-         * none           - nothing further is required
+         * command           - execute it as written
+         * host_work         - irreducible implementation/model work; nextAction
+         *                     describes it and is not a command
+         * decision_required - the action is a command template whose placeholders
+         *                     require model and/or human judgment before execution
+         * none              - nothing further is required
          */
         public string $nextActionKind = self::KIND_COMMAND,
     ) {
