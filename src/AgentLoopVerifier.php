@@ -15,6 +15,7 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentRecallCompiler\Cli as RecallCli;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\Session;
@@ -323,20 +324,18 @@ final class AgentLoopVerifier
 
     private function checkRecallCoverage(string $recallRoot, string $sessionId, string $taskId): bool
     {
-        $metaFile = rtrim($recallRoot, '/') . '/' . $taskId . '/meta.json';
-        if (is_file($metaFile)) {
+        try {
+            $output = (new CompiledRecallOutputReader())->readForTask($recallRoot, $taskId);
+        } catch (RuntimeException $exception) {
+            echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) has unreadable compiled output: {$exception->getMessage()}\n";
+
+            return false;
+        }
+        if ($output !== null && $output->describesTask($taskId)) {
             return true;
         }
 
-        $currentMetaFile = rtrim($recallRoot, '/') . '/current/meta.json';
-        if (is_file($currentMetaFile)) {
-            $decoded = json_decode((string) file_get_contents($currentMetaFile), true);
-            if (is_array($decoded) && isset($decoded['task_id']) && $decoded['task_id'] === $taskId) {
-                return true;
-            }
-        }
-
-        echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) has no compiled briefing at {$metaFile}\n";
+        echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) has no compiled briefing for that exact task\n";
 
         return false;
     }
@@ -380,74 +379,55 @@ final class AgentLoopVerifier
         return true;
     }
 
-    /** Recomputes Recall output hashes and flags out-of-band edits. */
+    /** Delegates compiled Recall output integrity to the owner reader. */
     private function checkRecallStaleness(string $recallRoot, ?string $taskId): bool
     {
         if (!is_dir($recallRoot)) {
             return true;
         }
 
+        $reader = new CompiledRecallOutputReader();
         if ($taskId !== null) {
-            $taskDirs = array_filter([rtrim($recallRoot, '/') . '/' . $taskId], 'is_dir');
-            $currentDir = rtrim($recallRoot, '/') . '/current';
-            $currentMeta = $currentDir . '/meta.json';
-            if ($taskDirs === [] && is_file($currentMeta)) {
-                $decoded = json_decode((string) file_get_contents($currentMeta), true);
-                if (is_array($decoded) && ($decoded['task_id'] ?? null) === $taskId) {
-                    $taskDirs = [$currentDir];
-                }
+            try {
+                $output = $reader->readForTask($recallRoot, $taskId);
+            } catch (RuntimeException $exception) {
+                echo "[FAIL] recall: compiled output for {$taskId} is unreadable: {$exception->getMessage()}\n";
+
+                return false;
             }
-        } else {
-            $taskDirs = glob($recallRoot . '/*', GLOB_ONLYDIR) ?: [];
+            if ($output === null) {
+                return true;
+            }
+
+            return $this->reportRecallIntegrity($output->integrityFailures());
         }
+
         $ok = true;
-
-        foreach ($taskDirs as $taskDir) {
-            $metaFile = $taskDir . '/meta.json';
-            if (!is_file($metaFile)) {
-                continue;
-            }
-
-            $decoded = json_decode((string) file_get_contents($metaFile), true);
-            if (!is_array($decoded)) {
-                echo "[FAIL] recall: {$metaFile} is not valid JSON\n";
+        foreach (glob(rtrim($recallRoot, '/') . '/*', GLOB_ONLYDIR) ?: [] as $directory) {
+            try {
+                $output = $reader->read($directory);
+            } catch (RuntimeException $exception) {
+                echo "[FAIL] recall: compiled output at {$directory} is unreadable: {$exception->getMessage()}\n";
                 $ok = false;
                 continue;
             }
-
-            $directoryTaskId = basename($taskDir);
-            if (isset($decoded['task_id']) && $decoded['task_id'] !== $directoryTaskId && $directoryTaskId !== 'current') {
-                echo "[INFO] recall: {$metaFile} task_id '{$decoded['task_id']}' differs from directory name '{$directoryTaskId}'\n";
-            }
-
-            $hashes = $decoded['output_hashes'] ?? [];
-            if (!is_array($hashes)) {
-                echo "[FAIL] recall: {$metaFile} has a malformed output_hashes field\n";
-                $ok = false;
+            if ($output === null) {
                 continue;
             }
-
-            foreach ($hashes as $relativeFile => $expectedHash) {
-                if (!is_string($relativeFile) || !is_string($expectedHash)) {
-                    continue;
-                }
-
-                $outputFile = $taskDir . '/' . $relativeFile;
-                if (!is_file($outputFile)) {
-                    echo "[FAIL] recall: {$outputFile} referenced in meta.json is missing\n";
-                    $ok = false;
-                    continue;
-                }
-
-                $actualHash = hash('sha256', (string) file_get_contents($outputFile));
-                if (!hash_equals($expectedHash, $actualHash)) {
-                    echo "[FAIL] recall: {$outputFile} is stale (hash no longer matches meta.json)\n";
-                    $ok = false;
-                }
-            }
+            $ok = $this->reportRecallIntegrity($output->integrityFailures()) && $ok;
         }
 
         return $ok;
+    }
+
+    /** @param list<string> $failures */
+    private function reportRecallIntegrity(array $failures): bool
+    {
+        foreach ($failures as $failure) {
+            echo '[FAIL] recall: ' . $failure . "\n";
+        }
+
+        return $failures === [];
     }
 
     private function skipOrFail(string $label, string $detail, bool $strict): bool
@@ -501,8 +481,7 @@ final class AgentLoopVerifier
                       to a known task id and has a compiled Recall briefing
           - governed Run: when a Session is attached to a Run, Run, Session and
                           approved Contract revision/digest must agree
-          - recall:   every .agent-loop/recall/<task>/meta.json output_hashes entry
-                      still matches the file on disk
+          - recall:   owner-recorded compiled output integrity still matches disk
           - learning: .agent-loop/learning validates when present
 
         Options:
