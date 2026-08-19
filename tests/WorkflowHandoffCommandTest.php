@@ -9,6 +9,7 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowHandoffCommand;
+use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowHandoffCommandTest extends TestCase
@@ -61,6 +62,44 @@ final class WorkflowHandoffCommandTest extends TestCase
         self::assertStringContainsString('candidate context, not durable authority', $description);
         self::assertStringContainsString('Finish the recovery slice.', $description);
         self::assertStringContainsString($session->id, $description);
+    }
+
+    public function testRealInstalledRecallCompilesSelfContainedHandoffPrompt(): void
+    {
+        $root = $this->temporaryRoot();
+        $layout = new ProjectLayout($root);
+        $contractStore = new TaskContractStore($root);
+        $contractStore->create('REAL-1', 'Persist a resumable task handoff.', [], [], ['composer test'], 'planner');
+        $contract = $contractStore->approve('REAL-1', 'reviewer');
+        $sessionStore = new SessionStore();
+        $session = $sessionStore->create($layout->sessionsRoot(), 'REAL-1', by: 'agent');
+        self::assertTrue(is_dir($layout->learningRoot()) || mkdir($layout->learningRoot(), 0777, true));
+        (new GovernedRunStore($root))->prepare($contract, $session, $layout->learningRoot());
+
+        $command = new WorkflowHandoffCommand(
+            $root,
+            static fn (array $args): int => (new RecallCli())->run([
+                'agent-recall-compiler',
+                ...$args,
+                '--root', $layout->learningRoot(),
+            ]),
+            $sessionStore,
+        );
+
+        self::assertSame(0, $command->run([
+            'REAL-1',
+            '--context',
+            'VERIFIED: implementation is complete. UNKNOWN: external review result. Next: inspect exact-head review and update the existing task card.',
+        ]));
+
+        $systemPath = $layout->recallRoot() . '/REAL-1/handoff/system.md';
+        self::assertFileExists($systemPath);
+        $system = file_get_contents($systemPath);
+        self::assertIsString($system);
+        self::assertStringContainsString('REAL-1', $system);
+        self::assertStringContainsString('coding agent', strtolower($system));
+        self::assertStringContainsString('VERIFIED', $system);
+        self::assertStringContainsString('existing', strtolower($system));
     }
 
     public function testReadsExplicitContextFile(): void
