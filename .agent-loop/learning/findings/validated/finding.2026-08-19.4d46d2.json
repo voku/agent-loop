@@ -1,0 +1,28 @@
+{
+  "id": "finding.2026-08-19.4d46d2",
+  "task_id": "GH-205",
+  "session": "2026-08-19-gh-205-slice-e3-host-dogfood",
+  "created_at": "2026-08-19T10:42:53+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "src/Run/RunPolicyEvaluator.php",
+    "src/Workflow/WorkflowPlanCommand.php"
+  ],
+  "observation": "Slice E3 replayed the ordinary lifecycle on a clean consumer against main e01e941 with a host permitted to obey next_action only. The canonical action for an unplanned task mixes two placeholder notations in one string: 'agent-loop workflow plan <task> --by <actor> --file <path> --goal \"...\" --validation \"...\"'. --by and --file use angle brackets; --goal and --validation use a quoted ellipsis. A host substituting only the angle-bracket form passed the ellipsis through literally, and workflow plan accepted it: the durable Contract was written with goal '...' and validation ['...']. Nothing rejected an obviously unexecutable validation obligation at plan time. The consequence surfaced only much later, at finish, where the obligation was executed and failed, leaving the Run stuck with verification blocked on gate=validation. The defect is therefore not cosmetic notation: a single unrecognised placeholder convention silently produced a governed Contract whose validation obligation could never pass, and the governed lifecycle carried it from plan through approval and mutation before reporting it.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "On main e01e941, a host substituting only <...> placeholders ran the returned plan action verbatim. .agent-loop/contracts/E3-001/contract.json was then written with goal \"...\" and validation [\"...\"], and workflow plan exited 0. The same host reached mutation and only discovered the problem at finish, which reported verification state=blocked gate=validation reason=validation evidence missing or not passed for current implementation."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "At e01e941: control run on the identical consumer shape with both notations substituted completed the ordinary lifecycle in seven steps - plan, map build, approve, host-native mutation, review acknowledgement, learning decision, complete - with zero prose parsing and no host-side lifecycle rules, confirming the notation handling was the only difference between the stuck and completing runs."
+    }
+  ],
+  "hypothesis": "A canonical action string is a machine interface when a host is told to obey it. Two placeholder notations inside one such string means a host must implement two substitution rules to be correct, and the failure mode of implementing one is not a parse error but a durable governed artifact containing placeholder text. Accepting a validation obligation without any executability check moves the discovery of that mistake from the cheapest moment, plan, to one of the most expensive, post-mutation finish.",
+  "validated_conclusion": "Prefer one placeholder notation across every canonical next_action so that obeying it requires exactly one substitution rule. Independently, consider whether workflow plan should reject a validation obligation that is transparently unexecutable, or at minimum whether a Contract carrying an unsubstituted placeholder should be refused, since that specific value can never be a real command. Both are small and independent; neither was fixed in E3 because the instruction was to record before repairing, and because the choice between normalising the notation and validating the obligation is a product decision rather than an obvious defect fix.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}

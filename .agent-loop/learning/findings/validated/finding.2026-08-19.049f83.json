@@ -1,0 +1,35 @@
+{
+  "id": "finding.2026-08-19.049f83",
+  "task_id": "GH-205",
+  "session": "2026-08-19-gh-205-slice-e1-host-dogfood",
+  "created_at": "2026-08-19T10:22:48+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "src/Workflow/WorkflowRunPreparer.php",
+    "src/Run/RunPolicyEvaluator.php",
+    "src/Workflow/HostFrontDoorCommand.php"
+  ],
+  "observation": "Observed on main cb40249, the merge of #220 and the revision #221 was branched from. Slice E1 ran a live host dogfood: a clean consumer project outside agent-loop, driven end to end by an agent host that was allowed to know only 'call enter, obey next_action, mutate natively, call finish'. The happy path held. enter on an unknown task returned an executable next_action naming workflow plan with its required flags, so the host never needed to know that plan precedes approve. enter and finish both expose --format=json carrying mutation_ready, next_action, warnings and the full manifest, so no prose parsing was needed to route. finish was exemplary: it reported references.verification.gate=review with reason 'blind-spot report has not been acknowledged by exact current report id' and a next_action that already contained the computed report digest, and after supplying the one irreducible human decision (--learning) it reached complete=true with next_action=none. One friction reproduced deterministically and it breaks the loop the host is told to follow. With existing PHP scope in the approved Contract and no agent-map snapshot, workflow approve refuses via WorkflowRunPreparer::assertDiscoveryReady() with a precise prose error naming the repair command. But enter/status continue to report next_action='agent-loop workflow approve <task> --by <named-actor>', unchanged, after the failure. Obeying next_action therefore does not converge: two consecutive attempts produced byte-identical refusals and an unchanged next_action. The structured result does contain references.map.state='missing' and references.search_index.state='unavailable' (correct causal-state semantics, one gap not two), but nothing marks the map gap as the reason the named next action cannot succeed: manifest.disagreements is empty and warnings is empty. Escaping the loop required agent-loop map build, a command named only in approve's human-readable stderr.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "At cb40249: clean consumer, host allowed only enter/next_action/mutate/finish. enter on unknown task returned next_action naming workflow plan with required flags; plan then approve were executed verbatim from next_action. finish reported references.verification.gate=review with the exact reason and a next_action containing the pre-computed report digest, and reached complete=true, next_action=none, state=complete after one human --learning decision."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "At cb40249: non-convergence proved by repetition: with existing PHP scope and no map snapshot, workflow approve refused twice with byte-identical output while enter --format=json continued to report next_action=agent-loop workflow approve E1-001 --by <named-actor> unchanged. manifest.disagreements=[] and warnings=[] in that state. references.map.state=missing and references.search_index.state=unavailable were present but not linked to the named action. Running agent-loop map build --paths=src, named only in approve stderr, made approve succeed and enter then reported mutation_ready=true, next_action=agent-loop finish E1-001."
+    },
+    {
+      "type": "file_reference",
+      "path": "src/Workflow/WorkflowRunPreparer.php",
+      "line": 166,
+      "summary": "At main cb40249: assertDiscoveryReady() throws the discovery prerequisite from MapReadiness during approve. This is the owner of the decision the lifecycle next_action does not currently reflect."
+    }
+  ],
+  "hypothesis": "A canonical next_action is only as useful as its executability. When the kernel names an action that a precondition will refuse, and the refusal is reported only in prose, the host is pushed into exactly the behaviour Slice E removes: either parse human CLI output for authority, or hold a private rule of the form 'if map is missing then build the map before approving'. The second is host-side lifecycle semantics and would reintroduce the duplication #220 deleted.",
+  "validated_conclusion": "Describing cb40249: make the blocked precondition observable in the same structured result that names the action, without duplicating the precondition. WorkflowRunPreparer already owns the discovery decision and already consumes agent-map's MapReadiness; the lifecycle result should ask that owner rather than any consumer re-deriving 'map missing implies build first'. The specific design - whether this surfaces as a blocker entry, as a corrected next_action, or as a typed warning alongside the unchanged next_action - is a policy-ownership decision and is deliberately left open here rather than chosen unilaterally, because choosing wrong reintroduces a second copy of the precondition. Do not fix this by teaching host assets the map rule. Everything else measured on the ordinary path required no host-owned lifecycle decision, so this is the single observed Slice E2 target.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
