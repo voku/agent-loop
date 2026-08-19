@@ -73,7 +73,7 @@ final class WorkflowPlanNextCommandTest extends TestCase
             $contracts = new TaskContractStore($root);
             $contracts->create('ABC-123', 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
             $contracts->approve('ABC-123', 'lars');
-            $session = (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123', null, 'lars');
+            (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123', null, 'lars');
 
             $result = $this->runProcess([
                 PHP_BINARY,
@@ -90,12 +90,11 @@ final class WorkflowPlanNextCommandTest extends TestCase
             self::assertSame(1, $contracts->load('ABC-123')->revision);
             self::assertStringContainsString('If durable intent is unchanged, continue the existing Run.', $result['stderr']);
             self::assertStringContainsString(
-                'agent-loop session close ' . $session->id . ' --status dropped',
+                'rerun `agent-loop workflow plan ABC-123 ... --supersede`',
                 $result['stderr'],
             );
-            self::assertStringContainsString('rerun `agent-loop workflow plan ABC-123 ...`', $result['stderr']);
-            self::assertStringContainsString('Replacement approval preserves the prior Run in history', $result['stderr']);
-            self::assertStringContainsString('never reuse one Session across Contract revisions', $result['stderr']);
+            self::assertStringContainsString('retires the current working Session', $result['stderr']);
+            self::assertStringContainsString('still requires explicit approval before a replacement Run can start', $result['stderr']);
         } finally {
             $this->removeDirectory($root);
         }
