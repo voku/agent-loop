@@ -125,12 +125,6 @@ final readonly class RunPolicyEvaluator
         array $references,
         array $disagreements,
     ): array {
-        // A disagreement is an unexpected state, and naming the inspection
-        // command for it was non-convergent by construction: `workflow manifest
-        // --format=json` is read-only, so it can never alter the state that
-        // produced the disagreement. Prefer the owner's own repair; when no
-        // owner supplies one, say the artifact needs host work rather than
-        // naming a command that cannot change anything.
         if ($disagreements !== []) {
             foreach ($disagreements as $disagreement) {
                 $repair = $disagreement['repair_action'] ?? null;
@@ -228,7 +222,8 @@ final readonly class RunPolicyEvaluator
             return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected'], true)) {
-            return 'agent-loop workflow status ' . $taskId . ' --format=json';
+            return 'agent-loop workflow plan ' . $taskId
+                . ' --by <actor> --file <path> --goal <revised-goal> --validation <validation> --supersede';
         }
 
         $reviewState = $this->referenceState($references, 'review');
