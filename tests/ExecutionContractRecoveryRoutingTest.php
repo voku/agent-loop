@@ -75,17 +75,22 @@ final class ExecutionContractRecoveryRoutingTest extends TestCase
         }
     }
 
-    public function testBlockedExecutionContractIsNotPretendedToHaveTheSameRepair(): void
+    public function testBlockedExecutionContractRequiresNonLossyIntentSupersessionDecision(): void
     {
         $policy = $this->policy('F2-BLOCKED', [
             'owner' => 'agent-loop',
             'state' => 'blocked',
             'reason' => 'Current approved policy cannot be satisfied.',
+            'minimum_contract_change' => 'Expand the approved scope.',
         ]);
 
         self::assertSame('blocked', $policy->state);
-        self::assertSame('command', $policy->nextActionKind);
-        self::assertSame('agent-loop workflow status F2-BLOCKED --format=json', $policy->nextAction);
+        self::assertSame('decision_required', $policy->nextActionKind);
+        self::assertStringContainsString('Expand the approved scope.', $policy->nextAction);
+        self::assertStringContainsString('workflow plan --supersede', $policy->nextAction);
+        self::assertStringContainsString('explicit approval remains required', $policy->nextAction);
+        self::assertStringNotContainsString('workflow contract F2-BLOCKED --status ready', $policy->nextAction);
+        self::assertStringNotContainsString('<path>', $policy->nextAction);
     }
 
     /** @param array<string, mixed> $executionContract */

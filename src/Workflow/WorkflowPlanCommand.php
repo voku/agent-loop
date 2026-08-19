@@ -10,6 +10,7 @@ use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
+use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -34,18 +35,20 @@ final readonly class WorkflowPlanCommand
             $existing = $contracts->find($taskId->value);
 
             $activeSession = $existing !== null ? $this->activeSession($taskId->value) : null;
-            if ($activeSession !== null) {
+            if ($activeSession !== null && !$options['supersede']) {
                 throw new RuntimeException(
                     'Cannot revise Contract for ' . $taskId->value . ' while governed Session ' . $activeSession->id
                     . ' is active. If durable intent is unchanged, continue the existing Run. If scope or policy changed, '
-                    . 'close the current Session with `agent-loop session close ' . $activeSession->id
-                    . ' --status dropped`, rerun `agent-loop workflow plan ' . $taskId->value
-                    . ' ...`, and obtain approval for the new Contract revision. Replacement approval preserves the prior '
-                    . 'Run in history and creates a new Session/Run; never reuse one Session across Contract revisions.',
+                    . 'rerun `agent-loop workflow plan ' . $taskId->value
+                    . ' ... --supersede`; this retires the current working Session, creates a candidate Contract revision, '
+                    . 'and still requires explicit approval before a replacement Run can start.',
                 );
             }
 
             if ($existing === null) {
+                if ($options['supersede']) {
+                    throw new RuntimeException('--supersede requires an existing Contract revision.');
+                }
                 $contract = $contracts->create(
                     $taskId->value,
                     $options['goal'],
@@ -62,21 +65,29 @@ final readonly class WorkflowPlanCommand
                 );
                 $action = 'created';
             } else {
+                $preserve = $options['supersede'];
+                $preserveOperatingPrompts = $preserve && $options['operatingPrompts'] === [];
                 $contract = $contracts->revise(
                     $taskId->value,
                     $options['goal'],
                     $options['scope'],
-                    $options['nonGoals'],
+                    $preserve && $options['nonGoals'] === [] ? $existing->nonGoals : $options['nonGoals'],
                     $options['validation'],
                     $options['by'],
-                    $options['baseCommit'],
-                    $options['tags'],
-                    $options['behaviorAnchors'],
-                    $options['operatingPromptManifest'],
-                    $options['operatingPrompts'],
-                    $options['acceptanceCriteria'],
+                    $preserve && $options['baseCommit'] === null ? $existing->baseCommit : $options['baseCommit'],
+                    $preserve && $options['tags'] === [] ? $existing->tags : $options['tags'],
+                    $preserve && $options['behaviorAnchors'] === [] ? $existing->behaviorAnchors : $options['behaviorAnchors'],
+                    $preserveOperatingPrompts ? $existing->operatingPromptManifest : $options['operatingPromptManifest'],
+                    $preserveOperatingPrompts ? $existing->operatingPrompts : $options['operatingPrompts'],
+                    $preserve && $options['acceptanceCriteria'] === [] ? $existing->acceptanceCriteria : $options['acceptanceCriteria'],
                 );
-                $action = 'revised';
+                if ($activeSession !== null) {
+                    // Persist the unapproved replacement intent first. If
+                    // retiring working memory then fails, lifecycle policy sees
+                    // a candidate Contract revision and remains fail-closed.
+                    (new SessionStore())->setStatus($activeSession, SessionStatus::DROPPED);
+                }
+                $action = $options['supersede'] ? 'superseded' : 'revised';
             }
         } catch (Throwable $exception) {
             fwrite(STDERR, '[FAIL] workflow plan: ' . $exception->getMessage() . "\n");
@@ -123,7 +134,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null}
+     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool}
      */
     private function parse(array $tokens): array
     {
@@ -140,9 +151,17 @@ final readonly class WorkflowPlanCommand
         $operatingPrompts = [];
         $operatingPromptIds = [];
         $baseCommit = null;
+        $supersede = false;
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
+            if ($token === '--supersede') {
+                if ($supersede) {
+                    throw new InvalidArgumentException('--supersede may be provided only once.');
+                }
+                $supersede = true;
+                continue;
+            }
             if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
@@ -235,6 +254,7 @@ final readonly class WorkflowPlanCommand
             'operatingPromptManifest' => $operatingPromptManifest,
             'operatingPrompts' => $operatingPrompts,
             'baseCommit' => $baseCommit,
+            'supersede' => $supersede,
         ];
     }
 
