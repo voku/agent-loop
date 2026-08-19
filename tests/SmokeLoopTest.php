@@ -87,7 +87,42 @@ final class SmokeLoopTest extends TestCase
         $result = $this->dispatch(['agent-loop', 'verify']);
 
         self::assertSame(1, $result['exit'], $result['output']);
-        self::assertStringContainsString('is stale (hash no longer matches meta.json)', $result['output']);
+        // Recall owns its integrity manifest and reports the failure itself, so
+        // this asserts the guarantee - the tampered file is named as stale -
+        // rather than the owner's wording or its private metadata filename.
+        self::assertStringContainsString('[FAIL] recall:', $result['output']);
+        self::assertStringContainsString('stale', $result['output']);
+        self::assertStringContainsString('system.md', $result['output']);
+    }
+
+    public function testVerifyRejectsRecordedOutputPathsThatEscapeTheRecallDirectory(): void
+    {
+        // The Recall integrity check only runs once Sessions exist.
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'task.001', '--by', 'tester'])['exit']);
+
+        $outside = $this->root . '/outside';
+        mkdir($outside, 0o775, true);
+        file_put_contents($outside . '/canary.txt', "canary\n");
+        $canary = hash_file('sha256', $outside . '/canary.txt');
+        self::assertIsString($canary);
+
+        // The recorded digest matches, so a verifier that resolves the path
+        // without checking it reads a file outside the output directory and
+        // reports success for it.
+        mkdir($this->root . '/.agent-loop/recall/task.001', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/task.001/meta.json',
+            json_encode([
+                'task_id' => 'task.001',
+                'output_hashes' => ['../../../outside/canary.txt' => $canary],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $result = $this->dispatch(['agent-loop', 'verify']);
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString('unsafe relative path', $result['output']);
+        self::assertStringContainsString('../../../outside/canary.txt', $result['output']);
     }
 
     public function testGovernedCompletionFlowUsesEnterAndFinishInsteadOfManualOwnerChoreography(): void

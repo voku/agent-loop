@@ -15,6 +15,7 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentRecallCompiler\Cli as RecallCli;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\Session;
@@ -323,22 +324,43 @@ final class AgentLoopVerifier
 
     private function checkRecallCoverage(string $recallRoot, string $sessionId, string $taskId): bool
     {
-        $metaFile = rtrim($recallRoot, '/') . '/' . $taskId . '/meta.json';
-        if (is_file($metaFile)) {
+        $reader = new CompiledRecallOutputReader();
+        $taskDirectory = rtrim($recallRoot, '/') . '/' . $taskId;
+        if ($this->hasCompiledOutput($reader, $taskDirectory)) {
             return true;
         }
 
-        $currentMetaFile = rtrim($recallRoot, '/') . '/current/meta.json';
-        if (is_file($currentMetaFile)) {
-            $decoded = json_decode((string) file_get_contents($currentMetaFile), true);
-            if (is_array($decoded) && isset($decoded['task_id']) && $decoded['task_id'] === $taskId) {
-                return true;
-            }
+        if ($this->describesTask($reader, rtrim($recallRoot, '/') . '/current', $taskId)) {
+            return true;
         }
 
-        echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) has no compiled briefing at {$metaFile}\n";
+        $identity = $reader->identityPath($taskDirectory);
+        echo "[FAIL] recall: active session {$sessionId} (task {$taskId}) has no compiled briefing at {$identity}\n";
 
         return false;
+    }
+
+    /**
+     * Presence only. Metadata that exists but cannot be parsed is still a
+     * compiled briefing; checkRecallStaleness is what reports its malformation.
+     */
+    private function hasCompiledOutput(CompiledRecallOutputReader $reader, string $directory): bool
+    {
+        try {
+            return $reader->read($directory) !== null;
+        } catch (RuntimeException) {
+            return true;
+        }
+    }
+
+    private function describesTask(CompiledRecallOutputReader $reader, string $directory, string $taskId): bool
+    {
+        try {
+            return $reader->read($directory)?->describesTask($taskId) === true;
+        } catch (RuntimeException) {
+            // Unreadable metadata cannot prove coverage for this task.
+            return false;
+        }
     }
 
     /**
@@ -380,22 +402,26 @@ final class AgentLoopVerifier
         return true;
     }
 
-    /** Recomputes Recall output hashes and flags out-of-band edits. */
+    /**
+     * Asks Recall whether its own compiled output is still intact.
+     *
+     * agent-loop used to decode the metadata and recompute the recorded hashes
+     * itself. That copy drifted: the owner rejects unsafe relative paths in its
+     * integrity manifest and this one did not, so a recorded path escaping the
+     * output directory was read, hashed and accepted here.
+     */
     private function checkRecallStaleness(string $recallRoot, ?string $taskId): bool
     {
         if (!is_dir($recallRoot)) {
             return true;
         }
 
+        $reader = new CompiledRecallOutputReader();
         if ($taskId !== null) {
             $taskDirs = array_filter([rtrim($recallRoot, '/') . '/' . $taskId], 'is_dir');
             $currentDir = rtrim($recallRoot, '/') . '/current';
-            $currentMeta = $currentDir . '/meta.json';
-            if ($taskDirs === [] && is_file($currentMeta)) {
-                $decoded = json_decode((string) file_get_contents($currentMeta), true);
-                if (is_array($decoded) && ($decoded['task_id'] ?? null) === $taskId) {
-                    $taskDirs = [$currentDir];
-                }
+            if ($taskDirs === [] && $this->describesTask($reader, $currentDir, $taskId)) {
+                $taskDirs = [$currentDir];
             }
         } else {
             $taskDirs = glob($recallRoot . '/*', GLOB_ONLYDIR) ?: [];
@@ -403,47 +429,25 @@ final class AgentLoopVerifier
         $ok = true;
 
         foreach ($taskDirs as $taskDir) {
-            $metaFile = $taskDir . '/meta.json';
-            if (!is_file($metaFile)) {
+            try {
+                $output = $reader->read($taskDir);
+            } catch (RuntimeException $exception) {
+                echo '[FAIL] recall: ' . $reader->identityPath($taskDir) . ' is unreadable: ' . $exception->getMessage() . "\n";
+                $ok = false;
                 continue;
             }
-
-            $decoded = json_decode((string) file_get_contents($metaFile), true);
-            if (!is_array($decoded)) {
-                echo "[FAIL] recall: {$metaFile} is not valid JSON\n";
-                $ok = false;
+            if ($output === null) {
                 continue;
             }
 
             $directoryTaskId = basename($taskDir);
-            if (isset($decoded['task_id']) && $decoded['task_id'] !== $directoryTaskId && $directoryTaskId !== 'current') {
-                echo "[INFO] recall: {$metaFile} task_id '{$decoded['task_id']}' differs from directory name '{$directoryTaskId}'\n";
+            if ($directoryTaskId !== 'current' && !$output->describesTask($directoryTaskId)) {
+                echo '[INFO] recall: ' . $output->identityPath() . " does not describe directory name '{$directoryTaskId}'\n";
             }
 
-            $hashes = $decoded['output_hashes'] ?? [];
-            if (!is_array($hashes)) {
-                echo "[FAIL] recall: {$metaFile} has a malformed output_hashes field\n";
+            foreach ($output->integrityFailures() as $failure) {
+                echo '[FAIL] recall: ' . $failure . ' (' . $output->identityPath() . ")\n";
                 $ok = false;
-                continue;
-            }
-
-            foreach ($hashes as $relativeFile => $expectedHash) {
-                if (!is_string($relativeFile) || !is_string($expectedHash)) {
-                    continue;
-                }
-
-                $outputFile = $taskDir . '/' . $relativeFile;
-                if (!is_file($outputFile)) {
-                    echo "[FAIL] recall: {$outputFile} referenced in meta.json is missing\n";
-                    $ok = false;
-                    continue;
-                }
-
-                $actualHash = hash('sha256', (string) file_get_contents($outputFile));
-                if (!hash_equals($expectedHash, $actualHash)) {
-                    echo "[FAIL] recall: {$outputFile} is stale (hash no longer matches meta.json)\n";
-                    $ok = false;
-                }
             }
         }
 
