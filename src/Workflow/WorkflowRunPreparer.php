@@ -39,6 +39,18 @@ final readonly class WorkflowRunPreparer
         return $readiness;
     }
 
+    /**
+     * The repair that must run before this Contract can be approved, or null
+     * when discovery is already ready.
+     *
+     * Same producer as the approval precondition, so a caller cannot be told a
+     * different story than the one `approve` will enforce.
+     */
+    public function discoveryRepair(TaskContract $contract): ?DiscoveryRepair
+    {
+        return $this->discoveryBlocker($contract, $this->mapReadiness());
+    }
+
     /** @param callable(list<string>): int $recallRunner */
     public function prepare(
         TaskContract $contract,
@@ -135,6 +147,14 @@ final readonly class WorkflowRunPreparer
 
     private function assertDiscoveryReady(TaskContract $contract, MapReadiness $readiness): void
     {
+        $blocker = $this->discoveryBlocker($contract, $readiness);
+        if ($blocker !== null) {
+            throw new RuntimeException($blocker->reason . ' ' . $blocker->nextAction);
+        }
+    }
+
+    private function discoveryBlocker(TaskContract $contract, MapReadiness $readiness): ?DiscoveryRepair
+    {
         $projectRoot = realpath($this->rootPath);
         if (!is_string($projectRoot)) {
             throw new RuntimeException('Project root cannot be resolved for discovery readiness: ' . $this->rootPath);
@@ -159,35 +179,40 @@ final readonly class WorkflowRunPreparer
         }
 
         if ($existingPhpScope === []) {
-            return;
+            return null;
         }
         if ($readiness->mapState === 'missing') {
-            throw new RuntimeException(
+            return new DiscoveryRepair(
                 'Existing PHP scope requires agent-map discovery before governed preparation: '
-                . implode(', ', array_keys($existingPhpScope))
-                . '. Run `agent-loop map build --paths=src,tests` (or the project-appropriate paths) first.',
+                . implode(', ', array_keys($existingPhpScope)) . '.',
+                'agent-loop map build --paths=src,tests',
             );
         }
         if ($readiness->mapState === 'invalid') {
-            throw new RuntimeException(
+            return new DiscoveryRepair(
                 'Existing PHP scope requires a readable agent-map snapshot before governed preparation: '
-                . ($readiness->mapFailure ?? 'agent-map reported an invalid snapshot'),
+                . ($readiness->mapFailure ?? 'agent-map reported an invalid snapshot') . '.',
+                'agent-loop map build --paths=src,tests',
             );
         }
         if ($readiness->mapState === 'stale') {
             $stale = array_column($readiness->staleEntries, 'path');
             $visible = array_slice($stale, 0, 5);
-            throw new RuntimeException(
+            return new DiscoveryRepair(
                 'Existing PHP scope is not covered by a fresh agent-map snapshot before governed preparation (stale map entries: '
                 . implode(', ', $visible)
                 . (count($stale) > count($visible) ? sprintf(' (+%d more)', count($stale) - count($visible)) : '')
-                . '). Run `agent-loop map refresh` or rebuild the map first.',
+                . ').',
+                'agent-loop map refresh',
             );
         }
 
         $map = $readiness->currentMap();
         if ($map === null) {
-            throw new RuntimeException('agent-map reported a ready snapshot without a readable current map.');
+            return new DiscoveryRepair(
+                'agent-map reported a ready snapshot without a readable current map.',
+                'agent-loop map build --paths=src,tests',
+            );
         }
 
         $missingScope = [];
@@ -197,12 +222,14 @@ final readonly class WorkflowRunPreparer
             }
         }
         if ($missingScope !== []) {
-            throw new RuntimeException(
+            return new DiscoveryRepair(
                 'Existing PHP scope is not covered by a fresh agent-map snapshot before governed preparation (scope not indexed: '
-                . implode(', ', $missingScope)
-                . '). Run `agent-loop map refresh` or rebuild the map first.',
+                . implode(', ', $missingScope) . ').',
+                'agent-loop map refresh',
             );
         }
+
+        return null;
     }
 
     private function mapReadiness(): MapReadiness

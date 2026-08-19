@@ -13,6 +13,7 @@ use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Workflow\DiscoveryRepair;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -20,6 +21,7 @@ use voku\AgentLoop\Workflow\WorkflowCloseReadiness;
 use voku\AgentLoop\Workflow\WorkflowCloseReadinessInspector;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
+use voku\AgentLoop\Workflow\WorkflowRunPreparer;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
@@ -76,11 +78,18 @@ final readonly class RunManifestProjector
         $mapReadiness = (new MapReadinessInspector())->inspect(
             MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
         );
+        // Ask the discovery owner whether approval is currently reachable. The
+        // policy evaluator stays pure: it reads this as a fact instead of
+        // re-deriving the precondition.
+        $discoveryRepair = $contract !== null && $contract->status !== TaskContract::APPROVED
+            ? (new WorkflowRunPreparer($this->rootPath))->discoveryRepair($contract)
+            : null;
+
         $references = [
             'board' => $this->boardReference($taskId, $disagreements),
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract, $run),
-            'approval' => $this->approvalReference($contract),
+            'approval' => $this->approvalReference($contract, $discoveryRepair),
             'map' => $this->mapReference($mapReadiness),
             'search_index' => $this->searchIndexReference($mapReadiness),
             'recall' => $this->recallReference($taskId, $run, $contract, $disagreements),
@@ -302,18 +311,27 @@ final readonly class RunManifestProjector
     }
 
     /** @return array<string, mixed> */
-    private function approvalReference(?TaskContract $contract): array
+    private function approvalReference(?TaskContract $contract, ?DiscoveryRepair $discoveryRepair): array
     {
         if ($contract === null) {
             return ['owner' => 'agent-loop', 'state' => 'unavailable', 'observation_mode' => 'checked'];
         }
         if ($contract->status !== TaskContract::APPROVED || $contract->approvedBy === null || $contract->approvedAt === null) {
-            return [
+            $reference = [
                 'owner' => 'agent-loop',
                 'state' => 'missing',
                 'observation_mode' => 'checked',
                 'contract_revision' => $contract->revision,
             ];
+            if ($discoveryRepair !== null) {
+                // Approval will refuse until this runs. Carrying the owner's own
+                // repair keeps the canonical next action executable instead of
+                // naming a command that deterministically fails.
+                $reference['blocked_by'] = $discoveryRepair->reason;
+                $reference['repair_action'] = $discoveryRepair->nextAction;
+            }
+
+            return $reference;
         }
 
         return [
