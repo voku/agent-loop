@@ -1,0 +1,36 @@
+{
+  "id": "finding.2026-08-19.5e1f07",
+  "task_id": "GH-205",
+  "session": "2026-08-19-gh-205-phase-f5-installed-consumer-proof",
+  "created_at": "2026-08-19T20:00:49+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "src/Run/RunPolicyEvaluator.php",
+    "src/Workflow/HostFrontDoorCommand.php"
+  ],
+  "observation": "Phase F5 re-ran the convergence family against a fresh consumer that installed agent-loop as a real Composer dependency, driving vendor/bin/agent-loop rather than the development checkout's own bin, at merged main 3cdb639. Six states were measured and all six behaved as their owning slice claims. Absent discovery returns kind=command naming agent-loop map build and advances when obeyed, never naming the approve that would refuse (#221). A failed validation obligation returns kind=host_work with no command spelling in the action (#223). An unreadable Recall metadata document returns kind=host_work naming the owning package and the unreadable path, no longer the read-only workflow manifest diagnostic (#228). A blind-spot report whose status is fail returns kind=command naming agent-loop review blindspots and advances in one obeyed step (#228). A blocked execution contract returns kind=decision_required carrying the owner's minimum_contract_change and the workflow plan --supersede boundary (#230). An approved Contract selecting an operating prompt the declared manifest cannot resolve returns kind=host_work carrying the owning package's own cause, rather than naming the enter that had just refused (#232). This is the first evidence that these fixes hold outside agent-loop's own repository and fixtures. The #232 relay was the one at genuine risk here, because it depends on capturing what a nested owner CLI writes to STDERR: across a real installed vendor boundary the message 'Owner reported: Error: unknown operating prompt id: no-such-capability' still reached both next_action and blockers[0].message.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "A consumer was created with a Composer path repository to the checkout and composer install run, resolving voku/agent-recall-compiler, voku/agent-session, voku/agent-learning and voku/agent-kanban as installed dependencies. Every measured command was invoked as vendor/bin/agent-loop from the consumer root. Six scenarios were driven and each was checked against an explicit expectation on both next_action_kind and the action text; zero expectations failed."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Installed package boundary recorded explicitly, because a Composer path repository can symlink instead of copy and vendor/bin/agent-loop alone would not prove which happened. The consumer declared the path repository with options.symlink=false; composer install reported 'Mirroring from /home/user/agent-loop'; composer.lock records voku/agent-loop dev-main with dist.type=path, dist.reference=3cdb6390e4b7d9a704e54096bf98cf0c799e7c11 and transport-options.symlink=false; vendor/voku/agent-loop is a real directory rather than a symlink; and src/Workflow/HostFrontDoorCommand.php has a different inode in the consumer (2197174) than in the checkout (475433), so the measured runtime executed an isolated copy of the merged main commit. One symlink was used and is unrelated to that boundary: the per-scenario consumer roots share a single installed vendor tree by symlinking vendor/ for speed, while the agent-loop package inside it remains the mirrored copy described above."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Convergence was checked by obeying, not only by reading. For the two cases whose canonical step is an executable command, the action was executed and the manifest re-projected: absent discovery and review.report_invalid both changed state, action or kind on the first obeyed step. The other four return host_work or decision_required, which are irreducible boundaries by kind rather than commands a host can run."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Scope of the claim, stated so it is not over-read. This measures the recovery family only. The ordinary happy path on an installed consumer is already gated separately by tools/release-set-dogfood.php, which drives install, scaffold, ephemeral, plan, approve, implement, validate, review, learn, close and prune-replay through the same front door. F5 adds recovery convergence, which that gate does not cover."
+    }
+  ],
+  "hypothesis": "Convergence fixes verified only inside the owning repository are at risk from the install boundary, because process model, vendor layout and binary resolution all change. The #232 STDERR relay was the concrete case: it depends on the nested owner CLI running in-process behind the front door, which is a property of how bin/agent-loop wires the Recall runner rather than of where the package lives.",
+  "validated_conclusion": "The convergence family holds on a real installed consumer. This proof is a measurement, not a gate, and an ungated proof rots: the recommended follow-up is to fold these six scenarios into tools/release-set-dogfood.php so recovery convergence regresses loudly, which was deliberately not done here because expanding a shared CI gate is a scope decision for the repository owner rather than a side effect of a measurement slice. Two states remain tolerated rather than recovered and are unchanged by this run: a second active Session never surfaces as a blocker, and a corrupted derived run manifest is neither repaired nor reported because the lifecycle re-derives from owner artifacts instead of reading it.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
