@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
+use voku\AgentSession\SessionStore;
 
 final class WorkflowCliTest extends TestCase
 {
@@ -18,6 +22,7 @@ final class WorkflowCliTest extends TestCase
         self::assertStringContainsString('--acceptance <text>', $result['output']);
         self::assertStringContainsString('agent-loop workflow approve', $result['output']);
         self::assertStringContainsString('agent-loop workflow reflect', $result['output']);
+        self::assertStringContainsString('agent-loop workflow handoff', $result['output']);
         self::assertStringContainsString('agent-loop workflow learn', $result['output']);
         self::assertStringContainsString('agent-loop workflow close', $result['output']);
         self::assertStringContainsString('checkpoint-autonomy', $result['output']);
@@ -66,7 +71,7 @@ final class WorkflowCliTest extends TestCase
 
     public function testGovernedCommandsWithoutTaskIdFail(): void
     {
-        foreach (['plan', 'approve', 'contract', 'status', 'manifest', 'context', 'report', 'reflect', 'learn', 'close'] as $command) {
+        foreach (['plan', 'approve', 'contract', 'status', 'manifest', 'context', 'report', 'reflect', 'handoff', 'learn', 'close'] as $command) {
             self::assertSame(1, $this->runCli([$command])['exit'], $command);
         }
     }
@@ -77,6 +82,40 @@ final class WorkflowCliTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertSame('ABC-123', json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR)['task_id']);
+    }
+
+    public function testHandoffIsRoutedThroughWorkflowCliWithSharedRecallRunner(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-workflow-cli-handoff-' . bin2hex(random_bytes(8));
+        self::assertTrue(mkdir($root, 0777, true));
+        $layout = new ProjectLayout($root);
+        $contractStore = new TaskContractStore($root);
+        $contractStore->create('HANDOFF-1', 'Persist current handoff.', ['README.md'], [], ['composer test'], 'planner');
+        $contract = $contractStore->approve('HANDOFF-1', 'reviewer');
+        $sessionStore = new SessionStore();
+        $session = $sessionStore->create($layout->sessionsRoot(), 'HANDOFF-1', by: 'agent');
+        self::assertTrue(is_dir($layout->learningRoot()) || mkdir($layout->learningRoot(), 0777, true));
+        (new GovernedRunStore($root))->prepare($contract, $session, $layout->learningRoot());
+
+        $received = null;
+        $cli = new WorkflowCli(
+            $root,
+            static function (array $argv) use (&$received): int {
+                $received = $argv;
+
+                return 0;
+            },
+        );
+
+        ob_start();
+        $exit = $cli->run(['handoff', 'HANDOFF-1', '--context', 'Verified current state; next agent should continue the existing card.']);
+        ob_end_clean();
+
+        self::assertSame(0, $exit);
+        self::assertIsArray($received);
+        self::assertSame('compile', $received[0]);
+        self::assertSame('HANDOFF-1', $received[2]);
+        self::assertContains('{"id":"todo-card-handoff","arguments":{}}', $received);
     }
 
     public function testInvalidTaskIdExitsOne(): void
