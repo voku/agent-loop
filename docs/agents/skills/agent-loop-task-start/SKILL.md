@@ -95,38 +95,62 @@ repository-supported command, not prose or an unresolved placeholder.
 
 ## Existing Work Preflight
 
-For non-trivial work, inspect bounded relevant current/recent work when the host
-can do so cheaply. Classify useful candidates as landed, active, superseded,
-abandoned, or independent. Try to falsify the strongest existing candidate
-against the current task intent before creating a competing implementation.
+Inspect overlap before invention. For non-trivial work, inspect bounded relevant
+current/recent work when the host can do so cheaply. An open PR is not correctness
+evidence. Classify useful candidates as landed, active, superseded, abandoned, or
+independent, then try to **falsify it** against the current task intent before
+creating a competing implementation.
 
-Do not turn this into a mandatory global archaeology pass. If history is
-unavailable, continue from current repository evidence and state the limitation.
+When evidence shows an existing candidate already owns the same change, close
+superseded work instead of creating a competing implementation. If external
+history is unavailable, continue from current repository evidence and state the
+limitation.
+
+Do not turn this preflight into a new lifecycle state. It informs Contract intent;
+the lifecycle kernel still owns what happens next.
 
 ## External Reference Preflight
 
-Only when the task is explicitly defined relative to an upstream implementation,
-specification, prior version, or other external authority:
+Use this preflight **only** when the task is explicitly defined relative to an
+upstream implementation, specification, prior version, or other external
+authority. Before running `workflow plan` or sealing scope for approval:
 
 1. identify the exact reference and requested comparison term;
-2. inspect a bounded relevant inventory;
-3. state included, excluded, and unknown surfaces;
-4. distinguish direct port from adaptation;
-5. avoid parity claims from partial evidence.
+2. inspect a bounded relevant inventory and state what is included, excluded, and still unknown;
+3. distinguish a direct port from an adaptation;
+4. do not claim parity from a partial inventory;
+5. if the reference is too broad, intentionally scope to one rule or behavior;
+6. if evidence cannot establish a surface, record that surface as unknown.
 
-This is evidence for choosing Contract intent, not a new lifecycle state.
+For example, `adapt upstream checks` must not silently become `port upstream
+checks wholesale`. This is evidence for choosing Contract intent, not a new
+lifecycle state. Do not turn it into a parallel discovery workflow.
 
 ## Operating Prompts
 
-When a reusable recipe/control genuinely applies, select it explicitly in the
-Contract using the manifest owned by the package that defines its semantics. Do
-not copy the recipe rules into this skill or select recipes merely because they
-exist.
+Recall owns the recipe semantics. Select a reusable recipe/control only when it
+actually matches the task, and select it in the Contract rather than copying its
+rules into this skill.
 
-For example, a behavior-changing task with a meaningful automated test seam may
-select Recall's `test-driven-development` recipe; a specific unverified bug may
-instead select `reproduce-before-fix`. Choose the one whose constraint actually
-matters rather than stacking overlapping ceremony.
+For behavior-changing work with a meaningful automated test seam, select
+`test-driven-development` using the Recall-owned manifest, for example:
+
+```bash
+vendor/bin/agent-loop workflow plan <task-id> \
+  --by <actor> \
+  --file <path> \
+  --goal <goal> \
+  --validation <validation> \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt '{"id":"test-driven-development","arguments":{}}'
+```
+
+Do not restate RED/GREEN/REFACTOR here; the selected Recall recipe owns those
+constraints.
+
+For a specific bug claim that first needs proof, prefer `reproduce-before-fix`.
+Do not stack both merely because both exist; choose the one whose constraint is
+actually needed.
 
 ## After PLAN
 
