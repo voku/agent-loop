@@ -10,7 +10,7 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 final class ExecutionContractSupersessionRoutingTest extends TestCase
 {
-    public function testBlockedExecutionContractRoutesToExplicitSupersessionDecision(): void
+    public function testBlockedExecutionContractRoutesToExplicitNonLossySupersessionDecision(): void
     {
         $evaluation = (new RunPolicyEvaluator())->evaluate(
             'SUPERSEDE-1',
@@ -21,10 +21,10 @@ final class ExecutionContractSupersessionRoutingTest extends TestCase
 
         self::assertSame('blocked', $evaluation->state);
         self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $evaluation->nextActionKind);
-        self::assertSame(
-            'agent-loop workflow plan SUPERSEDE-1 --by <actor> --file <path> --goal <revised-goal> --validation <validation> --supersede',
-            $evaluation->nextAction,
-        );
+        self::assertStringContainsString('Expand the governed scope.', $evaluation->nextAction);
+        self::assertStringContainsString('workflow plan --supersede', $evaluation->nextAction);
+        self::assertStringContainsString('explicit approval remains required', $evaluation->nextAction);
+        self::assertStringNotContainsString('<path>', $evaluation->nextAction);
     }
 
     public function testRejectedExecutionContractUsesTheSameGovernedSupersessionBoundary(): void
@@ -38,7 +38,8 @@ final class ExecutionContractSupersessionRoutingTest extends TestCase
 
         self::assertSame('blocked', $evaluation->state);
         self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $evaluation->nextActionKind);
-        self::assertStringEndsWith('--supersede', $evaluation->nextAction);
+        self::assertStringContainsString('workflow plan --supersede', $evaluation->nextAction);
+        self::assertStringContainsString('Expand the governed scope.', $evaluation->nextAction);
     }
 
     /** @return array<string, array<string, mixed>> */
