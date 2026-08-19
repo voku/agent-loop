@@ -56,7 +56,7 @@ Usage:
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
   agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
   agent-loop workflow reflect <task-id> [--scope project|task]
-  agent-loop workflow handoff <task-id>
+  agent-loop workflow handoff <task-id> (--context <text> | --context-file <path>)
   agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
 
@@ -69,7 +69,7 @@ Commands:
   context   Render bounded read-only context from the durable Contract and current owner artifacts.
   report    Show an auditable task/Run completion report.
   reflect   Emit a context-light project/task future-work prompt only after the task is review-ready or complete; never mutates workflow state.
-  handoff   Compile a self-contained TODO/card handoff prompt from the current bounded Session projection, durable Contract evidence, and current board-card projection when available. The acting agent still updates the existing task owner.
+  handoff   Compile a self-contained TODO/card handoff prompt from explicit bounded current-session notes plus the governed Session identity, durable Contract evidence, and current board-card projection when available. The acting agent still updates the existing task owner.
   learn     Record the durable Run Learning close-out through agent-learning.
   close     Close the governed Run through safety gates and preserve durable close evidence.
 
@@ -86,12 +86,12 @@ Governed flow:
 
 Ownership:
   Contract/approval and Run lifecycle are durable agent-loop state.
-  Session is pruneable working memory and raw run-local observations.
+  Session is pruneable working memory and raw run-local observations; the current governed Run supplies the exact Session identity used by handoff.
   Recall owns deterministic briefing/verification-plan artifacts and the bundled `todo-card-handoff` L2 recipe.
   agent-learning owns durable Learning close-out and guidance evolution.
   The repository's task/board owner owns durable handoff text; `workflow handoff` only compiles the prompt used to update it.
 
-Before `workflow handoff`, record any current-session fact that must survive pruning through the existing Session plan/decision/assumption/checkpoint surfaces. The command intentionally does not persist or copy an opaque chat transcript.
+`workflow handoff` intentionally does not persist or copy an opaque chat transcript. The acting host supplies a bounded summary of the useful current-session context through `--context` or `--context-file`; Recall tells the next agent to re-ground material claims before persisting them.
 
 For ungoverned experiments use `agent-loop session start --ephemeral`; there is no workflow shortcut that can masquerade as governed work.
 
