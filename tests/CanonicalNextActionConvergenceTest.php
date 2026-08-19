@@ -163,6 +163,45 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         );
     }
 
+    public function testAnOwnerRepairableDisagreementNamesTheRepairAndConverges(): void
+    {
+        $this->reachMutationReady();
+        $this->invalidateReviewReport();
+
+        [$action, $kind] = $this->nextStep();
+        self::assertSame('command', $kind);
+        self::assertStringContainsString('review blindspots', $action);
+
+        self::assertSame(0, $this->dispatchAction($action), 'the named repair must be executable');
+        self::assertNotSame([$action, $kind], $this->nextStep(), 'obeying the repair must change the state');
+    }
+
+    public function testADisagreementWithNoOwnerRepairAsksForHostWorkNotAnInspectionCommand(): void
+    {
+        $this->reachMutationReady();
+        file_put_contents($this->root . '/.agent-loop/recall/CONV-001/meta.json', '{');
+
+        [$action, $kind] = $this->nextStep();
+
+        // `workflow manifest --format=json` is read-only, so naming it here can
+        // never alter the state that produced the disagreement.
+        self::assertSame('host_work', $kind);
+        self::assertStringNotContainsString('workflow manifest', $action);
+        self::assertStringContainsString('agent-recall-compiler', $action);
+    }
+
+    private function invalidateReviewReport(): void
+    {
+        $this->repairDeclaredValidation();
+        $this->frontDoor('finish');
+        foreach (glob($this->root . '/.agent-loop/recall/CONV-001/reviews/*.json') ?: [] as $report) {
+            $decoded = json_decode((string) file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($decoded);
+            $decoded['status'] = 'fail';
+            file_put_contents($report, json_encode($decoded, JSON_THROW_ON_ERROR));
+        }
+    }
+
     private function nextAction(): string
     {
         ob_start();

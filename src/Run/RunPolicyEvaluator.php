@@ -24,7 +24,7 @@ final readonly class RunPolicyEvaluator
 
     /**
      * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      */
     public function evaluate(string $taskId, string $mode, array $references, array $disagreements): RunPolicyEvaluation
     {
@@ -43,7 +43,7 @@ final readonly class RunPolicyEvaluator
 
     /**
      * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      */
     private function state(string $mode, array $references, array $disagreements): string
     {
@@ -93,7 +93,7 @@ final readonly class RunPolicyEvaluator
 
     /**
      * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      */
     private function mutationAllowed(string $state, string $mode, array $references, array $disagreements): bool
     {
@@ -115,7 +115,7 @@ final readonly class RunPolicyEvaluator
 
     /**
      * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array{action: string, kind: string}
      */
     private function nextStep(
@@ -125,6 +125,28 @@ final readonly class RunPolicyEvaluator
         array $references,
         array $disagreements,
     ): array {
+        // A disagreement is an unexpected state, and naming the inspection
+        // command for it was non-convergent by construction: `workflow manifest
+        // --format=json` is read-only, so it can never alter the state that
+        // produced the disagreement. Prefer the owner's own repair; when no
+        // owner supplies one, say the artifact needs host work rather than
+        // naming a command that cannot change anything.
+        if ($disagreements !== []) {
+            foreach ($disagreements as $disagreement) {
+                $repair = $disagreement['repair_action'] ?? null;
+                if (is_string($repair) && $repair !== '') {
+                    return $this->command($repair);
+                }
+            }
+
+            $first = $disagreements[0];
+
+            return [
+                'action' => 'repair the ' . $first['owner'] . ' artifact this task depends on ('
+                    . $first['code'] . '): ' . $first['message'],
+                'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+            ];
+        }
         if (
             $this->referenceState($references, 'verification') === 'blocked'
             && ($references['verification']['gate'] ?? null) === 'validation'
@@ -158,7 +180,7 @@ final readonly class RunPolicyEvaluator
 
     /**
      * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      */
     private function nextAction(
         string $taskId,
@@ -167,9 +189,6 @@ final readonly class RunPolicyEvaluator
         array $references,
         array $disagreements,
     ): string {
-        if ($disagreements !== []) {
-            return 'agent-loop workflow manifest ' . $taskId . ' --format=json';
-        }
         if ($mode === 'ephemeral') {
             $sessionId = $references['session']['session_id'] ?? null;
 
@@ -245,8 +264,8 @@ final readonly class RunPolicyEvaluator
 
     /**
      * @param array<string, array<string, mixed>> $references
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
-     * @return list<array{code: string, owner: string, message: string}>
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @return list<array{code: string, owner: string, message: string, repair_action?: string}>
      */
     private function blockers(string $state, array $references, array $disagreements): array
     {
