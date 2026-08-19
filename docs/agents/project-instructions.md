@@ -4,9 +4,9 @@ This repository uses `voku/agent-loop` for governed coding work. Keep this alway
 
 For a durable task id:
 
-1. Before mutating code, run `{{agent_loop_cli}} enter <task-id>`. If it reports `Mutation: ready`, use its bounded context to perform the approved host-native work; its `Next:` value is the next governed close-out action after that work and is not another mutation prerequisite. If it reports `Mutation: not_ready`, do not mutate and follow `Next:` instead; a non-zero exit means the returned prerequisite or disagreement is blocking progress.
-2. Use repository-managed skills and subagents when their descriptions match the task. Do not recreate their procedures from conversational memory.
-3. Before claiming completion, run `{{agent_loop_cli}} finish <task-id>`. Only exit 0 with `Complete: yes` means done; otherwise follow its canonical `Next:` action.
+1. Before mutating code, run `{{agent_loop_cli}} enter <task-id> --format=json` and obey the returned `next_action_kind` / `next_action`. `command` means execute it as written; `decision_required` means supply the missing model and/or human decision values first; `host_work` means perform the described host-native implementation/model work; `none` means there is no further lifecycle action. Never fabricate an approval or risk owner.
+2. Use repository-managed skills and subagents when their descriptions match the task. Do not recreate their procedures from conversational memory. In particular, do not pre-build Map/Search, create Session/Recall state, or infer approval/close ordering: deterministic prerequisites and repairs must come from the canonical lifecycle result.
+3. When host-native mutation is complete, run `{{agent_loop_cli}} finish <task-id> --format=json`, then obey its canonical next step until `next_action_kind=none` and the result is complete. If an advertised command deterministically refuses without changing the next step, report a workflow defect rather than teaching the host a private workaround.
 4. Never claim that hooks fired, checks passed, CI is green, a PR merged, or a release/deploy shipped unless current evidence proves it.
 
 For untracked exploration, use an ephemeral session rather than inventing a durable task.
