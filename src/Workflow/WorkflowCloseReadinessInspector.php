@@ -11,6 +11,7 @@ use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\ValidationStatus;
 
@@ -146,7 +147,8 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkRecallGate(string $taskId): array
     {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
+        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $path = (new CompiledRecallOutputReader())->identityPath($directory);
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
         if (is_file($path)) {
             return ['detail' => null, 'message' => '[OK] recall: found ' . $relative];
@@ -225,34 +227,26 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkRecallOutcomeGate(string $taskId, string $learningRoot): array
     {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
-        if (!is_file($path)) {
+        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        try {
+            $output = (new CompiledRecallOutputReader())->read($directory);
+        } catch (\RuntimeException) {
+            return ['detail' => 'invalid recall metadata for task ' . $taskId, 'message' => null];
+        }
+        if ($output === null) {
             return ['detail' => 'missing recall metadata for task ' . $taskId, 'message' => null];
         }
-        try {
-            $meta = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return ['detail' => 'invalid recall metadata for task ' . $taskId, 'message' => null];
-        }
-        if (!is_array($meta)) {
-            return ['detail' => 'invalid recall metadata for task ' . $taskId, 'message' => null];
-        }
 
-        $selected = array_values(array_filter(
-            $meta['selected_guidance'] ?? [],
-            static fn (mixed $id): bool => is_string($id) && trim($id) !== '',
-        ));
-        foreach ($meta['selected_constraints'] ?? [] as $constraint) {
-            if (is_array($constraint) && is_string($constraint['id'] ?? null) && trim($constraint['id']) !== '') {
-                $selected[] = $constraint['id'];
-            }
-        }
+        $selected = array_values(array_unique([
+            ...$output->selectedGuidance(),
+            ...$output->selectedConstraints(),
+        ]));
         if ($selected === []) {
             return ['detail' => null, 'message' => '[OK] recall outcomes: no selected guidance requires evaluation'];
         }
 
-        $compilationId = $meta['compilation_id'] ?? null;
-        if (!is_string($compilationId) || trim($compilationId) === '') {
+        $compilationId = $output->compilationId();
+        if ($compilationId === null || trim($compilationId) === '') {
             return ['detail' => 'selected guidance without a compilation id', 'message' => null];
         }
         $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';
@@ -279,7 +273,6 @@ final readonly class WorkflowCloseReadinessInspector
                 $recorded[$outcome['guidance_id']] = true;
             }
         }
-        $selected = array_values(array_unique($selected));
         $selectedSet = array_fill_keys($selected, true);
         $withheld = array_intersect_key(
             $this->declaredWithholdings($learningRoot, $taskId, $compilationId),
