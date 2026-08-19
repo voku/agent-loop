@@ -224,7 +224,10 @@ final readonly class RunPolicyEvaluator
         if (in_array($this->referenceState($references, 'execution_contract'), ['missing', 'pending_recall'], true)) {
             return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
         }
-        if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected', 'invalid', 'stale'], true)) {
+        if (in_array($this->referenceState($references, 'execution_contract'), ['invalid', 'stale'], true)) {
+            return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
+        }
+        if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected'], true)) {
             return 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
 
