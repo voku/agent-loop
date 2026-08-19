@@ -9,53 +9,50 @@ use ReflectionClass;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentRecallCompiler\RecallCompiler;
-use voku\AgentSession\SessionHandoffProjector;
 use voku\AgentSession\SessionStore;
 
 /**
  * Compile a self-contained durable task-handoff prompt from current owner state.
  *
- * Session remains pruneable working memory. This command only projects its
- * bounded handoff packet into derived Recall input; the generated L2 prompt
- * instructs the acting host to update the repository's existing durable task
- * or card through its owner instead of inventing another backlog format.
+ * Current chat/session prose is supplied explicitly as bounded candidate context;
+ * it is not durable authority. The current governed Run binds that context to an
+ * exact Session identity, while Contract and board facts come from their owners.
  */
 final readonly class WorkflowHandoffCommand
 {
     private Closure $recallRunner;
     private SessionStore $sessionStore;
-    private SessionHandoffProjector $handoffProjector;
 
     /** @param callable(list<string>): int $recallRunner */
     public function __construct(
         private string $rootPath,
         callable $recallRunner,
         ?SessionStore $sessionStore = null,
-        ?SessionHandoffProjector $handoffProjector = null,
         private ?string $operatingPromptManifest = null,
     ) {
         $this->recallRunner = Closure::fromCallable($recallRunner);
         $this->sessionStore = $sessionStore ?? new SessionStore();
-        $this->handoffProjector = $handoffProjector ?? new SessionHandoffProjector();
     }
 
     /** @param list<string> $args */
     public function run(array $args): int
     {
         try {
-            if (count($args) !== 1) {
-                throw new RuntimeException('Usage: workflow handoff <task-id>.');
-            }
-
-            $taskId = new WorkflowTaskId($args[0]);
+            $taskId = new WorkflowTaskId($args[0] ?? '');
+            $context = $this->context(array_slice($args, 1));
             $layout = new ProjectLayout($this->rootPath);
-            $session = $this->sessionStore->activeForTask($layout->sessionsRoot(), $taskId->value);
-            if ($session === null) {
-                throw new RuntimeException('No active governed Session exists for task ' . $taskId->value . '.');
+
+            $run = (new GovernedRunStore($this->rootPath))->find($taskId->value);
+            if ($run === null) {
+                throw new RuntimeException('No governed Run exists for task ' . $taskId->value . '. Run `agent-loop enter ' . $taskId->value . '` first.');
+            }
+            $session = $this->sessionStore->load($layout->sessionsRoot(), $run->sessionId);
+            if ($session->taskId !== $taskId->value) {
+                throw new RuntimeException('Governed Run Session task does not match handoff task ' . $taskId->value . '.');
             }
 
-            $handoff = $this->handoffProjector->project($session);
             $contract = (new TaskContractStore($this->rootPath))->find($taskId->value);
             $contractEvidence = $contract === null
                 ? 'No durable Contract was found for this task. Do not invent one.'
@@ -63,14 +60,21 @@ final readonly class WorkflowHandoffCommand
                     $contract->toArray(),
                     JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
                 );
+            $sessionEvidence = json_encode(
+                $session->toArray(),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            );
 
-            $descriptionParts = ['Prepare a self-contained durable handoff for task ' . $taskId->value . '.'];
+            $descriptionParts = [
+                'Prepare a self-contained durable handoff for task ' . $taskId->value . '.',
+                "Current-session handoff notes supplied explicitly by the acting host. Treat these as candidate context, not durable authority; re-ground every material claim against repository/owner evidence before persisting it:\n" . $context,
+                "Current governed Session identity/metadata:\n```json\n" . $sessionEvidence . "\n```",
+            ];
             if ($contract === null) {
                 $descriptionParts[] = 'Current durable Contract evidence: ' . $contractEvidence;
             } else {
                 $descriptionParts[] = "Current durable Contract evidence:\n```json\n" . $contractEvidence . "\n```";
             }
-            $descriptionParts[] = "Current bounded Session handoff projection (derived working memory, not durable authority):\n" . $handoff->toMarkdown();
 
             $outputDirectory = $layout->recallRoot() . '/' . $taskId->value . '/handoff';
             $recallArgs = [
@@ -102,6 +106,34 @@ final readonly class WorkflowHandoffCommand
 
             return 1;
         }
+    }
+
+    /** @param list<string> $tokens */
+    private function context(array $tokens): string
+    {
+        if (count($tokens) !== 2 || !in_array($tokens[0], ['--context', '--context-file'], true)) {
+            throw new RuntimeException('Usage: workflow handoff <task-id> (--context <text> | --context-file <path>).');
+        }
+
+        if ($tokens[0] === '--context') {
+            $context = trim($tokens[1]);
+            if ($context === '') {
+                throw new RuntimeException('workflow handoff --context requires non-empty bounded session notes.');
+            }
+
+            return $context;
+        }
+
+        $path = trim($tokens[1]);
+        if ($path === '' || !is_file($path)) {
+            throw new RuntimeException('workflow handoff --context-file must name a readable file.');
+        }
+        $context = file_get_contents($path);
+        if (!is_string($context) || trim($context) === '') {
+            throw new RuntimeException('workflow handoff --context-file is empty or unreadable: ' . $path);
+        }
+
+        return trim($context);
     }
 
     private function manifestPath(): string
