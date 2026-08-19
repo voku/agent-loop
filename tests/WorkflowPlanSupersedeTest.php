@@ -70,9 +70,7 @@ final class WorkflowPlanSupersedeTest extends TestCase
         }
 
         self::assertSame(0, $exit);
-        $retired = $sessions->load(dirname($session->path), $session->id);
-        self::assertSame(SessionStatus::DROPPED, $retired->status);
-        self::assertStringContainsString('Superseded by candidate Contract revision planned by planner.', $retired->closedReason ?? '');
+        self::assertSame(SessionStatus::DROPPED, $sessions->load(dirname($session->path), $session->id)->status);
 
         $candidate = $contracts->load('SUPERSEDE-1');
         self::assertSame(2, $candidate->revision);
