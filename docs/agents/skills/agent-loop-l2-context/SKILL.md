@@ -59,7 +59,7 @@ vendor/bin/agent-loop recall compile \
 embed arbitrary source bodies.
 
 For governed starts, keep `recall-documents.json` intentionally small and
-Git-tracked beside the Learning root. `workflow approve` forwards it to Recall.
+Git-tracked beside the Learning root; the lifecycle owns when Recall receives it.
 Use explicit scopes, tags, and excerpt limits instead of making every document
 global context.
 
@@ -81,17 +81,18 @@ vendor/bin/agent-loop workflow plan <task-id> \
 Recipe selection and arguments remain explicit Contract policy. Bundling the
 catalog with Recall does not make Loop select recipes automatically.
 
-After approval:
+Approval is human authority, and what follows it is the kernel's decision, not
+this skill's. Drive governed work through the canonical lifecycle result and use
+the bounded context projection when that result or the task calls for it:
 
 ```bash
-vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
 vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
 ```
 
 If the compiled Recall artifacts require an L2 construction pass, follow the
 **current instructions in the Recall-owned `system.md`/skill** rather than a
 restated schema in this file. Persist the constructed execution contract through
-Loop before mutation:
+Loop when the canonical lifecycle result asks for it:
 
 ```bash
 vendor/bin/agent-loop workflow contract <task-id> \
@@ -207,8 +208,6 @@ Before claiming context work is complete:
 
 - confirm the current task's Recall artifacts exist through `workflow status`;
 - inspect generated evidence before using it;
-- when L2 policy applies, confirm the current Loop execution-contract gate is
-  `ready` before mutation;
 - run the task's approved validation commands and record their observed result;
 - run `vendor/bin/agent-loop verify --task-id=<task-id>` before close.
 
