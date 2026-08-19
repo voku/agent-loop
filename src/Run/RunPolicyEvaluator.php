@@ -140,6 +140,14 @@ final readonly class RunPolicyEvaluator
             return 'agent-loop workflow plan ' . $taskId . ' --by <actor> --file <path> --goal "..." --validation "..."';
         }
         if ($this->referenceState($references, 'contract') !== 'approved') {
+            // Obeying next_action must make progress. When the approval owner
+            // reports a repair that has to run first, naming approve here would
+            // return the same action after the same deterministic refusal.
+            $repair = $references['approval']['repair_action'] ?? null;
+            if (is_string($repair) && $repair !== '') {
+                return $repair;
+            }
+
             return 'agent-loop workflow approve ' . $taskId . ' --by <named-actor>';
         }
         if ($this->referenceState($references, 'approval') !== 'current') {
