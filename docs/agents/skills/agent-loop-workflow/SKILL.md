@@ -97,6 +97,25 @@ re-planning changed intent. The kernel owns when those decisions apply.
 useful diagnostic/read-only surfaces when needed. They are not another mandatory
 happy-path sequence beside `enter -> host work -> finish`.
 
+## Prompt Controls And Review Routing
+
+Prompt primitives remain optional controls that the host can route to when the
+task needs them; they are not lifecycle states. `checkpoint-autonomy` and
+`momentum` tune execution behavior without changing lifecycle authority.
+
+`RETURN_TO_REVIEW` is a review result, not a hidden phase transition. Feed the
+result back through the ordinary lifecycle and let the kernel decide the next
+step.
+
+Reflection is deliberately **not** another lifecycle phase. Use it only when
+additional task/project scrutiny is useful and the current lifecycle state allows
+it:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
+```
+
 ## Re-planning
 
 When goal, scope, policy, or acceptance intent genuinely changes, re-plan rather
@@ -104,19 +123,6 @@ than stretching the approved Contract conversationally. Ask the lifecycle kernel
 for the current state first and follow its canonical next step. Do not manually
 retire Session/Run/Recall state from host prose; deterministic supersession and
 reconciliation belong to the lifecycle owners.
-
-## Optional Reflection
-
-Reflection is optional scrutiny, not another gate. Use it only when the current
-lifecycle state allows it and extra task/project reasoning is useful:
-
-```bash
-vendor/bin/agent-loop workflow reflect <task-id> --scope task
-vendor/bin/agent-loop workflow reflect <task-id> --scope project
-```
-
-If reflection exposes a concrete defect, feed that evidence back through the
-ordinary lifecycle instead of inventing a parallel reflection state machine.
 
 ## Evidence Discipline
 
