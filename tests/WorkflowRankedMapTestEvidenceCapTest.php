@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowRankedMapContextExpander;
+use voku\AgentRecallCompiler\Output\RecallFact;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
 use voku\AgentMap\Index\FileEntry;
@@ -103,8 +104,9 @@ PHP);
     public function testTestEvidenceStillExpandsAfterProductionSeedCap(): void
     {
         $budget = new WorkflowContextBudget(120, 12000);
-        (new WorkflowRankedMapContextExpander($this->root))->add($budget, [
-            'payload' => [
+        (new WorkflowRankedMapContextExpander($this->root))->add($budget, new RecallFact(
+            'navigation_candidates',
+            [
                 'status' => 'ranked',
                 'map_snapshot' => 'sha256:fixture-map',
                 'results' => [
@@ -115,7 +117,7 @@ PHP);
                     $this->candidate('method:Demo\\LeafTest::testRead', 'tests/LeafTest.php', 6),
                 ],
             ],
-        ]);
+        ));
         $budget->finish();
         $rendered = implode("\n", $budget->lines());
 

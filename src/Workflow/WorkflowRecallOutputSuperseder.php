@@ -17,6 +17,8 @@ use voku\AgentLoop\RecallOutputRoot;
  * reviewed when it was neither. The old output is retained for audit instead of
  * being deleted or silently reused.
  */
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
+
 final readonly class WorkflowRecallOutputSuperseder
 {
     public function __construct(private string $rootPath)
@@ -30,7 +32,7 @@ final readonly class WorkflowRecallOutputSuperseder
             return null;
         }
 
-        $identitySource = $directory . '/meta.json';
+        $identitySource = (new CompiledRecallOutputReader())->identityPath($directory);
         $digest = is_file($identitySource) ? hash_file('sha256', $identitySource) : false;
         $suffix = $digest === false ? 'unknown' : substr($digest, 0, 12);
         $archive = $directory . '.superseded-' . $suffix;
