@@ -6,11 +6,13 @@ namespace voku\AgentLoop\Workflow;
 
 use ItpContext\Attribute\Rule;
 use voku\AgentLearning\RunLearningDecisionStore;
+use RuntimeException;
 use voku\AgentLoop\AgentLoopVerifier;
 use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\ValidationStatus;
 
@@ -146,9 +148,18 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkRecallGate(string $taskId): array
     {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
-        $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
-        if (is_file($path)) {
+        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $reader = new CompiledRecallOutputReader();
+        $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
+        try {
+            // This gate asks only whether compiled output exists. Metadata that
+            // exists but cannot be parsed is still present, and is reported by
+            // the outcome gate below rather than as an absence here.
+            $found = $reader->read($directory) !== null;
+        } catch (RuntimeException) {
+            $found = true;
+        }
+        if ($found) {
             return ['detail' => null, 'message' => '[OK] recall: found ' . $relative];
         }
 
@@ -225,34 +236,29 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkRecallOutcomeGate(string $taskId, string $learningRoot): array
     {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
-        if (!is_file($path)) {
-            return ['detail' => 'missing recall metadata for task ' . $taskId, 'message' => null];
-        }
+        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         try {
-            $meta = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
+            $output = (new CompiledRecallOutputReader())->read($directory);
+        } catch (RuntimeException) {
             return ['detail' => 'invalid recall metadata for task ' . $taskId, 'message' => null];
         }
-        if (!is_array($meta)) {
-            return ['detail' => 'invalid recall metadata for task ' . $taskId, 'message' => null];
+        if ($output === null) {
+            return ['detail' => 'missing recall metadata for task ' . $taskId, 'message' => null];
         }
 
         $selected = array_values(array_filter(
-            $meta['selected_guidance'] ?? [],
-            static fn (mixed $id): bool => is_string($id) && trim($id) !== '',
+            [...$output->selectedGuidance(), ...$output->selectedConstraints()],
+            static fn (string $id): bool => trim($id) !== '',
         ));
-        foreach ($meta['selected_constraints'] ?? [] as $constraint) {
-            if (is_array($constraint) && is_string($constraint['id'] ?? null) && trim($constraint['id']) !== '') {
-                $selected[] = $constraint['id'];
-            }
-        }
         if ($selected === []) {
             return ['detail' => null, 'message' => '[OK] recall outcomes: no selected guidance requires evaluation'];
         }
 
-        $compilationId = $meta['compilation_id'] ?? null;
-        if (!is_string($compilationId) || trim($compilationId) === '') {
+        // The owner treats only the empty string as absent. A whitespace-only
+        // id would otherwise be compared against outcome records as if it
+        // identified a compilation.
+        $compilationId = $output->compilationId();
+        if ($compilationId === null || trim($compilationId) === '') {
             return ['detail' => 'selected guidance without a compilation id', 'message' => null];
         }
         $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
-use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentKanban\Cli\BoardContextFactory;
@@ -24,6 +23,8 @@ use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutput;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -337,23 +338,23 @@ final readonly class RunManifestProjector
         array &$disagreements,
     ): array {
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
-        $metaPath = $directory . '/meta.json';
-        if (!is_file($metaPath)) {
-            return [
-                'owner' => 'agent-recall-compiler',
-                'state' => 'missing',
-                'observation_mode' => 'checked',
-                'path' => RecallOutputRoot::relativeTo($this->rootPath, $metaPath),
-            ];
-        }
+        $reader = new CompiledRecallOutputReader();
         try {
-            $meta = $this->decodeJson($metaPath);
+            $output = $reader->read($directory);
         } catch (RuntimeException $exception) {
             $disagreements[] = ['code' => 'recall.meta_invalid', 'owner' => 'agent-recall-compiler', 'message' => $exception->getMessage()];
 
             return ['owner' => 'agent-recall-compiler', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
-        if (is_string($meta['task_id'] ?? null) && $meta['task_id'] !== $taskId) {
+        if ($output === null) {
+            return [
+                'owner' => 'agent-recall-compiler',
+                'state' => 'missing',
+                'observation_mode' => 'checked',
+                'path' => RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory)),
+            ];
+        }
+        if (!$output->describesTask($taskId)) {
             $disagreements[] = [
                 'code' => 'recall.task_mismatch',
                 'owner' => 'agent-recall-compiler',
@@ -361,33 +362,31 @@ final readonly class RunManifestProjector
             ];
         }
 
-        $bindingFailure = $this->recallBindingFailure($directory, $meta, $run, $contract);
+        $bindingFailure = $this->recallBindingFailure($output, $run, $contract);
         if ($bindingFailure !== null) {
             return [
                 'owner' => 'agent-recall-compiler',
                 'state' => 'stale',
                 'observation_mode' => 'checked',
                 'reason' => $bindingFailure,
-                'compilation_id' => is_string($meta['compilation_id'] ?? null) ? $meta['compilation_id'] : null,
-                'source' => $this->artifact($metaPath),
+                'compilation_id' => $output->compilationId(),
+                'source' => $this->artifact($output->identityPath()),
             ];
         }
 
         return [
             'owner' => 'agent-recall-compiler',
-            'state' => ($meta['blocked'] ?? false) === true ? 'blocked' : 'compiled',
+            'state' => $output->isBlocked() ? 'blocked' : 'compiled',
             'observation_mode' => 'checked',
-            'compilation_id' => is_string($meta['compilation_id'] ?? null) ? $meta['compilation_id'] : null,
-            'bundle_sha256' => is_string($meta['bundle_sha256'] ?? null) ? $meta['bundle_sha256'] : null,
-            'snapshot_sha256' => is_string($meta['snapshot_sha256'] ?? null) ? $meta['snapshot_sha256'] : null,
-            'source' => $this->artifact($metaPath),
+            'compilation_id' => $output->compilationId(),
+            'bundle_sha256' => $output->bundleSha256(),
+            'snapshot_sha256' => $output->snapshotSha256(),
+            'source' => $this->artifact($output->identityPath()),
         ];
     }
 
-    /** @param array<string, mixed> $meta */
     private function recallBindingFailure(
-        string $directory,
-        array $meta,
+        CompiledRecallOutput $output,
         ?GovernedRun $run,
         ?TaskContract $contract,
     ): ?string {
@@ -395,27 +394,17 @@ final readonly class RunManifestProjector
             return null;
         }
 
-        $bundlePath = $directory . '/recall.bundle.json';
-        if (!is_file($bundlePath)) {
-            return is_string($meta['snapshot_sha256'] ?? null)
-                ? 'Recall output is incomplete for the current governed Run: recall.bundle.json is missing.'
-                : null;
+        if (!$output->hasBundle()) {
+            return $output->isComplete()
+                ? null
+                : 'Recall output is incomplete for the current governed Run: the compiled bundle is missing.';
         }
-
-        try {
-            $bundle = $this->decodeJson($bundlePath);
-        } catch (RuntimeException $exception) {
-            return 'Recall bundle is unreadable for the current governed Run: ' . $exception->getMessage();
+        if (!$output->isBundleReadable()) {
+            return 'Recall bundle is unreadable for the current governed Run.';
         }
-
-        $task = $bundle['task'] ?? null;
-        $bundleTaskId = is_array($task) ? ($task['id'] ?? null) : null;
-        $bundleRevision = is_array($task) ? ($task['revision'] ?? null) : null;
         if (
-            $bundleTaskId !== $run->taskId
-            || $bundleTaskId !== $contract->taskId
-            || $bundleRevision !== $run->contractRevision
-            || $bundleRevision !== $contract->revision
+            !$output->bindsTo($run->taskId, $run->contractRevision)
+            || !$output->bindsTo($contract->taskId, $contract->revision)
         ) {
             return sprintf(
                 'Recall bundle does not match the current governed Run/Contract binding (Run revision %d, Contract revision %d).',
@@ -721,22 +710,4 @@ final readonly class RunManifestProjector
         return ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
     }
 
-    /** @return array<string, mixed> */
-    private function decodeJson(string $path): array
-    {
-        $contents = file_get_contents($path);
-        if ($contents === false) {
-            throw new RuntimeException('Unable to read JSON artifact: ' . $path);
-        }
-        try {
-            $decoded = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('Invalid JSON artifact ' . $path . ': ' . $exception->getMessage(), 0, $exception);
-        }
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Invalid JSON artifact: ' . $path);
-        }
-
-        return $decoded;
-    }
 }

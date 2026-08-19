@@ -1,0 +1,35 @@
+{
+    "id": "finding.2026-08-19.b1dfa6",
+    "task_id": "GH-216",
+    "session": "2026-08-19-gh-216-slice-d",
+    "created_at": "2026-08-19T06:08:43+00:00",
+    "created_by": "agent-loop-self-discovery",
+    "scope": [
+        "tools/release-set-dogfood.php",
+        ".github/workflows/ci.yml",
+        "docs/agents/dogfood/real-issue-acceptance.md"
+    ],
+    "observation": "The installed release-set dogfood is the test that turns \"agent-loop consumes its owners as published releases\" into evidence. Run locally after the Slice D boundary cut, it failed with 'Class voku\\AgentRecallCompiler\\Output\\CompiledRecallOutputReader not found' although composer.json already required voku/agent-recall-compiler ^0.13.7 and 0.13.7 was published. The cause was outside the diff: a leftover build/candidate-agent-recall-compiler directory from an earlier cross-package session still held 0.13.6, and tools/release-set-dogfood.php registers build/candidate-agent-{session,recall-compiler,learning} as Composer path repositories whenever they exist. A path repository outranks the published version, so the run silently resolved the stale local checkout instead of the release it claimed to test. Removing the directory made the same command pass unchanged. The runner reported neither which source each owner resolved from nor that a candidate override was active, so the failure looked like a defect in the released reader rather than a defeated premise. Had the stale checkout been newer instead of older, the run would have passed and reported a green 'published release' result for code that was never published.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "php tools/release-set-dogfood.php failed with Error: Class \"voku\\\\AgentRecallCompiler\\\\Output\\\\CompiledRecallOutputReader\" not found while composer.json required voku/agent-recall-compiler ^0.13.7; build/candidate-agent-recall-compiler was present and reported 0.13.6 in its composer.json."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "After rm -rf build/candidate-agent-recall-compiler the identical command passed with no source change, which isolates the leftover path repository as the cause rather than the released reader."
+        },
+        {
+            "type": "file_reference",
+            "path": "tools/release-set-dogfood.php",
+            "line": 524,
+            "summary": "Registers build/candidate-agent-session, build/candidate-agent-recall-compiler and build/candidate-agent-learning as Composer path repositories when the directories exist, with no flag gating and no report line naming the selected source."
+        }
+    ],
+    "hypothesis": "A dogfood whose premise is 'installed from a published release' can have that premise silently replaced by leftover state from an earlier session, because the same runner supports two mutually exclusive modes - published release set and local candidate override - selected by directory presence rather than by an explicit, reported choice. Presence-selected mode switching is invisible in both outcomes: a false red is merely confusing, a false green is an evidence defect.",
+    "validated_conclusion": "Make the resolution source part of the dogfood's own report instead of an ambient property of the working tree. The release-set runner should print, per owner, which source it resolved (published release vs build/candidate-* path repository) and the version it got, and should require the candidate mode to be requested explicitly - refusing to activate a path repository that no flag asked for, or at minimum failing loudly when a candidate directory is present but the run claims to test published releases. Until then, treat a red release-set dogfood as 'check for stale build/candidate-* first' and a green one as conditional on that check. This is workflow/release-set friction, not a Recall defect: it is recorded here rather than fixed inside the boundary PR that surfaced it.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

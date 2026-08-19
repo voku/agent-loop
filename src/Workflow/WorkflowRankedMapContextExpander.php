@@ -10,6 +10,7 @@ use voku\AgentMap\Context\EditContextPlanner;
 use voku\AgentMap\Context\EditContextPolicy;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
+use voku\AgentRecallCompiler\Output\RecallFact;
 
 /**
  * Turns ranked Recall navigation leads into bounded, read-only structural context.
@@ -25,10 +26,9 @@ final readonly class WorkflowRankedMapContextExpander
     {
     }
 
-    /** @param array<string, mixed> $fact */
-    public function add(WorkflowContextBudget $budget, array $fact): void
+    public function add(WorkflowContextBudget $budget, RecallFact $fact): void
     {
-        $payload = is_array($fact['payload'] ?? null) ? $fact['payload'] : [];
+        $payload = $fact->payload;
         if (($payload['status'] ?? null) !== 'ranked' || !is_array($payload['results'] ?? null)) {
             return;
         }

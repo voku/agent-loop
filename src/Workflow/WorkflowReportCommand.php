@@ -14,6 +14,7 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidence;
@@ -334,29 +335,37 @@ final readonly class WorkflowReportCommand
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
     private function recallReport(string $taskId): array
     {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
-        $relative = $this->relativePath($path);
+        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $reader = new CompiledRecallOutputReader();
+        $relative = $this->relativePath($reader->identityPath($directory));
         $taskFiles = [];
         $status = 'missing';
-        if (is_file($path)) {
-            try {
-                $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-                if (!is_array($decoded) || (isset($decoded['task_id']) && $decoded['task_id'] !== $taskId)) {
+        $outcomeDraft = false;
+        try {
+            $output = $reader->read($directory);
+            if ($output !== null) {
+                $outcomeDraft = $output->hasOutcomeDraft();
+                if (!$output->describesTask($taskId)) {
                     $status = 'invalid';
                 } else {
                     $status = 'present';
-                    $taskFiles = $this->stringList($decoded['task_files'] ?? []);
+                    // The owner drops empty entries; whitespace-only ones would
+                    // still be reported as task files.
+                    $taskFiles = array_values(array_filter(
+                        $output->taskFiles(),
+                        static fn (string $file): bool => trim($file) !== '',
+                    ));
                 }
-            } catch (JsonException) {
-                $status = 'invalid';
             }
+        } catch (RuntimeException) {
+            $status = 'invalid';
         }
 
         return [
             'status' => $status,
             'meta_path' => $relative,
             'task_files' => $taskFiles,
-            'outcome_draft' => is_file(dirname($path) . '/recall-log.draft.json'),
+            'outcome_draft' => $outcomeDraft,
             'logged_outcomes' => $this->loggedOutcomeCount($taskId, $this->resolveLearningRoot($taskId)),
         ];
     }
@@ -473,15 +482,6 @@ final readonly class WorkflowReportCommand
         return $count;
     }
 
-    /** @return list<string> */
-    private function stringList(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        return array_values(array_filter($value, static fn (mixed $item): bool => is_string($item) && trim($item) !== ''));
-    }
 
     private function relativePath(string $path): string
     {
