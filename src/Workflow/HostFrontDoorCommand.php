@@ -14,6 +14,7 @@ use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -110,6 +111,7 @@ final readonly class HostFrontDoorCommand
             'task_id' => $taskId->value,
             'mutation_ready' => $preparationFailure === null && $policy->mutationAllowed,
             'next_action' => $policy->nextAction,
+            'next_action_kind' => $policy->nextActionKind,
             'warnings' => $warnings,
             'manifest' => $manifest->toArray(),
             'context' => $context,
@@ -130,7 +132,8 @@ final readonly class HostFrontDoorCommand
             echo 'Mode: ' . $manifest->mode . "\n";
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
-            echo 'Next: ' . $policy->nextAction . "\n";
+            echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
+                . $policy->nextAction . "\n";
             foreach ($warnings as $warning) {
                 echo '[WARN] ' . $warning['message'] . "\n";
             }
@@ -269,6 +272,7 @@ final readonly class HostFrontDoorCommand
             'task_id' => $taskId->value,
             'complete' => $complete,
             'next_action' => $policy->nextAction,
+            'next_action_kind' => $policy->nextActionKind,
             'manifest' => $manifest->toArray(),
         ];
         if ($closeoutFailure !== null) {
@@ -288,7 +292,8 @@ final readonly class HostFrontDoorCommand
             echo 'Run: ' . $manifest->runId . "\n";
             echo 'State: ' . $policy->state . "\n";
             echo 'Complete: ' . ($complete ? 'yes' : 'no') . "\n";
-            echo 'Next: ' . $policy->nextAction . "\n";
+            echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
+                . $policy->nextAction . "\n";
         }
 
         if ($closeoutFailure !== null) {

@@ -29,13 +29,15 @@ final readonly class RunPolicyEvaluator
     public function evaluate(string $taskId, string $mode, array $references, array $disagreements): RunPolicyEvaluation
     {
         $state = $this->state($mode, $references, $disagreements);
+        $step = $this->nextStep($taskId, $state, $mode, $references, $disagreements);
 
         return new RunPolicyEvaluation(
             $state,
             $this->mutationAllowed($state, $mode, $references, $disagreements),
             in_array($state, ['ready_to_close', 'complete'], true),
             $this->blockers($state, $references, $disagreements),
-            $this->nextAction($taskId, $state, $mode, $references, $disagreements),
+            $step['action'],
+            $step['kind'],
         );
     }
 
@@ -119,6 +121,54 @@ final readonly class RunPolicyEvaluator
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
+    /**
+     * @param array<string, array<string, mixed>> $references
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return array{action: string, kind: string}
+     */
+    private function nextStep(
+        string $taskId,
+        string $state,
+        string $mode,
+        array $references,
+        array $disagreements,
+    ): array {
+        // The declared validation is failing for the current implementation.
+        // No command advances that: `finish` re-runs the same failing
+        // obligation and returns the same refusal, which is the self-loop the
+        // E3 dogfood reproduced. The required step is host-native work, so the
+        // canonical action says so rather than naming a command.
+        if (
+            $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'validation'
+            && ($references['verification']['validation_failed'] ?? false) === true
+        ) {
+            $reason = $references['verification']['reason'] ?? null;
+
+            return [
+                'action' => 'change the implementation so the declared validation passes'
+                    . (is_string($reason) && $reason !== '' ? ': ' . $reason : ''),
+                'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+            ];
+        }
+
+        $action = $this->nextAction($taskId, $state, $mode, $references, $disagreements);
+
+        return $action === 'none'
+            ? ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE]
+            : $this->command($action);
+    }
+
+    /** @return array{action: string, kind: string} */
+    private function command(string $action): array
+    {
+        return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_COMMAND];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $references
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     */
     private function nextAction(
         string $taskId,
         string $state,
@@ -169,13 +219,6 @@ final readonly class RunPolicyEvaluator
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected', 'invalid', 'stale'], true)) {
             return 'agent-loop workflow status ' . $taskId . ' --format=json';
-        }
-
-        if (
-            $this->referenceState($references, 'verification') === 'blocked'
-            && ($references['verification']['gate'] ?? null) === 'validation'
-        ) {
-            return 'agent-loop finish ' . $taskId;
         }
 
         $reviewState = $this->referenceState($references, 'review');

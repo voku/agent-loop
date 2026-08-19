@@ -12,6 +12,11 @@ namespace voku\AgentLoop\Run;
  */
 final readonly class RunPolicyEvaluation
 {
+    public const string KIND_COMMAND = 'command';
+    public const string KIND_HOST_WORK = 'host_work';
+    public const string KIND_NONE = 'none';
+
+
     /** @param list<array{code: string, owner: string, message: string}> $blockers */
     public function __construct(
         public string $state,
@@ -19,6 +24,15 @@ final readonly class RunPolicyEvaluation
         public bool $ordinaryCloseAllowed,
         public array $blockers,
         public string $nextAction,
+        /**
+         * How the host must treat nextAction.
+         *
+         * command       - execute it as written
+         * host_work     - irreducible model work; nextAction describes it and
+         *                 is not a command, so executing it is always wrong
+         * none          - nothing further is required
+         */
+        public string $nextActionKind = self::KIND_COMMAND,
     ) {
     }
 }

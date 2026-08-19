@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 
 /**
  * Obeying the canonical next action must make progress.
@@ -69,6 +70,97 @@ final class CanonicalNextActionConvergenceTest extends TestCase
 
         self::assertStringNotContainsString('workflow approve', $next);
         self::assertStringContainsString('map refresh', $next);
+    }
+
+    public function testAFailingValidationAsksForHostWorkInsteadOfRepeatingFinish(): void
+    {
+        $this->reachMutationReady();
+        $this->breakDeclaredValidation();
+
+        [$action, $kind] = $this->nextStep();
+
+        self::assertSame('host_work', $kind, 'the required step is model work, not a command');
+        self::assertStringNotContainsString('agent-loop', $action, 'a host action must not read as a command');
+        self::assertStringContainsString('validation', $action);
+    }
+
+    public function testTheHostWorkActionAdvancesOnceTheHostDoesIt(): void
+    {
+        $this->reachMutationReady();
+        $this->breakDeclaredValidation();
+        self::assertSame('host_work', $this->nextStep()[1]);
+
+        // The host does the irreducible work the action described.
+        $this->repairDeclaredValidation();
+
+        [$action, $kind] = $this->nextStep();
+        self::assertSame('command', $kind);
+        self::assertStringContainsString('agent-loop finish', $action);
+    }
+
+    private function frontDoor(string $command): int
+    {
+        $dispatcher = new Dispatcher($this->root);
+        $runner = static function (array $rest) use ($dispatcher): int {
+            /** @var list<string> $argv */
+            $argv = ['agent-loop', 'recall', ...array_values($rest)];
+
+            return $dispatcher->run($argv);
+        };
+
+        ob_start();
+        $exit = (new HostFrontDoorCommand($this->root, $runner))->run($command, ['CONV-001']);
+        ob_end_clean();
+
+        return $exit;
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function nextStep(): array
+    {
+        ob_start();
+        $this->dispatchInRoot(['agent-loop', 'workflow', 'status', 'CONV-001', '--format=json']);
+        $output = (string) ob_get_clean();
+        $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($status);
+        $action = $status['manifest']['next_action'] ?? null;
+        self::assertIsString($action);
+        // A manifest without the field is the old command-only contract, so it
+        // reads as 'command' here. That keeps these tests failing on the
+        // behaviour they describe rather than on the field's absence.
+        $kind = $status['manifest']['next_action_kind'] ?? 'command';
+        self::assertIsString($kind);
+
+        return [$action, $kind];
+    }
+
+    private function reachMutationReady(): void
+    {
+        self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']), 'map build');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'CONV-001', '--by', 'lars']), 'approve');
+        // enter/finish are front-door commands wired in bin/agent-loop rather
+        // than the Dispatcher, so the owner is invoked directly here. Its exit
+        // code is 0 only once mutation is authorized, which these tests need.
+        self::assertSame(0, $this->frontDoor('enter'), 'enter');
+    }
+
+    /**
+     * Reproduce the observed loop: break the implementation, then run finish so
+     * the declared obligation actually executes and records failed evidence.
+     * That is the state where finish used to name itself forever.
+     */
+    private function breakDeclaredValidation(): void
+    {
+        file_put_contents($this->root . '/src/Greeter.php', "<?php\n\nthis is not valid php\n");
+        self::assertNotSame(0, $this->frontDoor('finish'), 'finish must refuse on failing validation');
+    }
+
+    private function repairDeclaredValidation(): void
+    {
+        file_put_contents(
+            $this->root . '/src/Greeter.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Consumer;\n\nfinal class Greeter\n{\n    public function greet(string \$name): string\n    {\n        return 'Hello ' . \$name . '!';\n    }\n}\n",
+        );
     }
 
     private function nextAction(): string

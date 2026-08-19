@@ -126,6 +126,7 @@ final readonly class RunManifestProjector
             $references,
             $disagreements,
             $policy->nextAction,
+            $policy->nextActionKind,
         );
     }
 
@@ -560,6 +561,9 @@ final readonly class RunManifestProjector
                 'gate' => $failure['gate'] ?? 'unknown',
                 'reason' => $failure['detail'] ?? 'workflow close readiness failed without detail',
                 'action' => $this->closeReadinessAction($taskId, $readiness),
+                // Owner-supplied so the policy evaluator does not have to read
+                // the reason prose to tell a failed obligation from a missing one.
+                'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
             ];
         }

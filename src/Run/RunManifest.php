@@ -27,6 +27,7 @@ final readonly class RunManifest
         public array $references,
         public array $disagreements,
         public string $nextAction,
+        public string $nextActionKind = RunPolicyEvaluation::KIND_COMMAND,
     ) {
     }
 
@@ -42,6 +43,7 @@ final readonly class RunManifest
             'references' => $this->references,
             'disagreements' => $this->disagreements,
             'next_action' => $this->nextAction,
+            'next_action_kind' => $this->nextActionKind,
         ];
     }
 

@@ -40,6 +40,24 @@ final readonly class WorkflowCloseReadiness
         return $this->nonWaivableFailures[0] ?? $this->gateFailures[0] ?? null;
     }
 
+    /**
+     * Whether a declared obligation ran against the current implementation and
+     * failed, as opposed to simply having no current evidence yet.
+     *
+     * The two need different next steps: failed evidence needs the
+     * implementation changed, missing evidence only needs the obligation run.
+     */
+    public function hasFailedValidationEvidence(): bool
+    {
+        foreach ($this->validationObligations as $obligation) {
+            if ($obligation['status'] === 'failed') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function firstUnsatisfiedValidationCommand(): ?string
     {
         foreach ($this->validationObligations as $obligation) {
