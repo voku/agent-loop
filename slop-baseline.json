@@ -6,48 +6,13 @@
             "name": "slop-scan-php",
             "version": "0.1.0"
         },
-        "configHash": "927a01cb74d3259888426895259c4350acf938e03f72d941c76e429ca4a5de89",
+        "configHash": "371826e99d78fb468731aaca8c1560400d6ed530282ccb2b4f25c26c2bd9c5df",
         "findingFingerprintVersion": 1
     },
     "summary": {
-        "findingCount": 13
+        "findingCount": 9
     },
     "findings": [
-        {
-            "ruleId": "php.type-escape-hotspots",
-            "family": "type-safety",
-            "severity": "medium",
-            "scope": "file",
-            "message": "Found file with concentrated type escape patterns",
-            "why": "Many mixed types and casts in one file usually indicate type friction at that boundary.",
-            "suggestedAction": "Tighten the data contract or isolate the conversion boundary into a smaller, named adapter.",
-            "confidence": "medium",
-            "evidence": [
-                "mixed-types=3",
-                "casts=5",
-                "total=8"
-            ],
-            "score": 8,
-            "locations": [
-                {
-                    "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 1,
-                    "column": 1
-                }
-            ],
-            "path": "src/Workflow/WorkflowContextCommand.php",
-            "deltaIdentity": {
-                "fingerprintVersion": 1,
-                "occurrences": [
-                    {
-                        "fingerprint": "748301ec2b6d39d8d96c7fb7cb2b1de40217fd6059cde500f637bdfb7d214079",
-                        "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 1,
-                        "column": 1
-                    }
-                ]
-            }
-        },
         {
             "ruleId": "php.type-escape-hotspots",
             "family": "type-safety",
@@ -112,6 +77,41 @@
                     {
                         "fingerprint": "628d64b4a2f4def281afeaa38f07000661296046ba27f307d952e0a1769bfbae",
                         "path": "src/Edit/Verify/VerificationBundle.php",
+                        "line": 1,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.type-escape-hotspots",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found file with concentrated type escape patterns",
+            "why": "Many mixed types and casts in one file usually indicate type friction at that boundary.",
+            "suggestedAction": "Tighten the data contract or isolate the conversion boundary into a smaller, named adapter.",
+            "confidence": "medium",
+            "evidence": [
+                "mixed-types=2",
+                "casts=3",
+                "total=5"
+            ],
+            "score": 5,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowContextCommand.php",
+                    "line": 1,
+                    "column": 1
+                }
+            ],
+            "path": "src/Workflow/WorkflowContextCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "748301ec2b6d39d8d96c7fb7cb2b1de40217fd6059cde500f637bdfb7d214079",
+                        "path": "src/Workflow/WorkflowContextCommand.php",
                         "line": 1,
                         "column": 1
                     }
@@ -232,107 +232,8 @@
             "score": 2,
             "locations": [
                 {
-                    "path": "src/Init/InitStatusCommand.php",
-                    "line": 268,
-                    "column": 1
-                }
-            ],
-            "path": "src/Init/InitStatusCommand.php",
-            "deltaIdentity": {
-                "fingerprintVersion": 1,
-                "occurrences": [
-                    {
-                        "fingerprint": "8db439730d0983156ed6c8e1cb0fe8b2bbab470b3246a55389afec734e5247e0",
-                        "path": "src/Init/InitStatusCommand.php",
-                        "line": 268,
-                        "column": 1
-                    }
-                ]
-            }
-        },
-        {
-            "ruleId": "php.catch-default-fallbacks",
-            "family": "error-handling",
-            "severity": "medium",
-            "scope": "file",
-            "message": "Found PHP catch block that returns a default fallback literal",
-            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
-            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
-            "confidence": "high",
-            "evidence": [
-                "return=null"
-            ],
-            "score": 2,
-            "locations": [
-                {
-                    "path": "src/Run/RunManifestProjector.php",
-                    "line": 129,
-                    "column": 1
-                }
-            ],
-            "path": "src/Run/RunManifestProjector.php",
-            "deltaIdentity": {
-                "fingerprintVersion": 1,
-                "occurrences": [
-                    {
-                        "fingerprint": "888a487034da2bb72197ddb0a8467d50881cf7b8212cd1c31cb706330c35f067",
-                        "path": "src/Run/RunManifestProjector.php",
-                        "line": 129,
-                        "column": 1
-                    }
-                ]
-            }
-        },
-        {
-            "ruleId": "php.catch-default-fallbacks",
-            "family": "error-handling",
-            "severity": "medium",
-            "scope": "file",
-            "message": "Found PHP catch block that returns a default fallback literal",
-            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
-            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
-            "confidence": "high",
-            "evidence": [
-                "return=null"
-            ],
-            "score": 2,
-            "locations": [
-                {
-                    "path": "src/Workflow/WorkflowCloseCommand.php",
-                    "line": 420,
-                    "column": 1
-                }
-            ],
-            "path": "src/Workflow/WorkflowCloseCommand.php",
-            "deltaIdentity": {
-                "fingerprintVersion": 1,
-                "occurrences": [
-                    {
-                        "fingerprint": "80b70cf785cb878e56589520d260fbaee9640549dfb0a5b76db70b0991481a9a",
-                        "path": "src/Workflow/WorkflowCloseCommand.php",
-                        "line": 420,
-                        "column": 1
-                    }
-                ]
-            }
-        },
-        {
-            "ruleId": "php.catch-default-fallbacks",
-            "family": "error-handling",
-            "severity": "medium",
-            "scope": "file",
-            "message": "Found PHP catch block that returns a default fallback literal",
-            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
-            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
-            "confidence": "high",
-            "evidence": [
-                "return=null"
-            ],
-            "score": 2,
-            "locations": [
-                {
                     "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 172,
+                    "line": 173,
                     "column": 1
                 }
             ],
@@ -341,9 +242,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "08be72f1c90b9a0027a6cc1c059f8e82a21d442a5164798f02de08c5cb3f185a",
+                        "fingerprint": "6063a8ec9576247d4d829aac9b87e0925d3a009e9e843b60a0caef36446cf87c",
                         "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 172,
+                        "line": 173,
                         "column": 1
                     }
                 ]
@@ -365,7 +266,7 @@
             "locations": [
                 {
                     "path": "src/Workflow/WorkflowContextCommand.php",
-                    "line": 218,
+                    "line": 215,
                     "column": 1
                 }
             ],
@@ -374,9 +275,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "56d608f09519799abdbe6ae87ea9774a7d4ca7ca919ace1b1bf5481150c034de",
+                        "fingerprint": "0af61f737db45b446ab1d76e7b3f0c9f9c75827b7783fc62a199ff3ccb94b270",
                         "path": "src/Workflow/WorkflowContextCommand.php",
-                        "line": 218,
+                        "line": 215,
                         "column": 1
                     }
                 ]
@@ -410,50 +311,6 @@
                         "fingerprint": "6b560f6636cc312daaa7c080e5560451a496a6add0d6ecd88bdf6ddb39b07f83",
                         "path": "src/Workflow/WorkflowKanbanContextWriter.php",
                         "line": 35,
-                        "column": 1
-                    }
-                ]
-            }
-        },
-        {
-            "ruleId": "php.clone-cluster",
-            "family": "duplication",
-            "severity": "medium",
-            "scope": "repo",
-            "message": "Found near-duplicate PHP function bodies",
-            "why": "Near-identical bodies across multiple functions often come from copy-paste evolution.",
-            "suggestedAction": "Review whether the shared logic should move into one helper or a clearer abstraction.",
-            "confidence": "medium",
-            "evidence": [
-                "name=layout"
-            ],
-            "score": 2,
-            "locations": [
-                {
-                    "path": "src/Dispatcher.php",
-                    "line": 295,
-                    "column": 1
-                },
-                {
-                    "path": "src/Workflow/AcceptedRiskWriter.php",
-                    "line": 43,
-                    "column": 1
-                }
-            ],
-            "path": null,
-            "deltaIdentity": {
-                "fingerprintVersion": 1,
-                "occurrences": [
-                    {
-                        "fingerprint": "6b5fedfc017d05ca887c34c5db4b7d802d78726e4de35d99e431b530b2d3c645",
-                        "path": "src/Dispatcher.php",
-                        "line": 295,
-                        "column": 1
-                    },
-                    {
-                        "fingerprint": "44484d78f25d3a83764f40b7d02073e95ee1708fa17fe716aacc07c9148f3352",
-                        "path": "src/Workflow/AcceptedRiskWriter.php",
-                        "line": 43,
                         "column": 1
                     }
                 ]
