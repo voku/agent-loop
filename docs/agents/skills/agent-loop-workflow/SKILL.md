@@ -116,6 +116,26 @@ vendor/bin/agent-loop workflow reflect <task-id> --scope task
 vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
+## Durable Handoff To Another Agent
+
+When the user asks to preserve the useful current conversation/session context
+inside an existing TODO/task/card for a later agent that will not have this chat,
+do not paste the transcript and do not reconstruct Recall's `todo-card-handoff`
+recipe manually. Summarize only the bounded current-session facts needed to
+resume, then route them through:
+
+```bash
+vendor/bin/agent-loop workflow handoff <task-id> --context '<bounded handoff notes>'
+```
+
+For larger notes, write a temporary/task-local file and use `--context-file`.
+The command binds the notes to the current governed Run/Session, adds current
+Contract and board evidence, and selects Recall's existing `todo-card-handoff`
+recipe. Treat the resulting `system.md` as the prompt for the acting agent; that
+agent re-grounds material claims and updates the existing durable task/card
+through its owner. `workflow handoff` itself does not make model-authored prose
+durable.
+
 ## Re-planning
 
 When goal, scope, policy, or acceptance intent genuinely changes, re-plan rather
