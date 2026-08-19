@@ -180,7 +180,11 @@ MD
         self::assertSame('blocked', $manifest->state);
         self::assertSame('candidate', $manifest->references['contract']['state']);
         self::assertSame('run.contract_revision_mismatch', $manifest->disagreements[0]['code']);
-        self::assertStringContainsString('workflow manifest ABC-123 --format=json', $manifest->nextAction);
+        // Fails closed with the same observable blocker, but the canonical step
+        // is no longer the read-only inspection command that could never repair it.
+        self::assertStringNotContainsString('workflow manifest', $manifest->nextAction);
+        self::assertStringContainsString('run.contract_revision_mismatch', $manifest->nextAction);
+        self::assertSame('host_work', $manifest->nextActionKind);
     }
 
     /** @return array{0: SessionStore, 1: Session, 2: string} */

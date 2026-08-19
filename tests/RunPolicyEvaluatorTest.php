@@ -203,7 +203,12 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertFalse($policy->mutationAllowed);
         self::assertFalse($policy->ordinaryCloseAllowed);
         self::assertSame([$disagreement], $policy->blockers);
-        self::assertSame('agent-loop workflow manifest ABC-123 --format=json', $policy->nextAction);
+        // The fail-closed properties above are the point of this test. The
+        // action itself must not be the read-only inspection command, which
+        // cannot alter the state that produced the disagreement.
+        self::assertSame('host_work', $policy->nextActionKind);
+        self::assertStringNotContainsString('workflow manifest', $policy->nextAction);
+        self::assertStringContainsString('run.contract_digest_mismatch', $policy->nextAction);
     }
 
     /**

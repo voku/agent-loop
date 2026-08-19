@@ -42,7 +42,7 @@ final readonly class RunManifestProjector
 
     public function project(string $taskId): RunManifest
     {
-        /** @var list<array{code: string, owner: string, message: string}> $disagreements */
+        /** @var list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements */
         $disagreements = [];
         $contract = (new TaskContractStore($this->rootPath))->find($taskId);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
@@ -131,7 +131,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      */
     private function sessionForTask(string $taskId, ?GovernedRun $run, array &$disagreements): ?Session
     {
@@ -193,7 +193,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
     private function boardReference(string $taskId, array &$disagreements): array
@@ -347,7 +347,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
     private function recallReference(
@@ -475,7 +475,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
     private function verificationReference(
@@ -591,7 +591,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
     private function reviewReference(string $taskId, array &$disagreements): array
@@ -611,6 +611,9 @@ final readonly class RunManifestProjector
                 'code' => 'review.report_invalid',
                 'owner' => 'agent-recall-compiler',
                 'message' => $reader->relativePath($taskId) . ' is not a valid blind-spot report.',
+                // The owner can regenerate this one, so the canonical next step
+                // can be the repair rather than an inspection command.
+                'repair_action' => 'agent-loop review blindspots ' . $taskId,
             ];
 
             return ['owner' => 'agent-recall-compiler', 'state' => 'invalid', 'observation_mode' => 'checked'];
@@ -625,7 +628,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
     private function learningReference(?GovernedRun $run, array &$disagreements): array
