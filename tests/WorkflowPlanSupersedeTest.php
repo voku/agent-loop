@@ -52,7 +52,7 @@ final class WorkflowPlanSupersedeTest extends TestCase
         self::assertSame(TaskContract::APPROVED, $contract->status);
     }
 
-    public function testExplicitSupersessionRetiresWorkingSessionAndCreatesUnapprovedCandidateRevision(): void
+    public function testExplicitSupersessionRetiresWorkingSessionAndCreatesUnapprovedCandidateRevisionWithoutDroppingGovernance(): void
     {
         $contracts = $this->approvedContract();
         $sessions = new SessionStore();
@@ -76,6 +76,18 @@ final class WorkflowPlanSupersedeTest extends TestCase
         self::assertSame(2, $candidate->revision);
         self::assertSame(TaskContract::CANDIDATE, $candidate->status);
         self::assertSame('Revised intent after L2 rejection.', $candidate->goal);
+        self::assertSame(['src/Foo.php'], $candidate->scope);
+        self::assertSame(['composer ci'], $candidate->validation);
+        self::assertSame(['Do not remove the selected policy.'], $candidate->nonGoals);
+        self::assertSame('base-sha', $candidate->baseCommit);
+        self::assertSame(['risk:high'], $candidate->tags);
+        self::assertSame(['Parser::parse'], $candidate->behaviorAnchors);
+        self::assertSame('skills/operational-prompting/operating-prompts.json', $candidate->operatingPromptManifest);
+        self::assertSame([[
+            'id' => 'coverage-mutation',
+            'arguments' => ['minimum_percentage_points' => 10],
+        ]], $candidate->operatingPrompts);
+        self::assertSame(['Preserve the selected L2 policy.'], $candidate->acceptanceCriteria);
         self::assertNull($candidate->approvedBy);
         self::assertNull($candidate->approvedAt);
         self::assertStringContainsString('candidate Contract superseded', $output);
@@ -105,9 +117,18 @@ final class WorkflowPlanSupersedeTest extends TestCase
             'SUPERSEDE-1',
             'Original approved intent.',
             ['src/Foo.php'],
-            [],
+            ['Do not remove the selected policy.'],
             ['composer ci'],
             'planner',
+            baseCommit: 'base-sha',
+            tags: ['risk:high'],
+            behaviorAnchors: ['Parser::parse'],
+            operatingPromptManifest: 'skills/operational-prompting/operating-prompts.json',
+            operatingPrompts: [[
+                'id' => 'coverage-mutation',
+                'arguments' => ['minimum_percentage_points' => 10],
+            ]],
+            acceptanceCriteria: ['Preserve the selected L2 policy.'],
         );
         $contracts->approve('SUPERSEDE-1', 'approver');
 
