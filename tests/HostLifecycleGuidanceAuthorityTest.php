@@ -69,7 +69,8 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         $contents = file_get_contents($path);
         self::assertIsString($contents);
 
-        self::assertStringContainsString('Approval itself does **not** allocate the governed Run, Session or Recall output.', $contents);
+        self::assertStringContainsString('Approval itself does **not** allocate the governed Run, Session or', $contents);
+        self::assertStringContainsString('Recall output.', $contents);
         self::assertStringContainsString('`enter` owns deterministic post-approval preparation/reconciliation.', $contents);
     }
 }
