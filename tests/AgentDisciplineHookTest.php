@@ -106,6 +106,87 @@ final class AgentDisciplineHookTest extends TestCase
         }
     }
 
+    public function testSessionStartSurfacesUnabsorbedLearningAsAnObservation(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-backlog-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.codex/skills/agent-loop-discipline';
+        $validated = $root . '/.agent-loop/learning/findings/validated';
+
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertTrue(mkdir($validated, 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $skillDirectory . '/SKILL.md',
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
+        ));
+        self::assertNotFalse(file_put_contents(
+            $validated . '/finding.2026-08-19.aaaaaa.json',
+            $this->json($this->finding('finding.2026-08-19.aaaaaa')),
+        ));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->contextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+            ]));
+            $context = $output['hookSpecificOutput']['additionalContext'];
+
+            self::assertStringContainsString('Agent Loop Learning Backlog', $context);
+            self::assertStringContainsString('1 validated finding(s)', $context);
+            // An observation, never a directive: Slice E7 removed lifecycle
+            // policy from always-on host assets and it must not come back here.
+            self::assertStringContainsString('not a blocker', $context);
+            self::assertStringNotContainsString('before any governed mutation', $context);
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
+    public function testSessionStartStaysSilentWhenNoLearningIsUnabsorbed(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-clear-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.codex/skills/agent-loop-discipline';
+
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertTrue(mkdir($root . '/.agent-loop/learning/findings/validated', 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $skillDirectory . '/SKILL.md',
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
+        ));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->contextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+            ]));
+
+            self::assertStringNotContainsString(
+                'Agent Loop Learning Backlog',
+                $output['hookSpecificOutput']['additionalContext'],
+            );
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function finding(string $id): array
+    {
+        return [
+            'id' => $id,
+            'task_id' => 'GH-234',
+            'session' => '2026-08-19-gh-234-backlog-hint',
+            'created_at' => '2026-08-19T00:00:00+00:00',
+            'created_by' => 'test',
+            'scope' => ['src/Example.php'],
+            'observation' => 'An observation recorded for the backlog hint test.',
+            'evidence' => [['type' => 'manual_verification', 'summary' => 'observed in a fixture']],
+            'hypothesis' => 'A hypothesis.',
+            'validated_conclusion' => 'A conclusion.',
+            'confidence' => 'high',
+            'validation_status' => 'validated',
+            'status' => 'validated',
+            'sensitivity' => 'public',
+        ];
+    }
+
     public function testSessionStartDoesNotGuessBetweenMultipleUnfinishedTasks(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-discipline-multi-resume-' . bin2hex(random_bytes(6));
