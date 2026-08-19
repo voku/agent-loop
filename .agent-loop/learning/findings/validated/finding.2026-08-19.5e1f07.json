@@ -16,6 +16,10 @@
     },
     {
       "type": "manual_verification",
+      "summary": "Installed package boundary recorded explicitly, because a Composer path repository can symlink instead of copy and vendor/bin/agent-loop alone would not prove which happened. The consumer declared the path repository with options.symlink=false; composer install reported 'Mirroring from /home/user/agent-loop'; composer.lock records voku/agent-loop dev-main with dist.type=path, dist.reference=3cdb6390e4b7d9a704e54096bf98cf0c799e7c11 and transport-options.symlink=false; vendor/voku/agent-loop is a real directory rather than a symlink; and src/Workflow/HostFrontDoorCommand.php has a different inode in the consumer (2197174) than in the checkout (475433), so the measured runtime executed an isolated copy of the merged main commit. One symlink was used and is unrelated to that boundary: the per-scenario consumer roots share a single installed vendor tree by symlinking vendor/ for speed, while the agent-loop package inside it remains the mirrored copy described above."
+    },
+    {
+      "type": "manual_verification",
       "summary": "Convergence was checked by obeying, not only by reading. For the two cases whose canonical step is an executable command, the action was executed and the manifest re-projected: absent discovery and review.report_invalid both changed state, action or kind on the first obeyed step. The other four return host_work or decision_required, which are irreducible boundaries by kind rather than commands a host can run."
     },
     {
