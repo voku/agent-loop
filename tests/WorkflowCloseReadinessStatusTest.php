@@ -51,7 +51,13 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame('validation', $status['manifest']['references']['verification']['gate'] ?? null);
         $reason = (string) ($status['manifest']['references']['verification']['reason'] ?? '');
         self::assertStringContainsString('vendor/bin/phpunit (failed)', $reason);
-        self::assertSame('agent-loop finish ABC-123', $status['manifest']['next_action'] ?? null);
+        // Naming finish here was the self-loop: finish re-runs the same failing
+        // obligation. The canonical step is now the host work that can change it.
+        self::assertSame('host_work', $status['manifest']['next_action_kind'] ?? null);
+        self::assertStringContainsString(
+            'change the implementation',
+            (string) ($status['manifest']['next_action'] ?? ''),
+        );
 
         [$closeExit, $closeOutput] = $this->runClose();
         self::assertSame(1, $closeExit);

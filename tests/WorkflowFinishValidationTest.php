@@ -73,7 +73,12 @@ final class WorkflowFinishValidationTest extends TestCase
 
         self::assertSame(1, $result['exit']);
         self::assertFalse($result['payload']['complete'] ?? true);
-        self::assertSame('agent-loop finish FINISH-2', $result['payload']['next_action'] ?? null);
+        // finish must not name itself after observing its own failure.
+        self::assertSame('host_work', $result['payload']['next_action_kind'] ?? null);
+        self::assertStringContainsString(
+            'change the implementation',
+            (string) ($result['payload']['next_action'] ?? ''),
+        );
         self::assertSame(
             $command,
             $result['payload']['manifest']['references']['verification']['action'] ?? null,
