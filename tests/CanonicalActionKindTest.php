@@ -10,7 +10,7 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 final class CanonicalActionKindTest extends TestCase
 {
-    public function testUnplannedTaskUsesOnePlaceholderNotationAndNamesHumanDecision(): void
+    public function testUnplannedTaskUsesOnePlaceholderNotationAndRequiresDecisionInput(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
             'E5-001',
@@ -28,7 +28,7 @@ final class CanonicalActionKindTest extends TestCase
             [],
         );
 
-        self::assertSame(RunPolicyEvaluation::KIND_HUMAN_DECISION, $policy->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
         self::assertStringContainsString('--by <actor>', $policy->nextAction);
         self::assertStringContainsString('--file <path>', $policy->nextAction);
         self::assertStringContainsString('--goal <goal>', $policy->nextAction);
@@ -36,7 +36,7 @@ final class CanonicalActionKindTest extends TestCase
         self::assertStringNotContainsString('"..."', $policy->nextAction);
     }
 
-    public function testLearningDispositionIsAHumanDecisionRatherThanAnExecutableCommand(): void
+    public function testLearningDispositionRequiresDecisionInputRatherThanPretendingToBeExecutable(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
             'E5-001',
@@ -54,7 +54,7 @@ final class CanonicalActionKindTest extends TestCase
             [],
         );
 
-        self::assertSame(RunPolicyEvaluation::KIND_HUMAN_DECISION, $policy->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
         self::assertStringContainsString('--learning <no_durable_learning|findings_recorded|follow_up_required>', $policy->nextAction);
         self::assertStringContainsString('--learning-reason <learning-reason>', $policy->nextAction);
     }
