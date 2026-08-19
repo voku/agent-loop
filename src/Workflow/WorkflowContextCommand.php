@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
-use JsonException;
+use RuntimeException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
+use voku\AgentRecallCompiler\Output\RecallFact;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -200,72 +202,55 @@ final readonly class WorkflowContextCommand
     }
 
     /**
-     * @return bool true when the compiled bundle supplied navigation facts or
+     * @return bool true when the compiled output supplied navigation facts or
      *              an explicit navigation status. Otherwise the current map is
      *              read directly without mutating or rebuilding it.
      */
     private function addRecall(WorkflowContextBudget $budget, string $taskId): bool
     {
-        $path = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/meta.json';
-        $relative = RecallOutputRoot::relativeTo($this->rootPath, $path);
-        if (!is_file($path)) {
+        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $reader = new CompiledRecallOutputReader();
+        $identityPath = $reader->identityPath($directory);
+        $relative = RecallOutputRoot::relativeTo($this->rootPath, $identityPath);
+        try {
+            $output = $reader->read($directory);
+        } catch (RuntimeException) {
+            $budget->skip('recall: invalid ' . $relative);
+
+            return false;
+        }
+        if ($output === null) {
             $budget->skip('recall: missing ' . $relative);
 
             return false;
         }
-        try {
-            $meta = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            $budget->skip('recall: invalid ' . $relative);
 
-            return false;
-        }
-        if (!is_array($meta)) {
-            $budget->skip('recall: invalid ' . $relative);
-
-            return false;
-        }
         $budget->section('Selected guidance');
-        foreach ($this->strings($meta['selected_guidance'] ?? []) as $id) {
+        foreach ([...$output->selectedGuidance(), ...$output->selectedConstraints()] as $id) {
             $budget->add('guidance', '  ' . $id . ' (' . $relative . ')');
         }
-        foreach ($meta['selected_constraints'] ?? [] as $constraint) {
-            if (is_array($constraint) && is_string($constraint['id'] ?? null)) {
-                $budget->add('guidance', '  ' . $constraint['id'] . ' (' . $relative . ')');
-            }
-        }
 
-        $factsPath = dirname($path) . '/facts.json';
-        if (!is_file($factsPath)) {
+        if (!$output->hasFacts()) {
             return false;
         }
-        try {
-            $factsDocument = json_decode((string) file_get_contents($factsPath), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            $budget->skip('recall: invalid ' . RecallOutputRoot::relativeTo($this->rootPath, $factsPath));
+        if (!$output->areFactsReadable()) {
+            $budget->skip('recall: invalid compiled facts');
 
-            return true;
-        }
-        if (!is_array($factsDocument) || !is_array($factsDocument['facts'] ?? null)) {
-            $budget->skip('recall: invalid ' . RecallOutputRoot::relativeTo($this->rootPath, $factsPath));
-
+            // Preserve the previous distinction: malformed compiled facts are
+            // not permission to silently fall back to a different navigation source.
             return true;
         }
 
         $handledNavigation = false;
         $addedCoordination = false;
-        foreach ($factsDocument['facts'] as $fact) {
-            if (!is_array($fact) || !is_string($fact['type'] ?? null)) {
-                continue;
-            }
-            if ($fact['type'] === 'kanban') {
-                $payload = is_array($fact['payload'] ?? null) ? $fact['payload'] : [];
-                $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
+        foreach ($output->facts() as $fact) {
+            if ($fact->type === 'kanban') {
+                $card = is_array($fact->payload['card'] ?? null) ? $fact->payload['card'] : [];
                 if (!$addedCoordination) {
                     $budget->section('Task coordination');
                     $addedCoordination = true;
                 }
-                $source = is_string($fact['source_ref'] ?? null) ? $fact['source_ref'] : 'unknown board source';
+                $source = $fact->sourceRef ?? 'unknown board source';
                 $title = is_string($card['title'] ?? null) ? trim($card['title']) : '';
                 $lane = is_string($card['lane'] ?? null) ? trim($card['lane']) : '';
                 $status = is_string($card['status'] ?? null) ? trim($card['status']) : '';
@@ -276,24 +261,24 @@ final readonly class WorkflowContextCommand
 
                 continue;
             }
-            if ($fact['type'] === 'navigation_candidates') {
-                (new WorkflowRankedMapContextExpander($this->rootPath))->add($budget, $fact);
+            if ($fact->type === 'navigation_candidates') {
+                (new WorkflowRankedMapContextExpander($this->rootPath))->add($budget, $fact->payload);
                 continue;
             }
-            if ($fact['type'] === 'navigation_status') {
-                $scope = is_array($fact['scope'] ?? null) ? implode(', ', $fact['scope']) : 'unknown';
-                $status = is_string($fact['payload']['status'] ?? null) ? $fact['payload']['status'] : 'unavailable';
+            if ($fact->type === 'navigation_status') {
+                $scope = $fact->scope === [] ? 'unknown' : implode(', ', $fact->scope);
+                $status = is_string($fact->payload['status'] ?? null) ? $fact->payload['status'] : 'unavailable';
                 $budget->skip('agent-map: ' . $status . ' for ' . $scope . ' (recorded in recall bundle)');
                 $handledNavigation = true;
                 continue;
             }
-            if ($fact['type'] !== 'navigation' || !is_array($fact['payload'] ?? null)) {
+            if ($fact->type !== 'navigation') {
                 continue;
             }
             $handledNavigation = true;
             $budget->section('Relevant symbols');
-            $file = is_string($fact['payload']['path'] ?? null) ? $fact['payload']['path'] : 'unknown';
-            foreach ($fact['payload']['symbols'] ?? [] as $symbol) {
+            $file = is_string($fact->payload['path'] ?? null) ? $fact->payload['path'] : 'unknown';
+            foreach ($fact->payload['symbols'] ?? [] as $symbol) {
                 if (!is_array($symbol) || !is_string($symbol['fqn'] ?? null)) {
                     continue;
                 }
@@ -353,14 +338,6 @@ final readonly class WorkflowContextCommand
                 $budget->add('symbol', '    ' . $symbol->name . '::' . $method->name . '() — ' . $file->path . ':' . $method->lineStart);
             }
         }
-    }
-
-    /** @return list<string> */
-    private function strings(mixed $value): array
-    {
-        return is_array($value)
-            ? array_values(array_filter($value, static fn (mixed $item): bool => is_string($item) && trim($item) !== ''))
-            : [];
     }
 
     private function positive(string $value, string $option): int
