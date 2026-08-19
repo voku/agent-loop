@@ -10,7 +10,7 @@
         "findingFingerprintVersion": 1
     },
     "summary": {
-        "findingCount": 9
+        "findingCount": 11
     },
     "findings": [
         {
@@ -167,7 +167,7 @@
             "locations": [
                 {
                     "path": "src/AgentLoopVerifier.php",
-                    "line": 277,
+                    "line": 278,
                     "column": 1
                 }
             ],
@@ -176,9 +176,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "7d563f73377d9497189b9fcb4874958eeaeca22325ac86a3a342ac061a51afa0",
+                        "fingerprint": "4b3752f31deff287cee09acb7ce13c00c8344be4774ce47d29b9eb27bdcb3cee",
                         "path": "src/AgentLoopVerifier.php",
-                        "line": 277,
+                        "line": 278,
                         "column": 1
                     }
                 ]
@@ -200,7 +200,7 @@
             "locations": [
                 {
                     "path": "src/AgentLoopVerifier.php",
-                    "line": 476,
+                    "line": 360,
                     "column": 1
                 }
             ],
@@ -209,9 +209,42 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "bc0bb077b12223b7622b3adef4feb8322efe1eac3e0a3d0cf36d285e2e846c63",
+                        "fingerprint": "be05bde2099fe1586ec0f7e58c76e6558a2f8f0d269de681d44f5d1b605962dd",
                         "path": "src/AgentLoopVerifier.php",
-                        "line": 476,
+                        "line": 360,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that returns a default fallback literal",
+            "why": "Returning an empty default from a catch block can hide a real failure behind a plausible value.",
+            "suggestedAction": "Use an explicit error path or document and justify the fallback at the boundary.",
+            "confidence": "high",
+            "evidence": [
+                "return=false"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/AgentLoopVerifier.php",
+                    "line": 480,
+                    "column": 1
+                }
+            ],
+            "path": "src/AgentLoopVerifier.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "307f2644566e40222d313f7955dce05bc768562227782adba8bf15866ae4b3a5",
+                        "path": "src/AgentLoopVerifier.php",
+                        "line": 480,
                         "column": 1
                     }
                 ]
@@ -311,6 +344,39 @@
                         "fingerprint": "6b560f6636cc312daaa7c080e5560451a496a6add0d6ecd88bdf6ddb39b07f83",
                         "path": "src/Workflow/WorkflowKanbanContextWriter.php",
                         "line": 35,
+                        "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.error-swallowing",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that logs or prints and continues",
+            "why": "Logging or printing an error and then continuing can turn a broken path into a silent failure.",
+            "suggestedAction": "Stop execution, return an explicit fallback, or rethrow after logging.",
+            "confidence": "high",
+            "evidence": [
+                "catch body logs/prints without throw or return"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/AgentLoopVerifier.php",
+                    "line": 434,
+                    "column": 1
+                }
+            ],
+            "path": "src/AgentLoopVerifier.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "4b54c9db3301669e8fe6eb3969bc9a5021fb10f73ca683703102f7afc3d59489",
+                        "path": "src/AgentLoopVerifier.php",
+                        "line": 434,
                         "column": 1
                     }
                 ]
