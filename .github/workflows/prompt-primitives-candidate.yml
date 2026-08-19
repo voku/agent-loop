@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.13.8
+          ref: 0.13.9
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
 
@@ -64,9 +64,6 @@ jobs:
             --operating-prompt '{"id":"adversarial-review","arguments":{"minimum_failure_modes":3}}'
           php vendor/bin/agent-loop workflow approve PROMPT-ADVERSARIAL --by prompt-sync-approver
 
-          # Approval only records authority; `enter` compiles the Recall output
-          # asserted below. It withholds mutation because this L2 task still
-          # owes its execution contract, so exit 1 is the expected outcome.
           entered=0
           php vendor/bin/agent-loop enter PROMPT-ADVERSARIAL || entered=$?
           if [ "${entered}" -ne 1 ]; then
