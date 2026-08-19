@@ -65,19 +65,21 @@ final readonly class WorkflowPlanCommand
                 );
                 $action = 'created';
             } else {
+                $preserve = $options['supersede'];
+                $preserveOperatingPrompts = $preserve && $options['operatingPrompts'] === [];
                 $contract = $contracts->revise(
                     $taskId->value,
                     $options['goal'],
                     $options['scope'],
-                    $options['nonGoals'],
+                    $preserve && $options['nonGoals'] === [] ? $existing->nonGoals : $options['nonGoals'],
                     $options['validation'],
                     $options['by'],
-                    $options['baseCommit'],
-                    $options['tags'],
-                    $options['behaviorAnchors'],
-                    $options['operatingPromptManifest'],
-                    $options['operatingPrompts'],
-                    $options['acceptanceCriteria'],
+                    $preserve && $options['baseCommit'] === null ? $existing->baseCommit : $options['baseCommit'],
+                    $preserve && $options['tags'] === [] ? $existing->tags : $options['tags'],
+                    $preserve && $options['behaviorAnchors'] === [] ? $existing->behaviorAnchors : $options['behaviorAnchors'],
+                    $preserveOperatingPrompts ? $existing->operatingPromptManifest : $options['operatingPromptManifest'],
+                    $preserveOperatingPrompts ? $existing->operatingPrompts : $options['operatingPrompts'],
+                    $preserve && $options['acceptanceCriteria'] === [] ? $existing->acceptanceCriteria : $options['acceptanceCriteria'],
                 );
                 if ($activeSession !== null) {
                     // Persist the unapproved replacement intent first. If
