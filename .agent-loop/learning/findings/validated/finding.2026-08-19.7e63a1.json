@@ -1,0 +1,33 @@
+{
+  "id": "finding.2026-08-19.7e63a1",
+  "task_id": "GH-205",
+  "session": "2026-08-19-gh-205-slice-e6-falsification",
+  "created_at": "2026-08-19T11:25:00+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "docs/agents/skills/agent-loop-workflow/SKILL.md",
+    "docs/agents/skills/agent-loop-task-start/SKILL.md",
+    "tests/HostLifecycleGuidanceAuthorityTest.php"
+  ],
+  "observation": "Observed on main 0102d8fb3a5b5d6cdc3d1d1bb79c07157bf12e3f during the Slice E semantic falsification pass. Two first-party ordinary-path skills still reconstructed lifecycle policy in prose after #220-#223 had moved those decisions behind the kernel. agent-loop-workflow carried a full PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE phase machine, a 15-step fast path, a pre-approval map/Search rule, explicit gate transitions, and workflow close choreography. agent-loop-task-start independently required map/Search before approval and stated that approval prepares/creates governed Run, Session and Recall state. The latter contradicts current executable ownership: approval records authority only; enter performs deterministic preparation. The pre-approval map rule also contradicts the E1/#221 evidence that discovery repair must come from canonical next_action so a host does not need a private map prerequisite.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "At main 0102d8f, docs/agents/skills/agent-loop-workflow/SKILL.md contained the literal phase chain 'PLAN -> APPROVE -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE', instructed hosts to build/refresh map and Search before approval, and told them to perform close choreography from prose instead of routing exclusively through structured kernel results."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "At main 0102d8f, docs/agents/skills/agent-loop-task-start/SKILL.md instructed an initial map/Search preflight before approval and said approval prepares governed working state/Recall. Current lifecycle code and merged Slice D/E evidence instead assign approval only authority and deterministic Run/Session/Recall preparation to enter."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "The defect was found by semantic classification, not grep counting: both files were classified as ordinary host-facing guidance and contained workflow-decision behavior rather than mere routing, presentation, or host-capability adaptation. This is the bucket Slice E requires to reach zero."
+    }
+  ],
+  "hypothesis": "Host prose that enumerates lifecycle phases, prerequisites, gate transitions or repair ordering is an untested semantic copy of the kernel. Even when correct when written, it can drift silently and cause an agent to pre-empt canonical next_action, exactly as the stale verifier and close-skill copies did in #219/#220.",
+  "validated_conclusion": "For the ordinary path, first-party host skills should teach only the stable front-door contract: enter/status expose structured mutation readiness and the canonical next step; next_action_kind tells the host whether to execute a command, supply a decision, perform host-native work, or stop; finish owns deterministic close-out. Planning guidance may help choose durable Contract intent, but it must not decide discovery readiness, approval consequences, preparation order or close gates. Specialist/recovery guidance remains out of this ordinary-path conclusion and should be evaluated separately in Phase F.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
