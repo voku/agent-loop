@@ -1,244 +1,188 @@
 # The governed lifecycle across the agent-* packages
 
-This document describes what the packages **currently do**, not what they should
-eventually do. It was written by running the loop end to end in a real
-repository and recording each transition, its artifacts and its failure modes.
-Where a transition is optional or where the current behaviour is surprising, it
-says so rather than smoothing it over.
+This document describes the current ownership model and the ordinary host path.
+It deliberately avoids reproducing every gate or prerequisite: those decisions
+belong to executable owners and are projected through the lifecycle kernel.
 
-Only `agent-loop` knows the whole lifecycle. Every other package owns one
-concern and can be used on its own.
+Only `agent-loop` owns cross-package lifecycle policy. The focused packages keep
+their own state and semantics.
 
-| Package                 | Owns                                                       |
-| ----------------------- | ---------------------------------------------------------- |
-| `agent-kanban`          | durable work-item state                                     |
-| `agent-session`         | task-local mutable working state and validation evidence    |
-| `agent-map`             | repository facts, source-backed context, hybrid search      |
-| `agent-recall-compiler` | governed briefing and verification contracts                |
-| `agent-loop`            | transitions and orchestration                               |
-| `agent-learning`        | reviewed durable findings and proposals                     |
+| Package | Owns |
+| --- | --- |
+| `agent-kanban` | durable board/work-item state |
+| `agent-session` | task-local mutable working state and validation evidence |
+| `agent-map` | repository/navigation facts and search |
+| `agent-recall-compiler` | governed briefing, Recall artifacts and Recall-owned review semantics |
+| `agent-learning` | findings, proposals, evidence and durable Learning decisions |
+| `agent-loop` | Contract/Run lifecycle, cross-owner policy, routing and host projection |
 
-## Transitions
+## Ordinary Host Path
 
-| Transition | Owner                                | Input                                    | Output                                        |
-| ---------- | ------------------------------------ | ---------------------------------------- | --------------------------------------------- |
-| DISCOVER   | `agent-map`                          | question or symbol name                  | file/range candidates, no state                |
-| PLAN       | `agent-loop`                         | task id, goal, scope, validation         | candidate Contract revision                     |
-| APPROVE    | `agent-loop` + `agent-session` + `agent-recall-compiler` | exact Contract revision | approval + governed Run/Session + compiled briefing |
-| PREPARE    | `agent-map` + `agent-recall-compiler` | approved Contract + repository snapshot  | recall bundle, verification plan and key       |
-| EXECUTE    | `agent-loop`                         | prepared bundle                          | edit bundle under `.agent-loop/edit/<task-id>` |
-| VERIFY     | `agent-loop`                         | edit bundle + verification key           | `verification-result.json`                     |
-| REVIEW     | `agent-loop`                         | task artifacts                           | blind-spot report                              |
-| LEARN      | `agent-learning`                     | governed Run, recall draft, evidence      | durable close-out, outcomes, findings, proposals |
-| CLOSE      | `agent-loop`                         | all of the above                         | closed session, gates enforced                 |
-
-### DISCOVER — `agent-map`
-
-```bash
-vendor/bin/agent-map query "D3"                       # exact-ish symbol lookup
-vendor/bin/agent-map search "Wie werden Anträge storniert?" --semantic
-```
-
-- **Preconditions:** a built index (`.agent-loop/map/php-symbols.json`); the derived
-  search index (`.agent-loop/map/search.sqlite`) only for `search`.
-- **Produces:** nothing durable. Discovery is read-only by design.
-- **Failure:** a stale index reports staleness rather than answering from it.
-- **Recovery:** `agent-map refresh`, then `agent-map search-index refresh`.
-- **Routing:** "does X exist for Y" is answered by `query` on the bare
-  identifier; "how/where does X happen" by `search`. Measured, not assumed: a
-  natural-language search for an accounting question ranked accounting readers
-  first but never revealed that the other system existed, which `query` found in
-  one call.
-
-### PLAN — `agent-loop`
-
-```bash
-vendor/bin/agent-loop workflow plan <task-id> --by <actor> --file <path> \
-  --goal "..." --validation "..." [--tag <label>] [--behavior-anchor <text>]
-```
-
-- **Produces:** a durable candidate Contract revision. PLAN creates neither a
-  Session nor a governed Run.
-- **State:** durable intent owned by `agent-loop`; approval binds to an exact
-  Contract revision.
-- **Failure:** a missing `--file`, `--goal` or `--validation` is refused; a
-  second active session for the same task is refused.
-- **Recovery:** correct the Contract inputs and rerun `workflow plan`. For an
-  ungoverned experiment, use `agent-loop session start --ephemeral`; there is no
-  workflow shortcut that can masquerade as governed work.
-
-### APPROVE — `agent-loop`
-
-```bash
-vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
-```
-
-- **Preconditions:** a candidate Contract revision exists, or the exact current
-  revision is already approved and recall compilation needs to be resumed.
-- **Produces:** an approval bound to that exact revision, a governed Run and
-  working Session, then a compiled
-  briefing under the recall output root: `system.md`, `validation-plan.md`,
-  `recall.bundle.json`, `facts.json`, `selection-report.json`,
-  `recall-log.draft.json`, and - when a map target resolves -
-  `verification-plan.json` plus the verifier-owned `verification-key.json`.
-- **Projection:** the approved state is persisted before compilation and the
-  compiled state after success.
-- **Superseding:** approving a new revision archives any previous canonical
-  recall directory instead of letting old metadata or reviews masquerade as
-  evidence for the new brief.
-- **Automatic context:** when `.agent-loop/map/php-symbols.json` exists it is passed
-  as `--map-index`, and `.agent-loop/map/search.sqlite` as `--map-search-index`, so
-  the briefing carries map facts and ranked candidates without the host
-  orchestrating anything.
-- **Project policy:** every manifest listed in
-  `.agent-loop/init.json` under `recall.document_manifests` is passed as
-  `--document-manifest`. Existing manifest scope and tag matching decides which
-  policies reach this task; a configured missing or unsafe path blocks approval
-  completion while leaving the governed Run resumable.
-- **Failure:** approving a revision that has since been revised is refused. If
-  compilation fails after approval, the approval remains valid and the same
-  command resumes compilation without approving identical scope twice.
-- **Recovery:** fix the compiler input and rerun `workflow approve`.
-
-### PREPARE — `agent-map` + `agent-recall-compiler`
-
-Usually part of APPROVE. Standalone:
-
-```bash
-vendor/bin/agent-recall-compiler compile --root <learning-root> --task <task-id> \
-  --map-index .agent-loop/map/php-symbols.json --map-root "$PWD" \
-  --map-search-index .agent-loop/map/search.sqlite --document-manifest <manifest>
-```
-
-- **Binding:** every artifact records the map snapshot it was compiled against.
-  A search index built from a different map is refused, not silently ranked
-  against.
-- **Failure:** unsupported schema versions, conflicting active rules, or a
-  scope-relevant rejected proposal block the compile instead of writing a
-  misleading briefing.
-
-### EXECUTE — `agent-loop`
-
-```bash
-vendor/bin/agent-loop edit <Class::method> ... -- "instruction"
-```
-
-- **Produces:** `.agent-loop/edit/<task-id>/` with the bounded briefing and the
-  execution result.
-- **Optional:** many tasks never run `edit`. A task without an edit bundle is
-  never asked for one.
-
-### VERIFY — `agent-loop`
-
-```bash
-vendor/bin/agent-loop edit verify --bundle=.agent-loop/edit/<task-id>   # per bundle
-vendor/bin/agent-loop verify --task-id <task-id>                        # cross-package
-```
-
-- **Produces:** `verification-result.json` with a status.
-- **Cross-package `verify`** checks session/brief/recall coherence for the whole
-  repository, or for one task with `--task-id`. Ephemeral sessions are skipped.
-- **Failure:** an edit bundle that exists but was never verified blocks CLOSE.
-  A bundle that never existed does not.
-
-### REVIEW — `agent-loop`
-
-```bash
-vendor/bin/agent-loop review blindspots <task-id>
-```
-
-- **Produces:** a Markdown report, a JSON report and an L2 review prompt under
-  `<recall-root>/<task-id>/reviews/`.
-- **Note:** the review is required before CLOSE, and the first run legitimately
-  warns that no review checkpoint exists yet. Record a checkpoint and re-run.
-
-### LEARN — `agent-learning`
-
-```bash
-vendor/bin/agent-loop workflow learn <task-id> --by <actor> \
-  --status findings_recorded|no_durable_learning|follow_up_required \
-  --reason "<bounded reason>"
-vendor/bin/agent-recall-compiler log-outcome --root <learning-root> \
-  --draft <recall-log.draft.json> --by <actor> --commit <sha>
-```
-
-- **Produces:** append-only `history/recall-selections.jsonl` and
-  `history/outcomes.jsonl`; optionally findings and proposals under the learning
-  root.
-- **Contract:** every selected rule needs an explicit signal. Selection is not
-  evidence of use, so `not_used` and `irrelevant` are first-class answers and
-  padding them into `helpful` corrupts the promotion evidence.
-
-### CLOSE — `agent-loop`
-
-```bash
-vendor/bin/agent-loop workflow close <task-id> --status done
-```
-
-Gates, all enforced:
-
-1. cross-package `verify` passes for this task;
-2. the current Contract revision is approved;
-3. every existing edit bundle has a passing `verification-result.json`;
-4. a blind-spot review report exists;
-5. a learning decision is recorded;
-6. every selected guidance rule has an explicit recall outcome.
-
-- **Produces:** a closed session and a final refreshed run projection.
-- **Recovery:** the failure names the missing artifact and the command that
-  produces it. `agent-loop workflow status <task-id>` projects board, session,
-  Contract, approval, map/search, recall, edit, verification, review and learning
-  state and prints one next command. `--format=json` exposes the same projection
-  for coding agents. A contradictory or blocking state exits `2` instead of
-  returning an ornamental green status.
-- **Accepted risk:** `--accept-risk "<reason>" --accept-risk-by "<name>"`
-  records who overrode which gates, in Markdown and JSON.
-
-## Run identity and projection
-
-A governed run is identified by the relationship between:
+The stable host-facing contract is intentionally small:
 
 ```text
-task/card id
-+ session id
-+ Contract revision and approval
-+ map/search snapshot
-+ recall compilation
-+ edit and verification artifacts
-+ review
-+ learning decision and outcome lineage
+human/task intent
+  -> agent-loop enter <task-id> --format=json
+  -> obey next_action_kind / next_action
+  -> host-native implementation when authorized
+  -> agent-loop finish <task-id> --format=json
+  -> obey next_action_kind / next_action
+  -> complete
 ```
 
-`agent-loop workflow manifest <task-id>` builds this relationship as a read-only
-projection. `--write` atomically persists or repairs it at
-`.agent-loop/runs/<task-id>/manifest.json`; normal status reads remain read-only.
-The projection stores references and digests, not duplicate mutable domain state.
-A run created before manifest support remains inspectable as `legacy_inferred`
-and missing links are not fabricated.
+The host does not need to know package storage paths, reconstruct gate ordering,
+or remember a map/Recall/Session preparation sequence.
 
-PLAN, APPROVE and CLOSE refresh the stored projection after their owning
-artifacts change. If a projection write fails, the command reports that domain
-state may already have changed and names the explicit manifest/status recovery
-path rather than pretending the transition was rolled back.
+The structured lifecycle result exposes the facts needed for routing:
 
-`workflow status` consumes the same projector. It also reports whether a stored
-manifest is `missing`, `current`, or `stale`, so the human and agent paths no
-longer maintain separate lifecycle interpretations.
+- `mutation_ready` — whether implementation work is currently authorized;
+- `next_action_kind` — how the host must treat the next step;
+- `next_action` — the canonical next step;
+- `manifest.references` — owner-backed states/reasons supporting that decision.
 
-## Where the model is still uneven
+Current `next_action_kind` values are:
 
-Recorded from real runs, so that the gaps are visible rather than rediscovered:
+- `command` — execute the command as written;
+- `decision_required` — the command template still needs model and/or human
+  judgment/input before it is executable;
+- `host_work` — perform the described host-native implementation/model work;
+- `none` — no further lifecycle action is required.
 
-- **Guidance versioning.** Nothing verifies that installed skills match the
-  installed runtime. A consumer can hold guidance describing a command its
-  vendored package no longer accepts.
-- **Focused inspection contracts.** The projection still reads some package
-  paths directly. Board, session, map, recall and learning need small versioned
-  reference APIs so `agent-loop` does not learn their private file layouts.
-- **Direct mutations.** Package commands invoked outside the governed workflow
-  can still make a stored projection stale. Status detects that drift; not every
-  focused package mutation is expected to update the umbrella projection.
-- **Durable outcome lineage.** The projection marks it `contract_pending`
-  instead of guessing across immutable histories.
-- **Consumer glue.** Hosts still add Make targets for sequencing and shell
-  quoting. Every one of those is a candidate for upstream behaviour.
+A canonical command should make progress when obeyed. If it deterministically
+refuses and returns the same state/action, that is a lifecycle defect, not a host
+instruction to invent a workaround.
+
+## Contract And Approval
+
+PLAN persists durable task intent: task id, goal, scope, validation and other
+selected policy. It creates neither a governed Run nor working Session.
+
+Approval is an authority boundary. A named human approves the exact Contract
+revision. Approval itself does **not** allocate the governed Run, Session or
+Recall output.
+
+`enter` owns deterministic post-approval preparation/reconciliation. It creates
+or reuses the Run-bound Session, prepares the governed Run, compiles current
+Recall through the Recall owner and returns bounded context. Repeated `enter` is
+safe for the current binding and reconciles superseded state through owner APIs.
+
+Discovery prerequisites are also surfaced by the lifecycle kernel. For example,
+when existing PHP scope requires map evidence and no usable map exists, the
+canonical next step names the owner-produced map repair before approval instead
+of letting the host discover that rule from a failing command's prose.
+
+## Implementation
+
+Once mutation is authorized, implementation is host-native. The host edits real
+source with repository-native tools and the smallest correct scope.
+
+`agent-map` remains useful navigation and evidence, but generated map state is
+not lifecycle authority. `agent-loop edit` remains a specialist deterministic
+edit surface; ordinary work does not require an edit bundle merely because the
+command exists.
+
+When selected Recall policy requires an L2 execution contract, the lifecycle
+result surfaces that requirement and the current Recall-owned construction
+instructions define its semantics. Hosts must not keep a parallel copy of those
+rules.
+
+## Finish And Close-Out
+
+`finish` is the deterministic close-out front door. It reconciles current
+implementation-bound evidence and reports the first decisive next step. The host
+must not maintain its own list of validation, review, Recall, Learning, integrity
+or close gates.
+
+Examples of the kinds of next step `finish` may expose include:
+
+- an executable lifecycle/specialist command;
+- a command template that still requires a decision or acknowledgement;
+- host-native implementation work when observed validation failed;
+- no action when the governed Run is complete.
+
+The exact gate set and ordering are executable policy and may evolve. Keeping
+that list in prose previously drifted, so this document intentionally does not
+enumerate it.
+
+## Validation Evidence
+
+Validation evidence is owned by Session and bound to the current Contract
+revision and implementation identity. A recorded command/result is evidence;
+conversation claims are not.
+
+When current validation has **failed**, the lifecycle can return `host_work`
+because the next useful action is to repair implementation rather than re-run
+`finish` forever. When validation evidence is merely missing, the owner may
+instead expose an executable deterministic action. The host should not infer
+that distinction by parsing error text.
+
+## Review And Learning
+
+Blind-spot/process review remains separate from ordinary engineering correctness
+review. Review artifacts are evidence, not approval merely because files exist.
+
+Learning decisions stay explicit and evidence-backed. Recall selection is not
+proof that guidance was useful; unused/irrelevant outcomes remain truthful
+signals. Findings/proposals do not become durable project guidance without the
+Learning/review boundary that owns that promotion.
+
+Hosts consume the canonical lifecycle request for review/Learning work rather
+than deciding from a copied close checklist when those gates apply.
+
+## Read-Only And Diagnostic Surfaces
+
+These remain useful when additional inspection is needed:
+
+```bash
+vendor/bin/agent-loop workflow status <task-id> --format=json
+vendor/bin/agent-loop workflow context <task-id> --format=json
+vendor/bin/agent-loop workflow report <task-id> --format=json
+vendor/bin/agent-loop verify --task-id=<task-id>
+```
+
+They are not a second mandatory happy path beside `enter -> host work -> finish`.
+Derived snapshots may provide drift/diagnostic evidence but cannot override fresh
+owner authority.
+
+## Specialist And Recovery Surfaces
+
+Direct `map`, `session`, `recall`, `learn`, `edit`, review and recovery commands
+remain available for diagnostics, specialist work and explicit repair. Their
+existence does not make them ordinary lifecycle phases.
+
+The specialist/recovery rule is:
+
+```text
+diagnose the owner-backed failure
+  -> perform one explicit repair/specialist action
+  -> return to the ordinary lifecycle
+```
+
+Do not build a parallel recovery state machine beside the lifecycle kernel.
+Phase F of the roadmap evaluates these specialist/recovery surfaces separately;
+the ordinary-path ownership contract above is the Slice E boundary.
+
+## Supersession And Resumability
+
+Durable Contract and Run evidence outlive chat sessions. Session working memory
+is pruneable. When durable intent changes, revise the Contract and obtain the
+required authority for that revision; let `enter` reconcile old Run/Session/
+Recall working state rather than manipulating those stores from host prose.
+
+Resume from persisted lifecycle state, not from an agent's remembered phase.
+
+## Core Invariants
+
+- one semantic owner per decision;
+- host guidance routes and presents, it does not re-derive lifecycle legality;
+- `next_action` has one authority and `next_action_kind` states how to treat it;
+- commands advertised as canonical should converge or reach an explicit
+  decision/host-work boundary;
+- evidence is not authority;
+- generated artifacts are not runtime-consumption proof;
+- dependent unavailable capabilities do not multiply one missing prerequisite
+  into several immediate blockers;
+- the earliest actionable deterministic gap is surfaced before later judgment
+  gaps;
+- human approval/risk authority is never fabricated;
+- falsify a phase's completion claim before declaring it done.
