@@ -62,27 +62,38 @@ final readonly class WorkflowHandoffCommand
             $handoff = $this->handoffProjector->project($session);
             $contract = (new TaskContractStore($this->rootPath))->find($taskId->value);
             $contractEvidence = $contract === null
-                ? "No durable Contract was found for this task. Do not invent one."
+                ? 'No durable Contract was found for this task. Do not invent one.'
                 : json_encode(
                     $contract->toArray(),
                     JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
                 );
 
-            $description = implode("\n\n", [
-                'Prepare a self-contained durable handoff for task ' . $taskId->value . '.',
-                "Current durable Contract evidence:\n```json\n" . $contractEvidence . "\n```",
-                "Current bounded Session handoff projection (derived working memory, not durable authority):\n" . $handoff->toMarkdown(),
-            ]);
+            $descriptionParts = ['Prepare a self-contained durable handoff for task ' . $taskId->value . '.'];
+            if ($contract === null) {
+                $descriptionParts[] = 'Current durable Contract evidence: ' . $contractEvidence;
+            } else {
+                $descriptionParts[] = "Current durable Contract evidence:\n```json\n" . $contractEvidence . "\n```";
+            }
+            $descriptionParts[] = "Current bounded Session handoff projection (derived working memory, not durable authority):\n" . $handoff->toMarkdown();
+            $description = implode("\n\n", $descriptionParts);
 
             $outputDirectory = $layout->recallRoot() . '/' . $taskId->value . '/handoff';
-            $exit = ($this->recallRunner)([
+            $recallArgs = [
                 'compile',
                 '--task', $taskId->value,
                 '--description', $description,
                 '--operating-prompt-manifest', $this->manifestPath(),
                 '--operating-prompt', '{"id":"todo-card-handoff","arguments":{}}',
                 '--output-dir', $outputDirectory,
-            ]);
+            ];
+
+            $kanbanContext = (new WorkflowKanbanContextWriter($this->rootPath))->write($taskId->value, $session);
+            if ($kanbanContext !== null) {
+                $recallArgs[] = '--kanban-context';
+                $recallArgs[] = $kanbanContext;
+            }
+
+            $exit = ($this->recallRunner)($recallArgs);
             if ($exit !== 0) {
                 return $exit;
             }
