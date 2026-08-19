@@ -44,9 +44,6 @@ final readonly class WorkflowPlanCommand
                     . 'and still requires explicit approval before a replacement Run can start.',
                 );
             }
-            if ($activeSession !== null) {
-                (new SessionStore())->setStatus($activeSession, SessionStatus::DROPPED);
-            }
 
             if ($existing === null) {
                 if ($options['supersede']) {
@@ -82,6 +79,12 @@ final readonly class WorkflowPlanCommand
                     $options['operatingPrompts'],
                     $options['acceptanceCriteria'],
                 );
+                if ($activeSession !== null) {
+                    // Persist the unapproved replacement intent first. If
+                    // retiring working memory then fails, lifecycle policy sees
+                    // a candidate Contract revision and remains fail-closed.
+                    (new SessionStore())->setStatus($activeSession, SessionStatus::DROPPED);
+                }
                 $action = $options['supersede'] ? 'superseded' : 'revised';
             }
         } catch (Throwable $exception) {
