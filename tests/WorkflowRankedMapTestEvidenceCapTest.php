@@ -104,16 +104,14 @@ PHP);
     {
         $budget = new WorkflowContextBudget(120, 12000);
         (new WorkflowRankedMapContextExpander($this->root))->add($budget, [
-            'payload' => [
-                'status' => 'ranked',
-                'map_snapshot' => 'sha256:fixture-map',
-                'results' => [
-                    $this->candidate('method:Demo\\Noise::one', 'src/Noise.php', 6),
-                    $this->candidate('method:Demo\\Noise::two', 'src/Noise.php', 7),
-                    $this->candidate('method:Demo\\Noise::three', 'src/Noise.php', 8),
-                    $this->candidate('method:Demo\\Noise::four', 'src/Noise.php', 9),
-                    $this->candidate('method:Demo\\LeafTest::testRead', 'tests/LeafTest.php', 6),
-                ],
+            'status' => 'ranked',
+            'map_snapshot' => 'sha256:fixture-map',
+            'results' => [
+                $this->candidate('method:Demo\\Noise::one', 'src/Noise.php', 6),
+                $this->candidate('method:Demo\\Noise::two', 'src/Noise.php', 7),
+                $this->candidate('method:Demo\\Noise::three', 'src/Noise.php', 8),
+                $this->candidate('method:Demo\\Noise::four', 'src/Noise.php', 9),
+                $this->candidate('method:Demo\\LeafTest::testRead', 'tests/LeafTest.php', 6),
             ],
         ]);
         $budget->finish();
