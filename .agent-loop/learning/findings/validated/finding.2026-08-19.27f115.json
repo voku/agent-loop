@@ -1,0 +1,32 @@
+{
+    "id": "finding.2026-08-19.27f115",
+    "task_id": "GH-205",
+    "session": "2026-08-19-gh-205-phase-f0-recovery-census",
+    "created_at": "2026-08-19T13:34:25+00:00",
+    "created_by": "agent-loop-self-discovery",
+    "scope": [
+        "src/Run/RunPolicyEvaluator.php",
+        "src/Run/RunManifestProjector.php"
+    ],
+    "observation": "Phase F0 measured the existing recovery surface on a clean consumer with deterministic fixtures for eight failure states, with no product change. Measured at the #225 head 784bed1. Four states isolate cleanly and all confirm the Slice E contract: absent discovery returns kind=command naming agent-loop map build and converges; failed validation returns kind=host_work and converges once the host does the work; an unacknowledged review returns kind=decision_required with the report digest already computed; stale validation evidence returns kind=command naming finish and converges. One state does not converge. With a corrupted Recall metadata document the manifest reports state=blocked, references.recall state=invalid owner=agent-recall-compiler, and a disagreement {code: recall.meta_invalid, owner: agent-recall-compiler} naming the exact unreadable path - so both the fact and its owner are correctly identified - while next_action_kind=command and next_action='agent-loop workflow manifest <task> --format=json'. That action is a read-only diagnostic. Three consecutive iterations produced an identical state, action and kind, and no diagnostic can ever repair anything, so this action is structurally incapable of advancing. Escaping requires knowing independently that invalid Recall output must be recompiled, which is package-specific recovery knowledge the host is not supposed to hold.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "At 784bed1, corrupting .agent-loop/recall/<task>/meta.json and then obeying next_action three times produced identical output each time: state=blocked, next_action_kind=command, next_action=agent-loop workflow manifest <task> --format=json. The manifest simultaneously reported references.recall state=invalid owner=agent-recall-compiler and disagreements [{code: recall.meta_invalid, owner: agent-recall-compiler}] naming the unreadable path."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Four states measured as converging at the same revision: absent map -> command agent-loop map build; failed validation -> host_work; unacknowledged review -> decision_required with the computed report digest; stale validation evidence -> command finish. These confirm #221, #223 and #224 hold on their respective paths."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Method limits stated so the census is not over-read. The first run was invalid: corruption was injected before validation had run, so the validation gate masked every case and all eight reported the same blocker. After driving validation to passing before injection, three fixtures - invalid execution-contract binding, ambiguous Session and malformed derived run manifest - are masked by the review gate instead and remain unmeasured. That masking is the deliberate one-decisive-gap design from #206/#207 rather than a defect, but it means those three states carry no evidence here."
+        }
+    ],
+    "hypothesis": "The convergence invariant was established over ordinary-path actions and does not yet hold on recovery paths. This case is a distinct failure shape from the two already fixed: #221 named a command that a precondition refused, #223 named a command when the required step was model work, and here the kernel names a command that cannot mutate anything by construction. Diagnosis is already owner-backed; only the repair half is missing, so the host supplies it from private package knowledge.",
+    "validated_conclusion": "Record before repairing. The candidate F1 cut is to give the recovery path the same shape the ordinary path now has: the owner that reports recall.meta_invalid should also supply the repair action, and the lifecycle projection should carry it exactly as approval.repair_action already carries the discovery repair from WorkflowRunPreparer. That reuses an established pattern rather than introducing a RecoveryManager, a repair framework, or a second state machine. Do not generalise from one case: three of the eight fixtures are not yet measured, and a generic recovery abstraction built on a single data point is the failure this project has repeatedly avoided.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
