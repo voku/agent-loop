@@ -82,6 +82,31 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame('none', $complete['manifest']['next_action'] ?? null);
     }
 
+    public function testWhitespaceCompilationIdIsNotAcceptedAsIdentifyingACompilation(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+
+        // The owner reader reports the empty string as an absent compilation
+        // id but returns a whitespace-only one unchanged. Selected guidance
+        // may not be matched against outcome records under such an id.
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
+            json_encode([
+                'task_id' => 'ABC-123',
+                'compilation_id' => '   ',
+                'selected_guidance' => ['guidance.readiness-fixture'],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        [$closeExit, $closeOutput] = $this->runClose();
+
+        self::assertSame(1, $closeExit, $closeOutput);
+        self::assertStringContainsString('selected guidance without a compilation id', $closeOutput);
+        self::assertStringNotContainsString('missing explicit recall outcome for', $closeOutput);
+    }
+
     private function prepareGovernedRun(ValidationStatus $validationStatus, int $exitCode): Session
     {
         $contracts = new TaskContractStore($this->root);

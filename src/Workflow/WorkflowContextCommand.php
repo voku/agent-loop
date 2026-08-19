@@ -224,10 +224,12 @@ final readonly class WorkflowContextCommand
         }
 
         $budget->section('Selected guidance');
-        foreach ($output->selectedGuidance() as $id) {
-            $budget->add('guidance', '  ' . $id . ' (' . $relative . ')');
-        }
-        foreach ($output->selectedConstraints() as $id) {
+        foreach ([...$output->selectedGuidance(), ...$output->selectedConstraints()] as $id) {
+            // The owner drops empty ids; a whitespace-only one would still
+            // reach the context as a blank guidance line.
+            if (trim($id) === '') {
+                continue;
+            }
             $budget->add('guidance', '  ' . $id . ' (' . $relative . ')');
         }
 

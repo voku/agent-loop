@@ -254,8 +254,11 @@ final readonly class WorkflowCloseReadinessInspector
             return ['detail' => null, 'message' => '[OK] recall outcomes: no selected guidance requires evaluation'];
         }
 
+        // The owner treats only the empty string as absent. A whitespace-only
+        // id would otherwise be compared against outcome records as if it
+        // identified a compilation.
         $compilationId = $output->compilationId();
-        if ($compilationId === null) {
+        if ($compilationId === null || trim($compilationId) === '') {
             return ['detail' => 'selected guidance without a compilation id', 'message' => null];
         }
         $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';

@@ -349,7 +349,12 @@ final readonly class WorkflowReportCommand
                     $status = 'invalid';
                 } else {
                     $status = 'present';
-                    $taskFiles = $output->taskFiles();
+                    // The owner drops empty entries; whitespace-only ones would
+                    // still be reported as task files.
+                    $taskFiles = array_values(array_filter(
+                        $output->taskFiles(),
+                        static fn (string $file): bool => trim($file) !== '',
+                    ));
                 }
             }
         } catch (RuntimeException) {
