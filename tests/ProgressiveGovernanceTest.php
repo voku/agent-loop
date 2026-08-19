@@ -151,7 +151,11 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertSame('governed', $payload['manifest']['mode']);
         self::assertSame('active', $payload['manifest']['references']['session']['state']);
         self::assertSame('missing', $payload['manifest']['references']['recall']['state']);
-        self::assertSame('agent-loop enter FAIL-1', $payload['next_action']);
+        // A deterministic refusal must not name the command that just refused:
+        // obeying it reproduces the same state forever. See Phase F4.
+        self::assertNotSame('agent-loop enter FAIL-1', $payload['next_action']);
+        self::assertSame('host_work', $payload['next_action_kind']);
+        self::assertStringContainsString('enter.preparation_failed', $payload['next_action']);
     }
 
     public function testEnterJsonPreservesCallerBufferWhenRecallRunnerClosesItsOwnBuffer(): void
