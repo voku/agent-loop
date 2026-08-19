@@ -1,0 +1,30 @@
+{
+    "id": "finding.2026-08-19.3218dd",
+    "task_id": "GH-205",
+    "session": "2026-08-19-gh-205-slice-d-census",
+    "created_at": "2026-08-19T09:41:33+00:00",
+    "created_by": "agent-loop-self-discovery",
+    "scope": [
+        "src/AgentLoopVerifier.php",
+        "src/Workflow/WorkflowCloseReadinessInspector.php",
+        "src/Workflow/WorkflowStatusCommand.php",
+        "tools/release-set-dogfood.php"
+    ],
+    "observation": "Reviewing finding.2026-08-19.b5ceed against the wider #205 roadmap rather than as an isolated verifier defect produced a sharper rule than the one that finding records. The verifier's private copy of Recall's output_hashes contract did not merely duplicate logic: it let a gate certify a state the owner rejected. bin/agent-loop verify reported no failure for an integrity entry naming a path outside the Recall output directory, which the owner's CompiledRecallOutput::integrityFailures() rejects outright. The same architectural failure class had already been removed elsewhere in this repository from different directions - duplicated readiness formulas replaced by one RunPolicyEvaluator in #209, consumer-side Recall serialization deleted in #216 and #218, and release-set evidence that inferred its own published-release premise from build/candidate-* directory presence corrected in #217 after finding.2026-08-19.b1dfa6. Each was a surface used to decide whether other evidence could be trusted.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "On merged-main e8109c9 the hand-rolled check in bin/agent-loop verify accepted an output_hashes entry naming ../../outside/canary.txt with a matching digest, exiting 0, while CompiledRecallOutput::integrityFailures() on the identical directory rejected it as an unsafe relative path. The gate certified a state its owner rejects."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Prior instances of the same class in this repository, each on a surface used to judge other evidence: #209 replaced duplicated mutation/status/close readiness formulas with one RunPolicyEvaluator; #216 and #218 deleted consumer-side Recall serialization from the lifecycle kernel; #217 stopped the release-set dogfood inferring its published-release premise from build/candidate-* directory presence."
+        }
+    ],
+    "hypothesis": "Duplication in a measurement or gate surface is categorically worse than the same duplication in display-only glue, because a gate's output is consumed as authority over other evidence. When a gate reimplements an owner contract, its verdict silently becomes a claim about the consumer's stale copy rather than about the owner's current contract, and every downstream decision that trusted the gate inherits that staleness without any signal.",
+    "validated_conclusion": "Adopt the ownership rule explicitly for measurement surfaces: a gate may aggregate owner results, but it must not deserialize owner state to manufacture an equivalent result. This binds status, verify, release-set dogfood, candidate dogfood, and close/readiness gates, because those surfaces decide whether other evidence is trustworthy. Ordinary display or diagnostic code that re-reads an owner document is a tidiness problem; the same code inside a gate is a correctness problem, and should be treated as one when triaging. The corollary for triage: when an owner publishes a semantic query that a gate already hand-rolls, adopting it is a correctness change and should not wait for a tidiness slice.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

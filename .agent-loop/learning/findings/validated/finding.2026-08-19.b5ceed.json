@@ -1,36 +1,36 @@
 {
-    "id": "finding.2026-08-19.b5ceed",
-    "task_id": "GH-205",
-    "session": "2026-08-19-gh-205-slice-d-census",
-    "created_at": "2026-08-19T09:18:29+00:00",
-    "created_by": "agent-loop-self-discovery",
-    "scope": [
-        "src/AgentLoopVerifier.php",
-        "src/Edit/RecallEditBriefingCompiler.php",
-        "src/Edit/VerificationPlanBinding.php",
-        "src/Dogfood/RecallOutcomeDraft.php"
-    ],
-    "observation": "The Slice D leakage census run against merged main (e8109c9) confirms the lifecycle kernel is clean: src/Workflow and src/Run contain no Recall filename, no Recall JSON key read and no Recall document decode. The five json_decode calls remaining in those directories target agent-learning history/outcomes.jsonl, agent-learning withholding events, agent-loop's own verification-result.json and agent-loop's own execution-contract.json. Keys such as recall_bundle_sha256 and compilation_id that still appear there are agent-loop's own manifest vocabulary written from typed owner accessors, not reads of Recall's serialization. Outside the kernel the census found something the earlier import-and-path counts had not named: src/AgentLoopVerifier.php still hand-decodes Recall's meta.json and reimplements Recall's output_hashes integrity contract, and it is not host glue or legacy compatibility - it is bin/agent-loop verify, a first-class gate that composer ci and the dogfoods invoke. That hand-rolled copy has drifted below the owner's. Recall 0.13.9 ships CompiledRecallOutput::integrityFailures(), whose reader rejects unsafe relative paths in output_hashes; agent-loop's copy performs no path check at all. Demonstrated on one fixture, a meta.json whose output_hashes named '../../outside/canary.txt' with the matching digest and '../../outside/missing.txt': agent-loop verify read and hashed the file outside the recall directory and reported no failure for it, and disclosed the traversed absolute path in the failure message for the missing one, while the owner's reader rejected both entries as unsafe relative paths.",
-    "evidence": [
-        {
-            "type": "manual_verification",
-            "summary": "Census on merged main e8109c9: grep for Recall filenames, JSON keys and json_decode across src/Workflow and src/Run returns no Recall document read. The remaining recall_bundle_sha256 and compilation_id occurrences are writes into agent-loop-owned execution-contract.json and run manifest documents, sourced from typed owner accessors."
-        },
-        {
-            "type": "manual_verification",
-            "summary": "Side-by-side on one fixture directory containing meta.json with output_hashes {\"../../outside/canary.txt\": <matching sha256>, \"../../outside/missing.txt\": <zeros>}. bin/agent-loop verify --recall-root=<fixture> printed no failure for canary.txt, meaning it read and hashed a file outside the recall root and accepted it, and printed the traversed absolute path for missing.txt. CompiledRecallOutputReader::read()->integrityFailures() on the identical directory returned two entries, both \"compiled Recall output records an unsafe relative path\"."
-        },
-        {
-            "type": "file_reference",
-            "path": "src/AgentLoopVerifier.php",
-            "line": 435,
-            "summary": "Builds $outputFile as $taskDir . \"/\" . $relativeFile straight from the output_hashes key and stats it with no path-safety check, where the owner calls isSafeRelativePath() first."
-        }
-    ],
-    "hypothesis": "Duplicated schema knowledge in a consumer does not stay equivalent to the owner's. It freezes at the moment it was copied while the owner keeps hardening, so the divergence appears as a silently weaker check rather than as a build break. The verifier is the worst place for that to happen, because it is the component whose job is to detect exactly this class of inconsistency.",
-    "validated_conclusion": "Finish Slice D by deleting the last hand-rolled copies rather than by declaring the kernel clean. src/AgentLoopVerifier.php should consume CompiledRecallOutputReader and CompiledRecallOutput::integrityFailures() instead of decoding meta.json and re-implementing output_hashes, which both removes the leak and closes the path-safety gap in one change. src/Edit/RecallEditBriefingCompiler.php, src/Edit/VerificationPlanBinding.php and src/Dogfood/RecallOutcomeDraft.php still read Recall-owned documents (system.md, meta.json, recall.bundle.json, verification-plan.json, the outcome draft) and are the remaining candidates, but they are edit/dogfood surfaces rather than the normal enter-mutate-finish path, so they belong to a later cut. Record the general rule with the specific fix: when an owner publishes a semantic query that a consumer already hand-rolls, adopting it is a correctness change, not only a tidiness one.",
-    "confidence": "high",
-    "validation_status": "validated",
-    "status": "validated",
-    "sensitivity": "public"
+  "id": "finding.2026-08-19.b5ceed",
+  "task_id": "GH-205",
+  "session": "2026-08-19-gh-205-slice-d-census",
+  "created_at": "2026-08-19T09:18:29+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "src/AgentLoopVerifier.php",
+    "src/Edit/RecallEditBriefingCompiler.php",
+    "src/Edit/VerificationPlanBinding.php",
+    "src/Dogfood/RecallOutcomeDraft.php"
+  ],
+  "observation": "The Slice D leakage census run against merged main (e8109c9) confirms the lifecycle kernel is clean: src/Workflow and src/Run contain no Recall filename, no Recall JSON key read and no Recall document decode. The five json_decode calls remaining in those directories target agent-learning history/outcomes.jsonl, agent-learning withholding events, agent-loop's own verification-result.json and agent-loop's own execution-contract.json. Keys such as recall_bundle_sha256 and compilation_id that still appear there are agent-loop's own manifest vocabulary written from typed owner accessors, not reads of Recall's serialization. Outside the kernel the census found something the earlier import-and-path counts had not named: src/AgentLoopVerifier.php still hand-decodes Recall's meta.json and reimplements Recall's output_hashes integrity contract, and it is not host glue or legacy compatibility - it is bin/agent-loop verify, a first-class gate that composer ci and the dogfoods invoke. That hand-rolled copy has drifted below the owner's. Recall 0.13.9 ships CompiledRecallOutput::integrityFailures(), whose reader rejects unsafe relative paths in output_hashes; agent-loop's copy performs no path check at all. Demonstrated on one fixture, a meta.json whose output_hashes named '../../outside/canary.txt' with the matching digest and '../../outside/missing.txt': agent-loop verify read and hashed the file outside the recall directory and reported no failure for it, and disclosed the traversed absolute path in the failure message for the missing one, while the owner's reader rejected both entries as unsafe relative paths.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "Census on merged main e8109c9: grep for Recall filenames, JSON keys and json_decode across src/Workflow and src/Run returns no Recall document read. The remaining recall_bundle_sha256 and compilation_id occurrences are writes into agent-loop-owned execution-contract.json and run manifest documents, sourced from typed owner accessors."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Side-by-side on one fixture directory containing meta.json with output_hashes {\"../../outside/canary.txt\": <matching sha256>, \"../../outside/missing.txt\": <zeros>}. At e8109c9, bin/agent-loop verify --recall-root=<fixture> printed no failure for canary.txt, meaning it read and hashed a file outside the recall root and accepted it, and printed the traversed absolute path for missing.txt. CompiledRecallOutputReader::read()->integrityFailures() on the identical directory returned two entries, both \"compiled Recall output records an unsafe relative path\"."
+    },
+    {
+      "type": "file_reference",
+      "path": "src/AgentLoopVerifier.php",
+      "line": 435,
+      "summary": "At merged-main commit e8109c9, before this finding was acted on: builds $outputFile as $taskDir . \"/\" . $relativeFile straight from the output_hashes key and stats it with no path-safety check, where the owner calls isSafeRelativePath() first. The path/line is revision-bound and describes that commit; later revisions replace this code, so read it against e8109c9 rather than current HEAD."
+    }
+  ],
+  "hypothesis": "Duplicated schema knowledge in a consumer does not stay equivalent to the owner's. It freezes at the moment it was copied while the owner keeps hardening, so the divergence appears as a silently weaker check rather than as a build break. The verifier is the worst place for that to happen, because it is the component whose job is to detect exactly this class of inconsistency.",
+  "validated_conclusion": "Finish Slice D by deleting the last hand-rolled copies rather than by declaring the kernel clean. src/AgentLoopVerifier.php should consume CompiledRecallOutputReader and CompiledRecallOutput::integrityFailures() instead of decoding meta.json and re-implementing output_hashes, which both removes the leak and closes the path-safety gap in one change. src/Edit/RecallEditBriefingCompiler.php, src/Edit/VerificationPlanBinding.php and src/Dogfood/RecallOutcomeDraft.php still read Recall-owned documents (system.md, meta.json, recall.bundle.json, verification-plan.json, the outcome draft) and are the remaining candidates, but they are edit/dogfood surfaces rather than the normal enter-mutate-finish path, so they belong to a later cut. Record the general rule with the specific fix: when an owner publishes a semantic query that a consumer already hand-rolls, adopting it is a correctness change, not only a tidiness one.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
 }

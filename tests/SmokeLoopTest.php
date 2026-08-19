@@ -106,6 +106,16 @@ final class SmokeLoopTest extends TestCase
         $canary = hash_file('sha256', $outside . '/canary.txt');
         self::assertIsString($canary);
 
+        // QUARANTINED ADVERSARIAL FIXTURE - do not copy this style.
+        //
+        // Consumer tests should compile real Recall output and corrupt one
+        // boundary field, so they cannot pass against documents the owner would
+        // never emit. That pattern cannot express this case: the corruption
+        // under test is a recorded path escaping the output directory, and
+        // Recall does not emit one, so there is no canonical document to
+        // corrupt into this state. Hand-authoring the metadata is the only way
+        // to reach it, which is exactly why it stays confined to this test.
+        //
         // The recorded digest matches, so a verifier that resolves the path
         // without checking it reads a file outside the output directory and
         // reports success for it.
