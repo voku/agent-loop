@@ -143,7 +143,7 @@ final readonly class WorkflowHandoffCommand
         }
 
         $source = (new ReflectionClass(RecallCompiler::class))->getFileName();
-        if (!is_string($source) || $source === '') {
+        if (!is_string($source)) {
             throw new RuntimeException('Unable to resolve the installed agent-recall-compiler package path.');
         }
 
