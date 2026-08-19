@@ -22,7 +22,7 @@ final class WorkflowHandoffCommandTest extends TestCase
         $contractStore->create(
             'TASK-1',
             'Finish the recovery slice.',
-            [],
+            ['README.md'],
             [],
             ['composer test'],
             'planner',
@@ -69,7 +69,7 @@ final class WorkflowHandoffCommandTest extends TestCase
         $root = $this->temporaryRoot();
         $layout = new ProjectLayout($root);
         $contractStore = new TaskContractStore($root);
-        $contractStore->create('REAL-1', 'Persist a resumable task handoff.', [], [], ['composer test'], 'planner');
+        $contractStore->create('REAL-1', 'Persist a resumable task handoff.', ['README.md'], [], ['composer test'], 'planner');
         $contract = $contractStore->approve('REAL-1', 'reviewer');
         $sessionStore = new SessionStore();
         $session = $sessionStore->create($layout->sessionsRoot(), 'REAL-1', by: 'agent');
@@ -107,7 +107,7 @@ final class WorkflowHandoffCommandTest extends TestCase
         $root = $this->temporaryRoot();
         $layout = new ProjectLayout($root);
         $contractStore = new TaskContractStore($root);
-        $contractStore->create('TASK-2', 'Prepare handoff.', [], [], ['composer test'], 'planner');
+        $contractStore->create('TASK-2', 'Prepare handoff.', ['README.md'], [], ['composer test'], 'planner');
         $contract = $contractStore->approve('TASK-2', 'reviewer');
         $sessionStore = new SessionStore();
         $session = $sessionStore->create($layout->sessionsRoot(), 'TASK-2', by: 'agent');
