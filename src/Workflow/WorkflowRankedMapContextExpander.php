@@ -25,10 +25,9 @@ final readonly class WorkflowRankedMapContextExpander
     {
     }
 
-    /** @param array<string, mixed> $fact */
-    public function add(WorkflowContextBudget $budget, array $fact): void
+    /** @param array<string, mixed> $payload */
+    public function add(WorkflowContextBudget $budget, array $payload): void
     {
-        $payload = is_array($fact['payload'] ?? null) ? $fact['payload'] : [];
         if (($payload['status'] ?? null) !== 'ranked' || !is_array($payload['results'] ?? null)) {
             return;
         }
