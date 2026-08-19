@@ -6,17 +6,21 @@ declare(strict_types=1);
  * Installed release-set dogfood gate.
  *
  * The current agent-loop checkout is installed as a real Composer dependency
- * into a fresh consumer. Coordinated owner candidates are added as path
- * repositories only when the CI workspace contains them. Once those versions
- * are published, the same runner resolves them from Packagist without changes.
+ * into a fresh consumer. Focused owner packages resolve from published sources
+ * by default. Coordinated owner candidates are mounted as path repositories
+ * only when the caller names them explicitly with --candidate=<package>.
+ * Checkout-directory presence is never discovery: stale build/candidate-* state
+ * must not change what release set this gate claims to exercise.
  */
 
 use voku\AgentLoop\Dogfood\MinimumReleasePin;
+use voku\AgentLoop\Dogfood\ReleaseSetCandidateSelection;
 
 // Loaded directly rather than through the autoloader, for the same reason as
 // the other candidate runner: these gates run against a checkout whose own
 // dependencies may not be installed.
 require dirname(__DIR__) . '/src/Dogfood/MinimumReleasePin.php';
+require dirname(__DIR__) . '/src/Dogfood/ReleaseSetCandidateSelection.php';
 
 final class ReleaseSetFailure extends RuntimeException
 {
@@ -31,6 +35,7 @@ final class ReleaseSetDogfood
     private string $logRoot;
     private string $reportPath;
     private bool $keep;
+    private ReleaseSetCandidateSelection $candidateSelection;
 
     /** @var list<array<string, mixed>> */
     private array $scenarios = [];
@@ -47,7 +52,7 @@ final class ReleaseSetDogfood
     private string $scenario = 'bootstrap';
     private int $commandNumber = 0;
 
-    /** @param array{workspace: string, report: string, keep: bool} $options */
+    /** @param array{workspace: string, report: string, keep: bool, candidates: list<string>} $options */
     public function __construct(
         private readonly string $repositoryRoot,
         array $options,
@@ -59,6 +64,7 @@ final class ReleaseSetDogfood
         $this->logRoot = $this->artifactRoot . '/logs';
         $this->reportPath = $options['report'];
         $this->keep = $options['keep'];
+        $this->candidateSelection = new ReleaseSetCandidateSelection($options['candidates']);
     }
 
     public function run(): int
@@ -124,6 +130,20 @@ final class ReleaseSetDogfood
         ] as $package) {
             if (!isset($packages[$package])) {
                 throw new ReleaseSetFailure('Resolved consumer is missing ' . $package . '.');
+            }
+        }
+        foreach ($this->candidateSelection->packages() as $package) {
+            if (($packages[$package]['source_type'] ?? null) !== 'path') {
+                throw new ReleaseSetFailure('Requested owner candidate did not resolve from a path repository: ' . $package);
+            }
+        }
+        foreach ([
+            'voku/agent-session',
+            'voku/agent-recall-compiler',
+            'voku/agent-learning',
+        ] as $package) {
+            if (!$this->candidateSelection->includes($package) && ($packages[$package]['source_type'] ?? null) === 'path') {
+                throw new ReleaseSetFailure('Published-owner release-set run unexpectedly resolved a path candidate: ' . $package);
             }
         }
         $this->artifact($this->consumerRoot . '/composer.lock');
@@ -515,23 +535,18 @@ final class ReleaseSetDogfood
             'url' => str_replace('\\', '/', $this->candidateRoot),
             'options' => ['symlink' => false, 'versions' => ['voku/agent-loop' => 'dev-main']],
         ]];
-        // Derived from the declared minimum for the same reason as the prompt
-        // primitives runner: a path repository is canonical, so a sentinel left
-        // behind by a constraint bump fails the install outright. This one is
-        // only latent here, because the candidate directories exist just in the
-        // coordinated release job.
-        foreach ([
-            ['build/candidate-agent-session', 'voku/agent-session'],
-            ['build/candidate-agent-recall-compiler', 'voku/agent-recall-compiler'],
-            ['build/candidate-agent-learning', 'voku/agent-learning'],
-        ] as [$relative, $package]) {
+        foreach ($this->candidateSelection->paths() as $package => $relative) {
+            $path = $this->repositoryRoot . '/' . $relative;
+            if (!is_dir($path) || !is_file($path . '/composer.json')) {
+                throw new ReleaseSetFailure(sprintf(
+                    'Requested release-set candidate %s is missing a checkout with composer.json at %s.',
+                    $package,
+                    $path,
+                ));
+            }
             $version = MinimumReleasePin::pathRepositoryVersion(
                 MinimumReleasePin::declaredConstraint($this->repositoryRoot . '/composer.json', $package),
             );
-            $path = $this->repositoryRoot . '/' . $relative;
-            if (!is_dir($path)) {
-                continue;
-            }
             $repositories[] = [
                 'type' => 'path',
                 'url' => str_replace('\\', '/', $path),
@@ -570,7 +585,7 @@ final class ReleaseSetDogfood
         }
     }
 
-    /** @return array<string, array{version: string}> */
+    /** @return array<string, array{version: string, source_type: string, source: string}> */
     private function resolvedPackages(): array
     {
         $lock = $this->jsonFile($this->consumerRoot . '/composer.lock');
@@ -580,8 +595,18 @@ final class ReleaseSetDogfood
                 if (!is_array($row) || !is_string($row['name'] ?? null)) {
                     continue;
                 }
+                $dist = is_array($row['dist'] ?? null) ? $row['dist'] : [];
+                $source = is_array($row['source'] ?? null) ? $row['source'] : [];
+                $sourceType = is_string($dist['type'] ?? null)
+                    ? $dist['type']
+                    : (is_string($source['type'] ?? null) ? $source['type'] : 'unknown');
+                $sourceUrl = is_string($dist['url'] ?? null)
+                    ? $dist['url']
+                    : (is_string($source['url'] ?? null) ? $source['url'] : 'unknown');
                 $packages[$row['name']] = [
                     'version' => is_string($row['version'] ?? null) ? $row['version'] : 'unknown',
+                    'source_type' => $sourceType,
+                    'source' => $sourceUrl,
                 ];
             }
         }
@@ -680,6 +705,7 @@ final class ReleaseSetDogfood
         $this->writeJson($this->reportPath, [
             'schema_version' => '2.0',
             'result' => $failed ? 'failed' : 'passed',
+            'candidate_packages' => $this->candidateSelection->packages(),
             'release_set' => is_file($this->consumerRoot . '/composer.lock') ? $this->resolvedPackages() : [],
             'scenarios' => $this->scenarios,
             'front_door_journey' => $this->frontDoorJourneyReport(),
@@ -840,12 +866,13 @@ final class ReleaseSetDogfood
     }
 }
 
-/** @return array{workspace: string, report: string, keep: bool} */
+/** @return array{workspace: string, report: string, keep: bool, candidates: list<string>} */
 function releaseSetOptions(array $argv): array
 {
     $workspace = sys_get_temp_dir() . '/agent-loop-release-set-' . bin2hex(random_bytes(4));
     $report = getcwd() . '/build/release-set-report.json';
     $keep = false;
+    $candidates = [];
     foreach (array_slice($argv, 1) as $argument) {
         if ($argument === '--keep') {
             $keep = true;
@@ -859,10 +886,23 @@ function releaseSetOptions(array $argv): array
             $report = substr($argument, strlen('--report='));
             continue;
         }
+        if (str_starts_with($argument, '--candidate=')) {
+            $package = trim(substr($argument, strlen('--candidate=')));
+            if ($package === '') {
+                throw new InvalidArgumentException('--candidate requires a package name.');
+            }
+            $candidates[] = $package;
+            continue;
+        }
         throw new InvalidArgumentException('Unknown option: ' . $argument);
     }
 
-    return ['workspace' => rtrim($workspace, '/'), 'report' => $report, 'keep' => $keep];
+    return [
+        'workspace' => rtrim($workspace, '/'),
+        'report' => $report,
+        'keep' => $keep,
+        'candidates' => $candidates,
+    ];
 }
 
 $repositoryRoot = dirname(__DIR__);
