@@ -1,17 +1,14 @@
 <!-- agent-loop:project-instructions:begin -->
 ## agent-loop workflow router
 
-This repository uses `voku/agent-loop` for governed coding work. Keep this file as a small router; detailed procedures live in the installed skills and CLI help.
+This repository uses `voku/agent-loop` for governed coding work. Keep this always-on router small; detailed procedures live in the installed skills and CLI help. Troubleshooting only: use `bin/agent-loop init status` to inspect setup and `init sync-instructions` when managed instruction projection itself needs repair.
 
-When this router is projected into a host instruction file, the content between the `agent-loop:project-instructions` markers is package-managed. Put project-specific rules outside those markers and refresh the managed block with `init install-assets` or `init sync-instructions` instead of editing it by hand.
+For a durable task id:
 
-For non-trivial coding, review, debugging, or repository-maintenance tasks:
+1. Before mutating code, run `bin/agent-loop enter <task-id> --format=json` and obey the returned `next_action_kind` / `next_action`. `command` means execute it as written; `decision_required` means supply the missing model and/or human decision values first; `host_work` means perform the described host-native implementation/model work; `none` means there is no further lifecycle action. Never fabricate an approval or risk owner.
+2. Use repository-managed skills and subagents when their descriptions match the task. Do not recreate their procedures from conversational memory. In particular, do not pre-build Map/Search, create Session/Recall state, or infer approval/close ordering: deterministic prerequisites and repairs must come from the canonical lifecycle result.
+3. When host-native mutation is complete, run `bin/agent-loop finish <task-id> --format=json`, then obey its canonical next step until `next_action_kind=none` and the result is complete. If an advertised command deterministically refuses without changing the next step, report a workflow defect rather than teaching the host a private workaround.
+4. Never claim that hooks fired, checks passed, CI is green, a PR merged, or a release/deploy shipped unless current evidence proves it.
 
-- At the start of a fresh agent session, or when the agent-loop setup is unknown, run `bin/agent-loop init status` once. Its `Activation:` section reports the resolved CLI path, whether skills are projected into a host at all, and whether local Git hooks and the commit template are active; its `Next:` lines are the exact activation commands for this repository. Run them instead of silently bypassing the setup, and use `bin/agent-loop init doctor` for the wider environment. If the CLI itself is missing, install the Composer dependencies first. Do not repeat bootstrap diagnostics once the current session has established the setup.
-- Use the installed `agent-loop-*` skills and `agent-recall-consumer` when their descriptions match the task. Do not recreate their procedures as ad-hoc prompt text.
-- Use `agent-map` for bounded source discovery before broad reads. When map-backed Recall matters, build or refresh the map and search index before `workflow approve`, because approval compiles Recall from evidence that already exists.
-- When a task has a durable Contract or task id, inspect `bin/agent-loop workflow status <task-id> --format=json` before mutation and continue from persisted state rather than conversational memory.
-- Select applicable L2 operating prompts through the Contract / `agent-recall-compiler` before approval, then read the compiled `system.md` in the Recall output directory that `workflow approve` names. A compiled prompt is not evidence of use unless the acting agent actually received the generated Recall briefing.
-- For local commits, activate the package Git hooks with the `init status` command shown above when the repository expects them and let them execute. GitHub/API connector writes cannot run local `pre-commit` or `commit-msg` hooks; report those hooks as not exercised rather than claiming they passed.
-- Run the validation declared by the governed task and preserve exact command/output evidence. Do not turn workflow completion into a merged, shipped, or released claim without exact Git candidate evidence.
+For untracked exploration, use an ephemeral session rather than inventing a durable task.
 <!-- agent-loop:project-instructions:end -->

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 /** @internal */
 final class TaskStartMapSearchPreflightTest extends TestCase
 {
-    public function testCanonicalConsumerGuidanceBuildsSearchIndexBeforeApproval(): void
+    public function testCanonicalConsumerGuidanceDoesNotPreemptDiscoveryOwnerBeforeApproval(): void
     {
         foreach ([
             dirname(__DIR__) . '/docs/quick-start.md',
@@ -17,12 +17,18 @@ final class TaskStartMapSearchPreflightTest extends TestCase
             dirname(__DIR__) . '/docs/agents/skills/agent-loop-workflow/SKILL.md',
         ] as $path) {
             $content = (string) file_get_contents($path);
-            $searchIndex = strpos($content, 'vendor/bin/agent-loop map search-index build');
-            $approval = strpos($content, 'vendor/bin/agent-loop workflow approve');
 
-            self::assertIsInt($searchIndex, $path);
-            self::assertIsInt($approval, $path);
-            self::assertLessThan($approval, $searchIndex, $path);
+            self::assertStringContainsString('next_action', $content, $path);
+            self::assertStringNotContainsString(
+                'vendor/bin/agent-loop map search-index build',
+                $content,
+                $path . ' must not teach an unconditional search-index preflight before approval',
+            );
+            self::assertStringNotContainsString(
+                'vendor/bin/agent-loop map build --paths=src,tests',
+                $content,
+                $path . ' must let the discovery owner surface the required repair through next_action',
+            );
         }
     }
 }

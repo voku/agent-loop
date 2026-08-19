@@ -1,144 +1,68 @@
 # Your first governed task
 
 This is the shortest supported path from an installed `agent-loop` to one
-reviewable task. Repository-local agent workflow state lives below one
-`.agent-loop/` directory instead of spreading package-specific directories
-across the project root.
+governed coding task. The host follows the lifecycle kernel instead of carrying
+its own map/Session/Recall/review choreography.
 
-## 1. Bootstrap the repository and agent host
-
-Run this from the root of an existing Composer project. This quick-start uses
-the explicit tutorial board so the later commands have a concrete `DEMO-1` task:
+## 1. Bootstrap the repository and host
 
 ```bash
-vendor/bin/agent-loop init status
 vendor/bin/agent-loop init scaffold --demo
 vendor/bin/agent-loop init install-assets --agent=codex
-vendor/bin/agent-loop init status
+vendor/bin/agent-loop init doctor
 ```
 
-For a real repository, prefer its actual board identity instead of tutorial
-data:
+Replace `codex` with the host you actually use. For a real repository, prefer its
+real project prefix instead of tutorial state:
 
 ```bash
 vendor/bin/agent-loop init scaffold --prefix=PROJECT
 ```
 
-Bare `init scaffold` creates only the workflow infrastructure. It deliberately
-does not invent a project prefix, board card, or task. Board commands become
-available once the repository supplies a real `--prefix` (or existing board
-configuration), while `--demo` is the explicit tutorial path.
+Project agent assets before starting the agent session that should consume them.
+Installation proves projection, not that an already-running host retroactively
+loaded the files.
 
-`init status` is the entry point, before and after. Its `Activation:` section
-reports the resolved CLI path, whether skills are projected into a host at all,
-and whether `core.hooksPath`/`commit.template` are active; its `Next:` lines are
-the exact commands for *this* repository. Use `init doctor` for the wider
-environment. A projected skill is readable by the host - that is not the same as
-a session having consumed it.
+## 2. Start through `enter`
 
-Replace `codex` with the host you are actually going to use. Use `--agent=all`
-only when the repository intentionally manages every supported host. Project the
-assets **before starting the agent session that should use them**. Installing a
-skill during an already-running session proves installation, not that the
-current agent retroactively consumed it.
+The ordinary lifecycle front door is:
 
-With `--demo`, the scaffold creates the canonical layout plus explicit tutorial
-state:
+```bash
+vendor/bin/agent-loop enter DEMO-1 --format=json
+```
+
+For a new task, the result will normally be incomplete and provide a canonical
+next step. Read:
 
 ```text
-.agent-loop/
-  init.json
-  todo/
-    kanban.config.json
-    board.md
-    cards/
-      DEMO-1.md
-    archive/
-  tasks/
-    DEMO-1.md
-  sessions/
-  learning/
-    findings/
+mutation_ready
+next_action_kind
+next_action
+manifest.references
 ```
 
-Recall output, map indexes, run manifests, and edit bundles are created below
-`.agent-loop/recall`, `.agent-loop/map`, `.agent-loop/runs`, and
-`.agent-loop/edit` when those capabilities are used.
+Treat `next_action_kind` as follows:
 
-Existing files are left untouched. Use `--dry-run` to inspect the scaffold
-without writing anything. `--prefix` and `--demo` are mutually exclusive. There
-is no layout switch: `.agent-loop/` is the workflow-state root.
+- `command` — execute `next_action` as written;
+- `decision_required` — supply the missing model/human input values in the
+  command template, then execute it;
+- `host_work` — perform the described implementation/model work; the text is not
+  a command;
+- `none` — the lifecycle has no further action.
 
-For package/library repositories, local workflow state can be kept out of
-Composer/Git archives with one rule:
+Do not infer a different sequence from this tutorial. If the kernel says a map
+repair, approval, execution contract, review acknowledgement, Learning decision,
+or another action is next, follow that exact result.
 
-```gitattributes
-/.agent-loop export-ignore
+## 3. Define durable task intent when requested
+
+For an unplanned task, `enter` returns a PLAN template similar to:
+
+```text
+agent-loop workflow plan DEMO-1 --by <actor> --file <path> --goal <goal> --validation <validation>
 ```
 
-When the repository tracks `.agent-loop/githooks.json`, `install-assets` already
-installed the package-owned local Git hooks and pointed `core.hooksPath` and
-`commit.template` at them. Use `--skip-git-config` to install the hook files
-without touching Git configuration, or run the activation on its own:
-
-```bash
-vendor/bin/agent-loop init sync-githooks --commit-template=.gitmessage
-```
-
-Local Git hooks run only for a local Git commit. GitHub API/connector writes do
-not execute `pre-commit` or `commit-msg`; use the repository validation gates as
-the authority in such a host instead of pretending the hook ran.
-
-## 2. Inspect or create a task
-
-`DEMO-1` is the normal example task created by explicit `--demo` mode, not a
-special workflow state:
-
-```bash
-vendor/bin/agent-loop board card show DEMO-1
-```
-
-Create a real board card when you are ready:
-
-```bash
-vendor/bin/agent-loop board card create PROJECT-1 \
-  --title="Add a small validated change" \
-  --lane=READY \
-  --status=Selected
-```
-
-The board command resolves `.agent-loop/todo/`. If the cross-package verifier
-should govern `PROJECT-1`, add the matching task file at
-`.agent-loop/tasks/PROJECT-1.md` with a top-level heading.
-
-## 3. Build navigation evidence before approval
-
-For PHP projects, build the semantic map before `workflow approve`. Approval is
-where Loop compiles Recall, so a map built afterwards cannot influence that
-briefing without another explicit approval/compile cycle.
-
-```bash
-vendor/bin/agent-loop map build --paths=src,tests
-vendor/bin/agent-loop map search-index build
-vendor/bin/agent-loop map summary
-```
-
-The defaults are `.agent-loop/map/php-symbols.json` and
-`.agent-loop/map/search.sqlite`. Explicit agent-map path options remain
-available for genuinely custom locations.
-
-Use the installed `agent-loop-investigate` skill or bounded map queries to locate
-real source before broad reads:
-
-```bash
-vendor/bin/agent-loop map query Foo
-vendor/bin/agent-loop map related Foo
-```
-
-## 4. Plan, optionally select an L2 recipe, approve, and inspect context
-
-Choose the real file or files you intend to change. `composer.json` is used
-below only because every Composer project has one.
+Replace every placeholder with a real value before executing it. For example:
 
 ```bash
 vendor/bin/agent-loop workflow plan DEMO-1 \
@@ -147,17 +71,86 @@ vendor/bin/agent-loop workflow plan DEMO-1 \
   --goal "Add a small validated change." \
   --behavior-anchor "composer configuration -> Composer validation result" \
   --validation "composer test"
-
-vendor/bin/agent-loop workflow approve DEMO-1 \
-  --by "$(git config user.name)"
-
-vendor/bin/agent-loop workflow context DEMO-1
-vendor/bin/agent-loop workflow status DEMO-1
 ```
 
-Select an L2 operating prompt only when it matches the task. Selection belongs in
-the Contract **before approval**. For example, a real self-discovery task looking
-for missing workflow integration can select Recall's `missingness-audit` recipe:
+A validation value must be an executable repository-supported command, not prose
+or an unresolved placeholder. Add repeatable `--acceptance` values when concrete
+outcomes must survive the task.
+
+After PLAN, call `enter --format=json` again. Do **not** manually insert a map
+build or approval because an older quick-start used to list one. Existing PHP
+scope may require discovery; when it does, the lifecycle kernel now returns the
+owner-produced map repair as `next_action` before it asks for approval.
+
+## 4. Respect authority-bearing decisions
+
+When `next_action_kind=decision_required`, some placeholders may be ordinary
+model choices and some may carry human authority. In particular, do not fabricate
+an approver, accepted-risk owner, or other explicitly human decision.
+
+Approval seals one exact Contract revision. It does not create the governed Run,
+Session, or Recall output. The next `enter` performs deterministic preparation
+through the package owners and returns bounded current context.
+
+## 5. Implement when authorized
+
+When the result says implementation work is authorized (`mutation_ready=true` or
+`next_action_kind=host_work`), make the smallest correct change in the approved
+scope using normal repository tools.
+
+`agent-map` can be used for precise source navigation when useful, but it is not
+a mandatory tutorial phase. A discovery repair required by policy comes from the
+canonical next step; optional navigation remains host/tool choice.
+
+## 6. Finish through the kernel
+
+After host-native mutation, run:
+
+```bash
+vendor/bin/agent-loop finish DEMO-1 --format=json
+```
+
+Then obey the returned `next_action_kind` and `next_action` until the lifecycle
+reports `none` / complete.
+
+`finish` owns deterministic validation/review/Learning/close-out ordering. The
+quick-start intentionally does not list those gates, because a duplicated prose
+checklist can drift from executable policy.
+
+A failing validation may return:
+
+```text
+next_action_kind = host_work
+next_action = change the implementation so the declared validation passes: ...
+```
+
+That is deliberate: re-running the command that just observed the same failing
+implementation would not make progress. Fix the implementation, then call
+`finish` again.
+
+A review acknowledgement or Learning disposition may instead be
+`decision_required`; fill only the requested values and keep human authority
+truthful.
+
+## 7. Confirm completion
+
+A complete structured result has no further lifecycle action. Useful diagnostic
+surfaces remain available:
+
+```bash
+vendor/bin/agent-loop workflow status DEMO-1 --format=json
+vendor/bin/agent-loop workflow report DEMO-1 --format=json
+vendor/bin/agent-loop verify --task-id=DEMO-1
+```
+
+These are diagnostics/read-only evidence, not another required happy-path
+sequence.
+
+## Optional L2 operating prompts
+
+Select a reusable operating prompt only when it actually matches the task, and
+select it in the Contract before approval. The package that owns the recipe owns
+its schema and construction semantics. Example:
 
 ```bash
 vendor/bin/agent-loop workflow plan PROJECT-1 \
@@ -169,134 +162,27 @@ vendor/bin/agent-loop workflow plan PROJECT-1 \
   --operating-prompt '{"id":"missingness-audit","arguments":{}}'
 ```
 
-Approval then compiles the selected L2 recipe together with current repository
-and map evidence. A deterministic harness that merely checks the generated
-`system.md` proves compilation. A behavioral dogfood claim additionally needs an
-agent host that actually receives and acts on that briefing.
+After that, return to `enter --format=json`. If the selected policy requires a
+project-specific execution contract, the lifecycle result surfaces that next
+step; do not copy Recall's construction rules into this tutorial.
 
-Sessions are written below `.agent-loop/sessions/`, learning state below
-`.agent-loop/learning/`, and compiled recall below `.agent-loop/recall/`.
-Direct `session`, `learn`, `recall`, `board`, `map`, `review`, and `verify`
-commands use the same defaults as the governed workflow.
+## Lower-level tools
 
-For a behavioral change, add one or more `--behavior-anchor` values that name
-the request, runtime, consumer, data, or integration boundary that owns the
-behavior. Skip it deliberately for documentation-only or static-only work.
-Material context claims should remain distinguishable as verified, inferred,
-assumed, blocked, or contradicted instead of being flattened into confidence.
+`board`, `map`, `session`, `recall`, `learn`, `review`, `edit`, and `verify` remain
+available for navigation, diagnostics, specialist work, CI, and recovery. They
+are not mandatory phases simply because the CLI exposes them.
 
-If `workflow status` says the selected policy requires an L1 execution
-contract, construct that L1 from the generated Recall instructions and the
-project evidence the agent actually received. Persist it with exactly these
-non-empty H2 sections:
-
-```markdown
-## Goal
-What will change.
-
-## Context
-The repository/runtime facts that matter.
-
-## Constraints
-What must remain true and what is out of scope.
-
-## Verification
-The commands or evidence that prove the change.
-
-## Done When
-The observable completion criteria.
-```
-
-Then bind it to the task:
-
-```bash
-vendor/bin/agent-loop workflow contract DEMO-1 \
-  --status ready \
-  --by "$(git config user.name)" \
-  --from .agent-loop/contract-DEMO-1.md
-
-vendor/bin/agent-loop workflow status DEMO-1
-```
-
-Do not create a contract merely to satisfy a gate. It should be the concrete
-execution boundary produced from the approved plan and selected guidance.
-
-## 5. Make and validate the change
-
-Make the scoped change, run the validation declared in the plan, then record
-the actual result. The first Contract has revision `1`:
-
-```bash
-composer test
-
-vendor/bin/agent-loop session validation record DEMO-1 \
-  --contract-revision 1 \
-  --command "composer test" \
-  --status passed \
-  --exit-code 0 \
-  --duration-ms 0 \
-  --by "$(git config user.name)"
-```
-
-Use the real exit code and duration when available. The values above are only
-a compact example for a fast local command.
-
-## 6. Review, learn, verify, close
-
-```bash
-vendor/bin/agent-loop review blindspots DEMO-1
-
-vendor/bin/agent-loop session checkpoint DEMO-1 \
-  --title "Review" \
-  --body "review blindspots DEMO-1 was checked."
-
-vendor/bin/agent-loop review blindspots DEMO-1
-
-vendor/bin/agent-loop workflow learn DEMO-1 \
-  --status no_durable_learning \
-  --by "$(git config user.name)" \
-  --reason "No reusable finding from this bounded task."
-
-vendor/bin/agent-loop verify --task-id=DEMO-1
-vendor/bin/agent-loop workflow close DEMO-1 --status done
-vendor/bin/agent-loop workflow status DEMO-1 --expect complete
-```
-
-Read the review output before recording the checkpoint. If verification still
-reports drift, fix the drift rather than turning the gate into ceremonial
-paperwork. Likewise, use `no_durable_learning` only when there genuinely is no
-reusable lesson.
-
-`workflow status --expect complete` proves the governed task is complete. It is
-**not** evidence that a candidate commit was merged, shipped, or released. Those
-claims require exact candidate/integration evidence, for example:
-
-```bash
-vendor/bin/agent-loop verify \
-  --candidate-sha=<full-source-candidate-sha> \
-  --integrated-sha=<full-integrated-sha> \
-  --target-ref=main \
-  --format=json
-```
-
-Add `--release-tag=<exact-tag>` when the claim is specifically that the result
-was released.
-
-## Upgrading an existing repository
-
-This path change is intentionally breaking. Existing state is **not**
-automatically copied, symlinked, or discovered from historical locations.
-Migrate repository-local state once:
+The ordinary host contract is intentionally small:
 
 ```text
-todo/                         -> .agent-loop/todo/
-tasks/                        -> .agent-loop/tasks/
-session_plan/                 -> .agent-loop/sessions/
-infra/doc/agent-learning/     -> .agent-loop/learning/
-recall/                       -> .agent-loop/recall/
-.agent-map/                   -> .agent-loop/map/
+enter
+  -> obey canonical next step
+  -> host-native mutation when authorized
+  -> finish
+  -> obey canonical next step
+  -> complete
 ```
 
-After migration, run `vendor/bin/agent-loop verify` before deleting or ignoring
-the old directories. Focused package CLI path options continue to allow
-explicit custom locations where needed.
+If following a canonical command deterministically returns the same refusal and
+the same next action, record that as a workflow defect rather than teaching the
+host a private workaround.

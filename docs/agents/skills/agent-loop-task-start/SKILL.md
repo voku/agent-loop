@@ -1,316 +1,191 @@
 ---
 name: agent-loop-task-start
-description: Start a governed agent-loop task in the current repository, define and approve a sealed task Contract, create session working memory, and compile deterministic recall/L2 context.
+description: Define durable task intent for a governed agent-loop task, then route startup through the lifecycle kernel instead of reproducing preparation or discovery choreography in host guidance.
 ---
 
 # Agent Loop Task Start
 
-Use this skill when beginning a task in a repository that has `agent-loop`
-installed and you need to define durable task intent, approve that exact
-revision, create session working memory, and compile a Recall briefing from the
-sealed input before editing code.
+Use this skill when a task needs a durable Contract with explicit intent. This
+skill helps choose that intent; it does not own the lifecycle sequence that
+follows. The lifecycle kernel decides what is legal next.
 
-## Fast Path
+## Start Through The Front Door
 
-Prefer the governed Contract path. If the task id already exists or may have
-durable state, inspect `workflow status <task-id> --format=json` before PLAN and
-continue or re-plan from that persisted state. Skip that preflight only for a
-genuinely new task id; do not hide an unexpected status failure with a fallback.
+For a stable task id, start or resume with:
 
 ```bash
-vendor/bin/agent-loop workflow plan <task-id> \
-  --by <actor> \
-  --file <path-to-file-1> \
-  --file <path-to-file-2> \
-  --goal "Implement the approved task." \
-  --non-goal "Do not widen the task without a revised brief." \
-  --acceptance "The required user-visible outcome remains present." \
-  --behavior-anchor "<runtime/request/consumer seam>" \
-  --validation "vendor/bin/phpunit tests/FocusedTest.php"
+vendor/bin/agent-loop enter <task-id> --format=json
 ```
 
-`workflow plan` creates or revises a candidate Contract. It deliberately creates
-neither a Session nor a Run and does **not** compile Recall yet.
+For a genuinely new task the kernel may return a `decision_required` PLAN command
+template. Fill the missing Contract inputs from the actual request and current
+repository evidence, execute that command, then call `enter` again and obey the
+new structured `next_action_kind` / `next_action`.
 
-### Re-planning an active governed Run
+Do not pre-build a map, manually create a Session, compile Recall, or infer that
+approval should run merely because an old startup checklist said so. If discovery
+or another deterministic prerequisite is required, the owner-backed lifecycle
+result must name that repair.
 
-`PLAN` re-entry is a supersession handoff, not an in-place mutation of the
-current Run. If scope or task policy changes while a governed Session is active:
+A named human approval remains authority-bearing. Never fabricate the approving
+actor or self-approve. Approval records authority for the exact Contract revision;
+Run, Session and Recall preparation happens deterministically behind `enter`.
 
-1. stop using the old Contract as implementation authority;
-2. close that Session with `session close <session-id> --status dropped`;
-3. rerun `workflow plan <task-id> ...` with the corrected durable intent;
-4. obtain named human approval for the new Contract revision;
-5. let `workflow approve` create the replacement Session/Run and archive the
-   superseded Run evidence.
+## Contract Intent
 
-If durable intent did **not** change, continue the existing Run instead. Never
-close a Session merely to bypass a gate, and never reuse one Session across two
-Contract revisions.
+A PLAN should carry enough durable intent that a later agent does not need the
+original chat to understand the task:
 
-When ranked map evidence is expected, establish both the semantic map and its
-separate Search index **before approval**:
+- stable task id;
+- actor/planner identity;
+- smallest honest file/scope boundary;
+- goal;
+- explicit non-goals when they prevent scope drift;
+- behavior anchors when runtime behavior matters;
+- executable validation commands supported by repository evidence;
+- acceptance criteria for required outcomes;
+- selected operating-prompt policy only when a real recipe/control applies.
 
-```bash
-vendor/bin/agent-loop map build --paths=src,tests
-vendor/bin/agent-loop map search-index build
-vendor/bin/agent-loop map summary
+The canonical PLAN template is intentionally incomplete until those values are
+chosen. Do not persist unresolved placeholders such as `<goal>` or
+`<validation>` as real Contract values.
+
+## Task ID
+
+Reuse the external ticket/issue id when one exists. Otherwise choose one stable
+local id such as `LOCAL-001` and keep it for the life of the task. Do not create a
+new id on every resume.
+
+If existing durable state may exist, `enter`/`workflow status --format=json`
+should discover it before another plan is invented beside it.
+
+## Choosing Scope
+
+Select files intentionally. Prefer the smallest scope that honestly contains the
+requested behavior and evidence. Typical inputs include:
+
+- the failing or focused test;
+- the implementation owner;
+- a task/decision document that constrains behavior;
+- architecture or policy files directly governing the change.
+
+Do not pass the whole repository merely because context is available. Initial
+`--file` values become approved scope unless explicit `--scope` values replace
+them. If intent or scope genuinely changes later, revise the Contract and let the
+lifecycle kernel reconcile superseded working state.
+
+## Acceptance, Validation, And Behavior Anchors
+
+Keep these concepts distinct:
+
+- **acceptance criterion** — outcome/condition that must remain true;
+- **validation command** — executable observation used to measure current code;
+- **behavior anchor** — runtime/request/consumer seam whose behavior matters.
+
+Example:
+
+```text
+acceptance: installed guidance exposes the new control
+validation: composer ci
+anchor: SessionStart -> injected agent-loop-discipline
 ```
 
-`map build` does not create `<map-root>/search.sqlite`. `workflow approve`
-compiles governed Recall immediately, so an index built afterwards cannot
-contribute ranked map evidence to that first briefing. Resolve `map_root` with
-`vendor/bin/agent-loop init paths --format=json` instead of assuming its location.
-
-A named human must approve the exact revision before implementation; approval
-prepares the governed Run/Session and compiles Recall from that sealed Contract.
-Inspect the result immediately:
-
-```bash
-vendor/bin/agent-loop workflow approve <task-id> --by <human-actor>
-vendor/bin/agent-loop workflow context <task-id> --max-lines 120 --max-bytes 12000
-vendor/bin/agent-loop workflow status <task-id>
-```
-
-## Preserve Acceptance Intent
-
-Use repeatable `--acceptance` values for outcomes the completed task must still
-make true. Keep them distinct from the other Contract fields:
-
-- **acceptance criterion** = a required outcome or condition from the task;
-- **validation command** = an executable observation used to measure reality;
-- **behavior anchor** = the concrete runtime/request/consumer seam that should be
-  inspected when behavior changes.
-
-For example, `"installed agent guidance mentions the new control"` is an
-acceptance criterion; `composer ci` is validation; `SessionStart -> injected
-agent-loop-discipline` is a behavior anchor.
-
-Criteria are durable task intent, **not evidence that they passed**. Do not add a
-checkbox/status merely because a criterion exists. Review the criteria against
-actual evidence before treating the task as complete.
-
-Do not infer acceptance criteria from issue prose inside deterministic commands.
-When a requirement matters to completion, make it explicit at PLAN time so it
-survives approval, Recall, status, and review rather than depending on chat
-memory.
-
-## Test-Driven Implementation Selection
-
-For behavior-changing implementation work with a repository-supported automated
-test seam, prefer selecting Recall's `test-driven-development` L2 recipe at PLAN
-time. The selection becomes part of the approved Contract instead of relying on
-a conversational reminder that an acting agent may forget:
-
-```bash
---operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
---operating-prompt '{"id":"test-driven-development","arguments":{}}'
-```
-
-For a specific bug claim whose first question is whether the failure can be
-reproduced at all, use the narrower `reproduce-before-fix` recipe. Do not stack
-both merely because their test-first surfaces overlap; select the engineering
-method whose constraint actually matters to the task.
-
-Recall owns the recipe semantics. Agent Loop owns selection persistence and the
-execution-contract gate. Do not restate RED/GREEN/REFACTOR rules here or create a
-second TDD policy in Loop. When no meaningful automated test seam exists, keep
-the ordinary Contract validation explicit rather than manufacturing a recipe
-selection for ceremony.
-
-## Historical Context Preflight
-
-Before opening a non-trivial, repeated, or failure-driven task, use `ctx` if it
-is installed to check whether prior local agent sessions contain relevant
-decisions, failed attempts, commands, or review context:
-
-```bash
-ctx status
-ctx sources
-ctx search "<task / module / error / command>"
-ctx show event <ctx-event-id> --window 5
-```
-
-Use ctx as historical source material only. It does not replace `workflow plan`,
-`workflow approve`, current Recall artifacts, current repository inspection, or
-validation. If ctx material affects a finding, cite it as bounded
-`agent_history_reference` evidence with inspected IDs and a summary; do not paste
-raw transcripts.
+A criterion is intent, not proof. A validation string must be a real
+repository-supported command, not prose or an unresolved placeholder.
 
 ## Existing Work Preflight
 
-**Inspect overlap before invention.** Before designing a new implementation for a
-non-trivial task, use repository/tracker history when the host exposes it and
-parallel or prior work is plausible.
+Inspect overlap before invention. For non-trivial work, inspect bounded relevant
+current/recent work when the host can do so cheaply.
+An open PR is not correctness evidence.
+Classify useful candidates as landed, active, superseded, abandoned, or independent, then try to **falsify it** against the current task intent before
+creating a competing implementation.
 
-1. Search a bounded set of open and recent merged/closed work for the same task,
-   behavior, owner surface, or intended acceptance outcome.
-2. Classify each relevant candidate as already landed, active, superseded or
-   abandoned, or materially independent. An open PR is not correctness evidence.
-3. Select the strongest existing candidate and try to **falsify it** against the
-   current approved acceptance criteria, current source, deterministic tests,
-   CI/runtime evidence, and known regressions.
-4. If it already satisfies or nearly satisfies the task, reuse, repair, rebase,
-   merge, or close superseded work instead of creating a competing implementation.
-5. Create a new competing implementation only when evidence shows the existing
-   candidate cannot satisfy the current contract or addresses a materially
-   different problem.
+When evidence shows an existing candidate already owns the same change,
+close superseded work instead of creating a competing implementation.
+If external history is unavailable, continue from current repository evidence and state the
+limitation.
 
-Do not block implementation merely because external history is unavailable.
-Record that overlap is unknown and continue from current repository evidence.
-Do not turn this preflight into a new lifecycle state, benchmark service, or
-requirement to inspect unrelated repository history.
+Do not turn this preflight into a new lifecycle state. It informs Contract intent;
+the lifecycle kernel still owns what happens next.
 
 ## External Reference Preflight
 
 Use this preflight **only** when the task is explicitly defined relative to an
-external implementation, specification, prior version, or upstream repository.
-For ordinary local implementation work, skip it.
+upstream implementation, specification, prior version, or other external
+authority. Before running `workflow plan` or sealing scope for approval:
 
-Before running `workflow plan` or sealing scope for approval:
-
-1. identify the external authority/reference and the exact user term being
-   mapped, such as `checks`, `features`, `parity`, `port`, or `adapt`;
-2. inspect a bounded top-level inventory plus the directly relevant
-   implementation, documentation, configuration, and test surfaces;
-3. state what is included, excluded, and still unknown before choosing the
-   Contract scope;
-4. distinguish a direct port from an adaptation where language, runtime, or
-   product semantics differ;
-5. do not claim parity from a partial inventory.
+1. identify the exact reference and requested comparison term;
+2. inspect a bounded relevant inventory and state what is included, excluded, and still unknown;
+3. distinguish a direct port from an adaptation;
+4. do not claim parity from a partial inventory;
+5. if the reference is too broad, intentionally scope to one rule or behavior;
+6. if evidence cannot establish a surface, record that surface as unknown.
 
 For example, `adapt upstream checks` must not silently become `port upstream
-rules` merely because a rules directory is the first surface discovered. First
-inventory the bounded reference surface, then intentionally scope to one rule or
-feature if that is the desired task.
+checks wholesale`.
+This is evidence for choosing Contract intent, not a new lifecycle state. Do not turn it into a parallel discovery workflow.
 
-If part of the external reference is unavailable, record that surface as unknown
-and continue with the evidence that is available unless the missing information
-prevents an honest Contract from being sealed. Do not manufacture parity claims,
-a replacement reference, or hidden assumptions merely to keep PLAN moving.
+## Operating Prompts
 
-This is a front-door evidence check, not a new lifecycle state. Do not turn it
-into automatic scraping/cloning, a mandatory full-repository crawl, a reference
-database, or another orchestration command.
+Recall owns the recipe semantics. Select a reusable recipe/control only when it
+actually matches the task, and select it in the Contract rather than copying its
+rules into this skill.
 
-## Task ID
-
-Use the ticket or issue id from your board (e.g. `ABC-123`, `PROJ-42`).
-If no external id exists, choose a stable local id such as `LOCAL-001` and
-keep it for the life of the task. Do not generate a new one on each run.
-Ask the host workflow or board if you are unsure what id to use.
-
-## Choosing Files
-
-Select files intentionally. Recall compiles context from what you pass; it
-does not dump the entire repository into the briefing.
-
-Good candidates:
-
-- the task description file (`tasks/ABC-123.md`)
-- the failing test or the test that covers the change
-- the implementation file most directly affected
-- architecture or decision notes that constrain the change
-- the relevant skill or doc if guidance is part of the scope
-
-Pass a small set of relevant files with repeated `--file` options instead of
-trying to summarize the whole repository. Do not pass every file.
-
-The initial `--file` values become the approved scope unless explicit
-`--scope` values replace them. A later plan revision clears approval, so obtain
-a new approval before working outside the current scope or changing required
-acceptance intent.
-
-## Map Maintenance After Start
-
-The initial map/Search preflight belongs before approval, as shown in the fast
-path above. After a branch switch or source change, keep the semantic map current
-without paying for a full rebuild:
+For behavior-changing work with a meaningful automated test seam, select
+`test-driven-development` using the Recall-owned manifest, for example:
 
 ```bash
-vendor/bin/agent-loop map refresh
-vendor/bin/agent-loop map stale
+vendor/bin/agent-loop workflow plan <task-id> \
+  --by <actor> \
+  --file <path> \
+  --goal <goal> \
+  --validation <validation> \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt '{"id":"test-driven-development","arguments":{}}'
 ```
 
-`map refresh` re-analyses only changed or new files. Keep `--paths` on
-directories for full builds. PHPStan disables its result cache when it is handed
-individual files, so a file-list scope pays the full cost every single time.
+Do not restate RED/GREEN/REFACTOR here; the selected Recall recipe owns those
+constraints.
 
-If a refreshed map must feed a later approval or Recall recompile, rebuild the
-Search index first:
+For a specific bug claim that first needs proof, prefer `reproduce-before-fix`.
+Do not stack both merely because both exist; choose the one whose constraint is
+actually needed.
+
+## After PLAN
+
+Once the Contract exists, stop using this skill as a workflow engine. Return to:
 
 ```bash
-vendor/bin/agent-loop map search-index build
+vendor/bin/agent-loop enter <task-id> --format=json
 ```
 
-The map output (`agent-loop init paths` reports `map_root`) is generated
-navigation state. Confirm it is ignored; never force-add the index. `workflow
-context` reads existing generated evidence but never builds a map or Search
-index itself.
+and obey the lifecycle kernel. In particular:
 
-## Validation After Start
+- discovery repair comes from `next_action`, not a remembered map preflight;
+- approval happens only when the kernel asks for that authority;
+- deterministic preparation belongs to `enter`;
+- implementation is host-native once authorized;
+- deterministic close-out belongs to `finish`.
 
-```bash
-vendor/bin/agent-loop workflow status <task-id>
-vendor/bin/agent-loop verify
-```
+Use `agent-loop-workflow` for the ordinary routing contract and specialist skills
+only for specialist work actually requested by the kernel/task.
 
-`workflow status` confirms the Session, Run, Recall, Contract, and approval state.
-`verify` confirms cross-package consistency from the start.
+## Lower-Level Tools Are Not The Happy Path
 
-## Lower-Level Fallback
-
-Use this only when you intentionally need direct control over Session and Recall
-outside the governed PLAN/APPROVE path:
-
-```bash
-vendor/bin/agent-loop session start --task <task-id> --by <actor> --base-commit "$(git rev-parse HEAD)"
-vendor/bin/agent-loop recall compile \
-  --task <task-id> \
-  --file <path-to-file-1> \
-  --file <path-to-file-2>
-```
-
-`session start` prints a date-prefixed session id on its first line. The Loop
-`recall compile` wrapper resolves the configured Learning and Recall roots; do
-not hardcode them. Inspect the project layout when you need the physical paths:
-
-```bash
-vendor/bin/agent-loop init paths --format=json
-```
-
-Without an explicit output override, Recall artifacts live below the configured
-`<recall-root>/<task-id>/`.
-
-## Recall Output Is Not Auto-Injected
-
-`recall compile` writes deterministic artifacts such as `system.md`,
-`validation-plan.md`, `recall-log.draft.json`, and `meta.json` below the configured
-`<recall-root>/<task-id>/`. These artifacts are not automatically passed into a
-coding agent by the standalone compiler. The governed Loop workflow and any
-external harness must explicitly consume them.
+Direct `session`, `recall`, `map`, and edit commands remain useful diagnostics,
+recovery, navigation, or specialist tools. Their existence does not make them
+mandatory startup phases. Do not bypass the governed front door merely because a
+lower-level command can reproduce part of its work.
 
 ## Skill Boundary
 
-This skill owns:
-
-- the opening step of a governed agent-loop task in a consuming repository
-- choosing a task id, actor, file scope, non-goals, explicit acceptance criteria, behavior anchors, and validation commands
-- checking bounded prior/parallel work when the host exposes relevant history, and falsifying the strongest existing candidate before creating a competing implementation
-- inventorying a bounded external reference surface before PLAN when the task is explicitly defined by an upstream implementation, specification, or prior version
-- establishing map and Search readiness before approval when ranked map evidence is expected
-- understanding that `workflow plan` creates/revises a candidate Contract and `workflow approve` creates the governed working state and compiles Recall from its approved revision
-- obtaining human approval before implementation and inspecting the bounded context
-- inspecting initial state with `workflow status` and `verify`
-
-This skill does not own:
-
-- the review and close steps (see `agent-loop-review-close`)
-- L2 context recompilation during a task (see `agent-loop-l2-context`)
-- developing `agent-loop` itself
+This skill owns choosing durable PLAN inputs and preserving task intent. It does
+not own approval policy, discovery readiness, Run/Session/Recall preparation,
+close gates, recovery choreography, or package-internal artifact paths.
 
 ## Example Triggers
 
 - "Start an agent-loop task for this change."
-- "Compile context for this repo before editing."
+- "Define the governed task scope before editing."
 - "Use agent-loop for this task."
