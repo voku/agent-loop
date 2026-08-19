@@ -144,7 +144,7 @@ final readonly class RunPolicyEvaluator
             return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE];
         }
         if (preg_match('/<[A-Za-z0-9_.|:-]+>/', $action) === 1) {
-            return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_HUMAN_DECISION];
+            return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED];
         }
 
         return $this->command($action);
