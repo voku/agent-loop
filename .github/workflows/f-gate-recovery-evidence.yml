@@ -1,0 +1,39 @@
+name: F-GATE recovery evidence
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify-recall-owner-cause:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release-set evidence from CI
+        uses: actions/download-artifact@v4
+        with:
+          name: release-set-dogfood-${{ github.event.workflow_run.head_sha }}
+          path: build/release-set-dogfood
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Verify recall.meta_invalid preserves the unreadable path
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$(find build/release-set-dogfood -name release-set-report.json -print -quit)"
+          test -n "${report}"
+          jq -e '
+            .recovery_convergence
+            | map(select(.scenario == "recovery.recall-meta-invalid")) as $matches
+            | ($matches | length == 1)
+              and ($matches[0].kind == "host_work")
+              and ($matches[0].action | contains("agent-recall-compiler"))
+              and ($matches[0].action | contains(".agent-loop/recall/REC-3/meta.json"))
+              and (($matches[0].action | contains("workflow manifest")) | not)
+          ' "${report}" >/dev/null
