@@ -24,6 +24,24 @@ php tools/release-set-dogfood.php \
   --keep
 ```
 
+The default run resolves focused owner packages from published Composer sources.
+A checkout under `build/candidate-*` is ignored unless it is explicitly selected;
+leftover directories must never silently change a run that is being used as
+published-release evidence.
+
+For a coordinated owner change, name every candidate package deliberately:
+
+```bash
+php tools/release-set-dogfood.php \
+  --candidate=voku/agent-session \
+  --candidate=voku/agent-recall-compiler \
+  --keep
+```
+
+Only the supported owner candidates may be named. A requested candidate without
+a checkout and `composer.json` at its canonical `build/candidate-*` path fails
+before Composer resolution instead of falling back to a release.
+
 The runner itself has no Composer dependencies. It stages only the candidate
 package metadata, `src/`, `bin/`, and `docs/agents/`; the candidate's
 development `vendor/` directory is never copied into the consumer fixture.
@@ -49,8 +67,10 @@ clean temporary workspace
 
 The consumer requires `voku/agent-loop:dev-main` through a non-symlinked path
 repository. Every focused package is resolved through the candidate's real
-Composer constraints. The report records the exact resolved versions and
-references.
+Composer constraints. The report records the exact resolved version, source
+type, and source URL for every installed package, plus the explicitly selected
+owner candidates. A normal published-owner run also fails if Session, Recall,
+or Learning unexpectedly resolves from a path repository.
 
 ## Current scenarios
 
@@ -85,7 +105,8 @@ business rules.
 The runner writes canonical JSON with:
 
 - report schema version;
-- resolved package set and source type;
+- explicitly selected owner candidates;
+- resolved package set with exact version, source type, and source URL;
 - PHP, Composer and platform diagnostics;
 - ordered scenario IDs;
 - exact command argument arrays and exit codes;
@@ -116,6 +137,7 @@ retains the scenario logs. It does not retry with:
 - a nested package `vendor/` tree;
 - symlinked candidate source;
 - relaxed package constraints;
+- an unrequested `build/candidate-*` checkout;
 - a hosted LLM;
 - private project fixtures.
 
