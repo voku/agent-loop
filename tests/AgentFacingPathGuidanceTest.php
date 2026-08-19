@@ -130,6 +130,40 @@ final class AgentFacingPathGuidanceTest extends TestCase
      * every possible way to express it - a narrow guard against a defect that
      * actually happened, not a general prose analyser.
      */
+    /**
+     * Ordinary and always-on host assets own no lifecycle decision.
+     *
+     * Specialist skills may describe specialist operations; the defect is an
+     * asset that becomes required lifecycle authority. agent-loop-discipline
+     * matters most here because it is injected at SessionStart, so anything it
+     * states about ordering is an always-on rule the kernel cannot correct.
+     *
+     * This guards the drift shapes that actually occurred, not every possible
+     * phrasing. "before mutation" alone is not one of them: authority routing
+     * such as "resolve current state through the owning workflow command" is
+     * legitimate and stays.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('skillDocuments')]
+    public function testSkillsDoNotEmbedLifecyclePolicyTheKernelOwns(string $path): void
+    {
+        $contents = (string) file_get_contents($path);
+
+        foreach ([
+            'PLAN ->' => 'restates the lifecycle phase machine',
+            'approval compiles Recall' => 'restates when approval compiles Recall',
+            'Mutation requires the approved Contract' => 'restates when mutation becomes legal',
+            'execution-contract gate is' => 'has the host determine execution-contract readiness',
+            '**before** `workflow approve`' => 'sequences discovery ahead of approval by hand',
+        ] as $shape => $why) {
+            self::assertStringNotContainsString(
+                $shape,
+                $contents,
+                basename(dirname($path)) . ' ' . $why . ' ("' . $shape . '"). The lifecycle kernel owns '
+                . 'that decision: route to `enter`/`finish --format=json` and obey next_action_kind.',
+            );
+        }
+    }
+
     #[\PHPUnit\Framework\Attributes\DataProvider('skillDocuments')]
     public function testSkillsDoNotRestateTheCloseGateSet(string $path): void
     {

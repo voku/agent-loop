@@ -27,7 +27,7 @@ magically become instructions for a different host. Record that capability as
 2. Classify the run as installer, deterministic lifecycle, or agent-host dogfood before interpreting its result.
 3. Record baseline task, revision, model, host, tools, and validation.
 4. For agent-host dogfood, project the intended skills/hooks before starting a clean session. Do not install them mid-session and then claim they influenced earlier work.
-5. When map-backed context is under test, build the map and search index **before** `workflow approve`; approval compiles Recall and can only consume evidence that already exists.
+5. When Map-backed context is under test, let the governed lifecycle surface the discovery repair it requires rather than sequencing Map/Search by hand; build them directly only when the experiment is explicitly about standalone Map/Recall behaviour.
 6. When an L2 operating prompt is under test, select it in the approved Contract and prove the agent consumed the generated `system.md`/validation briefing. Compilation plus a hand-written L1 proves wiring, not model use.
 7. Run baseline and candidate guidance in separate clean sessions when the host supports it.
 8. Keep task wording, repository state, model, and validation identical.

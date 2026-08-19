@@ -9,22 +9,31 @@ Rule: persisted workflow state beats conversational state. Keep orchestration, e
 
 ## Governed Workflow
 
-```text
-PLAN -> APPROVE -> CONTEXT -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
-```
-
-1. Reuse the task id and inspect `workflow status` before mutation.
-2. Resume its active session; never create a parallel active session.
-3. Mutation requires the approved Contract.
-4. Selected L2 policy also requires a current `ready` execution contract bound to that Contract revision and recall bundle.
-5. Scope/policy drift returns to PLAN through supersession: close the active Session as dropped, revise durable intent, obtain approval for the new revision, then use the replacement Session/Run while preserving prior Run history. Never revise across Contract revisions inside one Session. Changed Recall returns an L2 contract to CONTRACT.
-6. Use `agent-loop-workflow` for phase mechanics and evidence requirements.
+The lifecycle kernel decides what may happen next. This skill is injected at
+SessionStart, so anything it states about ordering becomes an always-on rule
+the kernel cannot correct - which is why it states none.
 
 ```bash
-vendor/bin/agent-loop workflow status <task-id> --format=toon
+vendor/bin/agent-loop enter <task-id> --format=json
+vendor/bin/agent-loop finish <task-id> --format=json
 ```
 
-A SessionStart/SubagentStart hint is navigation only. Never infer approval, contract readiness, validation, review, learning, product intent, or a next command from it.
+Obey `next_action_kind` and `next_action` from that result:
+
+- `command` - run it as written;
+- `decision_required` - supply the missing model/human values first;
+- `host_work` - do the described host-native implementation work;
+- `none` - there is no further lifecycle action.
+
+Do not decide when mutation is legal, which gate must pass, whether an
+execution contract is current, or how a superseded scope is replaced. Those are
+owner decisions the canonical result already carries. If an advertised command
+refuses without changing the next step, report a workflow defect rather than
+inventing a private repair sequence.
+
+A SessionStart/SubagentStart hint is navigation only. Never infer approval,
+contract readiness, validation, review, learning, product intent, or a next
+command from it.
 
 Human gates are Contract approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, reports, contract construction from approved evidence, and agent checkpoints remain agent work.
 
