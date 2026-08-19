@@ -45,11 +45,7 @@ final readonly class WorkflowPlanCommand
                 );
             }
             if ($activeSession !== null) {
-                (new SessionStore())->close(
-                    $activeSession,
-                    SessionStatus::DROPPED,
-                    'Superseded by candidate Contract revision planned by ' . $options['by'] . '.',
-                );
+                (new SessionStore())->setStatus($activeSession, SessionStatus::DROPPED);
             }
 
             if ($existing === null) {
