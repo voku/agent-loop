@@ -46,14 +46,15 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString(InitSyncInstructionsCommand::BEGIN_MARKER, $agents);
         self::assertStringContainsString('agent-loop workflow router', $agents);
         self::assertStringContainsString('agent-loop enter <task-id>', $agents);
-        self::assertStringContainsString('Mutation: ready', $agents);
-        self::assertStringContainsString('perform the approved host-native work', $agents);
-        self::assertStringContainsString('next governed close-out action', $agents);
-        self::assertStringContainsString('is not another mutation prerequisite', $agents);
-        self::assertStringContainsString('Mutation: not_ready', $agents);
-        self::assertStringContainsString('do not mutate and follow `Next:`', $agents);
         self::assertStringContainsString('agent-loop finish <task-id>', $agents);
-        self::assertStringContainsString('Complete: yes', $agents);
+        // The router routes on the canonical contract rather than restating
+        // lifecycle vocabulary. Mutation: ready / Complete: yes were the old
+        // wording; a router quoting kernel output is host-owned choreography.
+        self::assertStringContainsString('next_action_kind', $agents);
+        foreach (['command', 'decision_required', 'host_work', 'none'] as $kind) {
+            self::assertStringContainsString($kind, $agents, 'router must name the ' . $kind . ' step kind');
+        }
+        self::assertStringContainsString('do not pre-build Map/Search', $agents);
         self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
         self::assertStringContainsString('init sync-instructions', $agents);
         self::assertStringNotContainsString('agent-map', $agents);
@@ -158,8 +159,10 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
 
         $consumerRouter = (string) file_get_contents($this->root . '/AGENTS.md');
-        self::assertStringContainsString('`vendor/bin/agent-loop enter <task-id>`', $consumerRouter);
-        self::assertStringContainsString('`vendor/bin/agent-loop finish <task-id>`', $consumerRouter);
+        // The invariant is that the router names a CLI path that exists in the
+        // projected repository, not the exact flags after the command.
+        self::assertStringContainsString('`vendor/bin/agent-loop enter <task-id>', $consumerRouter);
+        self::assertStringContainsString('`vendor/bin/agent-loop finish <task-id>', $consumerRouter);
         self::assertStringNotContainsString('{{agent_loop_cli}}', $consumerRouter);
 
         file_put_contents(
@@ -170,8 +173,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertSame(0, $this->runCommand(['--agent=codex'])['exit']);
 
         $packageRouter = (string) file_get_contents($this->root . '/AGENTS.md');
-        self::assertStringContainsString('`bin/agent-loop enter <task-id>`', $packageRouter);
-        self::assertStringContainsString('`bin/agent-loop finish <task-id>`', $packageRouter);
+        self::assertStringContainsString('`bin/agent-loop enter <task-id>', $packageRouter);
+        self::assertStringContainsString('`bin/agent-loop finish <task-id>', $packageRouter);
         self::assertStringNotContainsString('`vendor/bin/agent-loop', $packageRouter);
     }
 

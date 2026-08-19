@@ -96,14 +96,14 @@ repository-supported command, not prose or an unresolved placeholder.
 ## Existing Work Preflight
 
 Inspect overlap before invention. For non-trivial work, inspect bounded relevant
-current/recent work when the host can do so cheaply. An open PR is not correctness
-evidence. Classify useful candidates as landed, active, superseded, abandoned, or
-independent, then try to **falsify it** against the current task intent before
+current/recent work when the host can do so cheaply.
+An open PR is not correctness evidence.
+Classify useful candidates as landed, active, superseded, abandoned, or independent, then try to **falsify it** against the current task intent before
 creating a competing implementation.
 
-When evidence shows an existing candidate already owns the same change, close
-superseded work instead of creating a competing implementation. If external
-history is unavailable, continue from current repository evidence and state the
+When evidence shows an existing candidate already owns the same change,
+close superseded work instead of creating a competing implementation.
+If external history is unavailable, continue from current repository evidence and state the
 limitation.
 
 Do not turn this preflight into a new lifecycle state. It informs Contract intent;
@@ -123,8 +123,8 @@ authority. Before running `workflow plan` or sealing scope for approval:
 6. if evidence cannot establish a surface, record that surface as unknown.
 
 For example, `adapt upstream checks` must not silently become `port upstream
-checks wholesale`. This is evidence for choosing Contract intent, not a new
-lifecycle state. Do not turn it into a parallel discovery workflow.
+checks wholesale`.
+This is evidence for choosing Contract intent, not a new lifecycle state. Do not turn it into a parallel discovery workflow.
 
 ## Operating Prompts
 
