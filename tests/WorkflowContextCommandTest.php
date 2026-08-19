@@ -91,7 +91,7 @@ final class WorkflowContextCommandTest extends TestCase
     {
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', json_encode([
             'schema_version' => '1.0',
-            'bundle_sha256' => 'bundle-test',
+            'bundle_sha256' => hash('sha256', 'bundle-test'),
             'facts' => [[
                 'id' => 'map.file.src/Foo.php',
                 'type' => 'navigation',
@@ -122,7 +122,7 @@ final class WorkflowContextCommandTest extends TestCase
     {
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', json_encode([
             'schema_version' => '1.0',
-            'bundle_sha256' => 'bundle-test',
+            'bundle_sha256' => hash('sha256', 'bundle-test'),
             'facts' => [[
                 'id' => 'kanban.ABC-123',
                 'type' => 'kanban',

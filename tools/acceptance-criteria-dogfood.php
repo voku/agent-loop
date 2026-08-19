@@ -111,7 +111,7 @@ final class AcceptanceCriteriaDogfood
         $systemPath = '.agent-loop/recall/' . self::TASK_ID . '/system.md';
         $system = $this->textFile($systemPath);
         $this->assertContains($system, '## Acceptance Criteria', 'Recall system.md');
-        $this->assertContains($system, 'required outcomes from the approved task Contract', 'Recall system.md');
+        $this->assertContains($system, 'required task outcomes', 'Recall system.md');
         $this->assertContains($system, 'not evidence that they are satisfied', 'Recall system.md');
         foreach (self::CRITERIA as $criterion) {
             $this->assertContains($system, '- ' . $criterion, 'Recall system.md');

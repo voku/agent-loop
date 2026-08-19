@@ -11,6 +11,7 @@ use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentRecallCompiler\Output\RecallFactsDocumentReader;
 
 final readonly class ExecutionContractStore
 {
@@ -226,8 +227,8 @@ final readonly class ExecutionContractStore
             ];
         }
 
-        $factsPath = $this->contractDirectory($taskId) . '/facts.json';
-        if (!is_file($factsPath)) {
+        $factsDocument = (new RecallFactsDocumentReader())->readFromOutputDirectory($this->contractDirectory($taskId));
+        if ($factsDocument === null) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'pending_recall',
@@ -235,37 +236,27 @@ final readonly class ExecutionContractStore
                 'observation_mode' => 'checked',
                 'contract_revision' => $contract->revision,
                 'contract_source' => $this->artifact($contract->path),
-                'reason' => 'Approved prompt policy exists but recall facts have not been compiled.',
+                'reason' => 'Approved prompt policy exists but Recall facts have not been compiled.',
             ];
-        }
-
-        $factsDocument = $this->decodeJson($factsPath);
-        $facts = $factsDocument['facts'] ?? null;
-        if (!is_array($facts)) {
-            throw new RuntimeException('Recall facts.json requires a facts list.');
         }
 
         $promptFacts = [];
         $l2PromptIds = [];
-        foreach ($facts as $fact) {
-            if (!is_array($fact) || ($fact['type'] ?? null) !== 'operating_prompt') {
+        foreach ($factsDocument->facts as $fact) {
+            if ($fact->type !== 'operating_prompt') {
                 continue;
             }
-            $payload = $fact['payload'] ?? null;
-            if (!is_array($payload)) {
-                continue;
-            }
-            $promptId = $payload['prompt_id'] ?? null;
-            $level = $payload['level'] ?? null;
+            $promptId = $fact->payload['prompt_id'] ?? null;
+            $level = $fact->payload['level'] ?? null;
             if (!is_string($promptId) || ($level !== 1 && $level !== 2)) {
                 throw new RuntimeException('Operating prompt fact has invalid prompt id or level.');
             }
             $promptFacts[] = [
                 'prompt_id' => $promptId,
                 'level' => $level,
-                'arguments' => is_array($payload['arguments'] ?? null) ? $payload['arguments'] : [],
-                'template_sha256' => is_string($payload['template_sha256'] ?? null) ? $payload['template_sha256'] : null,
-                'source_ref' => is_string($fact['source_ref'] ?? null) ? $fact['source_ref'] : null,
+                'arguments' => is_array($fact->payload['arguments'] ?? null) ? $fact->payload['arguments'] : [],
+                'template_sha256' => is_string($fact->payload['template_sha256'] ?? null) ? $fact->payload['template_sha256'] : null,
+                'source_ref' => $fact->sourceRef,
             ];
             if ($level === 2) {
                 $l2PromptIds[] = $promptId;
@@ -283,22 +274,17 @@ final readonly class ExecutionContractStore
             ];
         }
 
-        $bundleSha = $factsDocument['bundle_sha256'] ?? null;
-        if (!is_string($bundleSha) || preg_match('/^[a-f0-9]{64}$/', $bundleSha) !== 1) {
-            throw new RuntimeException('Recall facts.json requires a canonical bundle_sha256.');
-        }
-
         return [
             'owner' => 'agent-loop',
             'state' => 'resolved',
             'required' => true,
             'observation_mode' => 'checked',
             'contract_revision' => $contract->revision,
-            'recall_bundle_sha256' => $bundleSha,
+            'recall_bundle_sha256' => $factsDocument->bundleSha256,
             'prompt_policy_sha256' => hash('sha256', CanonicalJson::pretty(['prompts' => $promptFacts])),
             'prompt_ids' => array_values(array_unique($l2PromptIds)),
             'contract_source' => $this->artifact($contract->path),
-            'recall_source' => $this->artifact($factsPath),
+            'recall_source' => $this->artifact($factsDocument->identityPath),
         ];
     }
 

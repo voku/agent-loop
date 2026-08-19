@@ -221,10 +221,13 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertSame(0, $exit);
         self::assertSame('incomplete', $status['manifest']['state'] ?? null);
         self::assertSame('invalid', $status['manifest']['references']['execution_contract']['state'] ?? null);
-        self::assertStringContainsString(
-            'Invalid JSON artifact',
-            (string) ($status['manifest']['references']['execution_contract']['reason'] ?? ''),
-        );
+        // Recall owns the facts document and now reports its own malformation.
+        // What agent-loop still guarantees is that the reason stays specific
+        // enough to find the evidence, so this asserts that rather than the
+        // owner's wording or its private filename.
+        $reason = (string) ($status['manifest']['references']['execution_contract']['reason'] ?? '');
+        self::assertStringContainsString('JSON', $reason);
+        self::assertStringContainsString('.agent-loop/recall/ABC-123', $reason);
     }
 
     public function testJsonStatusReportsPersistedProjectionFreshness(): void
