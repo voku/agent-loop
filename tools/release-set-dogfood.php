@@ -49,6 +49,15 @@ final class ReleaseSetDogfood
     /** @var list<array<string, mixed>> */
     private array $frontDoorJourney = [];
 
+    /**
+     * Recovery results are kept apart from the front-door journey on purpose:
+     * frontDoorJourneyReport() reads that list positionally, so appending
+     * recovery commands to it would silently redefine the ordinary gate.
+     *
+     * @var list<array<string, mixed>>
+     */
+    private array $recoveryScenarios = [];
+
     private string $scenario = 'bootstrap';
     private int $commandNumber = 0;
 
@@ -90,6 +99,12 @@ final class ReleaseSetDogfood
             $this->step('workflow.learn', fn () => $this->learn());
             $this->step('workflow.close', fn () => $this->close());
             $this->step('workflow.prune-replay', fn () => $this->pruneAndReplay());
+            $this->step('recovery.absent-discovery', fn () => $this->recoveryAbsentDiscovery());
+            $this->step('recovery.failed-validation', fn () => $this->recoveryFailedValidation());
+            $this->step('recovery.recall-meta-invalid', fn () => $this->recoveryRecallMetaInvalid());
+            $this->step('recovery.review-report-invalid', fn () => $this->recoveryReviewReportInvalid());
+            $this->step('recovery.execution-contract-blocked', fn () => $this->recoveryExecutionContractBlocked());
+            $this->step('recovery.preparation-refusal', fn () => $this->recoveryPreparationRefusal());
         } catch (Throwable $exception) {
             $failed = true;
             $this->friction[] = [
@@ -438,6 +453,295 @@ final class ReleaseSetDogfood
      * @param list<int> $allowedExitCodes
      * @return array<string, mixed>
      */
+    private const string RECOVERY_L2_PROMPT_MANIFEST =
+        'vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json';
+
+    /** @param list<string> $extra */
+    private function recoveryPlan(string $root, string $task, array $extra = []): void
+    {
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'plan', $task,
+            '--by', 'release-set-gate',
+            '--file', 'src/Greeter.php',
+            '--goal', 'Punctuate the greeting.',
+            '--validation', 'php -l src/Greeter.php',
+            ...$extra,
+        ], [0], $root);
+    }
+
+    /** @param list<string> $extra */
+    private function recoveryApproved(string $root, string $task, array $extra = []): void
+    {
+        $this->recoveryPlan($root, $task, $extra);
+        $this->mustRun(['vendor/bin/agent-loop', 'map', 'build', '--paths=src'], [0], $root);
+        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', $task, '--by', 'release-set-gate'], [0], $root);
+        $this->mustRun(['vendor/bin/agent-loop', 'enter', $task], [0, 1, 2], $root);
+    }
+
+    private function recoveryImplement(string $root): void
+    {
+        $path = $root . '/src/Greeter.php';
+        file_put_contents($path, str_replace("'Hello ' . \$name;", "'Hello ' . \$name . '!';", (string) file_get_contents($path)));
+    }
+
+    /** Scenario 1: absent discovery must name the repair, never the approval that would refuse. */
+    private function recoveryAbsentDiscovery(): void
+    {
+        $scenario = 'recovery.absent-discovery';
+        $root = $this->recoveryConsumer('absent-discovery');
+        $this->recoveryPlan($root, 'REC-1');
+
+        $manifest = $this->recoveryManifest($root, ['enter', 'REC-1']);
+        $step = $this->recoveryStep($manifest);
+        $this->expectKind($scenario, 'command', $step['kind']);
+        $this->expectContains($scenario, 'map build', $step['action']);
+        $this->expectNotContains($scenario, 'workflow approve', $step['action']);
+        $this->obeyAndProveProgress($scenario, $root, $manifest, ['enter', 'REC-1']);
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => true]);
+    }
+
+    /** Scenario 2: a failed validation obligation is irreducible host work, not a command. */
+    private function recoveryFailedValidation(): void
+    {
+        $scenario = 'recovery.failed-validation';
+        $root = $this->recoveryConsumer('failed-validation');
+        $this->recoveryApproved($root, 'REC-2');
+        file_put_contents($root . '/src/Greeter.php', "<?php\n\nthis is not valid php\n");
+        $this->mustRun(['vendor/bin/agent-loop', 'finish', 'REC-2'], [0, 1, 2], $root);
+
+        $step = $this->recoveryStep($this->recoveryManifest($root, ['finish', 'REC-2']));
+        $this->expectKind($scenario, 'host_work', $step['kind']);
+        $this->expectContains($scenario, 'validation', $step['action']);
+        // Host work must not be spelled as a command the host could "run".
+        $this->expectNotContains($scenario, 'agent-loop', $step['action']);
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => false]);
+    }
+
+    /** Scenario 3: an unreadable owner artifact must not advertise a read-only diagnostic as its repair. */
+    private function recoveryRecallMetaInvalid(): void
+    {
+        $scenario = 'recovery.recall-meta-invalid';
+        $root = $this->recoveryConsumer('recall-meta-invalid');
+        $this->recoveryApproved($root, 'REC-3');
+        $meta = $root . '/.agent-loop/recall/REC-3/meta.json';
+        $this->assertFile($meta);
+        file_put_contents($meta, '{');
+
+        $step = $this->recoveryStep($this->recoveryManifest($root, ['enter', 'REC-3']));
+        $this->expectKind($scenario, 'host_work', $step['kind']);
+        $this->expectContains($scenario, 'agent-recall-compiler', $step['action']);
+        $this->expectNotContains($scenario, 'workflow manifest', $step['action']);
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => false]);
+    }
+
+    /** Scenario 4: an invalid review report converges on the owner's own repair command. */
+    private function recoveryReviewReportInvalid(): void
+    {
+        $scenario = 'recovery.review-report-invalid';
+        $root = $this->recoveryConsumer('review-report-invalid');
+        $this->recoveryApproved($root, 'REC-4');
+        $this->recoveryImplement($root);
+        $this->mustRun(['vendor/bin/agent-loop', 'finish', 'REC-4'], [0, 1, 2], $root);
+
+        $reports = glob($root . '/.agent-loop/recall/REC-4/reviews/*.json') ?: [];
+        if ($reports === []) {
+            throw new ReleaseSetFailure($scenario . ': validation did not produce a blind-spot report to invalidate.');
+        }
+        foreach ($reports as $report) {
+            $document = $this->jsonFile($report);
+            $document['status'] = 'fail';
+            $document['findings'] = [['id' => 'F1', 'summary' => 'blocking']];
+            $this->writeJson($report, $document);
+        }
+
+        $manifest = $this->recoveryManifest($root, ['finish', 'REC-4']);
+        $step = $this->recoveryStep($manifest);
+        $this->expectKind($scenario, 'command', $step['kind']);
+        $this->expectContains($scenario, 'review blindspots', $step['action']);
+        $this->obeyAndProveProgress($scenario, $root, $manifest, ['finish', 'REC-4']);
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => true]);
+    }
+
+    /** Scenario 5: a stopped execution contract stays a governed decision, never a silent rewrite. */
+    private function recoveryExecutionContractBlocked(): void
+    {
+        $scenario = 'recovery.execution-contract-blocked';
+        $root = $this->recoveryConsumer('execution-contract-blocked');
+        $this->recoveryApproved($root, 'REC-5', [
+            '--operating-prompt-manifest', self::RECOVERY_L2_PROMPT_MANIFEST,
+            '--operating-prompt', '{"id":"adversarial-review","arguments":{"minimum_failure_modes":3}}',
+        ]);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'contract', 'REC-5',
+            '--status', 'blocked', '--by', 'release-set-gate',
+            '--reason', 'Selected L2 policy cannot be satisfied by the approved scope.',
+            '--evidence', 'src/Greeter.php',
+            '--minimum-change', 'Expand the governed scope to the caller.',
+        ], [0], $root);
+
+        $step = $this->recoveryStep($this->recoveryManifest($root, ['enter', 'REC-5']));
+        $this->expectKind($scenario, 'decision_required', $step['kind']);
+        $this->expectContains($scenario, 'Expand the governed scope to the caller.', $step['action']);
+        $this->expectContains($scenario, '--supersede', $step['action']);
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => false]);
+    }
+
+    /** Scenario 6: a deterministic preparation refusal must never name the command that just refused. */
+    private function recoveryPreparationRefusal(): void
+    {
+        $scenario = 'recovery.preparation-refusal';
+        $root = $this->recoveryConsumer('preparation-refusal');
+        $this->recoveryApproved($root, 'REC-6', [
+            '--operating-prompt-manifest', self::RECOVERY_L2_PROMPT_MANIFEST,
+            '--operating-prompt', '{"id":"release-set-gate-no-such-capability","arguments":{}}',
+        ]);
+
+        $step = $this->recoveryStep($this->recoveryManifest($root, ['enter', 'REC-6']));
+        $this->expectKind($scenario, 'host_work', $step['kind']);
+        // The owning package's own cause must survive into the lifecycle result.
+        $this->expectContains($scenario, 'release-set-gate-no-such-capability', $step['action']);
+        $this->expectNotContains($scenario, 'agent-loop enter REC-6', $step['action']);
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => false]);
+    }
+
+    /**
+     * Phase-F recovery convergence, re-proven on every run.
+     *
+     * #233 proved these six shapes once, on a consumer that installed
+     * agent-loop as a real Composer dependency. A proof that only ran once is
+     * history; these steps make it an invariant. Each scenario gets its own
+     * consumer root so a deliberately broken state cannot leak into the
+     * ordinary path, while the installed release set stays the single authority.
+     */
+    private function recoveryConsumer(string $name): string
+    {
+        $root = $this->workspace . '/recovery-' . $name;
+        $this->removeTree($root);
+        $this->mkdir($root . '/src');
+        file_put_contents(
+            $root . '/src/Greeter.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Fixture;\n\nfinal class Greeter\n{\n"
+            . "    public function greet(string \$name): string\n    {\n        return 'Hello ' . \$name;\n    }\n}\n",
+        );
+        // The installed release set is reused rather than reinstalled: this
+        // gate must exercise the packages the ordinary path resolved, and a
+        // second `composer update` could resolve something else entirely.
+        if (!symlink($this->consumerRoot . '/vendor', $root . '/vendor')) {
+            throw new ReleaseSetFailure('Unable to reuse the installed release set for recovery consumer ' . $name . '.');
+        }
+
+        return $root;
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @return array<string, mixed>
+     */
+    private function recoveryManifest(string $root, array $arguments): array
+    {
+        $result = $this->mustRun(
+            ['vendor/bin/agent-loop', ...$arguments, '--format=json'],
+            [0, 1, 2],
+            $root,
+        );
+        $payload = $this->json($result['stdout'], 'recovery ' . implode(' ', $arguments));
+        $manifest = $payload['manifest'] ?? null;
+        if (!is_array($manifest)) {
+            throw new ReleaseSetFailure('Recovery projection returned no manifest for: ' . implode(' ', $arguments));
+        }
+
+        return $manifest;
+    }
+
+    /**
+     * @param array<string, mixed> $manifest
+     * @return array{kind: string, action: string}
+     */
+    private function recoveryStep(array $manifest): array
+    {
+        $kind = $manifest['next_action_kind'] ?? null;
+        $action = $manifest['next_action'] ?? null;
+        if (!is_string($kind) || !is_string($action)) {
+            throw new ReleaseSetFailure('Recovery projection exposed no canonical next step.');
+        }
+
+        return ['kind' => $kind, 'action' => $action];
+    }
+
+    /**
+     * @param array<string, mixed> $manifest
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function recoverySignature(array $manifest): array
+    {
+        $step = $this->recoveryStep($manifest);
+
+        return [(string) ($manifest['state'] ?? ''), $step['action'], $step['kind']];
+    }
+
+    private function expectKind(string $scenario, string $expected, string $actual): void
+    {
+        if ($actual !== $expected) {
+            throw new ReleaseSetFailure(sprintf(
+                '%s: expected next_action_kind %s, got %s.',
+                $scenario,
+                $expected,
+                $actual,
+            ));
+        }
+    }
+
+    private function expectContains(string $scenario, string $needle, string $haystack): void
+    {
+        if (!str_contains($haystack, $needle)) {
+            throw new ReleaseSetFailure(sprintf('%s: expected canonical action to contain "%s", got: %s', $scenario, $needle, $haystack));
+        }
+    }
+
+    private function expectNotContains(string $scenario, string $needle, string $haystack): void
+    {
+        if (str_contains($haystack, $needle)) {
+            throw new ReleaseSetFailure(sprintf('%s: canonical action must not contain "%s", got: %s', $scenario, $needle, $haystack));
+        }
+    }
+
+    /**
+     * Obey the canonical command and prove the blocker actually moved.
+     *
+     * This is the assertion the whole gate exists for: a command-shaped
+     * canonical action that cannot change the state that produced it is a
+     * defect, not guidance.
+     *
+     * @param list<string> $projection
+     * @param array<string, mixed> $manifest
+     */
+    private function obeyAndProveProgress(string $scenario, string $root, array $manifest, array $projection): void
+    {
+        $before = $this->recoverySignature($manifest);
+        $action = $this->recoveryStep($manifest)['action'];
+        $tokens = array_values(array_filter(explode(' ', $action), static fn (string $token): bool => $token !== ''));
+        if (($tokens[0] ?? null) !== 'agent-loop') {
+            throw new ReleaseSetFailure($scenario . ': canonical command did not name the agent-loop binary: ' . $action);
+        }
+        $this->mustRun(['vendor/bin/agent-loop', ...array_slice($tokens, 1)], [0, 1, 2], $root);
+
+        $after = $this->recoverySignature($this->recoveryManifest($root, $projection));
+        if ($after === $before) {
+            throw new ReleaseSetFailure(sprintf(
+                '%s: obeying the canonical command left state, action and kind identical (%s). '
+                . 'A command that cannot change its own blocker is non-convergent.',
+                $scenario,
+                json_encode($before, JSON_THROW_ON_ERROR),
+            ));
+        }
+    }
+
+    /** @param array<string, mixed> $observed */
+    private function recordRecovery(string $scenario, array $observed): void
+    {
+        $this->recoveryScenarios[] = ['scenario' => $scenario] + $observed;
+    }
+
     private function frontDoor(string $phase, array $arguments, array $allowedExitCodes = [0]): array
     {
         $result = $this->mustRun(['vendor/bin/agent-loop', ...$arguments], $allowedExitCodes);
@@ -638,9 +942,9 @@ final class ReleaseSetDogfood
     }
 
     /** @param list<string> $command @param list<int> $allowedExitCodes @return array{exit: int, stdout: string, stderr: string} */
-    private function mustRun(array $command, array $allowedExitCodes = [0]): array
+    private function mustRun(array $command, array $allowedExitCodes = [0], ?string $cwd = null): array
     {
-        $result = $this->runCommand($command);
+        $result = $this->runCommand($command, $cwd);
         if (!in_array($result['exit'], $allowedExitCodes, true)) {
             throw new ReleaseSetFailure(sprintf(
                 'Command failed with exit %d: %s. See %s and %s.',
@@ -655,7 +959,7 @@ final class ReleaseSetDogfood
     }
 
     /** @param list<string> $command @return array{exit: int, stdout: string, stderr: string, stdout_log: string, stderr_log: string} */
-    private function runCommand(array $command): array
+    private function runCommand(array $command, ?string $cwd = null): array
     {
         ++$this->commandNumber;
         $base = sprintf('%03d-%s', $this->commandNumber, preg_replace('/[^A-Za-z0-9_.-]+/', '-', $this->scenario) ?? 'command');
@@ -670,7 +974,7 @@ final class ReleaseSetDogfood
             $command,
             [0 => ['pipe', 'r'], 1 => ['file', $stdoutPath, 'w'], 2 => ['file', $stderrPath, 'w']],
             $pipes,
-            $this->consumerRoot,
+            $cwd ?? $this->consumerRoot,
             $environment,
         );
         if (!is_resource($process)) {
@@ -709,6 +1013,7 @@ final class ReleaseSetDogfood
             'release_set' => is_file($this->consumerRoot . '/composer.lock') ? $this->resolvedPackages() : [],
             'scenarios' => $this->scenarios,
             'front_door_journey' => $this->frontDoorJourneyReport(),
+            'recovery_convergence' => $this->recoveryScenarios,
             'friction' => $this->friction,
             'platform' => [
                 'php' => PHP_VERSION,
