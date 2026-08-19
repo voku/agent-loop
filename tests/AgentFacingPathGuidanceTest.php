@@ -119,6 +119,38 @@ final class AgentFacingPathGuidanceTest extends TestCase
         }
     }
 
+    /**
+     * Host guidance may route into the lifecycle kernel and present its answer.
+     * It may not decide when close is legal.
+     *
+     * agent-loop-review-close once carried a prose copy of the close gate set.
+     * It drifted to eight of the eleven gates WorkflowCloseReadinessInspector
+     * runs, and nothing detected that, because prose has no test. This is that
+     * test. It recognises the phrasings that claim gate knowledge rather than
+     * every possible way to express it - a narrow guard against a defect that
+     * actually happened, not a general prose analyser.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('skillDocuments')]
+    public function testSkillsDoNotRestateTheCloseGateSet(string $path): void
+    {
+        $contents = (string) file_get_contents($path);
+
+        foreach ([
+            'Before claiming completion',
+            'gates remain non-bypassable',
+            'close also requires',
+        ] as $claim) {
+            self::assertStringNotContainsString(
+                $claim,
+                $contents,
+                basename(dirname($path)) . ' restates what close requires ("' . $claim
+                . '"). The lifecycle kernel owns that decision: route to '
+                . '`workflow status <task-id> --format=json` and obey '
+                . 'references.<name>.gate, its reason, and next_action.',
+            );
+        }
+    }
+
     #[\PHPUnit\Framework\Attributes\DataProvider('skillDocuments')]
     public function testSkillsDoNotHardcodeConfigurableArtifactPaths(string $path): void
     {

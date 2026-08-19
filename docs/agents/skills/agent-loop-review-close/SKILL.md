@@ -128,35 +128,35 @@ vendor/bin/agent-loop workflow close <task-id> \
   --accept-risk-by "<named actor>"
 ```
 
-It cannot change task authority. Two gates remain non-bypassable:
-
-1. the governed Run must be bound to the current approved Contract revision;
-2. when L2 policy is selected, its execution contract must be current and
-   `ready` (`not_required` is valid only when no L2 contract is required).
-
-If either fails, re-plan/re-approve or repair the execution contract.
-
-If an edit bundle exists, close also requires its verification result to pass;
-a task that never used `agent-loop edit` does not invent a bundle.
+It cannot change task authority, and some gates refuse it. Which gates those
+are is decided by the lifecycle kernel, not by this skill: close reports the
+gate it refused on, and accepted risk is rejected where it does not apply. Do
+not use accepted risk as a generic "make it green" switch.
 
 ## When Close Fails
 
-Read the exact failing gate and repair that owner: current Contract/Run binding,
-execution contract, validation evidence, Recall outcome, Run-learning decision,
-edit verification, or task verification. Checkpoint the repair when it matters
-for resumability, then rerun verification. Do not use accepted risk as a generic
-"make it green" switch.
+Ask the lifecycle kernel which gate is decisive rather than working down a
+checklist:
+
+```bash
+vendor/bin/agent-loop workflow status <task-id> --format=json
+```
+
+`references.<name>.gate` names the decisive gate, `references.<name>.reason`
+carries the exact failure, and `next_action` is the canonical next step. Repair
+the owner that gate names, checkpoint the repair when it matters for
+resumability, then rerun `finish`.
 
 ## Completion Check
 
-Before claiming completion:
+Completion is `manifest.state == "complete"` with `next_action == "none"` from
+`workflow status --format=json` after `finish` succeeds. That state is derived
+from current owner evidence; it is the answer, not a summary of one.
 
-- primary code review and blind-spot review are present and non-failing;
-- every Contract validation obligation has observed passing current-revision evidence;
-- selected Recall guidance has explicit truthful outcomes;
-- `learn validate` succeeds;
-- one explicit Run-learning decision matches the evidence;
-- task verification succeeds or only a named bypassable risk remains;
-- report shows no unaccepted scope/evidence gap;
-- any `RETURN_TO_REVIEW` is resolved;
-- close succeeds and final status is `complete`.
+Do not restate the gate list here. This skill previously carried a prose copy
+of it, which drifted: it enumerated eight of the eleven gates the close
+readiness inspector actually runs, omitting compiled-Recall presence,
+implementation-snapshot availability and evidence-integrity binding. An agent
+following that copy would have believed it had enumerated the requirements
+while missing three gates that can block close, and nothing could detect the
+drift, because prose has no test.
