@@ -125,6 +125,12 @@ final readonly class RunPolicyEvaluator
         array $references,
         array $disagreements,
     ): array {
+        // A disagreement is an unexpected state, and naming the inspection
+        // command for it was non-convergent by construction: `workflow manifest
+        // --format=json` is read-only, so it can never alter the state that
+        // produced the disagreement. Prefer the owner's own repair; when no
+        // owner supplies one, say the artifact needs host work rather than
+        // naming a command that cannot change anything.
         if ($disagreements !== []) {
             foreach ($disagreements as $disagreement) {
                 $repair = $disagreement['repair_action'] ?? null;
