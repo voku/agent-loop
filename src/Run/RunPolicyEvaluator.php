@@ -147,6 +147,12 @@ final readonly class RunPolicyEvaluator
                 'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
             ];
         }
+        if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected'], true)) {
+            return [
+                'action' => $this->stoppedExecutionContractDecision($taskId, $references),
+                'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED,
+            ];
+        }
         if (
             $this->referenceState($references, 'verification') === 'blocked'
             && ($references['verification']['gate'] ?? null) === 'validation'
@@ -228,8 +234,7 @@ final readonly class RunPolicyEvaluator
             return 'agent-loop workflow contract ' . $taskId . ' --status ready --from <l1.md> --by <actor>';
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected'], true)) {
-            return 'agent-loop workflow plan ' . $taskId
-                . ' --by <actor> --file <path> --goal <revised-goal> --validation <validation> --supersede';
+            return $this->stoppedExecutionContractDecision($taskId, $references);
         }
 
         $reviewState = $this->referenceState($references, 'review');
@@ -264,6 +269,18 @@ final readonly class RunPolicyEvaluator
         }
 
         return 'agent-loop workflow status ' . $taskId . ' --format=json';
+    }
+
+    /** @param array<string, array<string, mixed>> $references */
+    private function stoppedExecutionContractDecision(string $taskId, array $references): string
+    {
+        $minimumChange = $references['execution_contract']['minimum_contract_change'] ?? null;
+        $detail = is_string($minimumChange) && trim($minimumChange) !== ''
+            ? ': ' . trim($minimumChange)
+            : '';
+
+        return 'revise the approved Contract for ' . $taskId . ' to satisfy the execution-contract minimum change'
+            . $detail . '; persist the complete revised intent with workflow plan --supersede; explicit approval remains required';
     }
 
     /**
