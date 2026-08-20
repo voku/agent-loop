@@ -16,12 +16,20 @@ Canonical package roots:
 
 Do not duplicate engineering semantics in package workflow skills merely because a host can inject them at session start.
 
-## First-party install
+## First-party install and self-discovery
+
+```bash
+vendor/bin/agent-loop init host-status --format=json
+```
+
+When exactly one probed coding-host executable is visible, `host-status` selects it automatically. Otherwise it returns `decision_required` with the explicit `--agent` choice it needs. Antigravity currently has no stable CLI probe and therefore requires explicit selection.
+
+Follow the returned `next_action_kind` / `next_action` until no repository-owned action remains. A normal convergence starts by installing the package-owned assets:
 
 ```bash
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init install-assets --agent=all
-vendor/bin/agent-loop init doctor
+vendor/bin/agent-loop init host-status --format=json
 ```
 
 A separately pinned `voku/agent-skills` checkout can be projected beside package workflow skills:
@@ -34,7 +42,14 @@ vendor/bin/agent-loop init install-assets \
 
 `--extra-skills-root` is additive and repeatable. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
 
-`--agent=all` projects workflow skills and optional engineering skills for Codex, Claude, Copilot, and Antigravity; it also projects the package roles for all four clients and repository-local discipline hooks for Codex and Claude.
+`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, and Antigravity. Executable host hooks remain an explicit opt-in for Codex and Claude Code.
+
+`host-status` distinguishes repository convergence from host/user authority:
+
+- instructions, skills, and subagents are checked for current managed projections, not merely manifest presence;
+- Codex, Claude Code, and OpenCode expose repository policy projection as a separate capability;
+- Copilot, Gemini CLI, and Antigravity can still converge portable assets even though agent-loop has no repository policy projector for them;
+- `runtime_boundary` describes trust, Auto Mode, or other host-owned decisions and is never authority to mutate them automatically.
 
 ## Bootstrap boundary
 
@@ -100,30 +115,34 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Produ
 
 ## Host capability projection
 
-`HostCapabilityMatrix` reports evidence, not vendor marketing surface:
+`HostCapabilityMatrix` reports adapter evidence, not vendor marketing surface:
 
-- `supported`: executable evidence exercises the claimed agent-loop boundary;
-- `degraded`: a native adapter is contract-tested, but host runtime/delegation behavior has not been observed;
-- `unsupported`: agent-loop has no adapter for that capability.
+- `supported`: agent-loop owns a repository-side adapter/projector for the capability and contract tests can exercise it;
+- `degraded`: a native adapter exists, but the stronger host runtime/delegation behavior has not been observed;
+- `unsupported`: agent-loop has no adapter/projector for that capability.
 
-Skill/subagent projection is not proof of host discovery or runtime execution. See `FIRST_PARTY_CAPABILITY_MATRIX.md` for the current matrix.
+Skill/subagent projection is not proof of host discovery or runtime execution. `init host-status` reports current projection separately and never upgrades file presence into runtime consumption. See `FIRST_PARTY_CAPABILITY_MATRIX.md` for the current matrix.
 
 ## Current commands
 
 ```bash
 vendor/bin/agent-loop init doctor
 vendor/bin/agent-loop init status
+vendor/bin/agent-loop init host-status --format=json
 vendor/bin/agent-loop init tools
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
+vendor/bin/agent-loop init sync-policy --agent=codex --dry-run
+vendor/bin/agent-loop init sync-policy --agent=claude --dry-run
+vendor/bin/agent-loop init sync-policy --agent=opencode --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=docs/agents/skills --dry-run
 vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
 ```
 
-`doctor` and `status` are read-only. Mutation lives behind explicit `install-assets` / `sync-*` commands.
+`doctor`, `status`, and `host-status` are read-only. Mutation lives behind explicit `install-assets` / `sync-*` commands.
 
 ## Map boundary
 
@@ -159,8 +178,9 @@ A source recheck is not adaptation evidence, and an upstream benchmark is not pr
 ```bash
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
+vendor/bin/agent-loop init host-status --format=json
 vendor/bin/agent-loop init doctor
-vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init'
+vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|InitHostStatus|OpenCodeHostProjection|Init'
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 composer dogfood:discipline
 composer ci
