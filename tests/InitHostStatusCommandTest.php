@@ -50,7 +50,7 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('command', $initial['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $initial['next_action']);
 
-        $this->installOpenCodeAssets();
+        $this->installAssets('opencode');
 
         $afterAssets = $this->hostStatus();
         self::assertSame([
@@ -74,9 +74,33 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('--auto', $ready['runtime_boundary']);
     }
 
+    public function testGeminiConvergesPortableAssetsWithoutInventingPolicyProjection(): void
+    {
+        $initial = $this->hostStatus(['--agent=gemini', '--format=json']);
+        self::assertSame('gemini', $initial['host']);
+        self::assertSame('explicit', $initial['selection']);
+        self::assertSame('unsupported', $initial['integration']['policy'] ?? null);
+        self::assertSame('command', $initial['next_action_kind']);
+        self::assertSame('vendor/bin/agent-loop init install-assets --agent=gemini', $initial['next_action']);
+
+        $this->installAssets('gemini');
+
+        $ready = $this->hostStatus(['--agent=gemini', '--format=json']);
+        self::assertSame([
+            'instructions' => 'ready',
+            'skills' => 'ready',
+            'subagents' => 'ready',
+            'policy' => 'unsupported',
+        ], $ready['integration']);
+        self::assertSame('none', $ready['next_action_kind']);
+        self::assertNull($ready['next_action']);
+        self::assertFileExists($this->root . '/GEMINI.md');
+        self::assertStringContainsString('does not claim a repository-native authority policy projector', (string) $ready['runtime_boundary']);
+    }
+
     public function testModifiedManagedSkillReopensAssetRepairInsteadOfClaimingReady(): void
     {
-        $this->installOpenCodeAssets();
+        $this->installAssets('opencode');
         $skill = $this->root . '/.opencode/skills/agent-loop-discipline/SKILL.md';
         self::assertFileExists($skill);
         self::assertNotFalse(file_put_contents($skill, "\nlocal drift\n", FILE_APPEND));
@@ -90,7 +114,7 @@ final class InitHostStatusCommandTest extends TestCase
 
     public function testStaleManagedRouterReopensInstructionRepairInsteadOfTrustingMarkers(): void
     {
-        $this->installOpenCodeAssets();
+        $this->installAssets('opencode');
         $path = $this->root . '/AGENTS.md';
         $content = file_get_contents($path);
         self::assertIsString($content);
@@ -117,17 +141,21 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('--agent=<claude|opencode>', (string) $status['next_action']);
     }
 
-    private function installOpenCodeAssets(): void
+    private function installAssets(string $agent): void
     {
-        $install = $this->capture(fn (): int => (new InitInstallAssetsCommand($this->root))->run(['--agent=opencode']));
+        $install = $this->capture(fn (): int => (new InitInstallAssetsCommand($this->root))->run(['--agent=' . $agent]));
         self::assertSame(0, $install['exit'], $install['output']);
         self::assertFileExists($this->root . '/AGENTS.md');
-        self::assertFileExists($this->root . '/.opencode/skills/.agent-loop-manifest.json');
-        self::assertFileExists($this->root . '/.opencode/agents/.agent-loop-manifest.json');
-        self::assertFileExists($this->root . '/.opencode/agents/agent-loop-investigator.md');
+
+        if ($agent === 'opencode') {
+            self::assertFileExists($this->root . '/.opencode/skills/.agent-loop-manifest.json');
+            self::assertFileExists($this->root . '/.opencode/agents/.agent-loop-manifest.json');
+            self::assertFileExists($this->root . '/.opencode/agents/agent-loop-investigator.md');
+        }
     }
 
     /**
+     * @param list<string> $tokens
      * @return array{
      *     schema_version: int,
      *     host: string|null,
@@ -141,12 +169,12 @@ final class InitHostStatusCommandTest extends TestCase
      *     next_action: string|null
      * }
      */
-    private function hostStatus(): array
+    private function hostStatus(array $tokens = ['--format=json']): array
     {
         $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
         ob_start();
         try {
-            $exit = (new InitHostStatusCommand($this->root, $probe))->run(['--format=json']);
+            $exit = (new InitHostStatusCommand($this->root, $probe))->run($tokens);
             $output = (string) ob_get_contents();
         } finally {
             ob_end_clean();
