@@ -12,6 +12,10 @@ use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
+use Throwable;
+use voku\AgentMap\Index\AgentMapBuilder;
+use voku\AgentMap\Index\IndexReader;
+use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
@@ -40,15 +44,75 @@ final readonly class WorkflowRunPreparer
     }
 
     /**
-     * The repair that must run before this Contract can be approved, or null
-     * when discovery is already ready.
+     * Bring Map discovery up to date for this Contract instead of asking the
+     * host to do it first.
      *
-     * Same producer as the approval precondition, so a caller cannot be told a
-     * different story than the one `approve` will enforce.
+     * Map readiness is deterministic: the repair never needs a human decision,
+     * so requiring the host to run `agent-map build` before the lifecycle was
+     * choreography, not governance. Reconciliation stays task-driven - a
+     * Contract with no existing PHP scope still builds nothing - and stays
+     * idempotent, because a ready snapshot is left untouched.
+     *
+     * The ranked Search index is deliberately not built here. It is optional
+     * capability, and making it a silent precondition would turn an optional
+     * owner feature into a mandatory preparation gate.
      */
-    public function discoveryRepair(TaskContract $contract): ?DiscoveryRepair
+    public function reconcileDiscovery(TaskContract $contract): MapReadiness
     {
-        return $this->discoveryBlocker($contract, $this->mapReadiness());
+        $readiness = $this->mapReadiness();
+        if ($this->discoveryBlocker($contract, $readiness) === null) {
+            return $readiness;
+        }
+
+        try {
+            $this->rebuildMap($readiness);
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                'agent-map could not prepare discovery for this Contract: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        }
+
+        // Fail closed: reconciliation may not invent readiness it did not reach.
+        $readiness = $this->mapReadiness();
+        $this->assertDiscoveryReady($contract, $readiness);
+
+        return $readiness;
+    }
+
+    /**
+     * Rebuild through the Map owner's own API.
+     *
+     * Path selection stays with agent-map: a stale snapshot is refreshed from
+     * the entries it already records, and an absent one is built from the
+     * project root, the same default `agent-loop edit` uses. agent-loop does
+     * not carry a second source-selection policy.
+     */
+    private function rebuildMap(MapReadiness $readiness): void
+    {
+        $index = MapArtifactPaths::forProject($this->rootPath, (new ProjectLayout($this->rootPath))->mapRoot())->indexJson();
+        $builder = new AgentMapBuilder();
+
+        if ($readiness->mapState === 'stale' && is_file($index)) {
+            $previous = (new IndexReader())->read($index);
+            $changed = [];
+            foreach ($previous->staleEntries() as $entry) {
+                if ($entry['reason'] !== 'missing') {
+                    $changed[] = $entry['path'];
+                }
+            }
+            if ($changed !== []) {
+                (new IndexWriter())->write(
+                    $builder->build($this->rootPath, $changed, [], null, null, $previous),
+                    $index,
+                );
+
+                return;
+            }
+        }
+
+        (new IndexWriter())->write($builder->build($this->rootPath, ['.'], [], null, null, null), $index);
     }
 
     /** @param callable(list<string>): int $recallRunner */

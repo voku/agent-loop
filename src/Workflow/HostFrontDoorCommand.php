@@ -352,7 +352,7 @@ final readonly class HostFrontDoorCommand
         }
 
         $preparer = new WorkflowRunPreparer($this->rootPath);
-        $mapReadiness = $preparer->discoveryReadiness($contract);
+        $mapReadiness = $preparer->reconcileDiscovery($contract);
         $result = $preparer->prepare($contract, $mapReadiness, $this->runRecallQuietly(...));
         if (!$result->recallCompiled()) {
             throw new RuntimeException(

@@ -188,7 +188,7 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertSame('compiled', $payload['manifest']['references']['recall']['state']);
     }
 
-    public function testExistingPhpTaskEscalatesToDiscoveryWithoutWeakeningContractAuthority(): void
+    public function testExistingPhpTaskApprovesOnAuthorityAloneWithoutHostRunDiscovery(): void
     {
         if (!mkdir($this->root . '/src', 0o775, true) && !is_dir($this->root . '/src')) {
             throw new RuntimeException('Unable to create PHP fixture directory.');
@@ -205,8 +205,14 @@ final class ProgressiveGovernanceTest extends TestCase
             'planner',
         );
 
-        self::assertSame(1, $this->approve(new WorkflowApproveCommand($this->root), 'HARD-1'));
-        self::assertSame(TaskContract::CANDIDATE, $contracts->load('HARD-1')->status);
+        // Existing PHP scope, and no agent-map snapshot anywhere. Approval used
+        // to refuse here, which forced the host to run agent-map first. Map
+        // readiness is deterministic preparation, so `enter` reconciles it and
+        // approval records authority alone.
+        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root), 'HARD-1'));
+        self::assertSame(TaskContract::APPROVED, $contracts->load('HARD-1')->status);
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
+        // Authority is unchanged: approval still allocates no Run.
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/HARD-1');
     }
 

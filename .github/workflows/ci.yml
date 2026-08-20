@@ -147,6 +147,8 @@ jobs:
             and (.governance_measurement.lifecycle_commands >= 4)
             and (.governance_measurement.specialist_commands >= 1)
             and (.governance_measurement.manual_preparation_commands == 0)
+            and (.governance_measurement.pre_lifecycle_preparation_commands == 0)
+            and (.governance_measurement.total_manual_preparation_commands == 0)
             and (.governance_measurement.manual_repair_commands == 0)
             and (.governance_measurement.repeated_same_state_calls == .front_door_journey.repeated_same_state_commands)
             and (.governance_measurement.context_lines == .front_door_journey.context_lines)
@@ -200,11 +202,10 @@ jobs:
                     "recovery.preparation-refusal"
                   ])
               and (($recovery | map(select(.obeyed == true) | .scenario)) == [
-                    "recovery.absent-discovery",
                     "recovery.review-report-invalid"
                   ])
               and (($recovery | map(.kind)) == [
-                    "command", "host_work", "host_work",
+                    "decision_required", "host_work", "host_work",
                     "command", "decision_required", "host_work"
                   ])
               and ($recovery | all(.action | length > 0))
