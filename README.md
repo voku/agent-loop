@@ -90,14 +90,22 @@ compatibility or breakage as a universal default.
 `agent-loop` ships its own reviewed agent behavior. It does not download RTK,
 Caveman, Ponytail, a plugin marketplace package, or a remote installer.
 
-Preview and install the assets already present in the Composer package:
+Preview and install the assets already present in the Composer package, then use
+the host-status front door until no repository-owned integration action remains:
 
 ```bash
 vendor/bin/agent-loop init install-plan --profile=wsl2 --agent=codex
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init install-assets --agent=all
+vendor/bin/agent-loop init host-status --format=json
 vendor/bin/agent-loop init doctor
 ```
+
+`host-status` auto-detects a single visible Codex, Claude Code, OpenCode, Copilot,
+or Gemini CLI runtime. Pass `--agent=<host>` when multiple runtimes are visible
+or when using Antigravity, whose runtime is not auto-probed. It checks current
+instructions, managed skill/subagent drift, and host-policy capability rather
+than treating the existence of a manifest as proof that a projection is current.
 
 The package-owned guidance separates three budgets:
 
@@ -139,13 +147,38 @@ The same canonical role definitions are rendered for each supported client:
 - Codex: `.codex/agents/*.toml`, with `name`, `description`, and
   `developer_instructions` only;
 - Claude Code: `.claude/agents/*.md`;
+- OpenCode: `.opencode/agents/*.md`, with the filename providing the agent name
+  and native `description` / `mode: subagent` frontmatter;
 - Copilot: `.github/agents/*.agent.md`;
+- Gemini CLI: `.gemini/agents/*.md`;
 - Antigravity: `.agents/agents/*.md`.
 
 Model choice remains client/host policy. `agent-loop` does not pin a model,
 reasoning level, or provider-specific economics into the role files.
 
-Codex additionally receives package-owned PHP hooks:
+Repository authority policy is a separate host capability, not a prerequisite
+for portable host support. `init sync-policy` currently projects the narrow
+remote-mutation boundary for Codex, Claude Code, and OpenCode:
+
+- **Codex:** `.codex/rules/agent-loop.rules` uses `prompt` for `git push`, PR
+  creation, and PR merge. Codex project trust remains an explicit host/user
+  decision.
+- **Claude Code:** `.claude/settings.json#permissions` uses project-level `deny`
+  for those remote mutations. Auto Mode classifier configuration remains
+  user/local/managed scoped and is reported as a runtime boundary instead of
+  being falsely written as project configuration.
+- **OpenCode:** `opencode.json#permission` uses `deny` because OpenCode `--auto`
+  may auto-approve `ask`, while explicit deny remains the hard boundary.
+- **Copilot, Gemini CLI, Antigravity:** portable instructions, skills, and agents
+  are supported, but agent-loop does not claim a repository-native authority
+  policy projector for them.
+
+Existing project-owned policy is preserved. Conflicting owned rules fail closed
+unless an explicit reviewed `--force` is used; comment-bearing `opencode.jsonc`
+is reported as manual rather than rewritten destructively.
+
+Codex additionally receives package-owned PHP hooks when `install-assets` is run
+with the explicit `--with-hooks` opt-in:
 
 - `SessionStart` injects the discipline.
 - `SubagentStart` propagates it to spawned agents.
@@ -317,11 +350,12 @@ AGENT_LOOP_BIN := php -d memory_limit=4G tools/agent-loop-entrypoint.php
 (default `--force`) are overridable the same way. The asset content stays in the
 host repository; only the commands live here.
 
-`--agent=all` installs portable skills for Codex, Claude, Copilot, and
-Antigravity; dedicated subagent definitions for Codex, Copilot, and Antigravity;
-and Codex hooks. The exact upstream-to-agent-* mapping and what was deliberately
-not ported are documented in
-[THIRD_PARTY_NOTICES.md](docs/agents/THIRD_PARTY_NOTICES.md).
+`--agent=all` installs portable skills and dedicated subagent definitions for
+Codex, Claude Code, OpenCode, Copilot, Gemini CLI, and Antigravity. Executable
+Codex/Claude hooks remain an explicit `--with-hooks` opt-in; repository authority
+policy is converged separately through `init host-status` / `init sync-policy`.
+The exact upstream-to-agent-* mapping and what was deliberately not ported are
+documented in [THIRD_PARTY_NOTICES.md](docs/agents/THIRD_PARTY_NOTICES.md).
 
 The implementation and failed iterations are documented in
 [the dogfood report](docs/agents/dogfood/2026-08-07-first-party-discipline.md).
@@ -333,7 +367,7 @@ the semantic map, compile bounded recall, and prepare an auditable execution
 bundle:
 
 ```bash
-vendor/bin/agent-loop edit 'App\Service\UserService::save' -- \
+vendor/bin/agent-loop edit 'App\\Service\\UserService::save' -- \
   'Reject inactive users before persistence and adapt affected callers.'
 ```
 
@@ -347,7 +381,7 @@ Artifacts are stored under:
 For a deterministic one-for-one replacement inside one resolved PHP method:
 
 ```bash
-vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
+vendor/bin/agent-loop edit 'Legacy\\ResourceService::save' \
   --runner=auto \
   --replace-old='$legacyUser->regionId' \
   --replace-new='$legacyUser->getCurrentRegionId()' -- \
@@ -532,10 +566,13 @@ vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init sync-skills --agent=codex --dry-run
 vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
+vendor/bin/agent-loop init sync-policy --agent=codex --dry-run
 ```
 
-Both paths use managed-entry manifests and refuse to overwrite unmanaged targets
-unless `--force` or `--adopt-existing` is explicit.
+Both paths use managed-entry manifests where applicable and refuse to overwrite
+unmanaged targets unless `--force` or `--adopt-existing` is explicit. Host policy
+projection owns only its narrow host-native keys/files and preserves unrelated
+project configuration.
 
 Detailed asset behavior is documented in
 [Agent Assets In agent-loop](docs/agents/INFO_Agents.md).
@@ -571,8 +608,8 @@ composer ci
 composer validate --strict
 phpunit
 phpstan
-php tools/project-phpstan-rules.sh
-itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules'
+php tools/project-phpstan-rules.php
+itp-context-validate 'voku\\AgentLoop\\Context\\ArchitectureRules'
 php tools/agent-discipline-dogfood.php
 ```
 
