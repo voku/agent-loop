@@ -43,6 +43,25 @@ final class HostCapabilityMatrixTest extends TestCase
         }
     }
 
+    public function testPolicyProjectionExistsOnlyWhereRepositoryPolicyCanBeRepresentedHonestly(): void
+    {
+        foreach (['codex', 'claude', 'opencode'] as $agent) {
+            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::PolicyProjection));
+            self::assertSame(
+                'adapter-declared',
+                HostCapabilityMatrix::describe($agent, HostCapability::PolicyProjection)['evidence'],
+            );
+        }
+
+        foreach (['copilot', 'gemini', 'antigravity'] as $agent) {
+            self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, HostCapability::PolicyProjection));
+            self::assertSame(
+                'no agent-loop host policy projector',
+                HostCapabilityMatrix::describe($agent, HostCapability::PolicyProjection)['mechanism'],
+            );
+        }
+    }
+
     public function testHookBackedDisciplineStaysDegradedUntilHostRuntimeIsObserved(): void
     {
         $hookBacked = [
@@ -61,7 +80,7 @@ final class HostCapabilityMatrixTest extends TestCase
                 );
             }
 
-            foreach (['copilot', 'gemini', 'antigravity'] as $agent) {
+            foreach (['opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
                 $description = HostCapabilityMatrix::describe($agent, $capability);
                 self::assertSame('no-agent-loop-projector', $description['evidence']);
@@ -75,6 +94,14 @@ final class HostCapabilityMatrixTest extends TestCase
         self::assertSame(
             'SKILL.md -> GitHub Copilot skills directory',
             HostCapabilityMatrix::describe('copilot', HostCapability::SkillProjection)['mechanism'],
+        );
+        self::assertSame(
+            'SKILL.md -> OpenCode .opencode/skills directory',
+            HostCapabilityMatrix::describe('opencode', HostCapability::SkillProjection)['mechanism'],
+        );
+        self::assertSame(
+            '.codex/rules/agent-loop.rules executable policy',
+            HostCapabilityMatrix::describe('codex', HostCapability::PolicyProjection)['mechanism'],
         );
         self::assertSame(
             'Codex hooks.json + repository-local command hooks',
