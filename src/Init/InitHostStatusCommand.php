@@ -37,7 +37,13 @@ final readonly class InitHostStatusCommand
 
         $format = OptionTokens::value($tokens, 'format') ?? 'text';
         $requestedAgent = OptionTokens::value($tokens, 'agent');
-        $status = $this->buildStatus($requestedAgent);
+        try {
+            $status = $this->buildStatus($requestedAgent);
+        } catch (InvalidArgumentException|RuntimeException $exception) {
+            fwrite(\STDERR, '[FAIL] init host-status: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
 
         if ($format === 'json') {
             try {
@@ -193,7 +199,7 @@ final readonly class InitHostStatusCommand
     private function manifestReady(string $targetRoot, string $kind, string $agent, array $desiredEntries): bool
     {
         if ($desiredEntries === []) {
-            return false;
+            throw new RuntimeException('Expected managed ' . $kind . ' entries are unavailable for host inspection.');
         }
 
         $manifestPath = rtrim($targetRoot, '/') . '/' . InitSyncManifest::fileName();
@@ -201,12 +207,7 @@ final readonly class InitHostStatusCommand
             return false;
         }
 
-        try {
-            $manifest = InitSyncManifest::load($targetRoot, $kind, $agent);
-        } catch (InvalidArgumentException) {
-            return false;
-        }
-
+        $manifest = InitSyncManifest::load($targetRoot, $kind, $agent);
         if (!$manifest->hasDriftEvidence()) {
             return false;
         }
@@ -229,16 +230,12 @@ final readonly class InitHostStatusCommand
     private function expectedSkillEntries(): array
     {
         $packageRoot = dirname(__DIR__, 2);
-        try {
-            $roots = FirstPartySkillRoots::resolve($packageRoot);
-        } catch (RuntimeException) {
-            return [];
-        }
+        $roots = FirstPartySkillRoots::resolve($packageRoot);
 
         $entries = [];
         foreach ($roots as $root) {
             if (!is_dir($root)) {
-                return [];
+                throw new RuntimeException('First-party skills root is missing: ' . $root);
             }
             foreach (scandir($root) ?: [] as $entry) {
                 if ($entry === '.' || $entry === '..') {
@@ -252,6 +249,9 @@ final readonly class InitHostStatusCommand
 
         $entries = array_values(array_unique($entries));
         sort($entries, SORT_STRING);
+        if ($entries === []) {
+            throw new RuntimeException('No first-party skill entries are available for host inspection.');
+        }
 
         return $entries;
     }
@@ -261,7 +261,7 @@ final readonly class InitHostStatusCommand
     {
         $root = dirname(__DIR__, 2) . '/docs/agents/subagents';
         if (!is_dir($root)) {
-            return [];
+            throw new RuntimeException('Bundled subagents root is missing: ' . $root);
         }
 
         $suffix = match ($host) {
@@ -281,6 +281,9 @@ final readonly class InitHostStatusCommand
         }
 
         sort($entries, SORT_STRING);
+        if ($entries === []) {
+            throw new RuntimeException('No bundled subagent entries are available for host inspection.');
+        }
 
         return $entries;
     }
