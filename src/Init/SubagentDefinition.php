@@ -15,14 +15,17 @@ final readonly class SubagentDefinition
         '/\/home\/[^\/\s]+\/\.codex\//',
         '/\/home\/[^\/\s]+\/\.gemini\//',
         '/\/home\/[^\/\s]+\/\.claude\//',
+        '/\/home\/[^\/\s]+\/\.opencode\//',
         '/\/home\/[^\/\s]+\/\.agents\//',
         '/\/Users\/[^\/\s]+\/\.codex\//',
         '/\/Users\/[^\/\s]+\/\.gemini\//',
         '/\/Users\/[^\/\s]+\/\.claude\//',
+        '/\/Users\/[^\/\s]+\/\.opencode\//',
         '/\/Users\/[^\/\s]+\/\.agents\//',
         '/~\/\.codex\//',
         '/~\/\.gemini\//',
         '/~\/\.claude\//',
+        '/~\/\.opencode\//',
         '/~\/\.agents\//',
     ];
 
@@ -106,10 +109,9 @@ final readonly class SubagentDefinition
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
+        } elseif ($client === 'opencode') {
+            $frontmatter['mode'] = 'subagent';
         } elseif (!in_array($client, ['copilot', 'claude'], true)) {
-            // Claude Code reads the same name/description frontmatter as Copilot,
-            // without Copilot's `.agent.md` suffix. Gemini-compatible hosts also
-            // receive local-agent runtime keys supported by their Markdown format.
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
 
