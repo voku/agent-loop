@@ -12,6 +12,7 @@ use RuntimeException;
 use voku\AgentLoop\Init\HostRuntimeProbe;
 use voku\AgentLoop\Init\InitHostStatusCommand;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
+use voku\AgentLoop\Init\InitSyncInstructionsCommand;
 use voku\AgentLoop\Init\InitSyncPolicyCommand;
 
 final class InitHostStatusCommandTest extends TestCase
@@ -127,6 +128,43 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('missing', $status['integration']['instructions'] ?? null);
         self::assertSame('command', $status['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $status['next_action']);
+    }
+
+    public function testMalformedManagedRouterIsAnInspectionFailureRatherThanMissing(): void
+    {
+        $this->installAssets('opencode');
+        $path = $this->root . '/AGENTS.md';
+        $content = file_get_contents($path);
+        self::assertIsString($content);
+        self::assertNotFalse(file_put_contents(
+            $path,
+            InitSyncInstructionsCommand::BEGIN_MARKER . "\n" . $content,
+        ));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('malformed or duplicate agent-loop instruction markers');
+
+        (new InitSyncInstructionsCommand($this->root))->isCurrentFor('opencode');
+    }
+
+    public function testCorruptManagedSkillManifestFailsHostStatusInsteadOfAdvertisingRepair(): void
+    {
+        $this->installAssets('opencode');
+        $manifest = $this->root . '/.opencode/skills/.agent-loop-manifest.json';
+        self::assertFileExists($manifest);
+        self::assertNotFalse(file_put_contents($manifest, "{not-json\n"));
+
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+        ob_start();
+        try {
+            $exit = (new InitHostStatusCommand($this->root, $probe))->run(['--format=json']);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertSame('', $output, 'Inspection failure must not emit a normal host-status repair contract.');
     }
 
     public function testMultipleVisibleHostsRequireExplicitSelection(): void
