@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 use JsonException;
+use stdClass;
 
 /**
  * Projects the small repository-level authority policy that agent-loop needs
@@ -180,23 +181,21 @@ final readonly class HostPolicyProjector
             ];
         }
 
-        $permission = $config['permission'] ?? null;
-        if (!is_array($permission)) {
-            return ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission object is missing'];
-        }
-        // A populated JSON array is not a repairable absence: sync refuses it, so
-        // reporting missing here would advertise a repair that cannot succeed.
-        if (array_is_list($permission) && $permission !== []) {
-            return ['status' => 'conflict', 'path' => $path, 'detail' => 'OpenCode permission is a JSON array; agent-loop merges granular rules only into an object'];
-        }
-        $bash = $permission['bash'] ?? null;
-        if (!is_array($bash)) {
-            return ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission.bash object is missing'];
-        }
-        if (array_is_list($bash) && $bash !== []) {
-            return ['status' => 'conflict', 'path' => $path, 'detail' => 'OpenCode permission.bash is a JSON array; agent-loop merges granular rules only into an object'];
+        $permission = self::jsonObjectOrNull($config['permission'] ?? null);
+        if ($permission === null) {
+            // A JSON array is not a repairable absence: sync refuses it, so
+            // reporting missing would advertise a repair that cannot succeed.
+            return array_key_exists('permission', $config)
+                ? ['status' => 'conflict', 'path' => $path, 'detail' => 'OpenCode permission is not a JSON object; agent-loop merges granular rules only into an object']
+                : ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission object is missing'];
         }
 
+        $bash = self::jsonObjectOrNull($permission['bash'] ?? null);
+        if ($bash === null) {
+            return array_key_exists('bash', $permission)
+                ? ['status' => 'conflict', 'path' => $path, 'detail' => 'OpenCode permission.bash is not a JSON object; agent-loop merges granular rules only into an object']
+                : ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission.bash object is missing'];
+        }
         foreach (self::OPENCODE_BASH_RULES as $pattern => $decision) {
             $current = $bash[$pattern] ?? null;
             if ($current === $decision) {
@@ -273,11 +272,11 @@ final readonly class HostPolicyProjector
             return ['changed' => false, 'path' => $path, 'detail' => 'Claude project deny policy is current'];
         }
 
-        $rawPermissions = $settings['permissions'] ?? [];
-        if (!is_array($rawPermissions)) {
-            throw new InvalidArgumentException('Claude settings permissions must be an object: ' . $path);
-        }
-        $rawPermissions = self::assertJsonObject($rawPermissions, 'Claude settings permissions must be an object', $path);
+        $rawPermissions = self::assertJsonObject(
+            self::jsonObjectOrNull($settings['permissions'] ?? new stdClass()),
+            'Claude settings permissions must be an object',
+            $path,
+        );
         $rawPermissions['allow'] = $allow;
         $rawPermissions['ask'] = $ask;
         $rawPermissions['deny'] = array_values(array_unique($deny));
@@ -299,16 +298,16 @@ final readonly class HostPolicyProjector
         }
 
         $config = is_file($path) ? $this->readJsonObject($path) : ['$schema' => 'https://opencode.ai/config.json'];
-        $permission = $config['permission'] ?? [];
-        if (!is_array($permission)) {
-            throw new InvalidArgumentException('OpenCode permission must be an object before agent-loop can merge granular rules: ' . $path);
-        }
-        $permission = self::assertJsonObject($permission, 'OpenCode permission must be an object before agent-loop can merge granular rules', $path);
-        $bash = $permission['bash'] ?? [];
-        if (!is_array($bash)) {
-            throw new InvalidArgumentException('OpenCode permission.bash must be an object before agent-loop can merge granular rules: ' . $path);
-        }
-        $bash = self::assertJsonObject($bash, 'OpenCode permission.bash must be an object before agent-loop can merge granular rules', $path);
+        $permission = self::assertJsonObject(
+            self::jsonObjectOrNull($config['permission'] ?? new stdClass()),
+            'OpenCode permission must be an object before agent-loop can merge granular rules',
+            $path,
+        );
+        $bash = self::assertJsonObject(
+            self::jsonObjectOrNull($permission['bash'] ?? new stdClass()),
+            'OpenCode permission.bash must be an object before agent-loop can merge granular rules',
+            $path,
+        );
 
         $changed = false;
         foreach (self::OPENCODE_BASH_RULES as $pattern => $decision) {
@@ -347,11 +346,11 @@ final readonly class HostPolicyProjector
      */
     private function claudePermissionLists(array $settings, string $path): array
     {
-        $permissions = $settings['permissions'] ?? [];
-        if (!is_array($permissions)) {
-            throw new InvalidArgumentException('Claude settings permissions must be an object: ' . $path);
-        }
-        $permissions = self::assertJsonObject($permissions, 'Claude settings permissions must be an object', $path);
+        $permissions = self::assertJsonObject(
+            self::jsonObjectOrNull($settings['permissions'] ?? new stdClass()),
+            'Claude settings permissions must be an object',
+            $path,
+        );
 
         $allow = $permissions['allow'] ?? [];
         $ask = $permissions['ask'] ?? [];
@@ -393,19 +392,12 @@ final readonly class HostPolicyProjector
         }
 
         try {
-            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            $decoded = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             throw new InvalidArgumentException('Invalid JSON configuration ' . $path . ': ' . $exception->getMessage(), previous: $exception);
         }
 
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('JSON configuration must contain an object: ' . $path);
-        }
-
-        $decoded = self::assertJsonObject($decoded, 'JSON configuration must contain an object', $path);
-
-        /** @var array<string, mixed> $decoded */
-        return $decoded;
+        return self::assertJsonObject(self::jsonObjectOrNull($decoded), 'JSON configuration must contain an object', $path);
     }
 
     /** @param array<string, mixed> $data */
@@ -432,22 +424,37 @@ final readonly class HostPolicyProjector
     }
 
     /**
-     * json_decode() in associative mode renders both {} and [] as an empty PHP
-     * array, so an empty value stays acceptable as an empty object. A populated
-     * list is unambiguously a JSON array; accepting it here would let sync
-     * rewrite array data as an object and silently drop it.
+     * Host schemas treat a JSON object and a JSON array as different things, so
+     * decoding keeps objects as stdClass instead of collapsing {} and [] onto
+     * the same PHP value. Only the asserted level is converted, which also lets
+     * untouched nested objects re-encode as objects rather than as arrays.
      *
-     * @param array<array-key, mixed> $value
+     * @param array<string, mixed>|null $object
      *
-     * @return array<array-key, mixed>
+     * @return array<string, mixed>
      */
-    private static function assertJsonObject(array $value, string $label, string $path): array
+    private static function assertJsonObject(?array $object, string $label, string $path): array
     {
-        if ($value !== [] && array_is_list($value)) {
+        if ($object === null) {
             throw new InvalidArgumentException($label . ': ' . $path);
         }
 
-        return $value;
+        return $object;
+    }
+
+    /**
+     * Single conversion boundary between a decoded JSON object and the
+     * associative arrays the rest of this projector works with.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function jsonObjectOrNull(mixed $value): ?array
+    {
+        if (!$value instanceof stdClass) {
+            return null;
+        }
+
+        return get_object_vars($value);
     }
 
     /**

@@ -212,8 +212,13 @@ final class HostPolicyProjectorTest extends TestCase
         foreach (
             [
                 '[1,2,3]' => 'JSON configuration must contain an object',
-                '{"permission":["git push *"]}' => 'permission is a JSON array',
-                '{"permission":{"bash":["git push *"]}}' => 'permission.bash is a JSON array',
+                '{"permission":["git push *"]}' => 'permission is not a JSON object',
+                '{"permission":{"bash":["git push *"]}}' => 'permission.bash is not a JSON object',
+                // An empty JSON array is still an array. Normalising it into an
+                // object would rewrite the document into a different JSON type.
+                '[]' => 'JSON configuration must contain an object',
+                '{"permission":[]}' => 'permission is not a JSON object',
+                '{"permission":{"bash":[]}}' => 'permission.bash is not a JSON object',
             ] as $document => $expected
         ) {
             file_put_contents($path, $document);
@@ -234,6 +239,61 @@ final class HostPolicyProjectorTest extends TestCase
 
             self::assertSame($document, file_get_contents($path), 'refused input must stay untouched');
         }
+    }
+
+    public function testEmptyClaudePermissionArrayIsRefusedRatherThanRewrittenAsAnObject(): void
+    {
+        $projector = new HostPolicyProjector($this->root);
+        $path = $this->root . '/.claude/settings.json';
+        mkdir(dirname($path), 0o777, true);
+
+        foreach (['[]', '{"permissions":[]}'] as $document) {
+            file_put_contents($path, $document);
+
+            $inspection = $projector->inspect('claude');
+            self::assertSame('conflict', $inspection['status'], $document);
+
+            try {
+                $projector->sync('claude');
+                self::fail('Synchronisation must refuse a JSON array where an object is required: ' . $document);
+            } catch (InvalidArgumentException) {
+                // expected
+            }
+
+            self::assertSame($document, file_get_contents($path), 'refused input must stay untouched');
+        }
+    }
+
+    public function testEmptyJsonObjectsStayRepairableSoTheBoundaryDoesNotOvercorrect(): void
+    {
+        $projector = new HostPolicyProjector($this->root);
+        $claudePath = $this->root . '/.claude/settings.json';
+        mkdir(dirname($claudePath), 0o777, true);
+
+        file_put_contents($claudePath, '{"permissions":{}}');
+        self::assertSame('missing', $projector->inspect('claude')['status']);
+        self::assertTrue($projector->sync('claude')['changed']);
+        self::assertSame('ready', $projector->inspect('claude')['status']);
+
+        file_put_contents($this->root . '/opencode.json', '{"permission":{"bash":{}}}');
+        self::assertSame('missing', $projector->inspect('opencode')['status']);
+        self::assertTrue($projector->sync('opencode')['changed']);
+        self::assertSame('ready', $projector->inspect('opencode')['status']);
+    }
+
+    public function testUnrelatedEmptyObjectsKeepTheirJsonTypeAcrossSynchronisation(): void
+    {
+        $path = $this->root . '/.claude/settings.json';
+        mkdir(dirname($path), 0o777, true);
+        file_put_contents($path, '{"env":{},"hooks":{"PreToolUse":[]},"permissions":{}}');
+
+        (new HostPolicyProjector($this->root))->sync('claude');
+
+        $raw = file_get_contents($path);
+        self::assertIsString($raw);
+        // Associative decoding would round-trip project-owned {} back out as [].
+        self::assertStringContainsString('"env": {}', $raw);
+        self::assertStringContainsString('"PreToolUse": []', $raw);
     }
 
     public function testOpenCodeJsoncIsReportedAsManualInsteadOfDestroyingComments(): void

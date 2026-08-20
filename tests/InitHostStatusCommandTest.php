@@ -9,9 +9,11 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\HostRuntimeProbe;
 use voku\AgentLoop\Init\InitHostStatusCommand;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
+use voku\AgentLoop\Init\InitSyncGitHooksCommand;
 use voku\AgentLoop\Init\InitSyncInstructionsCommand;
 use voku\AgentLoop\Init\InitSyncPolicyCommand;
 
@@ -47,6 +49,7 @@ final class InitHostStatusCommandTest extends TestCase
             'skills' => 'missing',
             'subagents' => 'missing',
             'policy' => 'missing',
+            'git_integration' => 'not_declared',
         ], $initial['integration']);
         self::assertSame('command', $initial['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $initial['next_action']);
@@ -59,6 +62,7 @@ final class InitHostStatusCommandTest extends TestCase
             'skills' => 'ready',
             'subagents' => 'ready',
             'policy' => 'missing',
+            'git_integration' => 'not_declared',
         ], $afterAssets['integration']);
         self::assertSame('command', $afterAssets['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $afterAssets['next_action']);
@@ -73,6 +77,45 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertNull($ready['next_action']);
         self::assertIsString($ready['runtime_boundary']);
         self::assertStringContainsString('--auto', $ready['runtime_boundary']);
+    }
+
+    public function testRepositoryDeclaredGitActivationMustConvergeBeforeHostStatusReportsNone(): void
+    {
+        $runner = new ProcessRunner($this->root);
+        if ($runner->run(['git', '--version'])['exit_code'] !== 0) {
+            self::markTestSkipped('git is not available.');
+        }
+
+        $runner->mustRun(['git', 'init', '--quiet']);
+        if (!is_dir($this->root . '/.agent-loop')) {
+            mkdir($this->root . '/.agent-loop', 0o775, true);
+        }
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+
+        $this->installAssets('opencode');
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(0, $policy['exit'], $policy['output']);
+
+        // install-assets already activates a repository-declared hook policy, so
+        // host-status must not call the repository converged once it is undone.
+        $runner->run(['git', 'config', '--unset', 'core.hooksPath']);
+
+        $drifted = $this->hostStatus();
+        self::assertSame('ready', $drifted['integration']['instructions'] ?? null);
+        self::assertSame('ready', $drifted['integration']['policy'] ?? null);
+        self::assertSame('missing', $drifted['integration']['git_integration'] ?? null);
+        self::assertSame('command', $drifted['next_action_kind']);
+        self::assertIsString($drifted['next_action']);
+        self::assertStringContainsString('init sync-githooks', $drifted['next_action']);
+
+        // Obeying the canonical action must advance the state, not repeat it.
+        $sync = $this->capture(fn (): int => (new InitSyncGitHooksCommand($this->root))->run([]));
+        self::assertSame(0, $sync['exit'], $sync['output']);
+
+        $converged = $this->hostStatus();
+        self::assertSame('ready', $converged['integration']['git_integration'] ?? null);
+        self::assertSame('none', $converged['next_action_kind']);
+        self::assertNull($converged['next_action']);
     }
 
     public function testGeminiConvergesPortableAssetsWithoutInventingPolicyProjection(): void
@@ -92,6 +135,7 @@ final class InitHostStatusCommandTest extends TestCase
             'skills' => 'ready',
             'subagents' => 'ready',
             'policy' => 'unsupported',
+            'git_integration' => 'not_declared',
         ], $ready['integration']);
         self::assertSame('none', $ready['next_action_kind']);
         self::assertNull($ready['next_action']);

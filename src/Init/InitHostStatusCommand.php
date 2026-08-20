@@ -68,7 +68,7 @@ final readonly class InitHostStatusCommand
      *     host: non-empty-string|null,
      *     selection: 'explicit'|'auto'|'ambiguous'|'missing',
      *     runtime: array{status: 'available'|'missing'|'unprobed', command: non-empty-string|null, path: non-empty-string|null}|null,
-     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported'}|null,
+     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported', git_integration: 'ready'|'missing'|'not_declared'}|null,
      *     policy_detail: non-empty-string|null,
      *     policy_path: non-empty-string|null,
      *     runtime_boundary: non-empty-string|null,
@@ -98,14 +98,16 @@ final readonly class InitHostStatusCommand
         $host = $selection['host'];
         $runtime = $probe->probe($host);
         $policy = $this->policyStatus($host);
+        $git = $this->gitIntegration();
         $integration = [
             'instructions' => (new InitSyncInstructionsCommand($this->rootPath))->isCurrentFor($host) ? 'ready' : 'missing',
             'skills' => $this->manifestReady($this->skillsRoot($host), 'skills', $host, $this->expectedSkillEntries()) ? 'ready' : 'missing',
             'subagents' => $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $this->expectedSubagentEntries($host)) ? 'ready' : 'missing',
             'policy' => $policy['status'],
+            'git_integration' => $git['status'],
         ];
 
-        $next = $this->nextAction($host, $integration, $policy);
+        $next = $this->nextAction($host, $integration, $policy, $git['action']);
 
         return [
             'schema_version' => 1,
@@ -293,11 +295,12 @@ final readonly class InitHostStatusCommand
     }
 
     /**
-     * @param array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported'} $integration
+     * @param array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported', git_integration: 'ready'|'missing'|'not_declared'} $integration
      * @param array{status: 'ready'|'missing'|'conflict'|'manual'|'unsupported', path: non-empty-string|null, detail: non-empty-string} $policy
+     * @param non-empty-string|null $gitIntegrationAction
      * @return array{kind: 'command'|'host_work'|'decision_required'|'none', action: non-empty-string|null}
      */
-    private function nextAction(string $host, array $integration, array $policy): array
+    private function nextAction(string $host, array $integration, array $policy, ?string $gitIntegrationAction): array
     {
         if (
             $integration['instructions'] === 'missing'
@@ -326,7 +329,36 @@ final readonly class InitHostStatusCommand
             ];
         }
 
+        if ($integration['git_integration'] === 'missing' && $gitIntegrationAction !== null) {
+            return ['kind' => 'command', 'action' => $gitIntegrationAction];
+        }
+
         return ['kind' => 'none', 'action' => null];
+    }
+
+    /**
+     * install-assets already treats a repository-declared Git hook policy as
+     * part of activation, so host-status cannot report a converged repository
+     * while that declaration is inactive. The owner still decides currentness;
+     * this only aggregates its read-only result.
+     *
+     * @return array{status: 'ready'|'missing'|'not_declared', action: non-empty-string|null}
+     */
+    private function gitIntegration(): array
+    {
+        $activation = new RepositoryActivation($this->rootPath);
+        $checks = $activation->localGitIntegrationChecks();
+        if ($checks === []) {
+            return ['status' => 'not_declared', 'action' => null];
+        }
+
+        foreach ($checks as $check) {
+            if (str_starts_with($check->render(), '[' . InitCheckLevel::WARN . ']')) {
+                return ['status' => 'missing', 'action' => $activation->syncGitHooksCommand()];
+            }
+        }
+
+        return ['status' => 'ready', 'action' => null];
     }
 
     /** @return non-empty-string */
@@ -377,7 +409,7 @@ final readonly class InitHostStatusCommand
      *     host: non-empty-string|null,
      *     selection: 'explicit'|'auto'|'ambiguous'|'missing',
      *     runtime: array{status: 'available'|'missing'|'unprobed', command: non-empty-string|null, path: non-empty-string|null}|null,
-     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported'}|null,
+     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported', git_integration: 'ready'|'missing'|'not_declared'}|null,
      *     policy_detail: non-empty-string|null,
      *     policy_path: non-empty-string|null,
      *     runtime_boundary: non-empty-string|null,
