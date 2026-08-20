@@ -31,44 +31,65 @@ final readonly class HumanReviewDiffCollector
         }
 
         $base = $contract->baseCommit;
-        $verified = $this->run($root, ['git', 'rev-parse', '--verify', $base . '^{commit}']);
-        if ($verified['exit'] !== 0) {
+        $runner = new CommandProcessRunner();
+        try {
+            $verified = $runner->run(
+                ['git', 'rev-parse', '--verify', $base . '^{commit}'],
+                $root,
+                self::COMMAND_TIMEOUT_SECONDS,
+            );
+        } catch (RuntimeException) {
+            return HumanReviewDiff::unavailable($base, 'Git could not verify the Contract base commit.');
+        }
+        if ($verified->exitCode !== 0) {
             return HumanReviewDiff::unavailable($base, 'Contract base commit is not available in this Git checkout.');
         }
 
         $scope = $contract->scope;
         $layout = new ProjectLayout($root);
         $stateRoot = $layout->display($layout->stateRoot());
-        $allTrackedNames = $this->run($root, [
-            'git', 'diff', '--name-only', '-z', '--no-ext-diff', '--find-renames', $base, '--',
-        ]);
-        $allUntrackedNames = $this->run($root, [
-            'git', 'ls-files', '--others', '--exclude-standard', '-z', '--',
-        ]);
-        $trackedPatch = $this->run($root, [
-            'git', 'diff', '--no-ext-diff', '--no-color', '--find-renames', $base, '--', ...$scope,
-        ]);
-        $scopedUntrackedNames = $this->run($root, [
-            'git', 'ls-files', '--others', '--exclude-standard', '-z', '--', ...$scope,
-        ]);
+        try {
+            $allTrackedNames = $runner->run(
+                ['git', 'diff', '--name-only', '-z', '--no-ext-diff', '--find-renames', $base, '--'],
+                $root,
+                self::COMMAND_TIMEOUT_SECONDS,
+            );
+            $allUntrackedNames = $runner->run(
+                ['git', 'ls-files', '--others', '--exclude-standard', '-z', '--'],
+                $root,
+                self::COMMAND_TIMEOUT_SECONDS,
+            );
+            $trackedPatch = $runner->run(
+                ['git', 'diff', '--no-ext-diff', '--no-color', '--find-renames', $base, '--', ...$scope],
+                $root,
+                self::COMMAND_TIMEOUT_SECONDS,
+            );
+            $scopedUntrackedNames = $runner->run(
+                ['git', 'ls-files', '--others', '--exclude-standard', '-z', '--', ...$scope],
+                $root,
+                self::COMMAND_TIMEOUT_SECONDS,
+            );
+        } catch (RuntimeException) {
+            return HumanReviewDiff::unavailable($base, 'Git could not derive the review change orientation.');
+        }
 
         if (
-            $allTrackedNames['exit'] !== 0
-            || $allUntrackedNames['exit'] !== 0
-            || $trackedPatch['exit'] !== 0
-            || $scopedUntrackedNames['exit'] !== 0
+            $allTrackedNames->exitCode !== 0
+            || $allUntrackedNames->exitCode !== 0
+            || $trackedPatch->exitCode !== 0
+            || $scopedUntrackedNames->exitCode !== 0
         ) {
             return HumanReviewDiff::unavailable($base, 'Git could not derive the review change orientation.');
         }
 
-        $tracked = self::visibleChangedPaths(self::nulList($allTrackedNames['stdout']), $scope, $stateRoot);
-        $untracked = self::visibleChangedPaths(self::nulList($allUntrackedNames['stdout']), $scope, $stateRoot);
-        $scopedUntracked = self::nulList($scopedUntrackedNames['stdout']);
+        $tracked = self::visibleChangedPaths(self::nulList($allTrackedNames->stdout), $scope, $stateRoot);
+        $untracked = self::visibleChangedPaths(self::nulList($allUntrackedNames->stdout), $scope, $stateRoot);
+        $scopedUntracked = self::nulList($scopedUntrackedNames->stdout);
         $changed = array_values(array_unique([...$tracked, ...$untracked]));
         sort($changed, SORT_STRING);
         sort($untracked, SORT_STRING);
 
-        $patch = rtrim($trackedPatch['stdout'], "\n");
+        $patch = rtrim($trackedPatch->stdout, "\n");
         foreach ($scopedUntracked as $path) {
             $untrackedPatch = $this->untrackedPatch($root, $path);
             if ($untrackedPatch === '') {
@@ -200,34 +221,5 @@ final readonly class HumanReviewDiffCollector
         $encoded = json_encode($path, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return is_string($encoded) ? $encoded : '[unprintable-path]';
-    }
-
-    /**
-     * @param non-empty-list<string> $command
-     * @return array{exit:int,stdout:string,stderr:string}
-     */
-    private function run(string $workingDirectory, array $command): array
-    {
-        try {
-            $result = (new CommandProcessRunner())->run(
-                $command,
-                $workingDirectory,
-                self::COMMAND_TIMEOUT_SECONDS,
-            );
-        } catch (RuntimeException $exception) {
-            return ['exit' => 127, 'stdout' => '', 'stderr' => $exception->getMessage()];
-        }
-
-        $stderr = $result->stderr;
-        if ($result->timedOut) {
-            $stderr .= ($stderr === '' ? '' : "\n")
-                . 'Git command timed out after ' . self::COMMAND_TIMEOUT_SECONDS . ' seconds.';
-        }
-
-        return [
-            'exit' => $result->exitCode,
-            'stdout' => $result->stdout,
-            'stderr' => $stderr,
-        ];
     }
 }
