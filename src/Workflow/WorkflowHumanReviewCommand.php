@@ -104,7 +104,10 @@ final readonly class WorkflowHumanReviewCommand
         }
     }
 
-    /** @param array<string, mixed> $report @return array<string, mixed> */
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
     private static function reviewArray(array $report): array
     {
         $review = $report['review'] ?? null;
