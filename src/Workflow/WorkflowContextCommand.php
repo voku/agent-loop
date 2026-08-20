@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
+use voku\AgentLoop\HumanExplanationPolicy;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
-use RuntimeException;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
@@ -91,15 +93,42 @@ final readonly class WorkflowContextCommand
     }
 
     /**
-     * @return array{schema_version: string, task_id: string, lines: list<string>, omitted: array<string, int>, skipped: list<string>}
+     * @return array{
+     *     schema_version: string,
+     *     task_id: string,
+     *     interaction: array{
+     *         human_explanations: 'ask'|'always'|'never',
+     *         interactive_behavior: 'ask'|'generate'|'skip',
+     *         unattended_behavior: 'generate'|'skip',
+     *         authority_bearing_decisions: 'human_required'
+     *     },
+     *     lines: list<string>,
+     *     omitted: array<string, int>,
+     *     skipped: list<string>
+     * }
      */
     public function build(string $taskId, int $maxLines, int $maxBytes): array
     {
         $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId);
+        $interaction = $this->interactionPolicy();
+        $policy = $interaction['policy'];
+
         $budget = new WorkflowContextBudget($maxLines, $maxBytes);
         $budget->add('header', 'Task: ' . $taskId);
         $budget->add('header', 'Run: ' . ($report['run_id'] ?? 'missing'));
         $budget->add('header', 'Session: ' . ($report['session']['id'] ?? 'missing'));
+        $budget->section('Human interaction policy');
+        foreach ($interaction['warnings'] as $warning) {
+            $budget->add('policy', $warning);
+        }
+        $budget->add(
+            'policy',
+            '  Optional LLM-authored human explanations: ' . $policy->value
+            . ' (interactive: ' . $policy->interactiveBehavior()
+            . '; unattended: ' . $policy->unattendedBehavior() . ').',
+        );
+        $budget->add('policy', '  Deterministic projections and raw evidence do not count as optional model explanation spending.');
+        $budget->add('policy', '  Skipping an optional explanation never supplies human review, approval, accepted-risk, or Learning judgment.');
 
         $contract = $report['contract'];
         if ($contract['status'] === 'missing') {
@@ -156,9 +185,27 @@ final readonly class WorkflowContextCommand
         return [
             'schema_version' => '2.0',
             'task_id' => $taskId,
+            'interaction' => [
+                'human_explanations' => $policy->value,
+                'interactive_behavior' => $policy->interactiveBehavior(),
+                'unattended_behavior' => $policy->unattendedBehavior(),
+                'authority_bearing_decisions' => 'human_required',
+            ],
             'lines' => $budget->lines(),
             'omitted' => $budget->omitted(),
             'skipped' => $budget->skipped(),
+        ];
+    }
+
+    /** @return array{policy: HumanExplanationPolicy, warnings: list<string>} */
+    private function interactionPolicy(): array
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $config = (new InitConfigLoader($this->rootPath))->load($layout->configPath());
+
+        return [
+            'policy' => HumanExplanationPolicy::from($config['interaction']['human_explanations']),
+            'warnings' => $config['warnings'],
         ];
     }
 
@@ -225,8 +272,6 @@ final readonly class WorkflowContextCommand
 
         $budget->section('Selected guidance');
         foreach ([...$output->selectedGuidance(), ...$output->selectedConstraints()] as $id) {
-            // The owner drops empty ids; a whitespace-only one would still
-            // reach the context as a blank guidance line.
             if (trim($id) === '') {
                 continue;
             }
@@ -237,9 +282,6 @@ final readonly class WorkflowContextCommand
             return false;
         }
         if (!$output->areFactsReadable()) {
-            // Compiled facts exist but cannot be read. Returning true keeps the
-            // caller from silently falling back to the live map, which would
-            // present current navigation as though the bundle had supplied it.
             $budget->skip('recall: invalid compiled facts in ' . RecallOutputRoot::relativeTo($this->rootPath, $directory));
 
             return true;
@@ -343,7 +385,6 @@ final readonly class WorkflowContextCommand
             }
         }
     }
-
 
     private function positive(string $value, string $option): int
     {
