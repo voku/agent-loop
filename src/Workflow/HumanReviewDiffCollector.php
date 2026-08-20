@@ -132,11 +132,17 @@ final readonly class HumanReviewDiffCollector
 
     private static function inside(string $path, string $root): bool
     {
-        $path = trim(str_replace('\\', '/', $path), '/');
-        $root = trim(str_replace('\\', '/', $root), '/');
-        if ($root === '' || str_starts_with($root, '/')) {
+        $normalizedRoot = str_replace('\\', '/', $root);
+        if (
+            $normalizedRoot === ''
+            || str_starts_with($normalizedRoot, '/')
+            || preg_match('/^[A-Za-z]:\//', $normalizedRoot) === 1
+        ) {
             return false;
         }
+
+        $path = trim(str_replace('\\', '/', $path), '/');
+        $root = trim($normalizedRoot, '/');
 
         return $path === $root || str_starts_with($path, $root . '/');
     }
