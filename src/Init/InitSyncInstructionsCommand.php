@@ -79,27 +79,26 @@ final readonly class InitSyncInstructionsCommand
     /**
      * Read-only counterpart to run(): true means rerunning sync-instructions for
      * this host would leave every host-visible instruction file unchanged.
+     *
+     * Invalid host names, unreadable sources, and malformed managed markers are
+     * inspection failures rather than another spelling of "not current".
      */
     public function isCurrentFor(string $requestedAgent): bool
     {
-        try {
-            $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
-            $router = $this->routerSource();
+        $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
+        $router = $this->routerSource();
 
-            if (!$this->managedFileIsCurrent('AGENTS.md', $router)) {
-                return false;
-            }
+        if (!$this->managedFileIsCurrent('AGENTS.md', $router)) {
+            return false;
+        }
 
-            if ($agent->canonicalName() === 'claude' && !$this->importFileIsCurrent('CLAUDE.md', '@AGENTS.md')) {
-                return false;
-            }
+        if ($agent->canonicalName() === 'claude' && !$this->importFileIsCurrent('CLAUDE.md', '@AGENTS.md')) {
+            return false;
+        }
 
-            if (in_array($agent->canonicalName(), ['gemini', 'antigravity'], true)
-                && !$this->importFileIsCurrent('GEMINI.md', '@./AGENTS.md')
-            ) {
-                return false;
-            }
-        } catch (InvalidArgumentException|RuntimeException) {
+        if (in_array($agent->canonicalName(), ['gemini', 'antigravity'], true)
+            && !$this->importFileIsCurrent('GEMINI.md', '@./AGENTS.md')
+        ) {
             return false;
         }
 
