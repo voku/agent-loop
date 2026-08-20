@@ -31,28 +31,37 @@ final readonly class HumanReviewDiffCollector
         }
 
         $scope = $contract->scope;
-        $trackedNames = $this->run($root, [
-            'git', 'diff', '--name-only', '-z', '--no-ext-diff', '--find-renames', $base, '--', ...$scope,
+        $allTrackedNames = $this->run($root, [
+            'git', 'diff', '--name-only', '-z', '--no-ext-diff', '--find-renames', $base, '--',
+        ]);
+        $allUntrackedNames = $this->run($root, [
+            'git', 'ls-files', '--others', '--exclude-standard', '-z', '--',
         ]);
         $trackedPatch = $this->run($root, [
             'git', 'diff', '--no-ext-diff', '--no-color', '--find-renames', $base, '--', ...$scope,
         ]);
-        $untrackedNames = $this->run($root, [
+        $scopedUntrackedNames = $this->run($root, [
             'git', 'ls-files', '--others', '--exclude-standard', '-z', '--', ...$scope,
         ]);
 
-        if ($trackedNames['exit'] !== 0 || $trackedPatch['exit'] !== 0 || $untrackedNames['exit'] !== 0) {
-            return HumanReviewDiff::unavailable($base, 'Git could not derive the scoped review diff.');
+        if (
+            $allTrackedNames['exit'] !== 0
+            || $allUntrackedNames['exit'] !== 0
+            || $trackedPatch['exit'] !== 0
+            || $scopedUntrackedNames['exit'] !== 0
+        ) {
+            return HumanReviewDiff::unavailable($base, 'Git could not derive the review change orientation.');
         }
 
-        $tracked = self::nulList($trackedNames['stdout']);
-        $untracked = self::nulList($untrackedNames['stdout']);
+        $tracked = self::nulList($allTrackedNames['stdout']);
+        $untracked = self::nulList($allUntrackedNames['stdout']);
+        $scopedUntracked = self::nulList($scopedUntrackedNames['stdout']);
         $changed = array_values(array_unique([...$tracked, ...$untracked]));
         sort($changed, SORT_STRING);
         sort($untracked, SORT_STRING);
 
         $patch = rtrim($trackedPatch['stdout'], "\n");
-        foreach ($untracked as $path) {
+        foreach ($scopedUntracked as $path) {
             $untrackedPatch = $this->untrackedPatch($root, $path);
             if ($untrackedPatch === '') {
                 continue;
