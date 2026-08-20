@@ -50,14 +50,14 @@ final readonly class ImplementationSnapshot
                 throw new RuntimeException('Implementation snapshot refuses symlinked scope: ' . $relative);
             }
             if (is_file($absolute)) {
-                if (self::excludedExplicitFile($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
+                if (self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
                     throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
                 }
                 $files[$relative] = self::hashFile($absolute, $relative);
                 continue;
             }
             if (!is_dir($absolute)) {
-                if (self::excludedExplicitFile($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
+                if (self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
                     throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
                 }
                 throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
@@ -147,7 +147,7 @@ final readonly class ImplementationSnapshot
      *
      * @param list<string> $projectStateFiles
      */
-    private static function excludedExplicitFile(
+    private static function excludedExplicitScopePath(
         string $path,
         string $stateRelative,
         string $learningRelative,
