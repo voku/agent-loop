@@ -23,7 +23,7 @@ final class HumanReviewDiffCollectorTest extends TestCase
         $this->tempDirs = [];
     }
 
-    public function testCollectsTrackedAndUntrackedChangesFromContractBaseCommit(): void
+    public function testCollectsAllChangedNamesButRendersOnlyApprovedScope(): void
     {
         if (!$this->gitAvailable()) {
             self::markTestSkipped('Git is required for review-diff integration coverage.');
@@ -34,11 +34,14 @@ final class HumanReviewDiffCollectorTest extends TestCase
         $this->git($root, ['config', 'user.email', 'review@example.test']);
         $this->git($root, ['config', 'user.name', 'Review Test']);
         file_put_contents($root . '/README.md', "before\n");
-        $this->git($root, ['add', 'README.md']);
+        file_put_contents($root . '/outside.txt', "outside before\n");
+        $this->git($root, ['add', 'README.md', 'outside.txt']);
         $this->git($root, ['commit', '-m', 'base']);
         $base = trim($this->git($root, ['rev-parse', 'HEAD']));
 
         file_put_contents($root . '/README.md', "after <tracked>\n");
+        file_put_contents($root . '/outside.txt', "outside after\n");
+        file_put_contents($root . '/outside-new.txt', "outside new\n");
         mkdir($root . '/src');
         file_put_contents($root . '/src/New.php', "<?php\n\necho '<untracked>';\n");
 
@@ -63,11 +66,13 @@ final class HumanReviewDiffCollectorTest extends TestCase
 
         self::assertTrue($diff->available, $diff->unavailableReason ?? 'diff unavailable');
         self::assertSame($base, $diff->baseCommit);
-        self::assertSame(['README.md', 'src/New.php'], $diff->changedFiles);
-        self::assertSame(['src/New.php'], $diff->untrackedFiles);
+        self::assertSame(['README.md', 'outside-new.txt', 'outside.txt', 'src/New.php'], $diff->changedFiles);
+        self::assertSame(['outside-new.txt', 'src/New.php'], $diff->untrackedFiles);
         self::assertStringContainsString('after <tracked>', $diff->patch);
         self::assertStringContainsString('new file mode untracked', $diff->patch);
         self::assertStringContainsString("+echo '<untracked>';", $diff->patch);
+        self::assertStringNotContainsString('outside after', $diff->patch);
+        self::assertStringNotContainsString('outside new', $diff->patch);
     }
 
     public function testMissingBaseCommitFailsClosedInsteadOfGuessingHead(): void
