@@ -82,7 +82,7 @@ final class InitMultiSkillSourceTest extends TestCase
         ]);
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('duplicate skill shared-skill', $result['output']);
+        self::assertStringContainsString('duplicate skill id shared-skill', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.codex/skills');
     }
 
