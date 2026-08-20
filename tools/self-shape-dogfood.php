@@ -251,6 +251,24 @@ $loop([
 $runner->run([PHP_BINARY, 'bin/agent-loop', 'review', 'blindspots', TASK]);
 $loop(['review', 'code', TASK]);
 
+$reviewBeforeHumanRender = $decode($loop(['workflow', 'report', TASK, '--format', 'json'])['stdout'])['review'] ?? null;
+if (!is_array($reviewBeforeHumanRender)) {
+    $fail('Unable to read review identity before human review rendering.');
+}
+$loop(['workflow', 'review', TASK]);
+$humanReview = $recallRoot . '/' . TASK . '/reviews/' . TASK . '.human.html';
+$humanReviewHtml = is_file($humanReview) ? file_get_contents($humanReview) : false;
+if (!is_string($humanReviewHtml) || $humanReviewHtml === '') {
+    $fail('Missing human review workbench: ' . $humanReview);
+}
+if (!str_contains($humanReviewHtml, 'Human review workbench.') || !str_contains($humanReviewHtml, 'Full scoped diff')) {
+    $fail('Human review workbench is missing its review identity or diff sections.');
+}
+$reviewAfterHumanRender = $decode($loop(['workflow', 'report', TASK, '--format', 'json'])['stdout'])['review'] ?? null;
+if ($reviewBeforeHumanRender !== $reviewAfterHumanRender) {
+    $fail('Human review rendering changed authoritative review state.');
+}
+
 $codeReviewPrompt = $recallRoot . '/' . TASK . '/reviews/' . TASK . '.code.prompt.md';
 if (!is_file($codeReviewPrompt) || filesize($codeReviewPrompt) === 0) {
     $fail('Missing code-review prompt: ' . $codeReviewPrompt);
@@ -279,6 +297,7 @@ $json($root . '/build/self-shape-review-evidence.json', [
     'raw_diff' => ['path' => $rawDiff, 'sha256' => hash_file('sha256', $root . '/' . $rawDiff), 'complete' => true],
     'code_review_prompt' => ['path' => $codeReviewPrompt, 'sha256' => hash_file('sha256', $codeReviewPrompt)],
     'blindspot_review' => ['path' => $blindSpotReport, 'status' => $blindSpotStatus, 'residual_findings' => $residual],
+    'human_review' => ['path' => $humanReview, 'sha256' => hash_file('sha256', $humanReview), 'authority_changed' => false],
     'correctness_review' => [
         'status' => 'external_required',
         'note' => 'CI preserves the complete raw diff and bounded review input; it does not claim independent human/model correctness review occurred.',
