@@ -1,0 +1,31 @@
+{
+  "id": "finding.2026-08-20.e3b70d",
+  "task_id": "GH-234",
+  "session": "2026-08-20-gh-234-slice-c1-constraint-candidate",
+  "created_at": "2026-08-20T03:02:54+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "githooks"
+  ],
+  "observation": "Slice C1 selected a constraint candidate by inspecting the nineteen validated findings at merged main f8fc8ff and rejecting every one whose bad state needs prose interpretation or whole-program tracing. The selected candidate is finding.2026-08-14.e914e6: a tracked Git hook that another hook executes directly must carry the executable bit. Its bad state is a tracked file mode, detected by 'git ls-files -s', which needs no interpretation at all; its false-positive class is a single known exception, githooks/lib/agent-loop-hooks.sh, which is sourced rather than executed and is legitimately 100644; and the historical failure is concrete rather than synthetic, because githooks/agent-map-refresh.sh was tracked non-executable while githooks/post-checkout and githooks/post-merge exec it directly. The cheapest reliable owner is a regression test rather than PHPStan, because PHPStan analyses PHP source and cannot observe a file mode at all; ConstraintEngine already offers TEST and CI alongside the three static engines, so the lower rungs of the ladder are representable and choosing one is not a downgrade. The current state is clean - all four directly executed hooks are 100755 - so the constraint would be a regression guard rather than a repair. Every other candidate was rejected for a recorded reason rather than silently skipped.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "At f8fc8ff, 'git ls-files -s githooks/' reports 100755 for agent-map-refresh.sh, commit-msg, post-checkout, post-merge and pre-commit, and 100644 for lib/agent-loop-hooks.sh. Grep confirms agent-map-refresh.sh is named by post-checkout and post-merge, while the lib file is sourced. voku/agent-learning's ConstraintEngine declares phpstan, phpcs, php_cs_fixer, test and ci."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Rejected: finding.2026-08-14.43dc53, hand-rolled resolution of an environment-named directory against the project root. It is the strongest PHPStan-shaped candidate and was still rejected. PathResolver::isAbsolute owns the decision, but several call sites use the identical str_starts_with($path, '/') idiom to legitimately REJECT an absolute path rather than resolve one - InitSyncGitHooksCommand and ImplementationSnapshot among them. Separating resolve from reject statically is exactly the semantic guesswork this slice excludes, so the rule would carry a known false-positive class."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Rejected for other reasons, each recorded rather than skipped. b5ceed and 3218dd: excluded by instruction and already shown in #244 not to be cheaply static, since their in-scope occurrences are a docblock and a help-text heredoc. 049f83, 27f115, 82221f, 9c41ab, d84777 and 5e1f07: convergence behaviour, already hardened as regression tests plus the continuous installed-consumer recovery gate. 7e63a1: already guarded by AgentFacingPathGuidanceTest. a47fa6: objectively detectable but owned by agent-learning's proposal validator, a different owner. b4f597: depends on which component wrote an outcome, which is runtime provenance rather than a code state. 999429: a single hardcoded revision literal in one runner, where a focused regression test is cheaper than a constraint. b1dfa6: runtime resolution provenance, already corrected in #217. 112df0 and e914e6's router half: documentation shape, largely already fixed. 7ab3c9 and c47e12: absorption rate and owner-side reachability, neither of which is a code state in this repository."
+    }
+  ],
+  "hypothesis": "Candidate selection is where constraint promotion usually goes wrong, because the temptation is to pick the finding that would make the most impressive rule rather than the one whose bad state is cheapest to detect reliably. The strongest looking candidate here was also the one with a real false-positive class, and the winning candidate is unglamorous: a file mode.",
+  "validated_conclusion": "Proceed with e914e6 as the Slice C2 subject, using engine=test. Do not promote 43dc53 to PHPStan without first collapsing its call sites onto PathResolver, and do not attempt to distinguish resolve from reject in a rule. Record that preferring PHPStan, as the slice instructions ask, must lose to the ladder's own rule of cheapest reliable owner when the state is invisible to static analysis: a rule that cannot see file modes cannot enforce a file mode, and choosing TEST here is the ladder working rather than the ladder being ignored.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
