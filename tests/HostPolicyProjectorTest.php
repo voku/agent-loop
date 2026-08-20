@@ -28,7 +28,7 @@ final class HostPolicyProjectorTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testClaudeMergePreservesProjectSettingsAndNeverWritesAutoMode(): void
+    public function testClaudeMergePreservesProjectSettingsAndUsesHardDenyWithoutWritingAutoMode(): void
     {
         mkdir($this->root . '/.claude', 0o775, true);
         file_put_contents($this->root . '/.claude/settings.json', json_encode([
@@ -51,11 +51,38 @@ final class HostPolicyProjectorTest extends TestCase
         $settings = $this->decodeJson($this->root . '/.claude/settings.json');
         self::assertSame(['SessionStart' => []], $settings['hooks'] ?? null);
         self::assertSame(['Read(*)'], $settings['permissions']['allow'] ?? null);
+        self::assertSame(['Bash(existing *)'], $settings['permissions']['ask'] ?? null);
         self::assertContains('Bash(git push *)', $settings['permissions']['deny'] ?? []);
-        self::assertContains('Bash(existing *)', $settings['permissions']['ask'] ?? []);
-        self::assertContains('Bash(gh pr create *)', $settings['permissions']['ask'] ?? []);
-        self::assertContains('Bash(gh pr merge *)', $settings['permissions']['ask'] ?? []);
+        self::assertContains('Bash(gh pr create *)', $settings['permissions']['deny'] ?? []);
+        self::assertContains('Bash(gh pr merge *)', $settings['permissions']['deny'] ?? []);
         self::assertArrayNotHasKey('autoMode', $settings);
+    }
+
+    public function testClaudeConflictingAskRequiresReviewedForceBeforeBecomingDeny(): void
+    {
+        mkdir($this->root . '/.claude', 0o775, true);
+        file_put_contents($this->root . '/.claude/settings.json', json_encode([
+            'permissions' => [
+                'ask' => ['Bash(git push *)'],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $projector = new HostPolicyProjector($this->root);
+        self::assertSame('conflict', $projector->inspect('claude')['status']);
+
+        try {
+            $projector->sync('claude');
+            self::fail('Expected conflicting Claude permission to fail closed.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('use --force only after reviewing', $exception->getMessage());
+        }
+
+        self::assertTrue($projector->sync('claude', false, true)['changed']);
+        self::assertSame('ready', $projector->inspect('claude')['status']);
+
+        $settings = $this->decodeJson($this->root . '/.claude/settings.json');
+        self::assertNotContains('Bash(git push *)', $settings['permissions']['ask'] ?? []);
+        self::assertContains('Bash(git push *)', $settings['permissions']['deny'] ?? []);
     }
 
     public function testCodexUsesDedicatedManagedRuleFileAndFailsClosedOnConflict(): void
