@@ -23,7 +23,7 @@ final class HumanReviewDiffCollectorTest extends TestCase
         $this->tempDirs = [];
     }
 
-    public function testCollectsAllChangedNamesButRendersOnlyApprovedScope(): void
+    public function testCollectsAllApplicationChangeNamesButRendersOnlyApprovedScope(): void
     {
         if (!$this->gitAvailable()) {
             self::markTestSkipped('Git is required for review-diff integration coverage.');
@@ -44,6 +44,8 @@ final class HumanReviewDiffCollectorTest extends TestCase
         file_put_contents($root . '/outside-new.txt', "outside new\n");
         mkdir($root . '/src');
         file_put_contents($root . '/src/New.php', "<?php\n\necho '<untracked>';\n");
+        mkdir($root . '/.agent-loop');
+        file_put_contents($root . '/.agent-loop/generated.json', "{\"generated\":true}\n");
 
         $contract = new TaskContract(
             taskId: 'REVIEW-1',
@@ -73,6 +75,51 @@ final class HumanReviewDiffCollectorTest extends TestCase
         self::assertStringContainsString("+echo '<untracked>';", $diff->patch);
         self::assertStringNotContainsString('outside after', $diff->patch);
         self::assertStringNotContainsString('outside new', $diff->patch);
+        self::assertStringNotContainsString('generated', $diff->patch);
+    }
+
+    public function testExplicitStateRootScopeRemainsReviewable(): void
+    {
+        if (!$this->gitAvailable()) {
+            self::markTestSkipped('Git is required for review-diff integration coverage.');
+        }
+
+        $root = $this->tempDir();
+        $this->git($root, ['init']);
+        $this->git($root, ['config', 'user.email', 'review@example.test']);
+        $this->git($root, ['config', 'user.name', 'Review Test']);
+        mkdir($root . '/.agent-loop');
+        file_put_contents($root . '/.agent-loop/project-policy.json', "{\"enabled\":false}\n");
+        $this->git($root, ['add', '.agent-loop/project-policy.json']);
+        $this->git($root, ['commit', '-m', 'base']);
+        $base = trim($this->git($root, ['rev-parse', 'HEAD']));
+        file_put_contents($root . '/.agent-loop/project-policy.json', "{\"enabled\":true}\n");
+        file_put_contents($root . '/.agent-loop/generated.json', "{\"generated\":true}\n");
+
+        $contract = new TaskContract(
+            taskId: 'REVIEW-STATE',
+            goal: 'Review one explicit project-owned state input.',
+            scope: ['.agent-loop/project-policy.json'],
+            nonGoals: [],
+            validation: ['composer test'],
+            status: TaskContract::APPROVED,
+            revision: 1,
+            createdAt: '2026-08-20T20:00:00+00:00',
+            updatedAt: '2026-08-20T20:00:00+00:00',
+            path: $root . '/contract.json',
+            plannedBy: 'planner',
+            baseCommit: $base,
+            approvedBy: 'reviewer',
+            approvedAt: '2026-08-20T20:00:00+00:00',
+        );
+
+        $diff = (new HumanReviewDiffCollector($root))->collect($contract);
+
+        self::assertTrue($diff->available, $diff->unavailableReason ?? 'diff unavailable');
+        self::assertSame(['.agent-loop/project-policy.json'], $diff->changedFiles);
+        self::assertSame([], $diff->untrackedFiles);
+        self::assertStringContainsString('+{"enabled":true}', $diff->patch);
+        self::assertStringNotContainsString('generated', $diff->patch);
     }
 
     public function testMissingBaseCommitFailsClosedInsteadOfGuessingHead(): void
