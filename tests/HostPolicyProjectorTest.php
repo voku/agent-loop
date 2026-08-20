@@ -172,6 +172,70 @@ final class HostPolicyProjectorTest extends TestCase
         $projector->sync('opencode');
     }
 
+    public function testClaudeDenyRuleAlsoListedAsAllowIsReportedAndCleanedRatherThanAcceptedAsReady(): void
+    {
+        mkdir($this->root . '/.claude', 0o775, true);
+        file_put_contents($this->root . '/.claude/settings.json', json_encode([
+            'permissions' => [
+                'allow' => ['Bash(git push *)', 'Read(*)'],
+                'ask' => [],
+                'deny' => ['Bash(git push *)', 'Bash(gh pr create *)', 'Bash(gh pr merge *)'],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $projector = new HostPolicyProjector($this->root);
+
+        // Every required rule is already denied, so a deny-first check would
+        // call this ready and leave the contradicting allow entry in place.
+        self::assertSame('conflict', $projector->inspect('claude')['status']);
+
+        try {
+            $projector->sync('claude');
+            self::fail('Synchronisation must not silently keep a permissive entry for a deny boundary.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('use --force only after reviewing', $exception->getMessage());
+        }
+
+        self::assertTrue($projector->sync('claude', false, true)['changed']);
+
+        $settings = $this->decodeJson($this->root . '/.claude/settings.json');
+        self::assertSame(['Read(*)'], $settings['permissions']['allow'] ?? null);
+        self::assertContains('Bash(git push *)', $settings['permissions']['deny'] ?? []);
+        self::assertSame('ready', $projector->inspect('claude')['status']);
+    }
+
+    public function testJsonArraysAreRefusedWhereAnObjectIsRequiredInsteadOfBeingRewritten(): void
+    {
+        $projector = new HostPolicyProjector($this->root);
+        $path = $this->root . '/opencode.json';
+
+        foreach (
+            [
+                '[1,2,3]' => 'JSON configuration must contain an object',
+                '{"permission":["git push *"]}' => 'permission is a JSON array',
+                '{"permission":{"bash":["git push *"]}}' => 'permission.bash is a JSON array',
+            ] as $document => $expected
+        ) {
+            file_put_contents($path, $document);
+
+            $inspection = $projector->inspect('opencode');
+
+            // Reporting these as missing would advertise a repair command that
+            // deterministically refuses the same state.
+            self::assertSame('conflict', $inspection['status'], $document);
+            self::assertStringContainsString($expected, $inspection['detail'], $document);
+
+            try {
+                $projector->sync('opencode');
+                self::fail('Synchronisation must refuse a JSON array where an object is required: ' . $document);
+            } catch (InvalidArgumentException) {
+                // expected
+            }
+
+            self::assertSame($document, file_get_contents($path), 'refused input must stay untouched');
+        }
+    }
+
     public function testOpenCodeJsoncIsReportedAsManualInsteadOfDestroyingComments(): void
     {
         file_put_contents($this->root . '/opencode.jsonc', "{\n  // project comment\n  \"permission\": {}\n}\n");

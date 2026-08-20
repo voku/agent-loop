@@ -15,8 +15,17 @@ final class OpenCodeHostProjectionTest extends TestCase
 {
     private string $root;
 
+    /** @var array<string, string|false> */
+    private array $envBackup = [];
+
     protected function setUp(): void
     {
+        foreach (['OPENCODE_AGENTS_DIR'] as $name) {
+            $value = getenv($name);
+            $this->envBackup[$name] = $value === false ? false : $value;
+            putenv($name);
+        }
+
         $this->root = sys_get_temp_dir() . '/agent-loop-opencode-projection-' . bin2hex(random_bytes(6));
         if (!mkdir($this->root . '/docs/agents/subagents', 0o775, true) && !is_dir($this->root . '/docs/agents/subagents')) {
             throw new RuntimeException('Unable to create OpenCode projection fixture root.');
@@ -30,6 +39,16 @@ final class OpenCodeHostProjectionTest extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->envBackup as $name => $value) {
+            if ($value === false) {
+                putenv($name);
+
+                continue;
+            }
+
+            putenv($name . '=' . $value);
+        }
+
         $this->removeDirectory($this->root);
     }
 
