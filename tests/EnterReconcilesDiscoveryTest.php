@@ -101,7 +101,16 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         $contracts->approve($taskId, 'approver');
     }
 
-    private function enter(string $taskId): void
+    /**
+     * Enter, asserting it actually succeeded.
+     *
+     * Discarding the exit code here would let the Map assertions pass while
+     * `enter` built the snapshot and then failed during Recall preparation:
+     * the file would exist and the test would still be green.
+     *
+     * @return array<string, mixed>
+     */
+    private function enter(string $taskId): array
     {
         $dispatcher = new Dispatcher($this->root);
         $runner = static function (array $rest) use ($dispatcher): int {
@@ -113,10 +122,18 @@ final class EnterReconcilesDiscoveryTest extends TestCase
 
         ob_start();
         try {
-            (new HostFrontDoorCommand($this->root, $runner))->run('enter', [$taskId, '--format=json']);
+            $exit = (new HostFrontDoorCommand($this->root, $runner))->run('enter', [$taskId, '--format=json']);
+            $output = (string) ob_get_contents();
         } finally {
             ob_end_clean();
         }
+
+        self::assertSame(0, $exit, 'enter must reach mutation readiness, not merely produce a Map');
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($payload);
+        self::assertTrue($payload['mutation_ready'] ?? null, 'enter reported no mutation readiness');
+
+        return $payload;
     }
 
     private function removeDirectory(string $path): void
