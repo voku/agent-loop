@@ -37,6 +37,11 @@ final class WorkflowHumanReviewCommandTest extends TestCase
         }
 
         $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o777, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'interaction' => ['human_explanations' => 'never'],
+        ], JSON_THROW_ON_ERROR));
+
         $this->git($root, ['init']);
         $this->git($root, ['config', 'user.email', 'review@example.test']);
         $this->git($root, ['config', 'user.name', 'Review Test']);
