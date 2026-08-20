@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use voku\AgentLoop\ProjectLayout;
+
 final readonly class HumanReviewDiffCollector
 {
     public function __construct(private string $rootPath)
@@ -31,6 +33,8 @@ final readonly class HumanReviewDiffCollector
         }
 
         $scope = $contract->scope;
+        $layout = new ProjectLayout($root);
+        $stateRoot = $layout->display($layout->stateRoot());
         $allTrackedNames = $this->run($root, [
             'git', 'diff', '--name-only', '-z', '--no-ext-diff', '--find-renames', $base, '--',
         ]);
@@ -53,8 +57,8 @@ final readonly class HumanReviewDiffCollector
             return HumanReviewDiff::unavailable($base, 'Git could not derive the review change orientation.');
         }
 
-        $tracked = self::nulList($allTrackedNames['stdout']);
-        $untracked = self::nulList($allUntrackedNames['stdout']);
+        $tracked = self::visibleChangedPaths(self::nulList($allTrackedNames['stdout']), $scope, $stateRoot);
+        $untracked = self::visibleChangedPaths(self::nulList($allUntrackedNames['stdout']), $scope, $stateRoot);
         $scopedUntracked = self::nulList($scopedUntrackedNames['stdout']);
         $changed = array_values(array_unique([...$tracked, ...$untracked]));
         sort($changed, SORT_STRING);
@@ -88,6 +92,53 @@ final readonly class HumanReviewDiffCollector
         sort($items, SORT_STRING);
 
         return $items;
+    }
+
+    /**
+     * Workflow-generated state is not an application change and must not make
+     * the review projection observe itself on a second render. A Contract can
+     * still explicitly review a state-root path by naming that path directly;
+     * broad scope such as `.` does not promote generated workflow state into
+     * implementation content.
+     *
+     * @param list<string> $paths
+     * @param list<string> $scope
+     * @return list<string>
+     */
+    private static function visibleChangedPaths(array $paths, array $scope, string $stateRoot): array
+    {
+        return array_values(array_filter(
+            $paths,
+            static fn (string $path): bool => !self::inside($path, $stateRoot)
+                || self::explicitStateScopeContains($path, $scope, $stateRoot),
+        ));
+    }
+
+    /** @param list<string> $scope */
+    private static function explicitStateScopeContains(string $path, array $scope, string $stateRoot): bool
+    {
+        foreach ($scope as $entry) {
+            $entry = trim(str_replace('\\', '/', $entry), '/');
+            if ($entry === '' || $entry === '.' || !self::inside($entry, $stateRoot)) {
+                continue;
+            }
+            if ($path === $entry || str_starts_with($path, $entry . '/')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function inside(string $path, string $root): bool
+    {
+        $path = trim(str_replace('\\', '/', $path), '/');
+        $root = trim(str_replace('\\', '/', $root), '/');
+        if ($root === '' || str_starts_with($root, '/')) {
+            return false;
+        }
+
+        return $path === $root || str_starts_with($path, $root . '/');
     }
 
     private function untrackedPatch(string $root, string $path): string
