@@ -34,9 +34,13 @@ final class InitStatusCommandTest extends TestCase
             'CLAUDE_SKILLS_DIR',
             'CLAUDE_AGENTS_DIR',
             'CLAUDE_CONFIG_DIR',
+            'OPENCODE_SKILLS_DIR',
+            'OPENCODE_AGENTS_DIR',
             'COPILOT_SKILLS_DIR',
-            'ANTIGRAVITY_SKILLS_DIR',
             'COPILOT_AGENTS_DIR',
+            'GEMINI_SKILLS_DIR',
+            'GEMINI_AGENTS_DIR',
+            'ANTIGRAVITY_SKILLS_DIR',
             'ANTIGRAVITY_AGENTS_DIR',
         ]);
     }
@@ -156,17 +160,19 @@ final class InitStatusCommandTest extends TestCase
         self::assertStringContainsString('[OK] hooks-root: docs/agents/codex-hooks (hooks.json: yes, scripts: 1)', $result['output']);
     }
 
-    public function testStatusPrintsAgentAliasesIncludingGeminiToAntigravity(): void
+    public function testStatusPrintsCanonicalAgentAliases(): void
     {
         $result = $this->runStatus([]);
 
         self::assertStringContainsString('[INFO] alias openai-codex -> codex', $result['output']);
         self::assertStringContainsString('[INFO] alias claude-code -> claude', $result['output']);
+        self::assertStringContainsString('[INFO] alias open-code -> opencode', $result['output']);
         self::assertStringContainsString('[INFO] alias github-copilot -> copilot', $result['output']);
+        self::assertStringContainsString('[INFO] alias gemini-cli -> gemini', $result['output']);
         self::assertStringContainsString('[INFO] alias agy -> antigravity', $result['output']);
         self::assertStringContainsString('[INFO] alias google-antigravity -> antigravity', $result['output']);
-        self::assertStringContainsString('[INFO] alias gemini -> antigravity', $result['output']);
-        self::assertStringContainsString('[INFO] alias gemini-cli -> antigravity', $result['output']);
+        self::assertStringNotContainsString('alias gemini -> antigravity', $result['output']);
+        self::assertStringNotContainsString('alias gemini-cli -> antigravity', $result['output']);
     }
 
     public function testStatusReportsNoManifestWhenTargetMissing(): void

@@ -70,12 +70,13 @@ final readonly class InitInstallPlanCommand
         ```text
         {$command} --dry-run
         {$command}
-        php vendor/bin/agent-loop init doctor
+        php vendor/bin/agent-loop init host-status --agent={$agent} --format=json
         ```
 
-        `install-assets` copies skills shipped inside the installed `voku/agent-loop` package.
-        Supported clients also receive the package-owned investigator, surgical-builder,
-        and code-reviewer roles; Codex additionally receives repository-local PHP hooks.
+        `install-assets` copies package-owned instructions, skills, and bundled roles
+        into the host's native project locations. `host-status` then reports the next
+        repository-owned integration action, including host policy when supported.
+        Executable Codex/Claude host hooks remain an explicit `--with-hooks` opt-in.
         It does not clone a repository, execute a remote installer, use a plugin marketplace,
         or require Node.js.
 
@@ -105,14 +106,21 @@ final readonly class InitInstallPlanCommand
 
         return match ($agent) {
             'codex' => <<<TXT
-            Restart Codex inside {$environment}, open `/hooks`, inspect the installed
-            repository-local hooks, and trust them only after review.
+            Restart Codex inside {$environment}. Project rules are loaded only for a
+            trusted project; inspect `.codex/rules/agent-loop.rules` before granting trust.
+            TXT,
+            'claude' => <<<TXT
+            Restart Claude Code inside {$environment}. Repository permissions can be
+            projected, while Auto Mode itself remains user/managed scoped; `host-status`
+            reports that boundary instead of pretending project settings can own it.
+            TXT,
+            'opencode' => <<<TXT
+            Restart OpenCode inside {$environment} so it reloads AGENTS.md, project skills,
+            project agents, and policy. Agent-loop uses explicit deny rules for authority-
+            bearing remote mutations because OpenCode `--auto` bypasses `ask` decisions.
             TXT,
             'copilot' => <<<TXT
             Restart or reload skills and repository agents in Copilot inside {$environment}.
-            TXT,
-            'claude' => <<<TXT
-            Restart Claude Code inside {$environment} so it reloads repository skills.
             TXT,
             'gemini' => <<<TXT
             Restart Gemini CLI inside {$environment} so it reloads repository skills and agents.

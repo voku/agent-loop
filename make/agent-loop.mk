@@ -30,7 +30,7 @@ agent_init_doctor:
 agent_init_install_plan:
 	@if [ -z "$(PROFILE)" ] || [ -z "$(AGENT)" ]; then \
 		echo "❌ Missing PROFILE or AGENT parameter"; \
-		echo "   Usage: make agent_init_install_plan PROFILE=wsl2|linux|windows AGENT=codex|claude|copilot|antigravity"; \
+		echo "   Usage: make agent_init_install_plan PROFILE=wsl2|linux|windows AGENT=codex|claude|opencode|copilot|gemini|antigravity"; \
 		exit 1; \
 	fi
 	$(AGENT_LOOP_INIT) install-plan --profile "$(PROFILE)" --agent "$(AGENT)"
@@ -38,6 +38,10 @@ agent_init_install_plan:
 .PHONY: agent_init_status ## show which agent assets are installed and managed
 agent_init_status:
 	$(AGENT_LOOP_INIT) status $(AGENT_LOOP_WITH_CONFIG)
+
+.PHONY: agent_init_host_status ## discover/converge the active coding host without mutating it
+agent_init_host_status:
+	$(AGENT_LOOP_INIT) host-status --format=json
 
 .PHONY: validate_agent_skills ## validate repo-managed agent skill definitions
 validate_agent_skills:
@@ -66,9 +70,17 @@ install_codex_skills:
 install_claude_skills:
 	$(AGENT_LOOP_INIT) sync-skills --agent=claude $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
 
+.PHONY: install_opencode_skills ## sync repo-managed skills for OpenCode
+install_opencode_skills:
+	$(AGENT_LOOP_INIT) sync-skills --agent=opencode $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
 .PHONY: install_copilot_skills ## sync repo-managed skills for GitHub Copilot
 install_copilot_skills:
 	$(AGENT_LOOP_INIT) sync-skills --agent=copilot $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
+.PHONY: install_gemini_skills ## sync repo-managed skills for Gemini CLI
+install_gemini_skills:
+	$(AGENT_LOOP_INIT) sync-skills --agent=gemini $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
 
 .PHONY: install_antigravity_skills ## sync repo-managed skills for Antigravity
 install_antigravity_skills:
@@ -82,9 +94,21 @@ install_agent_skills:
 install_codex_agents:
 	$(AGENT_LOOP_INIT) sync-subagents --agent=codex $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
 
+.PHONY: install_claude_agents ## sync repo-managed subagents for Claude Code
+install_claude_agents:
+	$(AGENT_LOOP_INIT) sync-subagents --agent=claude $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
+.PHONY: install_opencode_agents ## sync repo-managed subagents for OpenCode
+install_opencode_agents:
+	$(AGENT_LOOP_INIT) sync-subagents --agent=opencode $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
 .PHONY: install_copilot_agents ## sync repo-managed subagents for GitHub Copilot
 install_copilot_agents:
 	$(AGENT_LOOP_INIT) sync-subagents --agent=copilot $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
+.PHONY: install_gemini_agents ## sync repo-managed subagents for Gemini CLI
+install_gemini_agents:
+	$(AGENT_LOOP_INIT) sync-subagents --agent=gemini $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
 
 .PHONY: install_antigravity_agents ## sync repo-managed subagents for Antigravity
 install_antigravity_agents:

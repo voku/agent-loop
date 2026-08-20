@@ -20,8 +20,9 @@ This is the current ownership map for first-party agent behavior. Historical mig
 | Findings, proposals, evidence, reviewed learning boundary | `voku/agent-learning` | Route reusable observations through explicit review before durable guidance |
 | Skill projection/install | `voku/agent-loop` | Merge explicit local canonical roots, fail duplicate IDs, track one managed projection |
 | Subagent representation | `voku/agent-loop` | Render one canonical role into host-native representation |
+| Host authority policy projection | `voku/agent-loop` | Project only policy that the host can represent honestly; keep trust, Auto Mode, and other user/runtime decisions outside repository ownership |
 | Workflow/bootstrap hooks | `voku/agent-loop` | Project workflow/navigation/evidence discipline through explicit host adapters; do not smuggle engineering skills into every session |
-| Host capability reporting | `voku/agent-loop` | Report the strongest owned evidence through `HostCapabilityMatrix` / `init doctor` |
+| Host capability/discovery reporting | `voku/agent-loop` | Report adapter capability through `HostCapabilityMatrix` and converge current repository integration through `init host-status`; never claim runtime consumption from file presence |
 
 ## Engineering-skill boundary
 
@@ -61,18 +62,28 @@ Installed release-set CI pins the merged first-party `voku/agent-skills` revisio
 
 Status meanings are strict:
 
-- `supported`: executable evidence exercises the claimed `agent-loop` boundary;
-- `degraded`: a native adapter is contract-tested, but host runtime/delegation behavior itself has not been observed;
-- `unsupported`: `agent-loop` has no adapter for the claimed capability.
+- `supported`: `agent-loop` owns a host adapter/projector for the capability and contract tests can exercise that repository-side boundary;
+- `degraded`: a native adapter exists, but the stronger runtime/delegation behavior implied by the capability has not been observed;
+- `unsupported`: `agent-loop` has no adapter/projector for the capability.
 
-| Capability | Codex | Claude | Copilot | Antigravity |
-|---|---|---|---|---|
-| skill projection | supported | supported | supported | supported |
-| subagent projection | supported | supported | supported | supported |
-| session bootstrap | degraded | degraded | unsupported | unsupported |
-| subagent bootstrap | degraded | degraded | unsupported | unsupported |
-| pre-tool guardrail | degraded | degraded | unsupported | unsupported |
-| repository hooks | degraded | degraded | unsupported | unsupported |
+`init host-status` separately reports whether the current repository projection is present and current. Neither `supported` nor a current projection proves that a running host session consumed it.
+
+| Capability | Codex | Claude | OpenCode | Copilot | Gemini | Antigravity |
+|---|---|---|---|---|---|---|
+| skill projection | supported | supported | supported | supported | supported | supported |
+| subagent projection | supported | supported | supported | supported | supported | supported |
+| policy projection | supported | supported | supported | unsupported | unsupported | unsupported |
+| session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
+| subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
+| pre-tool guardrail | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
+| repository hooks | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
+
+Host-specific policy semantics are intentionally not flattened:
+
+- Codex receives project-layer `.codex/rules/*.rules`; the host still owns project trust.
+- Claude receives shared-project hard `deny` rules for authority-bearing remote mutations; Auto Mode classifier configuration remains user/local/managed scoped.
+- OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.
+- Copilot, Gemini, and Antigravity still converge portable instructions/skills/subagents; absence of an `agent-loop` policy projector is reported as a runtime boundary, not as a broken host.
 
 A vendor feature can prove that a possible mechanism exists; it does not turn an `unsupported` or `degraded` cell green. Change a status only with evidence at the boundary that new status claims.
 

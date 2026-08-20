@@ -103,9 +103,10 @@ final readonly class RepositoryActivation
         return $tokens;
     }
 
+    /** @return non-empty-string */
     public function syncGitHooksCommand(): string
     {
-        return implode(' ', [$this->cliPath(), 'init', 'sync-githooks', ...$this->syncGitHooksTokens()]);
+        return $this->cliPath() . ' ' . implode(' ', ['init', 'sync-githooks', ...$this->syncGitHooksTokens()]);
     }
 
     public function installAssetsCommand(): string

@@ -14,6 +14,7 @@ final readonly class HostRuntimeProbe
     private const array COMMANDS = [
         'codex' => 'codex',
         'claude' => 'claude',
+        'opencode' => 'opencode',
         'copilot' => 'copilot',
         'gemini' => 'gemini',
         'antigravity' => null,

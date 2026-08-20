@@ -30,8 +30,10 @@ final class InitCliTest extends TestCase
         $help = $this->dispatch(['agent-loop', 'init', 'help']);
         self::assertSame(0, $help['exit']);
         self::assertStringContainsString('agent-loop init doctor', $help['output']);
+        self::assertStringContainsString('agent-loop init host-status', $help['output']);
         self::assertStringContainsString('agent-loop init install-plan', $help['output']);
         self::assertStringContainsString('agent-loop init install-assets', $help['output']);
+        self::assertStringContainsString('agent-loop init sync-policy', $help['output']);
         self::assertStringContainsString('agent-loop init sync-instructions', $help['output']);
         self::assertStringContainsString('init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo]', $help['output']);
         self::assertStringContainsString('init status', $help['output']);
@@ -110,7 +112,9 @@ final class InitCliTest extends TestCase
         $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold', '--demo']);
         self::assertSame(0, $scaffold['exit'], $scaffold['output']);
         self::assertStringContainsString('[WARN] Host assets were not projected because --agent was not provided.', $scaffold['output']);
-        self::assertStringContainsString('init install-assets --agent=<codex|claude|copilot|antigravity>', $scaffold['output']);
+        self::assertStringContainsString('init host-status --format=json', $scaffold['output']);
+        self::assertStringContainsString('decision_required/next_action', $scaffold['output']);
+        self::assertStringNotContainsString('install-assets --agent=<', $scaffold['output']);
         self::assertFileExists($this->root . '/.agent-loop/init.json');
         self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
@@ -205,8 +209,9 @@ final class InitCliTest extends TestCase
         self::assertSame(0, $scaffold['exit'], $scaffold['output']);
         self::assertFileExists($this->root . '/AGENTS.md');
         self::assertFileExists($this->root . '/.codex/skills/.agent-loop-manifest.json');
-        self::assertStringContainsString('local workflow structure and host assets are ready', $scaffold['output']);
-        self::assertStringContainsString('Start a fresh agent session so the projected instructions and skills can actually be consumed.', $scaffold['output']);
+        self::assertStringContainsString('local workflow structure and host assets are ready for repository convergence', $scaffold['output']);
+        self::assertStringContainsString('init host-status --agent=codex --format=json', $scaffold['output']);
+        self::assertStringContainsString('next_action_kind=none', $scaffold['output']);
         self::assertStringContainsString('agent-loop map build --paths=src,tests', $scaffold['output']);
         self::assertStringContainsString('agent-loop map search-index build', $scaffold['output']);
     }
