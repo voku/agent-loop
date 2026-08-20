@@ -1,0 +1,17 @@
+{
+    "schema_version": "1.0",
+    "id": "constraint.workflow.recovery.next-action-must-advance",
+    "engine": "ci",
+    "rule_identifier": "workflow.recovery.next-action-must-advance",
+    "scope": [
+        "src/Run/RunPolicyEvaluator.php",
+        "src/Run/RunManifestProjector.php",
+        "tools/release-set-dogfood.php"
+    ],
+    "validation_commands": [
+        "composer ci",
+        "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep"
+    ],
+    "source_proposal": "proposal.2026-08-20.c2a001",
+    "status": "active"
+}

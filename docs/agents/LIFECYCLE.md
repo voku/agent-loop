@@ -176,8 +176,9 @@ Resume from persisted lifecycle state, not from an agent's remembered phase.
 - one semantic owner per decision;
 - host guidance routes and presents, it does not re-derive lifecycle legality;
 - `next_action` has one authority and `next_action_kind` states how to treat it;
-- commands advertised as canonical should converge or reach an explicit
-  decision/host-work boundary;
+- commands advertised as canonical must advance the state they name or reach
+  an explicit decision/host-work boundary (constraint
+  `workflow.recovery.next-action-must-advance`);
 - evidence is not authority;
 - generated artifacts are not runtime-consumption proof;
 - dependent unavailable capabilities do not multiply one missing prerequisite
