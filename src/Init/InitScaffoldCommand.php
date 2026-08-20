@@ -115,9 +115,13 @@ GITIGNORE;
                 return $installExit;
             }
 
+            $hostStatusCommand = $agent->isAll()
+                ? $cliPath . ' init host-status --format=json'
+                : $cliPath . ' init host-status --agent=' . $agent->canonicalName() . ' --format=json';
+
             echo "\n[OK] init scaffold: local workflow structure and host assets are ready for repository convergence.\n";
             echo "Next:\n";
-            echo '  ' . $cliPath . ' init host-status --agent=' . $agent->canonicalName() . " --format=json\n";
+            echo '  ' . $hostStatusCommand . "\n";
             echo "  Follow its next_action until next_action_kind=none, then start a fresh agent session so projected assets can be consumed.\n";
             echo '  ' . $cliPath . " map build --paths=src,tests\n";
             echo '  ' . $cliPath . " map search-index build\n";
