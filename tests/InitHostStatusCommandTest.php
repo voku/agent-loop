@@ -118,6 +118,23 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertNull($converged['next_action']);
     }
 
+    public function testTextOutputReportsEveryIntegrationFieldTheJsonFormatReports(): void
+    {
+        $json = $this->hostStatus();
+        self::assertIsArray($json['integration']);
+
+        $text = $this->capture(fn (): int => (new InitHostStatusCommand(
+            $this->root,
+            new HostRuntimeProbe($this->binRoot, self::pathExt()),
+        ))->run([]));
+        self::assertSame(0, $text['exit'], $text['output']);
+
+        // Both advertised formats must describe the same convergence state.
+        foreach ($json['integration'] as $field => $value) {
+            self::assertStringContainsString($field . '=' . $value, $text['output'], $field);
+        }
+    }
+
     public function testGeminiConvergesPortableAssetsWithoutInventingPolicyProjection(): void
     {
         $initial = $this->hostStatus(['--agent=gemini', '--format=json']);

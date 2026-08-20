@@ -432,7 +432,8 @@ final readonly class InitHostStatusCommand
             echo 'Integration: instructions=' . $status['integration']['instructions']
                 . ', skills=' . $status['integration']['skills']
                 . ', subagents=' . $status['integration']['subagents']
-                . ', policy=' . $status['integration']['policy'] . "\n";
+                . ', policy=' . $status['integration']['policy']
+                . ', git_integration=' . $status['integration']['git_integration'] . "\n";
         }
         if ($status['runtime_boundary'] !== null) {
             echo 'Runtime boundary: ' . $status['runtime_boundary'] . "\n";
