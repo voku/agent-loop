@@ -28,7 +28,7 @@ final class WorkflowApproveDiscoveryGuardTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testExistingPhpScopeNeedsFreshMapBeforeApproval(): void
+    public function testExistingPhpScopeApprovesWithoutAnyHostRunDiscovery(): void
     {
         $source = $this->root . '/src/Foo.php';
         file_put_contents($source, $this->phpFixture('Foo'));
@@ -43,22 +43,39 @@ final class WorkflowApproveDiscoveryGuardTest extends TestCase
             'planner',
         );
 
-        $command = new WorkflowApproveCommand($this->root);
+        // No map exists, and none is built first. Requiring the host to run
+        // agent-map before approval was deterministic preparation dressed as a
+        // governance precondition; `enter` reconciles it instead.
+        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root)));
+        self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
 
-        self::assertSame(1, $this->approve($command));
-        self::assertSame(TaskContract::CANDIDATE, $contracts->load('ABC-123')->status);
+        // Approval remains authority only: no map, no Run, no Recall.
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/ABC-123');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/ABC-123/meta.json');
+    }
+
+    public function testStaleMapDoesNotBlockApprovalEither(): void
+    {
+        $source = $this->root . '/src/Foo.php';
+        file_put_contents($source, $this->phpFixture('Foo'));
+
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
+            'Change existing PHP code with governed discovery.',
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'planner',
+        );
 
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']));
         file_put_contents($source, $this->phpFixture('FooChanged'));
 
-        self::assertSame(1, $this->approve($command));
-        self::assertSame(TaskContract::CANDIDATE, $contracts->load('ABC-123')->status);
-
-        self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'refresh']));
-        self::assertSame(0, $this->approve($command));
+        self::assertSame(0, $this->approve(new WorkflowApproveCommand($this->root)));
         self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/ABC-123');
-        self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/ABC-123/meta.json');
     }
 
     public function testNonPhpAndNotYetExistingPhpScopeDoNotInventDiscoveryRequirements(): void

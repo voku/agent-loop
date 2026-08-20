@@ -22,7 +22,7 @@ const ORDINARY_SCENARIOS = [
 ];
 
 const PREPARATION_SCENARIOS = ['workflow.plan', 'workflow.approve'];
-const PRE_LIFECYCLE_PREPARATION_SCENARIOS = ['map.consumer-boundary'];
+const LIFECYCLE_SCENARIO_PREFIX = 'workflow.';
 const CAPABILITIES = ['map', 'recall', 'session', 'execution_contract', 'review', 'learning', 'verification'];
 const INACTIVE_STATES = ['missing', 'unavailable', 'not_configured', 'not_required', 'not-required', 'none'];
 
@@ -154,6 +154,38 @@ function isSpecialist(string $display): bool
     return str_starts_with($display, 'vendor/bin/agent-') && !isLifecycle($display) && !isObservation($display);
 }
 
+/**
+ * Scenario ids that run before the lifecycle window opens.
+ *
+ * Derived from the report rather than hardcoded: #242 found Map/Search
+ * preparation hiding outside the measured window, and a fixed allowlist would
+ * go blind again the moment such a step is renamed or moved.
+ *
+ * @param array<string, mixed> $report
+ * @return list<string>
+ */
+function preLifecycleScenarioIds(array $report): array
+{
+    $scenarios = $report['scenarios'] ?? null;
+    if (!is_array($scenarios)) {
+        return [];
+    }
+
+    $ids = [];
+    foreach ($scenarios as $scenario) {
+        $id = is_array($scenario) ? ($scenario['id'] ?? null) : null;
+        if (!is_string($id) || $id === '') {
+            continue;
+        }
+        if (str_starts_with($id, LIFECYCLE_SCENARIO_PREFIX)) {
+            break;
+        }
+        $ids[] = $id;
+    }
+
+    return $ids;
+}
+
 function isPreparation(string $display): bool
 {
     return preg_match('/^vendor\/bin\/(?:agent-loop (?:map|recall)|agent-map (?:build|refresh|search-index))\b/', $display) === 1;
@@ -276,7 +308,7 @@ function measurement(string $workspace, array $report): array
     }
 
     $preLifecyclePreparation = 0;
-    foreach (commandsForScenarios($report, PRE_LIFECYCLE_PREPARATION_SCENARIOS) as $entry) {
+    foreach (commandsForScenarios($report, preLifecycleScenarioIds($report)) as $entry) {
         if (isPreparation(display($entry['command']))) {
             ++$preLifecyclePreparation;
         }

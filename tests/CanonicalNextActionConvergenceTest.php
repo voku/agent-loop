@@ -39,12 +39,23 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testNextActionNamesDiscoveryRepairInsteadOfAnApproveThatRefuses(): void
+    /**
+     * The loop this class was created for is now removed at its source.
+     *
+     * Originally `next_action` named `workflow approve` while approve
+     * deterministically refused for want of a Map snapshot, so obeying it
+     * looped forever; #221 fixed the symptom by naming the Map repair instead.
+     * Map readiness is deterministic preparation, so approval no longer
+     * requires it at all and the canonical action is simply approve, which
+     * succeeds.
+     */
+    public function testNextActionNamesApproveAndNoLongerAnyHostRunDiscovery(): void
     {
         $next = $this->nextAction();
 
-        self::assertStringNotContainsString('workflow approve', $next);
-        self::assertStringContainsString('map build', $next);
+        self::assertStringContainsString('workflow approve', $next);
+        self::assertStringNotContainsString('map build', $next);
+        self::assertStringNotContainsString('map refresh', $next);
     }
 
     public function testObeyingNextActionConvergesInsteadOfRepeatingTheSameAction(): void
@@ -58,18 +69,18 @@ final class CanonicalNextActionConvergenceTest extends TestCase
             $second,
             'obeying next_action returned the same action again, so the host cannot make progress',
         );
-        self::assertStringContainsString('workflow approve', $second);
     }
 
-    public function testAStaleMapReportsRefreshRatherThanRepeatingApprove(): void
+    public function testAStaleMapStillDoesNotAskTheHostToRepairDiscovery(): void
     {
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']));
         file_put_contents($this->root . '/src/Greeter.php', "\n// changed after the map was built\n", FILE_APPEND);
 
         $next = $this->nextAction();
 
-        self::assertStringNotContainsString('workflow approve', $next);
-        self::assertStringContainsString('map refresh', $next);
+        self::assertStringContainsString('workflow approve', $next);
+        self::assertStringNotContainsString('map refresh', $next);
+        self::assertSame(0, $this->dispatchAction($next), 'approval must not depend on Map freshness');
     }
 
     public function testAFailingValidationAsksForHostWorkInsteadOfRepeatingFinish(): void

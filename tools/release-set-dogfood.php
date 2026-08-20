@@ -88,11 +88,11 @@ final class ReleaseSetDogfood
 
             $this->step('install.resolve', fn () => $this->install());
             $this->step('install.focused-binaries', fn () => $this->focusedPackageBinaries());
-            $this->step('map.consumer-boundary', fn () => $this->mapConsumerBoundary());
             $this->step('workflow.scaffold', fn () => $this->scaffold());
             $this->step('workflow.ephemeral', fn () => $this->ephemeral());
             $this->step('workflow.plan', fn () => $this->plan());
             $this->step('workflow.approve', fn () => $this->approve());
+            $this->step('map.optional-capability', fn () => $this->mapOptionalCapability());
             $this->step('workflow.implement', fn () => $this->implement());
             $this->step('workflow.validate', fn () => $this->validate());
             $this->step('workflow.review', fn () => $this->review());
@@ -178,11 +178,19 @@ final class ReleaseSetDogfood
         }
     }
 
-    private function mapConsumerBoundary(): void
+    /**
+     * agent-map capability, exercised on the snapshot `enter` produced.
+     *
+     * This used to run before the lifecycle and build the Map itself, which is
+     * why the earlier measurement could report zero manual preparation while
+     * the consumer had in fact prepared discovery by hand. The lifecycle now
+     * reconciles Map readiness, so this step asserts optional capability only.
+     */
+    private function mapOptionalCapability(): void
     {
-        $this->mustRun([
-            'vendor/bin/agent-map', 'build', '--root=.', '--paths=src,tests', '--out=.agent-loop/map/php-symbols.json',
-        ]);
+        if (!is_file($this->consumerRoot . '/.agent-loop/map/php-symbols.json')) {
+            throw new ReleaseSetFailure('enter did not reconcile Map discovery; the host should not have to build it.');
+        }
         $this->mustRun([
             'vendor/bin/agent-map', 'search-index', 'build', '--root=.', '--index=.agent-loop/map/php-symbols.json', '--database=.agent-loop/map/search.sqlite',
         ]);
@@ -473,7 +481,8 @@ final class ReleaseSetDogfood
     private function recoveryApproved(string $root, string $task, array $extra = []): void
     {
         $this->recoveryPlan($root, $task, $extra);
-        $this->mustRun(['vendor/bin/agent-loop', 'map', 'build', '--paths=src'], [0], $root);
+        // No manual Map build: enter reconciles discovery. If that regresses,
+        // every scenario below fails rather than quietly paying for it here.
         $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', $task, '--by', 'release-set-gate'], [0], $root);
         $this->mustRun(['vendor/bin/agent-loop', 'enter', $task], [0, 1, 2], $root);
     }
@@ -484,20 +493,33 @@ final class ReleaseSetDogfood
         file_put_contents($path, str_replace("'Hello ' . \$name;", "'Hello ' . \$name . '!';", (string) file_get_contents($path)));
     }
 
-    /** Scenario 1: absent discovery must name the repair, never the approval that would refuse. */
+    /**
+     * Scenario 1: absent discovery is the lifecycle's problem, not the host's.
+     *
+     * This previously asserted the opposite - that the canonical action names
+     * `map build` - which was correct while approval refused without a Map.
+     * Map readiness needs no human decision, so the only thing left to ask for
+     * here is the approval itself, and `enter` reconciles discovery.
+     */
     private function recoveryAbsentDiscovery(): void
     {
         $scenario = 'recovery.absent-discovery';
         $root = $this->recoveryConsumer('absent-discovery');
         $this->recoveryPlan($root, 'REC-1');
 
-        $manifest = $this->recoveryManifest($root, ['enter', 'REC-1']);
-        $step = $this->recoveryStep($manifest);
-        $this->expectKind($scenario, 'command', $step['kind']);
-        $this->expectContains($scenario, 'map build', $step['action']);
-        $this->expectNotContains($scenario, 'workflow approve', $step['action']);
-        $this->obeyAndProveProgress($scenario, $root, $manifest, ['enter', 'REC-1']);
-        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => true]);
+        $step = $this->recoveryStep($this->recoveryManifest($root, ['enter', 'REC-1']));
+        $this->expectKind($scenario, 'decision_required', $step['kind']);
+        $this->expectContains($scenario, 'workflow approve', $step['action']);
+        $this->expectNotContains($scenario, 'map build', $step['action']);
+        $this->expectNotContains($scenario, 'map refresh', $step['action']);
+
+        // Supply the one irreducible decision, then discovery must resolve itself.
+        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', 'REC-1', '--by', 'release-set-gate'], [0], $root);
+        $this->mustRun(['vendor/bin/agent-loop', 'enter', 'REC-1'], [0, 1, 2], $root);
+        if (!is_file($root . '/.agent-loop/map/php-symbols.json')) {
+            throw new ReleaseSetFailure($scenario . ': enter did not reconcile Map discovery for an approved PHP scope.');
+        }
+        $this->recordRecovery($scenario, ['kind' => $step['kind'], 'action' => $step['action'], 'obeyed' => false]);
     }
 
     /** Scenario 2: a failed validation obligation is irreducible host work, not a command. */

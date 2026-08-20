@@ -36,7 +36,9 @@ final readonly class WorkflowApproveCommand
             $contract = $contracts->load($taskId->value);
 
             if ($contract->status !== TaskContract::APPROVED) {
-                (new WorkflowRunPreparer($this->rootPath))->discoveryReadiness($contract);
+                // Approval records authority and nothing else. Map discovery is
+                // deterministic preparation, so `enter` reconciles it rather
+                // than the host being told to run agent-map first.
                 $contract = $contracts->approve($taskId->value, $options['by']);
                 echo "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
             } else {
