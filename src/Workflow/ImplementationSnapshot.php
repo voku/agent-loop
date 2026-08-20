@@ -56,11 +56,14 @@ final readonly class ImplementationSnapshot
                 $files[$relative] = self::hashFile($absolute, $relative);
                 continue;
             }
+            if (!is_dir($absolute)) {
+                if (self::excludedExplicitFile($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
+                    throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
+                }
+                throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
+            }
             if (self::excluded($relative, $stateRelative)) {
                 throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
-            }
-            if (!is_dir($absolute)) {
-                throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
             }
 
             $before = count($files);
