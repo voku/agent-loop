@@ -242,8 +242,8 @@ final readonly class HostPolicyProjector
             }
 
             if ($conflicts) {
-                $allow = array_values(array_filter($allow, static fn (mixed $value): bool => $value !== $rule));
-                $ask = array_values(array_filter($ask, static fn (mixed $value): bool => $value !== $rule));
+                $allow = array_values(array_filter($allow, static fn (string $value): bool => $value !== $rule));
+                $ask = array_values(array_filter($ask, static fn (string $value): bool => $value !== $rule));
             }
 
             $deny[] = $rule;
@@ -295,7 +295,12 @@ final readonly class HostPolicyProjector
                 continue;
             }
             if ($current !== null && !$force) {
-                throw new InvalidArgumentException('OpenCode permission already owns pattern ' . $pattern . ' with decision ' . (string) $current . '; use --force only after reviewing the policy change');
+                throw new InvalidArgumentException(
+                    'OpenCode permission already owns pattern ' . $pattern
+                    . ' with decision type/value ' . get_debug_type($current)
+                    . '/' . (is_scalar($current) ? (string) $current : '<non-scalar>')
+                    . '; use --force only after reviewing the policy change',
+                );
             }
             $bash[$pattern] = $decision;
             $changed = true;
@@ -316,7 +321,7 @@ final readonly class HostPolicyProjector
 
     /**
      * @param array<string, mixed> $settings
-     * @return array{allow: list<mixed>, ask: list<mixed>, deny: list<mixed>}
+     * @return array{allow: list<string>, ask: list<string>, deny: list<string>}
      */
     private function claudePermissionLists(array $settings, string $path): array
     {
@@ -333,10 +338,27 @@ final readonly class HostPolicyProjector
         }
 
         return [
-            'allow' => array_values($allow),
-            'ask' => array_values($ask),
-            'deny' => array_values($deny),
+            'allow' => $this->stringList($allow, 'Claude permissions.allow', $path),
+            'ask' => $this->stringList($ask, 'Claude permissions.ask', $path),
+            'deny' => $this->stringList($deny, 'Claude permissions.deny', $path),
         ];
+    }
+
+    /**
+     * @param array<array-key, mixed> $values
+     * @return list<string>
+     */
+    private function stringList(array $values, string $label, string $path): array
+    {
+        $result = [];
+        foreach ($values as $value) {
+            if (!is_string($value) || $value === '') {
+                throw new InvalidArgumentException($label . ' must contain only non-empty strings: ' . $path);
+            }
+            $result[] = $value;
+        }
+
+        return $result;
     }
 
     /** @return array<string, mixed> */
