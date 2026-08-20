@@ -117,18 +117,16 @@ final readonly class WorkflowContextCommand
         $budget->add('header', 'Task: ' . $taskId);
         $budget->add('header', 'Run: ' . ($report['run_id'] ?? 'missing'));
         $budget->add('header', 'Session: ' . ($report['session']['id'] ?? 'missing'));
-        $budget->section('Human interaction policy');
         foreach ($interaction['warnings'] as $warning) {
             $budget->add('policy', $warning);
         }
         $budget->add(
             'policy',
-            '  Optional LLM-authored human explanations: ' . $policy->value
+            'Human explanations: ' . $policy->value
             . ' (interactive: ' . $policy->interactiveBehavior()
-            . '; unattended: ' . $policy->unattendedBehavior() . ').',
+            . '; unattended: ' . $policy->unattendedBehavior()
+            . '). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
         );
-        $budget->add('policy', '  Deterministic projections and raw evidence do not count as optional model explanation spending.');
-        $budget->add('policy', '  Skipping an optional explanation never supplies human review, approval, accepted-risk, or Learning judgment.');
 
         $contract = $report['contract'];
         if ($contract['status'] === 'missing') {
@@ -202,10 +200,15 @@ final readonly class WorkflowContextCommand
     {
         $layout = new ProjectLayout($this->rootPath);
         $config = (new InitConfigLoader($this->rootPath))->load($layout->configPath());
+        $warnings = array_values(array_filter(
+            $config['warnings'],
+            static fn (string $warning): bool => $warning === '[WARN] init config: invalid JSON'
+                || str_starts_with($warning, '[WARN] init config: interaction'),
+        ));
 
         return [
             'policy' => HumanExplanationPolicy::from($config['interaction']['human_explanations']),
-            'warnings' => $config['warnings'],
+            'warnings' => $warnings,
         ];
     }
 
@@ -215,9 +218,14 @@ final readonly class WorkflowContextCommand
             return null;
         }
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        $session = null;
+        $loadFailed = false;
         try {
             $session = (new SessionStore())->load($root, $id);
         } catch (Throwable) {
+            $loadFailed = true;
+        }
+        if ($loadFailed || !$session instanceof Session) {
             return null;
         }
 
@@ -257,9 +265,14 @@ final readonly class WorkflowContextCommand
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
+        $output = null;
+        $invalid = false;
         try {
             $output = $reader->read($directory);
         } catch (RuntimeException) {
+            $invalid = true;
+        }
+        if ($invalid) {
             $budget->skip('recall: invalid ' . $relative);
 
             return false;
