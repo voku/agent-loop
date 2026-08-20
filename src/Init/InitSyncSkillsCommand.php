@@ -205,7 +205,7 @@ final readonly class InitSyncSkillsCommand
 
         if (!$dryRun) {
             if (!is_dir($targetRoot) && !mkdir($targetRoot, 0o775, true) && !is_dir($targetRoot)) {
-                fwrite(\STDERR, 'Unable to create target directory: ' . $targetRoot . "\n";
+                fwrite(\STDERR, 'Unable to create target directory: ' . $targetRoot . "\n");
 
                 return 1;
             }
