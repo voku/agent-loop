@@ -79,6 +79,8 @@ final class WorkflowHumanReviewCommandTest extends TestCase
         $firstExit = $command->run(['REVIEW-1']);
         $firstOutput = (string) ob_get_clean();
         self::assertSame(0, $firstExit, $firstOutput);
+        self::assertStringNotContainsString('\\n', $firstOutput);
+        self::assertStringEndsWith("\n", $firstOutput);
         $path = $command->path('REVIEW-1');
         self::assertFileExists($path);
         $firstHtml = file_get_contents($path);
