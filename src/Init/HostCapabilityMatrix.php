@@ -66,6 +66,22 @@ final readonly class HostCapabilityMatrix
             ];
         }
 
+        if ($capability === HostCapability::PolicyProjection) {
+            if (in_array($canonicalAgent, ['codex', 'claude', 'opencode'], true)) {
+                return [
+                    'status' => HostCapabilityStatus::Supported,
+                    'mechanism' => self::policyMechanism($canonicalAgent),
+                    'evidence' => 'adapter-declared',
+                ];
+            }
+
+            return [
+                'status' => HostCapabilityStatus::Unsupported,
+                'mechanism' => 'no agent-loop host policy projector',
+                'evidence' => 'no-agent-loop-projector',
+            ];
+        }
+
         if (in_array($canonicalAgent, ['codex', 'claude'], true)) {
             return [
                 'status' => HostCapabilityStatus::Degraded,
@@ -88,6 +104,7 @@ final readonly class HostCapabilityMatrix
             HostCapability::SkillProjection => match ($canonicalAgent) {
                 'codex' => 'SKILL.md -> Codex skills directory',
                 'claude' => 'SKILL.md -> Claude skills directory',
+                'opencode' => 'SKILL.md -> OpenCode .opencode/skills directory',
                 'copilot' => 'SKILL.md -> GitHub Copilot skills directory',
                 'gemini' => 'SKILL.md -> Gemini CLI skills directory',
                 'antigravity' => 'SKILL.md -> Antigravity skills directory',
@@ -96,12 +113,24 @@ final readonly class HostCapabilityMatrix
             HostCapability::SubagentProjection => match ($canonicalAgent) {
                 'codex' => 'canonical subagent -> Codex TOML agent definition',
                 'claude' => 'canonical subagent -> Claude Markdown agent definition',
+                'opencode' => 'canonical subagent -> OpenCode .opencode/agents Markdown definition',
                 'copilot' => 'canonical subagent -> GitHub Copilot .agent.md definition',
                 'gemini' => 'canonical subagent -> Gemini CLI Markdown agent definition',
                 'antigravity' => 'canonical subagent -> Antigravity Markdown agent definition',
                 default => throw new InvalidArgumentException('Unknown canonical agent: ' . $canonicalAgent),
             },
             default => throw new InvalidArgumentException('Capability has no projection mechanism: ' . $capability->value),
+        };
+    }
+
+    /** @return non-empty-string */
+    private static function policyMechanism(string $canonicalAgent): string
+    {
+        return match ($canonicalAgent) {
+            'codex' => '.codex/rules/agent-loop.rules executable policy',
+            'claude' => '.claude/settings.json#permissions project policy; autoMode remains user-scoped',
+            'opencode' => 'opencode.json#permission project policy',
+            default => throw new InvalidArgumentException('No policy projector for canonical agent: ' . $canonicalAgent),
         };
     }
 
