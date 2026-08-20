@@ -76,6 +76,36 @@ final readonly class InitSyncInstructionsCommand
         return 0;
     }
 
+    /**
+     * Read-only counterpart to run(): true means rerunning sync-instructions for
+     * this host would leave every host-visible instruction file unchanged.
+     */
+    public function isCurrentFor(string $requestedAgent): bool
+    {
+        try {
+            $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
+            $router = $this->routerSource();
+
+            if (!$this->managedFileIsCurrent('AGENTS.md', $router)) {
+                return false;
+            }
+
+            if ($agent->canonicalName() === 'claude' && !$this->importFileIsCurrent('CLAUDE.md', '@AGENTS.md')) {
+                return false;
+            }
+
+            if (in_array($agent->canonicalName(), ['gemini', 'antigravity'], true)
+                && !$this->importFileIsCurrent('GEMINI.md', '@./AGENTS.md')
+            ) {
+                return false;
+            }
+        } catch (InvalidArgumentException|RuntimeException) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function syncImportFile(string $relativePath, string $import, bool $dryRun): void
     {
         $absolutePath = $this->rootPath . '/' . $relativePath;
@@ -119,6 +149,29 @@ final readonly class InitSyncInstructionsCommand
         echo '[OK] sync instructions: updated ' . $relativePath . '.' . "\n";
     }
 
+    private function managedFileIsCurrent(string $relativePath, string $body): bool
+    {
+        $existing = $this->readOptional($this->rootPath . '/' . $relativePath);
+        if ($existing === null) {
+            return false;
+        }
+
+        return $this->mergeManagedBlock($existing, $body, $relativePath) === $existing;
+    }
+
+    private function importFileIsCurrent(string $relativePath, string $import): bool
+    {
+        $existing = $this->readOptional($this->rootPath . '/' . $relativePath);
+        if ($existing === null) {
+            return false;
+        }
+        if (!$this->hasManagedMarker($existing) && $this->alreadyImportsAgents($existing)) {
+            return true;
+        }
+
+        return $this->mergeManagedBlock($existing, $import, $relativePath) === $existing;
+    }
+
     private function mergeManagedBlock(string $existing, string $body, string $relativePath): string
     {
         $beginCount = substr_count($existing, self::BEGIN_MARKER);
@@ -151,13 +204,6 @@ final readonly class InitSyncInstructionsCommand
         return substr($existing, 0, $begin) . $block . substr($existing, $after);
     }
 
-    /**
-     * The router is the only agent-loop text a host loads without being asked,
-     * so the commands in it have to be the ones that work here. The package
-     * source keeps a CLI token that projection resolves: a consumer gets
-     * `vendor/bin/agent-loop`, the package's own checkout gets `bin/agent-loop`,
-     * which is the only path that exists there.
-     */
     private function routerSource(): string
     {
         $path = dirname(__DIR__, 2) . '/docs/agents/project-instructions.md';
