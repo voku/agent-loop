@@ -16,11 +16,11 @@ final readonly class InitStatusCommand
     private const array BUILTIN_ALIASES = [
         ['alias' => 'openai-codex', 'canonical' => 'codex'],
         ['alias' => 'claude-code', 'canonical' => 'claude'],
+        ['alias' => 'open-code', 'canonical' => 'opencode'],
         ['alias' => 'github-copilot', 'canonical' => 'copilot'],
+        ['alias' => 'gemini-cli', 'canonical' => 'gemini'],
         ['alias' => 'agy', 'canonical' => 'antigravity'],
         ['alias' => 'google-antigravity', 'canonical' => 'antigravity'],
-        ['alias' => 'gemini', 'canonical' => 'antigravity'],
-        ['alias' => 'gemini-cli', 'canonical' => 'antigravity'],
     ];
 
     public function __construct(private string $rootPath)
@@ -111,16 +111,6 @@ final readonly class InitStatusCommand
     }
 
     /**
-     * The part of the report that decides whether an agent activates anything.
-     *
-     * Source presence, host projection and local Git activation are three
-     * different facts, and only the first one used to be reported. A repository
-     * where nothing is projected into any host - so no running agent can reach a
-     * single skill - looked exactly like a healthy one.
-     *
-     * None of these lines claims an agent *consumed* anything: a projected skill
-     * is readable by the host, which is not the same as a session having used it.
-     *
      * @param list<string> $projectedAgents
      * @param list<InitCheckResult> $gitIntegrationChecks
      * @return list<InitCheckResult>
@@ -168,11 +158,7 @@ final readonly class InitStatusCommand
         return $commands;
     }
 
-    /**
-     * Hosts that currently carry a managed skill projection.
-     *
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function projectedSkillAgents(): array
     {
         $agents = [];
@@ -186,9 +172,7 @@ final readonly class InitStatusCommand
         return $agents;
     }
 
-    /**
-     * @return list<InitCheckResult>
-     */
+    /** @return list<InitCheckResult> */
     private function buildSourceResults(AgentAssetSourcePaths $paths): array
     {
         $hooksRoot = $paths->absoluteHooksRoot();
@@ -208,10 +192,6 @@ final readonly class InitStatusCommand
      */
     private function buildManifestTargets(AgentAssetSourcePaths $paths): array
     {
-        // A projection legitimately contains the Recall consumer skills that
-        // `install-assets` re-exports from agent-recall-compiler. Comparing it
-        // against this repository's skills root alone reported those as stale
-        // managed entries the moment the install succeeded.
         $skillsDesiredEntries = $this->findSkillSourceEntries($paths);
         foreach (FirstPartySkillRoots::recallSkillEntries() as $recallEntry) {
             if (!in_array($recallEntry, $skillsDesiredEntries, true)) {
@@ -223,11 +203,15 @@ final readonly class InitStatusCommand
         return [
             ['label' => 'codex skills', 'targetRoot' => $this->resolveSkillsTargetRoot('codex'), 'kind' => 'skills', 'agent' => 'codex', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'claude skills', 'targetRoot' => $this->resolveSkillsTargetRoot('claude'), 'kind' => 'skills', 'agent' => 'claude', 'desiredEntries' => $skillsDesiredEntries],
+            ['label' => 'opencode skills', 'targetRoot' => $this->resolveSkillsTargetRoot('opencode'), 'kind' => 'skills', 'agent' => 'opencode', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'copilot skills', 'targetRoot' => $this->resolveSkillsTargetRoot('copilot'), 'kind' => 'skills', 'agent' => 'copilot', 'desiredEntries' => $skillsDesiredEntries],
+            ['label' => 'gemini skills', 'targetRoot' => $this->resolveSkillsTargetRoot('gemini'), 'kind' => 'skills', 'agent' => 'gemini', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'antigravity skills', 'targetRoot' => $this->resolveSkillsTargetRoot('antigravity'), 'kind' => 'skills', 'agent' => 'antigravity', 'desiredEntries' => $skillsDesiredEntries],
             ['label' => 'codex subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('codex'), 'kind' => 'subagents', 'agent' => 'codex', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.toml')],
             ['label' => 'claude subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('claude'), 'kind' => 'subagents', 'agent' => 'claude', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
+            ['label' => 'opencode subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('opencode'), 'kind' => 'subagents', 'agent' => 'opencode', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
             ['label' => 'copilot subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('copilot'), 'kind' => 'subagents', 'agent' => 'copilot', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.agent.md')],
+            ['label' => 'gemini subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('gemini'), 'kind' => 'subagents', 'agent' => 'gemini', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
             ['label' => 'antigravity subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('antigravity'), 'kind' => 'subagents', 'agent' => 'antigravity', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
             ['label' => 'codex hooks', 'targetRoot' => $this->resolveHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'codex', 'desiredEntries' => $this->hooksDesiredEntries($paths)],
             ['label' => 'claude hooks', 'targetRoot' => $this->resolveClaudeHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'claude', 'desiredEntries' => $this->claudeHooksDesiredEntries($paths)],
@@ -236,7 +220,6 @@ final readonly class InitStatusCommand
 
     /**
      * @param array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null} $target
-     *
      * @return array{0: string, 1: ?string, 2: list<string>}
      */
     private function reportManifestTarget(array $target): array
@@ -284,10 +267,6 @@ final readonly class InitStatusCommand
     }
 
     /**
-     * Package-owned v2 projections carry their current source identity in the
-     * manifest. An installed consumer does not need to duplicate those package
-     * sources under its own docs/agents tree just to keep status truthful.
-     *
      * @param list<string>|null $desiredEntries
      * @return list<string>|null
      */
@@ -377,9 +356,7 @@ final readonly class InitStatusCommand
         return $lines;
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function findSkillSourceEntries(AgentAssetSourcePaths $paths): array
     {
         $skillsRoot = $paths->absoluteSkillsRoot();
@@ -403,9 +380,7 @@ final readonly class InitStatusCommand
         return $entries;
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function findSubagentSourceFiles(AgentAssetSourcePaths $paths): array
     {
         $subagentsRoot = $paths->absoluteSubagentsRoot();
@@ -429,9 +404,7 @@ final readonly class InitStatusCommand
         return $files;
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function subagentsDesiredEntries(AgentAssetSourcePaths $paths, string $targetSuffix): array
     {
         $entries = [];
@@ -444,9 +417,7 @@ final readonly class InitStatusCommand
         return $entries;
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     private function findHookScriptFiles(string $hooksRoot): array
     {
         $hookScriptsDir = $hooksRoot . '/hooks';
@@ -471,12 +442,7 @@ final readonly class InitStatusCommand
         return $files;
     }
 
-    /**
-     * Returns null when hooks.json exists but is invalid (desired entries cannot be determined).
-     * Returns [] when hooks.json is absent (genuinely nothing configured).
-     *
-     * @return list<string>|null
-     */
+    /** @return list<string>|null */
     private function hooksDesiredEntries(AgentAssetSourcePaths $paths): ?array
     {
         $hooksRoot = $paths->absoluteHooksRoot();
@@ -504,9 +470,7 @@ final readonly class InitStatusCommand
         return $entries;
     }
 
-    /**
-     * @return list<string>|null
-     */
+    /** @return list<string>|null */
     private function claudeHooksDesiredEntries(AgentAssetSourcePaths $paths): ?array
     {
         $hooksRoot = $paths->absoluteClaudeHooksRoot();
@@ -540,8 +504,11 @@ final readonly class InitStatusCommand
             'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_SKILLS_DIR')
                 ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/skills' : $this->rootPath . '/.codex/skills'),
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
+            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_SKILLS_DIR') ?? $this->rootPath . '/.opencode/skills',
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
-            default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
+            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
+            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
+            default => throw new InvalidArgumentException('Unsupported skill status target: ' . $agent),
         };
     }
 
@@ -551,8 +518,11 @@ final readonly class InitStatusCommand
             'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
                 ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
+            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_AGENTS_DIR') ?? $this->rootPath . '/.opencode/agents',
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
-            default => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
+            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+            default => throw new InvalidArgumentException('Unsupported subagent status target: ' . $agent),
         };
     }
 
@@ -568,7 +538,6 @@ final readonly class InitStatusCommand
 
     /**
      * @param list<string> $tokens
-     *
      * @return array<string, string>
      */
     private function readPathOverrides(array $tokens): array
@@ -584,9 +553,7 @@ final readonly class InitStatusCommand
         return $overrides;
     }
 
-    /**
-     * @param list<string> $tokens
-     */
+    /** @param list<string> $tokens */
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['config', 'skills-root', 'subagents-root', 'hooks-root', 'tools-root'];
