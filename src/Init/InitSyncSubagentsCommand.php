@@ -193,6 +193,7 @@ final readonly class InitSyncSubagentsCommand
             'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
                 ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
+            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_AGENTS_DIR') ?? $this->rootPath . '/.opencode/agents',
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
             'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
             'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
@@ -205,6 +206,7 @@ final readonly class InitSyncSubagentsCommand
         return match ($agent) {
             'codex' => '[INFO] Start a fresh Codex session if the project agent registry needs to be reloaded.',
             'claude' => '[INFO] Start a fresh Claude Code session so the project agent registry is re-read.',
+            'opencode' => '[INFO] Start a fresh OpenCode session so the project agent registry is re-read.',
             'gemini' => '[INFO] Start a fresh Gemini CLI session so the project agent registry is re-read.',
             'antigravity' => "[INFO] Run '/agents reload' in your active Antigravity CLI session if needed.",
             'copilot' => '[INFO] Reload the active Copilot agent registry if needed.',
