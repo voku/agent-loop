@@ -1,0 +1,37 @@
+{
+  "id": "finding.2026-08-20.c47e12",
+  "task_id": "GH-234",
+  "session": "2026-08-20-gh-234-slice-a-constraint-promotion-walk",
+  "created_at": "2026-08-20T02:02:03+00:00",
+  "created_by": "agent-loop-self-discovery",
+  "scope": [
+    "phpstan/Rules"
+  ],
+  "observation": "Slice A walked the existing Finding -> validation -> consolidation -> Proposal -> Constraint path with a real unabsorbed Finding, at merged main f98d7ae, to answer whether that path already works rather than to build anything. It works up to the point where a constraint is proposed, and is blocked twice after that. First, 'agent-loop learn prepare' produces the consolidation input that is the only instruction a consolidating model receives, and that document never mentions constraints at all: it offers CREATE_SKILL, UPDATE_SKILL, ADD_LEARNING_NOTE and IGNORE, and the LearningClassification enum has exactly those four cases. The downstream schema is more capable than the prompt - ConsolidationResultValidator accepts a 'constraint' field and target_type, ConstraintPromotionValidator, ConstraintGenerationPackageExporter, ConstraintManifestActivator and the constraint-export/constraint-activate/constraint-loop commands all exist - so the top rung of the promotion ladder is real but invisible to the step that decides promotion. A model consolidating from that prompt would never propose a constraint. Second, and sharper, ConstraintPromotionValidator requires a PHPStan constraint's target_rule_path to contain the literal substring '/PHPStan/'. This repository keeps every one of its nine registered, working PHPStan rules under 'phpstan/Rules/', which does not contain that substring, so all nine are rejected by the promotion validator that exists to admit them. This was measured, not reasoned: importing a constraint proposal targeting phpstan/Rules/ fails with 'phpstan constraint target rule path must point to a PHPStan rule location', and changing only that one path to contain '/PHPStan/' makes the identical proposal import successfully. The owner is validating a filesystem path against a namespace-shaped substring; the namespace here is indeed voku\\AgentLoop\\PHPStan\\Rules, but the directory is lowercase.",
+  "evidence": [
+    {
+      "type": "manual_verification",
+      "summary": "At f98d7ae: 'bin/agent-loop learn prepare --finding=finding.2026-08-19.b5ceed' wrote consolidation-input.md; grep -i constraint over that file returns nothing. LearningClassification declares only CREATE_SKILL, UPDATE_SKILL, ADD_LEARNING_NOTE and IGNORE, while ConsolidationResultValidator lists 'constraint' among the allowed durable fields."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Each of the nine files under phpstan/Rules/ was tested against the owner's check: all nine fail the '/PHPStan/' substring requirement. A hand-authored constraint proposal citing finding.2026-08-19.b5ceed and finding.2026-08-19.3218dd was refused with 'phpstan constraint target rule path must point to a PHPStan rule location'; the same proposal with target_rule_path changed to a path containing '/PHPStan/' imported as proposal.2026-08-20.1f8d0f. The probe proposal was then removed and the learning root revalidated at 49 findings / 18 proposals."
+    },
+    {
+      "type": "file_reference",
+      "path": "phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php",
+      "line": 1,
+      "summary": "Representative of the canonical rule location this repository actually uses, registered in phpstan.neon.dist and enforced by composer phpstan, yet rejected by the constraint promotion validator."
+    },
+    {
+      "type": "manual_verification",
+      "summary": "Scope of the claim. This measures reachability of the promotion path, not the quality of any particular rule. The source Finding chosen (b5ceed, with 3218dd as its second instance) turned out not to be cheaply statically expressible: its two occurrences of Recall-owned document names inside the lifecycle scope are a docblock and a help-text heredoc, so a literal rule would fire on prose, and tracing 'decode of a Recall-owned path' through the AST is not a cheap constraint. Under this repository's own promotion ladder that Finding's durable home is the regression coverage #219 already added plus soft guidance, not PHPStan."
+    }
+  ],
+  "hypothesis": "The constraint machinery was built and then exercised mainly through its own tests rather than from a real consumer's repository layout, so two independent gaps survived: the instruction layer never learned that constraints exist, and the validation layer encoded an assumption about where rules live that its primary consumer does not satisfy. Neither is visible from unit tests, because a test fixture can pick a path that happens to contain '/PHPStan/'.",
+  "validated_conclusion": "Report this as the Slice A result rather than building around it. The honest answer to 'does the existing path already work' is: yes until a constraint is proposed, then no, for two small and independently fixable reasons. The Slice B candidates are therefore bounded and obvious: teach the consolidation prompt that constraint is a durable target with its ladder position, and make the PHPStan rule-location check accept the layout its consumers actually use - ideally by validating against the repository's registered rule paths or a case-insensitive match, rather than a hardcoded namespace-shaped substring. Do not build a promotion framework, a LearningManager or a second constraint path; both defects are single checks. Also do not treat the chosen source Finding as blocked: it is already covered by regression tests, and forcing it into PHPStan merely to complete a demonstration would be promotion theatre rather than the cheapest reliable owner.",
+  "confidence": "high",
+  "validation_status": "validated",
+  "status": "validated",
+  "sensitivity": "public"
+}
