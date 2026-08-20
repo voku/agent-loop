@@ -52,7 +52,7 @@ final readonly class WorkflowHumanReviewCommand
 
             echo '[OK] workflow review: wrote non-authoritative human review projection to '
                 . RecallOutputRoot::relativeTo($this->rootPath, $path) . "\n";
-            echo '[OK] workflow review: authority remains Contract revision + implementation snapshot + review SHA-256.\n';
+            echo '[OK] workflow review: authority remains Contract revision + implementation snapshot + review SHA-256.' . "\n";
 
             return 0;
         } catch (Throwable $exception) {
