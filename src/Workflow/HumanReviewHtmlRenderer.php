@@ -72,8 +72,8 @@ final readonly class HumanReviewHtmlRenderer
 
         $findingCount = count($findings);
         $changedCount = count($changedFiles);
-        $failCount = count(array_filter($findings, static fn (array $finding): bool => ($finding['severity'] ?? null) === 'fail'));
-        $warnCount = count(array_filter($findings, static fn (array $finding): bool => ($finding['severity'] ?? null) === 'warn'));
+        $failCount = count(array_filter($findings, static fn (array $finding): bool => ($finding['severity'] ?? null) === 'FAIL'));
+        $warnCount = count(array_filter($findings, static fn (array $finding): bool => ($finding['severity'] ?? null) === 'WARN'));
         $validationPassed = count(array_filter($validation, static fn (array $item): bool => ($item['status'] ?? null) === 'passed'));
         $validationTotal = count($validation);
 
@@ -120,7 +120,7 @@ final readonly class HumanReviewHtmlRenderer
             . '<button type="button" data-severity-filter="all" aria-pressed="true">All</button>'
             . '<button type="button" data-severity-filter="fail" aria-pressed="false">Fail</button>'
             . '<button type="button" data-severity-filter="warn" aria-pressed="false">Warn</button>'
-            . '<button type="button" data-severity-filter="ok" aria-pressed="false">OK</button>'
+            . '<button type="button" data-severity-filter="info" aria-pressed="false">Info</button>'
             . '<input type="search" data-review-search aria-label="Search review evidence" placeholder="Search findings and changed files">'
             . '<span class="meta" data-result-count>' . $findingCount . ' findings visible</span>'
             . '</div>'
@@ -146,7 +146,7 @@ final readonly class HumanReviewHtmlRenderer
             . '<div class="panel"><h3>Learning</h3><p>' . self::escape($learningStatus . ' / ' . $learningDecision) . '</p></div>'
             . '<div class="panel"><h3>Accepted risk</h3><p>' . self::escape($riskText) . '</p></div>'
             . '</div></section>'
-            . '<div class="toolbar" style="margin-top:18px">'
+            . '<div class="toolbar">'
             . '<button type="button" data-details-action="open">Expand all details</button>'
             . '<button type="button" data-details-action="close">Collapse all details</button>'
             . '</div>'
