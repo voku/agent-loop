@@ -31,9 +31,7 @@ GITIGNORE;
     {
     }
 
-    /**
-     * @param list<string> $tokens
-     */
+    /** @param list<string> $tokens */
     public function run(array $tokens): int
     {
         try {
@@ -101,6 +99,7 @@ GITIGNORE;
         }
 
         $hasBoardIdentity = $boardConfig !== null || is_file($boardConfigPath) || is_file($boardMetadataPath);
+        $cliPath = (new RepositoryActivation($root))->cliPath();
 
         if ($agent !== null) {
             foreach ($agent->messages() as $message) {
@@ -116,12 +115,12 @@ GITIGNORE;
                 return $installExit;
             }
 
-            echo "\n[OK] init scaffold: local workflow structure and host assets are ready.\n";
+            echo "\n[OK] init scaffold: local workflow structure and host assets are ready for repository convergence.\n";
             echo "Next:\n";
-            echo "  Start a fresh agent session so the projected instructions and skills can actually be consumed.\n";
-            echo "  agent-loop init doctor\n";
-            echo "  agent-loop map build --paths=src,tests\n";
-            echo "  agent-loop map search-index build\n";
+            echo '  ' . $cliPath . ' init host-status --agent=' . $agent->canonicalName() . " --format=json\n";
+            echo "  Follow its next_action until next_action_kind=none, then start a fresh agent session so projected assets can be consumed.\n";
+            echo '  ' . $cliPath . " map build --paths=src,tests\n";
+            echo '  ' . $cliPath . " map search-index build\n";
             $this->printBoardNext($hasBoardIdentity, $demo);
 
             return 0;
@@ -130,9 +129,8 @@ GITIGNORE;
         echo "\n[OK] init scaffold: minimal local workflow structure is ready.\n";
         echo "[WARN] Host assets were not projected because --agent was not provided.\n";
         echo "Before workflow work:\n";
-        echo "  agent-loop init install-assets --agent=<codex|claude|copilot|antigravity>\n";
-        echo "  Start a fresh agent session so the projected instructions and skills can actually be consumed.\n";
-        echo "  agent-loop init doctor\n";
+        echo '  ' . $cliPath . " init host-status --format=json\n";
+        echo "  Follow its decision_required/next_action result to select and converge the detected coding host.\n";
         $this->printBoardNext($hasBoardIdentity, $demo);
         echo "  Build or refresh agent-map before workflow approve when governed Recall depends on repository discovery.\n";
 
