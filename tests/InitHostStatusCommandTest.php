@@ -50,12 +50,7 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('command', $initial['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $initial['next_action']);
 
-        $install = $this->capture(static fn (): int => (new InitInstallAssetsCommand($this->root))->run(['--agent=opencode']));
-        self::assertSame(0, $install['exit'], $install['output']);
-        self::assertFileExists($this->root . '/AGENTS.md');
-        self::assertFileExists($this->root . '/.opencode/skills/.agent-loop-manifest.json');
-        self::assertFileExists($this->root . '/.opencode/agents/.agent-loop-manifest.json');
-        self::assertFileExists($this->root . '/.opencode/agents/agent-loop-investigator.md');
+        $this->installOpenCodeAssets();
 
         $afterAssets = $this->hostStatus();
         self::assertSame([
@@ -67,7 +62,7 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('command', $afterAssets['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $afterAssets['next_action']);
 
-        $policy = $this->capture(static fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=opencode']));
         self::assertSame(0, $policy['exit'], $policy['output']);
         self::assertFileExists($this->root . '/opencode.json');
 
@@ -77,6 +72,37 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertNull($ready['next_action']);
         self::assertIsString($ready['runtime_boundary']);
         self::assertStringContainsString('--auto', $ready['runtime_boundary']);
+    }
+
+    public function testModifiedManagedSkillReopensAssetRepairInsteadOfClaimingReady(): void
+    {
+        $this->installOpenCodeAssets();
+        $skill = $this->root . '/.opencode/skills/agent-loop-discipline/SKILL.md';
+        self::assertFileExists($skill);
+        self::assertNotFalse(file_put_contents($skill, "\nlocal drift\n", FILE_APPEND));
+
+        $status = $this->hostStatus();
+
+        self::assertSame('missing', $status['integration']['skills'] ?? null);
+        self::assertSame('command', $status['next_action_kind']);
+        self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $status['next_action']);
+    }
+
+    public function testStaleManagedRouterReopensInstructionRepairInsteadOfTrustingMarkers(): void
+    {
+        $this->installOpenCodeAssets();
+        $path = $this->root . '/AGENTS.md';
+        $content = file_get_contents($path);
+        self::assertIsString($content);
+        $stale = str_replace('init host-status --format=json', 'init status', $content);
+        self::assertNotSame($content, $stale);
+        self::assertNotFalse(file_put_contents($path, $stale));
+
+        $status = $this->hostStatus();
+
+        self::assertSame('missing', $status['integration']['instructions'] ?? null);
+        self::assertSame('command', $status['next_action_kind']);
+        self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $status['next_action']);
     }
 
     public function testMultipleVisibleHostsRequireExplicitSelection(): void
@@ -89,6 +115,16 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertSame('ambiguous', $status['selection']);
         self::assertSame('decision_required', $status['next_action_kind']);
         self::assertStringContainsString('--agent=<claude|opencode>', (string) $status['next_action']);
+    }
+
+    private function installOpenCodeAssets(): void
+    {
+        $install = $this->capture(fn (): int => (new InitInstallAssetsCommand($this->root))->run(['--agent=opencode']));
+        self::assertSame(0, $install['exit'], $install['output']);
+        self::assertFileExists($this->root . '/AGENTS.md');
+        self::assertFileExists($this->root . '/.opencode/skills/.agent-loop-manifest.json');
+        self::assertFileExists($this->root . '/.opencode/agents/.agent-loop-manifest.json');
+        self::assertFileExists($this->root . '/.opencode/agents/agent-loop-investigator.md');
     }
 
     /**
