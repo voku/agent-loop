@@ -33,8 +33,9 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertStringContainsString('Profile: wsl2', $result['output']);
         self::assertStringContainsString('Agent: codex', $result['output']);
         self::assertStringContainsString('init install-assets --agent=codex --dry-run', $result['output']);
-        self::assertStringContainsString('investigator, surgical-builder', $result['output']);
-        self::assertStringContainsString('open `/hooks`', $result['output']);
+        self::assertStringContainsString('init host-status --agent=codex --format=json', $result['output']);
+        self::assertStringContainsString('.codex/rules/agent-loop.rules', $result['output']);
+        self::assertStringContainsString('`--with-hooks` opt-in', $result['output']);
         self::assertOfflineContract($result['output']);
     }
 
@@ -45,6 +46,7 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Agent: claude', $result['output']);
         self::assertStringContainsString('init install-assets --agent=claude', $result['output']);
+        self::assertStringContainsString('init host-status --agent=claude --format=json', $result['output']);
         self::assertStringContainsString('Restart Claude Code inside Linux', $result['output']);
         self::assertOfflineContract($result['output']);
     }
@@ -56,6 +58,7 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('Agent: copilot', $result['output']);
         self::assertStringContainsString('init install-assets --agent=copilot', $result['output']);
+        self::assertStringContainsString('init host-status --agent=copilot --format=json', $result['output']);
         self::assertStringContainsString('Restart or reload skills and repository agents in Copilot inside Windows', $result['output']);
         self::assertOfflineContract($result['output']);
     }
@@ -68,6 +71,7 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertStringNotContainsString('legacy', strtolower($result['output']));
         self::assertStringContainsString('Agent: gemini', $result['output']);
         self::assertStringContainsString('init install-assets --agent=gemini', $result['output']);
+        self::assertStringContainsString('init host-status --agent=gemini --format=json', $result['output']);
         self::assertStringContainsString('Restart Gemini CLI inside WSL2', $result['output']);
         self::assertOfflineContract($result['output']);
     }
@@ -95,7 +99,7 @@ final class InitInstallPlanCommandTest extends TestCase
     {
         self::assertStringContainsString('rg --version', $output);
         self::assertStringContainsString('does not fetch or execute an installer', $output);
-        self::assertStringContainsString('shipped inside the installed `voku/agent-loop` package', $output);
+        self::assertStringContainsString('copies package-owned instructions, skills, and bundled roles', $output);
         foreach ([
             'raw.githubusercontent.com',
             'github.com/',
