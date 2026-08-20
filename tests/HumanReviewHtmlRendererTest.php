@@ -76,6 +76,9 @@ final class HumanReviewHtmlRendererTest extends TestCase
         self::assertStringContainsString('&lt;script&gt;alert(&#039;diff&#039;)&lt;/script&gt;', $first);
         self::assertStringNotContainsString('<img src=x onerror=alert(1)>', $first);
         self::assertStringNotContainsString("+<script>alert('diff')</script>", $first);
+        self::assertStringContainsString('0 fail · 1 warn', $first);
+        self::assertStringContainsString('data-severity-filter="info"', $first);
+        self::assertStringNotContainsString(' style="', $first);
         self::assertStringContainsString('disposable projection, not approval authority', $first);
         self::assertStringNotContainsString('https://', $first);
     }
