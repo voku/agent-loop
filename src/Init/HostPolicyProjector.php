@@ -16,8 +16,14 @@ final readonly class HostPolicyProjector
     /** @var non-empty-list<string> */
     private const array HOSTS = ['codex', 'claude', 'opencode'];
 
-    /** @var non-empty-list<string> */
-    private const array CLAUDE_ASK_RULES = [
+    /**
+     * Remote publication is authority-bearing. Claude Auto Mode can route ask
+     * rules through its classifier instead of a human prompt, so shared project
+     * policy must use deny for a boundary that remains hard in Auto Mode.
+     *
+     * @var non-empty-list<string>
+     */
+    private const array CLAUDE_DENY_RULES = [
         'Bash(git push *)',
         'Bash(gh pr create *)',
         'Bash(gh pr merge *)',
@@ -67,18 +73,19 @@ final readonly class HostPolicyProjector
 
         return match ($agent) {
             'codex' => $this->syncCodex($dryRun, $force),
-            'claude' => $this->syncClaude($dryRun),
+            'claude' => $this->syncClaude($dryRun, $force),
             'opencode' => $this->syncOpenCode($dryRun, $force),
         };
     }
 
     /**
-     * Claude Code intentionally ignores Auto Mode settings from project settings.
-     * This is therefore advice, not another pretend repository projection.
+     * Auto Mode classifier configuration is not read from shared project
+     * settings. Report that host-owned fact without pretending repo projection
+     * can configure it.
      */
     public static function claudeUserScopeAction(): string
     {
-        return 'Run `claude auto-mode config`; review the effective user/managed Auto Mode policy, keep `$defaults`, and enable `autoMode.classifyAllShell=true` when strict shell classification is required.';
+        return 'Claude Auto Mode classifier configuration is user/local/managed scoped, not shared-project scoped. The repository deny rules remain hard; review effective Auto Mode settings separately when autonomous execution is desired.';
     }
 
     /**
@@ -115,28 +122,27 @@ final readonly class HostPolicyProjector
 
         try {
             $settings = $this->readJsonObject($path);
+            $permissions = $this->claudePermissionLists($settings, $path);
         } catch (InvalidArgumentException $exception) {
             return ['status' => 'conflict', 'path' => $path, 'detail' => $exception->getMessage()];
         }
 
-        $permissions = $settings['permissions'] ?? null;
-        if (!is_array($permissions)) {
-            return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude permissions object is missing'];
-        }
-
-        $ask = $permissions['ask'] ?? [];
-        $deny = $permissions['deny'] ?? [];
-        if (!is_array($ask) || !is_array($deny)) {
-            return ['status' => 'conflict', 'path' => $path, 'detail' => 'Claude permissions.ask/deny must be arrays'];
-        }
-
-        foreach (self::CLAUDE_ASK_RULES as $rule) {
-            if (!in_array($rule, $ask, true) && !in_array($rule, $deny, true)) {
-                return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude project permission is missing: ' . $rule];
+        foreach (self::CLAUDE_DENY_RULES as $rule) {
+            if (in_array($rule, $permissions['deny'], true)) {
+                continue;
             }
+            if (in_array($rule, $permissions['allow'], true) || in_array($rule, $permissions['ask'], true)) {
+                return [
+                    'status' => 'conflict',
+                    'path' => $path,
+                    'detail' => 'Claude project permission conflicts with the required deny boundary: ' . $rule,
+                ];
+            }
+
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude project deny permission is missing: ' . $rule];
         }
 
-        return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude project permission policy is current; Auto Mode remains user/managed scoped'];
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude project deny policy is current; Auto Mode classifier configuration remains user/local/managed scoped'];
     }
 
     /**
@@ -212,41 +218,56 @@ final readonly class HostPolicyProjector
     }
 
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
-    private function syncClaude(bool $dryRun): array
+    private function syncClaude(bool $dryRun, bool $force): array
     {
         $path = $this->claudePath();
         $settings = is_file($path) ? $this->readJsonObject($path) : [];
-        $permissions = $settings['permissions'] ?? [];
-        if (!is_array($permissions)) {
-            throw new InvalidArgumentException('Claude settings permissions must be an object: ' . $path);
-        }
+        $permissions = $this->claudePermissionLists($settings, $path);
 
-        $ask = $permissions['ask'] ?? [];
-        $deny = $permissions['deny'] ?? [];
-        if (!is_array($ask) || !is_array($deny)) {
-            throw new InvalidArgumentException('Claude permissions.ask/deny must be arrays: ' . $path);
-        }
-
+        $allow = $permissions['allow'];
+        $ask = $permissions['ask'];
+        $deny = $permissions['deny'];
         $changed = false;
-        foreach (self::CLAUDE_ASK_RULES as $rule) {
-            if (in_array($rule, $ask, true) || in_array($rule, $deny, true)) {
+
+        foreach (self::CLAUDE_DENY_RULES as $rule) {
+            if (in_array($rule, $deny, true)) {
                 continue;
             }
-            $ask[] = $rule;
+
+            $conflicts = in_array($rule, $allow, true) || in_array($rule, $ask, true);
+            if ($conflicts && !$force) {
+                throw new InvalidArgumentException(
+                    'Claude permission already owns ' . $rule . ' as allow/ask; use --force only after reviewing the change to deny',
+                );
+            }
+
+            if ($conflicts) {
+                $allow = array_values(array_filter($allow, static fn (mixed $value): bool => $value !== $rule));
+                $ask = array_values(array_filter($ask, static fn (mixed $value): bool => $value !== $rule));
+            }
+
+            $deny[] = $rule;
             $changed = true;
         }
 
         if (!$changed) {
-            return ['changed' => false, 'path' => $path, 'detail' => 'Claude project permission policy is current'];
+            return ['changed' => false, 'path' => $path, 'detail' => 'Claude project deny policy is current'];
         }
 
-        $permissions['ask'] = array_values(array_unique($ask));
-        $settings['permissions'] = $permissions;
+        $rawPermissions = $settings['permissions'] ?? [];
+        if (!is_array($rawPermissions)) {
+            throw new InvalidArgumentException('Claude settings permissions must be an object: ' . $path);
+        }
+        $rawPermissions['allow'] = $allow;
+        $rawPermissions['ask'] = $ask;
+        $rawPermissions['deny'] = array_values(array_unique($deny));
+        $settings['permissions'] = $rawPermissions;
+
         if (!$dryRun) {
             $this->writeJson($path, $settings);
         }
 
-        return ['changed' => true, 'path' => $path, 'detail' => 'Claude project permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
+        return ['changed' => true, 'path' => $path, 'detail' => 'Claude project deny policy ' . ($dryRun ? 'would be merged' : 'merged')];
     }
 
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
@@ -291,6 +312,31 @@ final readonly class HostPolicyProjector
         }
 
         return ['changed' => true, 'path' => $path, 'detail' => 'OpenCode permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array{allow: list<mixed>, ask: list<mixed>, deny: list<mixed>}
+     */
+    private function claudePermissionLists(array $settings, string $path): array
+    {
+        $permissions = $settings['permissions'] ?? [];
+        if (!is_array($permissions)) {
+            throw new InvalidArgumentException('Claude settings permissions must be an object: ' . $path);
+        }
+
+        $allow = $permissions['allow'] ?? [];
+        $ask = $permissions['ask'] ?? [];
+        $deny = $permissions['deny'] ?? [];
+        if (!is_array($allow) || !is_array($ask) || !is_array($deny)) {
+            throw new InvalidArgumentException('Claude permissions.allow/ask/deny must be arrays: ' . $path);
+        }
+
+        return [
+            'allow' => array_values($allow),
+            'ask' => array_values($ask),
+            'deny' => array_values($deny),
+        ];
     }
 
     /** @return array<string, mixed> */
