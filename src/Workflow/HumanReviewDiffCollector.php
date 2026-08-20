@@ -8,6 +8,8 @@ use voku\AgentLoop\ProjectLayout;
 
 final readonly class HumanReviewDiffCollector
 {
+    private const int COMMAND_TIMEOUT_SECONDS = 30;
+
     public function __construct(private string $rootPath)
     {
     }
@@ -204,6 +206,8 @@ final readonly class HumanReviewDiffCollector
      */
     private function run(string $workingDirectory, array $command): array
     {
+        /** @var array<int, resource> $pipes */
+        $pipes = [];
         $process = proc_open(
             $command,
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
@@ -214,15 +218,110 @@ final readonly class HumanReviewDiffCollector
             return ['exit' => 127, 'stdout' => '', 'stderr' => 'Unable to start process.'];
         }
 
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        /** @var array<int, resource> $openPipes */
+        $openPipes = [];
+        foreach ([1, 2] as $index) {
+            $pipe = $pipes[$index] ?? null;
+            if (!is_resource($pipe)) {
+                $this->closePipes($openPipes);
+                proc_terminate($process);
+                proc_close($process);
+
+                return ['exit' => 127, 'stdout' => '', 'stderr' => 'Git process did not expose output pipes.'];
+            }
+            stream_set_blocking($pipe, false);
+            $openPipes[$index] = $pipe;
+        }
+
+        $buffers = [1 => '', 2 => ''];
+        $deadline = microtime(true) + self::COMMAND_TIMEOUT_SECONDS;
+        $timedOut = false;
+        $terminationStartedAt = null;
+        $observedExitCode = null;
+
+        while (true) {
+            $status = proc_get_status($process);
+            $running = $status['running'];
+            if (!$running && $observedExitCode === null && $status['exitcode'] >= 0) {
+                $observedExitCode = $status['exitcode'];
+            }
+
+            $now = microtime(true);
+            if (!$timedOut && $running && $now >= $deadline) {
+                $timedOut = true;
+                $terminationStartedAt = $now;
+                proc_terminate($process);
+            } elseif (
+                $timedOut
+                && $running
+                && $terminationStartedAt !== null
+                && $now >= $terminationStartedAt + 2.0
+            ) {
+                proc_terminate($process, 9);
+                $this->closePipes($openPipes);
+            }
+
+            if ($openPipes !== []) {
+                $read = array_values($openPipes);
+                $write = null;
+                $except = null;
+                $selected = stream_select($read, $write, $except, 0, 200000);
+                if ($selected === false) {
+                    $this->closePipes($openPipes);
+                    if ($running) {
+                        proc_terminate($process);
+                    }
+                    proc_close($process);
+
+                    return ['exit' => 127, 'stdout' => $buffers[1], 'stderr' => 'Unable to read Git process output.'];
+                }
+
+                foreach ($read as $stream) {
+                    $index = array_search($stream, $openPipes, true);
+                    if (!is_int($index)) {
+                        continue;
+                    }
+                    $chunk = fread($stream, 8192);
+                    if (is_string($chunk) && $chunk !== '') {
+                        $buffers[$index] .= $chunk;
+                    }
+                    if (($chunk === false || $chunk === '') && feof($stream)) {
+                        fclose($stream);
+                        unset($openPipes[$index]);
+                    }
+                }
+            } elseif ($running) {
+                usleep(200000);
+            }
+
+            if (!$running && $openPipes === []) {
+                break;
+            }
+        }
+
+        $closeExitCode = proc_close($process);
+        $exitCode = $closeExitCode >= 0 ? $closeExitCode : ($observedExitCode ?? $closeExitCode);
+        if ($timedOut) {
+            $exitCode = 124;
+            $buffers[2] .= ($buffers[2] === '' ? '' : "\n")
+                . 'Git command timed out after ' . self::COMMAND_TIMEOUT_SECONDS . ' seconds.';
+        }
 
         return [
-            'exit' => proc_close($process),
-            'stdout' => is_string($stdout) ? $stdout : '',
-            'stderr' => is_string($stderr) ? $stderr : '',
+            'exit' => $exitCode,
+            'stdout' => $buffers[1],
+            'stderr' => $buffers[2],
         ];
+    }
+
+    /** @param array<int, resource> $pipes */
+    private function closePipes(array &$pipes): void
+    {
+        foreach ($pipes as $pipe) {
+            if (is_resource($pipe)) {
+                fclose($pipe);
+            }
+        }
+        $pipes = [];
     }
 }
