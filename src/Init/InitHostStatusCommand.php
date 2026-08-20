@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 use JsonException;
+use RuntimeException;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\PathResolver;
 
@@ -92,10 +93,12 @@ final readonly class InitHostStatusCommand
         $runtime = $probe->probe($host);
         $projector = new HostPolicyProjector($this->rootPath);
         $policy = $projector->inspect($host);
+        $skillEntries = $this->expectedSkillEntries();
+        $subagentEntries = $this->expectedSubagentEntries($host);
         $integration = [
-            'instructions' => $this->instructionsReady() ? 'ready' : 'missing',
-            'skills' => $this->manifestReady($this->skillsRoot($host), 'skills', $host) ? 'ready' : 'missing',
-            'subagents' => $this->manifestReady($this->subagentsRoot($host), 'subagents', $host) ? 'ready' : 'missing',
+            'instructions' => (new InitSyncInstructionsCommand($this->rootPath))->isCurrentFor($host) ? 'ready' : 'missing',
+            'skills' => $this->manifestReady($this->skillsRoot($host), 'skills', $host, $skillEntries) ? 'ready' : 'missing',
+            'subagents' => $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $subagentEntries) ? 'ready' : 'missing',
             'policy' => $policy['status'],
         ];
 
@@ -173,34 +176,97 @@ final readonly class InitHostStatusCommand
         ];
     }
 
-    private function instructionsReady(): bool
+    /**
+     * @param list<string> $desiredEntries
+     */
+    private function manifestReady(string $targetRoot, string $kind, string $agent, array $desiredEntries): bool
     {
-        $path = rtrim($this->rootPath, '/') . '/AGENTS.md';
-        if (!is_file($path)) {
+        if ($desiredEntries === []) {
             return false;
         }
 
-        $content = file_get_contents($path);
-
-        return is_string($content)
-            && str_contains($content, InitSyncInstructionsCommand::BEGIN_MARKER)
-            && str_contains($content, InitSyncInstructionsCommand::END_MARKER);
-    }
-
-    private function manifestReady(string $targetRoot, string $kind, string $agent): bool
-    {
         $manifestPath = rtrim($targetRoot, '/') . '/' . InitSyncManifest::fileName();
         if (!is_file($manifestPath)) {
             return false;
         }
 
         try {
-            InitSyncManifest::load($targetRoot, $kind, $agent);
+            $manifest = InitSyncManifest::load($targetRoot, $kind, $agent);
         } catch (InvalidArgumentException) {
             return false;
         }
 
-        return true;
+        if (!$manifest->hasDriftEvidence()) {
+            return false;
+        }
+
+        foreach ($desiredEntries as $entry) {
+            if (!$manifest->isManaged($entry)) {
+                return false;
+            }
+        }
+
+        $states = ManagedAssetDriftInspector::inspect($manifest, $targetRoot, $agent, $desiredEntries);
+
+        return $states['locally_modified'] === []
+            && $states['stale'] === []
+            && $states['incompatible'] === []
+            && $states['unverifiable'] === [];
+    }
+
+    /** @return list<string> */
+    private function expectedSkillEntries(): array
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        try {
+            $roots = FirstPartySkillRoots::resolve($packageRoot);
+        } catch (InvalidArgumentException|RuntimeException) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($roots as $root) {
+            if (!is_dir($root)) {
+                return [];
+            }
+            foreach (scandir($root) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                if (is_file($root . '/' . $entry . '/SKILL.md')) {
+                    $entries[] = $entry;
+                }
+            }
+        }
+
+        $entries = array_values(array_unique($entries));
+        sort($entries, SORT_STRING);
+
+        return $entries;
+    }
+
+    /** @return list<string> */
+    private function expectedSubagentEntries(string $host): array
+    {
+        $root = dirname(__DIR__, 2) . '/docs/agents/subagents';
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $suffix = $host === 'codex' ? '.toml' : '.md';
+        $entries = [];
+        foreach (scandir($root) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
+                continue;
+            }
+            if (is_file($root . '/' . $entry)) {
+                $entries[] = substr($entry, 0, -3) . $suffix;
+            }
+        }
+
+        sort($entries, SORT_STRING);
+
+        return $entries;
     }
 
     /**
@@ -243,7 +309,7 @@ final readonly class InitHostStatusCommand
     {
         return match ($host) {
             'claude' => HostPolicyProjector::claudeUserScopeAction(),
-            'codex' => 'Codex project rules are loaded only for a trusted project. Repository policy may prepare the rules, but project trust remains an explicit host/user decision.',
+            'codex' => 'Codex loads project rules from the trusted project config layer. Repository policy can prepare .codex/rules, but trusting the project remains an explicit host/user decision.',
             'opencode' => 'OpenCode --auto automatically approves ask decisions. The projected agent-loop remote-mutation rules use deny because deny remains effective under --auto.',
             default => throw new InvalidArgumentException('Unsupported host policy boundary: ' . $host),
         };
