@@ -38,13 +38,13 @@ final class HostRuntimeProbeTest extends TestCase
 
     public function testDetectsSupportedCliNamesFromProvidedPath(): void
     {
-        foreach (['codex', 'claude', 'copilot', 'gemini'] as $command) {
+        foreach (['codex', 'claude', 'opencode', 'copilot', 'gemini'] as $command) {
             $this->createExecutable($command);
         }
 
         $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
 
-        foreach (['codex', 'claude', 'copilot', 'gemini'] as $agent) {
+        foreach (['codex', 'claude', 'opencode', 'copilot', 'gemini'] as $agent) {
             $result = $probe->probe($agent);
             self::assertSame('available', $result['status']);
             self::assertSame($agent, $result['command']);
@@ -75,10 +75,10 @@ final class HostRuntimeProbeTest extends TestCase
 
     public function testReportsMissingRuntimeWithoutUpgradingAdapterTruth(): void
     {
-        $result = (new HostRuntimeProbe($this->binRoot, self::pathExt()))->probe('gemini');
+        $result = (new HostRuntimeProbe($this->binRoot, self::pathExt()))->probe('opencode');
 
         self::assertSame('missing', $result['status']);
-        self::assertSame('gemini', $result['command']);
+        self::assertSame('opencode', $result['command']);
         self::assertNull($result['path']);
     }
 
