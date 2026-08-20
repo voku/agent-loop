@@ -85,6 +85,25 @@ final class HostPolicyProjectorTest extends TestCase
         self::assertContains('Bash(git push *)', $settings['permissions']['deny'] ?? []);
     }
 
+    public function testClaudeRejectsNonStringPermissionEntriesAtTheJsonBoundary(): void
+    {
+        mkdir($this->root . '/.claude', 0o775, true);
+        file_put_contents($this->root . '/.claude/settings.json', json_encode([
+            'permissions' => [
+                'allow' => ['Read(*)', 42],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $projector = new HostPolicyProjector($this->root);
+        $status = $projector->inspect('claude');
+        self::assertSame('conflict', $status['status']);
+        self::assertStringContainsString('must contain only non-empty strings', $status['detail']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must contain only non-empty strings');
+        $projector->sync('claude');
+    }
+
     public function testCodexUsesDedicatedManagedRuleFileAndFailsClosedOnConflict(): void
     {
         $projector = new HostPolicyProjector($this->root);
@@ -133,6 +152,24 @@ final class HostPolicyProjectorTest extends TestCase
         self::assertSame('deny', $config['permission']['bash']['git push *'] ?? null);
         self::assertSame('deny', $config['permission']['bash']['gh pr create *'] ?? null);
         self::assertSame('deny', $config['permission']['bash']['gh pr merge *'] ?? null);
+    }
+
+    public function testOpenCodeMalformedExistingDecisionFailsClosedWithoutStringCasting(): void
+    {
+        file_put_contents($this->root . '/opencode.json', json_encode([
+            'permission' => [
+                'bash' => [
+                    'git push *' => ['unexpected'],
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $projector = new HostPolicyProjector($this->root);
+        self::assertSame('conflict', $projector->inspect('opencode')['status']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('with decision type/value array/<non-scalar>');
+        $projector->sync('opencode');
     }
 
     public function testOpenCodeJsoncIsReportedAsManualInsteadOfDestroyingComments(): void
