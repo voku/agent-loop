@@ -39,32 +39,98 @@ final readonly class HumanReviewHtmlRenderer
         $csp = "default-src 'none'; base-uri 'none'; form-action 'none'; img-src data:; "
             . "style-src 'sha256-{$styleHash}'; script-src 'sha256-{$scriptHash}'";
 
-        $taskId = self::string($report['task_id'] ?? 'unknown');
-        $runId = self::nullableString($report['run_id'] ?? null) ?? 'missing';
-        $contract = self::array($report['contract'] ?? []);
-        $review = self::array($report['review'] ?? []);
-        $validation = self::listOfArrays($report['validation'] ?? []);
-        $scope = self::array($report['scope'] ?? []);
-        $learning = self::array($report['learning'] ?? []);
-        $acceptedRisk = self::array($report['accepted_risk'] ?? []);
+        $taskIdValue = $report['task_id'] ?? null;
+        $taskId = is_string($taskIdValue) ? $taskIdValue : 'unknown';
+        $runIdValue = $report['run_id'] ?? null;
+        $runId = is_string($runIdValue) ? $runIdValue : 'missing';
 
+        $contractValue = $report['contract'] ?? null;
+        $contract = is_array($contractValue) ? $contractValue : [];
+        $reviewValue = $report['review'] ?? null;
+        $review = is_array($reviewValue) ? $reviewValue : [];
+        $scopeValue = $report['scope'] ?? null;
+        $scope = is_array($scopeValue) ? $scopeValue : [];
+        $learningValue = $report['learning'] ?? null;
+        $learning = is_array($learningValue) ? $learningValue : [];
+        $acceptedRiskValue = $report['accepted_risk'] ?? null;
+        $acceptedRisk = is_array($acceptedRiskValue) ? $acceptedRiskValue : [];
+
+        /** @var list<array{command:string,status:string,source:string,executed_at:?string}> $validation */
+        $validation = [];
+        $validationValue = $report['validation'] ?? null;
+        if (is_array($validationValue)) {
+            foreach ($validationValue as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $commandValue = $item['command'] ?? null;
+                $statusValue = $item['status'] ?? null;
+                $sourceValue = $item['source'] ?? null;
+                $executedValue = $item['executed_at'] ?? null;
+                $validation[] = [
+                    'command' => is_string($commandValue) ? $commandValue : 'unknown command',
+                    'status' => is_string($statusValue) ? $statusValue : 'missing',
+                    'source' => is_string($sourceValue) ? $sourceValue : 'unknown',
+                    'executed_at' => is_string($executedValue) ? $executedValue : null,
+                ];
+            }
+        }
+
+        $reviewStatusValue = $review['status'] ?? null;
         $reviewStatus = ($review['invalid'] ?? false) === true
             ? 'invalid'
-            : (($review['exists'] ?? false) === true ? self::string($review['status'] ?? 'unknown') : 'missing');
-        $reportStatus = self::nullableString($review['report_status'] ?? null) ?? 'missing';
-        $contractStatus = self::string($contract['status'] ?? 'missing');
-        $revision = is_int($contract['revision'] ?? null) ? (string) $contract['revision'] : 'missing';
-        $implementationSnapshot = self::nullableString($review['implementation_snapshot'] ?? null) ?? 'missing';
-        $reviewSha = self::nullableString($review['sha256'] ?? null) ?? 'missing';
-        $acknowledgedBy = self::nullableString($review['acknowledged_by'] ?? null) ?? 'nobody';
-        $goal = self::nullableString($contract['goal'] ?? null) ?? 'No durable goal is available.';
-        $changedFiles = self::stringList($scope['changed_files'] ?? $diff->changedFiles);
-        $outsideScope = self::stringList($scope['outside_approved_scope'] ?? []);
+            : (($review['exists'] ?? false) === true && is_string($reviewStatusValue) ? $reviewStatusValue : 'missing');
+        $reportStatusValue = $review['report_status'] ?? null;
+        $reportStatus = is_string($reportStatusValue) ? $reportStatusValue : 'missing';
+        $contractStatusValue = $contract['status'] ?? null;
+        $contractStatus = is_string($contractStatusValue) ? $contractStatusValue : 'missing';
+        $revisionValue = $contract['revision'] ?? null;
+        $revision = is_int($revisionValue) ? sprintf('%d', $revisionValue) : 'missing';
+        $implementationSnapshotValue = $review['implementation_snapshot'] ?? null;
+        $implementationSnapshot = is_string($implementationSnapshotValue) ? $implementationSnapshotValue : 'missing';
+        $reviewShaValue = $review['sha256'] ?? null;
+        $reviewSha = is_string($reviewShaValue) ? $reviewShaValue : 'missing';
+        $acknowledgedByValue = $review['acknowledged_by'] ?? null;
+        $acknowledgedBy = is_string($acknowledgedByValue) ? $acknowledgedByValue : 'nobody';
+        $goalValue = $contract['goal'] ?? null;
+        $goal = is_string($goalValue) ? $goalValue : 'No durable goal is available.';
+
+        $changedFilesValue = $scope['changed_files'] ?? $diff->changedFiles;
+        /** @var list<string> $changedFiles */
+        $changedFiles = is_array($changedFilesValue)
+            ? array_values(array_filter($changedFilesValue, 'is_string'))
+            : $diff->changedFiles;
+        $outsideScopeValue = $scope['outside_approved_scope'] ?? null;
+        /** @var list<string> $outsideScope */
+        $outsideScope = is_array($outsideScopeValue)
+            ? array_values(array_filter($outsideScopeValue, 'is_string'))
+            : [];
+
+        $acceptanceValue = $contract['acceptance_criteria'] ?? null;
+        /** @var list<string> $acceptanceCriteria */
+        $acceptanceCriteria = is_array($acceptanceValue)
+            ? array_values(array_filter($acceptanceValue, 'is_string'))
+            : [];
+        $anchorsValue = $contract['behavior_anchors'] ?? null;
+        /** @var list<string> $behaviorAnchors */
+        $behaviorAnchors = is_array($anchorsValue)
+            ? array_values(array_filter($anchorsValue, 'is_string'))
+            : [];
+        $contractScopeValue = $contract['scope'] ?? null;
+        /** @var list<string> $contractScope */
+        $contractScope = is_array($contractScopeValue)
+            ? array_values(array_filter($contractScopeValue, 'is_string'))
+            : [];
+        $nonGoalsValue = $contract['non_goals'] ?? null;
+        /** @var list<string> $nonGoals */
+        $nonGoals = is_array($nonGoalsValue)
+            ? array_values(array_filter($nonGoalsValue, 'is_string'))
+            : [];
 
         $findingHtml = $this->findings($findings);
         $validationHtml = $this->validations($validation);
         $fileHtml = $this->changedFiles($changedFiles, $outsideScope, $diff->untrackedFiles);
-        $contractHtml = $this->contract($contract);
+        $contractHtml = $this->contract($acceptanceCriteria, $behaviorAnchors, $contractScope, $nonGoals);
         $uncertaintyHtml = $this->uncertainty($reviewStatus, $diff);
         $diffHtml = $diff->available
             ? '<pre class="diff" data-searchable>' . self::escape($diff->patch === '' ? '[No scoped Git diff.]' : $diff->patch) . '</pre>'
@@ -72,16 +138,18 @@ final readonly class HumanReviewHtmlRenderer
 
         $findingCount = count($findings);
         $changedCount = count($changedFiles);
-        $failCount = count(array_filter($findings, static fn (array $finding): bool => ($finding['severity'] ?? null) === 'FAIL'));
-        $warnCount = count(array_filter($findings, static fn (array $finding): bool => ($finding['severity'] ?? null) === 'WARN'));
-        $validationPassed = count(array_filter($validation, static fn (array $item): bool => ($item['status'] ?? null) === 'passed'));
+        $failCount = count(array_filter($findings, static fn (array $finding): bool => $finding['severity'] === 'FAIL'));
+        $warnCount = count(array_filter($findings, static fn (array $finding): bool => $finding['severity'] === 'WARN'));
+        $validationPassed = count(array_filter($validation, static fn (array $item): bool => $item['status'] === 'passed'));
         $validationTotal = count($validation);
 
-        $learningStatus = self::string($learning['status'] ?? 'unavailable');
-        $learningDecision = self::nullableString($learning['decision'] ?? null) ?? 'missing';
-        $riskText = ($acceptedRisk['recorded'] ?? false) === true
-            ? 'recorded at ' . self::string($acceptedRisk['path'] ?? 'unknown')
-            : 'none recorded';
+        $learningStatusValue = $learning['status'] ?? null;
+        $learningStatus = is_string($learningStatusValue) ? $learningStatusValue : 'unavailable';
+        $learningDecisionValue = $learning['decision'] ?? null;
+        $learningDecision = is_string($learningDecisionValue) ? $learningDecisionValue : 'missing';
+        $riskPathValue = $acceptedRisk['path'] ?? null;
+        $riskPath = is_string($riskPathValue) ? $riskPathValue : 'unknown';
+        $riskText = ($acceptedRisk['recorded'] ?? false) === true ? 'recorded at ' . $riskPath : 'none recorded';
 
         $html = '<!doctype html>' . "\n"
             . '<html lang="en">' . "\n"
@@ -186,7 +254,7 @@ final readonly class HumanReviewHtmlRenderer
         return $html;
     }
 
-    /** @param list<array<string, mixed>> $validation */
+    /** @param list<array{command:string,status:string,source:string,executed_at:?string}> $validation */
     private function validations(array $validation): string
     {
         if ($validation === []) {
@@ -195,21 +263,23 @@ final readonly class HumanReviewHtmlRenderer
 
         $html = '';
         foreach ($validation as $item) {
-            $status = self::string($item['status'] ?? 'missing');
-            $command = self::string($item['command'] ?? 'unknown command');
-            $source = self::string($item['source'] ?? 'unknown');
-            $executed = self::nullableString($item['executed_at'] ?? null);
-            $suffix = $executed === null ? $source : $source . ' · ' . $executed;
+            $suffix = $item['executed_at'] === null
+                ? $item['source']
+                : $item['source'] . ' · ' . $item['executed_at'];
             $html .= '<div class="validation-row" data-searchable>'
-                . '<span class="status ' . self::escape(self::statusClass($status)) . '">' . self::escape($status) . '</span>'
-                . '<div><code>' . self::escape($command) . '</code><div class="meta">' . self::escape($suffix) . '</div></div>'
+                . '<span class="status ' . self::escape(self::statusClass($item['status'])) . '">' . self::escape($item['status']) . '</span>'
+                . '<div><code>' . self::escape($item['command']) . '</code><div class="meta">' . self::escape($suffix) . '</div></div>'
                 . '</div>';
         }
 
         return $html;
     }
 
-    /** @param list<string> $changedFiles @param list<string> $outsideScope @param list<string> $untracked */
+    /**
+     * @param list<string> $changedFiles
+     * @param list<string> $outsideScope
+     * @param list<string> $untracked
+     */
     private function changedFiles(array $changedFiles, array $outsideScope, array $untracked): string
     {
         if ($changedFiles === []) {
@@ -236,14 +306,19 @@ final readonly class HumanReviewHtmlRenderer
         return $html;
     }
 
-    /** @param array<string, mixed> $contract */
-    private function contract(array $contract): string
+    /**
+     * @param list<string> $acceptanceCriteria
+     * @param list<string> $behaviorAnchors
+     * @param list<string> $scope
+     * @param list<string> $nonGoals
+     */
+    private function contract(array $acceptanceCriteria, array $behaviorAnchors, array $scope, array $nonGoals): string
     {
         $groups = [
-            'Acceptance criteria' => self::stringList($contract['acceptance_criteria'] ?? []),
-            'Behavior anchors' => self::stringList($contract['behavior_anchors'] ?? []),
-            'Approved scope' => self::stringList($contract['scope'] ?? []),
-            'Non-goals' => self::stringList($contract['non_goals'] ?? []),
+            'Acceptance criteria' => $acceptanceCriteria,
+            'Behavior anchors' => $behaviorAnchors,
+            'Approved scope' => $scope,
+            'Non-goals' => $nonGoals,
         ];
 
         $html = '<div class="grid">';
@@ -319,41 +394,5 @@ final readonly class HumanReviewHtmlRenderer
     private static function escape(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    }
-
-    /** @return array<string, mixed> */
-    private static function array(mixed $value): array
-    {
-        return is_array($value) ? $value : [];
-    }
-
-    /** @return list<array<string, mixed>> */
-    private static function listOfArrays(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        return array_values(array_filter($value, 'is_array'));
-    }
-
-    /** @return list<string> */
-    private static function stringList(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        return array_values(array_filter($value, 'is_string'));
-    }
-
-    private static function string(mixed $value): string
-    {
-        return is_string($value) ? $value : '';
-    }
-
-    private static function nullableString(mixed $value): ?string
-    {
-        return is_string($value) ? $value : null;
     }
 }
