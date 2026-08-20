@@ -1,0 +1,400 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Init;
+
+use InvalidArgumentException;
+use JsonException;
+
+/**
+ * Projects the small repository-level authority policy that agent-loop needs
+ * into host-native configuration without taking ownership of unrelated config.
+ */
+final readonly class HostPolicyProjector
+{
+    /** @var non-empty-list<string> */
+    private const array HOSTS = ['codex', 'claude', 'opencode'];
+
+    /** @var non-empty-list<string> */
+    private const array CLAUDE_ASK_RULES = [
+        'Bash(git push *)',
+        'Bash(gh pr create *)',
+        'Bash(gh pr merge *)',
+    ];
+
+    /** @var array<non-empty-string, 'deny'> */
+    private const array OPENCODE_BASH_RULES = [
+        'git push *' => 'deny',
+        'gh pr create *' => 'deny',
+        'gh pr merge *' => 'deny',
+    ];
+
+    public function __construct(private string $rootPath)
+    {
+    }
+
+    /** @return non-empty-list<string> */
+    public static function supportedAgents(): array
+    {
+        return self::HOSTS;
+    }
+
+    /**
+     * @return array{
+     *     status: 'ready'|'missing'|'conflict'|'manual',
+     *     path: non-empty-string,
+     *     detail: non-empty-string
+     * }
+     */
+    public function inspect(string $agent): array
+    {
+        $this->assertSupported($agent);
+
+        return match ($agent) {
+            'codex' => $this->inspectCodex(),
+            'claude' => $this->inspectClaude(),
+            'opencode' => $this->inspectOpenCode(),
+        };
+    }
+
+    /**
+     * @return array{changed: bool, path: non-empty-string, detail: non-empty-string}
+     */
+    public function sync(string $agent, bool $dryRun = false, bool $force = false): array
+    {
+        $this->assertSupported($agent);
+
+        return match ($agent) {
+            'codex' => $this->syncCodex($dryRun, $force),
+            'claude' => $this->syncClaude($dryRun),
+            'opencode' => $this->syncOpenCode($dryRun, $force),
+        };
+    }
+
+    /**
+     * Claude Code intentionally ignores Auto Mode settings from project settings.
+     * This is therefore advice, not another pretend repository projection.
+     */
+    public static function claudeUserScopeAction(): string
+    {
+        return 'Run `claude auto-mode config`; review the effective user/managed Auto Mode policy, keep `$defaults`, and enable `autoMode.classifyAllShell=true` when strict shell classification is required.';
+    }
+
+    /**
+     * @return array{status: 'ready'|'missing'|'conflict'|'manual', path: non-empty-string, detail: non-empty-string}
+     */
+    private function inspectCodex(): array
+    {
+        $path = $this->codexPath();
+        if (!is_file($path)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'agent-loop Codex policy file is missing'];
+        }
+
+        $content = file_get_contents($path);
+        if (!is_string($content)) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => 'agent-loop Codex policy file is unreadable'];
+        }
+
+        if ($this->normalizeText($content) !== $this->normalizeText($this->codexRules())) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => 'agent-loop Codex policy file differs from the managed policy'];
+        }
+
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'repository Codex policy is current; project trust remains host-owned'];
+    }
+
+    /**
+     * @return array{status: 'ready'|'missing'|'conflict'|'manual', path: non-empty-string, detail: non-empty-string}
+     */
+    private function inspectClaude(): array
+    {
+        $path = $this->claudePath();
+        if (!is_file($path)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude project settings are missing the agent-loop permission policy'];
+        }
+
+        try {
+            $settings = $this->readJsonObject($path);
+        } catch (InvalidArgumentException $exception) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => $exception->getMessage()];
+        }
+
+        $permissions = $settings['permissions'] ?? null;
+        if (!is_array($permissions)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude permissions object is missing'];
+        }
+
+        $ask = $permissions['ask'] ?? [];
+        $deny = $permissions['deny'] ?? [];
+        if (!is_array($ask) || !is_array($deny)) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => 'Claude permissions.ask/deny must be arrays'];
+        }
+
+        foreach (self::CLAUDE_ASK_RULES as $rule) {
+            if (!in_array($rule, $ask, true) && !in_array($rule, $deny, true)) {
+                return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude project permission is missing: ' . $rule];
+            }
+        }
+
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude project permission policy is current; Auto Mode remains user/managed scoped'];
+    }
+
+    /**
+     * @return array{status: 'ready'|'missing'|'conflict'|'manual', path: non-empty-string, detail: non-empty-string}
+     */
+    private function inspectOpenCode(): array
+    {
+        $path = $this->openCodePath();
+        if (!is_file($path) && is_file($this->openCodeJsoncPath())) {
+            return [
+                'status' => 'manual',
+                'path' => $this->openCodeJsoncPath(),
+                'detail' => 'opencode.jsonc exists; agent-loop refuses to rewrite comment-bearing JSONC automatically',
+            ];
+        }
+        if (!is_file($path)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode project permission policy is missing'];
+        }
+
+        try {
+            $config = $this->readJsonObject($path);
+        } catch (InvalidArgumentException $exception) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => $exception->getMessage()];
+        }
+
+        $permission = $config['permission'] ?? null;
+        if (!is_array($permission)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission object is missing'];
+        }
+        $bash = $permission['bash'] ?? null;
+        if (!is_array($bash)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission.bash object is missing'];
+        }
+
+        foreach (self::OPENCODE_BASH_RULES as $pattern => $decision) {
+            $current = $bash[$pattern] ?? null;
+            if ($current === $decision) {
+                continue;
+            }
+            if ($current !== null) {
+                return ['status' => 'conflict', 'path' => $path, 'detail' => 'OpenCode permission conflicts for pattern: ' . $pattern];
+            }
+
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'OpenCode permission is missing pattern: ' . $pattern];
+        }
+
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'OpenCode deny policy is current and remains effective under --auto'];
+    }
+
+    /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
+    private function syncCodex(bool $dryRun, bool $force): array
+    {
+        $path = $this->codexPath();
+        $desired = $this->codexRules();
+        if (is_file($path)) {
+            $existing = file_get_contents($path);
+            if (!is_string($existing)) {
+                throw new InvalidArgumentException('Unable to read Codex policy file: ' . $path);
+            }
+            if ($this->normalizeText($existing) === $this->normalizeText($desired)) {
+                return ['changed' => false, 'path' => $path, 'detail' => 'Codex policy is current'];
+            }
+            if (!$force) {
+                throw new InvalidArgumentException('Codex policy file already exists with different content: ' . $path . ' (use --force only after reviewing the diff)');
+            }
+        }
+
+        if (!$dryRun) {
+            $this->writeFile($path, $desired);
+        }
+
+        return ['changed' => true, 'path' => $path, 'detail' => 'Codex policy ' . ($dryRun ? 'would be written' : 'written')];
+    }
+
+    /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
+    private function syncClaude(bool $dryRun): array
+    {
+        $path = $this->claudePath();
+        $settings = is_file($path) ? $this->readJsonObject($path) : [];
+        $permissions = $settings['permissions'] ?? [];
+        if (!is_array($permissions)) {
+            throw new InvalidArgumentException('Claude settings permissions must be an object: ' . $path);
+        }
+
+        $ask = $permissions['ask'] ?? [];
+        $deny = $permissions['deny'] ?? [];
+        if (!is_array($ask) || !is_array($deny)) {
+            throw new InvalidArgumentException('Claude permissions.ask/deny must be arrays: ' . $path);
+        }
+
+        $changed = false;
+        foreach (self::CLAUDE_ASK_RULES as $rule) {
+            if (in_array($rule, $ask, true) || in_array($rule, $deny, true)) {
+                continue;
+            }
+            $ask[] = $rule;
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return ['changed' => false, 'path' => $path, 'detail' => 'Claude project permission policy is current'];
+        }
+
+        $permissions['ask'] = array_values(array_unique($ask));
+        $settings['permissions'] = $permissions;
+        if (!$dryRun) {
+            $this->writeJson($path, $settings);
+        }
+
+        return ['changed' => true, 'path' => $path, 'detail' => 'Claude project permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
+    }
+
+    /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
+    private function syncOpenCode(bool $dryRun, bool $force): array
+    {
+        $path = $this->openCodePath();
+        if (!is_file($path) && is_file($this->openCodeJsoncPath())) {
+            throw new InvalidArgumentException('opencode.jsonc exists; refusing to rewrite comment-bearing JSONC automatically: ' . $this->openCodeJsoncPath());
+        }
+
+        $config = is_file($path) ? $this->readJsonObject($path) : ['$schema' => 'https://opencode.ai/config.json'];
+        $permission = $config['permission'] ?? [];
+        if (!is_array($permission)) {
+            throw new InvalidArgumentException('OpenCode permission must be an object before agent-loop can merge granular rules: ' . $path);
+        }
+        $bash = $permission['bash'] ?? [];
+        if (!is_array($bash)) {
+            throw new InvalidArgumentException('OpenCode permission.bash must be an object before agent-loop can merge granular rules: ' . $path);
+        }
+
+        $changed = false;
+        foreach (self::OPENCODE_BASH_RULES as $pattern => $decision) {
+            $current = $bash[$pattern] ?? null;
+            if ($current === $decision) {
+                continue;
+            }
+            if ($current !== null && !$force) {
+                throw new InvalidArgumentException('OpenCode permission already owns pattern ' . $pattern . ' with decision ' . (string) $current . '; use --force only after reviewing the policy change');
+            }
+            $bash[$pattern] = $decision;
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return ['changed' => false, 'path' => $path, 'detail' => 'OpenCode permission policy is current'];
+        }
+
+        $permission['bash'] = $bash;
+        $config['permission'] = $permission;
+        if (!$dryRun) {
+            $this->writeJson($path, $config);
+        }
+
+        return ['changed' => true, 'path' => $path, 'detail' => 'OpenCode permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
+    }
+
+    /** @return array<string, mixed> */
+    private function readJsonObject(string $path): array
+    {
+        $content = file_get_contents($path);
+        if (!is_string($content)) {
+            throw new InvalidArgumentException('Unable to read JSON configuration: ' . $path);
+        }
+
+        try {
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Invalid JSON configuration ' . $path . ': ' . $exception->getMessage(), previous: $exception);
+        }
+
+        if (!is_array($decoded)) {
+            throw new InvalidArgumentException('JSON configuration must contain an object: ' . $path);
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function writeJson(string $path, array $data): void
+    {
+        try {
+            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Unable to encode JSON configuration ' . $path . ': ' . $exception->getMessage(), previous: $exception);
+        }
+
+        $this->writeFile($path, $json . "\n");
+    }
+
+    private function writeFile(string $path, string $content): void
+    {
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            throw new InvalidArgumentException('Unable to create policy directory: ' . $directory);
+        }
+        if (file_put_contents($path, $content) === false) {
+            throw new InvalidArgumentException('Unable to write host policy: ' . $path);
+        }
+    }
+
+    private function assertSupported(string $agent): void
+    {
+        if (!in_array($agent, self::HOSTS, true)) {
+            throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent);
+        }
+    }
+
+    /** @return non-empty-string */
+    private function codexPath(): string
+    {
+        return rtrim($this->rootPath, '/') . '/.codex/rules/agent-loop.rules';
+    }
+
+    /** @return non-empty-string */
+    private function claudePath(): string
+    {
+        return rtrim($this->rootPath, '/') . '/.claude/settings.json';
+    }
+
+    /** @return non-empty-string */
+    private function openCodePath(): string
+    {
+        return rtrim($this->rootPath, '/') . '/opencode.json';
+    }
+
+    /** @return non-empty-string */
+    private function openCodeJsoncPath(): string
+    {
+        return rtrim($this->rootPath, '/') . '/opencode.jsonc';
+    }
+
+    private function normalizeText(string $content): string
+    {
+        return rtrim(str_replace(["\r\n", "\r"], "\n", $content)) . "\n";
+    }
+
+    private function codexRules(): string
+    {
+        return <<<'RULES'
+# Managed by agent-loop: remote authority-bearing mutations require an explicit boundary.
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Remote mutation requires explicit authority.",
+)
+
+prefix_rule(
+    pattern = ["gh", "pr", "create"],
+    decision = "prompt",
+    justification = "Creating a pull request is an external mutation.",
+)
+
+prefix_rule(
+    pattern = ["gh", "pr", "merge"],
+    decision = "prompt",
+    justification = "Merging a pull request is an external mutation.",
+)
+RULES;
+    }
+}
