@@ -29,6 +29,9 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         $this->root = sys_get_temp_dir() . '/agent-loop-finish-judgment-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/src', 0o775, true);
         mkdir($this->root . '/.agent-loop/learning', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'interaction' => ['human_explanations' => 'never'],
+        ], JSON_THROW_ON_ERROR));
         file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'current';\n");
     }
 
