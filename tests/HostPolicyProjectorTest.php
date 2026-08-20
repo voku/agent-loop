@@ -296,6 +296,38 @@ final class HostPolicyProjectorTest extends TestCase
         self::assertStringContainsString('"PreToolUse": []', $raw);
     }
 
+    public function testExplicitNullAtAnObjectBoundaryIsAConflictRatherThanARepairableAbsence(): void
+    {
+        $projector = new HostPolicyProjector($this->root);
+        $claudePath = $this->root . '/.claude/settings.json';
+        mkdir(dirname($claudePath), 0o777, true);
+        $openCodePath = $this->root . '/opencode.json';
+
+        foreach (
+            [
+                ['claude', $claudePath, '{"permissions":null}'],
+                ['opencode', $openCodePath, '{"permission":null}'],
+                ['opencode', $openCodePath, '{"permission":{"bash":null}}'],
+            ] as [$agent, $path, $document]
+        ) {
+            file_put_contents($path, $document);
+
+            // A present null is not an absent key: reporting it as a repairable
+            // absence would let sync overwrite what inspection calls a conflict.
+            self::assertSame('conflict', $projector->inspect($agent)['status'], $document);
+
+            try {
+                $projector->sync($agent);
+                self::fail('Synchronisation must refuse an explicit null boundary: ' . $document);
+            } catch (InvalidArgumentException) {
+                // expected
+            }
+
+            self::assertSame($document, file_get_contents($path), 'refused input must stay untouched');
+            unlink($path);
+        }
+    }
+
     public function testOpenCodeJsoncIsReportedAsManualInsteadOfDestroyingComments(): void
     {
         file_put_contents($this->root . '/opencode.jsonc', "{\n  // project comment\n  \"permission\": {}\n}\n");

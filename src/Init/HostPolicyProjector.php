@@ -273,7 +273,7 @@ final readonly class HostPolicyProjector
         }
 
         $rawPermissions = self::assertJsonObject(
-            self::jsonObjectOrNull($settings['permissions'] ?? new stdClass()),
+            self::objectBoundary($settings, 'permissions'),
             'Claude settings permissions must be an object',
             $path,
         );
@@ -299,12 +299,12 @@ final readonly class HostPolicyProjector
 
         $config = is_file($path) ? $this->readJsonObject($path) : ['$schema' => 'https://opencode.ai/config.json'];
         $permission = self::assertJsonObject(
-            self::jsonObjectOrNull($config['permission'] ?? new stdClass()),
+            self::objectBoundary($config, 'permission'),
             'OpenCode permission must be an object before agent-loop can merge granular rules',
             $path,
         );
         $bash = self::assertJsonObject(
-            self::jsonObjectOrNull($permission['bash'] ?? new stdClass()),
+            self::objectBoundary($permission, 'bash'),
             'OpenCode permission.bash must be an object before agent-loop can merge granular rules',
             $path,
         );
@@ -347,7 +347,7 @@ final readonly class HostPolicyProjector
     private function claudePermissionLists(array $settings, string $path): array
     {
         $permissions = self::assertJsonObject(
-            self::jsonObjectOrNull($settings['permissions'] ?? new stdClass()),
+            self::objectBoundary($settings, 'permissions'),
             'Claude settings permissions must be an object',
             $path,
         );
@@ -440,6 +440,24 @@ final readonly class HostPolicyProjector
         }
 
         return $object;
+    }
+
+    /**
+     * An absent boundary is a repairable absence, but a present one must
+     * already be a JSON object. Treating an explicit null as absent would let
+     * sync overwrite it while inspection reports the same value as a conflict.
+     *
+     * @param array<string, mixed> $parent
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function objectBoundary(array $parent, string $key): ?array
+    {
+        if (!array_key_exists($key, $parent)) {
+            return [];
+        }
+
+        return self::jsonObjectOrNull($parent[$key]);
     }
 
     /**
