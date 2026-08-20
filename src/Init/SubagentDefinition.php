@@ -8,9 +8,7 @@ use InvalidArgumentException;
 
 final readonly class SubagentDefinition
 {
-    /**
-     * @var list<string>
-     */
+    /** @var list<string> */
     private const array LOCAL_PATH_PATTERNS = [
         '/\/home\/[^\/\s]+\/\.codex\//',
         '/\/home\/[^\/\s]+\/\.gemini\//',
@@ -48,9 +46,7 @@ final readonly class SubagentDefinition
         );
     }
 
-    /**
-     * @return list<string>
-     */
+    /** @return list<string> */
     public static function validationErrors(string $filePath): array
     {
         $errors = [];
@@ -100,22 +96,19 @@ final readonly class SubagentDefinition
             ]);
         }
 
-        $frontmatter = [
-            'name' => $this->name,
-            'description' => $this->description,
-        ];
+        $frontmatter = $client === 'opencode'
+            ? ['description' => $this->description, 'mode' => 'subagent']
+            : ['name' => $this->name, 'description' => $this->description];
 
         if (in_array($client, ['gemini', 'antigravity'], true)) {
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
-        } elseif ($client === 'opencode') {
-            $frontmatter['mode'] = 'subagent';
-        } elseif (!in_array($client, ['copilot', 'claude'], true)) {
+        } elseif (!in_array($client, ['opencode', 'copilot', 'claude'], true)) {
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
 
-        $lines = ["---"];
+        $lines = ['---'];
         foreach ($frontmatter as $key => $value) {
             if (is_numeric($value)) {
                 $lines[] = $key . ': ' . $value;
@@ -126,7 +119,7 @@ final readonly class SubagentDefinition
             $escaped = str_replace('"', '\"', $value);
             $lines[] = $key . ': "' . $escaped . '"';
         }
-        $lines[] = "---";
+        $lines[] = '---';
         $lines[] = '';
         $lines[] = ltrim($this->body);
 
@@ -200,9 +193,7 @@ final readonly class SubagentDefinition
         ];
     }
 
-    /**
-     * @return array<string, string>
-     */
+    /** @return array<string, string> */
     private static function parseFrontmatter(string $frontmatterBlock): array
     {
         $parsed = [];
