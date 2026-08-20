@@ -70,9 +70,8 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertStringContainsString('Render a compact context.', $output);
         self::assertStringContainsString('Acceptance criteria (required, not proof):', $output);
         self::assertStringContainsString('The coding agent can see the required outcome.', $output);
-        self::assertStringContainsString('Human interaction policy:', $output);
         self::assertStringContainsString(
-            'Optional LLM-authored human explanations: ask (interactive: ask; unattended: skip).',
+            'Human explanations: ask (interactive: ask; unattended: skip). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
             $output,
         );
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
@@ -94,15 +93,7 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertSame('skip', $context['interaction']['unattended_behavior']);
         self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
         self::assertStringContainsString(
-            'Optional LLM-authored human explanations: never (interactive: skip; unattended: skip).',
-            $rendered,
-        );
-        self::assertStringContainsString(
-            'Deterministic projections and raw evidence do not count as optional model explanation spending.',
-            $rendered,
-        );
-        self::assertStringContainsString(
-            'Skipping an optional explanation never supplies human review, approval, accepted-risk, or Learning judgment.',
+            'Human explanations: never (interactive: skip; unattended: skip). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
             $rendered,
         );
     }
