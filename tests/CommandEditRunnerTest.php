@@ -68,6 +68,24 @@ final class CommandEditRunnerTest extends TestCase
         self::assertSame('runner failed', $result->stderr);
     }
 
+    public function testDrainsLargeStdoutAndStderrConcurrently(): void
+    {
+        $prompt = $this->root . '/prompt.md';
+        file_put_contents($prompt, 'prompt');
+        $request = $this->request([
+            '-n',
+            '-r',
+            'for ($i = 0; $i < 128; ++$i) { fwrite(STDERR, str_repeat("e", 8192)); } fwrite(STDOUT, "done");',
+        ]);
+
+        $result = (new CommandEditRunner())->run(new EditExecution($request, $prompt));
+
+        self::assertSame('runner_succeeded', $result->status);
+        self::assertSame(0, $result->exitCode);
+        self::assertSame('done', $result->stdout);
+        self::assertSame(128 * 8192, strlen($result->stderr));
+    }
+
     public function testTerminatesAStillRunningCommandAfterTimeout(): void
     {
         $prompt = $this->root . '/prompt.md';
