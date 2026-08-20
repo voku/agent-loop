@@ -28,13 +28,4 @@ enum HumanExplanationPolicy: string
             self::ASK, self::NEVER => 'skip',
         };
     }
-
-    public function instruction(): string
-    {
-        return match ($this) {
-            self::ASK => 'ask before optional model-generated human explanation artifacts when a human is interactively available; if the run is unattended or cannot ask, skip them and continue',
-            self::ALWAYS => 'optional model-generated human explanation artifacts may be produced without asking when useful',
-            self::NEVER => 'skip optional model-generated human explanation artifacts and continue without spending model work on them',
-        };
-    }
 }
