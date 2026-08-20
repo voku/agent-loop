@@ -50,7 +50,7 @@ final readonly class InitCli
           agent-loop init doctor [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
           agent-loop init paths [--format=text|json|toon]
           agent-loop init status [--config=PATH] [--skills-root=PATH] [--subagents-root=PATH] [--hooks-root=PATH] [--tools-root=PATH]
-          agent-loop init host-status [--agent=<codex|claude|opencode>] [--format=text|json]
+          agent-loop init host-status [--agent=<agent>] [--format=text|json]
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
@@ -71,7 +71,7 @@ final readonly class InitCli
           doctor            Diagnose local setup and repo-managed agent asset hints.
           paths             Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
           status            Show what is activated here: resolved CLI path, host projection, local Git integration, sources, aliases, target manifests, and the next activation command (read-only).
-          host-status       Auto-detect Codex, Claude Code, or OpenCode and return one canonical repository-owned next action plus any separate host/user runtime boundary.
+          host-status       Auto-detect one probed canonical coding host, or use explicit --agent selection, then return one canonical repository-owned next action plus any separate host/user runtime boundary.
           tools             Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
           validate          Validate repo-managed agent asset definitions.
           install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
