@@ -62,7 +62,7 @@ final readonly class InitHostStatusCommand
      *     host: non-empty-string|null,
      *     selection: 'explicit'|'auto'|'ambiguous'|'missing',
      *     runtime: array{status: 'available'|'missing'|'unprobed', command: non-empty-string|null, path: non-empty-string|null}|null,
-     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'}|null,
+     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported'}|null,
      *     policy_detail: non-empty-string|null,
      *     policy_path: non-empty-string|null,
      *     runtime_boundary: non-empty-string|null,
@@ -91,14 +91,11 @@ final readonly class InitHostStatusCommand
 
         $host = $selection['host'];
         $runtime = $probe->probe($host);
-        $projector = new HostPolicyProjector($this->rootPath);
-        $policy = $projector->inspect($host);
-        $skillEntries = $this->expectedSkillEntries();
-        $subagentEntries = $this->expectedSubagentEntries($host);
+        $policy = $this->policyStatus($host);
         $integration = [
             'instructions' => (new InitSyncInstructionsCommand($this->rootPath))->isCurrentFor($host) ? 'ready' : 'missing',
-            'skills' => $this->manifestReady($this->skillsRoot($host), 'skills', $host, $skillEntries) ? 'ready' : 'missing',
-            'subagents' => $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $subagentEntries) ? 'ready' : 'missing',
+            'skills' => $this->manifestReady($this->skillsRoot($host), 'skills', $host, $this->expectedSkillEntries()) ? 'ready' : 'missing',
+            'subagents' => $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $this->expectedSubagentEntries($host)) ? 'ready' : 'missing',
             'policy' => $policy['status'],
         ];
 
@@ -129,7 +126,7 @@ final readonly class InitHostStatusCommand
     {
         if ($requestedAgent !== null) {
             try {
-                $agent = InitAgent::parse($requestedAgent, HostPolicyProjector::supportedAgents());
+                $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
             } catch (InvalidArgumentException $exception) {
                 return [
                     'host' => null,
@@ -146,7 +143,7 @@ final readonly class InitHostStatusCommand
         }
 
         $available = [];
-        foreach (HostPolicyProjector::supportedAgents() as $agent) {
+        foreach (InitAgent::canonicalNames() as $agent) {
             if ($probe->probe($agent)['status'] === 'available') {
                 $available[] = $agent;
             }
@@ -160,25 +157,39 @@ final readonly class InitHostStatusCommand
             ];
         }
 
-        $supported = implode('|', HostPolicyProjector::supportedAgents());
+        $canonical = implode('|', InitAgent::canonicalNames());
         if ($available === []) {
             return [
                 'host' => null,
                 'selection' => 'missing',
-                'decision' => 'Pass --agent=<' . $supported . '> because no supported coding-host executable is visible on PATH.',
+                'decision' => 'Pass --agent=<' . $canonical . '> because no probed coding-host executable is visible on PATH. Hosts without a stable runtime probe must be selected explicitly.',
             ];
         }
 
         return [
             'host' => null,
             'selection' => 'ambiguous',
-            'decision' => 'Pass --agent=<' . implode('|', $available) . '> because multiple supported coding-host executables are visible on PATH.',
+            'decision' => 'Pass --agent=<' . implode('|', $available) . '> because multiple coding-host executables are visible on PATH.',
         ];
     }
 
     /**
-     * @param list<string> $desiredEntries
+     * @return array{status: 'ready'|'missing'|'conflict'|'manual'|'unsupported', path: non-empty-string|null, detail: non-empty-string}
      */
+    private function policyStatus(string $host): array
+    {
+        if (!in_array($host, HostPolicyProjector::supportedAgents(), true)) {
+            return [
+                'status' => 'unsupported',
+                'path' => null,
+                'detail' => 'agent-loop has no repository policy projector for ' . $host . '; authority controls remain host/user owned',
+            ];
+        }
+
+        return (new HostPolicyProjector($this->rootPath))->inspect($host);
+    }
+
+    /** @param list<string> $desiredEntries */
     private function manifestReady(string $targetRoot, string $kind, string $agent, array $desiredEntries): bool
     {
         if ($desiredEntries === []) {
@@ -220,7 +231,7 @@ final readonly class InitHostStatusCommand
         $packageRoot = dirname(__DIR__, 2);
         try {
             $roots = FirstPartySkillRoots::resolve($packageRoot);
-        } catch (InvalidArgumentException|RuntimeException) {
+        } catch (RuntimeException) {
             return [];
         }
 
@@ -253,7 +264,12 @@ final readonly class InitHostStatusCommand
             return [];
         }
 
-        $suffix = $host === 'codex' ? '.toml' : '.md';
+        $suffix = match ($host) {
+            'codex' => '.toml',
+            'copilot' => '.agent.md',
+            'claude', 'opencode', 'gemini', 'antigravity' => '.md',
+            default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
+        };
         $entries = [];
         foreach (scandir($root) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
@@ -270,8 +286,8 @@ final readonly class InitHostStatusCommand
     }
 
     /**
-     * @param array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'} $integration
-     * @param array{status: 'ready'|'missing'|'conflict'|'manual', path: non-empty-string, detail: non-empty-string} $policy
+     * @param array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported'} $integration
+     * @param array{status: 'ready'|'missing'|'conflict'|'manual'|'unsupported', path: non-empty-string|null, detail: non-empty-string} $policy
      * @return array{kind: 'command'|'host_work'|'decision_required'|'none', action: non-empty-string|null}
      */
     private function nextAction(string $host, array $integration, array $policy): array
@@ -295,9 +311,11 @@ final readonly class InitHostStatusCommand
         }
 
         if (in_array($integration['policy'], ['conflict', 'manual'], true)) {
+            $path = $policy['path'] === null ? '' : '; review ' . $policy['path'];
+
             return [
                 'kind' => 'host_work',
-                'action' => $policy['detail'] . '; review ' . $policy['path'] . ' and preserve project-owned configuration before retrying.',
+                'action' => $policy['detail'] . $path . ' and preserve project-owned configuration before retrying.',
             ];
         }
 
@@ -311,7 +329,10 @@ final readonly class InitHostStatusCommand
             'claude' => HostPolicyProjector::claudeUserScopeAction(),
             'codex' => 'Codex loads project rules from the trusted project config layer. Repository policy can prepare .codex/rules, but trusting the project remains an explicit host/user decision.',
             'opencode' => 'OpenCode --auto automatically approves ask decisions. The projected agent-loop remote-mutation rules use deny because deny remains effective under --auto.',
-            default => throw new InvalidArgumentException('Unsupported host policy boundary: ' . $host),
+            'copilot' => 'agent-loop projects portable instructions, skills, and agents for Copilot, but does not claim a repository-native authority policy projector for this host.',
+            'gemini' => 'agent-loop projects portable instructions, skills, and agents for Gemini CLI, but does not claim a repository-native authority policy projector for this host.',
+            'antigravity' => 'agent-loop projects portable instructions, skills, and agents for Antigravity. Runtime auto-detection is unavailable, and authority controls remain host/user owned.',
+            default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
         };
     }
 
@@ -322,6 +343,9 @@ final readonly class InitHostStatusCommand
                 ?? (($home = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $home . '/skills' : $this->rootPath . '/.codex/skills'),
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
             'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_SKILLS_DIR') ?? $this->rootPath . '/.opencode/skills',
+            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
+            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
+            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
             default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
         };
     }
@@ -333,6 +357,9 @@ final readonly class InitHostStatusCommand
                 ?? (($home = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $home . '/agents' : $this->rootPath . '/.codex/agents'),
             'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
             'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_AGENTS_DIR') ?? $this->rootPath . '/.opencode/agents',
+            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
+            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
+            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
             default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
         };
     }
@@ -343,7 +370,7 @@ final readonly class InitHostStatusCommand
      *     host: non-empty-string|null,
      *     selection: 'explicit'|'auto'|'ambiguous'|'missing',
      *     runtime: array{status: 'available'|'missing'|'unprobed', command: non-empty-string|null, path: non-empty-string|null}|null,
-     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'}|null,
+     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported'}|null,
      *     policy_detail: non-empty-string|null,
      *     policy_path: non-empty-string|null,
      *     runtime_boundary: non-empty-string|null,
