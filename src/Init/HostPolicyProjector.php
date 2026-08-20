@@ -13,7 +13,7 @@ use JsonException;
  */
 final readonly class HostPolicyProjector
 {
-    /** @var non-empty-list<string> */
+    /** @var non-empty-list<non-empty-string> */
     private const array HOSTS = ['codex', 'claude', 'opencode'];
 
     /**
@@ -40,7 +40,7 @@ final readonly class HostPolicyProjector
     {
     }
 
-    /** @return non-empty-list<string> */
+    /** @return non-empty-list<non-empty-string> */
     public static function supportedAgents(): array
     {
         return self::HOSTS;
@@ -55,12 +55,11 @@ final readonly class HostPolicyProjector
      */
     public function inspect(string $agent): array
     {
-        $this->assertSupported($agent);
-
         return match ($agent) {
             'codex' => $this->inspectCodex(),
             'claude' => $this->inspectClaude(),
             'opencode' => $this->inspectOpenCode(),
+            default => throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent),
         };
     }
 
@@ -69,12 +68,11 @@ final readonly class HostPolicyProjector
      */
     public function sync(string $agent, bool $dryRun = false, bool $force = false): array
     {
-        $this->assertSupported($agent);
-
         return match ($agent) {
             'codex' => $this->syncCodex($dryRun, $force),
             'claude' => $this->syncClaude($dryRun, $force),
             'opencode' => $this->syncOpenCode($dryRun, $force),
+            default => throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent),
         };
     }
 
@@ -82,6 +80,8 @@ final readonly class HostPolicyProjector
      * Auto Mode classifier configuration is not read from shared project
      * settings. Report that host-owned fact without pretending repo projection
      * can configure it.
+     *
+     * @return non-empty-string
      */
     public static function claudeUserScopeAction(): string
     {
@@ -124,7 +124,11 @@ final readonly class HostPolicyProjector
             $settings = $this->readJsonObject($path);
             $permissions = $this->claudePermissionLists($settings, $path);
         } catch (InvalidArgumentException $exception) {
-            return ['status' => 'conflict', 'path' => $path, 'detail' => $exception->getMessage()];
+            return [
+                'status' => 'conflict',
+                'path' => $path,
+                'detail' => self::failureDetail($exception->getMessage(), 'Claude project settings could not be inspected'),
+            ];
         }
 
         foreach (self::CLAUDE_DENY_RULES as $rule) {
@@ -165,7 +169,11 @@ final readonly class HostPolicyProjector
         try {
             $config = $this->readJsonObject($path);
         } catch (InvalidArgumentException $exception) {
-            return ['status' => 'conflict', 'path' => $path, 'detail' => $exception->getMessage()];
+            return [
+                'status' => 'conflict',
+                'path' => $path,
+                'detail' => self::failureDetail($exception->getMessage(), 'OpenCode project configuration could not be inspected'),
+            ];
         }
 
         $permission = $config['permission'] ?? null;
@@ -406,11 +414,18 @@ final readonly class HostPolicyProjector
         }
     }
 
-    private function assertSupported(string $agent): void
+    /**
+     * An owner exception carries no guarantee of a non-empty message, so keep a
+     * host-specific fallback rather than reporting an inspection failure with
+     * an empty detail.
+     *
+     * @param non-empty-string $fallback
+     *
+     * @return non-empty-string
+     */
+    private static function failureDetail(string $message, string $fallback): string
     {
-        if (!in_array($agent, self::HOSTS, true)) {
-            throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent);
-        }
+        return $message === '' ? $fallback : $message;
     }
 
     /** @return non-empty-string */

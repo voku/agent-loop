@@ -134,10 +134,14 @@ final readonly class InitHostStatusCommand
             try {
                 $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
             } catch (InvalidArgumentException $exception) {
+                $decision = $exception->getMessage();
+
                 return [
                     'host' => null,
                     'selection' => 'missing',
-                    'decision' => $exception->getMessage(),
+                    'decision' => $decision === ''
+                        ? 'Pass --agent=<' . implode('|', InitAgent::canonicalNames()) . '> because the requested host could not be resolved.'
+                        : $decision,
                 ];
             }
 

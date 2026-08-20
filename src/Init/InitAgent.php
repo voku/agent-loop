@@ -9,22 +9,23 @@ use InvalidArgumentException;
 final readonly class InitAgent
 {
     /**
-     * @var list<string>
+     * @var non-empty-list<non-empty-string>
      */
     private const array CANONICAL = ['codex', 'claude', 'opencode', 'copilot', 'gemini', 'antigravity'];
 
+    /**
+     * @param non-empty-string $canonicalName
+     * @param list<string> $messages
+     */
     private function __construct(
         private string $canonicalName,
         private bool $all,
-        /**
-         * @var list<string>
-         */
         private array $messages,
     ) {
     }
 
     /**
-     * @return list<string>
+     * @return non-empty-list<non-empty-string>
      */
     public static function canonicalNames(): array
     {
@@ -64,6 +65,7 @@ final readonly class InitAgent
         return new self($resolved['canonical'], false, $resolved['messages']);
     }
 
+    /** @return non-empty-string */
     public function canonicalName(): string
     {
         return $this->canonicalName;
@@ -85,7 +87,7 @@ final readonly class InitAgent
     /**
      * @param array<string, array<string, string>> $configOverrides
      *
-     * @return array{canonical: string, messages: list<string>}|null
+     * @return array{canonical: non-empty-string, messages: list<string>}|null
      */
     private static function resolveConfiguredAlias(string $requestedName, array $configOverrides): ?array
     {
@@ -112,7 +114,7 @@ final readonly class InitAgent
     }
 
     /**
-     * @return array{canonical: string, messages: list<string>}|null
+     * @return array{canonical: non-empty-string, messages: list<string>}|null
      */
     private static function resolveBuiltInAlias(string $requestedName): ?array
     {
