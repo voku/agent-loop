@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\ImplementationSnapshotUnavailable;
 use voku\AgentLoop\Workflow\TaskContractStore;
 
 final class ImplementationSnapshotTest extends TestCase
@@ -57,6 +58,16 @@ final class ImplementationSnapshotTest extends TestCase
         self::assertNotSame($before->digest, $after->digest);
     }
 
+    public function testMissingExplicitDurableLearningArtifactIsUnavailableRatherThanWorkflowMetadata(): void
+    {
+        $path = '.agent-loop/learning/constraints/active/constraint.example.json';
+
+        $this->expectException(ImplementationSnapshotUnavailable::class);
+        $this->expectExceptionMessage('scoped path does not exist yet: ' . $path);
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-LEARNING-NEW-1', [$path]));
+    }
+
     public function testExplicitGeneratedRunStateRemainsExcluded(): void
     {
         $path = '.agent-loop/runs/SNAP-RUN/manifest.json';
@@ -67,6 +78,16 @@ final class ImplementationSnapshotTest extends TestCase
         $this->expectExceptionMessage('workflow/dependency metadata');
 
         ImplementationSnapshot::capture($this->root, $this->contract('SNAP-RUN-1', [$path]));
+    }
+
+    public function testMissingExplicitGeneratedRunStateRemainsExcluded(): void
+    {
+        $path = '.agent-loop/runs/SNAP-RUN-MISSING/manifest.json';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('workflow/dependency metadata');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-RUN-MISSING-1', [$path]));
     }
 
     public function testExplicitLearningHistoryRemainsExcluded(): void
