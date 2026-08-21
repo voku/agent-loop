@@ -575,6 +575,16 @@ final readonly class RunManifestProjector
         if (($failure['gate'] ?? null) === 'verify') {
             return 'agent-loop verify --task-id=' . $taskId;
         }
+        if (($failure['gate'] ?? null) === 'recall_outcomes') {
+            $draft = PathResolver::relativeTo(
+                $this->rootPath,
+                RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/recall-log.draft.json',
+            );
+
+            return 'complete the Recall outcome judgment in ' . $draft
+                . ', then run agent-loop recall log-outcome --draft ' . $draft
+                . ' --by <actor> --commit <commit>';
+        }
 
         return 'agent-loop workflow status ' . $taskId . ' --format=json';
     }
