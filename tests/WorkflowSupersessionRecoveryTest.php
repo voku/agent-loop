@@ -15,6 +15,7 @@ use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowSupersessionRecoveryTest extends TestCase
@@ -135,6 +136,65 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         self::assertSame(0, $retry['exit']);
         self::assertTrue($retry['payload']['mutation_ready'] ?? false);
         self::assertSame('compiled', $retry['payload']['manifest']['references']['recall']['state'] ?? null);
+    }
+
+    public function testReplacementRunArchivesThePriorVerificationReceipt(): void
+    {
+        $contracts = $this->createApprovedContract('Govern revision one.');
+        $firstEnter = $this->enter();
+        self::assertSame(0, $firstEnter['exit']);
+
+        $contract = $contracts->load(self::TASK_ID);
+        $runs = new GovernedRunStore($this->root);
+        $firstRun = $runs->find(self::TASK_ID);
+        self::assertNotNull($firstRun);
+        $sessionStore = new SessionStore();
+        $sessions = $sessionStore->all((new ProjectLayout($this->root))->sessionsRoot());
+        self::assertCount(1, $sessions);
+        (new RunVerificationReceiptStore($this->root))->record(
+            $firstRun,
+            $contract,
+            $sessions[0],
+            'sha256:' . str_repeat('b', 64),
+            'satisfied',
+            [[
+                'command' => 'composer ci',
+                'status' => 'passed',
+                'exit_code' => 0,
+                'executed_at' => '2026-08-21T09:00:00+00:00',
+                'recorded_by' => 'fixture',
+                'duration_ms' => 10,
+            ]],
+        );
+        $sessionStore->setStatus($sessions[0], SessionStatus::DONE);
+
+        $contracts->revise(
+            self::TASK_ID,
+            'Govern revision two.',
+            ['docs/note.txt'],
+            [],
+            ['composer ci'],
+            'fixture-planner',
+        );
+        $contracts->approve(self::TASK_ID, 'fixture-approver');
+
+        $replacementEnter = $this->enter();
+        self::assertSame(0, $replacementEnter['exit']);
+        self::assertTrue($replacementEnter['payload']['mutation_ready'] ?? false);
+        $replacementRun = $runs->find(self::TASK_ID);
+        self::assertNotNull($replacementRun);
+        self::assertNotSame($firstRun->runId, $replacementRun->runId);
+        self::assertNull((new RunVerificationReceiptStore($this->root))->find(self::TASK_ID));
+
+        $manifest = (new RunManifestProjector($this->root))->project(self::TASK_ID);
+        self::assertNotContains(
+            'verification.run_mismatch',
+            array_column($manifest->disagreements, 'code'),
+        );
+        $archivedReceipts = glob(
+            (new ProjectLayout($this->root))->runHistoryRoot(self::TASK_ID) . '/*/verification.json',
+        ) ?: [];
+        self::assertCount(1, $archivedReceipts);
     }
 
     private function createApprovedContract(string $goal): TaskContractStore

@@ -113,6 +113,36 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertStringNotContainsString('missing explicit recall outcome for', $closeOutput);
     }
 
+    public function testMissingRecallOutcomeRoutesToTheJudgmentThatCanAdvanceIt(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/ABC-123/meta.json',
+            json_encode([
+                'task_id' => 'ABC-123',
+                'compilation_id' => 'readiness-fixture',
+                'selected_guidance' => ['guidance.readiness-fixture'],
+                'selected_constraints' => [],
+                'output_hashes' => [],
+            ], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/ABC-123/recall-log.draft.json',
+            "{}\n",
+        );
+
+        [$statusExit, $statusOutput] = $this->runStatus(['--format=json']);
+        $status = json_decode($statusOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $statusExit);
+        self::assertSame('recall_outcomes', $status['manifest']['references']['verification']['gate'] ?? null);
+        self::assertSame('decision_required', $status['manifest']['next_action_kind'] ?? null);
+        $action = (string) ($status['manifest']['next_action'] ?? '');
+        self::assertStringContainsString('agent-loop recall log-outcome', $action);
+        self::assertStringContainsString('.agent-loop/recall/ABC-123/recall-log.draft.json', $action);
+        self::assertStringNotContainsString('workflow status', $action);
+    }
+
     private function prepareGovernedRun(ValidationStatus $validationStatus, int $exitCode): Session
     {
         $contracts = new TaskContractStore($this->root);
