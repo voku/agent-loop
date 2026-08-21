@@ -16,6 +16,7 @@ final readonly class EditOrchestrator
         private CommandEditRunner $commandRunner = new CommandEditRunner(),
         private MechanicalEditRunner $mechanicalRunner = new MechanicalEditRunner(),
         private MethodRenameEditRunner $methodRenameRunner = new MethodRenameEditRunner(),
+        private EditMutationLock $mutationLock = new EditMutationLock(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
         private AgentResultWriter $resultWriter = new AgentResultWriter(),
     ) {
@@ -49,7 +50,10 @@ final readonly class EditOrchestrator
                     exitCode: 2,
                     stdout: 'No external model runner was invoked. Provide an exact replacement for mechanical execution or explicitly select --runner=command.',
                 )
-                : $this->runner($routing->selectedRunner)->run($execution));
+                : $this->mutationLock->synchronized(
+                    $request->projectRoot,
+                    fn (): EditRunResult => $this->runner($routing->selectedRunner)->run($execution),
+                ));
 
         $evidence = $this->writeRunnerEvidence($request->outputDirectory, $runResult);
         $mapIndexDigest = hash_file('sha256', $request->mapIndex);
