@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentSession\SessionStore;
 
 final class DispatcherResolutionTest extends TestCase
 {
@@ -164,11 +165,12 @@ final class DispatcherResolutionTest extends TestCase
     {
         $sessionsRoot = $this->root . '/session_plan';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        $firstSessionId = $this->onlySessionId($sessionsRoot);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $firstSessionId, '--status', 'dropped', '--root', $sessionsRoot])['exit']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         $sessionIds = $this->allSessionIds($sessionsRoot);
         self::assertCount(2, $sessionIds);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
 
         $result = $this->dispatch([
             'agent-loop', 'session', 'record', 'DEMO-1',
@@ -183,11 +185,39 @@ final class DispatcherResolutionTest extends TestCase
         );
     }
 
-    public function testSessionRecordWithMultipleActiveSessionsFailsClearly(): void
+    public function testSessionRecordWithEphemeralAndGovernedSessionsResolvesGoverned(): void
     {
         $sessionsRoot = $this->root . '/session_plan';
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'experiment', '--by', 'tester', '--ephemeral', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'governed', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+
+        $result = $this->dispatch([
+            'agent-loop', 'session', 'record', 'DEMO-1',
+            '--kind', 'decision', '--title', 'Governed decision',
+            '--root', $sessionsRoot,
+        ]);
+
+        self::assertSame(0, $result['exit']);
+        $governed = (new SessionStore())->activeForTask($sessionsRoot, 'DEMO-1');
+        self::assertNotNull($governed);
+        self::assertStringContainsString(
+            'Governed decision',
+            (string) file_get_contents($governed->path . '/decisions.md'),
+        );
+    }
+
+    public function testSessionRecordWithAmbiguousGovernedSessionsFailsClearly(): void
+    {
+        $sessionsRoot = $this->root . '/session_plan';
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'governed', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'experiment', '--by', 'tester', '--ephemeral', '--root', $sessionsRoot])['exit']);
+        $sessions = (new SessionStore())->allForTask($sessionsRoot, 'DEMO-1');
+        $experiment = array_values(array_filter($sessions, static fn ($session): bool => $session->ephemeral))[0];
+        $metadataPath = $experiment->path . '/session.json';
+        $metadata = json_decode((string) file_get_contents($metadataPath), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($metadata);
+        $metadata['ephemeral'] = false;
+        file_put_contents($metadataPath, json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 
         $result = $this->dispatch([
             'agent-loop', 'session', 'record', 'DEMO-1',
@@ -196,17 +226,18 @@ final class DispatcherResolutionTest extends TestCase
         ]);
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('Multiple sessions found for task DEMO-1', $result['output']);
+        self::assertStringContainsString('open governed Sessions', $result['output']);
     }
 
     public function testSessionRecordWithMultipleNonActiveSessionsFailsClearly(): void
     {
         $sessionsRoot = $this->root . '/session_plan';
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'first-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
+        $firstSessionId = $this->onlySessionId($sessionsRoot);
+        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $firstSessionId, '--status', 'done', '--root', $sessionsRoot])['exit']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'start', '--task', 'DEMO-1', '--slug', 'second-attempt', '--by', 'tester', '--root', $sessionsRoot])['exit']);
 
         $sessionIds = $this->allSessionIds($sessionsRoot);
-        self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[0], '--status', 'done', '--root', $sessionsRoot])['exit']);
         self::assertSame(0, $this->dispatch(['agent-loop', 'session', 'close', $sessionIds[1], '--status', 'dropped', '--root', $sessionsRoot])['exit']);
 
         $result = $this->dispatch([
@@ -239,17 +270,19 @@ final class DispatcherResolutionTest extends TestCase
 
     private function onlySessionId(string $sessionsRoot): string
     {
-        $entries = array_values(array_diff(scandir($sessionsRoot) ?: [], ['.', '..']));
-        self::assertCount(1, $entries);
+        $sessions = (new SessionStore())->all($sessionsRoot);
+        self::assertCount(1, $sessions);
 
-        return $entries[0];
+        return $sessions[0]->id;
     }
 
     /** @return list<string> */
     private function allSessionIds(string $sessionsRoot): array
     {
-        $entries = array_values(array_diff(scandir($sessionsRoot) ?: [], ['.', '..']));
-        sort($entries);
+        $entries = array_map(
+            static fn ($session): string => $session->id,
+            (new SessionStore())->all($sessionsRoot),
+        );
 
         return $entries;
     }
