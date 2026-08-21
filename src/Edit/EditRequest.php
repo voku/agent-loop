@@ -38,6 +38,7 @@ final readonly class EditRequest
         public bool $printPrompt = false,
         public ?string $replacementOld = null,
         public ?string $replacementNew = null,
+        public ?string $replacementMethod = null,
     ) {
         foreach ([
             'task ID' => $taskId,
@@ -67,11 +68,17 @@ final readonly class EditRequest
             throw new InvalidArgumentException('Edit target must use Class::method syntax: ' . $target);
         }
 
-        if (!in_array($runner, ['stdout', 'command', 'mechanical', 'auto'], true)) {
+        if (!in_array($runner, ['stdout', 'command', 'mechanical', 'method-rename', 'auto'], true)) {
             throw new InvalidArgumentException('Unknown edit runner: ' . $runner);
         }
         if ($runner === 'command' && ($runnerCommand === null || trim($runnerCommand) === '')) {
             throw new InvalidArgumentException('The command runner requires --runner-command.');
+        }
+        if ($runner === 'method-rename' && ($replacementMethod === null || trim($replacementMethod) === '')) {
+            throw new InvalidArgumentException('The method-rename runner requires --rename-method.');
+        }
+        if ($runner !== 'method-rename' && $replacementMethod !== null) {
+            throw new InvalidArgumentException('--rename-method requires --runner=method-rename.');
         }
         if ($runnerTimeoutSeconds < 1 || $runnerTimeoutSeconds > 86400) {
             throw new InvalidArgumentException('Runner timeout must be between 1 and 86400 seconds.');
@@ -118,6 +125,7 @@ final readonly class EditRequest
                 'print_prompt' => $this->printPrompt,
                 'replacement_old' => $this->replacementOld,
                 'replacement_new' => $this->replacementNew,
+                'replacement_method' => $this->replacementMethod,
             ],
         ];
     }

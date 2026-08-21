@@ -15,6 +15,8 @@ final readonly class EditOrchestrator
         private StdoutEditRunner $stdoutRunner = new StdoutEditRunner(),
         private CommandEditRunner $commandRunner = new CommandEditRunner(),
         private MechanicalEditRunner $mechanicalRunner = new MechanicalEditRunner(),
+        private MethodRenameEditRunner $methodRenameRunner = new MethodRenameEditRunner(),
+        private EditMutationLock $mutationLock = new EditMutationLock(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
         private AgentResultWriter $resultWriter = new AgentResultWriter(),
     ) {
@@ -48,7 +50,10 @@ final readonly class EditOrchestrator
                     exitCode: 2,
                     stdout: 'No external model runner was invoked. Provide an exact replacement for mechanical execution or explicitly select --runner=command.',
                 )
-                : $this->runner($routing->selectedRunner)->run($execution));
+                : $this->mutationLock->synchronized(
+                    $request->projectRoot,
+                    fn (): EditRunResult => $this->runner($routing->selectedRunner)->run($execution),
+                ));
 
         $evidence = $this->writeRunnerEvidence($request->outputDirectory, $runResult);
         $mapIndexDigest = hash_file('sha256', $request->mapIndex);
@@ -74,7 +79,9 @@ final readonly class EditOrchestrator
                 'timeout_seconds' => $request->runnerTimeoutSeconds,
                 'replacement' => $routing->selectedRunner === 'mechanical'
                     ? ['old' => $request->replacementOld, 'new' => $request->replacementNew]
-                    : null,
+                    : ($routing->selectedRunner === 'method-rename'
+                        ? ['method' => $request->replacementMethod]
+                        : null),
                 'model_input_tokens' => $routing->invokesExternalModel() && !$request->dryRun ? null : 0,
                 'model_tool_calls' => $routing->invokesExternalModel() && !$request->dryRun ? null : 0,
             ],
@@ -141,6 +148,7 @@ final readonly class EditOrchestrator
             'stdout' => $this->stdoutRunner,
             'command' => $this->commandRunner,
             'mechanical' => $this->mechanicalRunner,
+            'method-rename' => $this->methodRenameRunner,
             default => throw new RuntimeException('Unknown edit runner: ' . $name),
         };
     }

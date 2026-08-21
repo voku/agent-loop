@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use Closure;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\EditCommand;
+use voku\AgentLoop\Edit\EditMutationLock;
+use voku\AgentLoop\Edit\EditOrchestrator;
+use voku\AgentLoop\Edit\MethodRenameEditRunner;
 
 final class EditCommandIntegrationTest extends TestCase
 {
@@ -188,6 +192,76 @@ final class EditCommandIntegrationTest extends TestCase
         self::assertStringContainsString('No syntax errors detected', $runnerOutput);
     }
 
+    public function testMethodRenameRunnerAppliesRealAgentMapPlanToDeclarationAndCaller(): void
+    {
+        $command = new EditCommand($this->root);
+
+        ob_start();
+        $exit = $command->run([
+            'Demo\\UserService::save',
+            '--task=EDIT-METHOD-RENAME',
+            '--map-paths=src,tests',
+            '--runner=method-rename',
+            '--rename-method=persist',
+            '--',
+            'Rename the proven method family and callers.',
+        ]);
+        ob_end_clean();
+
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('function persist(', (string) file_get_contents($this->root . '/src/UserService.php'));
+        self::assertStringContainsString('->persist(true)', (string) file_get_contents($this->root . '/tests/UserServiceTest.php'));
+        self::assertSame('runner_succeeded', $this->execution('EDIT-METHOD-RENAME')['status']);
+        self::assertSame(0, $this->lint($this->root . '/src/UserService.php'));
+        self::assertSame(0, $this->lint($this->root . '/tests/UserServiceTest.php'));
+    }
+
+    public function testMethodRenamePublicationRunsInsideSharedMutationLock(): void
+    {
+        $insideLock = false;
+        $observedPublicationMove = false;
+        $mutationLock = new EditMutationLock(
+            synchronizeOperation: static function (string $projectRoot, Closure $operation) use (&$insideLock): mixed {
+                self::assertNotSame('', $projectRoot);
+                self::assertFalse($insideLock);
+                $insideLock = true;
+                try {
+                    return $operation();
+                } finally {
+                    $insideLock = false;
+                }
+            },
+        );
+        $renameRunner = new MethodRenameEditRunner(
+            renameOperation: static function (string $from, string $to) use (&$insideLock, &$observedPublicationMove): bool {
+                self::assertTrue($insideLock, 'source publication must stay inside the shared edit mutation lock');
+                $observedPublicationMove = true;
+
+                return rename($from, $to);
+            },
+        );
+        $command = new EditCommand(
+            $this->root,
+            orchestrator: new EditOrchestrator(methodRenameRunner: $renameRunner, mutationLock: $mutationLock),
+        );
+
+        ob_start();
+        $exit = $command->run([
+            'Demo\\UserService::save',
+            '--task=EDIT-METHOD-RENAME-LOCK',
+            '--map-paths=src,tests',
+            '--runner=method-rename',
+            '--rename-method=persist',
+            '--',
+            'Rename the proven method family while holding the shared mutation lock.',
+        ]);
+        ob_end_clean();
+
+        self::assertSame(0, $exit);
+        self::assertTrue($observedPublicationMove);
+        self::assertFalse($insideLock);
+    }
+
     public function testAutoRunnerUsesMechanicalExecutionForAnExactReplacement(): void
     {
         $command = new EditCommand($this->root);
@@ -252,5 +326,13 @@ final class EditCommandIntegrationTest extends TestCase
         self::assertIsArray($execution);
 
         return $execution;
+    }
+
+    private function lint(string $path): int
+    {
+        $output = [];
+        exec(escapeshellarg(PHP_BINARY) . ' -n -l ' . escapeshellarg($path), $output, $exitCode);
+
+        return $exitCode;
     }
 }

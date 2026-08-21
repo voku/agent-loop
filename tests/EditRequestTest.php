@@ -76,4 +76,42 @@ final class EditRequestTest extends TestCase
             replacementNew: 'new',
         );
     }
+
+    public function testRenameMethodOptionRequiresMethodRenameRunner(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('--rename-method requires --runner=method-rename');
+
+        new EditRequest(
+            taskId: 'TASK-1',
+            target: 'Demo\\Service::run',
+            instruction: 'Change it.',
+            projectRoot: '/tmp/project',
+            recallRoot: '/tmp/project',
+            mapIndex: '/tmp/project/map.json',
+            mapRoot: '/tmp/project',
+            outputDirectory: '/tmp/project/edit',
+            replacementMethod: 'persist',
+        );
+    }
+
+    public function testMethodRenameReplacementIsRecordedInRequestEvidence(): void
+    {
+        $request = new EditRequest(
+            taskId: 'TASK-1',
+            target: 'Demo\\Service::run',
+            instruction: 'Rename it.',
+            projectRoot: '/tmp/project',
+            recallRoot: '/tmp/project',
+            mapIndex: '/tmp/project/map.json',
+            mapRoot: '/tmp/project',
+            outputDirectory: '/tmp/project/edit',
+            runner: 'method-rename',
+            replacementMethod: 'persist',
+        );
+
+        $data = $request->toArray();
+        self::assertIsArray($data['runner']);
+        self::assertSame('persist', $data['runner']['replacement_method']);
+    }
 }
