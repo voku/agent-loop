@@ -84,6 +84,7 @@ final readonly class EditRequestParser
                 'runner-timeout',
                 'replace-old',
                 'replace-new',
+                'rename-method',
             ], true)) {
                 throw new InvalidArgumentException('Unknown edit option: --' . $name);
             }
@@ -157,6 +158,7 @@ final readonly class EditRequestParser
             printPrompt: $flags['print-prompt'],
             replacementOld: $values['replace-old'] ?? null,
             replacementNew: $values['replace-new'] ?? null,
+            replacementMethod: $values['rename-method'] ?? null,
         );
     }
 

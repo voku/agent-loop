@@ -34,7 +34,7 @@ final readonly class EditCommand
 
         try {
             $request = $this->parser->parse($this->projectRoot, $tokens);
-            if (!$request->dryRun && in_array($request->runner, ['command', 'mechanical', 'auto'], true)) {
+            if (!$request->dryRun && in_array($request->runner, ['command', 'mechanical', 'method-rename', 'auto'], true)) {
                 (new ExecutionContractStore($request->projectRoot))->assertReadyForMutation($request->taskId);
             }
             $outcome = $this->orchestrator->execute($request);
@@ -66,7 +66,7 @@ final readonly class EditCommand
         the compiled prompt to a generic command runner.
 
         Governed mutation gate:
-          If --task identifies an active governed workflow, command/mechanical/auto
+          If --task identifies an active governed workflow, command/mechanical/method-rename/auto
           mutation requires the current L2 execution contract to be ready. Dry-run
           and stdout prompt preparation remain read-only and may run before that gate.
 
@@ -84,11 +84,12 @@ final readonly class EditCommand
           --rebuild-map             Rebuild even when the current map is fresh.
           --no-rebuild-map          Fail instead of building a missing or stale map.
           --dry-run                 Prepare the bundle without invoking the selected runner.
-          --runner NAME             stdout (default), auto, command, or mechanical.
+          --runner NAME             stdout (default), auto, command, mechanical, or method-rename.
           --runner-command PATH     Executable for --runner=command. No shell is used.
           --runner-arg VALUE        Command argument. Repeatable; use --runner-arg=--flag for flags.
           --replace-old TEXT        Exact target-method literal for --runner=mechanical.
           --replace-new TEXT        Replacement literal for --runner=mechanical.
+          --rename-method NAME      New method name for --runner=method-rename.
           --runner-timeout SECONDS  Command timeout. Default: 900.
           --print-prompt            Print prompt.md when using the stdout runner.
 
