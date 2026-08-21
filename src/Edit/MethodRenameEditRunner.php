@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit;
 
+use Closure;
 use RuntimeException;
+use Throwable;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
 use voku\AgentMap\Rename\MethodRenamePlanner;
@@ -12,12 +14,27 @@ use voku\AgentMap\Rename\MethodRenamePlanner;
 /** Applies only a complete, current, safe agent-map method rename plan. */
 final readonly class MethodRenameEditRunner implements EditRunner
 {
+    /** @var (Closure(string, string): bool)|null */
+    private ?Closure $renameOperation;
+
+    /** @var (Closure(string): array{exit_code: int, stdout: string, stderr: string})|null */
+    private ?Closure $lintOperation;
+
+    /**
+     * @param (Closure(string, string): bool)|null $renameOperation
+     * @param (Closure(string): array{exit_code: int, stdout: string, stderr: string})|null $lintOperation
+     */
     public function __construct(
         private MethodRenamePlanner $planner = new MethodRenamePlanner(),
         private IndexReader $reader = new IndexReader(),
+        ?Closure $renameOperation = null,
+        ?Closure $lintOperation = null,
     ) {
+        $this->renameOperation = $renameOperation;
+        $this->lintOperation = $lintOperation;
     }
 
+    /** Applies one freshly planned rename only after complete validation and staging. */
     public function run(EditExecution $execution): EditRunResult
     {
         $replacement = $execution->request->replacementMethod;
@@ -34,19 +51,38 @@ final readonly class MethodRenameEditRunner implements EditRunner
 
         $plan = $this->planner->plan($map, $execution->request->target, $replacement)->toArray();
         $files = $this->preflight($plan, $map, $execution->request->mapRoot);
+        $staged = $this->stageAndValidate($files);
 
-        foreach ($files as $path => $content) {
-            $this->write($path, $content);
+        try {
+            // Close the staging-time TOCTOU window before the first source file is moved.
+            if ($this->preflight($plan, $map, $execution->request->mapRoot) !== $files) {
+                throw new RuntimeException('Method rename source evidence changed while staged; no source was changed.');
+            }
+            $warnings = $this->publish($staged);
+        } catch (Throwable $exception) {
+            $cleanupFailures = $this->cleanupPaths(array_values($staged));
+            if ($cleanupFailures !== []) {
+                throw new RuntimeException(
+                    'Method rename failed and staged-file cleanup was incomplete: ' . implode('; ', $cleanupFailures),
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
         }
 
         return new EditRunResult(
             status: 'runner_succeeded',
             exitCode: 0,
             stdout: sprintf("Method rename plan applied %d edit(s) across %d file(s).\n", count($plan['edits']), count($files)),
+            stderr: $warnings === [] ? '' : "Method rename completed with cleanup warning(s):\n- " . implode("\n- ", $warnings),
         );
     }
 
     /**
+     * Validates the public plan contract and computes the complete in-memory result without mutation.
+     *
      * @param array<string, mixed> $plan
      * @return array<string, string> absolute path => updated contents
      */
@@ -119,10 +155,192 @@ final readonly class MethodRenameEditRunner implements EditRunner
             }
             $updated[$path] = $content;
         }
+        ksort($updated, SORT_STRING);
 
         return $updated;
     }
 
+    /**
+     * Writes every candidate to an adjacent stage file, preserves its mode, then syntax-checks all candidates.
+     *
+     * @param array<string, string> $files absolute path => updated contents
+     * @return array<string, string> absolute source path => staged path
+     */
+    private function stageAndValidate(array $files): array
+    {
+        $staged = [];
+
+        try {
+            foreach ($files as $path => $content) {
+                $temporary = $this->temporaryPath($path, 'stage');
+                $staged[$path] = $temporary;
+                $written = file_put_contents($temporary, $content, LOCK_EX);
+                if (!is_int($written) || $written !== strlen($content)) {
+                    throw new RuntimeException('Unable to stage complete method rename source: ' . $path);
+                }
+
+                $permissions = fileperms($path);
+                if (!is_int($permissions) || !chmod($temporary, $permissions & 0o777)) {
+                    throw new RuntimeException('Unable to preserve method rename source permissions: ' . $path);
+                }
+            }
+
+            foreach ($staged as $path => $temporary) {
+                $lint = $this->lint($temporary);
+                if ($lint['exit_code'] !== 0) {
+                    $detail = trim($lint['stderr'] !== '' ? $lint['stderr'] : $lint['stdout']);
+                    throw new RuntimeException(
+                        'Rewritten PHP failed syntax validation before publication: '
+                        . $path
+                        . ($detail === '' ? '' : ' (' . $detail . ')'),
+                    );
+                }
+            }
+        } catch (Throwable $exception) {
+            $cleanupFailures = $this->cleanupPaths(array_values($staged));
+            if ($cleanupFailures !== []) {
+                throw new RuntimeException(
+                    'Method rename staging failed and cleanup was incomplete: ' . implode('; ', $cleanupFailures),
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
+
+        return $staged;
+    }
+
+    /**
+     * Publishes staged files with per-source backups and restores every published source on failure.
+     *
+     * @param array<string, string> $staged absolute source path => staged path
+     * @return list<string> non-fatal cleanup warnings after a successful commit
+     */
+    private function publish(array $staged): array
+    {
+        /** @var array<string, string> $backups */
+        $backups = [];
+
+        try {
+            foreach ($staged as $path => $temporary) {
+                $backup = $this->temporaryPath($path, 'backup');
+                if (!$this->move($path, $backup)) {
+                    throw new RuntimeException('Unable to back up method rename source before publication: ' . $path);
+                }
+                $backups[$path] = $backup;
+
+                if (!$this->move($temporary, $path)) {
+                    throw new RuntimeException('Unable to publish staged method rename source: ' . $path);
+                }
+            }
+        } catch (Throwable $exception) {
+            $rollbackFailures = $this->rollback($backups);
+            $stageCleanupFailures = $this->cleanupPaths(array_values($staged));
+            $failures = [...$rollbackFailures, ...$stageCleanupFailures];
+            if ($failures !== []) {
+                throw new RuntimeException(
+                    'Method rename publication failed and rollback was incomplete: ' . implode('; ', $failures),
+                    0,
+                    $exception,
+                );
+            }
+
+            throw new RuntimeException(
+                'Method rename publication failed; every source file was restored.',
+                0,
+                $exception,
+            );
+        }
+
+        return $this->cleanupPaths(array_values($backups));
+    }
+
+    /**
+     * Restores original source files from backups in reverse publication order.
+     *
+     * @param array<string, string> $backups absolute source path => backup path
+     * @return list<string> rollback failures
+     */
+    private function rollback(array $backups): array
+    {
+        $failures = [];
+        foreach (array_reverse($backups, true) as $path => $backup) {
+            if ((is_file($path) || is_link($path)) && !unlink($path)) {
+                $failures[] = 'unable to remove partially published source ' . $path;
+            }
+            if ((is_file($backup) || is_link($backup)) && !$this->move($backup, $path)) {
+                $failures[] = 'unable to restore source backup ' . $path;
+            }
+        }
+
+        return $failures;
+    }
+
+    /**
+     * @param list<string> $paths
+     * @return list<string> cleanup failures
+     */
+    private function cleanupPaths(array $paths): array
+    {
+        $failures = [];
+        foreach ($paths as $path) {
+            if ((is_file($path) || is_link($path)) && !unlink($path)) {
+                $failures[] = 'unable to remove temporary file ' . $path;
+            }
+        }
+
+        return $failures;
+    }
+
+    /** Creates a collision-resistant adjacent path so rename publication stays on one filesystem. */
+    private function temporaryPath(string $path, string $purpose): string
+    {
+        $temporary = $path . '.agent-loop-method-rename-' . $purpose . '-' . bin2hex(random_bytes(8));
+        if (file_exists($temporary) || is_link($temporary)) {
+            throw new RuntimeException('Method rename temporary path already exists: ' . $temporary);
+        }
+
+        return $temporary;
+    }
+
+    /** Moves one filesystem path using the production operation or the injected failure-test seam. */
+    private function move(string $from, string $to): bool
+    {
+        if ($this->renameOperation !== null) {
+            return ($this->renameOperation)($from, $to);
+        }
+
+        return rename($from, $to);
+    }
+
+    /** @return array{exit_code: int, stdout: string, stderr: string} */
+    private function lint(string $path): array
+    {
+        if ($this->lintOperation !== null) {
+            return ($this->lintOperation)($path);
+        }
+
+        $pipes = [];
+        $process = proc_open([PHP_BINARY, '-n', '-l', $path], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($process)) {
+            throw new RuntimeException('Unable to start PHP syntax validation for staged method rename source.');
+        }
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        return [
+            'exit_code' => $exitCode,
+            'stdout' => is_string($stdout) ? $stdout : '',
+            'stderr' => is_string($stderr) ? $stderr : '',
+        ];
+    }
+
+    /** Rebinds a persisted map to the runtime project root without changing map identity. */
     private function withRuntimeRoot(AgentMapIndex $map, string $root): AgentMapIndex
     {
         if (rtrim(str_replace('\\', '/', $map->root), '/') === rtrim(str_replace('\\', '/', $root), '/')) {
@@ -132,6 +350,7 @@ final readonly class MethodRenameEditRunner implements EditRunner
         return new AgentMapIndex($map->schemaVersion, rtrim(str_replace('\\', '/', $root), '/'), $map->backend, $map->files, $map->relations, $map->diagnostics, $map->fingerprint);
     }
 
+    /** Resolves one plan-relative source path and rejects root escapes. */
     private function sourcePath(string $root, mixed $relative): string
     {
         if (!is_string($relative) || $relative === '' || str_contains($relative, "\0")) {
@@ -146,6 +365,7 @@ final readonly class MethodRenameEditRunner implements EditRunner
         return $path;
     }
 
+    /** Reads one source file or fails with its concrete path. */
     private function read(string $path): string
     {
         $content = file_get_contents($path);
@@ -154,14 +374,5 @@ final readonly class MethodRenameEditRunner implements EditRunner
         }
 
         return $content;
-    }
-
-    private function write(string $path, string $content): void
-    {
-        $temporary = $path . '.tmp-' . getmypid();
-        if (file_put_contents($temporary, $content) === false || !rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new RuntimeException('Unable to publish method rename source: ' . $path);
-        }
     }
 }

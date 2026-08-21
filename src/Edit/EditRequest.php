@@ -77,6 +77,9 @@ final readonly class EditRequest
         if ($runner === 'method-rename' && ($replacementMethod === null || trim($replacementMethod) === '')) {
             throw new InvalidArgumentException('The method-rename runner requires --rename-method.');
         }
+        if ($runner !== 'method-rename' && $replacementMethod !== null) {
+            throw new InvalidArgumentException('--rename-method requires --runner=method-rename.');
+        }
         if ($runnerTimeoutSeconds < 1 || $runnerTimeoutSeconds > 86400) {
             throw new InvalidArgumentException('Runner timeout must be between 1 and 86400 seconds.');
         }
@@ -122,6 +125,7 @@ final readonly class EditRequest
                 'print_prompt' => $this->printPrompt,
                 'replacement_old' => $this->replacementOld,
                 'replacement_new' => $this->replacementNew,
+                'replacement_method' => $this->replacementMethod,
             ],
         ];
     }

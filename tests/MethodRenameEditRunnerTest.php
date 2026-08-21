@@ -9,8 +9,11 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Edit\EditExecution;
+use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\MethodRenameEditRunner;
 use voku\AgentMap\Index\AgentMapBuilder;
+use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Rename\MethodRenamePlanner;
 
 final class MethodRenameEditRunnerTest extends TestCase
@@ -81,6 +84,53 @@ final class MethodRenameEditRunnerTest extends TestCase
         yield 'exact range mismatch' => [static function (array $plan): array { ++$plan['edits'][0]['start_file_pos']; return $plan; }, 'changed before apply'];
     }
 
+    public function testSecondPublicationFailureRestoresEverySource(): void
+    {
+        $before = $this->sources();
+        $service = $this->root . '/src/Service.php';
+        $runner = new MethodRenameEditRunner(
+            renameOperation: static function (string $from, string $to) use ($service): bool {
+                if ($to === $service && str_contains($from, '.agent-loop-method-rename-stage-')) {
+                    return false;
+                }
+
+                return rename($from, $to);
+            },
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('every source file was restored');
+        try {
+            $runner->run($this->execution());
+        } finally {
+            self::assertSame($before, $this->sources());
+            self::assertSame([], $this->temporaryArtifacts());
+        }
+    }
+
+    public function testSyntaxValidationFailureLeavesEverySourceUntouched(): void
+    {
+        $before = $this->sources();
+        $runner = new MethodRenameEditRunner(
+            lintOperation: static function (string $path): array {
+                if (str_contains($path, 'Service.php.agent-loop-method-rename-stage-')) {
+                    return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'forced parser failure'];
+                }
+
+                return ['exit_code' => 0, 'stdout' => 'No syntax errors detected', 'stderr' => ''];
+            },
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('failed syntax validation before publication');
+        try {
+            $runner->run($this->execution());
+        } finally {
+            self::assertSame($before, $this->sources());
+            self::assertSame([], $this->temporaryArtifacts());
+        }
+    }
+
     /** @return array{\voku\AgentMap\Index\AgentMapIndex, array<string, mixed>} */
     private function realPlan(): array
     {
@@ -91,6 +141,28 @@ final class MethodRenameEditRunnerTest extends TestCase
         return [$map, $plan];
     }
 
+    private function execution(): EditExecution
+    {
+        [$map] = $this->realPlan();
+        $mapIndex = $this->root . '/map.json';
+        (new IndexWriter())->write($map, $mapIndex);
+        $request = new EditRequest(
+            taskId: 'RENAME-TEST',
+            target: 'Demo\\Service::save',
+            instruction: 'Rename the proven method family.',
+            projectRoot: $this->root,
+            recallRoot: $this->root,
+            mapIndex: $mapIndex,
+            mapRoot: $this->root,
+            outputDirectory: $this->root . '/edit',
+            mapPaths: ['src'],
+            runner: 'method-rename',
+            replacementMethod: 'persist',
+        );
+
+        return new EditExecution($request, $this->root . '/prompt.md', $map->resolveMethod($request->target));
+    }
+
     /** @return array<string, string> */
     private function sources(): array
     {
@@ -98,5 +170,13 @@ final class MethodRenameEditRunnerTest extends TestCase
             'caller' => (string) file_get_contents($this->root . '/src/Caller.php'),
             'service' => (string) file_get_contents($this->root . '/src/Service.php'),
         ];
+    }
+
+    /** @return list<string> */
+    private function temporaryArtifacts(): array
+    {
+        $matches = glob($this->root . '/src/*.agent-loop-method-rename-*');
+
+        return is_array($matches) ? array_values($matches) : [];
     }
 }
