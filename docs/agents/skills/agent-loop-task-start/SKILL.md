@@ -17,13 +17,15 @@ needed to make that workflow runnable before interpreting its absence as a
 workflow failure. Typical bootstrap work includes inspecting the current
 worktree/remotes, fetching or reconstructing the obvious public repository remote,
 installing already-declared Composer dependencies, obtaining required public
-sibling checkouts for cross-package work, and discovering available host/GitHub
-capabilities without printing credentials.
+sibling checkouts for cross-package work, discovering available host/GitHub
+capabilities without printing credentials, and establishing an isolated branch or
+worktree before implementation.
 
 This bootstrap is outside the governed product-mutation boundary: it does not
 create or approve a Contract, Session, Recall, Finding, proposal, or other owner
 state, and it does not authorize product-code changes. Once the lifecycle CLI is
-runnable, return immediately to the governed front door below.
+runnable and an isolated implementation workspace exists, return immediately to
+the governed front door below.
 
 Do not declare a task blocked merely because `vendor/`, an expected public remote,
 `gh`, push credentials, or one preferred PR helper is missing. Recover safe local
