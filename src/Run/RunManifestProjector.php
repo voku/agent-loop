@@ -163,6 +163,7 @@ final readonly class RunManifestProjector
             return $session;
         }
 
+        $ambiguous = false;
         try {
             $active = $store->activeForTask($root, $taskId);
         } catch (AmbiguousActiveSession $exception) {
@@ -171,7 +172,9 @@ final readonly class RunManifestProjector
                 'owner' => 'agent-session',
                 'message' => $exception->getMessage(),
             ];
-
+            $ambiguous = true;
+        }
+        if ($ambiguous) {
             return null;
         }
         if ($active !== null) {
