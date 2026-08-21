@@ -22,10 +22,11 @@ magically become instructions for a different host. Record that capability as
 `not_exercised` rather than treating an absent mechanism as a passing experiment.
 
 A fresh hosted environment may also omit reversible workspace bootstrap such as
-Composer dependencies, remotes, or sibling checkouts. For agent-host dogfood,
-record whether the acting agent recovered that declared environment itself before
-interpreting lifecycle/tool absence. Do not count a missing preferred PR/push
-client as a terminal task blocker while useful local work still remains.
+Composer dependencies, remotes, sibling checkouts, or an isolated implementation
+workspace. For agent-host dogfood, record whether the acting agent recovered that
+declared environment itself before interpreting lifecycle/tool absence. Do not
+count a missing preferred PR/push client as a terminal task blocker while useful
+local work still remains.
 
 ## Method
 
@@ -33,8 +34,8 @@ client as a terminal task blocker while useful local work still remains.
 2. Classify the run as installer, deterministic lifecycle, or agent-host dogfood before interpreting its result.
 3. Record baseline task, revision, model, host, tools, and validation.
 4. For agent-host dogfood, project the intended skills/hooks before starting a clean session. Do not install them mid-session and then claim they influenced earlier work.
-5. Record the initial host bootstrap state relevant to execution: lifecycle binary runnable yes/no, declared dependencies installed yes/no, expected public remote available yes/no, required sibling checkout available yes/no, remote-write capability available yes/no/not-needed.
-6. When the lifecycle binary is not runnable because reversible declared bootstrap is absent, observe whether the agent restores that environment before declaring the workflow blocked. Record every recovery actually performed; do not infer one from the final state.
+5. Record the initial host bootstrap state relevant to execution: lifecycle binary runnable yes/no, declared dependencies installed yes/no, expected public remote available yes/no, required sibling checkout available yes/no, isolated branch/worktree available yes/no, remote-write capability available yes/no/not-needed.
+6. When the lifecycle binary is not runnable because reversible declared bootstrap is absent, observe whether the agent restores that environment before declaring the workflow blocked. Record every recovery actually performed, including branch/worktree isolation; do not infer one from the final state.
 7. When Map-backed context is under test, let the governed lifecycle surface the discovery repair it requires rather than sequencing Map/Search by hand; build them directly only when the experiment is explicitly about standalone Map/Recall behaviour.
 8. When an L2 operating prompt is under test, select it in the approved Contract and prove the agent consumed the generated `system.md`/validation briefing. Compilation plus a hand-written L1 proves wiring, not model use.
 9. Run baseline and candidate guidance in separate clean sessions when the host supports it.
@@ -73,9 +74,11 @@ Record only observable values:
 - review findings and regressions;
 - projected skills/hooks: yes/no;
 - generated Recall briefing consumed by the acting agent: yes/no/not-observable;
-- local Git hooks eligible to execute in the host used: yes/no;
+- local Git hooks eligible to execute in the host used: yes/no/not-observable;
 - initial reversible bootstrap gaps;
+- initial isolated branch/worktree present: yes/no/not-observable;
 - bootstrap recoveries actually performed by the acting agent;
+- isolated branch/worktree recovery performed: yes/no/not-needed/not-observable;
 - remote-write capability: available/unavailable/not-needed;
 - first genuinely impossible required action, or `none`;
 - useful local work left undone when the run stopped: yes/no.
