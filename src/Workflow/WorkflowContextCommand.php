@@ -218,9 +218,13 @@ final readonly class WorkflowContextCommand
             return null;
         }
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        $session = null;
         try {
             $session = (new SessionStore())->load($root, $id);
         } catch (Throwable) {
+            $session = null;
+        }
+        if ($session === null) {
             return null;
         }
 
@@ -260,9 +264,14 @@ final readonly class WorkflowContextCommand
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
+        $output = null;
+        $invalid = false;
         try {
             $output = $reader->read($directory);
         } catch (RuntimeException) {
+            $invalid = true;
+        }
+        if ($invalid) {
             $budget->skip('recall: invalid ' . $relative);
 
             return false;
