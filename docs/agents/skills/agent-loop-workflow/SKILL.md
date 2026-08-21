@@ -12,6 +12,26 @@ artifact checklist.
 
 Persisted owner evidence is authoritative. Conversation prose is not.
 
+## Environment Boundary
+
+The lifecycle owns governed task/product mutation, not the host's reversible
+workspace bootstrap. If the declared lifecycle binary cannot run because a fresh
+host omitted already-declared dependencies or repository plumbing, first restore
+the minimum environment needed to execute it: inspect/fetch the public checkout,
+run the repository's declared dependency installation, obtain required public
+sibling checkouts for cross-package work, and discover available host/remote
+capabilities without exposing credentials.
+
+Do not create lifecycle owner state during bootstrap, and do not use bootstrap as
+permission to mutate product code. Once `agent-loop` is runnable, route through
+`enter` normally.
+
+A missing preferred remote-write mechanism is a capability boundary, not
+automatically a terminal task blocker. Continue useful authorized local work
+that does not require that capability, and report a human/capability gate only
+when the next required action itself cannot be performed and no useful local
+work remains.
+
 ## Ordinary Host Contract
 
 Start or resume through the front door:
