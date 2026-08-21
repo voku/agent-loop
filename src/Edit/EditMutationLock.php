@@ -10,27 +10,20 @@ use RuntimeException;
 /** Serializes agent-loop edit runners that may mutate one project working tree. */
 final readonly class EditMutationLock
 {
-    /** @var (Closure(string, Closure): mixed)|null */
+    /** @var (Closure(string, Closure): EditRunResult)|null */
     private ?Closure $synchronizeOperation;
 
-    /** @param (Closure(string, Closure): mixed)|null $synchronizeOperation */
+    /** @param (Closure(string, Closure): EditRunResult)|null $synchronizeOperation */
     public function __construct(?Closure $synchronizeOperation = null)
     {
         $this->synchronizeOperation = $synchronizeOperation;
     }
 
-    /**
-     * @template T
-     * @param Closure(): T $operation
-     * @return T
-     */
-    public function synchronized(string $projectRoot, Closure $operation): mixed
+    /** @param Closure(): EditRunResult $operation */
+    public function synchronized(string $projectRoot, Closure $operation): EditRunResult
     {
         if ($this->synchronizeOperation !== null) {
-            /** @var T $result */
-            $result = ($this->synchronizeOperation)($projectRoot, $operation);
-
-            return $result;
+            return ($this->synchronizeOperation)($projectRoot, $operation);
         }
 
         $root = realpath($projectRoot);
