@@ -345,11 +345,14 @@ final class Dispatcher
             // Resolve the candidate as a task id below.
         }
 
+        $ambiguous = false;
         try {
             $active = $store->activeForTask($sessionRoot, $candidate);
         } catch (AmbiguousActiveSession $exception) {
             echo '[ERROR] ' . $exception->getMessage() . "\n";
-
+            $ambiguous = true;
+        }
+        if ($ambiguous) {
             return null;
         }
         if ($active === null) {
