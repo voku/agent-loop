@@ -218,14 +218,9 @@ final readonly class WorkflowContextCommand
             return null;
         }
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
-        $session = null;
-        $loadFailed = false;
         try {
             $session = (new SessionStore())->load($root, $id);
         } catch (Throwable) {
-            $loadFailed = true;
-        }
-        if ($loadFailed || !$session instanceof Session) {
             return null;
         }
 
@@ -265,14 +260,9 @@ final readonly class WorkflowContextCommand
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
-        $output = null;
-        $invalid = false;
         try {
             $output = $reader->read($directory);
         } catch (RuntimeException) {
-            $invalid = true;
-        }
-        if ($invalid) {
             $budget->skip('recall: invalid ' . $relative);
 
             return false;
@@ -285,6 +275,8 @@ final readonly class WorkflowContextCommand
 
         $budget->section('Selected guidance');
         foreach ([...$output->selectedGuidance(), ...$output->selectedConstraints()] as $id) {
+            // The owner drops empty ids; a whitespace-only one would still
+            // reach the context as a blank guidance line.
             if (trim($id) === '') {
                 continue;
             }
@@ -295,6 +287,9 @@ final readonly class WorkflowContextCommand
             return false;
         }
         if (!$output->areFactsReadable()) {
+            // Compiled facts exist but cannot be read. Returning true keeps the
+            // caller from silently falling back to the live map, which would
+            // present current navigation as though the bundle had supplied it.
             $budget->skip('recall: invalid compiled facts in ' . RecallOutputRoot::relativeTo($this->rootPath, $directory));
 
             return true;
