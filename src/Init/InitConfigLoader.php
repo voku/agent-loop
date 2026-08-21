@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use stdClass;
 use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\PathResolver;
 
@@ -127,10 +128,13 @@ final readonly class InitConfigLoader
             }
         }
 
+        $decodedShape = json_decode($content);
+        $hasInteraction = $decodedShape instanceof stdClass && property_exists($decodedShape, 'interaction');
+        $interactionShape = $hasInteraction ? $decodedShape->interaction : null;
         $interaction = $decoded['interaction'] ?? null;
-        if ($interaction !== null && !is_array($interaction)) {
+        if ($hasInteraction && !$interactionShape instanceof stdClass) {
             $result['warnings'][] = '[WARN] init config: interaction must be an object';
-        } elseif (is_array($interaction) && array_key_exists('human_explanations', $interaction)) {
+        } elseif ($interactionShape instanceof stdClass && is_array($interaction) && array_key_exists('human_explanations', $interaction)) {
             $configured = $interaction['human_explanations'];
             $policy = is_string($configured)
                 ? HumanExplanationPolicy::tryFrom(strtolower(trim($configured)))
