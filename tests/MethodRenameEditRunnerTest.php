@@ -177,6 +177,6 @@ final class MethodRenameEditRunnerTest extends TestCase
     {
         $matches = glob($this->root . '/src/*.agent-loop-method-rename-*');
 
-        return is_array($matches) ? array_values($matches) : [];
+        return is_array($matches) ? $matches : [];
     }
 }
