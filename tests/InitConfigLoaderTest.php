@@ -32,6 +32,20 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testEmptyInteractionObjectKeepsDefaultWithoutWarning(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'interaction' => (object) [],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame('ask', $config['interaction']['human_explanations']);
+        self::assertSame([], $config['warnings']);
+    }
+
     public function testHumanExplanationPolicyAcceptsAlwaysAndNever(): void
     {
         foreach (['always', 'never'] as $value) {
@@ -67,16 +81,18 @@ final class InitConfigLoaderTest extends TestCase
 
     public function testInvalidInteractionObjectWarnsAndFallsBackToAsk(): void
     {
-        $root = $this->tempDir();
-        mkdir($root . '/.agent-loop', 0o775, true);
-        file_put_contents($root . '/.agent-loop/init.json', json_encode([
-            'interaction' => false,
-        ], JSON_THROW_ON_ERROR));
+        foreach ([false, null, []] as $value) {
+            $root = $this->tempDir();
+            mkdir($root . '/.agent-loop', 0o775, true);
+            file_put_contents($root . '/.agent-loop/init.json', json_encode([
+                'interaction' => $value,
+            ], JSON_THROW_ON_ERROR));
 
-        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+            $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
 
-        self::assertSame('ask', $config['interaction']['human_explanations']);
-        self::assertContains('[WARN] init config: interaction must be an object', $config['warnings']);
+            self::assertSame('ask', $config['interaction']['human_explanations']);
+            self::assertContains('[WARN] init config: interaction must be an object', $config['warnings']);
+        }
     }
 
     private function tempDir(): string
