@@ -10,6 +10,11 @@ use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentMap\Build\StructuralOnlySemanticAnalyzer;
+use voku\AgentMap\Index\AgentMapBuilder;
+use voku\AgentMap\Index\IndexReader;
+use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\MapArtifactPaths;
 
 /**
  * Deterministic Map preparation belongs behind `enter`, not in host prose.
@@ -49,6 +54,22 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         self::assertFileExists($this->mapIndex(), 'enter must reconcile Map discovery itself');
     }
 
+    public function testAutomaticMapContainsOnlyTheApprovedExistingPhpScope(): void
+    {
+        file_put_contents($this->root . '/src/Unrelated.php', "<?php\n\nfinal class Unrelated {}\n");
+        mkdir($this->root . '/.agent-loop/map', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/map/Generated.php', "<?php\n\nfinal class Generated {}\n");
+        $this->approvedPhpContract('MAP-SCOPE');
+
+        $this->enter('MAP-SCOPE');
+
+        $map = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($map->file('src/Greeter.php'));
+        self::assertNull($map->file('src/Unrelated.php'));
+        self::assertNull($map->file('.agent-loop/map/Generated.php'));
+        self::assertSame('simple-php-code-parser+structural-only', $map->backend);
+    }
+
     public function testRankedSearchStaysOptionalRatherThanBecomingAPreparationGate(): void
     {
         $this->approvedPhpContract('MAP-2');
@@ -59,15 +80,43 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.agent-loop/map/search.sqlite');
     }
 
-    public function testRepeatedEnterDoesNotRebuildAReadyMap(): void
+    public function testRepeatedEnterDoesNotRebuildAReadyBroaderMap(): void
     {
+        file_put_contents($this->root . '/src/Unrelated.php', "<?php\n\nfinal class Unrelated {}\n");
         $this->approvedPhpContract('MAP-3');
+        $this->buildStructuralMap(['src']);
+        $beforeEnter = (string) file_get_contents($this->mapIndex());
+
         $this->enter('MAP-3');
         $first = (string) file_get_contents($this->mapIndex());
-
         $this->enter('MAP-3');
 
+        self::assertSame($beforeEnter, $first, 'enter must preserve a ready broader Map');
         self::assertSame($first, (string) file_get_contents($this->mapIndex()), 'repeated enter must stay idempotent');
+    }
+
+    public function testStaleDifferentBackendMapIsReplacedWithoutCarryingUnrelatedEntries(): void
+    {
+        file_put_contents($this->root . '/src/Unrelated.php', "<?php\n\nfinal class Unrelated {}\n");
+        $this->approvedPhpContract('MAP-STALE');
+        $this->buildStructuralMap(['src']);
+        $previous = (string) file_get_contents($this->mapIndex());
+        file_put_contents(
+            $this->mapIndex(),
+            str_replace(
+                'simple-php-code-parser+structural-only',
+                'simple-php-code-parser+phpstan',
+                $previous,
+            ),
+        );
+        file_put_contents($this->root . '/src/Greeter.php', "<?php\n\nfinal class Greeter {}\n");
+
+        $this->enter('MAP-STALE');
+
+        $map = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($map->file('src/Greeter.php'));
+        self::assertNull($map->file('src/Unrelated.php'));
+        self::assertSame('simple-php-code-parser+structural-only', $map->backend);
     }
 
     public function testDocumentationOnlyWorkBuildsNoMapAtAll(): void
@@ -99,6 +148,17 @@ final class EnterReconcilesDiscoveryTest extends TestCase
             'planner',
         );
         $contracts->approve($taskId, 'approver');
+    }
+
+    /** @param list<string> $paths */
+    private function buildStructuralMap(array $paths): void
+    {
+        $artifacts = MapArtifactPaths::forProject($this->root, '.agent-loop/map');
+        $map = (new AgentMapBuilder(
+            semanticAnalyzer: new StructuralOnlySemanticAnalyzer(),
+            artifacts: $artifacts,
+        ))->build($this->root, $paths, [], null, null, null);
+        (new IndexWriter())->write($map, $artifacts->indexJson());
     }
 
     /**

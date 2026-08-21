@@ -13,8 +13,8 @@ use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use Throwable;
+use voku\AgentMap\Build\StructuralOnlySemanticAnalyzer;
 use voku\AgentMap\Index\AgentMapBuilder;
-use voku\AgentMap\Index\IndexReader;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
@@ -65,7 +65,7 @@ final readonly class WorkflowRunPreparer
         }
 
         try {
-            $this->rebuildMap($readiness);
+            $this->rebuildMap($contract);
         } catch (Throwable $exception) {
             throw new RuntimeException(
                 'agent-map could not prepare discovery for this Contract: ' . $exception->getMessage(),
@@ -84,35 +84,31 @@ final readonly class WorkflowRunPreparer
     /**
      * Rebuild through the Map owner's own API.
      *
-     * Path selection stays with agent-map: a stale snapshot is refreshed from
-     * the entries it already records, and an absent one is built from the
-     * project root, the same default `agent-loop edit` uses. agent-loop does
-     * not carry a second source-selection policy.
+     * Automatic preparation proves only the already-approved, existing PHP
+     * Contract scope. It never performs a second repository-wide discovery or
+     * carries unrelated entries forward from a stale snapshot. Explicit Map
+     * commands remain the front door for intentionally broader discovery.
      */
-    private function rebuildMap(MapReadiness $readiness): void
+    private function rebuildMap(TaskContract $contract): void
     {
-        $index = MapArtifactPaths::forProject($this->rootPath, (new ProjectLayout($this->rootPath))->mapRoot())->indexJson();
-        $builder = new AgentMapBuilder();
-
-        if ($readiness->mapState === 'stale' && is_file($index)) {
-            $previous = (new IndexReader())->read($index);
-            $changed = [];
-            foreach ($previous->staleEntries() as $entry) {
-                if ($entry['reason'] !== 'missing') {
-                    $changed[] = $entry['path'];
-                }
-            }
-            if ($changed !== []) {
-                (new IndexWriter())->write(
-                    $builder->build($this->rootPath, $changed, [], null, null, $previous),
-                    $index,
-                );
-
-                return;
-            }
+        $scope = $this->existingPhpScope($contract);
+        if ($scope === []) {
+            return;
         }
 
-        (new IndexWriter())->write($builder->build($this->rootPath, ['.'], [], null, null, null), $index);
+        $artifacts = MapArtifactPaths::forProject(
+            $this->rootPath,
+            (new ProjectLayout($this->rootPath))->mapRoot(),
+        );
+        $builder = new AgentMapBuilder(
+            semanticAnalyzer: new StructuralOnlySemanticAnalyzer(),
+            artifacts: $artifacts,
+        );
+
+        (new IndexWriter())->write(
+            $builder->build($this->rootPath, $scope, [], null, null, null),
+            $artifacts->indexJson(),
+        );
     }
 
     /** @param callable(list<string>): int $recallRunner */
@@ -219,36 +215,14 @@ final readonly class WorkflowRunPreparer
 
     private function discoveryBlocker(TaskContract $contract, MapReadiness $readiness): ?DiscoveryRepair
     {
-        $projectRoot = realpath($this->rootPath);
-        if (!is_string($projectRoot)) {
-            throw new RuntimeException('Project root cannot be resolved for discovery readiness: ' . $this->rootPath);
-        }
-        $projectRoot = rtrim(str_replace('\\', '/', $projectRoot), '/');
-
-        $existingPhpScope = [];
-        foreach ($contract->scope as $scopePath) {
-            $absolute = realpath(PathResolver::join($projectRoot, $scopePath));
-            if (!is_string($absolute)) {
-                continue;
-            }
-            $absolute = str_replace('\\', '/', $absolute);
-            if (!str_starts_with($absolute, $projectRoot . '/')) {
-                continue;
-            }
-            $relative = substr($absolute, strlen($projectRoot) + 1);
-            if ($relative === '' || !str_ends_with(strtolower($relative), '.php') || !is_file($absolute)) {
-                continue;
-            }
-            $existingPhpScope[$relative] = true;
-        }
-
+        $existingPhpScope = $this->existingPhpScope($contract);
         if ($existingPhpScope === []) {
             return null;
         }
         if ($readiness->mapState === 'missing') {
             return new DiscoveryRepair(
                 'Existing PHP scope requires agent-map discovery before governed preparation: '
-                . implode(', ', array_keys($existingPhpScope)) . '.',
+                . implode(', ', $existingPhpScope) . '.',
                 'agent-loop map build --paths=src,tests',
             );
         }
@@ -280,7 +254,7 @@ final readonly class WorkflowRunPreparer
         }
 
         $missingScope = [];
-        foreach (array_keys($existingPhpScope) as $relative) {
+        foreach ($existingPhpScope as $relative) {
             if ($map->file($relative) === null) {
                 $missingScope[] = $relative;
             }
@@ -294,6 +268,35 @@ final readonly class WorkflowRunPreparer
         }
 
         return null;
+    }
+
+    /** @return list<string> */
+    private function existingPhpScope(TaskContract $contract): array
+    {
+        $projectRoot = realpath($this->rootPath);
+        if (!is_string($projectRoot)) {
+            throw new RuntimeException('Project root cannot be resolved for discovery readiness: ' . $this->rootPath);
+        }
+        $projectRoot = rtrim(str_replace('\\', '/', $projectRoot), '/');
+
+        $existingPhpScope = [];
+        foreach ($contract->scope as $scopePath) {
+            $absolute = realpath(PathResolver::join($projectRoot, $scopePath));
+            if (!is_string($absolute)) {
+                continue;
+            }
+            $absolute = str_replace('\\', '/', $absolute);
+            if (!str_starts_with($absolute, $projectRoot . '/')) {
+                continue;
+            }
+            $relative = substr($absolute, strlen($projectRoot) + 1);
+            if ($relative === '' || !str_ends_with(strtolower($relative), '.php') || !is_file($absolute)) {
+                continue;
+            }
+            $existingPhpScope[$relative] = true;
+        }
+
+        return array_keys($existingPhpScope);
     }
 
     private function mapReadiness(): MapReadiness
