@@ -54,6 +54,21 @@ final class RunManifestProjectorTest extends TestCase
         self::assertStringContainsString('workflow plan ABC-123', $manifest->nextAction);
     }
 
+    public function testGovernedSessionWinsWhenEphemeralExperimentAlsoExists(): void
+    {
+        $store = new SessionStore();
+        $sessionsRoot = $this->root . '/.agent-loop/sessions';
+        $store->create($sessionsRoot, 'ABC-123', slug: 'experiment', by: 'lars', ephemeral: true);
+        $governed = $store->create($sessionsRoot, 'ABC-123', slug: 'governed', by: 'lars');
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('active', $manifest->references['session']['state']);
+        self::assertSame($governed->id, $manifest->references['session']['session_id']);
+        self::assertFalse($manifest->references['session']['ephemeral']);
+        self::assertSame([], $manifest->disagreements);
+    }
+
     public function testMapAndSearchReadinessAreProjectedFromAgentMapOwnerFacts(): void
     {
         mkdir($this->root . '/src', 0o775, true);

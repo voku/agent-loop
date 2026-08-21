@@ -25,6 +25,7 @@ use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutput;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
+use voku\AgentSession\AmbiguousActiveSession;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
@@ -162,25 +163,30 @@ final readonly class RunManifestProjector
             return $session;
         }
 
-        $matches = array_values(array_filter(
-            $store->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId,
-        ));
-        $active = array_values(array_filter(
-            $matches,
-            static fn (Session $session): bool => !$session->status->isClosed(),
-        ));
-        if (count($active) > 1) {
+        $ambiguous = false;
+        try {
+            $active = $store->activeForTask($root, $taskId);
+        } catch (AmbiguousActiveSession $exception) {
             $disagreements[] = [
                 'code' => 'session.multiple_active',
                 'owner' => 'agent-session',
-                'message' => sprintf('Task %s has %d active Sessions.', $taskId, count($active)),
+                'message' => $exception->getMessage(),
             ];
-
+            $ambiguous = true;
+        }
+        if ($ambiguous) {
             return null;
         }
+        if ($active !== null) {
+            return $active;
+        }
 
-        return $active[0] ?? null;
+        $ephemeral = array_values(array_filter(
+            $store->openForTask($root, $taskId),
+            static fn (Session $session): bool => $session->ephemeral,
+        ));
+
+        return count($ephemeral) === 1 ? $ephemeral[0] : null;
     }
 
     /**

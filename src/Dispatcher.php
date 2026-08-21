@@ -17,6 +17,7 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
+use voku\AgentSession\AmbiguousActiveSession;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
 
@@ -344,27 +345,33 @@ final class Dispatcher
             // Resolve the candidate as a task id below.
         }
 
-        $matchingSessions = array_values(array_filter(
-            $store->all($sessionRoot),
-            static fn ($session): bool => $session->taskId === $candidate,
-        ));
-
-        if ($matchingSessions === []) {
-            return $rest;
+        $ambiguityMessage = null;
+        try {
+            $active = $store->activeForTask($sessionRoot, $candidate);
+        } catch (AmbiguousActiveSession $exception) {
+            $ambiguityMessage = $exception->getMessage();
         }
+        if ($ambiguityMessage !== null) {
+            echo '[ERROR] ' . $ambiguityMessage . "\n";
 
-        $activeSessions = array_values(array_filter(
-            $matchingSessions,
-            static fn ($session): bool => !$session->status->isClosed(),
-        ));
-
-        if (count($activeSessions) !== 1) {
+            return null;
+        }
+        if ($active === null) {
+            $open = $store->openForTask($sessionRoot, $candidate);
+            if (count($open) === 1) {
+                $active = $open[0];
+            }
+        }
+        if ($active === null) {
+            if ($store->allForTask($sessionRoot, $candidate) === []) {
+                return $rest;
+            }
             echo "[ERROR] Multiple sessions found for task {$candidate}. Pass the generated session id explicitly.\n";
 
             return null;
         }
 
-        $tokens[$positionalIndex] = $activeSessions[0]->id;
+        $tokens[$positionalIndex] = $active->id;
 
         return array_merge([$command], $tokens);
     }

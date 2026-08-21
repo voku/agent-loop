@@ -21,7 +21,7 @@
     "voku/agent-learning": "^0.13.2",
     "voku/agent-map": "^0.8.1",
     "voku/agent-recall-compiler": "^0.13.9",
-    "voku/agent-session": "^0.6.1",
+    "voku/agent-session": "^0.6.2",
     "voku/itp-context": "^0.3.0"
   },
   "require-dev": {
