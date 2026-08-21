@@ -70,9 +70,32 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertStringContainsString('Render a compact context.', $output);
         self::assertStringContainsString('Acceptance criteria (required, not proof):', $output);
         self::assertStringContainsString('The coding agent can see the required outcome.', $output);
+        self::assertStringContainsString(
+            'Human explanations: ask (interactive: ask; unattended: skip). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
+            $output,
+        );
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
         self::assertStringContainsString('Demo\\Foo', $output);
         self::assertSame($before, hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json'));
+    }
+
+    public function testContextProjectsNeverPolicyWithoutChangingHumanAuthority(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'interaction' => ['human_explanations' => 'never'],
+        ], JSON_THROW_ON_ERROR));
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertSame('never', $context['interaction']['human_explanations']);
+        self::assertSame('skip', $context['interaction']['interactive_behavior']);
+        self::assertSame('skip', $context['interaction']['unattended_behavior']);
+        self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
+        self::assertStringContainsString(
+            'Human explanations: never (interactive: skip; unattended: skip). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
+            $rendered,
+        );
     }
 
     public function testContextReportsOmissionsAndMissingMap(): void

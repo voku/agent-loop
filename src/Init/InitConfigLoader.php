@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use stdClass;
+use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\PathResolver;
 
 final readonly class InitConfigLoader
@@ -17,7 +19,8 @@ final readonly class InitConfigLoader
      *     warnings: list<string>,
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>,
-     *     recall: array{document_manifests: list<string>}
+     *     recall: array{document_manifests: list<string>},
+     *     interaction: array{human_explanations: 'ask'|'always'|'never'}
      * }
      */
     public function load(?string $configPath): array
@@ -27,6 +30,7 @@ final readonly class InitConfigLoader
             'paths' => [],
             'agents' => [],
             'recall' => ['document_manifests' => []],
+            'interaction' => ['human_explanations' => HumanExplanationPolicy::ASK->value],
         ];
 
         if ($configPath === null || trim($configPath) === '') {
@@ -121,6 +125,24 @@ final readonly class InitConfigLoader
                 }
                 $result['recall']['document_manifests'] = array_values(array_unique($result['recall']['document_manifests']));
                 sort($result['recall']['document_manifests'], SORT_STRING);
+            }
+        }
+
+        $decodedShape = json_decode($content);
+        $hasInteraction = $decodedShape instanceof stdClass && property_exists($decodedShape, 'interaction');
+        $interactionShape = $hasInteraction ? $decodedShape->interaction : null;
+        $interaction = $decoded['interaction'] ?? null;
+        if ($hasInteraction && !$interactionShape instanceof stdClass) {
+            $result['warnings'][] = '[WARN] init config: interaction must be an object';
+        } elseif ($interactionShape instanceof stdClass && is_array($interaction) && array_key_exists('human_explanations', $interaction)) {
+            $configured = $interaction['human_explanations'];
+            $policy = is_string($configured)
+                ? HumanExplanationPolicy::tryFrom(strtolower(trim($configured)))
+                : null;
+            if ($policy === null) {
+                $result['warnings'][] = '[WARN] init config: interaction.human_explanations must be ask, always, or never';
+            } else {
+                $result['interaction']['human_explanations'] = $policy->value;
             }
         }
 

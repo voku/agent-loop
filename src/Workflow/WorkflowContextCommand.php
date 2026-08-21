@@ -6,6 +6,8 @@ namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
 use Throwable;
+use voku\AgentLoop\HumanExplanationPolicy;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use RuntimeException;
@@ -91,15 +93,40 @@ final readonly class WorkflowContextCommand
     }
 
     /**
-     * @return array{schema_version: string, task_id: string, lines: list<string>, omitted: array<string, int>, skipped: list<string>}
+     * @return array{
+     *     schema_version: string,
+     *     task_id: string,
+     *     interaction: array{
+     *         human_explanations: 'ask'|'always'|'never',
+     *         interactive_behavior: 'ask'|'generate'|'skip',
+     *         unattended_behavior: 'generate'|'skip',
+     *         authority_bearing_decisions: 'human_required'
+     *     },
+     *     lines: list<string>,
+     *     omitted: array<string, int>,
+     *     skipped: list<string>
+     * }
      */
     public function build(string $taskId, int $maxLines, int $maxBytes): array
     {
         $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId);
+        $interaction = $this->interactionPolicy();
+        $policy = $interaction['policy'];
+
         $budget = new WorkflowContextBudget($maxLines, $maxBytes);
         $budget->add('header', 'Task: ' . $taskId);
         $budget->add('header', 'Run: ' . ($report['run_id'] ?? 'missing'));
         $budget->add('header', 'Session: ' . ($report['session']['id'] ?? 'missing'));
+        foreach ($interaction['warnings'] as $warning) {
+            $budget->add('policy', $warning);
+        }
+        $budget->add(
+            'policy',
+            'Human explanations: ' . $policy->value
+            . ' (interactive: ' . $policy->interactiveBehavior()
+            . '; unattended: ' . $policy->unattendedBehavior()
+            . '). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
+        );
 
         $contract = $report['contract'];
         if ($contract['status'] === 'missing') {
@@ -156,9 +183,32 @@ final readonly class WorkflowContextCommand
         return [
             'schema_version' => '2.0',
             'task_id' => $taskId,
+            'interaction' => [
+                'human_explanations' => $policy->value,
+                'interactive_behavior' => $policy->interactiveBehavior(),
+                'unattended_behavior' => $policy->unattendedBehavior(),
+                'authority_bearing_decisions' => 'human_required',
+            ],
             'lines' => $budget->lines(),
             'omitted' => $budget->omitted(),
             'skipped' => $budget->skipped(),
+        ];
+    }
+
+    /** @return array{policy: HumanExplanationPolicy, warnings: list<string>} */
+    private function interactionPolicy(): array
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $config = (new InitConfigLoader($this->rootPath))->load($layout->configPath());
+        $warnings = array_values(array_filter(
+            $config['warnings'],
+            static fn (string $warning): bool => $warning === '[WARN] init config: invalid JSON'
+                || str_starts_with($warning, '[WARN] init config: interaction'),
+        ));
+
+        return [
+            'policy' => HumanExplanationPolicy::from($config['interaction']['human_explanations']),
+            'warnings' => $warnings,
         ];
     }
 
@@ -168,9 +218,13 @@ final readonly class WorkflowContextCommand
             return null;
         }
         $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        $session = null;
         try {
             $session = (new SessionStore())->load($root, $id);
         } catch (Throwable) {
+            $session = null;
+        }
+        if ($session === null) {
             return null;
         }
 
@@ -210,9 +264,14 @@ final readonly class WorkflowContextCommand
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
+        $output = null;
+        $invalid = false;
         try {
             $output = $reader->read($directory);
         } catch (RuntimeException) {
+            $invalid = true;
+        }
+        if ($invalid) {
             $budget->skip('recall: invalid ' . $relative);
 
             return false;

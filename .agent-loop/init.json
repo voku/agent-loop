@@ -3,6 +3,9 @@
   "paths": {
     "learning_root": ".agent-loop/learning"
   },
+  "interaction": {
+    "human_explanations": "ask"
+  },
   "recall": {
     "document_manifests": [
       "docs/agents/recall-documents.json"
