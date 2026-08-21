@@ -9,6 +9,30 @@ Use this skill when a task needs a durable Contract with explicit intent. This
 skill helps choose that intent; it does not own the lifecycle sequence that
 follows. The lifecycle kernel decides what is legal next.
 
+## Pre-Lifecycle Workspace Bootstrap
+
+A fresh or isolated coding host may receive a checkout that cannot yet execute the
+repository's declared workflow. Restore only the minimum reversible environment
+needed to make that workflow runnable before interpreting its absence as a
+workflow failure. Typical bootstrap work includes inspecting the current
+worktree/remotes, fetching or reconstructing the obvious public repository remote,
+installing already-declared Composer dependencies, obtaining required public
+sibling checkouts for cross-package work, and discovering available host/GitHub
+capabilities without printing credentials.
+
+This bootstrap is outside the governed product-mutation boundary: it does not
+create or approve a Contract, Session, Recall, Finding, proposal, or other owner
+state, and it does not authorize product-code changes. Once the lifecycle CLI is
+runnable, return immediately to the governed front door below.
+
+Do not declare a task blocked merely because `vendor/`, an expected public remote,
+`gh`, push credentials, or one preferred PR helper is missing. Recover safe local
+bootstrap first. If remote mutation remains unavailable, continue all useful
+local inspection, implementation, validation, commits, and dogfood preparation
+that the current authority permits. A capability gate is terminal only when the
+next genuinely required action cannot be performed and no useful local work
+remains.
+
 ## Start Through The Front Door
 
 For a stable task id, start or resume with:
