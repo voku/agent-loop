@@ -10,7 +10,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
-use voku\AgentLoop\Edit\Refactor\RenamePlanDocumentGuard;
+use voku\AgentLoop\Edit\Refactor\RenamePlanDocument;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 
@@ -134,7 +134,7 @@ PHP);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('not bound to the declared target identity');
         try {
-            (new RenamePlanDocumentGuard())->validate($plan);
+            RenamePlanDocument::fromArray($plan);
         } finally {
             self::assertSame($before, $this->sources());
         }
