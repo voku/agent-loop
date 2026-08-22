@@ -208,7 +208,10 @@ final readonly class RefactorVerifyCommand
         ];
     }
 
-    /** @param list<string> $tokens @return array{bundle: string, map_index: string, map_root: string} */
+    /**
+     * @param list<string> $tokens
+     * @return array{bundle: string, map_index: string, map_root: string}
+     */
     private function options(array $tokens): array
     {
         $values = [];
