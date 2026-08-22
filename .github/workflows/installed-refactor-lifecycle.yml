@@ -67,6 +67,7 @@ jobs:
             and (.release_set["voku/agent-loop"].source_type == "path")
             and (.release_set["voku/agent-map"].version == "0.8.999")
             and (.release_set["voku/agent-map"].source_type == "path")
+            and (.semantic_backend | endswith("+phpstan"))
             and (.rename_capabilities == [
               "class_rename_plan",
               "function_rename_plan",
@@ -80,6 +81,15 @@ jobs:
             and (.dry_run.runner.dry_run == true)
             and (.apply.status == "runner_succeeded")
             and (.apply.runner.dry_run == false)
+            and (.refactor_verification.kind == "rename_plan_verification")
+            and (.refactor_verification.status == "passed")
+            and (.refactor_verification.plan.type == "method_rename_plan")
+            and (.refactor_verification.plan.contract_version == "1.0")
+            and (.refactor_verification.checks.execution_binding == "passed")
+            and (.refactor_verification.checks.current_map == "passed")
+            and (.refactor_verification.checks.changed_files == "passed")
+            and (.refactor_verification.checks.replacements == "passed")
+            and (.refactor_verification.checks.moves == "passed")
             and (.review_sha256 | startswith("sha256:"))
             and (.final_state == "complete")
             and (.final_next_action == "none")
