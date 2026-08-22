@@ -48,7 +48,7 @@ final readonly class RenamePlanEditEvidence
             throw new RuntimeException('Rename plan edit contains an invalid line range.');
         }
         if (!preg_match('/\Asha256:[a-f0-9]{64}\z/D', $edit->sourceSha256)) {
-            throw new RuntimeException('Rename plan edit contains an invalid source SHA-256.');
+            throw new RuntimeException('Rename edit evidence changed before apply; rebuild and re-plan.');
         }
 
         return $edit;
