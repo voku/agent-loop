@@ -15,7 +15,6 @@ use voku\AgentLoop\Edit\EditRunResult;
 use voku\AgentLoop\Edit\WorkingTreeSnapshotter;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
-use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
 
 /** CLI boundary for consuming one already-produced, versioned agent-map rename plan. */
@@ -24,6 +23,7 @@ final readonly class RefactorEditCommand
     public function __construct(
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
+        private RenamePlanDocumentGuard $documentGuard = new RenamePlanDocumentGuard(),
         private EditMutationLock $mutationLock = new EditMutationLock(),
         private IndexReader $reader = new IndexReader(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
@@ -50,6 +50,7 @@ final readonly class RefactorEditCommand
 
             $operation = function () use ($request, &$plan, &$planSha256, &$mapDigest, &$mapIndexSha256): EditRunResult {
                 [$plan, $planSha256] = $this->readPlan($request['plan']);
+                $this->documentGuard->validate($plan);
                 $map = $this->reader->read($request['map_index']);
                 $mapDigest = $map->mapDigest();
                 $rawMapHash = hash_file('sha256', $request['map_index']);
