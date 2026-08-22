@@ -45,6 +45,18 @@ jobs:
           --agent-map=${{ github.workspace }}/build/candidate-agent-map
           --report=${{ github.workspace }}/build/installed-refactor-lifecycle.json
 
+      - name: Expose governed closeout blocker
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/agent-loop-installed-refactor/consumer"
+          if test -x "$consumer/vendor/bin/agent-loop"; then
+            cd "$consumer"
+            vendor/bin/agent-loop workflow status DEMO-1 --format=json || true
+            vendor/bin/agent-loop finish DEMO-1 --format=json || true
+          fi
+
       - name: Verify owner-generated plan and governed finish evidence
         run: |
           jq -e '
