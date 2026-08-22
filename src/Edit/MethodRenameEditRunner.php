@@ -39,7 +39,18 @@ final readonly class MethodRenameEditRunner implements EditRunner
         }
 
         $map = $this->reader->read($execution->request->mapIndex);
-        $map = $this->withRuntimeRoot($map, $execution->request->mapRoot);
+        $runtimeRoot = rtrim(str_replace('\\', '/', $execution->request->mapRoot), '/');
+        if (rtrim(str_replace('\\', '/', $map->root), '/') !== $runtimeRoot) {
+            $map = new AgentMapIndex(
+                $map->schemaVersion,
+                $runtimeRoot,
+                $map->backend,
+                $map->files,
+                $map->relations,
+                $map->diagnostics,
+                $map->fingerprint,
+            );
+        }
         if ($map->staleEntries() !== []) {
             throw new RuntimeException('Method rename evidence is stale; rebuild the map and re-plan before applying.');
         }
@@ -58,24 +69,5 @@ final readonly class MethodRenameEditRunner implements EditRunner
     public function preflight(array $plan, AgentMapIndex $map, string $root): array
     {
         return $this->applier->preflight($plan, $map, $root)['files'];
-    }
-
-    /** Rebinds a persisted map to the runtime project root without changing map identity. */
-    private function withRuntimeRoot(AgentMapIndex $map, string $root): AgentMapIndex
-    {
-        $root = rtrim(str_replace('\\', '/', $root), '/');
-        if (rtrim(str_replace('\\', '/', $map->root), '/') === $root) {
-            return $map;
-        }
-
-        return new AgentMapIndex(
-            $map->schemaVersion,
-            $root,
-            $map->backend,
-            $map->files,
-            $map->relations,
-            $map->diagnostics,
-            $map->fingerprint,
-        );
     }
 }
