@@ -10,30 +10,9 @@ use Throwable;
 use voku\AgentLoop\Edit\EditRunResult;
 use voku\AgentMap\Index\AgentMapIndex;
 
-/**
- * Applies only the four first-party rename plan contracts owned by agent-map.
- *
- * This is deliberately not a generic edit-plan engine. Method, function, class and property rename
- * are the complete allowlist; any other plan type fails closed before source inspection or writes.
- */
+/** Applies the fixed first-party rename-plan family through one transactional mutation boundary. */
 final readonly class RenamePlanApplier
 {
-    /** @var list<string> */
-    private const PLAN_TYPES = [
-        'method_rename_plan',
-        'function_rename_plan',
-        'class_rename_plan',
-        'property_rename_plan',
-    ];
-
-    /** @var array<string, string> */
-    private const TARGET_PREFIX = [
-        'method_rename_plan' => 'method:',
-        'function_rename_plan' => 'function:',
-        'class_rename_plan' => 'class:',
-        'property_rename_plan' => 'property:',
-    ];
-
     /** @var (Closure(string, string): bool)|null */
     private ?Closure $renameOperation;
 
@@ -50,18 +29,15 @@ final readonly class RenamePlanApplier
         $this->lintOperation = $lintOperation;
     }
 
-    /**
-     * Validates, stages, syntax-checks and transactionally publishes one safe rename plan.
-     *
-     * @param array<string, mixed> $plan
-     */
+    /** @param array<string, mixed> $plan */
     public function apply(array $plan, AgentMapIndex $map, string $root): EditRunResult
     {
-        $prepared = $this->preflight($plan, $map, $root);
+        $document = RenamePlanDocument::fromArray($plan);
+        $prepared = $this->preflightDocument($document, $map, $root);
         $staged = $this->stageAndValidate($prepared['files']);
 
         try {
-            $current = $this->preflight($plan, $map, $root);
+            $current = $this->preflightDocument($document, $map, $root);
             if (
                 $current['files'] !== $prepared['files']
                 || $current['final_paths'] !== $prepared['final_paths']
@@ -103,8 +79,6 @@ final readonly class RenamePlanApplier
     }
 
     /**
-     * Validates the public rename contract and computes every final file without mutation.
-     *
      * @param array<string, mixed> $plan
      * @return array{
      *     files: array<string, string>,
@@ -117,59 +91,26 @@ final readonly class RenamePlanApplier
      */
     public function preflight(array $plan, AgentMapIndex $map, string $root): array
     {
+        return $this->preflightDocument(RenamePlanDocument::fromArray($plan), $map, $root);
+    }
+
+    /**
+     * @return array{
+     *     files: array<string, string>,
+     *     final_paths: array<string, string>,
+     *     source_hashes: array<string, string>,
+     *     plan_type: string,
+     *     edit_count: int,
+     *     move_count: int
+     * }
+     */
+    private function preflightDocument(RenamePlanDocument $plan, AgentMapIndex $map, string $root): array
+    {
         $map = $this->withRuntimeRoot($map, $root);
         if ($map->staleEntries() !== []) {
             throw new RuntimeException('Current agent-map source evidence is stale; rebuild the map before applying a rename plan.');
         }
-
-        $type = $plan['type'] ?? null;
-        if (!is_string($type) || !in_array($type, self::PLAN_TYPES, true)) {
-            throw new RuntimeException('Unsupported agent-map rename plan type.');
-        }
-        if (($plan['contract_version'] ?? null) !== '1.0') {
-            throw new RuntimeException('Unsupported agent-map rename plan contract version.');
-        }
-        if (($plan['stale_evidence'] ?? null) !== []) {
-            throw new RuntimeException('Rename plan contains stale evidence; rebuild the map and re-plan before applying.');
-        }
-        if (($plan['blockers'] ?? null) !== []) {
-            throw new RuntimeException('Rename plan has semantic blockers; no source was changed.');
-        }
-        if (($plan['status'] ?? null) === 'review_required') {
-            throw new RuntimeException('Rename plan requires explicit review; no source was changed.');
-        }
-        if (($plan['status'] ?? null) !== 'safe') {
-            throw new RuntimeException('Rename plan is not safe; no source was changed.');
-        }
-
-        $targetId = $plan['target_id'] ?? null;
-        if (!is_string($targetId) || !str_starts_with($targetId, self::TARGET_PREFIX[$type])) {
-            throw new RuntimeException('Rename plan target identity does not match its plan type.');
-        }
-
-        $provenance = $plan['provenance'] ?? null;
-        if (!is_array($provenance)
-            || ($provenance['map_digest'] ?? null) !== $map->mapDigest()
-            || ($provenance['backend'] ?? null) !== $map->backend
-            || ($provenance['analysis_fingerprint'] ?? null) !== $map->fingerprint?->toArray()
-        ) {
-            throw new RuntimeException('Rename plan does not match the current map identity; rebuild and re-plan.');
-        }
-
-        $edits = $plan['edits'] ?? null;
-        if (!is_array($edits)) {
-            throw new RuntimeException('Rename plan contains an invalid edit list.');
-        }
-        $moves = $plan['moves'] ?? [];
-        if (!is_array($moves)) {
-            throw new RuntimeException('Rename plan contains an invalid move list.');
-        }
-        if ($type !== 'class_rename_plan' && $moves !== []) {
-            throw new RuntimeException('Only class_rename_plan may publish file moves.');
-        }
-        if ($edits === [] && $moves === []) {
-            throw new RuntimeException('Safe rename plan contains neither edits nor moves.');
-        }
+        $plan->provenance->assertMatches($map);
 
         /** @var array<string, string> $original */
         $original = [];
@@ -178,28 +119,17 @@ final readonly class RenamePlanApplier
         /** @var array<string, string> $sourceHashes */
         $sourceHashes = [];
 
-        foreach ($edits as $edit) {
-            if (!is_array($edit)) {
-                throw new RuntimeException('Rename plan contains an invalid edit.');
-            }
-            $path = $this->sourcePath($root, $edit['path'] ?? null);
+        foreach ($plan->edits as $edit) {
+            $path = $this->sourcePath($root, $edit->path);
             $content = $original[$path] ??= $this->read($path);
-            $start = $edit['start_file_pos'] ?? null;
-            $end = $edit['end_file_pos'] ?? null;
-            $expected = $edit['expected'] ?? null;
-            $replacement = $edit['replacement'] ?? null;
-            $sourceHash = $edit['source_sha256'] ?? null;
-            if (!is_int($start) || !is_int($end) || $start < 0 || $end < $start
-                || !is_string($expected) || $expected === ''
-                || !is_string($replacement) || $replacement === ''
-                || !is_string($sourceHash)
-                || !hash_equals($sourceHash, 'sha256:' . hash('sha256', $content))
-                || substr($content, $start, $end - $start + 1) !== $expected
+            if (
+                !hash_equals($edit->sourceSha256, 'sha256:' . hash('sha256', $content))
+                || substr($content, $edit->startFilePos, $edit->endFilePos - $edit->startFilePos + 1) !== $edit->expected
             ) {
                 throw new RuntimeException('Rename edit evidence changed before apply; rebuild and re-plan.');
             }
-            $this->rememberSourceHash($sourceHashes, $path, $sourceHash);
-            $byFile[$path][] = [$start, $end, $replacement];
+            $this->rememberSourceHash($sourceHashes, $path, $edit->sourceSha256);
+            $byFile[$path][] = [$edit->startFilePos, $edit->endFilePos, $edit->replacement];
         }
 
         /** @var array<string, string> $files */
@@ -222,21 +152,14 @@ final readonly class RenamePlanApplier
         $finalPaths = [];
         /** @var array<string, true> $moveTargets */
         $moveTargets = [];
-        foreach ($moves as $move) {
-            if (!is_array($move)) {
-                throw new RuntimeException('Class rename plan contains an invalid move.');
-            }
-            $from = $this->sourcePath($root, $move['from_path'] ?? null);
-            $to = $this->destinationPath($root, $move['to_path'] ?? null);
-            $sourceHash = $move['source_sha256'] ?? null;
-            if (!is_string($sourceHash)) {
-                throw new RuntimeException('Class rename move is missing source hash evidence.');
-            }
+        foreach ($plan->moves as $move) {
+            $from = $this->sourcePath($root, $move->fromPath);
+            $to = $this->destinationPath($root, $move->toPath);
             $content = $original[$from] ??= $this->read($from);
-            if (!hash_equals($sourceHash, 'sha256:' . hash('sha256', $content))) {
+            if (!hash_equals($move->sourceSha256, 'sha256:' . hash('sha256', $content))) {
                 throw new RuntimeException('Class rename move source changed before apply; rebuild and re-plan.');
             }
-            $this->rememberSourceHash($sourceHashes, $from, $sourceHash);
+            $this->rememberSourceHash($sourceHashes, $from, $move->sourceSha256);
             if ($from === $to || isset($finalPaths[$from]) || isset($moveTargets[$to])) {
                 throw new RuntimeException('Class rename plan contains duplicate or self-referential file moves.');
             }
@@ -271,9 +194,9 @@ final readonly class RenamePlanApplier
             'files' => $files,
             'final_paths' => $finalPaths,
             'source_hashes' => $sourceHashes,
-            'plan_type' => $type,
-            'edit_count' => count($edits),
-            'move_count' => count($moves),
+            'plan_type' => $plan->type,
+            'edit_count' => count($plan->edits),
+            'move_count' => count($plan->moves),
         ];
     }
 
@@ -410,7 +333,10 @@ final readonly class RenamePlanApplier
         return $failures;
     }
 
-    /** @param list<string> $paths @return list<string> */
+    /**
+     * @param list<string> $paths
+     * @return list<string> cleanup failures
+     */
     private function cleanupPaths(array $paths): array
     {
         $failures = [];
@@ -432,37 +358,37 @@ final readonly class RenamePlanApplier
         $hashes[$path] = $sourceHash;
     }
 
-    private function sourcePath(string $root, mixed $relative): string
+    private function sourcePath(string $root, string $relative): string
     {
         $relative = $this->relativePath($relative);
-        $root = realpath($root);
-        $path = is_string($root) ? realpath($root . '/' . $relative) : false;
-        if (!is_string($root) || !is_string($path) || !$this->insideRoot($root, $path)) {
+        $realRoot = realpath($root);
+        $path = is_string($realRoot) ? realpath($realRoot . '/' . $relative) : false;
+        if (!is_string($realRoot) || !is_string($path) || !$this->insideRoot($realRoot, $path)) {
             throw new RuntimeException('Rename source path escapes the map root: ' . $relative);
         }
 
         return $path;
     }
 
-    private function destinationPath(string $root, mixed $relative): string
+    private function destinationPath(string $root, string $relative): string
     {
         $relative = $this->relativePath($relative);
-        $root = realpath($root);
-        if (!is_string($root)) {
-            throw new RuntimeException('Unable to resolve rename map root: ' . $root);
+        $realRoot = realpath($root);
+        if (!is_string($realRoot)) {
+            throw new RuntimeException('Unable to resolve rename map root.');
         }
         $parentRelative = dirname($relative);
-        $parent = realpath($parentRelative === '.' ? $root : $root . '/' . $parentRelative);
-        if (!is_string($parent) || !$this->insideRoot($root, $parent, true)) {
+        $parent = realpath($parentRelative === '.' ? $realRoot : $realRoot . '/' . $parentRelative);
+        if (!is_string($parent) || !$this->insideRoot($realRoot, $parent, true)) {
             throw new RuntimeException('Rename destination parent escapes the map root: ' . $relative);
         }
 
         return rtrim(str_replace('\\', '/', $parent), '/') . '/' . basename($relative);
     }
 
-    private function relativePath(mixed $relative): string
+    private function relativePath(string $relative): string
     {
-        if (!is_string($relative) || $relative === '' || str_contains($relative, "\0")) {
+        if ($relative === '' || str_contains($relative, "\0")) {
             throw new RuntimeException('Rename plan contains an invalid source path.');
         }
         $relative = str_replace('\\', '/', $relative);
@@ -560,9 +486,10 @@ final readonly class RenamePlanApplier
 
     private function displayPath(string $root, string $path): string
     {
-        $root = rtrim(str_replace('\\', '/', (string) realpath($root)), '/');
+        $realRoot = realpath($root);
+        $root = is_string($realRoot) ? rtrim(str_replace('\\', '/', $realRoot), '/') : '';
         $path = str_replace('\\', '/', $path);
 
-        return str_starts_with($path, $root . '/') ? substr($path, strlen($root) + 1) : $path;
+        return $root !== '' && str_starts_with($path, $root . '/') ? substr($path, strlen($root) + 1) : $path;
     }
 }
