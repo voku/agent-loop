@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit;
 
 use Throwable;
+use voku\AgentLoop\Edit\Refactor\RefactorEditCommand;
+use voku\AgentLoop\Edit\Refactor\RefactorVerifyCommand;
 use voku\AgentLoop\Edit\Verify\EditVerifyCommand;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 
@@ -25,6 +27,16 @@ final readonly class EditCommand
         }
         if (in_array($tokens[0], ['help', '--help', '-h'], true)) {
             return $this->help();
+        }
+        // Refactor plans have their own non-method target contract and must be routed before the
+        // ordinary edit request parser enforces CLASS::METHOD. Their deterministic post-apply
+        // verifier is routed here too, so it never inherits method-target parsing by accident.
+        if ($tokens[0] === 'refactor') {
+            if (($tokens[1] ?? null) === 'verify') {
+                return (new RefactorVerifyCommand($this->projectRoot))->run(array_slice($tokens, 2));
+            }
+
+            return (new RefactorEditCommand($this->projectRoot))->run(array_slice($tokens, 1));
         }
         // `verify` grades a bundle this command produced earlier; it takes no target and shares no
         // options with an edit run, so it is routed before the request parser sees the tokens.
@@ -60,15 +72,25 @@ final readonly class EditCommand
         $usage = <<<'TXT'
         Usage:
           agent-loop edit CLASS::METHOD [options] -- INSTRUCTION
+          agent-loop edit refactor PLAN [options]
+          agent-loop edit refactor verify --bundle=.agent-loop/edit/TASK [options]
 
         Deterministically refreshes the repository map when necessary, compiles
         target-aware recall, writes one execution bundle, and optionally hands
         the compiled prompt to a generic command runner.
 
+        `edit refactor` is the separate governed boundary for consuming an already-produced
+        agent-map method/function/class/property rename plan. It does not reinterpret those targets
+        as methods and does not accept arbitrary edit plans. After mutation and Map refresh,
+        `edit refactor verify` binds the applied plan to current source/Map evidence and writes the
+        verification-result.json required by governed closeout. Run either command with --help for
+        its plan-specific options and validation contract.
+
         Governed mutation gate:
           If --task identifies an active governed workflow, command/mechanical/method-rename/auto
-          mutation requires the current L2 execution contract to be ready. Dry-run
-          and stdout prompt preparation remain read-only and may run before that gate.
+          mutation requires the current L2 execution contract to be ready. `edit refactor` applies
+          the same execution-contract gate independently. Dry-run, refactor verification and stdout
+          prompt preparation remain read-only and may run without source mutation.
 
         Options:
           --task ID                 Stable task ID. Generated from target and instruction by default.
@@ -114,6 +136,9 @@ final readonly class EditCommand
           agent-loop edit 'App\Service\UserService::save' --runner=auto \
             --replace-old='$legacyUser->regionId' --replace-new='$legacyUser->getCurrentRegionId()' \
             -- 'Replace the deprecated region property without a model runner.'
+
+          agent-loop edit refactor build/property-rename-plan.json --task=REFACTOR-42 --dry-run
+          agent-loop edit refactor verify --bundle=.agent-loop/edit/REFACTOR-42
 
         TXT;
         echo $usage;

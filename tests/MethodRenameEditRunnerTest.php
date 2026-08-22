@@ -37,7 +37,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         rmdir($this->root);
     }
 
-    public function testChangedSourceAfterPlanningRejectsEveryEditBeforeMutation(): void
+    public function testChangedSourceAfterPlanningRejectsAtCurrentMapGateBeforeMutation(): void
     {
         [$map, $plan] = $this->realPlan();
         $caller = $this->root . '/src/Caller.php';
@@ -46,13 +46,35 @@ final class MethodRenameEditRunnerTest extends TestCase
 
         try {
             (new MethodRenameEditRunner())->preflight($plan, $map, $this->root);
-            self::fail('Expected stale per-edit evidence to fail closed.');
+            self::fail('Expected stale current-map evidence to fail closed.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('changed before apply', $exception->getMessage());
+            self::assertSame(
+                'Current agent-map source evidence is stale; rebuild the map before applying a rename plan.',
+                $exception->getMessage(),
+            );
         }
 
         self::assertSame($declaration, file_get_contents($this->root . '/src/Service.php'));
         self::assertStringContainsString('->save()', (string) file_get_contents($caller));
+    }
+
+    public function testValidButWrongPerEditSourceHashRejectsBeforeMutation(): void
+    {
+        [$map, $plan] = $this->realPlan();
+        $before = $this->sources();
+        $plan['edits'][0]['source_sha256'] = 'sha256:' . str_repeat('0', 64);
+
+        try {
+            (new MethodRenameEditRunner())->preflight($plan, $map, $this->root);
+            self::fail('Expected current per-edit hash evidence to fail closed.');
+        } catch (RuntimeException $exception) {
+            self::assertSame(
+                'Rename edit evidence changed before apply; rebuild and re-plan.',
+                $exception->getMessage(),
+            );
+        }
+
+        self::assertSame($before, $this->sources());
     }
 
     /** @param callable(array<string, mixed>): array<string, mixed> $change */
@@ -77,9 +99,9 @@ final class MethodRenameEditRunnerTest extends TestCase
         yield 'unsupported contract' => [static function (array $plan): array { $plan['contract_version'] = '2.0'; return $plan; }, 'Unsupported'];
         yield 'semantic blocker' => [static function (array $plan): array { $plan['status'] = 'blocked'; $plan['blockers'] = ['ambiguous target']; return $plan; }, 'semantic blockers'];
         yield 'review required' => [static function (array $plan): array { $plan['status'] = 'review_required'; return $plan; }, 'explicit review'];
-        yield 'already stale' => [static function (array $plan): array { $plan['status'] = 'blocked'; $plan['stale_evidence'] = [['path' => 'src/Caller.php', 'reason' => 'hash']]; return $plan; }, 'rebuild the map and re-plan'];
+        yield 'already stale' => [static function (array $plan): array { $plan['status'] = 'blocked'; $plan['stale_evidence'] = [['path' => 'src/Caller.php', 'reason' => 'hash']]; return $plan; }, 'stale evidence'];
         yield 'contradictory provenance' => [static function (array $plan): array { $plan['provenance']['map_digest'] = 'sha256:wrong'; return $plan; }, 'current map identity'];
-        yield 'source hash mismatch' => [static function (array $plan): array { $plan['edits'][0]['source_sha256'] = 'sha256:wrong'; return $plan; }, 'changed before apply'];
+        yield 'malformed source hash' => [static function (array $plan): array { $plan['edits'][0]['source_sha256'] = 'sha256:wrong'; return $plan; }, 'invalid source SHA-256'];
         yield 'expected token mismatch' => [static function (array $plan): array { $plan['edits'][0]['expected'] = 'other'; return $plan; }, 'changed before apply'];
         yield 'exact range mismatch' => [static function (array $plan): array { ++$plan['edits'][0]['start_file_pos']; return $plan; }, 'changed before apply'];
     }
@@ -90,7 +112,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         $service = $this->root . '/src/Service.php';
         $runner = new MethodRenameEditRunner(
             renameOperation: static function (string $from, string $to) use ($service): bool {
-                if ($to === $service && str_contains($from, '.agent-loop-method-rename-stage-')) {
+                if ($to === $service && str_contains($from, '.agent-loop-rename-plan-stage-')) {
                     return false;
                 }
 
@@ -113,7 +135,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         $before = $this->sources();
         $runner = new MethodRenameEditRunner(
             lintOperation: static function (string $path): array {
-                if (str_contains($path, 'Service.php.agent-loop-method-rename-stage-')) {
+                if (str_contains($path, 'Service.php.agent-loop-rename-plan-stage-')) {
                     return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'forced parser failure'];
                 }
 
@@ -175,7 +197,7 @@ final class MethodRenameEditRunnerTest extends TestCase
     /** @return list<string> */
     private function temporaryArtifacts(): array
     {
-        $matches = glob($this->root . '/src/*.agent-loop-method-rename-*');
+        $matches = glob($this->root . '/src/*.agent-loop-rename-plan-*');
 
         return is_array($matches) ? $matches : [];
     }

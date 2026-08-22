@@ -1,0 +1,104 @@
+name: Installed refactor lifecycle
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-refactor-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-refactor-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout exact agent-map contract owner
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-map
+          ref: b8eb251eff4c737f5961ae2cc2adf822c0301607
+          path: build/candidate-agent-map
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Lint installed refactor lifecycle runner
+        run: php -l tools/installed-refactor-lifecycle-dogfood.php
+
+      - name: Run real governed rename lifecycle in installed consumer
+        run: >-
+          php tools/installed-refactor-lifecycle-dogfood.php
+          --workspace=${{ runner.temp }}/agent-loop-installed-refactor
+          --agent-map=${{ github.workspace }}/build/candidate-agent-map
+          --report=${{ github.workspace }}/build/installed-refactor-lifecycle.json
+
+      - name: Expose governed closeout blocker
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="${RUNNER_TEMP}/agent-loop-installed-refactor/consumer"
+          if test -x "$consumer/vendor/bin/agent-loop"; then
+            cd "$consumer"
+            vendor/bin/agent-loop workflow status DEMO-1 --format=json || true
+            vendor/bin/agent-loop finish DEMO-1 --format=json || true
+          fi
+
+      - name: Verify owner-generated plan and governed finish evidence
+        run: |
+          jq -e '
+            (.schema_version == "1.0")
+            and (.result == "passed")
+            and (.claim == "owner_generated_method_rename_installed_consumer_governed_finish")
+            and (.release_set["voku/agent-loop"].version == "dev-main")
+            and (.release_set["voku/agent-loop"].source_type == "path")
+            and (.release_set["voku/agent-map"].version == "0.8.999")
+            and (.release_set["voku/agent-map"].source_type == "path")
+            and (.semantic_backend | endswith("+phpstan"))
+            and (.rename_capabilities == [
+              "class_rename_plan",
+              "function_rename_plan",
+              "method_rename_plan",
+              "property_rename_plan"
+            ])
+            and (.plan.type == "method_rename_plan")
+            and (.plan.contract_version == "1.0")
+            and (.plan.edit_count >= 2)
+            and (.dry_run.status == "prepared")
+            and (.dry_run.runner.dry_run == true)
+            and (.apply.status == "runner_succeeded")
+            and (.apply.runner.dry_run == false)
+            and (.refactor_verification.kind == "rename_plan_verification")
+            and (.refactor_verification.status == "passed")
+            and (.refactor_verification.plan.type == "method_rename_plan")
+            and (.refactor_verification.plan.contract_version == "1.0")
+            and (.refactor_verification.checks.execution_binding == "passed")
+            and (.refactor_verification.checks.current_map == "passed")
+            and (.refactor_verification.checks.changed_files == "passed")
+            and (.refactor_verification.checks.replacements == "passed")
+            and (.refactor_verification.checks.moves == "passed")
+            and (.review_sha256 | startswith("sha256:"))
+            and (.final_state == "complete")
+            and (.final_next_action == "none")
+          ' build/installed-refactor-lifecycle.json >/dev/null
+
+      - name: Upload installed refactor lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-refactor-lifecycle-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/installed-refactor-lifecycle.json
