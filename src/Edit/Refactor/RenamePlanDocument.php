@@ -38,12 +38,35 @@ final readonly class RenamePlanDocument
         if (($data['contract_version'] ?? null) !== '1.0') {
             throw new RuntimeException('Unsupported agent-map rename plan contract version.');
         }
-        if (($data['status'] ?? null) !== 'safe') {
+
+        $staleEvidence = $data['stale_evidence'] ?? null;
+        if (!is_array($staleEvidence)) {
+            throw new RuntimeException('Rename plan requires stale_evidence list evidence.');
+        }
+        if ($staleEvidence !== []) {
+            throw new RuntimeException('Rename plan contains stale evidence; rebuild the map and re-plan before applying.');
+        }
+
+        $blockers = $data['blockers'] ?? null;
+        if (!is_array($blockers)) {
+            throw new RuntimeException('Rename plan requires blockers list evidence.');
+        }
+        if ($blockers !== []) {
+            throw new RuntimeException('Rename plan has semantic blockers; no source was changed.');
+        }
+
+        $status = $data['status'] ?? null;
+        if ($status === 'review_required') {
+            throw new RuntimeException('Rename plan requires explicit review; no source was changed.');
+        }
+        if ($status !== 'safe') {
             throw new RuntimeException('Rename plan is not safe; no source was changed.');
         }
-        self::requireEmptyEvidence($data, 'blind_spots');
-        self::requireEmptyEvidence($data, 'stale_evidence');
-        self::requireEmptyEvidence($data, 'blockers');
+
+        $blindSpots = $data['blind_spots'] ?? null;
+        if (!is_array($blindSpots) || $blindSpots !== []) {
+            throw new RuntimeException('Safe rename plan requires empty blind_spots evidence.');
+        }
 
         $prefix = self::TARGET_PREFIX[$type] ?? null;
         if (!is_string($prefix)) {
@@ -110,14 +133,5 @@ final readonly class RenamePlanDocument
         }
 
         return $value;
-    }
-
-    /** @param array<string, mixed> $data */
-    private static function requireEmptyEvidence(array $data, string $key): void
-    {
-        $value = $data[$key] ?? null;
-        if (!is_array($value) || $value !== []) {
-            throw new RuntimeException('Safe rename plan requires empty ' . $key . ' evidence.');
-        }
     }
 }
