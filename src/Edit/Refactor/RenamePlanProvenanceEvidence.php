@@ -25,7 +25,7 @@ final readonly class RenamePlanProvenanceEvidence
         $backend = $data['backend'] ?? null;
         $fingerprint = $data['analysis_fingerprint'] ?? null;
         if (!is_string($mapDigest) || !preg_match('/\Asha256:[a-f0-9]{64}\z/D', $mapDigest)) {
-            throw new RuntimeException('Rename plan provenance contains an invalid map digest.');
+            throw new RuntimeException('Rename plan does not match the current map identity; rebuild and re-plan.');
         }
         if (!is_string($backend) || $backend === '') {
             throw new RuntimeException('Rename plan provenance requires a backend.');
