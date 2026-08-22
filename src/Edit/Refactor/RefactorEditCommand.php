@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit\Refactor;
 
-use HelgeSverre\Toon\Exceptions\DecodeException;
 use HelgeSverre\Toon\Toon;
 use InvalidArgumentException;
 use JsonException;
@@ -23,7 +22,6 @@ final readonly class RefactorEditCommand
     public function __construct(
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
-        private RenamePlanDocumentGuard $documentGuard = new RenamePlanDocumentGuard(),
         private EditMutationLock $mutationLock = new EditMutationLock(),
         private IndexReader $reader = new IndexReader(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
@@ -50,7 +48,6 @@ final readonly class RefactorEditCommand
 
             $operation = function () use ($request, &$plan, &$planSha256, &$mapDigest, &$mapIndexSha256): EditRunResult {
                 [$plan, $planSha256] = $this->readPlan($request['plan']);
-                $this->documentGuard->validate($plan);
                 $map = $this->reader->read($request['map_index']);
                 $mapDigest = $map->mapDigest();
                 $rawMapHash = hash_file('sha256', $request['map_index']);
@@ -217,40 +214,16 @@ final readonly class RefactorEditCommand
             throw new RuntimeException('Unable to read rename plan: ' . $path);
         }
 
-        $toonFirst = str_ends_with(strtolower($path), '.toon');
-        $plan = $toonFirst ? $this->decodeToon($raw) : $this->decodeJson($raw);
-        if ($plan === null) {
-            $plan = $toonFirst ? $this->decodeJson($raw) : $this->decodeToon($raw);
-        }
-        if ($plan === null) {
-            throw new RuntimeException('Invalid rename plan document: ' . $path);
-        }
-
-        return [$plan, 'sha256:' . hash('sha256', $raw)];
-    }
-
-    /** @return array<string, mixed>|null */
-    private function decodeJson(string $raw): ?array
-    {
-        try {
-            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return null;
-        }
-
-        return is_array($decoded) ? $decoded : null;
-    }
-
-    /** @return array<string, mixed>|null */
-    private function decodeToon(string $raw): ?array
-    {
-        try {
+        if (str_ends_with(strtolower($path), '.toon')) {
             $decoded = Toon::decode($raw);
-        } catch (DecodeException) {
-            return null;
+        } else {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        }
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Rename plan document must decode to an object: ' . $path);
         }
 
-        return is_array($decoded) ? $decoded : null;
+        return [$decoded, 'sha256:' . hash('sha256', $raw)];
     }
 
     private function existingFile(string $root, string $path, string $label): string
