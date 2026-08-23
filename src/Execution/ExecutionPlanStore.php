@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Execution;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
@@ -46,7 +47,7 @@ final readonly class ExecutionPlanStore
             $run->runId,
             $run->contractRevision,
             $this->contractSource($run),
-            $contract->baseCommit,
+            $this->effectiveBaseCommit($contract, $profileName),
             $run->preparedAt,
         );
         $this->write($plan);
@@ -165,24 +166,13 @@ final readonly class ExecutionPlanStore
             }
             $mayMutate = $entry['may_mutate'] ?? null;
             $capabilities = $entry['required_capabilities'] ?? null;
-            if (!is_bool($mayMutate) || !is_array($capabilities)) {
-                throw new RuntimeException('Execution plan role entry has invalid mutation/capability fields in ' . $path . '.');
-            }
-            $decodedCapabilities = [];
-            foreach ($capabilities as $capability) {
-                if (!is_string($capability)) {
-                    throw new RuntimeException('Execution role capabilities must be non-empty strings in ' . $path . '.');
-                }
-                $capability = trim($capability);
-                if ($capability === '') {
-                    throw new RuntimeException('Execution role capabilities must be non-empty strings in ' . $path . '.');
-                }
-                $decodedCapabilities[] = $capability;
+            if (!is_bool($mayMutate)) {
+                throw new RuntimeException('Execution plan role entry has invalid may_mutate in ' . $path . '.');
             }
             $roles[] = new ExecutionRole(
                 $this->requiredString($entry, 'id', $path . '#roles[' . $index . ']'),
                 $mayMutate,
-                $decodedCapabilities,
+                ExecutionArtifactValue::stringList($capabilities, $path . '#roles[' . $index . '].required_capabilities'),
             );
         }
 
@@ -200,7 +190,8 @@ final readonly class ExecutionPlanStore
             if (!is_array($entry)) {
                 throw new RuntimeException('Execution plan stage entry must be an object in ' . $path . '.');
             }
-            $kind = ExecutionStageKind::tryFrom($this->requiredString($entry, 'kind', $path . '#stages[' . $index . ']'));
+            $entryPath = $path . '#stages[' . $index . ']';
+            $kind = ExecutionStageKind::tryFrom($this->requiredString($entry, 'kind', $entryPath));
             if (!$kind instanceof ExecutionStageKind) {
                 throw new RuntimeException('Unsupported execution stage kind in ' . $path . '.');
             }
@@ -212,7 +203,6 @@ final readonly class ExecutionPlanStore
             if (!is_bool($mayMutate)) {
                 throw new RuntimeException('Execution stage may_mutate must be boolean in ' . $path . '.');
             }
-            $requires = $this->stringList($entry['requires'] ?? null, $path . '#stages[' . $index . '].requires');
             $transitionData = $entry['transitions'] ?? null;
             if (!is_array($transitionData)) {
                 throw new RuntimeException('Execution stage transitions must be an object in ' . $path . '.');
@@ -222,24 +212,17 @@ final readonly class ExecutionPlanStore
                 if (!is_string($outcome) || StageOutcome::tryFrom($outcome) === null) {
                     throw new RuntimeException('Execution stage transition uses unsupported outcome in ' . $path . '.');
                 }
-                if ($next !== null) {
-                    if (!is_string($next)) {
-                        throw new RuntimeException('Execution stage transition target must be a non-empty string or null in ' . $path . '.');
-                    }
-                    $next = trim($next);
-                    if ($next === '') {
-                        throw new RuntimeException('Execution stage transition target must be a non-empty string or null in ' . $path . '.');
-                    }
-                }
-                $transitions[$outcome] = $next;
+                $transitions[$outcome] = $next === null
+                    ? null
+                    : ExecutionArtifactValue::string($next, $entryPath . '.transitions.' . $outcome);
             }
 
             $stages[] = new ExecutionStage(
-                $this->requiredString($entry, 'id', $path . '#stages[' . $index . ']'),
+                $this->requiredString($entry, 'id', $entryPath),
                 $kind,
                 is_string($role) ? trim($role) : null,
                 $mayMutate,
-                $requires,
+                ExecutionArtifactValue::stringList($entry['requires'] ?? null, $entryPath . '.requires'),
                 $transitions,
             );
         }
@@ -247,37 +230,30 @@ final readonly class ExecutionPlanStore
         return $stages;
     }
 
-    /** @return list<non-empty-string> */
-    private function stringList(mixed $value, string $path): array
-    {
-        if (!is_array($value)) {
-            throw new RuntimeException($path . ' must be an array.');
-        }
-        $items = [];
-        foreach ($value as $item) {
-            if (!is_string($item)) {
-                throw new RuntimeException($path . ' must contain only non-empty strings.');
-            }
-            $item = trim($item);
-            if ($item === '') {
-                throw new RuntimeException($path . ' must contain only non-empty strings.');
-            }
-            $items[] = $item;
-        }
-
-        return $items;
-    }
-
     /** @return array{path: non-empty-string, sha256: non-empty-string} */
     private function contractSource(GovernedRun $run): array
     {
-        $path = trim($run->contractSource['path']);
-        $sha = trim($run->contractSource['sha256']);
-        if ($path === '' || preg_match('/^sha256:[a-f0-9]{64}$/', $sha) !== 1) {
-            throw new RuntimeException('Governed Run contains invalid Contract source evidence.');
+        return [
+            'path' => ExecutionArtifactValue::string($run->contractSource['path'], 'Governed Run contract_source.path'),
+            'sha256' => ExecutionArtifactValue::sha256($run->contractSource['sha256'], 'Governed Run contract_source.sha256'),
+        ];
+    }
+
+    private function effectiveBaseCommit(TaskContract $contract, ExecutionProfileName $profile): ?string
+    {
+        if ($profile === ExecutionProfileName::MANUAL) {
+            return $contract->baseCommit;
         }
 
-        return ['path' => $path, 'sha256' => $sha];
+        $baseCommit = $contract->baseCommit ?? GitWorkTree::headCommit($this->rootPath);
+        if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
+            throw new RuntimeException(
+                'External execution profile ' . $profile->value
+                . ' requires an exact Git base commit. Provide --base-commit or prepare the Run inside a Git worktree with HEAD.',
+            );
+        }
+
+        return $baseCommit;
     }
 
     private function contractSha(TaskContract $contract): string
@@ -296,15 +272,6 @@ final readonly class ExecutionPlanStore
      */
     private function requiredString(array $data, string $key, string $path): string
     {
-        $value = $data[$key] ?? null;
-        if (!is_string($value)) {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
-        }
-        $value = trim($value);
-        if ($value === '') {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
-        }
-
-        return $value;
+        return ExecutionArtifactValue::string($data[$key] ?? null, $path . '#' . $key);
     }
 }
