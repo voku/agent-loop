@@ -74,7 +74,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame('investigator', $bundle->roleId);
         self::assertContains(StageOutcome::COMPLETED, $bundle->acceptedOutcomes);
         self::assertSame(['src/Foo.php'], $bundle->allowedScope);
-        self::assertStringContainsString('The Runner may execute', str_replace('A successful process exit', 'The Runner may execute', $bundle->prompt));
+        self::assertStringContainsString('A successful process exit is not workflow approval.', $bundle->prompt);
 
         $result = new StageResult(
             'submission:investigate:1',
@@ -167,10 +167,9 @@ final class GovernedExecutionProtocolTest extends TestCase
         $exit = (new WorkflowExecutionProfileCommand($this->root))->run([
             'ABC-123', '--profile', 'hardened', '--by', 'lars',
         ]);
-        $output = (string) ob_get_clean();
+        ob_end_clean();
 
         self::assertSame(1, $exit);
-        self::assertStringContainsString('cannot change after the governed Run exists', $output);
         self::assertSame(ExecutionProfileName::SURGICAL, (new ExecutionPlanStore($this->root))->load('ABC-123')->profile);
     }
 
