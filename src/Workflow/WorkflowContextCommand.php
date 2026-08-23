@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
+use voku\AgentLoop\FutureWorkMode;
 use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
-use RuntimeException;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
@@ -102,6 +103,12 @@ final readonly class WorkflowContextCommand
      *         unattended_behavior: 'generate'|'skip',
      *         authority_bearing_decisions: 'human_required'
      *     },
+     *     future_work: array{
+     *         mode: 'focus'|'discover'|'invest',
+     *         max_follow_up_slices: int,
+     *         current_contract_scope_expansion: 'forbidden',
+     *         follow_up_authority: 'separate_contract_required'
+     *     },
      *     lines: list<string>,
      *     omitted: array<string, int>,
      *     skipped: list<string>
@@ -110,14 +117,16 @@ final readonly class WorkflowContextCommand
     public function build(string $taskId, int $maxLines, int $maxBytes): array
     {
         $report = (new WorkflowReportCommand($this->rootPath))->buildReport($taskId);
-        $interaction = $this->interactionPolicy();
-        $policy = $interaction['policy'];
+        $repositoryPolicy = $this->repositoryPolicy();
+        $policy = $repositoryPolicy['interaction'];
+        $futureWorkMode = $repositoryPolicy['futureWorkMode'];
+        $maxFollowUpSlices = $repositoryPolicy['maxFollowUpSlices'];
 
         $budget = new WorkflowContextBudget($maxLines, $maxBytes);
         $budget->add('header', 'Task: ' . $taskId);
         $budget->add('header', 'Run: ' . ($report['run_id'] ?? 'missing'));
         $budget->add('header', 'Session: ' . ($report['session']['id'] ?? 'missing'));
-        foreach ($interaction['warnings'] as $warning) {
+        foreach ($repositoryPolicy['warnings'] as $warning) {
             $budget->add('policy', $warning);
         }
         $budget->add(
@@ -127,6 +136,7 @@ final readonly class WorkflowContextCommand
             . '; unattended: ' . $policy->unattendedBehavior()
             . '). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
         );
+        $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
 
         $contract = $report['contract'];
         if ($contract['status'] === 'missing') {
@@ -189,27 +199,55 @@ final readonly class WorkflowContextCommand
                 'unattended_behavior' => $policy->unattendedBehavior(),
                 'authority_bearing_decisions' => 'human_required',
             ],
+            'future_work' => [
+                'mode' => $futureWorkMode->value,
+                'max_follow_up_slices' => $maxFollowUpSlices,
+                'current_contract_scope_expansion' => 'forbidden',
+                'follow_up_authority' => 'separate_contract_required',
+            ],
             'lines' => $budget->lines(),
             'omitted' => $budget->omitted(),
             'skipped' => $budget->skipped(),
         ];
     }
 
-    /** @return array{policy: HumanExplanationPolicy, warnings: list<string>} */
-    private function interactionPolicy(): array
+    /**
+     * @return array{
+     *     interaction: HumanExplanationPolicy,
+     *     futureWorkMode: FutureWorkMode,
+     *     maxFollowUpSlices: int,
+     *     warnings: list<string>
+     * }
+     */
+    private function repositoryPolicy(): array
     {
         $layout = new ProjectLayout($this->rootPath);
         $config = (new InitConfigLoader($this->rootPath))->load($layout->configPath());
         $warnings = array_values(array_filter(
             $config['warnings'],
             static fn (string $warning): bool => $warning === '[WARN] init config: invalid JSON'
-                || str_starts_with($warning, '[WARN] init config: interaction'),
+                || str_starts_with($warning, '[WARN] init config: interaction')
+                || str_starts_with($warning, '[WARN] init config: workflow'),
         ));
 
         return [
-            'policy' => HumanExplanationPolicy::from($config['interaction']['human_explanations']),
+            'interaction' => HumanExplanationPolicy::from($config['interaction']['human_explanations']),
+            'futureWorkMode' => FutureWorkMode::from($config['workflow']['future_work']['mode']),
+            'maxFollowUpSlices' => $config['workflow']['future_work']['max_follow_up_slices'],
             'warnings' => $warnings,
         ];
+    }
+
+    private function futureWorkLine(FutureWorkMode $mode, int $maxFollowUpSlices): string
+    {
+        $behavior = match ($mode) {
+            FutureWorkMode::FOCUS => 'do not proactively inspect adjacent future work after the current task completes',
+            FutureWorkMode::DISCOVER => 'after the current task completes, permit one bounded future-work reflection but do not prepare or execute follow-up work',
+            FutureWorkMode::INVEST => 'after the current task completes, permit bounded future-work reflection and preparation of up to ' . $maxFollowUpSlices . ' separate follow-up candidate slice(s)',
+        };
+
+        return 'Future work: ' . $mode->value . '; ' . $behavior
+            . '. Never widen the current Contract; follow-up execution requires separate Contract authority.';
     }
 
     private function session(string $taskId, mixed $id): ?Session
@@ -402,7 +440,6 @@ final readonly class WorkflowContextCommand
             }
         }
     }
-
 
     private function positive(string $value, string $option): int
     {
