@@ -31,6 +31,8 @@ namespace Demo;
 
 final class Service
 {
+    public const LEGACY = 'legacy';
+
     private string $value = 'x';
 
     public function oldName(): void
@@ -120,6 +122,13 @@ PHP);
             'path' => 'src/Service.php',
             'needle' => 'value',
             'replacement' => 'renamedValue',
+        ]];
+        yield 'class constant' => [[
+            'type' => 'class_constant_rename_plan',
+            'target' => 'class_constant:Demo\\Service::LEGACY',
+            'path' => 'src/Service.php',
+            'needle' => 'LEGACY',
+            'replacement' => 'CURRENT',
         ]];
     }
 
