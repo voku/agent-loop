@@ -93,18 +93,62 @@ final readonly class ExecutionGateway
         );
     }
 
-    public function submitStageResult(StageResult $result): ExecutionProjection
+    public function bindStageWorkspace(
+        string $taskId,
+        string $stageId,
+        int $attempt,
+        string $workspacePath,
+    ): ExecutionWorkspaceBinding {
+        [, , $plan] = $this->current($taskId);
+        $state = new ExecutionStateStore($this->rootPath);
+        $projection = $state->projection($plan);
+        if ($projection->attention !== null) {
+            throw new RuntimeException('Execution is waiting for Attention ' . $projection->attention->id . '.');
+        }
+        if ($plan->stage($stageId)->kind !== ExecutionStageKind::AGENT) {
+            throw new RuntimeException('Only agent stages may bind an external execution workspace.');
+        }
+
+        return (new ExecutionWorkspaceBindingStore($this->rootPath))->bind(
+            $plan,
+            $projection,
+            $stageId,
+            $attempt,
+            $workspacePath,
+        );
+    }
+
+    public function observeStageResult(StageResult $result, string $workspacePath): StageResultEvidence
+    {
+        [$contract, , $plan] = $this->current($result->taskId);
+        $projection = (new ExecutionStateStore($this->rootPath))->projection($plan);
+        if ($plan->stage($result->stageId)->kind !== ExecutionStageKind::AGENT) {
+            throw new RuntimeException('Deterministic stage evidence is owner-internal and cannot be supplied by an external runner.');
+        }
+
+        return (new StageResultEvidenceStore($this->rootPath))->observe(
+            $contract,
+            $plan,
+            $projection,
+            $result,
+            $workspacePath,
+        );
+    }
+
+    public function submitStageResult(StageResult $result, ?string $workspacePath = null): ExecutionProjection
     {
         [, , $plan] = $this->current($result->taskId);
 
-        return (new ExecutionStateStore($this->rootPath))->accept($plan, $result);
+        return (new ExecutionStateStore($this->rootPath))->accept($plan, $result, $workspacePath);
     }
 
     public function resolveAttention(string $taskId, string $attentionId): ExecutionProjection
     {
-        [, , $plan] = $this->current($taskId);
+        unset($taskId, $attentionId);
 
-        return (new ExecutionStateStore($this->rootPath))->resolveAttention($plan, $attentionId);
+        throw new RuntimeException(
+            'Human-owned Attention cannot be resolved through the external execution gateway; use the authoritative workflow attention command.',
+        );
     }
 
     public function runDeterministicStage(string $taskId, string $stageId): ExecutionProjection
@@ -121,7 +165,7 @@ final readonly class ExecutionGateway
             $output = (string) ob_get_clean();
         }
 
-        return $this->submitStageResult(new StageResult(
+        $result = new StageResult(
             $this->deterministicSubmissionId($bundle),
             $bundle->taskId,
             $bundle->runId,
@@ -134,7 +178,16 @@ final readonly class ExecutionGateway
             [],
             ['agent-loop verify --task-id=' . $taskId],
             trim($output),
-        ));
+        );
+        [, , $plan] = $this->current($taskId);
+        $state = new ExecutionStateStore($this->rootPath);
+        (new StageResultEvidenceStore($this->rootPath))->recordDeterministic(
+            $plan,
+            $state->projection($plan),
+            $result,
+        );
+
+        return $state->accept($plan, $result);
     }
 
     /** @return array{TaskContract, GovernedRun, ExecutionPlan} */

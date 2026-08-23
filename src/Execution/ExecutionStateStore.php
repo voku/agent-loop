@@ -32,7 +32,7 @@ final readonly class ExecutionStateStore
         return $this->projectionFromState($plan, $this->loadForPlan($plan));
     }
 
-    public function accept(ExecutionPlan $plan, StageResult $result): ExecutionProjection
+    public function accept(ExecutionPlan $plan, StageResult $result, ?string $workspacePath = null): ExecutionProjection
     {
         $lock = $this->acquireLock($plan->taskId);
         try {
@@ -58,6 +58,16 @@ final readonly class ExecutionStateStore
             }
             $this->assertResultBinding($state, $plan, $result);
             $stage = $plan->stage($state->currentStageId);
+            $evidence = new StageResultEvidenceStore($this->rootPath);
+            if ($stage->kind === ExecutionStageKind::AGENT) {
+                if ($workspacePath === null || trim($workspacePath) === '') {
+                    throw new RuntimeException('TRANSITION_REJECTED: MISSING_EVIDENCE agent StageResult acceptance requires the owner-bound workspace.');
+                }
+                $evidence->assertFresh($plan, $result, $workspacePath);
+            } else {
+                $evidence->assertMatches($plan, $result);
+            }
+
             $acceptedAt = $this->now();
             $history = $state->history;
 
@@ -359,7 +369,7 @@ final readonly class ExecutionStateStore
         }
         $stageId = $value['stage_id'] ?? null;
         if ($stageId !== null && (!is_string($stageId) || trim($stageId) === '')) {
-            throw new RuntimeException('Execution Attention stage_id must be a string or null.');
+            throw new RuntimeException('Execution Attention stage_id must be a string or null in ' . $path . '.');
         }
 
         return new AttentionRequest(

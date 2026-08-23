@@ -110,6 +110,21 @@ final readonly class ProjectLayout
         return $this->runRoot($taskId) . '/execution-state.lock';
     }
 
+    public function attentionResolutionPath(string $taskId, string $attentionId): string
+    {
+        return $this->runRoot($taskId) . '/attention-resolutions/' . hash('sha256', $attentionId) . '.json';
+    }
+
+    public function executionWorkspaceBindingPath(string $taskId, string $stageId, int $attempt): string
+    {
+        return $this->runRoot($taskId) . '/execution-evidence/workspaces/' . $stageId . '-' . $attempt . '.json';
+    }
+
+    public function stageResultEvidencePath(string $taskId, string $submissionId): string
+    {
+        return $this->runRoot($taskId) . '/execution-evidence/submissions/' . hash('sha256', $submissionId) . '.json';
+    }
+
     public function editRoot(): string
     {
         return $this->stateRoot() . '/edit';

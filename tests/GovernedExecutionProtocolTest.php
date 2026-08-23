@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Execution\AttentionResolutionStore;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
@@ -17,14 +18,15 @@ use voku\AgentLoop\Execution\StageResult;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
+use voku\AgentLoop\Workflow\WorkflowAttentionCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 final class GovernedExecutionProtocolTest extends TestCase
 {
-    private const string BASE_COMMIT = '1111111111111111111111111111111111111111';
-
     private string $root;
+
+    private string $baseCommit;
 
     protected function setUp(): void
     {
@@ -32,6 +34,13 @@ final class GovernedExecutionProtocolTest extends TestCase
         mkdir($this->root . '/.agent-loop/learning', 0o775, true);
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
+        file_put_contents($this->root . '/.gitignore', ".agent-loop/\n");
+        $this->git(['init', '-q']);
+        $this->git(['config', 'user.email', 'execution@example.test']);
+        $this->git(['config', 'user.name', 'Execution Test']);
+        $this->git(['add', '.']);
+        $this->git(['commit', '-qm', 'base']);
+        $this->baseCommit = trim($this->git(['rev-parse', 'HEAD']));
     }
 
     protected function tearDown(): void
@@ -52,11 +61,11 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertTrue($projection->complete());
         self::assertNull($projection->currentStageId);
         self::assertSame(0, $projection->currentAttempt);
-        self::assertSame(self::BASE_COMMIT, $projection->candidateRevision);
+        self::assertSame($this->baseCommit, $projection->candidateRevision);
         self::assertFileExists((new ExecutionStateStore($this->root))->path('ABC-123'));
     }
 
-    public function testSurgicalProfileIsResolvedBeforeRunAndAdvancesOnlyThroughAcceptedResults(): void
+    public function testSurgicalProfileIsResolvedBeforeRunAndAdvancesOnlyThroughOwnerVerifiedResults(): void
     {
         $this->planAndApprove();
         $profile = new WorkflowExecutionProfileCommand($this->root);
@@ -71,16 +80,17 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame(ExecutionProfileName::SURGICAL, $projection->profile);
         self::assertSame('investigate', $projection->currentStageId);
         self::assertSame(1, $projection->currentAttempt);
-        self::assertSame(self::BASE_COMMIT, $projection->candidateRevision);
+        self::assertSame($this->baseCommit, $projection->candidateRevision);
 
         $bundle = $gateway->prepareStage('ABC-123', 'investigate');
         self::assertFalse($bundle->mayMutate);
         self::assertSame('investigator', $bundle->roleId);
-        self::assertSame(self::BASE_COMMIT, $bundle->baseCommit);
+        self::assertSame($this->baseCommit, $bundle->baseCommit);
         self::assertContains(StageOutcome::COMPLETED, $bundle->acceptedOutcomes);
         self::assertSame(['src/Foo.php'], $bundle->allowedScope);
         self::assertStringContainsString('A successful process exit is not workflow approval.', $bundle->prompt);
 
+        $gateway->bindStageWorkspace($bundle->taskId, $bundle->stageId, $bundle->attempt, $this->root);
         $result = new StageResult(
             ' submission:investigate:1 ',
             $bundle->taskId,
@@ -90,15 +100,16 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::COMPLETED,
-            ' candidate:one ',
-            [' artifact:investigation '],
+            $bundle->candidateRevision,
+            [' src/Foo.php '],
             [],
             "Investigation complete.\n",
         );
-        $after = $gateway->submitStageResult($result);
+        $gateway->observeStageResult($result, $this->root);
+        $after = $gateway->submitStageResult($result, $this->root);
         self::assertSame('build', $after->currentStageId);
         self::assertSame(1, $after->currentAttempt);
-        self::assertSame('candidate:one', $after->candidateRevision);
+        self::assertSame($this->baseCommit, $after->candidateRevision);
         self::assertCount(1, $after->handoffs);
         self::assertSame('investigate', $after->handoffs[0]->fromStage);
         self::assertSame('build', $after->handoffs[0]->toStage);
@@ -112,13 +123,13 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::COMPLETED,
-            'candidate:one',
-            ['artifact:investigation'],
+            $bundle->candidateRevision,
+            ['src/Foo.php'],
             [],
             'Investigation complete.',
-        ));
+        ), $this->root);
         self::assertSame('build', $duplicate->currentStageId);
-        self::assertSame('candidate:one', $duplicate->candidateRevision);
+        self::assertSame($this->baseCommit, $duplicate->candidateRevision);
         self::assertCount(1, $duplicate->handoffs, 'Retrying the same accepted submission must be idempotent.');
     }
 
@@ -140,20 +151,21 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::COMPLETED,
-            'candidate:stale',
+            $bundle->candidateRevision,
             [],
             [],
             'Stale candidate.',
-        ));
+        ), $this->root);
     }
 
-    public function testClarificationCreatesAttentionAndResumeCreatesANewAttempt(): void
+    public function testClarificationRequiresAuthoritativeHumanResolution(): void
     {
         $this->prepareSurgicalRun();
         $gateway = new ExecutionGateway($this->root);
         $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+        $gateway->bindStageWorkspace($bundle->taskId, $bundle->stageId, $bundle->attempt, $this->root);
 
-        $waiting = $gateway->submitStageResult(new StageResult(
+        $result = new StageResult(
             'submission:clarify',
             $bundle->taskId,
             $bundle->runId,
@@ -162,22 +174,40 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::NEEDS_CLARIFICATION,
-            'candidate:clarify',
+            $bundle->candidateRevision,
             [],
             [],
             'Which compatibility boundary is authoritative?',
-        ));
+        );
+        $gateway->observeStageResult($result, $this->root);
+        $waiting = $gateway->submitStageResult($result, $this->root);
         self::assertNotNull($waiting->attention);
         self::assertSame('investigate', $waiting->currentStageId);
         self::assertSame(1, $waiting->currentAttempt);
-        self::assertSame('candidate:clarify', $waiting->candidateRevision);
+        self::assertSame($this->baseCommit, $waiting->candidateRevision);
 
         $attention = $waiting->attention;
-        $resumed = $gateway->resolveAttention('ABC-123', $attention->id);
+        try {
+            $gateway->resolveAttention('ABC-123', $attention->id);
+            self::fail('External gateway must not resolve human-owned Attention.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('Human-owned Attention cannot be resolved', $exception->getMessage());
+        }
+
+        ob_start();
+        $exit = (new WorkflowAttentionCommand($this->root))->run([
+            'ABC-123', '--resolve', $attention->id, '--by', 'lars',
+        ]);
+        ob_end_clean();
+        self::assertSame(0, $exit);
+
+        $resumed = $gateway->projection('ABC-123');
         self::assertNull($resumed->attention);
         self::assertSame('investigate', $resumed->currentStageId);
         self::assertSame(2, $resumed->currentAttempt);
-        self::assertSame('candidate:clarify', $resumed->candidateRevision);
+        self::assertSame($this->baseCommit, $resumed->candidateRevision);
+        $resolution = (new AttentionResolutionStore($this->root))->load('ABC-123', $attention->id);
+        self::assertSame('lars', $resolution->resolvedBy);
     }
 
     public function testExecutionProfileCannotChangeAfterRunExists(): void
@@ -207,7 +237,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             '--file', 'src/Foo.php',
             '--goal', 'Revise governed external stage execution.',
             '--validation', 'vendor/bin/phpunit',
-            '--base-commit', self::BASE_COMMIT,
+            '--base-commit', $this->baseCommit,
         ]));
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
         $profileExit = (new WorkflowExecutionProfileCommand($this->root))->run(['ABC-123']);
@@ -262,7 +292,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             '--file', 'src/Foo.php',
             '--goal', 'Prove governed external stage execution.',
             '--validation', 'vendor/bin/phpunit',
-            '--base-commit', self::BASE_COMMIT,
+            '--base-commit', $this->baseCommit,
         ]));
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
@@ -294,6 +324,24 @@ final class GovernedExecutionProtocolTest extends TestCase
         ))->run('enter', ['ABC-123', '--format=json']);
         ob_end_clean();
         self::assertSame(0, $exit);
+    }
+
+    /** @param list<string> $arguments */
+    private function git(array $arguments): string
+    {
+        $process = proc_open(
+            ['git', '-C', $this->root, ...$arguments],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), is_string($stderr) ? $stderr : 'git failed');
+
+        return is_string($stdout) ? $stdout : '';
     }
 
     private function rm(string $path): void

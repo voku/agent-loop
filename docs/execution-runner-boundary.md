@@ -54,15 +54,38 @@ read-only by default. The deterministic final `verify` stage remains an
 External process hosts consume `voku\AgentLoop\Execution\ExecutionGateway`.
 They do not read `.agent-loop/**` directly and do not parse human CLI output.
 
-The public flow is:
+The public agent-stage flow is:
 
 ```text
 projection(task)
     -> prepareStage(task, stage)
+    -> create/acquire isolated workspace
+    -> bindStageWorkspace(task, stage, attempt, workspace)
     -> execute candidate work outside agent-loop
-    -> submitStageResult(result)
+    -> construct StageResult candidate
+    -> observeStageResult(result, workspace)
+    -> submitStageResult(result, workspace)
     -> accepted transition | Attention | rejection
 ```
+
+`bindStageWorkspace()` is an owner-side precondition check. `agent-loop` verifies
+that the supplied path is a worktree of the expected repository, remains at the
+exact governed base commit, and contains the candidate revision projected for
+the current Run/Contract/plan/stage/attempt. The durable binding stores only an
+opaque workspace identity, not a Runner-private path convention.
+
+`observeStageResult()` does not trust the candidate/evidence strings supplied by
+the external process. `agent-loop` independently recalculates the candidate with
+the same versioned Git-worktree digest contract, requires read-only stages to
+preserve the bound candidate, resolves referenced artifacts inside the bound
+workspace, and executes referenced Contract validation obligations itself. A
+mutating `COMPLETED` stage must prove every validation obligation in the current
+Contract.
+
+`submitStageResult()` rechecks the candidate and artifact evidence under the
+acceptance lock before advancing state. Missing, mismatched, superseded, or stale
+owner evidence fails closed. A caller-supplied reference is never authoritative
+merely because it is a syntactically valid string.
 
 `StageExecutionBundle` contains the exact Run/Contract/plan/stage binding,
 mutation permission, allowed scope, required validation, candidate revision,
@@ -76,15 +99,20 @@ or validation authority merely because it appears in a bundle.
 
 A host returns a `StageResult` with a caller-stable `submission_id`, exact
 Run/Contract/plan/stage/attempt binding, candidate revision, outcome and evidence
-references.
+references. Those fields are claims until owner evidence has been observed and
+persisted for that exact submission.
 
-`agent-loop` validates the result against current owner state before any
-transition is accepted. An exit code or model statement is not a passed gate.
+`ExecutionStateStore::accept()` refuses a new transition without matching
+owner-side `StageResultEvidence`. Agent stages additionally require the currently
+bound workspace so freshness can be rechecked at acceptance. Deterministic stages
+record their own evidence internally before acceptance and cannot receive that
+authority from an external runner.
 
-The `submission_id` is the idempotency key across the critical restart window:
-if `agent-loop` accepted a result but the external runner crashed before updating
-its own runtime record, submitting the exact same result again returns the
-already-accepted projection. Reusing the id with different content is rejected.
+The `submission_id` remains the idempotency key across the critical restart
+window: if `agent-loop` accepted a result but the external runner crashed before
+updating its own runtime record, submitting the exact same accepted result again
+returns the already-accepted projection. Reusing the id with different content
+is rejected.
 
 ## Handoffs
 
@@ -102,19 +130,32 @@ This is distinct from `workflow handoff`:
 
 `BLOCKED`, `NEEDS_CLARIFICATION`, or `FAILED` stage results do not advance the
 plan. They create typed pending Attention and leave the current stage bound to
-its current candidate. Resolving Attention starts a new attempt of that stage.
+its owner-verified candidate. Resolving Attention starts a new attempt of that
+stage.
 
-An external runner may surface or request Attention, but it cannot resolve a
-human-owned decision by guessing.
+The external `ExecutionGateway` cannot resolve human-owned Attention. The owner
+path is:
+
+```text
+agent-loop workflow attention TASK --resolve ATTENTION_ID --by ACTOR
+```
+
+That command persists a Run/Contract/plan-bound `AttentionResolution` record
+before clearing the pending Attention. A restart may replay the same exact
+actor-bound resolution record, but an external runner cannot manufacture one by
+calling the execution gateway.
 
 ## State ownership
 
 Only `ProjectLayout` spells repository-local state paths. The durable profile
-selection lives with Contract-owned state; the resolved execution plan and
-accepted execution state live under the current governed Run.
+selection lives with Contract-owned state; the resolved execution plan, workspace
+bindings, owner evidence, Attention resolutions, and accepted execution state
+live under the current governed Run.
 
 Runner-private process state, logs, worktrees and provider configuration do not
 belong in `agent-loop` and must stay in the runner package/project namespace.
+The owner receives a workspace path only as an invocation input and persists an
+opaque identity derived from the verified Git worktree.
 
 ## Non-goals
 
