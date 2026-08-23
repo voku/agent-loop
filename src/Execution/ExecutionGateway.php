@@ -124,7 +124,7 @@ final readonly class ExecutionGateway
         }
 
         return $this->submitStageResult(new StageResult(
-            'deterministic:' . bin2hex(random_bytes(8)),
+            $this->deterministicSubmissionId($bundle),
             $bundle->taskId,
             $bundle->runId,
             $bundle->contractRevision,
@@ -258,6 +258,18 @@ final readonly class ExecutionGateway
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    private function deterministicSubmissionId(StageExecutionBundle $bundle): string
+    {
+        return 'deterministic:sha256:' . hash('sha256', implode("\0", [
+            $bundle->taskId,
+            $bundle->runId,
+            (string) $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            (string) $bundle->attempt,
+        ]));
     }
 
     private function repositoryRoot(): string
