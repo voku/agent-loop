@@ -45,7 +45,7 @@ final readonly class ExecutionPlanStore
             $run->taskId,
             $run->runId,
             $run->contractRevision,
-            $run->contractSource,
+            $this->contractSource($run),
             $contract->baseCommit,
             $run->preparedAt,
         );
@@ -170,10 +170,14 @@ final readonly class ExecutionPlanStore
             }
             $decodedCapabilities = [];
             foreach ($capabilities as $capability) {
-                if (!is_string($capability) || trim($capability) === '') {
+                if (!is_string($capability)) {
                     throw new RuntimeException('Execution role capabilities must be non-empty strings in ' . $path . '.');
                 }
-                $decodedCapabilities[] = trim($capability);
+                $capability = trim($capability);
+                if ($capability === '') {
+                    throw new RuntimeException('Execution role capabilities must be non-empty strings in ' . $path . '.');
+                }
+                $decodedCapabilities[] = $capability;
             }
             $roles[] = new ExecutionRole(
                 $this->requiredString($entry, 'id', $path . '#roles[' . $index . ']'),
@@ -218,10 +222,16 @@ final readonly class ExecutionPlanStore
                 if (!is_string($outcome) || StageOutcome::tryFrom($outcome) === null) {
                     throw new RuntimeException('Execution stage transition uses unsupported outcome in ' . $path . '.');
                 }
-                if ($next !== null && (!is_string($next) || trim($next) === '')) {
-                    throw new RuntimeException('Execution stage transition target must be a non-empty string or null in ' . $path . '.');
+                if ($next !== null) {
+                    if (!is_string($next)) {
+                        throw new RuntimeException('Execution stage transition target must be a non-empty string or null in ' . $path . '.');
+                    }
+                    $next = trim($next);
+                    if ($next === '') {
+                        throw new RuntimeException('Execution stage transition target must be a non-empty string or null in ' . $path . '.');
+                    }
                 }
-                $transitions[$outcome] = is_string($next) ? trim($next) : null;
+                $transitions[$outcome] = $next;
             }
 
             $stages[] = new ExecutionStage(
@@ -245,13 +255,29 @@ final readonly class ExecutionPlanStore
         }
         $items = [];
         foreach ($value as $item) {
-            if (!is_string($item) || trim($item) === '') {
+            if (!is_string($item)) {
                 throw new RuntimeException($path . ' must contain only non-empty strings.');
             }
-            $items[] = trim($item);
+            $item = trim($item);
+            if ($item === '') {
+                throw new RuntimeException($path . ' must contain only non-empty strings.');
+            }
+            $items[] = $item;
         }
 
         return $items;
+    }
+
+    /** @return array{path: non-empty-string, sha256: non-empty-string} */
+    private function contractSource(GovernedRun $run): array
+    {
+        $path = trim($run->contractSource['path']);
+        $sha = trim($run->contractSource['sha256']);
+        if ($path === '' || preg_match('/^sha256:[a-f0-9]{64}$/', $sha) !== 1) {
+            throw new RuntimeException('Governed Run contains invalid Contract source evidence.');
+        }
+
+        return ['path' => $path, 'sha256' => $sha];
     }
 
     private function contractSha(TaskContract $contract): string
@@ -264,14 +290,21 @@ final readonly class ExecutionPlanStore
         return 'sha256:' . $sha;
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     * @return non-empty-string
+     */
     private function requiredString(array $data, string $key, string $path): string
     {
         $value = $data[$key] ?? null;
-        if (!is_string($value) || trim($value) === '') {
+        if (!is_string($value)) {
+            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
+        }
+        $value = trim($value);
+        if ($value === '') {
             throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
         }
 
-        return trim($value);
+        return $value;
     }
 }
