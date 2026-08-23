@@ -1,0 +1,41 @@
+name: Packagist 0.17.1 publication probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-composer-consumer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install exact published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/agent-loop-0.17.1-consumer"
+          rm -rf "${root}"
+          mkdir -p "${root}"
+          cd "${root}"
+
+          composer init --no-interaction --name=voku/agent-loop-release-probe
+          composer require --no-interaction --prefer-dist --no-progress --no-ansi voku/agent-loop:0.17.1
+
+          composer show voku/agent-loop --format=json > loop.json
+          composer show voku/agent-recall-compiler --format=json > recall.json
+
+          jq -e '.versions | index("0.17.1") != null' loop.json >/dev/null
+          jq -e '.versions | any(. == "0.13.11" or startswith("0.13."))' recall.json >/dev/null
+
+          catalog='vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json'
+          test -f "${catalog}"
+          grep -Fq '"id": "execute-plan-with-blind-spot-check"' "${catalog}"
+          php vendor/bin/agent-loop help >/dev/null
