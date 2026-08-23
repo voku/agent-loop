@@ -159,7 +159,7 @@ jobs:
             --by installed-class-constant-dogfood \
             --file src/Settings.php \
             --file src/Consumer.php \
-            --goal 'Rename Fixture\\Settings::LEGACY to CURRENT through the released agent-map class-constant plan.' \
+            --goal 'Rename Fixture\Settings::LEGACY to CURRENT through the released agent-map class-constant plan.' \
             --behavior-anchor 'Settings declaration -> self fetch -> consumer fetch' \
             --validation 'composer test' \
             --acceptance 'No LEGACY token remains in src and composer test passes.'
@@ -178,7 +178,7 @@ jobs:
 
           mkdir -p .agent-loop/edit/DEMO-1
           vendor/bin/agent-map class-constant-rename-plan \
-            'Fixture\\Settings::LEGACY' CURRENT \
+            'Fixture\Settings::LEGACY' CURRENT \
             --index=.agent-loop/map/php-symbols.json \
             --format=json > .agent-loop/edit/DEMO-1/class-constant-rename-plan.json
 
