@@ -16,12 +16,13 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentMap\Index\IndexReader;
 
-/** CLI boundary for consuming one already-produced, versioned agent-map rename plan. */
+/** CLI boundary for consuming one already-produced, versioned agent-map refactor plan. */
 final readonly class RefactorEditCommand
 {
     public function __construct(
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
+        private MethodRemovalPlanApplier $removalApplier = new MethodRemovalPlanApplier(),
         private EditMutationLock $mutationLock = new EditMutationLock(),
         private IndexReader $reader = new IndexReader(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
@@ -55,9 +56,10 @@ final readonly class RefactorEditCommand
                     throw new RuntimeException('Unable to hash agent-map index: ' . $request['map_index']);
                 }
                 $mapIndexSha256 = 'sha256:' . $rawMapHash;
+                $applier = ($plan['type'] ?? null) === 'method_removal_plan' ? $this->removalApplier : $this->applier;
 
                 if ($request['dry_run']) {
-                    $prepared = $this->applier->preflight($plan, $map, $request['map_root']);
+                    $prepared = $applier->preflight($plan, $map, $request['map_root']);
 
                     return new EditRunResult(
                         status: 'prepared',
@@ -71,7 +73,7 @@ final readonly class RefactorEditCommand
                     );
                 }
 
-                return $this->applier->apply($plan, $map, $request['map_root']);
+                return $applier->apply($plan, $map, $request['map_root']);
             };
 
             if ($request['dry_run']) {
@@ -87,6 +89,7 @@ final readonly class RefactorEditCommand
 
             $after = $this->snapshotter->capture($this->projectRoot);
             $executionPath = $request['output_directory'] . '/execution.json';
+            $runnerName = ($plan['type'] ?? null) === 'method_removal_plan' ? 'method-removal-plan' : 'rename-plan';
             $this->write($executionPath, $this->json([
                 'schema_version' => '1.0',
                 'status' => $result->status,
@@ -101,7 +104,7 @@ final readonly class RefactorEditCommand
                 'map_digest' => $mapDigest,
                 'map_index_sha256' => $mapIndexSha256,
                 'runner' => [
-                    'name' => 'rename-plan',
+                    'name' => $runnerName,
                     'exit_code' => $result->exitCode,
                     'dry_run' => $request['dry_run'],
                     'model_input_tokens' => 0,
@@ -193,7 +196,7 @@ final readonly class RefactorEditCommand
 
         $mapRoot = $this->existingDirectory($root, $values['map-root'] ?? $root, 'map root');
         $mapIndex = $this->existingFile($root, $values['map-index'] ?? $layout->mapIndex(), 'map index');
-        $planPath = $this->existingFile($root, $plan, 'rename plan');
+        $planPath = $this->existingFile($root, $plan, 'refactor plan');
         $output = $this->resolvePath($root, $values['output-dir'] ?? $layout->editBundle($taskId));
 
         return [
@@ -211,7 +214,7 @@ final readonly class RefactorEditCommand
     {
         $raw = file_get_contents($path);
         if (!is_string($raw)) {
-            throw new RuntimeException('Unable to read rename plan: ' . $path);
+            throw new RuntimeException('Unable to read refactor plan: ' . $path);
         }
 
         if (str_ends_with(strtolower($path), '.toon')) {
@@ -220,7 +223,7 @@ final readonly class RefactorEditCommand
             $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         }
         if (!is_array($decoded)) {
-            throw new RuntimeException('Rename plan document must decode to an object: ' . $path);
+            throw new RuntimeException('Refactor plan document must decode to an object: ' . $path);
         }
 
         return [$decoded, 'sha256:' . hash('sha256', $raw)];
@@ -303,9 +306,9 @@ final readonly class RefactorEditCommand
 Usage:
   agent-loop edit refactor PLAN [options]
 
-Consumes one safe versioned agent-map rename plan through agent-loop's mutation boundary.
-The allowlist is fixed to method_rename_plan, function_rename_plan, class_rename_plan and
-property_rename_plan contract 1.0. No arbitrary edit-plan or Rector execution is accepted.
+Consumes one safe versioned agent-map refactor plan through agent-loop's mutation boundary.
+The fixed allowlist covers the five rename-plan contracts plus method_removal_plan@1.0. Removal
+keeps its own decoder and deletion invariants; arbitrary edit plans and Rector execution remain rejected.
 
 Options:
   --task ID            Required governed task ID.
@@ -316,8 +319,8 @@ Options:
 
 Mutation requires the task's current execution contract to be ready. Every source hash, inclusive
 byte range, expected token and plan provenance is revalidated under the shared project mutation lock.
-All rewritten PHP is staged and syntax-checked before publication; class file moves commit in the same
-transaction and every source is restored on any failure.
+All rewritten PHP is staged and syntax-checked before publication; every source is restored on any
+publication failure. Class rename moves remain part of the rename-specific transaction only.
 
 TXT;
 
