@@ -389,8 +389,8 @@ final readonly class ExecutionStateStore
             $attempt,
             $outcome,
             $this->requiredString($data, 'candidate_revision', $path),
-            $this->stringList($data['artifact_references'] ?? null, $path . '#artifact_references'),
-            $this->stringList($data['validation_references'] ?? null, $path . '#validation_references'),
+            ExecutionArtifactValue::stringList($data['artifact_references'] ?? null, $path . '#artifact_references'),
+            ExecutionArtifactValue::stringList($data['validation_references'] ?? null, $path . '#validation_references'),
             is_string($data['summary'] ?? null) ? trim($data['summary']) : '',
         );
     }
@@ -420,31 +420,10 @@ final readonly class ExecutionStateStore
             is_string($toStage) ? trim($toStage) : null,
             $this->requiredString($value, 'candidate_revision', $path),
             $this->requiredDigest($value, 'execution_plan_digest', $path),
-            $this->stringList($value['artifact_references'] ?? null, $path . '#artifact_references'),
-            $this->stringList($value['validation_references'] ?? null, $path . '#validation_references'),
+            ExecutionArtifactValue::stringList($value['artifact_references'] ?? null, $path . '#artifact_references'),
+            ExecutionArtifactValue::stringList($value['validation_references'] ?? null, $path . '#validation_references'),
             $this->requiredString($value, 'accepted_at', $path),
         );
-    }
-
-    /** @return list<non-empty-string> */
-    private function stringList(mixed $value, string $path): array
-    {
-        if (!is_array($value)) {
-            throw new RuntimeException($path . ' must be an array.');
-        }
-        $items = [];
-        foreach ($value as $item) {
-            if (!is_string($item)) {
-                throw new RuntimeException($path . ' must contain only non-empty strings.');
-            }
-            $item = trim($item);
-            if ($item === '') {
-                throw new RuntimeException($path . ' must contain only non-empty strings.');
-            }
-            $items[] = $item;
-        }
-
-        return $items;
     }
 
     /**
@@ -453,12 +432,7 @@ final readonly class ExecutionStateStore
      */
     private function requiredDigest(array $data, string $key, string $path): string
     {
-        $value = $this->requiredString($data, $key, $path);
-        if (preg_match('/^sha256:[a-f0-9]{64}$/', $value) !== 1) {
-            throw new RuntimeException($path . ' requires sha256 digest ' . $key . '.');
-        }
-
-        return $value;
+        return ExecutionArtifactValue::sha256($data[$key] ?? null, $path . '#' . $key);
     }
 
     /**
@@ -467,16 +441,7 @@ final readonly class ExecutionStateStore
      */
     private function requiredString(array $data, string $key, string $path): string
     {
-        $value = $data[$key] ?? null;
-        if (!is_string($value)) {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
-        }
-        $value = trim($value);
-        if ($value === '') {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
-        }
-
-        return $value;
+        return ExecutionArtifactValue::string($data[$key] ?? null, $path . '#' . $key);
     }
 
     private function now(): string
