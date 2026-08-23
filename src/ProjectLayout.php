@@ -105,6 +105,11 @@ final readonly class ProjectLayout
         return $this->runRoot($taskId) . '/execution-state.json';
     }
 
+    public function executionStateLockPath(string $taskId): string
+    {
+        return $this->runRoot($taskId) . '/execution-state.lock';
+    }
+
     public function editRoot(): string
     {
         return $this->stateRoot() . '/edit';
