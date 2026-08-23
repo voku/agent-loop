@@ -82,7 +82,7 @@ final readonly class ExecutionGateway
             $stage->roleId,
             $stage->mayMutate,
             $this->repositoryRoot(),
-            $contract->baseCommit,
+            $plan->baseCommit,
             $state->candidateRevision,
             $plan->contractSource,
             $this->recallSource($taskId),
