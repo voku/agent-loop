@@ -6,7 +6,7 @@ namespace voku\AgentLoop\Edit\Refactor;
 
 use RuntimeException;
 
-/** The fixed four-kind rename wire envelope after fail-closed decoding. */
+/** The fixed five-kind rename wire envelope after fail-closed decoding. */
 final readonly class RenamePlanDocument
 {
     /** @var array<string, string> */
@@ -15,6 +15,7 @@ final readonly class RenamePlanDocument
         'function_rename_plan' => 'function:',
         'class_rename_plan' => 'class:',
         'property_rename_plan' => 'property:',
+        'class_constant_rename_plan' => 'class_constant:',
     ];
 
     /**

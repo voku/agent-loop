@@ -1,0 +1,293 @@
+name: Installed class constant refactor lifecycle
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-class-constant-refactor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-class-constant-refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout released agent-map contract owner
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-map
+          ref: 0.8.5
+          path: build/released-agent-map
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Prove exact released owner revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/released-agent-map rev-parse HEAD)" = "2784cac58fd41f21855b616d320d05c5cbcaacd1"
+
+      - name: Run released class-constant plan through governed installed consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/agent-loop-installed-class-constant"
+          rm -rf "$root"
+          mkdir -p "$root/src" "$root/tests"
+
+          cat > "$root/composer.json" <<JSON
+          {
+            "name": "voku/installed-class-constant-refactor-consumer",
+            "type": "project",
+            "require-dev": {
+              "phpstan/phpstan": "^2.2",
+              "voku/agent-loop": "dev-main"
+            },
+            "repositories": [
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-loop": "dev-main"}
+                }
+              },
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-map": "0.8.5"}
+                }
+              }
+            ],
+            "autoload": {
+              "psr-4": {"Fixture\\\\": "src/"}
+            },
+            "scripts": {
+              "test": "php tests/run.php"
+            },
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+
+          cat > "$root/.gitignore" <<'EOF'
+          /vendor/
+          /.agent-loop/
+          EOF
+
+          cat > "$root/src/Settings.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class Settings
+          {
+              public const LEGACY = 'released-map';
+
+              public static function local(): string
+              {
+                  return self::LEGACY;
+              }
+          }
+          PHP
+
+          cat > "$root/src/Consumer.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class Consumer
+          {
+              public function read(): string
+              {
+                  return Settings::LEGACY;
+              }
+          }
+          PHP
+
+          cat > "$root/tests/run.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          require dirname(__DIR__) . '/vendor/autoload.php';
+
+          if (\Fixture\Settings::CURRENT !== 'released-map') {
+              throw new RuntimeException('Renamed class constant does not preserve its value.');
+          }
+          if ((new \Fixture\Consumer())->read() !== 'released-map') {
+              throw new RuntimeException('Class-constant consumer was not rewritten coherently.');
+          }
+          PHP
+
+          cd "$root"
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
+          composer show voku/agent-map --format=json > resolved-agent-map.json
+          jq -e '.versions | index("0.8.5") != null' resolved-agent-map.json >/dev/null
+
+          git init --initial-branch=main
+          git config user.name 'Installed Class Constant Dogfood'
+          git config user.email 'class-constant-dogfood@example.invalid'
+          git add composer.json composer.lock .gitignore src tests
+          git commit -m 'fixture: initial class constant consumer'
+
+          vendor/bin/agent-loop init scaffold --demo --agent=codex
+          vendor/bin/agent-loop workflow plan DEMO-1 \
+            --by installed-class-constant-dogfood \
+            --file src/Settings.php \
+            --file src/Consumer.php \
+            --goal 'Rename Fixture\Settings::LEGACY to CURRENT through the released agent-map class-constant plan.' \
+            --behavior-anchor 'Settings declaration -> self fetch -> consumer fetch' \
+            --validation 'composer test' \
+            --acceptance 'No LEGACY token remains in src and composer test passes.'
+          vendor/bin/agent-loop workflow approve DEMO-1 --by installed-class-constant-dogfood
+          vendor/bin/agent-loop enter DEMO-1 --format=json --max-lines=40 --max-bytes=4096 > enter.json
+          jq -e '.mutation_ready == true' enter.json >/dev/null
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --out=.agent-loop/map/php-symbols.json
+
+          vendor/bin/agent-map rename-capabilities --format=json > capabilities.json
+          jq -e '[.capabilities[].plan_type] | index("class_constant_rename_plan") != null' capabilities.json >/dev/null
+
+          mkdir -p .agent-loop/edit/DEMO-1
+          vendor/bin/agent-map class-constant-rename-plan \
+            'Fixture\Settings::LEGACY' CURRENT \
+            --index=.agent-loop/map/php-symbols.json \
+            --format=json > .agent-loop/edit/DEMO-1/class-constant-rename-plan.json
+
+          jq -e '
+            (.type == "class_constant_rename_plan")
+            and (.contract_version == "1.0")
+            and (.status == "safe")
+            and (.stale_evidence == [])
+            and (.blockers == [])
+            and (.blind_spots == [])
+            and ((.edits | length) >= 3)
+          ' .agent-loop/edit/DEMO-1/class-constant-rename-plan.json >/dev/null
+
+          before_settings="$(sha256sum src/Settings.php | cut -d' ' -f1)"
+          before_consumer="$(sha256sum src/Consumer.php | cut -d' ' -f1)"
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-1/class-constant-rename-plan.json \
+            --task=DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/DEMO-1/dry-run \
+            --dry-run
+          test "$(sha256sum src/Settings.php | cut -d' ' -f1)" = "$before_settings"
+          test "$(sha256sum src/Consumer.php | cut -d' ' -f1)" = "$before_consumer"
+
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-1/class-constant-rename-plan.json \
+            --task=DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/DEMO-1
+
+          if grep -R -n --fixed-strings 'LEGACY' src; then
+            echo 'Old class-constant token remains after governed apply.' >&2
+            exit 1
+          fi
+          grep -R -n --fixed-strings 'CURRENT' src >/dev/null
+          php -l src/Settings.php
+          php -l src/Consumer.php
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --out=.agent-loop/map/php-symbols.json
+          vendor/bin/agent-loop edit refactor verify \
+            --bundle=.agent-loop/edit/DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=.
+          jq -e '
+            (.kind == "rename_plan_verification")
+            and (.status == "passed")
+            and (.plan.type == "class_constant_rename_plan")
+            and (.plan.contract_version == "1.0")
+            and (.checks.execution_binding == "passed")
+            and (.checks.current_map == "passed")
+            and (.checks.changed_files == "passed")
+            and (.checks.replacements == "passed")
+            and (.checks.moves == "passed")
+          ' .agent-loop/edit/DEMO-1/verification-result.json >/dev/null
+
+          composer test
+          vendor/bin/agent-loop session validation record DEMO-1 \
+            --contract-revision 1 \
+            --command 'composer test' \
+            --status passed \
+            --exit-code 0 \
+            --duration-ms 0 \
+            --by installed-class-constant-dogfood
+
+          set +e
+          vendor/bin/agent-loop review blindspots DEMO-1
+          review_rc=$?
+          set -e
+          if test "$review_rc" -ne 0 && test "$review_rc" -ne 1; then
+            exit "$review_rc"
+          fi
+
+          vendor/bin/agent-loop session checkpoint DEMO-1 \
+            --title 'Installed class constant refactor review' \
+            --body 'Reviewed released owner plan, deterministic verification, rewritten PHP, and validation evidence.'
+          vendor/bin/agent-loop review blindspots DEMO-1
+          vendor/bin/agent-loop workflow learn DEMO-1 \
+            --status no_durable_learning \
+            --by installed-class-constant-dogfood \
+            --reason 'The released class-constant integration proof added no reusable project-specific guidance.'
+          vendor/bin/agent-loop verify --task-id=DEMO-1
+
+          vendor/bin/agent-loop workflow status DEMO-1 --format=json > status.json
+          review_sha="$(jq -er '.manifest.references.review.source.sha256' status.json)"
+          case "$review_sha" in
+            sha256:*) ;;
+            *) echo 'Missing exact review digest.' >&2; exit 1 ;;
+          esac
+
+          vendor/bin/agent-loop finish DEMO-1 \
+            --reviewed-report-sha256 "$review_sha" \
+            --by installed-class-constant-dogfood
+          vendor/bin/agent-loop finish DEMO-1 --format=json > finish.json
+          jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
+
+      - name: Upload installed class-constant evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-class-constant-refactor-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/agent-loop-installed-class-constant/resolved-agent-map.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/capabilities.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/.agent-loop/edit/DEMO-1/class-constant-rename-plan.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/.agent-loop/edit/DEMO-1/verification-result.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/finish.json
