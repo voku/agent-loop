@@ -86,8 +86,8 @@ final readonly class ExecutionGateway
             $state->candidateRevision,
             $plan->contractSource,
             $this->recallSource($taskId),
-            $contract->scope,
-            $contract->validation,
+            $this->nonEmptyLines($contract->scope, 'Contract scope'),
+            $this->nonEmptyLines($contract->validation, 'Contract validation'),
             $priorHandoff,
             $acceptedOutcomes,
             self::COMPLETION_MARKER,
@@ -192,6 +192,24 @@ final readonly class ExecutionGateway
         }
 
         return $accepted;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<non-empty-string>
+     */
+    private function nonEmptyLines(array $values, string $label): array
+    {
+        $result = [];
+        foreach ($values as $value) {
+            $value = trim($value);
+            if ($value === '') {
+                throw new RuntimeException($label . ' contains an empty entry.');
+            }
+            $result[] = $value;
+        }
+
+        return $result;
     }
 
     /** @param list<StageOutcome> $acceptedOutcomes */
