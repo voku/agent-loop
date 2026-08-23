@@ -1,0 +1,60 @@
+name: Prepare 0.17.0 release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-0170-helper.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Insert release notes and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('CHANGELOG.md')
+          text = path.read_text()
+          marker = '## Unreleased\n'
+          section = '''## 0.17.0 - 2026-08-23\n\n### Added\n\n- Publish the typed governed external-execution protocol for optional process hosts: immutable execution profiles and plans, `ExecutionGateway`, bounded stage bundles, provenance-bound stage results and handoffs, typed Attention, exact-stage projections, and idempotent result acceptance. External runners may execute candidate work, but only agent-loop accepts governed transitions and owns final deterministic verification.\n- Add fixed-contract transactional consumers for released agent-map rename/removal plans, including method, property, class-constant, class/function/property/class-constant rename families and dedicated installed-consumer lifecycle dogfood.\n- Add the governed host front door, human-review artifacts, review acknowledgements, proportional-governance measurement, recovery/convergence evidence, and repository-owned host policy/runtime projection surfaces.\n\n### Changed\n\n- The governed lifecycle now exposes explicit `manual`, `surgical`, `standard`, and `hardened` execution profiles while preserving `manual` as the default. Profile selection is Contract-bound and frozen once its governed Run exists.\n- Execution state uses per-task serialized acceptance and deterministic submission identities so retries are idempotent and concurrent submissions cannot discard already accepted history.\n- Repository workflow guidance, quick-start, lifecycle, manifest and host activation surfaces now converge on owner APIs, canonical next actions, bounded evidence, and recovery-safe close semantics.\n\n### Fixed\n\n- Contract revision/supersession clears stale execution-profile selection before replacement Run preparation; persisted candidate revisions survive projections; StageResult normalization no longer breaks idempotent replay; and workflow close can refresh a complete manifest without re-entering stale execution-plan preparation.\n- Refactor consumers fail closed on stale provenance, mismatched source hashes/ranges, unsupported plan roles and non-atomic publication; dedicated post-apply verification proves current Map evidence and target absence.\n\n### Validation\n\n- PR #270 passed PHP 8.3/8.4/8.5 CI, PHPStan, project PHPStan rules, deterministic slop review, governed execution-contract dogfood, self-shape, installed release-set and refactor lifecycles, AccessLint and CodeRabbit on exact head `f29be4faf0fccb4fabf4646bb77bea7cc8bfb665` before squash merge to `1f46648d4fb928aa256d5b6be6ac0f80f1a77d0e`.\n- The accumulated post-0.16.6 release set includes the released agent-map 0.8.x fixed contracts and the matching transactional agent-loop consumers, each proven through clean installed Composer consumers rather than sibling-checkout assumptions.\n\n'''
+          if '## 0.17.0 - 2026-08-23' in text:
+              raise SystemExit('0.17.0 already documented')
+          if text.count(marker) != 1:
+              raise SystemExit('unexpected Unreleased marker count')
+          path.write_text(text.replace(marker, marker + '\n' + section, 1))
+          PY
+          rm .github/workflows/release-0170-helper.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md .github/workflows/release-0170-helper.yml
+          git diff --cached --check
+          git commit -m 'release: prepare 0.17.0'
+          git push origin HEAD:main
+          echo "TARGET_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Request exact release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .release
+          cat > .release/0.17.0.json <<JSON
+          {
+            "target_sha": "${TARGET_SHA}",
+            "version": "0.17.0"
+          }
+          JSON
+          git add .release/0.17.0.json
+          git diff --cached --check
+          git commit -m 'release: request 0.17.0'
+          git push origin HEAD:main
