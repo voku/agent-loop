@@ -23,6 +23,7 @@ final readonly class RefactorEditCommand
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
         private MethodRemovalPlanApplier $removalApplier = new MethodRemovalPlanApplier(),
+        private PropertyRemovalPlanApplier $propertyRemovalApplier = new PropertyRemovalPlanApplier(),
         private EditMutationLock $mutationLock = new EditMutationLock(),
         private IndexReader $reader = new IndexReader(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
@@ -56,7 +57,11 @@ final readonly class RefactorEditCommand
                     throw new RuntimeException('Unable to hash agent-map index: ' . $request['map_index']);
                 }
                 $mapIndexSha256 = 'sha256:' . $rawMapHash;
-                $applier = ($plan['type'] ?? null) === 'method_removal_plan' ? $this->removalApplier : $this->applier;
+                $applier = match ($plan['type'] ?? null) {
+                    'method_removal_plan' => $this->removalApplier,
+                    'property_removal_plan' => $this->propertyRemovalApplier,
+                    default => $this->applier,
+                };
 
                 if ($request['dry_run']) {
                     $prepared = $applier->preflight($plan, $map, $request['map_root']);
@@ -89,7 +94,11 @@ final readonly class RefactorEditCommand
 
             $after = $this->snapshotter->capture($this->projectRoot);
             $executionPath = $request['output_directory'] . '/execution.json';
-            $runnerName = ($plan['type'] ?? null) === 'method_removal_plan' ? 'method-removal-plan' : 'rename-plan';
+            $runnerName = match ($plan['type'] ?? null) {
+                'method_removal_plan' => 'method-removal-plan',
+                'property_removal_plan' => 'property-removal-plan',
+                default => 'rename-plan',
+            };
             $this->write($executionPath, $this->json([
                 'schema_version' => '1.0',
                 'status' => $result->status,
@@ -307,8 +316,9 @@ Usage:
   agent-loop edit refactor PLAN [options]
 
 Consumes one safe versioned agent-map refactor plan through agent-loop's mutation boundary.
-The fixed allowlist covers the five rename-plan contracts plus method_removal_plan@1.0. Removal
-keeps its own decoder and deletion invariants; arbitrary edit plans and Rector execution remain rejected.
+The fixed allowlist covers the five rename-plan contracts plus method_removal_plan@1.0 and
+property_removal_plan@1.0. Each removal family keeps its own decoder and deletion invariants;
+arbitrary edit plans and Rector execution remain rejected.
 
 Options:
   --task ID            Required governed task ID.
