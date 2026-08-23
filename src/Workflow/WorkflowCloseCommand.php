@@ -155,7 +155,7 @@ final readonly class WorkflowCloseCommand
 
     private function refreshCompleteManifest(string $taskId): string
     {
-        $path = (new RunManifestTransitionWriter($this->rootPath))->write($taskId);
+        $path = (new RunManifestTransitionWriter($this->rootPath))->writeRecoveryProjection($taskId);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
         if ($manifest->state !== 'complete') {
             throw new RuntimeException(
