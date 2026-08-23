@@ -156,14 +156,21 @@ final readonly class ExecutionProfileSelectionStore
         }
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     * @return non-empty-string
+     */
     private function requiredString(array $data, string $key, string $path): string
     {
         $value = $data[$key] ?? null;
-        if (!is_string($value) || trim($value) === '') {
+        if (!is_string($value)) {
+            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
+        }
+        $value = trim($value);
+        if ($value === '') {
             throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
         }
 
-        return trim($value);
+        return $value;
     }
 }
