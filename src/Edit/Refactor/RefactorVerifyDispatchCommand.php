@@ -40,6 +40,7 @@ final readonly class RefactorVerifyDispatchCommand
         return match ($execution['runner']['name'] ?? null) {
             'method-removal-plan' => (new MethodRemovalVerifyCommand($this->projectRoot))->run($tokens),
             'property-removal-plan' => (new PropertyRemovalVerifyCommand($this->projectRoot))->run($tokens),
+            'class-constant-removal-plan' => (new ClassConstantRemovalVerifyCommand($this->projectRoot))->run($tokens),
             default => (new RefactorVerifyCommand($this->projectRoot))->run($tokens),
         };
     }

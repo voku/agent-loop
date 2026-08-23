@@ -24,6 +24,7 @@ final readonly class RefactorEditCommand
         private RenamePlanApplier $applier = new RenamePlanApplier(),
         private MethodRemovalPlanApplier $removalApplier = new MethodRemovalPlanApplier(),
         private PropertyRemovalPlanApplier $propertyRemovalApplier = new PropertyRemovalPlanApplier(),
+        private ClassConstantRemovalPlanApplier $classConstantRemovalApplier = new ClassConstantRemovalPlanApplier(),
         private EditMutationLock $mutationLock = new EditMutationLock(),
         private IndexReader $reader = new IndexReader(),
         private WorkingTreeSnapshotter $snapshotter = new WorkingTreeSnapshotter(),
@@ -60,6 +61,7 @@ final readonly class RefactorEditCommand
                 $applier = match ($plan['type'] ?? null) {
                     'method_removal_plan' => $this->removalApplier,
                     'property_removal_plan' => $this->propertyRemovalApplier,
+                    'class_constant_removal_plan' => $this->classConstantRemovalApplier,
                     default => $this->applier,
                 };
 
@@ -97,6 +99,7 @@ final readonly class RefactorEditCommand
             $runnerName = match ($plan['type'] ?? null) {
                 'method_removal_plan' => 'method-removal-plan',
                 'property_removal_plan' => 'property-removal-plan',
+                'class_constant_removal_plan' => 'class-constant-removal-plan',
                 default => 'rename-plan',
             };
             $this->write($executionPath, $this->json([
@@ -316,9 +319,9 @@ Usage:
   agent-loop edit refactor PLAN [options]
 
 Consumes one safe versioned agent-map refactor plan through agent-loop's mutation boundary.
-The fixed allowlist covers the five rename-plan contracts plus method_removal_plan@1.0 and
-property_removal_plan@1.0. Each removal family keeps its own decoder and deletion invariants;
-arbitrary edit plans and Rector execution remain rejected.
+The fixed allowlist covers the five rename-plan contracts plus method_removal_plan@1.0,
+property_removal_plan@1.0, and class_constant_removal_plan@1.0. Each removal family keeps its own
+decoder and deletion invariants; arbitrary edit plans and Rector execution remain rejected.
 
 Options:
   --task ID            Required governed task ID.
