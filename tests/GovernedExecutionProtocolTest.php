@@ -52,6 +52,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertTrue($projection->complete());
         self::assertNull($projection->currentStageId);
         self::assertSame(0, $projection->currentAttempt);
+        self::assertSame(self::BASE_COMMIT, $projection->candidateRevision);
         self::assertFileExists((new ExecutionStateStore($this->root))->path('ABC-123'));
     }
 
@@ -70,6 +71,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame(ExecutionProfileName::SURGICAL, $projection->profile);
         self::assertSame('investigate', $projection->currentStageId);
         self::assertSame(1, $projection->currentAttempt);
+        self::assertSame(self::BASE_COMMIT, $projection->candidateRevision);
 
         $bundle = $gateway->prepareStage('ABC-123', 'investigate');
         self::assertFalse($bundle->mayMutate);
@@ -80,6 +82,28 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertStringContainsString('A successful process exit is not workflow approval.', $bundle->prompt);
 
         $result = new StageResult(
+            ' submission:investigate:1 ',
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            StageOutcome::COMPLETED,
+            ' candidate:one ',
+            [' artifact:investigation '],
+            [],
+            "Investigation complete.\n",
+        );
+        $after = $gateway->submitStageResult($result);
+        self::assertSame('build', $after->currentStageId);
+        self::assertSame(1, $after->currentAttempt);
+        self::assertSame('candidate:one', $after->candidateRevision);
+        self::assertCount(1, $after->handoffs);
+        self::assertSame('investigate', $after->handoffs[0]->fromStage);
+        self::assertSame('build', $after->handoffs[0]->toStage);
+
+        $duplicate = $gateway->submitStageResult(new StageResult(
             'submission:investigate:1',
             $bundle->taskId,
             $bundle->runId,
@@ -92,16 +116,9 @@ final class GovernedExecutionProtocolTest extends TestCase
             ['artifact:investigation'],
             [],
             'Investigation complete.',
-        );
-        $after = $gateway->submitStageResult($result);
-        self::assertSame('build', $after->currentStageId);
-        self::assertSame(1, $after->currentAttempt);
-        self::assertCount(1, $after->handoffs);
-        self::assertSame('investigate', $after->handoffs[0]->fromStage);
-        self::assertSame('build', $after->handoffs[0]->toStage);
-
-        $duplicate = $gateway->submitStageResult($result);
+        ));
         self::assertSame('build', $duplicate->currentStageId);
+        self::assertSame('candidate:one', $duplicate->candidateRevision);
         self::assertCount(1, $duplicate->handoffs, 'Retrying the same accepted submission must be idempotent.');
     }
 
@@ -153,12 +170,14 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertNotNull($waiting->attention);
         self::assertSame('investigate', $waiting->currentStageId);
         self::assertSame(1, $waiting->currentAttempt);
+        self::assertSame('candidate:clarify', $waiting->candidateRevision);
 
         $attention = $waiting->attention;
         $resumed = $gateway->resolveAttention('ABC-123', $attention->id);
         self::assertNull($resumed->attention);
         self::assertSame('investigate', $resumed->currentStageId);
         self::assertSame(2, $resumed->currentAttempt);
+        self::assertSame('candidate:clarify', $resumed->candidateRevision);
     }
 
     public function testExecutionProfileCannotChangeAfterRunExists(): void
@@ -173,6 +192,33 @@ final class GovernedExecutionProtocolTest extends TestCase
 
         self::assertSame(1, $exit);
         self::assertSame(ExecutionProfileName::SURGICAL, (new ExecutionPlanStore($this->root))->load('ABC-123')->profile);
+    }
+
+    public function testSelectionFromPreviousContractRevisionDoesNotBlockReplacementRun(): void
+    {
+        $this->planAndApprove();
+        ob_start();
+        self::assertSame(0, (new WorkflowExecutionProfileCommand($this->root))->run([
+            'ABC-123', '--profile', 'surgical', '--by', 'lars',
+        ]));
+        self::assertSame(0, (new WorkflowPlanCommand($this->root))->run([
+            'ABC-123',
+            '--by', 'lars',
+            '--file', 'src/Foo.php',
+            '--goal', 'Revise governed external stage execution.',
+            '--validation', 'vendor/bin/phpunit',
+            '--base-commit', self::BASE_COMMIT,
+        ]));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        $profileExit = (new WorkflowExecutionProfileCommand($this->root))->run(['ABC-123']);
+        $profileOutput = trim((string) ob_get_clean());
+
+        self::assertSame(0, $profileExit);
+        self::assertStringEndsWith('manual', $profileOutput);
+        self::assertSame(2, (new TaskContractStore($this->root))->load('ABC-123')->revision);
+
+        $this->enter();
+        self::assertSame(ExecutionProfileName::MANUAL, (new ExecutionPlanStore($this->root))->load('ABC-123')->profile);
     }
 
     public function testPersistedPlanDigestDetectsTampering(): void
