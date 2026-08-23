@@ -43,9 +43,7 @@ final readonly class ExecutionGateway
     public function prepareStage(string $taskId, string $stageId): StageExecutionBundle
     {
         [$contract, $run, $plan] = $this->current($taskId);
-        $states = new ExecutionStateStore($this->rootPath);
-        $state = $states->find($taskId) ?? $states->prepare($plan);
-        $projection = $states->projection($plan);
+        $projection = (new ExecutionStateStore($this->rootPath))->projection($plan);
         if ($projection->attention !== null) {
             throw new RuntimeException('Execution is waiting for Attention ' . $projection->attention->id . '.');
         }
@@ -77,13 +75,13 @@ final readonly class ExecutionGateway
             $contract->revision,
             $plan->digest(),
             $stage->id,
-            $state->currentAttempt,
+            $projection->currentAttempt,
             $stage->kind,
             $stage->roleId,
             $stage->mayMutate,
             $this->repositoryRoot(),
             $plan->baseCommit,
-            $state->candidateRevision,
+            $projection->candidateRevision,
             $plan->contractSource,
             $this->recallSource($taskId),
             $this->nonEmptyLines($contract->scope, 'Contract scope'),
@@ -91,7 +89,7 @@ final readonly class ExecutionGateway
             $priorHandoff,
             $acceptedOutcomes,
             self::COMPLETION_MARKER,
-            $this->prompt($contract, $plan, $stage, $state->currentAttempt, $acceptedOutcomes),
+            $this->prompt($contract, $plan, $stage, $projection->currentAttempt, $acceptedOutcomes),
         );
     }
 
