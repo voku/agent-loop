@@ -15,9 +15,9 @@ final readonly class ExecutionProjection
         public string $executionPlanDigest,
         public ?string $currentStageId,
         public int $currentAttempt,
-        public string $candidateRevision,
         public ?AttentionRequest $attention,
         public array $handoffs,
+        public string $candidateRevision = '',
     ) {
     }
 
