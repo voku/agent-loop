@@ -22,8 +22,8 @@ final readonly class WorkflowExecutionProfileCommand
             $taskId = (new WorkflowTaskId($args[0] ?? ''))->value;
             $tokens = array_slice($args, 1);
             if ($tokens === []) {
-                $selection = (new ExecutionProfileSelectionStore($this->rootPath))->find($taskId);
-                echo ($selection === null ? ExecutionProfileName::MANUAL : $selection->profile)->value . "\n";
+                $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+                echo (new ExecutionProfileSelectionStore($this->rootPath))->resolve($contract)->value . "\n";
 
                 return 0;
             }
