@@ -247,7 +247,10 @@ final readonly class MethodRemovalPlanApplier
         return $failures;
     }
 
-    /** @param list<string> $paths @return list<string> */
+    /**
+     * @param list<string> $paths
+     * @return list<string>
+     */
     private function cleanupPaths(array $paths): array
     {
         $failures = [];
