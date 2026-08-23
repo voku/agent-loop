@@ -17,11 +17,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout minimum agent-recall-compiler release
+      - name: Checkout agent-recall-compiler release candidate
         uses: actions/checkout@v6
         with:
           repository: voku/agent-recall-compiler
-          ref: 0.13.9
+          ref: 285ba3413a0a92c3dd34251c6bac3e6e574dc73a
           path: build/candidate-agent-recall-compiler
           persist-credentials: false
 
@@ -52,6 +52,19 @@ jobs:
           test -f "${catalog}"
           grep -Fq 'distinct plausible failure-mode hypotheses or attack scenarios' "${catalog}"
           grep -Fq 'Do not manufacture defects merely to satisfy the numeric floor' "${catalog}"
+          grep -Fq '"id": "execute-plan-with-blind-spot-check"' "${catalog}"
+          grep -Fq 'before changing anything perform a bounded blind-spot analysis' "${catalog}"
+          grep -Fq 'instead of inventing completion criteria or commands' "${catalog}"
+
+          php vendor/bin/agent-loop workflow plan PROMPT-BLIND-SPOT \
+            --by prompt-sync-dogfood \
+            --file composer.json \
+            --goal 'Execute the approved plan only after a bounded evidence-backed blind-spot check.' \
+            --acceptance 'The current plan is executed after material blind spots are checked and no evidence-backed blocker remains.' \
+            --non-goal 'Do not restart discovery or silently broaden approved scope.' \
+            --validation 'composer validate --strict' \
+            --operating-prompt-manifest "${catalog}" \
+            --operating-prompt '{"id":"execute-plan-with-blind-spot-check","arguments":{}}'
 
           php vendor/bin/agent-loop workflow plan PROMPT-ADVERSARIAL \
             --by prompt-sync-dogfood \
