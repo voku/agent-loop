@@ -47,7 +47,7 @@ Read the structured result, especially:
 - `next_action_kind` — how to treat the canonical next step;
 - `next_action` — the one decisive next step;
 - `manifest.references` — supporting owner-backed evidence and reasons;
-- `context.future_work` — repository policy for optional post-completion reflection; it never widens the current Contract.
+- `future_work` — repository policy for optional post-completion reflection; it never widens the current Contract.
 
 `next_action_kind` has one treatment contract:
 
