@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.0 - 2026-08-23
+
+### Added
+
+- Publish the typed governed external-execution protocol for optional process hosts: immutable execution profiles and plans, `ExecutionGateway`, bounded stage bundles, provenance-bound stage results and handoffs, typed Attention, exact-stage projections, and idempotent result acceptance. External runners may execute candidate work, but only agent-loop accepts governed transitions and owns final deterministic verification.
+- Add fixed-contract transactional consumers for released agent-map rename/removal plans, including method, property, class-constant, class/function/property/class-constant rename families and dedicated installed-consumer lifecycle dogfood.
+- Add the governed host front door, human-review artifacts, review acknowledgements, proportional-governance measurement, recovery/convergence evidence, and repository-owned host policy/runtime projection surfaces.
+
+### Changed
+
+- The governed lifecycle now exposes explicit `manual`, `surgical`, `standard`, and `hardened` execution profiles while preserving `manual` as the default. Profile selection is Contract-bound and frozen once its governed Run exists.
+- Execution state uses per-task serialized acceptance and deterministic submission identities so retries are idempotent and concurrent submissions cannot discard already accepted history.
+- Repository workflow guidance, quick-start, lifecycle, manifest and host activation surfaces now converge on owner APIs, canonical next actions, bounded evidence, and recovery-safe close semantics.
+
+### Fixed
+
+- Contract revision/supersession clears stale execution-profile selection before replacement Run preparation; persisted candidate revisions survive projections; StageResult normalization no longer breaks idempotent replay; and workflow close can refresh a complete manifest without re-entering stale execution-plan preparation.
+- Refactor consumers fail closed on stale provenance, mismatched source hashes/ranges, unsupported plan roles and non-atomic publication; dedicated post-apply verification proves current Map evidence and target absence.
+
+### Validation
+
+- PR #270 passed PHP 8.3/8.4/8.5 CI, PHPStan, project PHPStan rules, deterministic slop review, governed execution-contract dogfood, self-shape, installed release-set and refactor lifecycles, AccessLint and CodeRabbit on exact head `f29be4faf0fccb4fabf4646bb77bea7cc8bfb665` before squash merge to `1f46648d4fb928aa256d5b6be6ac0f80f1a77d0e`.
+- The accumulated post-0.16.6 release set includes the released agent-map 0.8.x fixed contracts and the matching transactional agent-loop consumers, each proven through clean installed Composer consumers rather than sibling-checkout assumptions.
+
+
 ## 0.16.6 - 2026-08-17
 
 ### Changed
