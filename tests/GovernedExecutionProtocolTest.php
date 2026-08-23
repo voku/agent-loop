@@ -22,6 +22,8 @@ use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 final class GovernedExecutionProtocolTest extends TestCase
 {
+    private const string BASE_COMMIT = '1111111111111111111111111111111111111111';
+
     private string $root;
 
     protected function setUp(): void
@@ -72,6 +74,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         $bundle = $gateway->prepareStage('ABC-123', 'investigate');
         self::assertFalse($bundle->mayMutate);
         self::assertSame('investigator', $bundle->roleId);
+        self::assertSame(self::BASE_COMMIT, $bundle->baseCommit);
         self::assertContains(StageOutcome::COMPLETED, $bundle->acceptedOutcomes);
         self::assertSame(['src/Foo.php'], $bundle->allowedScope);
         self::assertStringContainsString('A successful process exit is not workflow approval.', $bundle->prompt);
@@ -213,6 +216,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             '--file', 'src/Foo.php',
             '--goal', 'Prove governed external stage execution.',
             '--validation', 'vendor/bin/phpunit',
+            '--base-commit', self::BASE_COMMIT,
         ]));
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
