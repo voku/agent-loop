@@ -89,13 +89,19 @@ final readonly class ExecutionProfile
         };
     }
 
-    /** @param list<non-empty-string> $requires @param array<string, non-empty-string|null> $transitions */
+    /**
+     * @param list<non-empty-string> $requires
+     * @param array<string, non-empty-string|null> $transitions
+     */
     private static function agent(string $id, string $role, bool $mayMutate, array $requires, array $transitions): ExecutionStage
     {
         return new ExecutionStage($id, ExecutionStageKind::AGENT, $role, $mayMutate, $requires, $transitions);
     }
 
-    /** @param list<non-empty-string> $requires @param array<string, non-empty-string|null> $transitions */
+    /**
+     * @param list<non-empty-string> $requires
+     * @param array<string, non-empty-string|null> $transitions
+     */
     private static function deterministic(string $id, array $requires, array $transitions): ExecutionStage
     {
         return new ExecutionStage($id, ExecutionStageKind::DETERMINISTIC, null, false, $requires, $transitions);
