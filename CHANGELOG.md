@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.1 - 2026-08-23
+
+### Changed
+
+- Require `voku/agent-recall-compiler ^0.13.11`, making the Recall-owned `execute-plan-with-blind-spot-check` L1 recipe part of the supported Loop release set instead of depending on opportunistic Composer resolution.
+- Document selection of the Recall-owned blind-spot-first execution recipe without copying its semantics into Loop, and move prompt-primitives installed-consumer dogfood to exact released Recall 0.13.11.
+
+### CI
+
+- New release tags must point at a commit whose own `CHANGELOG.md` already contains that release section; existing historical tags remain idempotent when their marker still names the exact immutable target.
+
+### Validation
+
+- PR #273 must pass the repository's PHP 8.3/8.4/8.5 CI, PHPStan/project rules, installed release-set and prompt-primitives dogfood, execution-contract/self-shape checks, and other required branch protection checks before merge.
+- Prompt-primitives dogfood installs exact `agent-recall-compiler 0.13.11`, proves its distributed catalog contains `execute-plan-with-blind-spot-check`, and proves `agent-loop workflow plan` accepts the Recall-owned L1 recipe without a private copy.
+- The `dev-main` alias was independently corrected to `0.17.x-dev` on `main` by commit `0905d82171c9334def2ef08beb52285a82fb3ac8` before this release; it is a release precondition, not a change claimed by PR #273.
+
 ## 0.17.0 - 2026-08-23
 
 ### Added
