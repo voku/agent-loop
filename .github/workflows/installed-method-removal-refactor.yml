@@ -1,0 +1,287 @@
+name: Installed method removal refactor lifecycle
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-method-removal-refactor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-method-removal-refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout released agent-map removal owner
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-map
+          ref: 0.8.6
+          path: build/released-agent-map
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Prove exact released removal owner revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/released-agent-map rev-parse HEAD)" = "02adb3358eac3a1efbcd43111b541d82da455c88"
+
+      - name: Run released method-removal plan through governed installed consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/agent-loop-installed-method-removal"
+          rm -rf "$root"
+          mkdir -p "$root/src" "$root/tests"
+
+          cat > "$root/composer.json" <<JSON
+          {
+            "name": "voku/installed-method-removal-consumer",
+            "type": "project",
+            "require-dev": {
+              "phpstan/phpstan": "^2.2",
+              "voku/agent-loop": "dev-main"
+            },
+            "repositories": [
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-loop": "dev-main"}
+                }
+              },
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-map": "0.8.6"}
+                }
+              }
+            ],
+            "autoload": {
+              "psr-4": {"Fixture\\\\": "src/"}
+            },
+            "scripts": {
+              "test": "php tests/run.php"
+            },
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+
+          cat > "$root/.gitignore" <<'EOF'
+          /vendor/
+          /.agent-loop/
+          EOF
+
+          cat > "$root/src/Greeter.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class Greeter
+          {
+              private function obsolete(): string
+              {
+                  return 'obsolete';
+              }
+
+              public function greet(string $name): string
+              {
+                  return 'Hello ' . $name;
+              }
+          }
+          PHP
+
+          cat > "$root/tests/run.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          require dirname(__DIR__) . '/vendor/autoload.php';
+
+          if ((new \Fixture\Greeter())->greet('Agent') !== 'Hello Agent') {
+              throw new RuntimeException('Public behavior changed during method removal.');
+          }
+          PHP
+
+          cd "$root"
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
+          composer show voku/agent-map --format=json > resolved-agent-map.json
+          jq -e '.versions | index("0.8.6") != null' resolved-agent-map.json >/dev/null
+
+          git init --initial-branch=main
+          git config user.name 'Installed Method Removal Dogfood'
+          git config user.email 'method-removal-dogfood@example.invalid'
+          git add composer.json composer.lock .gitignore src tests
+          git commit -m 'fixture: initial method removal consumer'
+
+          vendor/bin/agent-loop init scaffold --demo --agent=codex
+          vendor/bin/agent-loop workflow plan DEMO-1 \
+            --by installed-method-removal-dogfood \
+            --file src/Greeter.php \
+            --goal 'Remove the unused private Fixture\Greeter::obsolete method through the released agent-map removal plan.' \
+            --behavior-anchor 'Greeter public greeting remains unchanged while obsolete private code disappears.' \
+            --validation 'composer test' \
+            --acceptance 'The obsolete method is absent, public behavior passes, and removal verification proves current Map evidence.'
+          vendor/bin/agent-loop workflow approve DEMO-1 --by installed-method-removal-dogfood
+          vendor/bin/agent-loop enter DEMO-1 --format=json --max-lines=40 --max-bytes=4096 > enter.json
+          jq -e '.mutation_ready == true' enter.json >/dev/null
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --phpstan-memory-limit=512M \
+            --out=.agent-loop/map/php-symbols.json
+
+          mkdir -p .agent-loop/edit/DEMO-1
+          vendor/bin/agent-map method-removal-plan \
+            'Fixture\Greeter::obsolete' \
+            --index=.agent-loop/map/php-symbols.json \
+            --format=json > .agent-loop/edit/DEMO-1/method-removal-plan.json
+
+          jq -e '
+            (.type == "method_removal_plan")
+            and (.contract_version == "1.0")
+            and (.status == "safe")
+            and (.stale_evidence == [])
+            and (.blockers == [])
+            and (.blind_spots == [])
+            and ((.not_observable | length) >= 1)
+            and ((.edits | length) == 1)
+            and (.edits[0].replacement == "")
+            and (.edits[0].role == "method_declaration_removal")
+          ' .agent-loop/edit/DEMO-1/method-removal-plan.json >/dev/null
+
+          before="$(sha256sum src/Greeter.php | cut -d' ' -f1)"
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-1/method-removal-plan.json \
+            --task=DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/DEMO-1/dry-run \
+            --dry-run
+          test "$(sha256sum src/Greeter.php | cut -d' ' -f1)" = "$before"
+          jq -e '
+            (.status == "prepared")
+            and (.runner.name == "method-removal-plan")
+            and (.runner.dry_run == true)
+            and (.changed_files == [])
+          ' .agent-loop/edit/DEMO-1/dry-run/execution.json >/dev/null
+
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-1/method-removal-plan.json \
+            --task=DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/DEMO-1
+
+          if grep -n --fixed-strings 'obsolete' src/Greeter.php; then
+            echo 'Removed private method remains after governed apply.' >&2
+            exit 1
+          fi
+          grep -n --fixed-strings 'public function greet' src/Greeter.php >/dev/null
+          php -l src/Greeter.php
+          jq -e '
+            (.status == "runner_succeeded")
+            and (.runner.name == "method-removal-plan")
+            and (.runner.dry_run == false)
+            and (.changed_files == ["src/Greeter.php"])
+          ' .agent-loop/edit/DEMO-1/execution.json >/dev/null
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --phpstan-memory-limit=512M \
+            --out=.agent-loop/map/php-symbols.json
+          vendor/bin/agent-loop edit refactor verify \
+            --bundle=.agent-loop/edit/DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=.
+          jq -e '
+            (.kind == "method_removal_plan_verification")
+            and (.status == "passed")
+            and (.plan.type == "method_removal_plan")
+            and (.plan.contract_version == "1.0")
+            and (.checks.execution_binding == "passed")
+            and (.checks.current_map == "passed")
+            and (.checks.changed_files == "passed")
+            and (.checks.target_absent == "passed")
+            and (.checks.source_hashes == "passed")
+          ' .agent-loop/edit/DEMO-1/verification-result.json >/dev/null
+
+          composer test
+          vendor/bin/agent-loop session validation record DEMO-1 \
+            --contract-revision 1 \
+            --command 'composer test' \
+            --status passed \
+            --exit-code 0 \
+            --duration-ms 0 \
+            --by installed-method-removal-dogfood
+
+          set +e
+          vendor/bin/agent-loop review blindspots DEMO-1
+          review_rc=$?
+          set -e
+          if test "$review_rc" -ne 0 && test "$review_rc" -ne 1; then
+            exit "$review_rc"
+          fi
+
+          vendor/bin/agent-loop session checkpoint DEMO-1 \
+            --title 'Installed method removal review' \
+            --body 'Reviewed released owner plan, exact deletion scope, deterministic target-absence verification, and validation evidence.'
+          vendor/bin/agent-loop review blindspots DEMO-1
+          vendor/bin/agent-loop workflow learn DEMO-1 \
+            --status no_durable_learning \
+            --by installed-method-removal-dogfood \
+            --reason 'The installed method-removal proof added no reusable project-specific guidance.'
+          vendor/bin/agent-loop verify --task-id=DEMO-1
+
+          vendor/bin/agent-loop workflow status DEMO-1 --format=json > status.json
+          review_sha="$(jq -er '.manifest.references.review.source.sha256' status.json)"
+          case "$review_sha" in
+            sha256:*) ;;
+            *) echo 'Missing exact review digest.' >&2; exit 1 ;;
+          esac
+
+          vendor/bin/agent-loop finish DEMO-1 \
+            --reviewed-report-sha256 "$review_sha" \
+            --by installed-method-removal-dogfood
+          vendor/bin/agent-loop finish DEMO-1 --format=json > finish.json
+          jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
+
+      - name: Upload installed method-removal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-method-removal-refactor-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/agent-loop-installed-method-removal/resolved-agent-map.json
+            ${{ runner.temp }}/agent-loop-installed-method-removal/.agent-loop/edit/DEMO-1/method-removal-plan.json
+            ${{ runner.temp }}/agent-loop-installed-method-removal/.agent-loop/edit/DEMO-1/execution.json
+            ${{ runner.temp }}/agent-loop-installed-method-removal/.agent-loop/edit/DEMO-1/verification-result.json
+            ${{ runner.temp }}/agent-loop-installed-method-removal/finish.json
