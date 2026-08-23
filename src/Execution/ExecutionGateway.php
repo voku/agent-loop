@@ -93,6 +93,33 @@ final readonly class ExecutionGateway
         );
     }
 
+    /** @return non-empty-string */
+    public function recordStageArtifact(StageArtifactObservation $observation): string
+    {
+        [, , $plan] = $this->current($observation->taskId);
+        $stage = $plan->stage($observation->stageId);
+        if ($stage->kind !== ExecutionStageKind::AGENT) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact observations are accepted only for agent stages.');
+        }
+
+        $claim = new ExecutionEvidenceClaim(
+            $observation->taskId,
+            $observation->runId,
+            $observation->contractRevision,
+            $observation->executionPlanDigest,
+            $observation->stageId,
+            $observation->attempt,
+            $observation->candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            $observation->sourceReference,
+            $observation->sourceDigest,
+        );
+        $state = new ExecutionStateStore($this->rootPath);
+        $state->assertEvidenceClaim($plan, $claim);
+
+        return (new ExecutionEvidenceStore($this->rootPath))->record($claim);
+    }
+
     public function submitStageResult(StageResult $result): ExecutionProjection
     {
         [, , $plan] = $this->current($result->taskId);
