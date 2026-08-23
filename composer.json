@@ -19,7 +19,7 @@
     "helgesverre/toon": "^3.1",
     "voku/agent-kanban": "^0.3.2",
     "voku/agent-learning": "^0.13.2",
-    "voku/agent-map": "^0.8.6",
+    "voku/agent-map": "^0.8.8",
     "voku/agent-recall-compiler": "^0.13.9",
     "voku/agent-session": "^0.6.2",
     "voku/itp-context": "^0.3.0"
