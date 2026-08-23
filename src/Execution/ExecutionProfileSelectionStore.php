@@ -55,15 +55,8 @@ final readonly class ExecutionProfileSelectionStore
     public function resolve(TaskContract $contract): ExecutionProfileName
     {
         $selection = $this->find($contract->taskId);
-        if ($selection === null) {
+        if ($selection === null || !$this->appliesTo($selection, $contract)) {
             return ExecutionProfileName::MANUAL;
-        }
-        if ($selection->contractRevision !== $contract->revision || $selection->contractSource !== $this->contractSource($contract)) {
-            throw new RuntimeException(sprintf(
-                'Execution profile selection for task %s is stale for Contract revision %d. Select a profile again or remove the stale selection.',
-                $contract->taskId,
-                $contract->revision,
-            ));
         }
 
         return $selection->profile;
@@ -124,6 +117,12 @@ final readonly class ExecutionProfileSelectionStore
     public function path(string $taskId): string
     {
         return (new ProjectLayout($this->rootPath))->executionProfileSelectionPath($taskId);
+    }
+
+    private function appliesTo(ExecutionProfileSelection $selection, TaskContract $contract): bool
+    {
+        return $selection->contractRevision === $contract->revision
+            && $selection->contractSource === $this->contractSource($contract);
     }
 
     /** @return array{path: non-empty-string, sha256: non-empty-string} */
