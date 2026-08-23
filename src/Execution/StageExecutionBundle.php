@@ -32,6 +32,7 @@ final readonly class StageExecutionBundle
         public array $requiredValidation,
         public ?HandoffEnvelope $priorHandoff,
         public array $acceptedOutcomes,
+        public string $completionMarker,
         public string $prompt,
     ) {
     }
