@@ -19,6 +19,164 @@ final readonly class ExecutionStateStore
 
     public function prepare(ExecutionPlan $plan): ExecutionState
     {
+        $lock = $this->acquireLock($plan->taskId);
+        try {
+            return $this->prepareUnlocked($plan);
+        } finally {
+            $this->releaseLock($lock);
+        }
+    }
+
+    public function projection(ExecutionPlan $plan): ExecutionProjection
+    {
+        return $this->projectionFromState($plan, $this->loadForPlan($plan));
+    }
+
+    public function accept(ExecutionPlan $plan, StageResult $result): ExecutionProjection
+    {
+        $lock = $this->acquireLock($plan->taskId);
+        try {
+            $state = $this->find($plan->taskId) ?? $this->prepareUnlocked($plan);
+            $this->assertBinding($state, $plan);
+
+            foreach ($state->history as $accepted) {
+                if ($accepted->result->submissionId !== $result->submissionId) {
+                    continue;
+                }
+                if ($accepted->result->toArray() !== $result->toArray()) {
+                    throw new RuntimeException('Stage submission id was already accepted with different content: ' . $result->submissionId);
+                }
+
+                return $this->projectionFromState($plan, $state);
+            }
+
+            if ($state->attention !== null) {
+                throw new RuntimeException('Execution is waiting for Attention ' . $state->attention->id . '.');
+            }
+            if ($state->currentStageId === null) {
+                throw new RuntimeException('Execution plan is already complete.');
+            }
+            $this->assertResultBinding($state, $plan, $result);
+            $stage = $plan->stage($state->currentStageId);
+            $acceptedAt = $this->now();
+            $history = $state->history;
+
+            if (in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
+                $attention = new AttentionRequest(
+                    'attention:' . bin2hex(random_bytes(8)),
+                    $plan->taskId,
+                    $plan->runId,
+                    $result->outcome === StageOutcome::NEEDS_CLARIFICATION
+                        ? AttentionKind::CLARIFICATION_REQUIRED
+                        : AttentionKind::RUNNER_FAILED,
+                    trim($result->summary) !== '' ? trim($result->summary) : 'Execution stage requires human attention.',
+                    $stage->id,
+                    $acceptedAt,
+                );
+                $history[] = new AcceptedStageResult($result, null, $acceptedAt);
+                $next = new ExecutionState(
+                    $state->taskId,
+                    $state->runId,
+                    $state->contractRevision,
+                    $state->executionPlanDigest,
+                    $state->currentStageId,
+                    $state->currentAttempt,
+                    $result->candidateRevision,
+                    $attention,
+                    $history,
+                );
+                $this->write($next);
+
+                return $this->projectionFromState($plan, $next);
+            }
+
+            $nextStageId = $stage->next($result->outcome);
+            $handoff = new HandoffEnvelope(
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $stage->id,
+                $nextStageId,
+                $result->candidateRevision,
+                $plan->digest(),
+                $result->artifactReferences,
+                $result->validationReferences,
+                $acceptedAt,
+            );
+            $history[] = new AcceptedStageResult($result, $handoff, $acceptedAt);
+            $nextAttempt = $nextStageId === null ? 0 : $this->attemptFor($nextStageId, $history);
+            $next = new ExecutionState(
+                $state->taskId,
+                $state->runId,
+                $state->contractRevision,
+                $state->executionPlanDigest,
+                $nextStageId,
+                $nextAttempt,
+                $result->candidateRevision,
+                null,
+                $history,
+            );
+            $this->write($next);
+
+            return $this->projectionFromState($plan, $next);
+        } finally {
+            $this->releaseLock($lock);
+        }
+    }
+
+    public function resolveAttention(ExecutionPlan $plan, string $attentionId): ExecutionProjection
+    {
+        $lock = $this->acquireLock($plan->taskId);
+        try {
+            $state = $this->find($plan->taskId) ?? $this->prepareUnlocked($plan);
+            $this->assertBinding($state, $plan);
+            if ($state->attention === null || $state->attention->id !== $attentionId) {
+                throw new RuntimeException('No matching pending Attention exists for this execution.');
+            }
+            if ($state->currentStageId === null) {
+                throw new RuntimeException('Completed execution cannot resolve stage Attention.');
+            }
+
+            $next = new ExecutionState(
+                $state->taskId,
+                $state->runId,
+                $state->contractRevision,
+                $state->executionPlanDigest,
+                $state->currentStageId,
+                $state->currentAttempt + 1,
+                $state->candidateRevision,
+                null,
+                $state->history,
+            );
+            $this->write($next);
+
+            return $this->projectionFromState($plan, $next);
+        } finally {
+            $this->releaseLock($lock);
+        }
+    }
+
+    public function find(string $taskId): ?ExecutionState
+    {
+        $path = $this->path($taskId);
+        if (!is_file($path)) {
+            return null;
+        }
+        $contents = file_get_contents($path);
+        if (!is_string($contents)) {
+            throw new RuntimeException('Unable to read execution state: ' . $path);
+        }
+
+        return $this->decode($contents, $path, $taskId);
+    }
+
+    public function path(string $taskId): string
+    {
+        return (new ProjectLayout($this->rootPath))->executionStatePath($taskId);
+    }
+
+    private function prepareUnlocked(ExecutionPlan $plan): ExecutionState
+    {
         $existing = $this->find($plan->taskId);
         if ($existing !== null) {
             $this->assertBinding($existing, $plan);
@@ -40,160 +198,6 @@ final readonly class ExecutionStateStore
         $this->write($state);
 
         return $state;
-    }
-
-    public function projection(ExecutionPlan $plan): ExecutionProjection
-    {
-        $state = $this->loadForPlan($plan);
-        $handoffs = [];
-        foreach ($state->history as $accepted) {
-            if ($accepted->handoff !== null) {
-                $handoffs[] = $accepted->handoff;
-            }
-        }
-
-        return new ExecutionProjection(
-            $state->taskId,
-            $state->runId,
-            $state->contractRevision,
-            $plan->profile,
-            $state->executionPlanDigest,
-            $state->currentStageId,
-            $state->currentAttempt,
-            $state->attention,
-            $handoffs,
-        );
-    }
-
-    public function accept(ExecutionPlan $plan, StageResult $result): ExecutionProjection
-    {
-        $state = $this->loadForPlan($plan);
-
-        foreach ($state->history as $accepted) {
-            if ($accepted->result->submissionId !== $result->submissionId) {
-                continue;
-            }
-            if ($accepted->result->toArray() !== $result->toArray()) {
-                throw new RuntimeException('Stage submission id was already accepted with different content: ' . $result->submissionId);
-            }
-
-            return $this->projectionFromState($plan, $state);
-        }
-
-        if ($state->attention !== null) {
-            throw new RuntimeException('Execution is waiting for Attention ' . $state->attention->id . '.');
-        }
-        if ($state->currentStageId === null) {
-            throw new RuntimeException('Execution plan is already complete.');
-        }
-        $this->assertResultBinding($state, $plan, $result);
-        $stage = $plan->stage($state->currentStageId);
-        $acceptedAt = $this->now();
-        $history = $state->history;
-
-        if (in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
-            $attention = new AttentionRequest(
-                'attention:' . bin2hex(random_bytes(8)),
-                $plan->taskId,
-                $plan->runId,
-                $result->outcome === StageOutcome::NEEDS_CLARIFICATION
-                    ? AttentionKind::CLARIFICATION_REQUIRED
-                    : AttentionKind::RUNNER_FAILED,
-                trim($result->summary) !== '' ? trim($result->summary) : 'Execution stage requires human attention.',
-                $stage->id,
-                $acceptedAt,
-            );
-            $history[] = new AcceptedStageResult($result, null, $acceptedAt);
-            $next = new ExecutionState(
-                $state->taskId,
-                $state->runId,
-                $state->contractRevision,
-                $state->executionPlanDigest,
-                $state->currentStageId,
-                $state->currentAttempt,
-                $result->candidateRevision,
-                $attention,
-                $history,
-            );
-            $this->write($next);
-
-            return $this->projectionFromState($plan, $next);
-        }
-
-        $nextStageId = $stage->next($result->outcome);
-        $handoff = new HandoffEnvelope(
-            $plan->taskId,
-            $plan->runId,
-            $plan->contractRevision,
-            $stage->id,
-            $nextStageId,
-            $result->candidateRevision,
-            $plan->digest(),
-            $result->artifactReferences,
-            $result->validationReferences,
-            $acceptedAt,
-        );
-        $history[] = new AcceptedStageResult($result, $handoff, $acceptedAt);
-        $nextAttempt = $nextStageId === null ? 0 : $this->attemptFor($nextStageId, $history);
-        $next = new ExecutionState(
-            $state->taskId,
-            $state->runId,
-            $state->contractRevision,
-            $state->executionPlanDigest,
-            $nextStageId,
-            $nextAttempt,
-            $result->candidateRevision,
-            null,
-            $history,
-        );
-        $this->write($next);
-
-        return $this->projectionFromState($plan, $next);
-    }
-
-    public function resolveAttention(ExecutionPlan $plan, string $attentionId): ExecutionProjection
-    {
-        $state = $this->loadForPlan($plan);
-        if ($state->attention === null || $state->attention->id !== $attentionId) {
-            throw new RuntimeException('No matching pending Attention exists for this execution.');
-        }
-        if ($state->currentStageId === null) {
-            throw new RuntimeException('Completed execution cannot resolve stage Attention.');
-        }
-
-        $next = new ExecutionState(
-            $state->taskId,
-            $state->runId,
-            $state->contractRevision,
-            $state->executionPlanDigest,
-            $state->currentStageId,
-            $state->currentAttempt + 1,
-            $state->candidateRevision,
-            null,
-            $state->history,
-        );
-        $this->write($next);
-
-        return $this->projectionFromState($plan, $next);
-    }
-
-    public function find(string $taskId): ?ExecutionState
-    {
-        $path = $this->path($taskId);
-        if (!is_file($path)) {
-            return null;
-        }
-        $contents = file_get_contents($path);
-        if (!is_string($contents)) {
-            throw new RuntimeException('Unable to read execution state: ' . $path);
-        }
-
-        return $this->decode($contents, $path, $taskId);
-    }
-
-    public function path(string $taskId): string
-    {
-        return (new ProjectLayout($this->rootPath))->executionStatePath($taskId);
     }
 
     private function loadForPlan(ExecutionPlan $plan): ExecutionState
@@ -258,6 +262,7 @@ final readonly class ExecutionStateStore
             $state->currentAttempt,
             $state->attention,
             $handoffs,
+            $state->candidateRevision,
         );
     }
 
@@ -275,6 +280,32 @@ final readonly class ExecutionStateStore
             }
             throw new RuntimeException('Unable to write execution state: ' . $path);
         }
+    }
+
+    /** @return resource */
+    private function acquireLock(string $taskId): mixed
+    {
+        $path = (new ProjectLayout($this->rootPath))->executionStateLockPath($taskId);
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create execution lock directory: ' . $directory);
+        }
+        $lock = fopen($path, 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            if (is_resource($lock)) {
+                fclose($lock);
+            }
+            throw new RuntimeException('Unable to acquire execution state lock: ' . $path);
+        }
+
+        return $lock;
+    }
+
+    /** @param resource $lock */
+    private function releaseLock(mixed $lock): void
+    {
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 
     private function decode(string $json, string $path, string $expectedTaskId): ExecutionState
