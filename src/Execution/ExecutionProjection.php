@@ -17,7 +17,7 @@ final readonly class ExecutionProjection
         public int $currentAttempt,
         public ?AttentionRequest $attention,
         public array $handoffs,
-        public string $candidateRevision = '',
+        public string $candidateRevision,
     ) {
     }
 
