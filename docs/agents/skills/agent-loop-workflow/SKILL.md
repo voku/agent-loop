@@ -92,10 +92,10 @@ Apply `future_work.mode` exactly:
 - `focus` — stop. Do not proactively search for adjacent future work.
 - `discover` — run one bounded project reflection with
   `vendor/bin/agent-loop workflow reflect <task-id> --scope project`, report the
-  strongest evidence-backed candidate or `NO_FURTHER_INVESTMENT`, and do not
-  prepare or execute follow-up work.
-- `invest` — run the same bounded project reflection. When it returns an
-  evidence-backed `NOW_WORTH_PREPARING` direction, use the repository's existing
+  strongest evidence-backed direction (or explicitly report that no worthwhile
+  investment direction was found), and do not prepare or execute follow-up work.
+- `invest` — run the same bounded project reflection. When it identifies an
+  evidence-backed direction worth preparing, use the repository's existing
   task/Kanban owner to prepare at most `future_work.max_follow_up_slices`
   independent follow-up candidates when that owner and identifiers are
   unambiguous. Do not approve or execute them automatically.
