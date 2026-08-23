@@ -6,7 +6,7 @@ namespace voku\AgentLoop\Edit;
 
 use Throwable;
 use voku\AgentLoop\Edit\Refactor\RefactorEditCommand;
-use voku\AgentLoop\Edit\Refactor\RefactorVerifyCommand;
+use voku\AgentLoop\Edit\Refactor\RefactorVerifyDispatchCommand;
 use voku\AgentLoop\Edit\Verify\EditVerifyCommand;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 
@@ -33,7 +33,7 @@ final readonly class EditCommand
         // verifier is routed here too, so it never inherits method-target parsing by accident.
         if ($tokens[0] === 'refactor') {
             if (($tokens[1] ?? null) === 'verify') {
-                return (new RefactorVerifyCommand($this->projectRoot))->run(array_slice($tokens, 2));
+                return (new RefactorVerifyDispatchCommand($this->projectRoot))->run(array_slice($tokens, 2));
             }
 
             return (new RefactorEditCommand($this->projectRoot))->run(array_slice($tokens, 1));
@@ -80,11 +80,11 @@ final readonly class EditCommand
         the compiled prompt to a generic command runner.
 
         `edit refactor` is the separate governed boundary for consuming an already-produced
-        agent-map method/function/class/property rename plan. It does not reinterpret those targets
-        as methods and does not accept arbitrary edit plans. After mutation and Map refresh,
-        `edit refactor verify` binds the applied plan to current source/Map evidence and writes the
-        verification-result.json required by governed closeout. Run either command with --help for
-        its plan-specific options and validation contract.
+        agent-map rename or method-removal plan. It does not reinterpret those targets as methods
+        and does not accept arbitrary edit plans. Method-removal keeps a separate fail-closed
+        decoder and verifier while sharing the project mutation lock and transactional publication
+        boundary. After mutation and Map refresh, `edit refactor verify` dispatches from persisted
+        runner evidence and writes the verification-result.json required by governed closeout.
 
         Governed mutation gate:
           If --task identifies an active governed workflow, command/mechanical/method-rename/auto
@@ -138,7 +138,8 @@ final readonly class EditCommand
             -- 'Replace the deprecated region property without a model runner.'
 
           agent-loop edit refactor build/property-rename-plan.json --task=REFACTOR-42 --dry-run
-          agent-loop edit refactor verify --bundle=.agent-loop/edit/REFACTOR-42
+          agent-loop edit refactor build/method-removal-plan.json --task=REFACTOR-43 --dry-run
+          agent-loop edit refactor verify --bundle=.agent-loop/edit/REFACTOR-43
 
         TXT;
         echo $usage;
