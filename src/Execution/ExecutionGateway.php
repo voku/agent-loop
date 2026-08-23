@@ -21,6 +21,8 @@ use voku\AgentLoop\Workflow\TaskContractStore;
  */
 final readonly class ExecutionGateway
 {
+    public const string COMPLETION_MARKER = 'AGENT_LOOP_STAGE_RESULT ';
+
     public function __construct(private string $rootPath)
     {
     }
@@ -59,18 +61,7 @@ final readonly class ExecutionGateway
         }
 
         $stage = $plan->stage($stageId);
-        $acceptedOutcomes = [];
-        foreach (array_keys($stage->transitions) as $outcome) {
-            $typed = StageOutcome::tryFrom($outcome);
-            if ($typed instanceof StageOutcome) {
-                $acceptedOutcomes[] = $typed;
-            }
-        }
-        foreach ([StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED] as $outcome) {
-            if (!in_array($outcome, $acceptedOutcomes, true)) {
-                $acceptedOutcomes[] = $outcome;
-            }
-        }
+        $acceptedOutcomes = $this->acceptedOutcomes($stage);
 
         $priorHandoff = null;
         foreach (array_reverse($projection->handoffs) as $handoff) {
@@ -99,7 +90,8 @@ final readonly class ExecutionGateway
             $contract->validation,
             $priorHandoff,
             $acceptedOutcomes,
-            $this->prompt($contract, $plan, $stage, $state->currentAttempt),
+            self::COMPLETION_MARKER,
+            $this->prompt($contract, $plan, $stage, $state->currentAttempt, $acceptedOutcomes),
         );
     }
 
@@ -183,8 +175,34 @@ final readonly class ExecutionGateway
         return ['path' => $relative, 'sha256' => 'sha256:' . $sha];
     }
 
-    private function prompt(TaskContract $contract, ExecutionPlan $plan, ExecutionStage $stage, int $attempt): string
+    /** @return list<StageOutcome> */
+    private function acceptedOutcomes(ExecutionStage $stage): array
     {
+        $accepted = [];
+        foreach (array_keys($stage->transitions) as $outcome) {
+            $typed = StageOutcome::tryFrom($outcome);
+            if ($typed instanceof StageOutcome) {
+                $accepted[] = $typed;
+            }
+        }
+        foreach ([StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED] as $outcome) {
+            if (!in_array($outcome, $accepted, true)) {
+                $accepted[] = $outcome;
+            }
+        }
+
+        return $accepted;
+    }
+
+    /** @param list<StageOutcome> $acceptedOutcomes */
+    private function prompt(
+        TaskContract $contract,
+        ExecutionPlan $plan,
+        ExecutionStage $stage,
+        int $attempt,
+        array $acceptedOutcomes,
+    ): string {
+        $outcomes = implode('|', array_map(static fn (StageOutcome $outcome): string => $outcome->value, $acceptedOutcomes));
         $lines = [
             '# Governed execution stage',
             '',
@@ -202,7 +220,14 @@ final readonly class ExecutionGateway
             'Required validation: ' . implode(' | ', $contract->validation),
             '',
             'Stay inside the approved Contract and stage role. Repository facts and owner evidence outrank this prose.',
+            'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
+            '',
+            '# Completion protocol',
+            'Your final non-empty output line must start with the exact marker below and contain one JSON object on the same line.',
+            'Allowed outcomes for this stage: ' . $outcomes,
+            self::COMPLETION_MARKER . '{"outcome":"<allowed-outcome>","summary":"<brief factual summary>","artifact_references":[],"validation_references":[]}',
+            'Do not place Markdown fences around that final line. The marker is transport syntax, not workflow approval.',
         ];
         $recallPath = (new ProjectLayout($this->rootPath))->recallRoot() . '/' . $contract->taskId . '/system.md';
         if (is_file($recallPath)) {
