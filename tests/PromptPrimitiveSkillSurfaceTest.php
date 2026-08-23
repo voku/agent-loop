@@ -41,7 +41,7 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('`focus` — stop.', $workflow);
         self::assertStringContainsString('`discover` — run one bounded project reflection', $workflow);
         self::assertStringContainsString('`invest` — run the same bounded project reflection', $workflow);
-        self::assertStringContainsString('NO_FURTHER_INVESTMENT', $workflow);
+        self::assertStringContainsString('no worthwhile investment direction was found', $workflow);
         self::assertStringContainsString('follow-up execution requires its own normal governance/approval', $workflow);
 
         self::assertStringContainsString('RETURN_TO_REVIEW', $reviewClose);
