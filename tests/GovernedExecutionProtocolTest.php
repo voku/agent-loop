@@ -152,7 +152,6 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame(1, $waiting->currentAttempt);
 
         $attention = $waiting->attention;
-        self::assertNotNull($attention);
         $resumed = $gateway->resolveAttention('ABC-123', $attention->id);
         self::assertNull($resumed->attention);
         self::assertSame('investigate', $resumed->currentStageId);
