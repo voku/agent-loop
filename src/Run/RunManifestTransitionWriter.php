@@ -27,6 +27,23 @@ final readonly class RunManifestTransitionWriter
     {
         $this->prepareExecutionPlan($taskId);
 
+        return $this->writeProjection($taskId);
+    }
+
+    /**
+     * Write only the derived projection after final close evidence is already durable.
+     *
+     * Close must remain resumable even if an optional execution binding has drifted:
+     * verification receipt and Session status are authority, while the manifest is a
+     * derived projection. Normal workflow transitions continue to use write().
+     */
+    public function writeRecoveryProjection(string $taskId): string
+    {
+        return $this->writeProjection($taskId);
+    }
+
+    private function writeProjection(string $taskId): string
+    {
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
         $path = (new RunManifestStore($this->rootPath))->write($manifest);
 
