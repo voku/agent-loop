@@ -48,6 +48,29 @@ The practical rule is:
 together from the bundled manifest. They do not require an L2 execution-contract
 construction pass by themselves.
 
+## Execute an existing plan after a blind-spot check
+
+When an authoritative plan already exists and the intended behavior is "do it as
+planned, but first challenge the assumptions exposed by the current results",
+select Recall's bundled L1 `execute-plan-with-blind-spot-check` recipe from the
+installed Recall-owned manifest:
+
+```bash
+vendor/bin/agent-loop workflow plan TASK-1 \
+  --by agent \
+  --file src/Example.php \
+  --goal 'Execute the already-approved plan.' \
+  --acceptance 'The approved plan is complete and its declared verification passes.' \
+  --validation 'composer ci' \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt '{"id":"execute-plan-with-blind-spot-check","arguments":{}}'
+```
+
+The recipe remains owned by `agent-recall-compiler`; `agent-loop` does not copy
+or reinterpret its text. Recall 0.13.11 or newer provides the contract. Loop only
+persists the selected recipe with the task and applies the normal Contract,
+authority, execution, review, and verification gates around it.
+
 ## First-draft falsification
 
 Use the context-light Recall primitive when the current implementation needs an
@@ -116,7 +139,7 @@ The ownership split is intentional:
 
 ```text
 agent-loop bundled L1 controls     -> Loop execution/orchestration controls
-Recall bundled L2 recipes          -> project-grounded Recall prompt construction
+Recall bundled L1/L2 recipes       -> Recall-owned execution/review prompt semantics
 Recall prompt guidance-gaps        -> opt-in implementation guidance-gap diagnostic
 Recall review first-draft          -> context-light falsification lens
 Recall review code <task-id>       -> task-artifact-backed review prompt
