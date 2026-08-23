@@ -90,6 +90,21 @@ final readonly class ProjectLayout
         return $this->contractsRoot() . '/' . $taskId . '/contract.json';
     }
 
+    public function executionProfileSelectionPath(string $taskId): string
+    {
+        return $this->contractsRoot() . '/' . $taskId . '/execution-profile.json';
+    }
+
+    public function executionPlanPath(string $taskId): string
+    {
+        return $this->runRoot($taskId) . '/execution-plan.json';
+    }
+
+    public function executionStatePath(string $taskId): string
+    {
+        return $this->runRoot($taskId) . '/execution-state.json';
+    }
+
     public function editRoot(): string
     {
         return $this->stateRoot() . '/edit';
