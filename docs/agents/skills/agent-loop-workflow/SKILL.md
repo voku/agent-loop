@@ -46,7 +46,8 @@ Read the structured result, especially:
 - `mutation_ready` — whether host-native implementation work is currently authorized;
 - `next_action_kind` — how to treat the canonical next step;
 - `next_action` — the one decisive next step;
-- `manifest.references` — supporting owner-backed evidence and reasons.
+- `manifest.references` — supporting owner-backed evidence and reasons;
+- `future_work` — repository policy for optional post-completion reflection; it never widens the current Contract.
 
 `next_action_kind` has one treatment contract:
 
@@ -71,6 +72,38 @@ vendor/bin/agent-loop finish <task-id> --format=json
 Then obey the returned `next_action_kind` / `next_action` in the same way until
 `none` / complete. Repeated `enter` and `finish` calls are intended to reconcile
 current owner evidence; hosts should not reproduce their preconditions.
+
+## Post-completion Future Work
+
+Future-work reflection is allowed only after the current task is already
+`complete` (or explicitly `ready_to_close` for a manual reflection). It is not a
+hidden close gate and cannot make an otherwise complete task incomplete.
+
+After `finish` reports `complete=true`, read the current repository policy from
+the structured context. If the host no longer has the `enter` context, refresh
+that read-only projection:
+
+```bash
+vendor/bin/agent-loop workflow context <task-id> --format=json
+```
+
+Apply `future_work.mode` exactly:
+
+- `focus` — stop. Do not proactively search for adjacent future work.
+- `discover` — run one bounded project reflection with
+  `vendor/bin/agent-loop workflow reflect <task-id> --scope project`, report the
+  strongest evidence-backed direction (or explicitly report that no worthwhile
+  investment direction was found), and do not prepare or execute follow-up work.
+- `invest` — run the same bounded project reflection. When it identifies an
+  evidence-backed direction worth preparing, use the repository's existing
+  task/Kanban owner to prepare at most `future_work.max_follow_up_slices`
+  independent follow-up candidates when that owner and identifiers are
+  unambiguous. Do not approve or execute them automatically.
+
+In every mode, the completed Contract stays closed. Never fold future-work ideas
+back into its scope, never manufacture backlog merely to consume the configured
+budget, and never reinterpret repo-local `invest` as authority for a new
+Contract. Follow-up execution requires its own normal governance/approval.
 
 ## Planning And Human Authority
 

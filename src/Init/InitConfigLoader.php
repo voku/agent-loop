@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use stdClass;
+use voku\AgentLoop\FutureWorkMode;
 use voku\AgentLoop\HumanExplanationPolicy;
 use voku\AgentLoop\PathResolver;
 
 final readonly class InitConfigLoader
 {
+    private const int MAX_FOLLOW_UP_SLICES = 10;
+
     public function __construct(private string $rootPath)
     {
     }
@@ -20,7 +23,8 @@ final readonly class InitConfigLoader
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>,
      *     recall: array{document_manifests: list<string>},
-     *     interaction: array{human_explanations: 'ask'|'always'|'never'}
+     *     interaction: array{human_explanations: 'ask'|'always'|'never'},
+     *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}}
      * }
      */
     public function load(?string $configPath): array
@@ -31,6 +35,12 @@ final readonly class InitConfigLoader
             'agents' => [],
             'recall' => ['document_manifests' => []],
             'interaction' => ['human_explanations' => HumanExplanationPolicy::ASK->value],
+            'workflow' => [
+                'future_work' => [
+                    'mode' => FutureWorkMode::FOCUS->value,
+                    'max_follow_up_slices' => 1,
+                ],
+            ],
         ];
 
         if ($configPath === null || trim($configPath) === '') {
@@ -143,6 +153,40 @@ final readonly class InitConfigLoader
                 $result['warnings'][] = '[WARN] init config: interaction.human_explanations must be ask, always, or never';
             } else {
                 $result['interaction']['human_explanations'] = $policy->value;
+            }
+        }
+
+        $hasWorkflow = $decodedShape instanceof stdClass && property_exists($decodedShape, 'workflow');
+        $workflowShape = $hasWorkflow ? $decodedShape->workflow : null;
+        $workflow = $decoded['workflow'] ?? null;
+        if ($hasWorkflow && !$workflowShape instanceof stdClass) {
+            $result['warnings'][] = '[WARN] init config: workflow must be an object';
+        } elseif ($workflowShape instanceof stdClass && is_array($workflow) && property_exists($workflowShape, 'future_work')) {
+            $futureWorkShape = $workflowShape->future_work;
+            $futureWork = $workflow['future_work'] ?? null;
+            if (!$futureWorkShape instanceof stdClass || !is_array($futureWork)) {
+                $result['warnings'][] = '[WARN] init config: workflow.future_work must be an object';
+            } else {
+                if (array_key_exists('mode', $futureWork)) {
+                    $configuredMode = $futureWork['mode'];
+                    $mode = is_string($configuredMode)
+                        ? FutureWorkMode::tryFrom(strtolower(trim($configuredMode)))
+                        : null;
+                    if ($mode === null) {
+                        $result['warnings'][] = '[WARN] init config: workflow.future_work.mode must be focus, discover, or invest';
+                    } else {
+                        $result['workflow']['future_work']['mode'] = $mode->value;
+                    }
+                }
+
+                if (array_key_exists('max_follow_up_slices', $futureWork)) {
+                    $maximum = $futureWork['max_follow_up_slices'];
+                    if (!is_int($maximum) || $maximum < 1 || $maximum > self::MAX_FOLLOW_UP_SLICES) {
+                        $result['warnings'][] = '[WARN] init config: workflow.future_work.max_follow_up_slices must be an integer from 1 to ' . self::MAX_FOLLOW_UP_SLICES;
+                    } else {
+                        $result['workflow']['future_work']['max_follow_up_slices'] = $maximum;
+                    }
+                }
             }
         }
 

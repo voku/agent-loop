@@ -6,6 +6,12 @@
   "interaction": {
     "human_explanations": "ask"
   },
+  "workflow": {
+    "future_work": {
+      "mode": "invest",
+      "max_follow_up_slices": 2
+    }
+  },
   "recall": {
     "document_manifests": [
       "docs/agents/recall-documents.json"

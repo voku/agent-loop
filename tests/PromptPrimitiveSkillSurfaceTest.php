@@ -37,6 +37,14 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('momentum', $workflow);
         self::assertStringContainsString('RETURN_TO_REVIEW', $workflow);
         self::assertStringContainsString('Reflection is deliberately **not** another lifecycle phase.', $workflow);
+        self::assertStringContainsString('## Post-completion Future Work', $workflow);
+        self::assertStringContainsString('`focus` — stop.', $workflow);
+        self::assertStringContainsString('`discover` — run one bounded project reflection', $workflow);
+        self::assertStringContainsString('`invest` — run the same bounded project reflection', $workflow);
+        self::assertStringContainsString('no worthwhile', $workflow);
+        self::assertStringContainsString('investment direction was found', $workflow);
+        self::assertStringContainsString('Follow-up execution requires its own normal', $workflow);
+        self::assertStringContainsString('governance/approval.', $workflow);
 
         self::assertStringContainsString('RETURN_TO_REVIEW', $reviewClose);
         self::assertStringContainsString('Reflection is not one', $reviewClose);

@@ -32,6 +32,87 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testFutureWorkDefaultsToFocus(): void
+    {
+        $root = $this->tempDir();
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame([
+            'mode' => 'focus',
+            'max_follow_up_slices' => 1,
+        ], $config['workflow']['future_work']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testFutureWorkAcceptsDiscoverAndInvestPolicies(): void
+    {
+        foreach ([['discover', 1], ['invest', 3]] as [$mode, $maximum]) {
+            $root = $this->tempDir();
+            mkdir($root . '/.agent-loop', 0o775, true);
+            file_put_contents($root . '/.agent-loop/init.json', json_encode([
+                'workflow' => [
+                    'future_work' => [
+                        'mode' => $mode,
+                        'max_follow_up_slices' => $maximum,
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+            self::assertSame($mode, $config['workflow']['future_work']['mode']);
+            self::assertSame($maximum, $config['workflow']['future_work']['max_follow_up_slices']);
+            self::assertSame([], $config['warnings']);
+        }
+    }
+
+    public function testInvalidFutureWorkPolicyWarnsAndKeepsConservativeDefaults(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'workflow' => [
+                'future_work' => [
+                    'mode' => 'wander',
+                    'max_follow_up_slices' => 0,
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame([
+            'mode' => 'focus',
+            'max_follow_up_slices' => 1,
+        ], $config['workflow']['future_work']);
+        self::assertContains(
+            '[WARN] init config: workflow.future_work.mode must be focus, discover, or invest',
+            $config['warnings'],
+        );
+        self::assertContains(
+            '[WARN] init config: workflow.future_work.max_follow_up_slices must be an integer from 1 to 10',
+            $config['warnings'],
+        );
+    }
+
+    public function testInvalidFutureWorkObjectsWarnAndKeepFocus(): void
+    {
+        foreach ([
+            ['workflow' => false],
+            ['workflow' => ['future_work' => false]],
+        ] as $value) {
+            $root = $this->tempDir();
+            mkdir($root . '/.agent-loop', 0o775, true);
+            file_put_contents($root . '/.agent-loop/init.json', json_encode($value, JSON_THROW_ON_ERROR));
+
+            $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+            self::assertSame('focus', $config['workflow']['future_work']['mode']);
+            self::assertNotSame([], $config['warnings']);
+        }
+    }
+
     public function testEmptyInteractionObjectKeepsDefaultWithoutWarning(): void
     {
         $root = $this->tempDir();

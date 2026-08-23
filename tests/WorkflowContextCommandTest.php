@@ -74,6 +74,10 @@ final class WorkflowContextCommandTest extends TestCase
             'Human explanations: ask (interactive: ask; unattended: skip). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
             $output,
         );
+        self::assertStringContainsString(
+            'Future work: focus; do not proactively inspect adjacent future work after the current task completes. Never widen the current Contract; follow-up execution requires separate Contract authority.',
+            $output,
+        );
         self::assertStringContainsString('G-001 (.agent-loop/recall/ABC-123/meta.json)', $output);
         self::assertStringContainsString('Demo\\Foo', $output);
         self::assertSame($before, hash_file('sha256', $this->root . '/.agent-loop/sessions/' . $this->sessionId() . '/session.json'));
@@ -94,6 +98,32 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
         self::assertStringContainsString(
             'Human explanations: never (interactive: skip; unattended: skip). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
+            $rendered,
+        );
+    }
+
+    public function testContextProjectsInvestPolicyWithoutGrantingFollowUpAuthority(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'workflow' => [
+                'future_work' => [
+                    'mode' => 'invest',
+                    'max_follow_up_slices' => 2,
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertSame([
+            'mode' => 'invest',
+            'max_follow_up_slices' => 2,
+            'current_contract_scope_expansion' => 'forbidden',
+            'follow_up_authority' => 'separate_contract_required',
+        ], $context['future_work']);
+        self::assertStringContainsString(
+            'Future work: invest; after the current task completes, permit bounded future-work reflection and preparation of up to 2 separate follow-up candidate slice(s). Never widen the current Contract; follow-up execution requires separate Contract authority.',
             $rendered,
         );
     }
