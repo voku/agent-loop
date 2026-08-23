@@ -42,6 +42,19 @@
             "paths": [
                 "src/Init/InitStatusCommand.php"
             ]
+        },
+        {
+            "ruleId": "php.type-escape-hotspots",
+            "paths": [
+                "src/Execution/ExecutionArtifactValue.php",
+                "src/Execution/ExecutionStateStore.php"
+            ]
+        },
+        {
+            "ruleId": "php.clone-cluster",
+            "paths": [
+                "src/Execution/ExecutionStateStore.php"
+            ]
         }
     ],
     "scan": {
