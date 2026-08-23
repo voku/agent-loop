@@ -8,25 +8,50 @@ use InvalidArgumentException;
 
 final readonly class StageResult
 {
+    public string $submissionId;
+    public string $taskId;
+    public string $runId;
+    public string $executionPlanDigest;
+    public string $stageId;
+    public string $candidateRevision;
+
+    /** @var list<non-empty-string> */
+    public array $artifactReferences;
+
+    /** @var list<non-empty-string> */
+    public array $validationReferences;
+
+    public string $summary;
+
     /**
      * @param list<non-empty-string> $artifactReferences
      * @param list<non-empty-string> $validationReferences
      */
     public function __construct(
-        public string $submissionId,
-        public string $taskId,
-        public string $runId,
+        string $submissionId,
+        string $taskId,
+        string $runId,
         public int $contractRevision,
-        public string $executionPlanDigest,
-        public string $stageId,
+        string $executionPlanDigest,
+        string $stageId,
         public int $attempt,
         public StageOutcome $outcome,
-        public string $candidateRevision,
-        public array $artifactReferences,
-        public array $validationReferences,
-        public string $summary,
+        string $candidateRevision,
+        array $artifactReferences,
+        array $validationReferences,
+        string $summary,
     ) {
-        if (trim($this->submissionId) === '' || trim($this->taskId) === '' || trim($this->runId) === '') {
+        $this->submissionId = trim($submissionId);
+        $this->taskId = trim($taskId);
+        $this->runId = trim($runId);
+        $this->executionPlanDigest = trim($executionPlanDigest);
+        $this->stageId = trim($stageId);
+        $this->candidateRevision = trim($candidateRevision);
+        $this->artifactReferences = self::normalizeReferences($artifactReferences, 'artifact');
+        $this->validationReferences = self::normalizeReferences($validationReferences, 'validation');
+        $this->summary = trim($summary);
+
+        if ($this->submissionId === '' || $this->taskId === '' || $this->runId === '') {
             throw new InvalidArgumentException('Stage result requires submission, task, and Run ids.');
         }
         if ($this->contractRevision < 1 || $this->attempt < 1) {
@@ -35,7 +60,7 @@ final readonly class StageResult
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $this->executionPlanDigest) !== 1) {
             throw new InvalidArgumentException('Stage result requires an execution-plan sha256 digest.');
         }
-        if (trim($this->stageId) === '' || trim($this->candidateRevision) === '') {
+        if ($this->stageId === '' || $this->candidateRevision === '') {
             throw new InvalidArgumentException('Stage result requires stage and candidate revision.');
         }
     }
@@ -57,5 +82,23 @@ final readonly class StageResult
             'validation_references' => $this->validationReferences,
             'summary' => $this->summary,
         ];
+    }
+
+    /**
+     * @param list<non-empty-string> $references
+     * @return list<non-empty-string>
+     */
+    private static function normalizeReferences(array $references, string $kind): array
+    {
+        $normalized = [];
+        foreach ($references as $reference) {
+            $reference = trim($reference);
+            if ($reference === '') {
+                throw new InvalidArgumentException('Stage result ' . $kind . ' references must be non-empty strings.');
+            }
+            $normalized[] = $reference;
+        }
+
+        return $normalized;
     }
 }
