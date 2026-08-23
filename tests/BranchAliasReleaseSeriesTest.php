@@ -22,10 +22,7 @@ final class BranchAliasReleaseSeriesTest extends TestCase
 
         $changelog = (string) file_get_contents($root . '/CHANGELOG.md');
         $matches = [];
-        if (
-            preg_match('/^## (\d+)\.(\d+)\.\d+ - \d{4}-\d{2}-\d{2}$/m', $changelog, $matches) !== 1
-            || !isset($matches[1], $matches[2])
-        ) {
+        if (preg_match('/^## (\d+)\.(\d+)\.\d+ - \d{4}-\d{2}-\d{2}$/m', $changelog, $matches) !== 1) {
             self::fail('CHANGELOG.md must expose at least one dated release section.');
         }
 
