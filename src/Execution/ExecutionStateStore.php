@@ -32,6 +32,18 @@ final readonly class ExecutionStateStore
         return $this->projectionFromState($plan, $this->loadForPlan($plan));
     }
 
+    public function assertEvidenceClaim(ExecutionPlan $plan, ExecutionEvidenceClaim $claim): void
+    {
+        $lock = $this->acquireLock($plan->taskId);
+        try {
+            $state = $this->find($plan->taskId) ?? $this->prepareUnlocked($plan);
+            $this->assertBinding($state, $plan);
+            $this->authority()->assertClaimCurrent($plan, $state, $claim);
+        } finally {
+            $this->releaseLock($lock);
+        }
+    }
+
     public function accept(ExecutionPlan $plan, StageResult $result): ExecutionProjection
     {
         $lock = $this->acquireLock($plan->taskId);
@@ -58,6 +70,7 @@ final readonly class ExecutionStateStore
             }
             $this->assertResultBinding($state, $plan, $result);
             $stage = $plan->stage($state->currentStageId);
+            $this->authority()->assertAcceptable($plan, $state, $stage, $result);
             $acceptedAt = $this->now();
             $history = $state->history;
 
@@ -136,6 +149,11 @@ final readonly class ExecutionStateStore
             if ($state->currentStageId === null) {
                 throw new RuntimeException('Completed execution cannot resolve stage Attention.');
             }
+            (new AttentionResolutionStore($this->rootPath))->assertCurrent(
+                $plan,
+                $state->attention,
+                $state->currentAttempt,
+            );
 
             $next = new ExecutionState(
                 $state->taskId,
@@ -473,6 +491,11 @@ final readonly class ExecutionStateStore
     private function requiredString(array $data, string $key, string $path): string
     {
         return ExecutionArtifactValue::string($data[$key] ?? null, $path . '#' . $key);
+    }
+
+    private function authority(): ExecutionStageResultAuthority
+    {
+        return new ExecutionStageResultAuthority($this->rootPath);
     }
 
     private function now(): string
