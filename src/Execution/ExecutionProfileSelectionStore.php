@@ -101,10 +101,10 @@ final readonly class ExecutionProfileSelectionStore
             throw new RuntimeException('Execution profile selection requires contract_source.');
         }
         $sourcePath = $this->requiredString($source, 'path', $path . '#contract_source');
-        $sourceSha = $this->requiredString($source, 'sha256', $path . '#contract_source');
-        if (preg_match('/^sha256:[a-f0-9]{64}$/', $sourceSha) !== 1) {
-            throw new RuntimeException('Execution profile selection contract_source.sha256 is invalid.');
-        }
+        $sourceSha = ExecutionArtifactValue::sha256(
+            $source['sha256'] ?? null,
+            $path . '#contract_source.sha256',
+        );
         $profile = ExecutionProfileName::tryFrom($this->requiredString($data, 'profile', $path));
         if (!$profile instanceof ExecutionProfileName) {
             throw new RuntimeException('Unsupported execution profile in ' . $path . '.');
@@ -162,15 +162,6 @@ final readonly class ExecutionProfileSelectionStore
      */
     private function requiredString(array $data, string $key, string $path): string
     {
-        $value = $data[$key] ?? null;
-        if (!is_string($value)) {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
-        }
-        $value = trim($value);
-        if ($value === '') {
-            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
-        }
-
-        return $value;
+        return ExecutionArtifactValue::string($data[$key] ?? null, $path . '#' . $key);
     }
 }
