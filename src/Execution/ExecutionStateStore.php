@@ -434,16 +434,23 @@ final readonly class ExecutionStateStore
         }
         $items = [];
         foreach ($value as $item) {
-            if (!is_string($item) || trim($item) === '') {
+            if (!is_string($item)) {
                 throw new RuntimeException($path . ' must contain only non-empty strings.');
             }
-            $items[] = trim($item);
+            $item = trim($item);
+            if ($item === '') {
+                throw new RuntimeException($path . ' must contain only non-empty strings.');
+            }
+            $items[] = $item;
         }
 
         return $items;
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     * @return non-empty-string
+     */
     private function requiredDigest(array $data, string $key, string $path): string
     {
         $value = $this->requiredString($data, $key, $path);
@@ -454,15 +461,22 @@ final readonly class ExecutionStateStore
         return $value;
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     * @return non-empty-string
+     */
     private function requiredString(array $data, string $key, string $path): string
     {
         $value = $data[$key] ?? null;
-        if (!is_string($value) || trim($value) === '') {
+        if (!is_string($value)) {
+            throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
+        }
+        $value = trim($value);
+        if ($value === '') {
             throw new RuntimeException($path . ' requires non-empty string ' . $key . '.');
         }
 
-        return trim($value);
+        return $value;
     }
 
     private function now(): string
