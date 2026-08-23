@@ -58,6 +58,11 @@ jobs:
               [[ "$existing" == "$target" ]] || { echo "Tag $version exists at $existing, expected $target" >&2; exit 1; }
               continue
             fi
+            if ! git show "${target}:CHANGELOG.md" | grep -Fq "## [$version] - " \
+              && ! git show "${target}:CHANGELOG.md" | grep -Fq "## $version - "; then
+              echo "Release target $target does not contain the $version changelog section" >&2
+              exit 1
+            fi
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git tag -a "$version" "$target" -m "agent-loop $version"
