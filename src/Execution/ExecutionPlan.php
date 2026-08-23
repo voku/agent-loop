@@ -65,6 +65,7 @@ final readonly class ExecutionPlan
         }
     }
 
+    /** @param array{path: non-empty-string, sha256: non-empty-string} $contractSource */
     public static function resolve(
         ExecutionProfile $profile,
         string $taskId,
