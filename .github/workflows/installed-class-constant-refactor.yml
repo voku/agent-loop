@@ -54,6 +54,7 @@ jobs:
             "name": "voku/installed-class-constant-refactor-consumer",
             "type": "project",
             "require-dev": {
+              "phpstan/phpstan": "^2.2",
               "voku/agent-loop": "dev-main"
             },
             "repositories": [
@@ -170,7 +171,7 @@ jobs:
           vendor/bin/agent-map build \
             --root=. \
             --paths=src \
-            --backend=structural \
+            --backend=phpstan \
             --out=.agent-loop/map/php-symbols.json
 
           vendor/bin/agent-map rename-capabilities --format=json > capabilities.json
@@ -220,7 +221,7 @@ jobs:
           vendor/bin/agent-map build \
             --root=. \
             --paths=src \
-            --backend=structural \
+            --backend=phpstan \
             --out=.agent-loop/map/php-symbols.json
           vendor/bin/agent-loop edit refactor verify \
             --bundle=.agent-loop/edit/DEMO-1 \
