@@ -37,11 +37,11 @@ final readonly class RefactorVerifyDispatchCommand
             return 2;
         }
 
-        if (($execution['runner']['name'] ?? null) === 'method-removal-plan') {
-            return (new MethodRemovalVerifyCommand($this->projectRoot))->run($tokens);
-        }
-
-        return (new RefactorVerifyCommand($this->projectRoot))->run($tokens);
+        return match ($execution['runner']['name'] ?? null) {
+            'method-removal-plan' => (new MethodRemovalVerifyCommand($this->projectRoot))->run($tokens),
+            'property-removal-plan' => (new PropertyRemovalVerifyCommand($this->projectRoot))->run($tokens),
+            default => (new RefactorVerifyCommand($this->projectRoot))->run($tokens),
+        };
     }
 
     /** @param list<string> $tokens */
