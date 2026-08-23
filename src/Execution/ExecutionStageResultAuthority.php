@@ -89,10 +89,43 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('STALE_CANDIDATE: mutating stage has no exact governed base commit.');
         }
         if (preg_match(
-            '/^git-worktree-v1:' . preg_quote($baseCommit, '/') . ':sha256:[a-f0-9]{64}$/',
+            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
             $candidateRevision,
+            $matches,
         ) !== 1) {
-            throw new RuntimeException('STALE_CANDIDATE: candidate identity is not derived from the governed base commit.');
+            throw new RuntimeException('STALE_CANDIDATE: candidate identity is not a content-addressed Git tree bound to the governed base commit.');
+        }
+
+        $this->assertTreeExists($matches[1]);
+    }
+
+    private function assertTreeExists(string $tree): void
+    {
+        $root = realpath($this->rootPath);
+        if (!is_string($root)) {
+            throw new RuntimeException('STALE_CANDIDATE: repository root cannot be resolved.');
+        }
+        $process = proc_open(
+            ['git', 'cat-file', '-e', $tree . '^{tree}'],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('STALE_CANDIDATE: unable to inspect candidate Git tree.');
+        }
+        fclose($pipes[0]);
+        stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0) {
+            throw new RuntimeException('STALE_CANDIDATE: candidate Git tree is not present in the governed repository object store: ' . trim(is_string($stderr) ? $stderr : ''));
         }
     }
 }
