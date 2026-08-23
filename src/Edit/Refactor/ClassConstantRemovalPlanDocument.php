@@ -45,8 +45,8 @@ final readonly class ClassConstantRemovalPlanDocument
         }
 
         $targetId = self::string($data, 'target_id');
-        if (!str_starts_with($targetId, 'class_constant:')) {
-            throw new RuntimeException('Class-constant removal plan target identity must be a class constant.');
+        if (preg_match('/\Aclass_constant:[^:]+::[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*\z/D', $targetId) !== 1) {
+            throw new RuntimeException('Class-constant removal plan target identity must use class_constant:Class::CONSTANT syntax.');
         }
 
         $rawProvenance = $data['provenance'] ?? null;
