@@ -148,6 +148,6 @@ PHP);
     {
         $matches = glob($this->root . '/src/*.agent-loop-method-removal-*');
 
-        return is_array($matches) ? array_values($matches) : [];
+        return is_array($matches) ? $matches : [];
     }
 }
