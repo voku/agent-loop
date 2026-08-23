@@ -168,9 +168,13 @@ final readonly class MethodRemovalVerifyCommand
         ];
     }
 
-    /** @param list<string> $tokens @return array{bundle: string, map_index: string, map_root: string} */
+    /**
+     * @param list<string> $tokens
+     * @return array{bundle: string, map_index: string, map_root: string}
+     */
     private function options(array $tokens): array
     {
+        /** @var array<string, string> $values */
         $values = [];
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
