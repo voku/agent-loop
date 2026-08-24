@@ -44,9 +44,6 @@ final readonly class ExecutionEnvironmentObservation
 
         $seen = [];
         foreach ($this->tools as $tool) {
-            if (!$tool instanceof ExecutionEnvironmentTool) {
-                throw new InvalidArgumentException('Execution environment tools must be typed ExecutionEnvironmentTool values.');
-            }
             if (isset($seen[$tool->id])) {
                 throw new InvalidArgumentException('Execution environment observation contains duplicate tool ids.');
             }
