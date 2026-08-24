@@ -89,8 +89,7 @@ final readonly class ExecutionCandidateHasher
     private function commonDirectory(string $workingDirectory): string
     {
         $value = $this->git($workingDirectory, ['rev-parse', '--git-common-dir']);
-        $path = str_starts_with($value, '/') ? $value : $workingDirectory . '/' . $value;
-        $canonical = realpath($path);
+        $canonical = realpath($this->gitPath($workingDirectory, $value));
         if (!is_string($canonical)) {
             throw new RuntimeException('Git common directory cannot be resolved for execution workspace.');
         }
@@ -101,8 +100,7 @@ final readonly class ExecutionCandidateHasher
     private function gitDirectory(string $workingDirectory): string
     {
         $value = $this->git($workingDirectory, ['rev-parse', '--git-dir']);
-        $path = str_starts_with($value, '/') ? $value : $workingDirectory . '/' . $value;
-        $canonical = realpath($path);
+        $canonical = realpath($this->gitPath($workingDirectory, $value));
         if (!is_string($canonical)) {
             throw new RuntimeException('Git worktree directory cannot be resolved for execution workspace.');
         }
@@ -110,23 +108,38 @@ final readonly class ExecutionCandidateHasher
         return str_replace('\\', '/', $canonical);
     }
 
+    private function gitPath(string $workingDirectory, string $value): string
+    {
+        $normalized = str_replace('\\', '/', $value);
+        if (str_starts_with($normalized, '/') || preg_match('/^[A-Za-z]:\//', $normalized) === 1) {
+            return $normalized;
+        }
+
+        return rtrim(str_replace('\\', '/', $workingDirectory), '/') . '/' . $normalized;
+    }
+
     /** @param list<string> $arguments */
     private function git(string $workingDirectory, array $arguments, bool $trim = true): string
     {
+        $stderrPath = tempnam(sys_get_temp_dir(), 'agent-loop-git-');
+        if (!is_string($stderrPath)) {
+            throw new RuntimeException('Unable to allocate Git candidate verification diagnostics.');
+        }
         $process = proc_open(
             ['git', ...$arguments],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            [1 => ['pipe', 'w'], 2 => ['file', $stderrPath, 'w']],
             $pipes,
             $workingDirectory,
         );
         if (!is_resource($process)) {
+            unlink($stderrPath);
             throw new RuntimeException('Unable to execute Git for execution candidate verification.');
         }
         $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
         fclose($pipes[1]);
-        fclose($pipes[2]);
         $exit = proc_close($process);
+        $stderr = file_get_contents($stderrPath);
+        unlink($stderrPath);
         if ($exit !== 0 || !is_string($stdout)) {
             throw new RuntimeException('Git candidate verification failed: ' . trim(is_string($stderr) ? $stderr : 'unknown error'));
         }
