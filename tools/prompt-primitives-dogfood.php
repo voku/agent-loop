@@ -98,7 +98,7 @@ final class PromptPrimitivesDogfood
             $projectReflection = $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'reflect', self::TASK_ID, '--scope', 'project',
             ]);
-            $this->assertContains($projectReflection['stdout'], 'future work in this project meaningfully better', 'project reflection');
+            $this->assertContains($projectReflection['stdout'], 'one highest-leverage direction', 'project reflection');
 
             $taskReflection = $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'reflect', self::TASK_ID, '--scope', 'task',
