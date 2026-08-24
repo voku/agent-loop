@@ -54,7 +54,7 @@ read-only by default. The deterministic final `verify` stage remains an
 External process hosts consume `voku\AgentLoop\Execution\ExecutionGateway`.
 They do not read `.agent-loop/**` directly and do not parse human CLI output.
 
-The public flow is:
+The host-neutral flow remains:
 
 ```text
 projection(task)
@@ -64,6 +64,18 @@ projection(task)
     -> accepted transition | Attention | rejection
 ```
 
+When the final stage prompt genuinely benefits from current host/runtime facts,
+the runner may use a bounded two-step flow instead:
+
+```text
+projection(task)
+    -> prepareStage(task, stage)              # governed host-neutral bundle
+    -> observe the selected current host
+    -> prepareStageForEnvironment(task, stage, observation)
+    -> execute the finalized current prompt
+    -> submitStageResult(result)
+```
+
 `StageExecutionBundle` contains the exact Run/Contract/plan/stage binding,
 mutation permission, allowed scope, required validation, candidate revision,
 Contract and Recall evidence references, previous accepted handoff, legal
@@ -71,6 +83,36 @@ outcomes, and a bounded prompt prepared by `agent-loop`.
 
 Recall remains derived context. Map remains navigation. Neither becomes approval
 or validation authority merely because it appears in a bundle.
+
+## Bounded execution-environment observation
+
+`ExecutionEnvironmentObservation` is optional runtime evidence, not a second
+workflow contract. It is bound to the exact task, Run, Contract revision,
+execution-plan digest, stage, attempt, and candidate revision. A stale binding is
+rejected before a prompt is finalized.
+
+The observation shape is deliberately narrow:
+
+- one bounded host id;
+- at most 16 typed tool availability records;
+- an optional single-line bounded tool version only when that tool is available;
+- optional network availability;
+- optional remote-write availability.
+
+It has no field for arbitrary environment variables, binary paths, credentials,
+tokens, free-form host metadata, task scope, acceptance policy, or workflow
+decisions. The observation is not persisted as durable task memory by this API.
+Its digest may be exposed on the finalized `StageExecutionBundle` for lineage.
+
+`prepareStage()` remains the normal host-neutral path and adds no environment
+ceremony. `prepareStageForEnvironment()` is only for agent stages where a caller
+has a current bounded observation. Deterministic stages remain host-independent
+and reject an environment observation.
+
+Current environment facts may inform execution wording, but they cannot widen
+scope, approve a Contract, resolve Attention, change accepted outcomes, select a
+workflow stage, or bypass validation. Missing facts remain unknown. The caller
+must not invent capabilities or convert host configuration into task policy.
 
 ## Stage result and exact-once acceptance
 
@@ -115,13 +157,16 @@ accepted execution state live under the current governed Run.
 
 Runner-private process state, logs, worktrees and provider configuration do not
 belong in `agent-loop` and must stay in the runner package/project namespace.
+Environment observations are transient dispatch evidence and do not move those
+runner-owned details into Loop persistence.
 
 ## Non-goals
 
 This boundary does not add process launching, provider/model selection, tmux,
 parallel mutation, Git push/merge, a dashboard, another Session store, another
-Kanban, transcript-derived workflow state, or a general-purpose DAG engine to
-`agent-loop`.
+Kanban, transcript-derived workflow state, a general-purpose DAG engine, or an
+environment snapshot store to `agent-loop`.
 
-The guiding invariant is simple: an external runner may execute work, but only
-`agent-loop` can accept that work as a governed transition.
+The guiding invariant is simple: an external runner may execute work and report
+bounded current host facts, but only `agent-loop` can compile those facts into
+its governed stage prompt and accept resulting work as a governed transition.
