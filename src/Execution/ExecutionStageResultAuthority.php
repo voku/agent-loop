@@ -69,7 +69,37 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('EVIDENCE_MISMATCH: evidence claim does not match the current execution stage binding.');
         }
 
-        $this->assertCandidate($plan, $state, $plan->stage($state->currentStageId), $claim->candidateRevision);
+        $stage = $plan->stage($state->currentStageId);
+        if ($claim->kind === ExecutionEvidenceKind::CANDIDATE) {
+            $this->assertCandidateClaim($plan, $state, $stage, $claim);
+
+            return;
+        }
+
+        $this->assertCandidate($plan, $state, $stage, $claim->candidateRevision);
+    }
+
+    private function assertCandidateClaim(
+        ExecutionPlan $plan,
+        ExecutionState $state,
+        ExecutionStage $stage,
+        ExecutionEvidenceClaim $claim,
+    ): void {
+        if ($stage->kind !== ExecutionStageKind::AGENT || !$stage->mayMutate) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: candidate observations are accepted only for mutating agent stages.');
+        }
+        if (!hash_equals($state->candidateRevision, $claim->sourceReference)) {
+            throw new RuntimeException('STALE_CANDIDATE: candidate observation does not derive from the current governed candidate.');
+        }
+        if (hash_equals($state->candidateRevision, $claim->candidateRevision)) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: unchanged candidate state does not require an external candidate observation.');
+        }
+        $expectedDigest = $this->candidateObservationDigest($state->candidateRevision, $claim->candidateRevision);
+        if (!hash_equals($expectedDigest, $claim->sourceDigest)) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: candidate observation digest does not match its candidate lineage.');
+        }
+
+        $this->assertCandidateObject($plan, $claim->candidateRevision);
     }
 
     private function assertCandidate(
@@ -84,6 +114,34 @@ final readonly class ExecutionStageResultAuthority
         if (!$stage->mayMutate) {
             throw new RuntimeException('CANDIDATE_MISMATCH: non-mutating stage cannot change the governed candidate identity.');
         }
+
+        $this->assertCandidateObject($plan, $candidateRevision);
+
+        $claim = new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            $stage->id,
+            $state->currentAttempt,
+            $candidateRevision,
+            ExecutionEvidenceKind::CANDIDATE,
+            $state->candidateRevision,
+            $this->candidateObservationDigest($state->candidateRevision, $candidateRevision),
+        );
+        $evidence = new ExecutionEvidenceStore($this->rootPath);
+        $evidence->assertCurrent(
+            $evidence->referenceFor($claim),
+            ExecutionEvidenceKind::CANDIDATE,
+            $plan,
+            $stage->id,
+            $state->currentAttempt,
+            $candidateRevision,
+        );
+    }
+
+    private function assertCandidateObject(ExecutionPlan $plan, string $candidateRevision): void
+    {
         $baseCommit = $plan->baseCommit;
         if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
             throw new RuntimeException('STALE_CANDIDATE: mutating stage has no exact governed base commit.');
@@ -96,17 +154,17 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('STALE_CANDIDATE: candidate identity is not a content-addressed Git tree bound to the governed base commit.');
         }
 
-        $this->assertTreeExists($matches[1]);
+        $this->assertTreeObject($matches[1]);
     }
 
-    private function assertTreeExists(string $tree): void
+    private function assertTreeObject(string $tree): void
     {
         $root = realpath($this->rootPath);
         if (!is_string($root)) {
             throw new RuntimeException('STALE_CANDIDATE: repository root cannot be resolved.');
         }
         $process = proc_open(
-            ['git', 'cat-file', '-e', $tree . '^{tree}'],
+            ['git', 'cat-file', '-t', $tree],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -116,16 +174,22 @@ final readonly class ExecutionStageResultAuthority
             $root,
         );
         if (!is_resource($process)) {
-            throw new RuntimeException('STALE_CANDIDATE: unable to inspect candidate Git tree.');
+            throw new RuntimeException('STALE_CANDIDATE: unable to inspect candidate Git object.');
         }
         fclose($pipes[0]);
-        stream_get_contents($pipes[1]);
+        $stdout = stream_get_contents($pipes[1]);
         $stderr = stream_get_contents($pipes[2]);
         fclose($pipes[1]);
         fclose($pipes[2]);
         $exit = proc_close($process);
-        if ($exit !== 0) {
-            throw new RuntimeException('STALE_CANDIDATE: candidate Git tree is not present in the governed repository object store: ' . trim(is_string($stderr) ? $stderr : ''));
+        if ($exit !== 0 || trim(is_string($stdout) ? $stdout : '') !== 'tree') {
+            throw new RuntimeException('STALE_CANDIDATE: candidate Git object is missing or is not a tree: ' . trim(is_string($stderr) ? $stderr : ''));
         }
+    }
+
+    /** @return non-empty-string */
+    private function candidateObservationDigest(string $previousCandidateRevision, string $candidateRevision): string
+    {
+        return 'sha256:' . hash('sha256', $previousCandidateRevision . "\0" . $candidateRevision);
     }
 }
