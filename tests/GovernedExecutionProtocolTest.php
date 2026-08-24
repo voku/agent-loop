@@ -294,7 +294,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         ));
 
         $build = $gateway->prepareStage('ABC-123', 'build');
-        $candidate = 'git-worktree-v1:' . self::BASE_COMMIT . ':sha256:' . str_repeat('a', 64);
+        $candidate = $build->candidateRevision;
         $gateway->submitStageResult(new StageResult(
             'submission:build',
             $build->taskId,
