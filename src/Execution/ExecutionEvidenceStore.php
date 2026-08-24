@@ -19,9 +19,15 @@ final readonly class ExecutionEvidenceStore
     }
 
     /** @return non-empty-string */
+    public function referenceFor(ExecutionEvidenceClaim $claim): string
+    {
+        return 'execution-evidence:sha256:' . hash('sha256', CanonicalJson::pretty($claim->toArray()));
+    }
+
+    /** @return non-empty-string */
     public function record(ExecutionEvidenceClaim $claim): string
     {
-        $reference = 'execution-evidence:sha256:' . hash('sha256', CanonicalJson::pretty($claim->toArray()));
+        $reference = $this->referenceFor($claim);
         $record = new ExecutionEvidenceRecord(
             $reference,
             $claim,
@@ -118,7 +124,7 @@ final readonly class ExecutionEvidenceStore
             $claim,
             ExecutionArtifactValue::string($data['recorded_at'] ?? null, $path . '#recorded_at'),
         );
-        $expected = 'execution-evidence:sha256:' . hash('sha256', CanonicalJson::pretty($claim->toArray()));
+        $expected = $this->referenceFor($claim);
         if (!hash_equals($expected, $record->reference) || !hash_equals($reference, $record->reference)) {
             throw new RuntimeException('STALE_EVIDENCE: execution evidence reference does not match persisted content.');
         }
