@@ -63,7 +63,8 @@ final readonly class ExecutionStateStore
                 if ($workspacePath === null || trim($workspacePath) === '') {
                     throw new RuntimeException('TRANSITION_REJECTED: MISSING_EVIDENCE agent StageResult acceptance requires the owner-bound workspace.');
                 }
-                $evidence->assertFresh($plan, $result, $workspacePath);
+                $authoritativeEvidence = $evidence->assertMatches($plan, $result);
+                $evidence->assertFresh($authoritativeEvidence, $workspacePath);
             } else {
                 $evidence->assertMatches($plan, $result);
             }
