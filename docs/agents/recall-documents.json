@@ -19,7 +19,7 @@
       "source": "dogfood/self-shaping.md",
       "scope": [
         "tools/self-shape-dogfood.php",
-        "src/Dogfood"
+        "tools/Dogfood"
       ],
       "tags": [
         "dogfood",
