@@ -50,7 +50,7 @@ final class ExecutionCandidateAuthorityTest extends TestCase
         $state = $this->state($plan, 1, $this->baseCommit);
         $stage = $plan->stage('build');
         $candidate = $this->changedCandidate();
-        $result = $this->result($plan, $state, $candidate);
+        $result = $this->stageResult($plan, $state, $candidate);
         $authority = new ExecutionStageResultAuthority($this->root);
 
         try {
@@ -86,7 +86,7 @@ final class ExecutionCandidateAuthorityTest extends TestCase
             $plan,
             $attemptTwo,
             $plan->stage('build'),
-            $this->result($plan, $attemptTwo, $candidate),
+            $this->stageResult($plan, $attemptTwo, $candidate),
         );
     }
 
@@ -227,7 +227,7 @@ final class ExecutionCandidateAuthorityTest extends TestCase
         );
     }
 
-    private function result(ExecutionPlan $plan, ExecutionState $state, string $candidateRevision): StageResult
+    private function stageResult(ExecutionPlan $plan, ExecutionState $state, string $candidateRevision): StageResult
     {
         return new StageResult(
             'submission:candidate:' . $state->currentAttempt,
