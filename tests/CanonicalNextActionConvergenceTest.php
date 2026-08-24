@@ -95,18 +95,22 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         self::assertStringContainsString('validation', $action);
     }
 
-    public function testTheHostWorkActionAdvancesOnceTheHostDoesIt(): void
+    public function testHostWorkAdvancesOnlyAfterTheHostReturnsThroughFinish(): void
     {
         $this->reachMutationReady();
         $this->breakDeclaredValidation();
         self::assertSame('host_work', $this->nextStep()[1]);
 
-        // The host does the irreducible work the action described.
+        // Editing the workspace is deliberately not workflow authority. The
+        // host must return through finish before deterministic evidence can
+        // advance the lifecycle.
         $this->repairDeclaredValidation();
+        self::assertSame('host_work', $this->nextStep()[1]);
+        self::assertNotSame(0, $this->frontDoor('finish'), 'finish should stop at the next human review decision');
 
         [$action, $kind] = $this->nextStep();
-        self::assertSame('command', $kind);
-        self::assertStringContainsString('agent-loop finish', $action);
+        self::assertSame('decision_required', $kind);
+        self::assertStringContainsString('--reviewed-report-sha256', $action);
     }
 
     private function frontDoor(string $command): int

@@ -32,7 +32,7 @@ final class ProgressiveCloseoutOrderTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testMissingValidationIsTheNextGapBeforeMissingReviewAndLearning(): void
+    public function testMutationReadyHostWorkPrecedesCloseoutEvidenceGaps(): void
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
@@ -91,10 +91,11 @@ final class ProgressiveCloseoutOrderTest extends TestCase
             $status['manifest']['references']['verification']['action'] ?? null,
             'The blocked verification reference must still name the unsatisfied validation command.',
         );
+        self::assertSame('host_work', $status['manifest']['next_action_kind'] ?? null);
         self::assertSame(
-            'agent-loop finish SIMPLE-2',
+            'perform the approved host-native implementation for SIMPLE-2 before calling agent-loop finish SIMPLE-2',
             $status['manifest']['next_action'] ?? null,
-            'The next action should satisfy the earliest deterministic evidence gap before asking for review or Learning judgment.',
+            'Mutation-authorized work must happen before finish-owned validation, review and Learning closeout.',
         );
     }
 
