@@ -6,9 +6,9 @@ namespace voku\AgentLoop\Execution;
 
 use JsonException;
 use RuntimeException;
-use voku\AgentLoop\Contract\TaskContract;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Workflow\TaskContract;
 
 final readonly class StageResultEvidenceStore
 {
@@ -143,7 +143,7 @@ final readonly class StageResultEvidenceStore
         } catch (JsonException $exception) {
             throw new RuntimeException('Invalid authoritative StageResult evidence JSON: ' . $path, 0, $exception);
         }
-        if (!is_array($data) || ($data['schema_version'] ?? null) !== '1.0' || ($data['kind'] ?? null) !== 'stage_result_evidence') {
+        if (!is_array($data) || ($data['schema_version'] ?? null) !== '1.0' || ($data['kind'] ?? null) !== 'authoritative_stage_result_evidence') {
             throw new RuntimeException('Unsupported authoritative StageResult evidence record: ' . $path);
         }
         $contractRevision = $data['contract_revision'] ?? null;
