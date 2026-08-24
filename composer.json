@@ -35,6 +35,7 @@
   },
   "autoload-dev": {
     "psr-4": {
+      "voku\\AgentLoop\\Dogfood\\": "tools/Dogfood/",
       "voku\\AgentLoop\\PHPStan\\": "phpstan/",
       "voku\\AgentLoop\\Tests\\": "tests/"
     }

@@ -8,7 +8,7 @@ use voku\AgentLoop\Dogfood\MinimumReleasePin;
 // repository out and runs PHP against it without ever installing agent-loop's
 // own dependencies, because what it exercises is a separately installed
 // consumer. MinimumReleasePin depends on nothing but PHP, so it loads directly.
-require dirname(__DIR__) . '/src/Dogfood/MinimumReleasePin.php';
+require dirname(__DIR__) . '/tools/Dogfood/MinimumReleasePin.php';
 
 final class PromptPrimitivesDogfoodFailure extends RuntimeException
 {
