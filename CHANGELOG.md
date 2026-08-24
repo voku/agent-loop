@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.0 - 2026-08-24
+
+### Added
+
+- Publish the hardened public execution-authority contract for optional external execution hosts, including owner-validated candidate observations, artifact observations, deterministic validation evidence, and human Attention resolution records.
+
+### Changed
+
+- Mutating external stages may advance to a changed candidate only through a current typed `StageCandidateObservation` bound to the exact Task, Run, Contract revision, execution-plan digest, stage, attempt, and previous candidate.
+- Artifact evidence is independently re-read and verified by agent-loop against the governed Git candidate before owner evidence is recorded; Runner-private workspace paths and logs remain execution-plane concerns.
+- Validation truth remains Loop-owned: arbitrary external validation references and model-provided completion claims are non-authoritative, while deterministic verification records current owner evidence before result acceptance.
+- Human-owned Attention must be resolved through the owner-side workflow path before an external gateway may resume a new attempt.
+- Advance the `dev-main` branch alias to `0.18.x-dev` together with this release section so the documented release series and Composer development alias remain consistent.
+
+### Validation
+
+- PR #280 hardened candidate, artifact, validation, idempotency, and Attention authority with real temporary Git repository regressions while preserving the `agent-loop-runner -> agent-loop` ownership direction.
+- Release issue #283 requires the exact release target to pass repository gates, be tagged as `0.18.0`, and resolve from a clean Composer consumer before the stable contract is considered available to `agent-loop-runner`.
+
 ## 0.17.1 - 2026-08-23
 
 ### Changed
@@ -357,9 +376,7 @@ All notable changes to this project will be documented in this file.
 
 - Validated `finding.2026-08-14.005`: skills and machine-readable instruction
   assets whose correctness depends on a tool's CLI, schema, generated files,
-  output contract, or runtime behavior belong in that tool's repository and
-  ship/test with the implementation. Generic skill collections keep only
-  tool-neutral principles or references to the canonical owner.
+  output contract, code, or test authority.
 
 ### Validation
 
@@ -1069,7 +1086,7 @@ release.
 
 ## 0.2.1 - 2026-06-29
 
-- Added a native Linux `init install-plan --profile=linux` variant alongside the WSL2 profile, reusing the same reviewed tool-install commands but with Linux-specific restart and boundary guidance.
+- Added a native Linux `init install-plan --profile=linux` profile alongside the WSL2 profile, reusing the same reviewed tool-install commands but with Linux-specific restart and boundary guidance.
 - `init validate` now covers `skills`, `subagents`, `hooks`, and `all`, including canonical subagent frontmatter/path checks and Codex hook manifest validation.
 - Added `init sync-skills`, `init sync-subagents`, and `init sync-hooks` with manifest-based stale-entry cleanup, unmanaged-target overwrite protection, dry-run support, and client target defaults for Codex, Copilot, Claude, and Antigravity.
 - Added host-repo migration examples and expanded the portable guidance to cover RTK at the shell boundary, nested Make/Docker noise, and the need to audit host docs such as `AGENTS.md` and `README.md` for missing RTK guidance.
@@ -1124,8 +1141,7 @@ release.
 - Added `examples/basic-loop`, a runnable walkthrough of the full loop
   against a tiny fake task, with real captured output.
 - `Dispatcher` now resolves request-time defaults instead of requiring
-  the caller to already know upstream conventions, fixing three things
-  the README previously only documented as gotchas:
+  the caller to already know upstream conventions, fixing three things the README previously only documented as gotchas:
   - `session record`/`checkpoint`/`close`/`claim`/`show` accept the task
     id you started the session with, not just the generated session id
     (e.g. `2025-01-15-abc-123`) — `agent-loop` looks up the matching
