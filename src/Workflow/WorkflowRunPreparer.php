@@ -8,6 +8,7 @@ use Closure;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -19,6 +20,7 @@ use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputSuperseder;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -129,7 +131,9 @@ final readonly class WorkflowRunPreparer
         // Recall is derived state. Supersede any previous/partial task-local
         // output only after the exact governed Run/Session can be established,
         // and before projecting or compiling the new governed context.
-        (new WorkflowRecallOutputSuperseder($this->rootPath))->archiveIfPresent($contract->taskId);
+        (new CompiledRecallOutputSuperseder())->archiveIfPresent(
+            RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId,
+        );
 
         $recallInput = $this->writeGovernedRecallInput($run, $contract);
         $preparedManifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($contract->taskId);
