@@ -11,19 +11,17 @@ use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 
 /**
- * The two external evidence tools ended up on opposite sides of the dependency
- * line, for reasons that are worth keeping executable.
+ * External evidence tooling belongs to repository/dev validation, not to the
+ * installed workflow runtime.
  *
- * `voku/itp-context` is a real dependency: declaring architecture rules means
- * implementing its `RuleIdentifier` and using its `Rule` attribute, so the
- * package has to be installed for the rules to exist at all. It requires only
- * PHP >= 8.3, which this package already requires.
+ * `voku/itp-context` validates the package's architecture metadata during this
+ * repository's development and CI. The rule enum itself lives under tools/ and
+ * the dependency is therefore dev-only. Production classes may retain inert
+ * Rule attributes as source metadata; a normal installed consumer does not need
+ * either the attribute implementation or ArchitectureRules to execute Loop.
  *
- * `voku/slop-scan` cannot be one yet. 0.1.4 requires Simple-PHP-Code-Parser
- * ^0.21 while `agent-map` requires ^0.22, so the two cannot co-resolve, and the
- * 0.1.5 release that moves to ^0.22.2 has no Git tag — Packagist still serves
- * 0.1.4. It therefore runs from the isolated tool project, and the workflow
- * must keep working when it is absent.
+ * `voku/slop-scan` remains an isolated tool project because its published
+ * dependency graph cannot currently co-resolve with the main package graph.
  */
 final class RealIssueEvidenceToolBoundaryTest extends TestCase
 {
@@ -36,16 +34,14 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         'tools/agent-loop/',
     ];
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     private function composerManifest(): array
     {
         $decoded = json_decode(
             (string) file_get_contents(dirname(__DIR__) . '/composer.json'),
             true,
             512,
-            \JSON_THROW_ON_ERROR,
+            JSON_THROW_ON_ERROR,
         );
         self::assertIsArray($decoded);
 
@@ -72,17 +68,31 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         }
     }
 
-    public function testItpContextIsARuntimeDependencyBecauseTheRulesNeedIt(): void
+    public function testItpContextIsADevDependencyForArchitectureValidation(): void
     {
         $manifest = $this->composerManifest();
         $require = $manifest['require'] ?? [];
+        $requireDev = $manifest['require-dev'] ?? [];
         self::assertIsArray($require);
+        self::assertIsArray($requireDev);
 
-        self::assertArrayHasKey(
+        self::assertArrayNotHasKey(
             'voku/itp-context',
             $require,
-            'ArchitectureRules implements ItpContext\Contract\RuleIdentifier and src/ carries its Rule attribute, so '
-            . 'the package is required at runtime, not in require-dev.',
+            'Architecture validation must not enlarge the installed workflow runtime graph.',
+        );
+        self::assertArrayHasKey(
+            'voku/itp-context',
+            $requireDev,
+            'Repository CI still validates ArchitectureRules through itp-context.',
+        );
+        self::assertFileExists(
+            dirname(__DIR__) . '/tools/Context/ArchitectureRules.php',
+            'ArchitectureRules must live in the dev/tooling surface.',
+        );
+        self::assertFileDoesNotExist(
+            dirname(__DIR__) . '/src/Context/ArchitectureRules.php',
+            'The old production ArchitectureRules path must not survive as a compatibility copy.',
         );
     }
 
@@ -148,7 +158,7 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
     #[\PHPUnit\Framework\Attributes\DataProvider('toolProjects')]
     public function testToolProjectsResolveAgainstTheLowestSupportedPhp(string $manifestPath): void
     {
-        $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, \JSON_THROW_ON_ERROR);
+        $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($manifest);
 
         $platform = $manifest['config']['platform']['php'] ?? null;
@@ -213,13 +223,9 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         }
     }
 
-    /**
-     * @return list<class-string>
-     */
+    /** @return list<class-string> */
     private function productionClasses(): array
     {
-        // The annotated symbols are few by design; naming them keeps this test
-        // from depending on a class-map scan of the whole package.
         return [
             ProjectLayout::class,
             \voku\AgentLoop\Init\InitToolsCommand::class,

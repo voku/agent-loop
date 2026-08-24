@@ -4,6 +4,7 @@ parameters:
     - src
     - tests
     - phpstan
+    - tools/Context
     - tools/Dogfood
   excludePaths:
     analyse:
