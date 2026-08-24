@@ -185,6 +185,7 @@ final readonly class ExecutionGateway
             $plan,
             $state->projection($plan),
             $result,
+            $exit,
         );
 
         return $state->accept($plan, $result);
