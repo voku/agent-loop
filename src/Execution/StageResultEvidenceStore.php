@@ -199,9 +199,10 @@ final readonly class StageResultEvidenceStore
             throw new RuntimeException('TRANSITION_REJECTED: workspace cannot be resolved for artifact evidence.');
         }
         $root = rtrim(str_replace('\\', '/', $root), '/');
+        /** @var array<non-empty-string, non-empty-string> $digests */
         $digests = [];
         foreach ($references as $reference) {
-            if (str_starts_with($reference, '/') || str_contains($reference, "\0")) {
+            if ($reference === '' || str_starts_with($reference, '/') || str_contains($reference, "\0")) {
                 throw new RuntimeException('TRANSITION_REJECTED: artifact reference must be a non-empty workspace-relative path.');
             }
             $candidate = $root . '/' . $reference;
