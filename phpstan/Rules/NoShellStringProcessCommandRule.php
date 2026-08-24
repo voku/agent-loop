@@ -32,7 +32,10 @@ final class NoShellStringProcessCommandRule implements Rule
         $command = $node->getArgs()[0]->value ?? null;
         $class = $scope->getClassReflection();
         $intentionalShellBoundary = $class !== null
-            && $class->getName() === 'voku\\AgentLoop\\Workflow\\WorkflowValidationRunner'
+            && in_array($class->getName(), [
+                'voku\\AgentLoop\\Workflow\\WorkflowValidationRunner',
+                'voku\\AgentLoop\\Execution\\StageResultEvidenceStore',
+            ], true)
             && $scope->getFunctionName() === 'executeDeclaredValidationShell';
         if (
             !$node->name instanceof Name
