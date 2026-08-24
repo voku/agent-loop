@@ -223,7 +223,7 @@ final readonly class StageResultEvidenceStore
         $root = rtrim(str_replace('\\', '/', $root), '/');
         $digests = [];
         foreach ($references as $reference) {
-            if ($reference === '' || str_starts_with($reference, '/') || str_contains($reference, "\0")) {
+            if (str_starts_with($reference, '/') || str_contains($reference, "\0")) {
                 throw new RuntimeException('TRANSITION_REJECTED: artifact reference must be a non-empty workspace-relative path.');
             }
             $candidate = $root . '/' . $reference;
@@ -269,7 +269,7 @@ final readonly class StageResultEvidenceStore
             if (!isset($allowed[$command])) {
                 throw new RuntimeException('TRANSITION_REJECTED: validation reference is not a current Contract obligation: ' . $command);
             }
-            $exitCode = $this->executeValidation($workspacePath, $command);
+            $exitCode = $this->executeDeclaredValidationShell($workspacePath, $command);
             $exitCodes[$command] = $exitCode;
             if ($exitCode !== 0) {
                 throw new RuntimeException('TRANSITION_REJECTED: validation evidence failed for current candidate: ' . $command);
@@ -279,7 +279,7 @@ final readonly class StageResultEvidenceStore
         return $exitCodes;
     }
 
-    private function executeValidation(string $workspacePath, string $command): int
+    private function executeDeclaredValidationShell(string $workspacePath, string $command): int
     {
         $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $process = proc_open(
@@ -339,10 +339,10 @@ final readonly class StageResultEvidenceStore
         }
         $result = [];
         foreach ($value as $key => $item) {
-            if (!is_string($key) || $key === '' || !is_string($item) || $item === '') {
-                throw new RuntimeException('STALE_EVIDENCE: authoritative ' . $label . ' contains invalid fields.');
+            if (!is_string($key) || trim($key) === '' || !is_string($item) || trim($item) === '') {
+                throw new RuntimeException('STALE_EVIDENCE: authoritative ' . $label . ' contains an invalid entry.');
             }
-            $result[$key] = $item;
+            $result[trim($key)] = trim($item);
         }
 
         return $result;
@@ -356,10 +356,10 @@ final readonly class StageResultEvidenceStore
         }
         $result = [];
         foreach ($value as $key => $item) {
-            if (!is_string($key) || $key === '' || !is_int($item)) {
-                throw new RuntimeException('STALE_EVIDENCE: authoritative ' . $label . ' contains invalid fields.');
+            if (!is_string($key) || trim($key) === '' || !is_int($item)) {
+                throw new RuntimeException('STALE_EVIDENCE: authoritative ' . $label . ' contains an invalid entry.');
             }
-            $result[$key] = $item;
+            $result[trim($key)] = $item;
         }
 
         return $result;
