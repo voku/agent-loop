@@ -8,6 +8,10 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Execution\AttentionResolutionStore;
+use voku\AgentLoop\Execution\ExecutionEvidenceClaim;
+use voku\AgentLoop\Execution\ExecutionEvidenceKind;
+use voku\AgentLoop\Execution\ExecutionEvidenceStore;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
@@ -56,7 +60,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertFileExists((new ExecutionStateStore($this->root))->path('ABC-123'));
     }
 
-    public function testSurgicalProfileIsResolvedBeforeRunAndAdvancesOnlyThroughAcceptedResults(): void
+    public function testSurgicalProfileIsResolvedBeforeRunAndAdvancesOnlyThroughAcceptedOwnerBoundResults(): void
     {
         $this->planAndApprove();
         $profile = new WorkflowExecutionProfileCommand($this->root);
@@ -81,6 +85,18 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertSame(['src/Foo.php'], $bundle->allowedScope);
         self::assertStringContainsString('A successful process exit is not workflow approval.', $bundle->prompt);
 
+        $artifactReference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $bundle->candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            'owner:investigation',
+            'sha256:' . hash('sha256', 'owner:investigation'),
+        ));
         $result = new StageResult(
             ' submission:investigate:1 ',
             $bundle->taskId,
@@ -90,18 +106,19 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::COMPLETED,
-            ' candidate:one ',
-            [' artifact:investigation '],
+            ' ' . $bundle->candidateRevision . ' ',
+            [$artifactReference],
             [],
             "Investigation complete.\n",
         );
         $after = $gateway->submitStageResult($result);
         self::assertSame('build', $after->currentStageId);
         self::assertSame(1, $after->currentAttempt);
-        self::assertSame('candidate:one', $after->candidateRevision);
+        self::assertSame(self::BASE_COMMIT, $after->candidateRevision);
         self::assertCount(1, $after->handoffs);
         self::assertSame('investigate', $after->handoffs[0]->fromStage);
         self::assertSame('build', $after->handoffs[0]->toStage);
+        self::assertSame([$artifactReference], $after->handoffs[0]->artifactReferences);
 
         $duplicate = $gateway->submitStageResult(new StageResult(
             'submission:investigate:1',
@@ -112,13 +129,13 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::COMPLETED,
-            'candidate:one',
-            ['artifact:investigation'],
+            $bundle->candidateRevision,
+            [$artifactReference],
             [],
             'Investigation complete.',
         ));
         self::assertSame('build', $duplicate->currentStageId);
-        self::assertSame('candidate:one', $duplicate->candidateRevision);
+        self::assertSame(self::BASE_COMMIT, $duplicate->candidateRevision);
         self::assertCount(1, $duplicate->handoffs, 'Retrying the same accepted submission must be idempotent.');
     }
 
@@ -140,14 +157,195 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::COMPLETED,
-            'candidate:stale',
+            $bundle->candidateRevision,
             [],
             [],
             'Stale candidate.',
         ));
     }
 
-    public function testClarificationCreatesAttentionAndResumeCreatesANewAttempt(): void
+    public function testForgedCandidateIdentityFailsClosedForReadOnlyStage(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('CANDIDATE_MISMATCH');
+
+        $gateway->submitStageResult(new StageResult(
+            'submission:forged',
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            StageOutcome::COMPLETED,
+            'candidate:forged',
+            [],
+            [],
+            'Forged candidate.',
+        ));
+    }
+
+    public function testMutatingCandidateMustRemainDerivedFromGovernedBase(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $investigate = $gateway->prepareStage('ABC-123', 'investigate');
+        $gateway->submitStageResult(new StageResult(
+            'submission:investigate',
+            $investigate->taskId,
+            $investigate->runId,
+            $investigate->contractRevision,
+            $investigate->executionPlanDigest,
+            $investigate->stageId,
+            $investigate->attempt,
+            StageOutcome::COMPLETED,
+            $investigate->candidateRevision,
+            [],
+            [],
+            'Investigation complete.',
+        ));
+        $build = $gateway->prepareStage('ABC-123', 'build');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('STALE_CANDIDATE');
+
+        $gateway->submitStageResult(new StageResult(
+            'submission:wrong-base',
+            $build->taskId,
+            $build->runId,
+            $build->contractRevision,
+            $build->executionPlanDigest,
+            $build->stageId,
+            $build->attempt,
+            StageOutcome::COMPLETED,
+            'git-worktree-v1:' . str_repeat('2', 40) . ':sha256:' . str_repeat('a', 64),
+            [],
+            [],
+            'Build from wrong base.',
+        ));
+    }
+
+    public function testOwnerEvidenceBoundToAnotherAttemptOrKindFailsClosed(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+        $bundle = $gateway->prepareStage('ABC-123', 'investigate');
+        $store = new ExecutionEvidenceStore($this->root);
+
+        foreach ([ExecutionEvidenceKind::ARTIFACT, ExecutionEvidenceKind::VALIDATION] as $kind) {
+            $reference = $store->record(new ExecutionEvidenceClaim(
+                $bundle->taskId,
+                $bundle->runId,
+                $bundle->contractRevision,
+                $bundle->executionPlanDigest,
+                $bundle->stageId,
+                $bundle->attempt + 1,
+                $bundle->candidateRevision,
+                $kind,
+                'owner:stale:' . $kind->value,
+                'sha256:' . hash('sha256', 'owner:stale:' . $kind->value),
+            ));
+
+            try {
+                $gateway->submitStageResult(new StageResult(
+                    'submission:stale-' . $kind->value,
+                    $bundle->taskId,
+                    $bundle->runId,
+                    $bundle->contractRevision,
+                    $bundle->executionPlanDigest,
+                    $bundle->stageId,
+                    $bundle->attempt,
+                    StageOutcome::COMPLETED,
+                    $bundle->candidateRevision,
+                    $kind === ExecutionEvidenceKind::ARTIFACT ? [$reference] : [],
+                    $kind === ExecutionEvidenceKind::VALIDATION ? [$reference] : [],
+                    'Stale evidence.',
+                ));
+                self::fail('Stale owner evidence must fail closed.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('STALE_EVIDENCE', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testMissingOwnerValidationEvidenceFailsClosedAtDeterministicVerify(): void
+    {
+        $this->prepareSurgicalRun();
+        $gateway = new ExecutionGateway($this->root);
+
+        $investigate = $gateway->prepareStage('ABC-123', 'investigate');
+        $gateway->submitStageResult(new StageResult(
+            'submission:investigate',
+            $investigate->taskId,
+            $investigate->runId,
+            $investigate->contractRevision,
+            $investigate->executionPlanDigest,
+            $investigate->stageId,
+            $investigate->attempt,
+            StageOutcome::COMPLETED,
+            $investigate->candidateRevision,
+            [],
+            [],
+            'Investigation complete.',
+        ));
+
+        $build = $gateway->prepareStage('ABC-123', 'build');
+        $candidate = $build->candidateRevision;
+        $gateway->submitStageResult(new StageResult(
+            'submission:build',
+            $build->taskId,
+            $build->runId,
+            $build->contractRevision,
+            $build->executionPlanDigest,
+            $build->stageId,
+            $build->attempt,
+            StageOutcome::COMPLETED,
+            $candidate,
+            [],
+            [],
+            'Build complete.',
+        ));
+
+        $review = $gateway->prepareStage('ABC-123', 'review');
+        $gateway->submitStageResult(new StageResult(
+            'submission:review',
+            $review->taskId,
+            $review->runId,
+            $review->contractRevision,
+            $review->executionPlanDigest,
+            $review->stageId,
+            $review->attempt,
+            StageOutcome::PASS,
+            $candidate,
+            [],
+            [],
+            'Review passed.',
+        ));
+
+        $verify = $gateway->prepareStage('ABC-123', 'verify');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('MISSING_EVIDENCE');
+        $gateway->submitStageResult(new StageResult(
+            'submission:verify-without-evidence',
+            $verify->taskId,
+            $verify->runId,
+            $verify->contractRevision,
+            $verify->executionPlanDigest,
+            $verify->stageId,
+            $verify->attempt,
+            StageOutcome::PASS,
+            $candidate,
+            [],
+            [],
+            'Verify passed without owner evidence.',
+        ));
+    }
+
+    public function testClarificationRequiresAuthoritativeHumanResolutionBeforeResume(): void
     {
         $this->prepareSurgicalRun();
         $gateway = new ExecutionGateway($this->root);
@@ -162,7 +360,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             $bundle->stageId,
             $bundle->attempt,
             StageOutcome::NEEDS_CLARIFICATION,
-            'candidate:clarify',
+            $bundle->candidateRevision,
             [],
             [],
             'Which compatibility boundary is authoritative?',
@@ -170,14 +368,23 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertNotNull($waiting->attention);
         self::assertSame('investigate', $waiting->currentStageId);
         self::assertSame(1, $waiting->currentAttempt);
-        self::assertSame('candidate:clarify', $waiting->candidateRevision);
+        self::assertSame(self::BASE_COMMIT, $waiting->candidateRevision);
 
         $attention = $waiting->attention;
+        try {
+            $gateway->resolveAttention('ABC-123', $attention->id);
+            self::fail('Runner-facing Attention resolution must require owner authority.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('ATTENTION_RESOLUTION_REQUIRED', $exception->getMessage());
+        }
+
+        $plan = (new ExecutionPlanStore($this->root))->load('ABC-123');
+        (new AttentionResolutionStore($this->root))->record($plan, $attention, 1, 'lars');
         $resumed = $gateway->resolveAttention('ABC-123', $attention->id);
         self::assertNull($resumed->attention);
         self::assertSame('investigate', $resumed->currentStageId);
         self::assertSame(2, $resumed->currentAttempt);
-        self::assertSame('candidate:clarify', $resumed->candidateRevision);
+        self::assertSame(self::BASE_COMMIT, $resumed->candidateRevision);
     }
 
     public function testExecutionProfileCannotChangeAfterRunExists(): void

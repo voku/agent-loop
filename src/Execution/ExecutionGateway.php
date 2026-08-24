@@ -93,6 +93,60 @@ final readonly class ExecutionGateway
         );
     }
 
+    /** @return non-empty-string */
+    public function recordStageCandidate(StageCandidateObservation $observation): string
+    {
+        [, , $plan] = $this->current($observation->taskId);
+        $stage = $plan->stage($observation->stageId);
+        if ($stage->kind !== ExecutionStageKind::AGENT || !$stage->mayMutate) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: external candidate observations are accepted only for mutating agent stages.');
+        }
+
+        $claim = new ExecutionEvidenceClaim(
+            $observation->taskId,
+            $observation->runId,
+            $observation->contractRevision,
+            $observation->executionPlanDigest,
+            $observation->stageId,
+            $observation->attempt,
+            $observation->candidateRevision,
+            ExecutionEvidenceKind::CANDIDATE,
+            $observation->previousCandidateRevision,
+            'sha256:' . hash('sha256', $observation->previousCandidateRevision . "\0" . $observation->candidateRevision),
+        );
+        $state = new ExecutionStateStore($this->rootPath);
+        $state->assertEvidenceClaim($plan, $claim);
+
+        return (new ExecutionEvidenceStore($this->rootPath))->record($claim);
+    }
+
+    /** @return non-empty-string */
+    public function recordStageArtifact(StageArtifactObservation $observation): string
+    {
+        [, , $plan] = $this->current($observation->taskId);
+        $stage = $plan->stage($observation->stageId);
+        if ($stage->kind !== ExecutionStageKind::AGENT) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact observations are accepted only for agent stages.');
+        }
+
+        $claim = new ExecutionEvidenceClaim(
+            $observation->taskId,
+            $observation->runId,
+            $observation->contractRevision,
+            $observation->executionPlanDigest,
+            $observation->stageId,
+            $observation->attempt,
+            $observation->candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            $observation->sourceReference,
+            $observation->sourceDigest,
+        );
+        $state = new ExecutionStateStore($this->rootPath);
+        $state->assertEvidenceClaim($plan, $claim);
+
+        return (new ExecutionEvidenceStore($this->rootPath))->record($claim);
+    }
+
     public function submitStageResult(StageResult $result): ExecutionProjection
     {
         [, , $plan] = $this->current($result->taskId);
@@ -121,6 +175,20 @@ final readonly class ExecutionGateway
             $output = (string) ob_get_clean();
         }
 
+        $command = 'agent-loop verify --task-id=' . $taskId;
+        $validationReference = (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $bundle->candidateRevision,
+            ExecutionEvidenceKind::VALIDATION,
+            $command,
+            'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
+        ));
+
         return $this->submitStageResult(new StageResult(
             $this->deterministicSubmissionId($bundle),
             $bundle->taskId,
@@ -132,7 +200,7 @@ final readonly class ExecutionGateway
             $exit === 0 ? StageOutcome::PASS : StageOutcome::FAILED,
             $bundle->candidateRevision,
             [],
-            ['agent-loop verify --task-id=' . $taskId],
+            [$validationReference],
             trim($output),
         ));
     }

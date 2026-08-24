@@ -30,6 +30,7 @@ final readonly class WorkflowCli
             'plan' => (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
             'execution-profile' => (new WorkflowExecutionProfileCommand($this->rootPath))->run($rest),
+            'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
@@ -52,6 +53,7 @@ Usage:
   agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
   agent-loop workflow approve <task-id> --by <actor>
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
+  agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor>
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
   agent-loop workflow status <task-id> [--format text|json|toon] [--expect blocked|experiment|incomplete|ready_to_close|complete]
@@ -68,6 +70,7 @@ Commands:
   plan               Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
   approve            Approve the exact Contract revision only; deterministic Run/Session/Recall preparation belongs to `agent-loop enter`.
   execution-profile  Select the explicit execution topology for an approved Contract before its Run exists; absent selection means manual.
+  attention          Resolve pending human-owned execution Attention through an explicit actor-owned workflow transition; runner-facing APIs cannot manufacture this authority.
   contract           Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
   status             Show the read-only cross-package Run projection and one next action; --expect makes an exact state CI-assertable.
   manifest           Inspect or atomically persist the cross-package Run projection.
@@ -91,7 +94,7 @@ Governed flow:
   PLAN -> APPROVE -> EXECUTION PROFILE (optional; default manual) -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
 
 Ownership:
-  Contract/approval, execution topology, and Run lifecycle are durable agent-loop state.
+  Contract/approval, execution topology, Attention resolution, and Run lifecycle are durable agent-loop state.
   Session is pruneable working memory and raw run-local observations; the current governed Run supplies the exact Session identity used by handoff.
   Recall owns deterministic briefing/verification-plan artifacts and the bundled `todo-card-handoff` L2 recipe.
   agent-learning owns durable Learning close-out and guidance evolution.
