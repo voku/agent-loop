@@ -319,6 +319,7 @@ final readonly class StageResultEvidenceStore
         if (!is_array($value)) {
             throw new RuntimeException('STALE_EVIDENCE: authoritative ' . $label . ' must be an object.');
         }
+        /** @var array<non-empty-string, non-empty-string> $result */
         $result = [];
         foreach ($value as $key => $item) {
             if (!is_string($key) || !is_string($item)) {
@@ -341,6 +342,7 @@ final readonly class StageResultEvidenceStore
         if (!is_array($value)) {
             throw new RuntimeException('STALE_EVIDENCE: authoritative ' . $label . ' must be an object.');
         }
+        /** @var array<non-empty-string, int> $result */
         $result = [];
         foreach ($value as $key => $item) {
             if (!is_string($key) || !is_int($item)) {
