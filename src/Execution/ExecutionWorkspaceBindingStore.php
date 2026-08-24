@@ -66,6 +66,9 @@ final readonly class ExecutionWorkspaceBindingStore
     public function load(string $taskId, string $stageId, int $attempt): ExecutionWorkspaceBinding
     {
         $path = $this->path($taskId, $stageId, $attempt);
+        if (!is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('STALE_WORKSPACE: owner workspace binding is missing for the stage attempt.');
+        }
         $json = file_get_contents($path);
         if (!is_string($json)) {
             throw new RuntimeException('STALE_WORKSPACE: owner workspace binding is missing for the stage attempt.');
