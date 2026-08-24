@@ -43,7 +43,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
         yield 'run' => ['runId', 'run:other'];
         yield 'contract revision' => ['contractRevision', 2];
         yield 'plan' => ['executionPlanDigest', 'sha256:' . str_repeat('f', 64)];
-        yield 'stage' => ['stageId', 'review'];
+        yield 'stage' => ['stageId', 'other-stage'];
         yield 'attempt' => ['attempt', 2];
         yield 'candidate' => ['candidateRevision', 'candidate:other'];
     }
@@ -53,24 +53,20 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
     {
         $plan = $this->plan();
         $state = $this->state($plan);
-        $claimData = [
-            'taskId' => $plan->taskId,
-            'runId' => $plan->runId,
-            'contractRevision' => $plan->contractRevision,
-            'executionPlanDigest' => $plan->digest(),
-            'stageId' => 'review',
-            'attempt' => 1,
-            'candidateRevision' => $state->candidateRevision,
-        ];
-        $claimData[$field] = $value;
+        $runId = $field === 'runId' ? (string) $value : $plan->runId;
+        $contractRevision = $field === 'contractRevision' ? (int) $value : $plan->contractRevision;
+        $executionPlanDigest = $field === 'executionPlanDigest' ? (string) $value : $plan->digest();
+        $stageId = $field === 'stageId' ? (string) $value : 'review';
+        $attempt = $field === 'attempt' ? (int) $value : 1;
+        $candidateRevision = $field === 'candidateRevision' ? (string) $value : $state->candidateRevision;
         $claim = new ExecutionEvidenceClaim(
-            $claimData['taskId'],
-            $claimData['runId'],
-            $claimData['contractRevision'],
-            $claimData['executionPlanDigest'],
-            $claimData['stageId'],
-            $claimData['attempt'],
-            $claimData['candidateRevision'],
+            $plan->taskId,
+            $runId,
+            $contractRevision,
+            $executionPlanDigest,
+            $stageId,
+            $attempt,
+            $candidateRevision,
             ExecutionEvidenceKind::ARTIFACT,
             'artifact:report',
             'sha256:' . hash('sha256', 'artifact:report'),
