@@ -77,6 +77,9 @@ final readonly class ExecutionStageResultAuthority
         }
 
         $this->assertCandidate($plan, $state, $stage, $claim->candidateRevision);
+        if ($claim->kind === ExecutionEvidenceKind::ARTIFACT) {
+            $this->assertArtifactClaim($plan, $claim);
+        }
     }
 
     private function assertCandidateClaim(
@@ -185,6 +188,89 @@ final readonly class ExecutionStageResultAuthority
         if ($exit !== 0 || trim(is_string($stdout) ? $stdout : '') !== 'tree') {
             throw new RuntimeException('STALE_CANDIDATE: candidate Git object is missing or is not a tree: ' . trim(is_string($stderr) ? $stderr : ''));
         }
+    }
+
+    private function assertArtifactClaim(ExecutionPlan $plan, ExecutionEvidenceClaim $claim): void
+    {
+        $prefix = 'workspace-file:';
+        if (!str_starts_with($claim->sourceReference, $prefix)) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a workspace file.');
+        }
+        $relativePath = substr($claim->sourceReference, strlen($prefix));
+        if ($relativePath === ''
+            || str_starts_with($relativePath, '/')
+            || str_contains($relativePath, "\0")
+            || str_contains($relativePath, '\\')) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: artifact evidence uses an invalid workspace-relative path.');
+        }
+        foreach (explode('/', $relativePath) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new RuntimeException('EVIDENCE_MISMATCH: artifact evidence uses an unsafe workspace-relative path.');
+            }
+        }
+
+        $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
+        $root = realpath($this->rootPath);
+        if (!is_string($root)) {
+            throw new RuntimeException('STALE_EVIDENCE: repository root cannot be resolved for artifact verification.');
+        }
+        $process = proc_open(
+            ['git', 'cat-file', 'blob', $treeish . ':' . $relativePath],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('MISSING_EVIDENCE: unable to inspect artifact in the governed candidate.');
+        }
+        fclose($pipes[0]);
+        $hash = hash_init('sha256');
+        while (!feof($pipes[1])) {
+            $chunk = fread($pipes[1], 1024 * 1024);
+            if ($chunk === false) {
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_terminate($process);
+                proc_close($process);
+                throw new RuntimeException('MISSING_EVIDENCE: unable to read artifact from the governed candidate.');
+            }
+            hash_update($hash, $chunk);
+        }
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0) {
+            throw new RuntimeException('MISSING_EVIDENCE: artifact is not present as a Git blob in the governed candidate: ' . trim(is_string($stderr) ? $stderr : ''));
+        }
+        $actualDigest = 'sha256:' . hash_final($hash);
+        if (!hash_equals($actualDigest, $claim->sourceDigest)) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: artifact digest does not match the governed candidate content.');
+        }
+    }
+
+    private function candidateTreeish(ExecutionPlan $plan, string $candidateRevision): string
+    {
+        $baseCommit = $plan->baseCommit;
+        if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
+            throw new RuntimeException('STALE_EVIDENCE: artifact evidence has no exact governed Git base.');
+        }
+        if (hash_equals($baseCommit, $candidateRevision)) {
+            return $baseCommit;
+        }
+        if (preg_match(
+            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $candidateRevision,
+            $matches,
+        ) !== 1) {
+            throw new RuntimeException('STALE_EVIDENCE: artifact evidence candidate is not bound to the governed Git base.');
+        }
+
+        return $matches[1];
     }
 
     /** @return non-empty-string */
