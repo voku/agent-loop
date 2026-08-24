@@ -61,10 +61,13 @@ final readonly class StageResultEvidenceStore
         ExecutionPlan $plan,
         ExecutionProjection $projection,
         StageResult $result,
+        int $validationExitCode,
     ): StageResultEvidence {
         if ($projection->currentStageId !== $result->stageId || $projection->currentAttempt !== $result->attempt) {
             throw new RuntimeException('TRANSITION_REJECTED: deterministic StageResult evidence is stale for the current stage/attempt.');
         }
+        $validation = array_fill_keys($result->validationReferences, $validationExitCode);
+        ksort($validation, SORT_STRING);
         $evidence = new StageResultEvidence(
             $result->submissionId,
             $result->taskId,
@@ -76,7 +79,7 @@ final readonly class StageResultEvidenceStore
             $result->candidateRevision,
             'owner:deterministic',
             [],
-            array_fill_keys($result->validationReferences, 0),
+            $validation,
             gmdate(DATE_ATOM),
         );
         $path = $this->path($result->taskId, $result->submissionId);
@@ -100,9 +103,16 @@ final readonly class StageResultEvidenceStore
             || !hash_equals($evidence->candidateRevision, $result->candidateRevision)) {
             throw new RuntimeException('STALE_EVIDENCE: authoritative StageResult evidence does not match submitted result.');
         }
-        if (array_keys($evidence->artifactDigests) !== $result->artifactReferences
-            || array_keys($evidence->validationExitCodes) !== $result->validationReferences) {
+        if ($this->canonicalReferences(array_keys($evidence->artifactDigests)) !== $this->canonicalReferences($result->artifactReferences)
+            || $this->canonicalReferences(array_keys($evidence->validationExitCodes)) !== $this->canonicalReferences($result->validationReferences)) {
             throw new RuntimeException('STALE_EVIDENCE: authoritative StageResult references do not match submitted result.');
+        }
+        if ($result->outcome === StageOutcome::PASS) {
+            foreach ($evidence->validationExitCodes as $exitCode) {
+                if ($exitCode !== 0) {
+                    throw new RuntimeException('STALE_EVIDENCE: deterministic PASS requires successful validation evidence.');
+                }
+            }
         }
 
         return $evidence;
@@ -134,6 +144,9 @@ final readonly class StageResultEvidenceStore
     public function load(string $taskId, string $submissionId): StageResultEvidence
     {
         $path = $this->path($taskId, $submissionId);
+        if (!is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('MISSING_EVIDENCE: authoritative StageResult evidence is missing.');
+        }
         $json = file_get_contents($path);
         if (!is_string($json)) {
             throw new RuntimeException('MISSING_EVIDENCE: authoritative StageResult evidence is missing.');
@@ -231,6 +244,7 @@ final readonly class StageResultEvidenceStore
             }
             $digests[$reference] = 'sha256:' . $digest;
         }
+        ksort($digests, SORT_STRING);
 
         return $digests;
     }
@@ -257,6 +271,7 @@ final readonly class StageResultEvidenceStore
                 throw new RuntimeException('TRANSITION_REJECTED: validation evidence failed for current candidate: ' . $command);
             }
         }
+        ksort($exitCodes, SORT_STRING);
 
         return $exitCodes;
     }
@@ -279,6 +294,17 @@ final readonly class StageResultEvidenceStore
         }
 
         return proc_close($process);
+    }
+
+    /**
+     * @param list<non-empty-string> $references
+     * @return list<non-empty-string>
+     */
+    private function canonicalReferences(array $references): array
+    {
+        sort($references, SORT_STRING);
+
+        return $references;
     }
 
     private function path(string $taskId, string $submissionId): string
@@ -332,6 +358,7 @@ final readonly class StageResultEvidenceStore
             }
             $result[$normalizedKey] = $normalizedItem;
         }
+        ksort($result, SORT_STRING);
 
         return $result;
     }
@@ -354,6 +381,7 @@ final readonly class StageResultEvidenceStore
             }
             $result[$normalizedKey] = $item;
         }
+        ksort($result, SORT_STRING);
 
         return $result;
     }
