@@ -183,21 +183,7 @@ final readonly class StageResultEvidenceStore
 
     private function planFor(string $taskId): ExecutionPlan
     {
-        $path = (new ProjectLayout($this->rootPath))->executionPlanPath($taskId);
-        $json = file_get_contents($path);
-        if (!is_string($json)) {
-            throw new RuntimeException('STALE_EVIDENCE: governed execution plan is missing.');
-        }
-        try {
-            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('Invalid governed execution plan JSON: ' . $path, 0, $exception);
-        }
-        if (!is_array($data)) {
-            throw new RuntimeException('Invalid governed execution plan record: ' . $path);
-        }
-
-        return ExecutionPlanStore::fromArray($data);
+        return (new ExecutionPlanStore($this->rootPath))->load($taskId);
     }
 
     /** @param list<string> $references
