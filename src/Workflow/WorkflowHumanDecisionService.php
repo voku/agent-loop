@@ -9,15 +9,16 @@ use voku\AgentLearning\RunLearningDecision;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
 /**
  * Typed human-authority boundary shared by non-CLI adapters.
  *
- * This service records explicit human decisions through the same owning stores
- * used by the workflow CLI. It does not advance deterministic lifecycle work or
- * infer which decision should happen next.
+ * This service projects currently recordable human decisions and records them
+ * through the same owning stores used by the workflow CLI. It never runs
+ * deterministic lifecycle work or invents a next action.
  */
 final readonly class WorkflowHumanDecisionService
 {
@@ -25,9 +26,53 @@ final readonly class WorkflowHumanDecisionService
     {
     }
 
+    public function availableActions(string $taskId): WorkflowHumanDecisionProjection
+    {
+        $task = new WorkflowTaskId($taskId);
+        $contract = (new TaskContractStore($this->rootPath))->find($task->value);
+        if ($contract === null) {
+            return new WorkflowHumanDecisionProjection($task->value, [], null);
+        }
+        if ($contract->status === TaskContract::CANDIDATE) {
+            return new WorkflowHumanDecisionProjection(
+                $task->value,
+                [WorkflowHumanDecisionProjection::APPROVE_CONTRACT],
+                null,
+            );
+        }
+
+        $manifest = (new RunManifestProjector($this->rootPath))->project($task->value);
+        $reviewState = $manifest->references['review']['state'] ?? null;
+        if ($reviewState === 'unacknowledged') {
+            $review = (new WorkflowReviewReportReader($this->rootPath))->read($task->value);
+            $sha256 = $review['sha256'];
+
+            return new WorkflowHumanDecisionProjection(
+                $task->value,
+                is_string($sha256) ? [WorkflowHumanDecisionProjection::ACKNOWLEDGE_REVIEW] : [],
+                is_string($sha256) ? $sha256 : null,
+            );
+        }
+        if (
+            in_array($reviewState, ['ok', 'warn'], true)
+            && ($manifest->references['learning']['state'] ?? null) !== 'decided'
+        ) {
+            return new WorkflowHumanDecisionProjection(
+                $task->value,
+                [WorkflowHumanDecisionProjection::RECORD_LEARNING],
+                null,
+            );
+        }
+
+        return new WorkflowHumanDecisionProjection($task->value, [], null);
+    }
+
     public function approveContract(string $taskId, string $approvedBy): TaskContract
     {
         $task = new WorkflowTaskId($taskId);
+        if (!$this->availableActions($task->value)->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {
+            throw new RuntimeException('Contract approval is not a currently available human action.');
+        }
 
         return (new TaskContractStore($this->rootPath))->approve($task->value, $approvedBy);
     }
@@ -40,6 +85,15 @@ final readonly class WorkflowHumanDecisionService
         $task = new WorkflowTaskId($taskId);
         if (preg_match('/^sha256:[a-f0-9]{64}$/', $reportSha256) !== 1) {
             throw new RuntimeException('Review acknowledgement requires a sha256:<64 lowercase hex> report identity.');
+        }
+
+        $available = $this->availableActions($task->value);
+        if (
+            !$available->allows(WorkflowHumanDecisionProjection::ACKNOWLEDGE_REVIEW)
+            || $available->reviewReportSha256 === null
+            || !hash_equals($available->reviewReportSha256, $reportSha256)
+        ) {
+            throw new RuntimeException('Review acknowledgement is not available for that exact current report.');
         }
 
         [$contract, $run, $session] = $this->currentRunContext($task->value);
@@ -77,6 +131,10 @@ final readonly class WorkflowHumanDecisionService
         ?string $followUpRef = null,
     ): RunLearningDecision {
         $task = new WorkflowTaskId($taskId);
+        if (!$this->availableActions($task->value)->allows(WorkflowHumanDecisionProjection::RECORD_LEARNING)) {
+            throw new RuntimeException('Learning disposition is not a currently available human action.');
+        }
+
         [$contract, $run, $session] = $this->currentRunContext($task->value);
 
         return (new WorkflowLearningRecorder($this->rootPath))->record(

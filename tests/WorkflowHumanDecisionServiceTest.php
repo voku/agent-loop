@@ -8,11 +8,12 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowHumanDecisionProjection;
 use voku\AgentLoop\Workflow\WorkflowHumanDecisionService;
 
 final class WorkflowHumanDecisionServiceTest extends TestCase
 {
-    public function testApprovesCandidateContractThroughOwnerStore(): void
+    public function testProjectsAndRecordsCandidateContractApprovalThroughOwnerStore(): void
     {
         $root = $this->root('approve');
 
@@ -26,12 +27,27 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
                 ['vendor/bin/phpunit'],
                 'planner',
             );
+            $service = new WorkflowHumanDecisionService($root);
 
-            $approved = (new WorkflowHumanDecisionService($root))->approveContract('UI-1', 'lars');
+            $available = $service->availableActions('UI-1');
+            self::assertSame([WorkflowHumanDecisionProjection::APPROVE_CONTRACT], $available->actions);
+
+            $approved = $service->approveContract('UI-1', 'lars');
 
             self::assertSame(TaskContract::APPROVED, $approved->status);
             self::assertSame('lars', $approved->approvedBy);
             self::assertSame(TaskContract::APPROVED, $contracts->load('UI-1')->status);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testProjectsNoHumanActionForMissingContract(): void
+    {
+        $root = $this->root('missing');
+
+        try {
+            self::assertSame([], (new WorkflowHumanDecisionService($root))->availableActions('UI-1')->actions);
         } finally {
             $this->removeDirectory($root);
         }
