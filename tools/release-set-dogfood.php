@@ -19,8 +19,8 @@ use voku\AgentLoop\Dogfood\ReleaseSetCandidateSelection;
 // Loaded directly rather than through the autoloader, for the same reason as
 // the other candidate runner: these gates run against a checkout whose own
 // dependencies may not be installed.
-require dirname(__DIR__) . '/src/Dogfood/MinimumReleasePin.php';
-require dirname(__DIR__) . '/src/Dogfood/ReleaseSetCandidateSelection.php';
+require dirname(__DIR__) . '/tools/Dogfood/MinimumReleasePin.php';
+require dirname(__DIR__) . '/tools/Dogfood/ReleaseSetCandidateSelection.php';
 
 final class ReleaseSetFailure extends RuntimeException
 {
