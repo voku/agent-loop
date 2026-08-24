@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.2 - 2026-08-24
+
+### Fixed
+
+- Mutation-authorized governed runs now return a `host_work` next action before
+  finish-owned validation and blind-spot review. This prevents `finish` from
+  producing a pre-change review report and requiring its acknowledgement before
+  the approved implementation can begin.
+
 ## 0.17.1 - 2026-08-23
 
 ### Changed
