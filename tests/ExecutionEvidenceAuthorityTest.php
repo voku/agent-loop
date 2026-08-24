@@ -79,7 +79,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
             $plan,
             $state,
             $plan->stage('review'),
-            $this->result($plan, $state, [$reference], []),
+            $this->stageResult($plan, $state, [$reference], []),
         );
     }
 
@@ -94,7 +94,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
             $plan,
             $state,
             $plan->stage('review'),
-            $this->result($plan, $state, ['model:claimed-artifact'], []),
+            $this->stageResult($plan, $state, ['model:claimed-artifact'], []),
         );
     }
 
@@ -109,7 +109,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
             $plan,
             $state,
             $plan->stage('review'),
-            $this->result($plan, $state, [], ['model:tests-pass']),
+            $this->stageResult($plan, $state, [], ['model:tests-pass']),
         );
     }
 
@@ -134,7 +134,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
             $plan,
             $state,
             $plan->stage('review'),
-            $this->result($plan, $state, [$reference], []),
+            $this->stageResult($plan, $state, [$reference], []),
         );
         self::addToAssertionCount(1);
     }
@@ -183,7 +183,7 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
      * @param list<non-empty-string> $artifactReferences
      * @param list<non-empty-string> $validationReferences
      */
-    private function result(
+    private function stageResult(
         ExecutionPlan $plan,
         ExecutionState $state,
         array $artifactReferences,
