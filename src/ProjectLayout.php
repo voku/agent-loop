@@ -40,7 +40,7 @@ final readonly class ProjectLayout
 
     public function boardRoot(): string
     {
-        return $this->stateRoot();
+        return $this->configured('board_root') ?? (is_dir($this->projectRoot() . '/todo') ? $this->projectRoot() : $this->stateRoot());
     }
 
     public function tasksRoot(): string

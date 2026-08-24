@@ -166,6 +166,13 @@ final readonly class RunPolicyEvaluator
                 'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
             ];
         }
+        if ($this->mutationAllowed($state, $mode, $references, $disagreements)) {
+            return [
+                'action' => 'perform the approved host-native implementation for ' . $taskId
+                    . ' before calling agent-loop finish ' . $taskId,
+                'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+            ];
+        }
 
         $action = $this->nextAction($taskId, $state, $mode, $references, $disagreements);
         if ($action === 'none') {

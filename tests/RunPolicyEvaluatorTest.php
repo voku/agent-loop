@@ -104,7 +104,7 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertSame('agent-loop enter ABC-123', $policy->nextAction);
     }
 
-    public function testGovernedRunAuthorizesMutationButSurfacesDeterministicValidationFirst(): void
+    public function testGovernedRunAuthorizesHostWorkBeforeValidationAndReview(): void
     {
         $references = $this->references(
             contract: 'approved',
@@ -124,7 +124,8 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertSame('incomplete', $policy->state);
         self::assertTrue($policy->mutationAllowed);
         self::assertFalse($policy->ordinaryCloseAllowed);
-        self::assertSame('agent-loop finish ABC-123', $policy->nextAction);
+        self::assertSame('host_work', $policy->nextActionKind);
+        self::assertStringContainsString('approved host-native implementation', $policy->nextAction);
     }
 
     public function testReadyToCloseNeverReopensMutation(): void

@@ -176,6 +176,22 @@ final class InitConfigLoaderTest extends TestCase
         }
     }
 
+    public function testLoadsClaudeHooksRootPath(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'paths' => [
+                'claude_hooks_root' => 'infra/doc/agents/claude-hooks',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame('infra/doc/agents/claude-hooks', $config['paths']['claude_hooks_root']);
+        self::assertSame([], $config['warnings']);
+    }
+
     private function tempDir(): string
     {
         $directory = sys_get_temp_dir() . '/agent-loop-init-config-' . bin2hex(random_bytes(6));

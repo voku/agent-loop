@@ -72,11 +72,13 @@ final readonly class InitConfigLoader
                 'skills_root',
                 'subagents_root',
                 'codex_hooks_root',
+                'claude_hooks_root',
                 'tools_root',
                 // Workflow state locations. state_root moves the whole tree at
                 // once; the rest override one branch of it independently, which
                 // is what a project that grew its own conventions actually needs.
                 'state_root',
+                'board_root',
                 'sessions_root',
                 'learning_root',
                 'recall_root',
