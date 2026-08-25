@@ -6,7 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
 use RuntimeException;
-use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 
 /**
  * Typed, mutation-free owner projection for repository/host setup state.
@@ -20,6 +20,44 @@ final readonly class RepositorySetupService
         private string $rootPath,
         private ?HostRuntimeProbe $runtimeProbe = null,
     ) {
+    }
+
+    /**
+     * Typed repository diagnostics: PHP, Composer, Git, Git integration, make
+     * targets, source assets, host runtime and capabilities, managed-asset
+     * drift and optional hooks.
+     *
+     * Mutation-free. `init doctor` renders exactly this.
+     */
+    public function diagnostics(?AgentAssetSourcePaths $paths = null): RepositorySetupDiagnostics
+    {
+        return (new RepositorySetupDiagnosticsInspector($this->rootPath, $this->runtimeProbe))
+            ->inspect($paths ?? $this->defaultSourcePaths());
+    }
+
+    /**
+     * Drift classification for every (host, asset kind) target this repository
+     * projects into.
+     *
+     * @return list<ManagedAssetDriftProjection>
+     */
+    public function managedAssetDrift(?AgentAssetSourcePaths $paths = null): array
+    {
+        return (new ManagedAssetDriftProjector())->project(
+            new ManagedAssetTargetCatalog($this->rootPath),
+            $paths ?? $this->defaultSourcePaths(),
+        );
+    }
+
+    private function defaultSourcePaths(): AgentAssetSourcePaths
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $canonicalConfig = $layout->configPath();
+        $config = (new InitConfigLoader($this->rootPath))->load(
+            is_file($canonicalConfig) ? $layout->display($canonicalConfig) : null,
+        );
+
+        return AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], []);
     }
 
     public function overview(?string $requestedAgent = null): RepositorySetupProjection
@@ -223,12 +261,7 @@ final readonly class RepositorySetupService
             throw new RuntimeException('Bundled subagents root is missing: ' . $root);
         }
 
-        $suffix = match ($host) {
-            'codex' => '.toml',
-            'copilot' => '.agent.md',
-            'claude', 'opencode', 'gemini', 'antigravity' => '.md',
-            default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
-        };
+        $suffix = (new ManagedAssetTargetCatalog($this->rootPath))->subagentSuffix($host);
         $entries = [];
         foreach (scandir($root) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
@@ -330,29 +363,11 @@ final readonly class RepositorySetupService
 
     private function skillsRoot(string $host): string
     {
-        return match ($host) {
-            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_SKILLS_DIR')
-                ?? (($home = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $home . '/skills' : $this->rootPath . '/.codex/skills'),
-            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
-            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_SKILLS_DIR') ?? $this->rootPath . '/.opencode/skills',
-            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
-            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
-            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
-            default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
-        };
+        return (new ManagedAssetTargetCatalog($this->rootPath))->skillsTargetRoot($host);
     }
 
     private function subagentsRoot(string $host): string
     {
-        return match ($host) {
-            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
-                ?? (($home = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $home . '/agents' : $this->rootPath . '/.codex/agents'),
-            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
-            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_AGENTS_DIR') ?? $this->rootPath . '/.opencode/agents',
-            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
-            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
-            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
-            default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
-        };
+        return (new ManagedAssetTargetCatalog($this->rootPath))->subagentsTargetRoot($host);
     }
 }

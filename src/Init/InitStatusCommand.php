@@ -161,9 +161,10 @@ final readonly class InitStatusCommand
     /** @return list<string> */
     private function projectedSkillAgents(): array
     {
+        $catalog = new ManagedAssetTargetCatalog($this->rootPath);
         $agents = [];
         foreach (InitAgent::canonicalNames() as $agent) {
-            $manifestPath = rtrim($this->resolveSkillsTargetRoot($agent), '/') . '/' . InitSyncManifest::fileName();
+            $manifestPath = rtrim($catalog->skillsTargetRoot($agent), '/') . '/' . InitSyncManifest::fileName();
             if (is_file($manifestPath)) {
                 $agents[] = $agent;
             }
@@ -175,47 +176,42 @@ final readonly class InitStatusCommand
     /** @return list<InitCheckResult> */
     private function buildSourceResults(AgentAssetSourcePaths $paths): array
     {
+        $catalog = new ManagedAssetTargetCatalog($this->rootPath);
         $hooksRoot = $paths->absoluteHooksRoot();
         $hooksJsonExists = is_file($hooksRoot . '/hooks.json');
-        $hookScriptsCount = count($this->findHookScriptFiles($hooksRoot));
+        $hookScriptsCount = count($catalog->hookScriptFiles($hooksRoot));
 
         return [
-            InitCheckResult::ok('skills-root: ' . $paths->skillsRoot() . ' (' . count($this->findSkillSourceEntries($paths)) . ' skill(s))'),
-            InitCheckResult::ok('subagents-root: ' . $paths->subagentsRoot() . ' (' . count($this->findSubagentSourceFiles($paths)) . ' file(s))'),
+            InitCheckResult::ok('skills-root: ' . $paths->skillsRoot() . ' (' . count($catalog->skillSourceEntries($paths)) . ' skill(s))'),
+            InitCheckResult::ok('subagents-root: ' . $paths->subagentsRoot() . ' (' . count($catalog->subagentSourceFiles($paths)) . ' file(s))'),
             InitCheckResult::ok('hooks-root: ' . $paths->hooksRoot() . ' (hooks.json: ' . ($hooksJsonExists ? 'yes' : 'no') . ', scripts: ' . $hookScriptsCount . ')'),
             InitCheckResult::info('tools-root: ' . $paths->toolsRoot() . ' (' . (is_dir($paths->absoluteToolsRoot()) ? 'found' : 'missing') . ')'),
         ];
     }
 
     /**
+     * The projection targets this repository owns.
+     *
+     * Root and expected-entry resolution lives in
+     * {@see ManagedAssetTargetCatalog} so `init status`, the typed setup
+     * projection, and the drift projector cannot drift apart from each other.
+     *
      * @return list<array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null}>
      */
     private function buildManifestTargets(AgentAssetSourcePaths $paths): array
     {
-        $skillsDesiredEntries = $this->findSkillSourceEntries($paths);
-        foreach (FirstPartySkillRoots::recallSkillEntries() as $recallEntry) {
-            if (!in_array($recallEntry, $skillsDesiredEntries, true)) {
-                $skillsDesiredEntries[] = $recallEntry;
-            }
+        $targets = [];
+        foreach ((new ManagedAssetTargetCatalog($this->rootPath))->targets($paths) as $target) {
+            $targets[] = [
+                'label' => $target->label,
+                'targetRoot' => $target->targetRoot,
+                'kind' => $target->kind->value,
+                'agent' => $target->host,
+                'desiredEntries' => $target->desiredEntries(),
+            ];
         }
-        sort($skillsDesiredEntries);
 
-        return [
-            ['label' => 'codex skills', 'targetRoot' => $this->resolveSkillsTargetRoot('codex'), 'kind' => 'skills', 'agent' => 'codex', 'desiredEntries' => $skillsDesiredEntries],
-            ['label' => 'claude skills', 'targetRoot' => $this->resolveSkillsTargetRoot('claude'), 'kind' => 'skills', 'agent' => 'claude', 'desiredEntries' => $skillsDesiredEntries],
-            ['label' => 'opencode skills', 'targetRoot' => $this->resolveSkillsTargetRoot('opencode'), 'kind' => 'skills', 'agent' => 'opencode', 'desiredEntries' => $skillsDesiredEntries],
-            ['label' => 'copilot skills', 'targetRoot' => $this->resolveSkillsTargetRoot('copilot'), 'kind' => 'skills', 'agent' => 'copilot', 'desiredEntries' => $skillsDesiredEntries],
-            ['label' => 'gemini skills', 'targetRoot' => $this->resolveSkillsTargetRoot('gemini'), 'kind' => 'skills', 'agent' => 'gemini', 'desiredEntries' => $skillsDesiredEntries],
-            ['label' => 'antigravity skills', 'targetRoot' => $this->resolveSkillsTargetRoot('antigravity'), 'kind' => 'skills', 'agent' => 'antigravity', 'desiredEntries' => $skillsDesiredEntries],
-            ['label' => 'codex subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('codex'), 'kind' => 'subagents', 'agent' => 'codex', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.toml')],
-            ['label' => 'claude subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('claude'), 'kind' => 'subagents', 'agent' => 'claude', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
-            ['label' => 'opencode subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('opencode'), 'kind' => 'subagents', 'agent' => 'opencode', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
-            ['label' => 'copilot subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('copilot'), 'kind' => 'subagents', 'agent' => 'copilot', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.agent.md')],
-            ['label' => 'gemini subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('gemini'), 'kind' => 'subagents', 'agent' => 'gemini', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
-            ['label' => 'antigravity subagents', 'targetRoot' => $this->resolveSubagentsTargetRoot('antigravity'), 'kind' => 'subagents', 'agent' => 'antigravity', 'desiredEntries' => $this->subagentsDesiredEntries($paths, '.md')],
-            ['label' => 'codex hooks', 'targetRoot' => $this->resolveHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'codex', 'desiredEntries' => $this->hooksDesiredEntries($paths)],
-            ['label' => 'claude hooks', 'targetRoot' => $this->resolveClaudeHooksTargetRoot(), 'kind' => 'hooks', 'agent' => 'claude', 'desiredEntries' => $this->claudeHooksDesiredEntries($paths)],
-        ];
+        return $targets;
     }
 
     /**
@@ -354,186 +350,6 @@ final readonly class InitStatusCommand
         }
 
         return $lines;
-    }
-
-    /** @return list<string> */
-    private function findSkillSourceEntries(AgentAssetSourcePaths $paths): array
-    {
-        $skillsRoot = $paths->absoluteSkillsRoot();
-        if (!is_dir($skillsRoot)) {
-            return [];
-        }
-
-        $entries = [];
-        foreach (scandir($skillsRoot) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-
-            if (is_file($skillsRoot . '/' . $entry . '/SKILL.md')) {
-                $entries[] = $entry;
-            }
-        }
-
-        sort($entries);
-
-        return $entries;
-    }
-
-    /** @return list<string> */
-    private function findSubagentSourceFiles(AgentAssetSourcePaths $paths): array
-    {
-        $subagentsRoot = $paths->absoluteSubagentsRoot();
-        if (!is_dir($subagentsRoot)) {
-            return [];
-        }
-
-        $files = [];
-        foreach (scandir($subagentsRoot) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
-                continue;
-            }
-
-            if (is_file($subagentsRoot . '/' . $entry)) {
-                $files[] = $entry;
-            }
-        }
-
-        sort($files);
-
-        return $files;
-    }
-
-    /** @return list<string> */
-    private function subagentsDesiredEntries(AgentAssetSourcePaths $paths, string $targetSuffix): array
-    {
-        $entries = [];
-        foreach ($this->findSubagentSourceFiles($paths) as $file) {
-            $entries[] = substr($file, 0, -3) . $targetSuffix;
-        }
-
-        sort($entries);
-
-        return $entries;
-    }
-
-    /** @return list<string> */
-    private function findHookScriptFiles(string $hooksRoot): array
-    {
-        $hookScriptsDir = $hooksRoot . '/hooks';
-        if (!is_dir($hookScriptsDir)) {
-            return [];
-        }
-
-        $files = [];
-        foreach (scandir($hookScriptsDir) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-
-            $path = $hookScriptsDir . '/' . $entry;
-            if (is_file($path) && str_ends_with($entry, '.php')) {
-                $files[] = $entry;
-            }
-        }
-
-        sort($files);
-
-        return $files;
-    }
-
-    /** @return list<string>|null */
-    private function hooksDesiredEntries(AgentAssetSourcePaths $paths): ?array
-    {
-        $hooksRoot = $paths->absoluteHooksRoot();
-        if (!is_file($hooksRoot . '/hooks.json')) {
-            return [];
-        }
-
-        if (CodexHooksDefinition::validationErrors($hooksRoot) !== []) {
-            return null;
-        }
-
-        try {
-            $definition = CodexHooksDefinition::fromRoot($hooksRoot);
-        } catch (InvalidArgumentException) {
-            return null;
-        }
-
-        $entries = ['hooks.json'];
-        foreach ($definition->scriptNames() as $scriptName) {
-            $entries[] = 'hooks/' . $scriptName;
-        }
-
-        sort($entries);
-
-        return $entries;
-    }
-
-    /** @return list<string>|null */
-    private function claudeHooksDesiredEntries(AgentAssetSourcePaths $paths): ?array
-    {
-        $hooksRoot = $paths->absoluteClaudeHooksRoot();
-        if (!is_file($hooksRoot . '/hooks.json')) {
-            return [];
-        }
-
-        if (ClaudeHooksDefinition::validationErrors($hooksRoot) !== []) {
-            return null;
-        }
-
-        try {
-            $definition = ClaudeHooksDefinition::fromRoot($hooksRoot);
-        } catch (InvalidArgumentException) {
-            return null;
-        }
-
-        $entries = ['settings.json#hooks'];
-        foreach ($definition->scriptNames() as $scriptName) {
-            $entries[] = 'hooks/' . $scriptName;
-        }
-
-        sort($entries);
-
-        return $entries;
-    }
-
-    private function resolveSkillsTargetRoot(string $agent): string
-    {
-        return match ($agent) {
-            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_SKILLS_DIR')
-                ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/skills' : $this->rootPath . '/.codex/skills'),
-            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
-            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_SKILLS_DIR') ?? $this->rootPath . '/.opencode/skills',
-            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
-            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
-            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
-            default => throw new InvalidArgumentException('Unsupported skill status target: ' . $agent),
-        };
-    }
-
-    private function resolveSubagentsTargetRoot(string $agent): string
-    {
-        return match ($agent) {
-            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
-                ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
-            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
-            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_AGENTS_DIR') ?? $this->rootPath . '/.opencode/agents',
-            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
-            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
-            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
-            default => throw new InvalidArgumentException('Unsupported subagent status target: ' . $agent),
-        };
-    }
-
-    private function resolveHooksTargetRoot(): string
-    {
-        return PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME') ?? $this->rootPath . '/.codex';
-    }
-
-    private function resolveClaudeHooksTargetRoot(): string
-    {
-        return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
     }
 
     /**
