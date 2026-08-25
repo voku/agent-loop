@@ -49,6 +49,151 @@ final readonly class RepositorySetupService
         );
     }
 
+    /** Exactly what an install would change, before anything is written. */
+    public function planInstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
+    {
+        $resolved = $paths ?? $this->defaultSourcePaths();
+
+        return (new ManagedAssetPlanner())->planInstall(
+            $this->requireSupportedHost($agent),
+            $withHooks,
+            $this->managedAssetDrift($resolved),
+        );
+    }
+
+    /** Exactly what an uninstall would remove, and what it refuses to touch. */
+    public function planUninstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
+    {
+        $resolved = $paths ?? $this->defaultSourcePaths();
+
+        return (new ManagedAssetPlanner())->planUninstall(
+            $this->requireSupportedHost($agent),
+            $withHooks,
+            $this->managedAssetDrift($resolved),
+        );
+    }
+
+    /**
+     * Removes only what the given plan authorised, and only if the repository
+     * still looks the way the plan was computed against.
+     *
+     * `expectedState` is the token the caller was handed with the plan. A stale
+     * browser POST fails with {@see StaleRepositorySetupPlan} rather than
+     * applying a plan that was reasoned about against different files.
+     *
+     * @throws StaleRepositorySetupPlan
+     */
+    public function uninstall(
+        ManagedAssetChangePlan $plan,
+        string $expectedState,
+        ?AgentAssetSourcePaths $paths = null,
+    ): ManagedAssetMutationResult {
+        $resolved = $paths ?? $this->defaultSourcePaths();
+        $this->assertCurrent($plan, $expectedState, $resolved);
+
+        $outcome = (new ManagedAssetUninstaller())->apply($plan);
+
+        return new ManagedAssetMutationResult(
+            $plan,
+            $outcome['blocked'] === [] || $outcome['applied'] !== [],
+            $outcome['applied'],
+            [...$plan->blocked, ...$outcome['blocked']],
+            $outcome['messages'],
+            RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($resolved)),
+        );
+    }
+
+    /**
+     * The repository-owned operations a host may legally offer right now.
+     *
+     * Derived from owner facts only. A host renders these; it never infers
+     * them from a combination of status fields.
+     *
+     * @return list<RepositorySetupOperation>
+     */
+    public function legalOperations(?string $requestedAgent = null, ?AgentAssetSourcePaths $paths = null): array
+    {
+        $projection = $this->overview($requestedAgent);
+        $host = $projection->host;
+        if ($host === null || $projection->integration === null) {
+            return [RepositorySetupOperation::HOST_USER_ACTION];
+        }
+
+        $resolved = $paths ?? $this->defaultSourcePaths();
+        $drift = $this->managedAssetDrift($resolved);
+        $operations = [];
+
+        $installPlan = (new ManagedAssetPlanner())->planInstall($host, false, $drift);
+        foreach ($installPlan->operations as $operation) {
+            if ($operation->operation === ManagedAssetOperationKind::ADD) {
+                $operations[] = RepositorySetupOperation::INSTALL_ASSETS;
+
+                break;
+            }
+        }
+        foreach ($installPlan->operations as $operation) {
+            if ($operation->operation === ManagedAssetOperationKind::UPDATE) {
+                $operations[] = RepositorySetupOperation::UPDATE_ASSETS;
+
+                break;
+            }
+        }
+        if ((new ManagedAssetPlanner())->planUninstall($host, false, $drift)->mutates()) {
+            $operations[] = RepositorySetupOperation::REMOVE_ASSETS;
+        }
+        if ($installPlan->blocked !== []) {
+            $operations[] = RepositorySetupOperation::REVIEW_CONFLICT;
+        }
+
+        if ($projection->integration->policy === RepositorySetupIntegrationState::MISSING) {
+            $operations[] = RepositorySetupOperation::SYNC_POLICY;
+        }
+        if (in_array(
+            $projection->integration->policy,
+            [RepositorySetupIntegrationState::CONFLICT, RepositorySetupIntegrationState::MANUAL],
+            true,
+        )) {
+            $operations[] = RepositorySetupOperation::REVIEW_CONFLICT;
+        }
+        if ($projection->integration->gitIntegration === RepositorySetupIntegrationState::MISSING) {
+            $operations[] = RepositorySetupOperation::SYNC_GIT_INTEGRATION;
+        }
+        if ($projection->runtimeBoundary !== null) {
+            $operations[] = RepositorySetupOperation::HOST_USER_ACTION;
+        }
+
+        return array_values(array_unique($operations, SORT_REGULAR));
+    }
+
+    /**
+     * @throws StaleRepositorySetupPlan
+     */
+    private function assertCurrent(
+        ManagedAssetChangePlan $plan,
+        string $expectedState,
+        AgentAssetSourcePaths $paths,
+    ): void {
+        if (!$plan->expectedState->matches($expectedState)) {
+            throw new StaleRepositorySetupPlan($plan->expectedState->value, $expectedState);
+        }
+
+        $observed = RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($paths));
+        if (!$observed->matches($plan->expectedState->value)) {
+            throw new StaleRepositorySetupPlan($plan->expectedState->value, $observed->value);
+        }
+    }
+
+    /**
+     * Normalises a requested host through the owner's own parser, so an
+     * unsupported host fails here rather than deep inside a plan.
+     *
+     * @return non-empty-string
+     */
+    private function requireSupportedHost(string $agent): string
+    {
+        return InitAgent::parse($agent, InitAgent::canonicalNames())->canonicalName();
+    }
+
     private function defaultSourcePaths(): AgentAssetSourcePaths
     {
         $layout = new ProjectLayout($this->rootPath);

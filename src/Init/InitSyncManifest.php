@@ -219,6 +219,61 @@ final class InitSyncManifest
         $this->version = self::DRIFT_VERSION;
     }
 
+    /**
+     * Drops entries from a drift-evidence manifest, keeping every other record
+     * exactly as it was.
+     *
+     * Uninstall needs this because a partial removal must leave the retained
+     * entries' ownership evidence intact — rebuilding the manifest from current
+     * sources would quietly re-bless entries the caller was told were blocked.
+     * Removing the last managed entry deletes the manifest, so an emptied
+     * target does not keep claiming ownership of nothing.
+     *
+     * @param list<string> $entriesToRemove
+     */
+    public function removeEntries(array $entriesToRemove): void
+    {
+        if (!$this->hasDriftEvidence()) {
+            throw new InvalidArgumentException(
+                'Refusing to rewrite a manifest without drift evidence: ' . $this->path,
+            );
+        }
+
+        $removal = array_fill_keys($entriesToRemove, true);
+        $retained = [];
+        foreach ($this->entries as $target => $entry) {
+            if (isset($removal[$target])) {
+                continue;
+            }
+            $retained[$target] = $entry;
+        }
+
+        if ($retained === []) {
+            if (is_file($this->path) && !unlink($this->path)) {
+                throw new InvalidArgumentException('Unable to remove emptied sync manifest: ' . $this->path);
+            }
+            $this->entries = [];
+
+            return;
+        }
+
+        ksort($retained, SORT_STRING);
+        $records = [];
+        foreach ($retained as $target => $entry) {
+            $records[] = ['target' => $target] + $entry;
+        }
+
+        $this->writePayload([
+            'version' => self::DRIFT_VERSION,
+            'kind' => $this->kind,
+            'agent' => $this->agent,
+            'required_capabilities' => $this->requiredCapabilities,
+            'entries' => $records,
+        ]);
+
+        $this->entries = $retained;
+    }
+
     public static function digestPath(string $path): ?string
     {
         if (is_link($path)) {
