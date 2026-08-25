@@ -35,7 +35,7 @@ final readonly class RepositorySetupService
                 policyDetail: null,
                 policyPath: null,
                 runtimeBoundary: null,
-                nextActionKind: 'decision_required',
+                nextActionKind: RepositorySetupNextActionKind::DECISION_REQUIRED,
                 nextAction: $selection['decision'],
             );
         }
@@ -45,11 +45,17 @@ final readonly class RepositorySetupService
         $policy = $this->policyStatus($host);
         $git = $this->gitIntegration();
         $integration = new RepositorySetupIntegration(
-            instructions: (new InitSyncInstructionsCommand($this->rootPath))->isCurrentFor($host) ? 'ready' : 'missing',
-            skills: $this->manifestReady($this->skillsRoot($host), 'skills', $host, $this->expectedSkillEntries()) ? 'ready' : 'missing',
-            subagents: $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $this->expectedSubagentEntries($host)) ? 'ready' : 'missing',
-            policy: $policy['status'],
-            gitIntegration: $git['status'],
+            instructions: (new InitSyncInstructionsCommand($this->rootPath))->isCurrentFor($host)
+                ? RepositorySetupIntegrationState::READY
+                : RepositorySetupIntegrationState::MISSING,
+            skills: $this->manifestReady($this->skillsRoot($host), 'skills', $host, $this->expectedSkillEntries())
+                ? RepositorySetupIntegrationState::READY
+                : RepositorySetupIntegrationState::MISSING,
+            subagents: $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $this->expectedSubagentEntries($host))
+                ? RepositorySetupIntegrationState::READY
+                : RepositorySetupIntegrationState::MISSING,
+            policy: RepositorySetupIntegrationState::from($policy['status']),
+            gitIntegration: RepositorySetupIntegrationState::from($git['status']),
         );
         $next = $this->nextAction($host, $integration, $policy, $git['action']);
 
@@ -57,7 +63,7 @@ final readonly class RepositorySetupService
             host: $host,
             selection: $selection['selection'],
             runtime: new RepositorySetupRuntime(
-                status: $runtime['status'],
+                status: RepositorySetupRuntimeState::from($runtime['status']),
                 command: $runtime['command'],
                 path: $runtime['path'],
             ),
@@ -73,7 +79,7 @@ final readonly class RepositorySetupService
     /**
      * @return array{
      *     host: non-empty-string|null,
-     *     selection: 'explicit'|'auto'|'ambiguous'|'missing',
+     *     selection: RepositorySetupSelection,
      *     decision: non-empty-string|null
      * }
      */
@@ -87,7 +93,7 @@ final readonly class RepositorySetupService
 
                 return [
                     'host' => null,
-                    'selection' => 'missing',
+                    'selection' => RepositorySetupSelection::MISSING,
                     'decision' => $decision === ''
                         ? 'Pass --agent=<' . implode('|', InitAgent::canonicalNames()) . '> because the requested host could not be resolved.'
                         : $decision,
@@ -96,7 +102,7 @@ final readonly class RepositorySetupService
 
             return [
                 'host' => $agent->canonicalName(),
-                'selection' => 'explicit',
+                'selection' => RepositorySetupSelection::EXPLICIT,
                 'decision' => null,
             ];
         }
@@ -111,7 +117,7 @@ final readonly class RepositorySetupService
         if (count($available) === 1) {
             return [
                 'host' => $available[0],
-                'selection' => 'auto',
+                'selection' => RepositorySetupSelection::AUTO,
                 'decision' => null,
             ];
         }
@@ -120,14 +126,14 @@ final readonly class RepositorySetupService
         if ($available === []) {
             return [
                 'host' => null,
-                'selection' => 'missing',
+                'selection' => RepositorySetupSelection::MISSING,
                 'decision' => 'Pass --agent=<' . $canonical . '> because no probed coding-host executable is visible on PATH. Hosts without a stable runtime probe must be selected explicitly.',
             ];
         }
 
         return [
             'host' => null,
-            'selection' => 'ambiguous',
+            'selection' => RepositorySetupSelection::AMBIGUOUS,
             'decision' => 'Pass --agent=<' . implode('|', $available) . '> because multiple coding-host executables are visible on PATH.',
         ];
     }
@@ -244,7 +250,7 @@ final readonly class RepositorySetupService
     /**
      * @param array{status: 'ready'|'missing'|'conflict'|'manual'|'unsupported', path: non-empty-string|null, detail: non-empty-string} $policy
      * @param non-empty-string|null $gitIntegrationAction
-     * @return array{kind: 'command'|'host_work'|'decision_required'|'none', action: non-empty-string|null}
+     * @return array{kind: RepositorySetupNextActionKind, action: non-empty-string|null}
      */
     private function nextAction(
         string $host,
@@ -253,37 +259,41 @@ final readonly class RepositorySetupService
         ?string $gitIntegrationAction,
     ): array {
         if (
-            $integration->instructions === 'missing'
-            || $integration->skills === 'missing'
-            || $integration->subagents === 'missing'
+            $integration->instructions === RepositorySetupIntegrationState::MISSING
+            || $integration->skills === RepositorySetupIntegrationState::MISSING
+            || $integration->subagents === RepositorySetupIntegrationState::MISSING
         ) {
             return [
-                'kind' => 'command',
+                'kind' => RepositorySetupNextActionKind::COMMAND,
                 'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init install-assets --agent=' . $host,
             ];
         }
 
-        if ($integration->policy === 'missing') {
+        if ($integration->policy === RepositorySetupIntegrationState::MISSING) {
             return [
-                'kind' => 'command',
+                'kind' => RepositorySetupNextActionKind::COMMAND,
                 'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init sync-policy --agent=' . $host,
             ];
         }
 
-        if (in_array($integration->policy, ['conflict', 'manual'], true)) {
+        if (in_array(
+            $integration->policy,
+            [RepositorySetupIntegrationState::CONFLICT, RepositorySetupIntegrationState::MANUAL],
+            true,
+        )) {
             $path = $policy['path'] === null ? '' : '; review ' . $policy['path'];
 
             return [
-                'kind' => 'host_work',
+                'kind' => RepositorySetupNextActionKind::HOST_WORK,
                 'action' => $policy['detail'] . $path . ' and preserve project-owned configuration before retrying.',
             ];
         }
 
-        if ($integration->gitIntegration === 'missing' && $gitIntegrationAction !== null) {
-            return ['kind' => 'command', 'action' => $gitIntegrationAction];
+        if ($integration->gitIntegration === RepositorySetupIntegrationState::MISSING && $gitIntegrationAction !== null) {
+            return ['kind' => RepositorySetupNextActionKind::COMMAND, 'action' => $gitIntegrationAction];
         }
 
-        return ['kind' => 'none', 'action' => null];
+        return ['kind' => RepositorySetupNextActionKind::NONE, 'action' => null];
     }
 
     /** @return array{status: 'ready'|'missing'|'not_declared', action: non-empty-string|null} */
