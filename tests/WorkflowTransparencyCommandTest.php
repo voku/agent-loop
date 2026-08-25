@@ -44,7 +44,7 @@ final class WorkflowTransparencyCommandTest extends TestCase
             'Render repository observation safely.',
             ['.'],
             [],
-            [],
+            ['php -r "exit(0);"'],
             'fixture-planner',
             baseCommit: $base,
         );
