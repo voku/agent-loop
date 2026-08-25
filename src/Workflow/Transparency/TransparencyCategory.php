@@ -11,7 +11,6 @@ enum TransparencyCategory: string
 {
     case CHANGED_IN_SCOPE = 'changed_in_scope';
     case CHANGED_OUTSIDE_SCOPE = 'changed_outside_scope';
-    case REPOSITORY_OBSERVATION_UNAVAILABLE = 'repository_observation_unavailable';
     case CONTRACT_NON_GOAL = 'contract_non_goal';
     case CONTEXT_SKIPPED = 'context_skipped';
     case CONTEXT_OMITTED = 'context_omitted';
@@ -23,15 +22,12 @@ enum TransparencyCategory: string
     public function provenance(): TransparencyProvenance
     {
         return match ($this) {
-            self::CHANGED_IN_SCOPE,
-            self::CHANGED_OUTSIDE_SCOPE,
-            self::REPOSITORY_OBSERVATION_UNAVAILABLE => TransparencyProvenance::REPOSITORY_OBSERVATION,
+            self::CHANGED_IN_SCOPE, self::CHANGED_OUTSIDE_SCOPE, self::UNKNOWN => TransparencyProvenance::REPOSITORY_OBSERVATION,
             self::CONTRACT_NON_GOAL => TransparencyProvenance::WORKFLOW_AUTHORITY,
             self::CONTEXT_SKIPPED, self::CONTEXT_OMITTED => TransparencyProvenance::CONTEXT_CONSTRUCTION,
             self::REVIEW_FINDING => TransparencyProvenance::REVIEW_EVIDENCE,
             self::BLOCKED => TransparencyProvenance::OWNER_EVIDENCE,
             self::FUTURE_WORK_DEFERRED => TransparencyProvenance::DELIBERATE_BOUNDARY,
-            self::UNKNOWN => TransparencyProvenance::CONTEXT_CONSTRUCTION,
         };
     }
 }
