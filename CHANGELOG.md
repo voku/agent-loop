@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Keep the historical public edit replay portable to standard PHP memory limits by
+  passing its explicit 512M semantic agent-map budget through the real edit path.
+
 ## 0.18.0 - 2026-08-25
 
 ### Added

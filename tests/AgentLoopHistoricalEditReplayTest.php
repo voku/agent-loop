@@ -74,6 +74,7 @@ final class AgentLoopHistoricalEditReplayTest extends TestCase
             '--map-root=' . $agentRoot,
             '--map-index=' . $agentRoot . '/map.json',
             '--map-paths=src',
+            '--phpstan-memory-limit=512M',
             '--output-dir=' . $outputDirectory,
             '--runner=auto',
             '--replace-old=' . $old,
