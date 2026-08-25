@@ -6,39 +6,32 @@ namespace voku\AgentLoop\Init;
 
 final readonly class RepositorySetupIntegration
 {
-    /**
-     * @param 'ready'|'missing' $instructions
-     * @param 'ready'|'missing' $skills
-     * @param 'ready'|'missing' $subagents
-     * @param 'ready'|'missing'|'conflict'|'manual'|'unsupported' $policy
-     * @param 'ready'|'missing'|'not_declared' $gitIntegration
-     */
     public function __construct(
-        public string $instructions,
-        public string $skills,
-        public string $subagents,
-        public string $policy,
-        public string $gitIntegration,
+        public RepositorySetupIntegrationState $instructions,
+        public RepositorySetupIntegrationState $skills,
+        public RepositorySetupIntegrationState $subagents,
+        public RepositorySetupIntegrationState $policy,
+        public RepositorySetupIntegrationState $gitIntegration,
     ) {
     }
 
     /**
      * @return array{
-     *     instructions: 'ready'|'missing',
-     *     skills: 'ready'|'missing',
-     *     subagents: 'ready'|'missing',
-     *     policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported',
-     *     git_integration: 'ready'|'missing'|'not_declared'
+     *     instructions: string,
+     *     skills: string,
+     *     subagents: string,
+     *     policy: string,
+     *     git_integration: string
      * }
      */
     public function toArray(): array
     {
         return [
-            'instructions' => $this->instructions,
-            'skills' => $this->skills,
-            'subagents' => $this->subagents,
-            'policy' => $this->policy,
-            'git_integration' => $this->gitIntegration,
+            'instructions' => $this->instructions->value,
+            'skills' => $this->skills->value,
+            'subagents' => $this->subagents->value,
+            'policy' => $this->policy->value,
+            'git_integration' => $this->gitIntegration->value,
         ];
     }
 }
