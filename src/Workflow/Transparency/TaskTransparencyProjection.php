@@ -33,9 +33,10 @@ final readonly class TaskTransparencyProjection
     /**
      * Every categorised fact in one deterministic list.
      *
-     * A dedicated repository-observation category is emitted when Git state was
-     * not available: a host must be able to say "not observed" without losing
-     * the fact that the missing information belongs to repository observation.
+     * `UNKNOWN` is emitted when repository observation was not available: a host
+     * must be able to say "not observed" rather than show an empty change set
+     * that reads like a clean tree. Its provenance remains repository
+     * observation; context omissions have their own dedicated categories.
      *
      * @return list<TransparencyItem>
      */
@@ -54,7 +55,7 @@ final readonly class TaskTransparencyProjection
             }
         } else {
             $items[] = new TransparencyItem(
-                TransparencyCategory::REPOSITORY_OBSERVATION_UNAVAILABLE,
+                TransparencyCategory::UNKNOWN,
                 'repository_observation',
                 $this->observation->unavailableReason,
             );
