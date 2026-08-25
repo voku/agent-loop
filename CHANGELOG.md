@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.0 - 2026-08-25
+
+### Added
+
+- Publish the hardened external-execution authority contract: changed Git candidates, workspace artifacts, deterministic validation evidence, and human-owned Attention transitions are accepted only through current owner-validated evidence bound to the exact Task, Run, Contract revision, execution plan, stage, attempt, and candidate lineage.
+- Add a bounded `ExecutionEnvironmentObservation` / `ExecutionEnvironmentTool` API for optional runners. Host, tool, network, and remote-write facts are projected as explicitly untrusted runtime data; arbitrary environment variables, binary paths, credentials, provider policy, and workflow authority remain outside the boundary.
+- Add the typed `WorkflowHumanDecisionService` / projection boundary for non-CLI adapters to record only the currently-authorized contract approval, exact review acknowledgement, or Learning disposition through existing owner stores.
+
+### Changed
+
+- Compiled Recall output superseding is now implemented by `voku/agent-recall-compiler ^0.13.13`; Loop retains orchestration timing and mount-point ownership without carrying a duplicate superseding implementation.
+- Dogfood helpers and architecture-validation classes used only by development gates live outside production autoload; `voku/itp-context` is a development-only evidence dependency.
+- Advance the `dev-main` Composer branch alias to `0.18.x-dev`.
+
+### Fixed
+
+- Include the 0.17.2 host-work ordering correction: mutation-authorized governed Runs expose implementation work before finish-owned validation and review, so pre-change review evidence cannot block the approved mutation.
+
+### Validation
+
+- The release target contains the merged execution-authority, owner-boundary, bounded-environment, human-decision, and host-work convergence regressions and must independently pass PHP 8.3/8.4/8.5 CI, PHPStan/project rules, diagnostics, installed release-set and refactor lifecycles, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint, and review checks before tagging.
+
 ## 0.17.2 - 2026-08-24
 
 ### Fixed
@@ -620,8 +642,8 @@ release.
 - `workflow plan`, `workflow approve`, and `workflow close` refresh the manifest
   at their transitions, so the projection is current without a separate command.
   A refresh failure is reported as its own `[FAIL]` with the state that did
-  change and the `workflow manifest <task-id> --write` recovery step, rather
-  than being folded into the command's normal exit code.
+  change and the `workflow manifest <task-id> --write` recovery step,
+  rather than being folded into the command's normal exit code.
 - `workflow status` is now rendered from that same projection and accepts
   `--format text|json`. The joined view and the manifest can no longer disagree,
   because there is only one projection left to disagree with.
