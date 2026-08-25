@@ -45,12 +45,14 @@ final class RepositorySetupServiceTest extends TestCase
 
         self::assertSame('opencode', $projection->host);
         self::assertSame(RepositorySetupSelection::AUTO, $projection->selection);
-        self::assertSame(RepositorySetupRuntimeState::AVAILABLE, $projection->runtime?->status);
-        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->instructions);
-        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->skills);
-        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->subagents);
-        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->policy);
-        self::assertSame(RepositorySetupIntegrationState::NOT_DECLARED, $projection->integration?->gitIntegration);
+        self::assertNotNull($projection->runtime);
+        self::assertSame(RepositorySetupRuntimeState::AVAILABLE, $projection->runtime->status);
+        self::assertNotNull($projection->integration);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration->instructions);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration->skills);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration->subagents);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration->policy);
+        self::assertSame(RepositorySetupIntegrationState::NOT_DECLARED, $projection->integration->gitIntegration);
         self::assertSame(RepositorySetupNextActionKind::COMMAND, $projection->nextActionKind);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $projection->nextAction);
 
