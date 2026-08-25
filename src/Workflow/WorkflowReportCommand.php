@@ -14,6 +14,7 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
+use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
@@ -211,31 +212,13 @@ final readonly class WorkflowReportCommand
      */
     private function scopeReport(?TaskContract $contract, array $changedFiles): array
     {
-        $scope = $contract === null ? [] : $contract->scope;
-        $outside = array_values(array_filter(
-            $changedFiles,
-            static fn (string $file): bool => !self::inScope($file, $scope),
-        ));
+        $partition = ApprovedScope::fromContract($contract)->partition($changedFiles);
 
         return [
             'changed_files_supplied' => $changedFiles !== [],
             'changed_files' => $changedFiles,
-            'outside_approved_scope' => $outside,
+            'outside_approved_scope' => $partition['outside'],
         ];
-    }
-
-    /** @param list<string> $scope */
-    private static function inScope(string $file, array $scope): bool
-    {
-        $file = trim($file, '/');
-        foreach ($scope as $entry) {
-            $entry = trim($entry, '/');
-            if ($entry === '.' || $file === $entry || str_starts_with($file, $entry . '/')) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**

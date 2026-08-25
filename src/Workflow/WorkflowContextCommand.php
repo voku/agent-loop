@@ -13,6 +13,10 @@ use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Workflow\Transparency\ContextCoverage;
+use voku\AgentLoop\Workflow\Transparency\ContextFutureWorkPolicy;
+use voku\AgentLoop\Workflow\Transparency\ContextInteractionPolicy;
+use voku\AgentLoop\Workflow\Transparency\ContextOmission;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
@@ -26,8 +30,48 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowContextCommand
 {
+    public const int DEFAULT_MAX_LINES = 120;
+    public const int DEFAULT_MAX_BYTES = 12000;
+
     public function __construct(private string $rootPath)
     {
+    }
+
+    /**
+     * The same context construction as `build()`, projected as typed facts.
+     *
+     * This deliberately wraps `build()` rather than reimplementing it: skipped
+     * inputs and budget omissions are produced by assembling the context, so a
+     * second assembler would be a second answer that drifts. Only the already
+     * shape-typed keys are read — never the rendered `lines`, which is a
+     * display format and has never been an API.
+     */
+    public function coverage(
+        string $taskId,
+        int $maxLines = self::DEFAULT_MAX_LINES,
+        int $maxBytes = self::DEFAULT_MAX_BYTES,
+    ): ContextCoverage {
+        $context = $this->build($taskId, $maxLines, $maxBytes);
+
+        $omitted = [];
+        foreach ($context['omitted'] as $category => $count) {
+            $omitted[] = new ContextOmission($category, $count);
+        }
+        // Deterministic order: the source is a category-keyed map, whose
+        // iteration order is insertion order and therefore budget-dependent.
+        usort($omitted, static fn (ContextOmission $left, ContextOmission $right): int => $left->category <=> $right->category);
+
+        return new ContextCoverage(
+            skipped: $context['skipped'],
+            omitted: $omitted,
+            interaction: new ContextInteractionPolicy(
+                HumanExplanationPolicy::from($context['interaction']['human_explanations']),
+            ),
+            futureWork: new ContextFutureWorkPolicy(
+                FutureWorkMode::from($context['future_work']['mode']),
+                $context['future_work']['max_follow_up_slices'],
+            ),
+        );
     }
 
     /** @param list<string> $args */
@@ -62,8 +106,8 @@ final readonly class WorkflowContextCommand
     private function parse(array $tokens): array
     {
         $format = 'text';
-        $maxLines = 120;
-        $maxBytes = 12000;
+        $maxLines = self::DEFAULT_MAX_LINES;
+        $maxBytes = self::DEFAULT_MAX_BYTES;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
             if (!in_array($token, ['--format', '--max-lines', '--max-bytes'], true)) {
