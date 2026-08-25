@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow\Transparency;
 
+use Throwable;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 
 /**
@@ -27,7 +28,15 @@ final readonly class BlockedRecord
 
     public static function find(string $rootPath, string $taskId): ?self
     {
-        $inspection = (new ExecutionContractStore($rootPath))->inspect($taskId);
+        try {
+            $inspection = (new ExecutionContractStore($rootPath))->inspect($taskId);
+        } catch (Throwable) {
+            // A broken prerequisite artifact means no durable blocked/rejected
+            // record can be read. It does not authorize treating the task as
+            // unblocked; this projection never derives completion from absence.
+            return null;
+        }
+
         $state = $inspection['state'] ?? null;
         if (!is_string($state) || !in_array($state, ['blocked', 'rejected'], true)) {
             return null;
