@@ -120,8 +120,39 @@ final readonly class WorkflowTransparencyCommand
             return;
         }
         foreach ($items as $item) {
-            echo '  - [' . $item->category->value . '/' . $item->provenance()->value . '] ' . $item->value
-                . ($item->detail === null ? '' : ' — ' . $item->detail) . "\n";
+            echo '  - [' . $item->category->value . '/' . $item->provenance()->value . '] '
+                . $this->escapeTerminalText($item->value)
+                . ($item->detail === null ? '' : ' — ' . $this->escapeTerminalText($item->detail)) . "\n";
         }
+    }
+
+    /**
+     * Render arbitrary owner/repository bytes without allowing them to create
+     * terminal control sequences or additional output lines.
+     *
+     * Printable ASCII remains readable. Backslashes are doubled so escaped
+     * controls stay unambiguous; every other byte is represented exactly.
+     */
+    private function escapeTerminalText(string $value): string
+    {
+        $escaped = '';
+        for ($index = 0, $length = strlen($value); $index < $length; ++$index) {
+            $byte = $value[$index];
+            $ordinal = ord($byte);
+            if ($ordinal >= 0x20 && $ordinal <= 0x7e && $byte !== '\\') {
+                $escaped .= $byte;
+                continue;
+            }
+
+            $escaped .= match ($byte) {
+                "\n" => '\\n',
+                "\r" => '\\r',
+                "\t" => '\\t',
+                '\\' => '\\\\',
+                default => sprintf('\\x%02X', $ordinal),
+            };
+        }
+
+        return $escaped;
     }
 }
