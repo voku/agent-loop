@@ -63,25 +63,25 @@ final readonly class InitHostStatusCommand
     private function renderText(RepositorySetupProjection $status): void
     {
         echo "agent-loop init host-status\n\n";
-        echo 'Host: ' . ($status->host ?? 'unresolved') . ' (' . $status->selection . ")\n";
+        echo 'Host: ' . ($status->host ?? 'unresolved') . ' (' . $status->selection->value . ")\n";
         if ($status->runtime !== null) {
-            echo 'Runtime: ' . $status->runtime->status;
+            echo 'Runtime: ' . $status->runtime->status->value;
             if ($status->runtime->path !== null) {
                 echo ' (' . $status->runtime->path . ')';
             }
             echo "\n";
         }
         if ($status->integration !== null) {
-            echo 'Integration: instructions=' . $status->integration->instructions
-                . ', skills=' . $status->integration->skills
-                . ', subagents=' . $status->integration->subagents
-                . ', policy=' . $status->integration->policy
-                . ', git_integration=' . $status->integration->gitIntegration . "\n";
+            echo 'Integration: instructions=' . $status->integration->instructions->value
+                . ', skills=' . $status->integration->skills->value
+                . ', subagents=' . $status->integration->subagents->value
+                . ', policy=' . $status->integration->policy->value
+                . ', git_integration=' . $status->integration->gitIntegration->value . "\n";
         }
         if ($status->runtimeBoundary !== null) {
             echo 'Runtime boundary: ' . $status->runtimeBoundary . "\n";
         }
-        echo 'next_action_kind=' . $status->nextActionKind . "\n";
+        echo 'next_action_kind=' . $status->nextActionKind->value . "\n";
         echo 'next_action=' . ($status->nextAction ?? 'none') . "\n";
     }
 
