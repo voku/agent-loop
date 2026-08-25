@@ -48,6 +48,9 @@ final readonly class ManagedAssetPlanner
 
             foreach ($expectation->entries ?? [] as $entry) {
                 $operation = $this->installOperationFor($projection, $entry);
+                if ($operation === null) {
+                    continue;
+                }
                 if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
                     $blocked[] = $operation;
 
@@ -124,7 +127,7 @@ final readonly class ManagedAssetPlanner
         );
     }
 
-    private function installOperationFor(ManagedAssetDriftProjection $projection, string $entry): ManagedAssetOperation
+    private function installOperationFor(ManagedAssetDriftProjection $projection, string $entry): ?ManagedAssetOperation
     {
         $target = $projection->target;
         $targetPath = rtrim($target->targetRoot, '/') . '/' . $entry;
@@ -151,7 +154,33 @@ final readonly class ManagedAssetPlanner
             );
         }
 
+        if (in_array($entry, $projection->incompatible, true)) {
+            return new ManagedAssetOperation(
+                ManagedAssetOperationKind::BLOCKED,
+                $target->host,
+                $target->kind,
+                $entry,
+                $targetPath,
+                'This managed entry requires a host capability that is unsupported here.',
+            );
+        }
+
+        if (in_array($entry, $projection->unverifiable, true)) {
+            return new ManagedAssetOperation(
+                ManagedAssetOperationKind::BLOCKED,
+                $target->host,
+                $target->kind,
+                $entry,
+                $targetPath,
+                'The manifest carries no usable evidence for this entry; overwriting it would be unsafe.',
+            );
+        }
+
         if (in_array($entry, $projection->current, true)) {
+            return null;
+        }
+
+        if (in_array($entry, $projection->stale, true)) {
             return new ManagedAssetOperation(
                 ManagedAssetOperationKind::UPDATE,
                 $target->host,
