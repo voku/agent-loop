@@ -11,6 +11,10 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Init\HostRuntimeProbe;
 use voku\AgentLoop\Init\InitHostStatusCommand;
+use voku\AgentLoop\Init\RepositorySetupIntegrationState;
+use voku\AgentLoop\Init\RepositorySetupNextActionKind;
+use voku\AgentLoop\Init\RepositorySetupRuntimeState;
+use voku\AgentLoop\Init\RepositorySetupSelection;
 use voku\AgentLoop\Init\RepositorySetupService;
 
 final class RepositorySetupServiceTest extends TestCase
@@ -40,14 +44,14 @@ final class RepositorySetupServiceTest extends TestCase
         $projection = (new RepositorySetupService($this->root, $probe))->overview();
 
         self::assertSame('opencode', $projection->host);
-        self::assertSame('auto', $projection->selection);
-        self::assertSame('available', $projection->runtime?->status);
-        self::assertSame('missing', $projection->integration?->instructions);
-        self::assertSame('missing', $projection->integration?->skills);
-        self::assertSame('missing', $projection->integration?->subagents);
-        self::assertSame('missing', $projection->integration?->policy);
-        self::assertSame('not_declared', $projection->integration?->gitIntegration);
-        self::assertSame('command', $projection->nextActionKind);
+        self::assertSame(RepositorySetupSelection::AUTO, $projection->selection);
+        self::assertSame(RepositorySetupRuntimeState::AVAILABLE, $projection->runtime?->status);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->instructions);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->skills);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->subagents);
+        self::assertSame(RepositorySetupIntegrationState::MISSING, $projection->integration?->policy);
+        self::assertSame(RepositorySetupIntegrationState::NOT_DECLARED, $projection->integration?->gitIntegration);
+        self::assertSame(RepositorySetupNextActionKind::COMMAND, $projection->nextActionKind);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=opencode', $projection->nextAction);
 
         ob_start();
@@ -77,10 +81,10 @@ final class RepositorySetupServiceTest extends TestCase
         ))->overview();
 
         self::assertNull($projection->host);
-        self::assertSame('ambiguous', $projection->selection);
+        self::assertSame(RepositorySetupSelection::AMBIGUOUS, $projection->selection);
         self::assertNull($projection->runtime);
         self::assertNull($projection->integration);
-        self::assertSame('decision_required', $projection->nextActionKind);
+        self::assertSame(RepositorySetupNextActionKind::DECISION_REQUIRED, $projection->nextActionKind);
         self::assertIsString($projection->nextAction);
         self::assertStringContainsString('--agent=<claude|opencode>', $projection->nextAction);
     }
