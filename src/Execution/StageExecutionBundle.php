@@ -34,6 +34,7 @@ final readonly class StageExecutionBundle
         public array $acceptedOutcomes,
         public string $completionMarker,
         public string $prompt,
+        public ?string $environmentObservationDigest = null,
     ) {
     }
 }
