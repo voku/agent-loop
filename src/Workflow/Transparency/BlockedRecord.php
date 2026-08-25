@@ -28,12 +28,16 @@ final readonly class BlockedRecord
 
     public static function find(string $rootPath, string $taskId): ?self
     {
+        $inspection = null;
         try {
             $inspection = (new ExecutionContractStore($rootPath))->inspect($taskId);
         } catch (Throwable) {
-            // A broken prerequisite artifact means no durable blocked/rejected
-            // record can be read. It does not authorize treating the task as
-            // unblocked; this projection never derives completion from absence.
+            // Damaged prerequisite evidence can make the owner inspection
+            // unreadable. Keep that distinct from a readable blocked record;
+            // absence here never authorizes progress or proves completion.
+        }
+
+        if (!is_array($inspection)) {
             return null;
         }
 
