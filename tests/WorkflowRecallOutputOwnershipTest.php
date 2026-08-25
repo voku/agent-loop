@@ -14,7 +14,7 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentSession\SessionStore;
 
-final class WorkflowRecallOutputSupersederTest extends TestCase
+final class WorkflowRecallOutputOwnershipTest extends TestCase
 {
     private string $root;
 
