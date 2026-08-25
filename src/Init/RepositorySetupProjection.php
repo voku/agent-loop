@@ -6,24 +6,15 @@ namespace voku\AgentLoop\Init;
 
 final readonly class RepositorySetupProjection
 {
-    /**
-     * @param non-empty-string|null $host
-     * @param 'explicit'|'auto'|'ambiguous'|'missing' $selection
-     * @param non-empty-string|null $policyDetail
-     * @param non-empty-string|null $policyPath
-     * @param non-empty-string|null $runtimeBoundary
-     * @param 'command'|'host_work'|'decision_required'|'none' $nextActionKind
-     * @param non-empty-string|null $nextAction
-     */
     public function __construct(
         public ?string $host,
-        public string $selection,
+        public RepositorySetupSelection $selection,
         public ?RepositorySetupRuntime $runtime,
         public ?RepositorySetupIntegration $integration,
         public ?string $policyDetail,
         public ?string $policyPath,
         public ?string $runtimeBoundary,
-        public string $nextActionKind,
+        public RepositorySetupNextActionKind $nextActionKind,
         public ?string $nextAction,
     ) {
     }
@@ -31,15 +22,15 @@ final readonly class RepositorySetupProjection
     /**
      * @return array{
      *     schema_version: 1,
-     *     host: non-empty-string|null,
-     *     selection: 'explicit'|'auto'|'ambiguous'|'missing',
-     *     runtime: array{status: 'available'|'missing'|'unprobed', command: non-empty-string|null, path: non-empty-string|null}|null,
-     *     integration: array{instructions: 'ready'|'missing', skills: 'ready'|'missing', subagents: 'ready'|'missing', policy: 'ready'|'missing'|'conflict'|'manual'|'unsupported', git_integration: 'ready'|'missing'|'not_declared'}|null,
-     *     policy_detail: non-empty-string|null,
-     *     policy_path: non-empty-string|null,
-     *     runtime_boundary: non-empty-string|null,
-     *     next_action_kind: 'command'|'host_work'|'decision_required'|'none',
-     *     next_action: non-empty-string|null
+     *     host: string|null,
+     *     selection: string,
+     *     runtime: array{status: string, command: string|null, path: string|null}|null,
+     *     integration: array{instructions: string, skills: string, subagents: string, policy: string, git_integration: string}|null,
+     *     policy_detail: string|null,
+     *     policy_path: string|null,
+     *     runtime_boundary: string|null,
+     *     next_action_kind: string,
+     *     next_action: string|null
      * }
      */
     public function toArray(): array
@@ -47,13 +38,13 @@ final readonly class RepositorySetupProjection
         return [
             'schema_version' => 1,
             'host' => $this->host,
-            'selection' => $this->selection,
+            'selection' => $this->selection->value,
             'runtime' => $this->runtime?->toArray(),
             'integration' => $this->integration?->toArray(),
             'policy_detail' => $this->policyDetail,
             'policy_path' => $this->policyPath,
             'runtime_boundary' => $this->runtimeBoundary,
-            'next_action_kind' => $this->nextActionKind,
+            'next_action_kind' => $this->nextActionKind->value,
             'next_action' => $this->nextAction,
         ];
     }
