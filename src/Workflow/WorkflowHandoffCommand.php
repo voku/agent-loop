@@ -86,10 +86,13 @@ final readonly class WorkflowHandoffCommand
                 '--output-dir', $outputDirectory,
             ];
 
-            $kanbanContext = (new WorkflowKanbanContextWriter($this->rootPath))->write($taskId->value, $session);
+            $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($taskId->value);
             if ($kanbanContext !== null) {
                 $recallArgs[] = '--kanban-context';
-                $recallArgs[] = $kanbanContext;
+                $recallArgs[] = json_encode(
+                    $kanbanContext->toArray(),
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+                );
             }
 
             $exit = ($this->recallRunner)($recallArgs);

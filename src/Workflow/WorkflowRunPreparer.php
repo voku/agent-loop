@@ -160,10 +160,13 @@ final readonly class WorkflowRunPreparer
             $recallArgs[] = $documentManifest;
         }
 
-        $kanbanContext = (new WorkflowKanbanContextWriter($this->rootPath))->write($contract->taskId, $session);
+        $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($contract->taskId);
         if ($kanbanContext !== null) {
             $recallArgs[] = '--kanban-context';
-            $recallArgs[] = $kanbanContext;
+            $recallArgs[] = json_encode(
+                $kanbanContext->toArray(),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            );
         }
 
         $searchWarning = null;
