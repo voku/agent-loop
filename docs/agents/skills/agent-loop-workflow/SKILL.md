@@ -78,7 +78,7 @@ Then obey the returned `next_action_kind` / `next_action` in the same way until
 `none` / complete. Repeated `enter` and `finish` calls are intended to reconcile
 current owner evidence; hosts should not reproduce their preconditions.
 
-## Human Decision Presentation
+## Decision And Review Presentation
 
 A human gate is not useful if the developer cannot see the exact thing they are
 being asked to own. Before asking for any `decision_required` action, surface the
@@ -96,24 +96,32 @@ vendor/bin/agent-loop workflow context <task-id> --format=json
 ```
 
 The user must be able to see what scope and validation they are approving before
-the host supplies the approving actor.
+the host supplies the approving actor. That approval is the ordinary task-authority
+gate: once the exact Contract is approved, normal implementation, validation,
+review acknowledgement, Learning disposition, Recall outcome logging, local
+commits and closeout inside that Contract do not require ceremonial re-approval.
 
-For exact review acknowledgement, first render the existing deterministic review
-workbench:
+For an exact current review, keep the result visible even though acknowledgement
+is normally delegated after Contract approval. `finish --format=json` exposes a
+`review_presentation` when the current review needs acknowledgement and
+materializes the deterministic HTML workbench. A host may also render it directly:
 
 ```bash
 vendor/bin/agent-loop workflow review <task-id>
 ```
 
-Surface the resulting human-review path together with the exact current review
-SHA-256, verdict/findings and implementation identity available from the current
-manifest/report. Only then ask the developer to acknowledge that exact report.
-The HTML is a disposable presentation, never lifecycle authority.
+Surface the HTML path together with the exact current review SHA-256,
+verdict/findings and implementation identity. Then fill the returned review
+`command_template` with the acting agent identity and continue. Do not create a
+second human confirmation solely to acknowledge an already-visible review. If a
+repository or user explicitly requires manual review acknowledgement, the typed
+`WorkflowHumanDecisionService` remains available for that stricter host policy.
 
-For Learning or accepted-risk decisions, show the current evidence, available
-choices, and the consequence being recorded before requesting the human-owned
-selection. Do not turn optional model-generated explanation policy into another
-approval gate; deterministic owner projections may always be shown.
+Learning disposition is likewise ordinary post-approval judgment: choose the
+status and reason from the current evidence, record it through the returned
+`command_template`, and continue. Accepted risk is different: it transfers risk
+ownership and remains a genuine human decision. A changed goal, policy, acceptance
+intent or deliberate scope boundary likewise requires a new Contract approval.
 
 ## Post-completion Future Work
 
@@ -157,8 +165,9 @@ guidance for choosing stable Contract inputs.
 
 Approval is authority-bearing. When the canonical next step asks for approval,
 present the exact candidate Contract as described above and obtain the named
-human decision instead of self-approving. Approval records Contract authority
-only; deterministic Run, Session and Recall preparation lives behind `enter`.
+human decision instead of self-approving. Approval records authority for the
+exact task Contract; deterministic Run, Session and Recall preparation plus
+ordinary post-approval closeout judgments live behind that authority.
 
 Do **not** pre-emptively build a map, compile Recall, create a Session, select a
 repair command, or walk a remembered phase sequence because this skill once
@@ -186,12 +195,14 @@ Learning, Recall, integrity, or close gates must pass here; that list has change
 before and a prose copy will drift again.
 
 When `finish` returns `command_template`, fill the model-owned values from current
-evidence and continue without inventing a human gate. When it returns
-`decision_required`, present the exact current decision subject first, obtain the
-real human authority, satisfy exactly that canonical step, and call `finish`
-again. Examples of values that may still require human judgment include exact
-review acknowledgement, Learning disposition, accepted risk, or re-planning
-changed intent. The kernel owns when those decisions apply.
+evidence and continue without inventing a human gate. For review acknowledgement,
+surface the current `review_presentation`/HTML before executing the template. For
+Learning, choose the disposition and reason from the validated implementation and
+review evidence. When `finish` returns `decision_required`, present the exact
+current decision subject first, obtain the real human authority, satisfy exactly
+that canonical step, and call `finish` again. Typical remaining human decisions
+are Contract approval/supersession, accepted risk, destructive or irreversible
+actions, and genuinely unresolved product intent.
 
 `agent-loop verify`, `workflow status`, `workflow report`, and reflection remain
 useful diagnostic/read-only surfaces when needed. They are not another mandatory
@@ -251,9 +262,10 @@ evidence. Summaries help navigation but do not replace evidence. Findings are no
 durable guidance until the Learning owner accepts the appropriate promotion
 boundary.
 
-Do not ask humans to run reads, edits, tests, or reports the host can run. Human
-interaction is reserved for real authority, ambiguity, irreversible actions, and
-explicit risk ownership.
+Do not ask humans to run reads, edits, tests, reports, post-approval review
+acknowledgements, or Learning dispositions the host can perform. Human interaction
+is reserved for real authority, ambiguity, irreversible actions, changed intent,
+and explicit risk ownership.
 
 ## Progress Receipt
 

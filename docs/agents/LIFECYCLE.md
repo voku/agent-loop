@@ -72,7 +72,11 @@ avoiding future approvals.
 Approval is an authority boundary. A named human approves the exact Contract
 revision. Before asking, the host presents that exact candidate Contract: goal,
 scope, non-goals, acceptance criteria, validation and relevant selected policy.
-Approval itself does **not** allocate the governed Run, Session or Recall output.
+That approval is the ordinary human task-authority gate. Once it exists, normal
+implementation, deterministic validation, review acknowledgement, Learning
+judgment, Recall outcome logging, local commits and closeout inside the same
+Contract may be delegated to the acting agent. Approval itself does **not**
+allocate the governed Run, Session or Recall output.
 
 `enter` owns deterministic post-approval preparation/reconciliation. It creates
 or reuses the Run-bound Session, prepares the governed Run, compiles current
@@ -116,8 +120,9 @@ or close gates.
 Examples of the kinds of next step `finish` may expose include:
 
 - an executable lifecycle/specialist `command`;
-- a model-owned `command_template` that can be completed from current evidence;
-- a `decision_required` human acknowledgement/disposition/risk decision;
+- a model-owned `command_template` that can be completed from current evidence,
+  including ordinary post-approval review acknowledgement or Learning judgment;
+- a `decision_required` Contract/risk/changed-intent decision;
 - `host_work` when observed validation means implementation must change;
 - `none` when the governed Run is complete.
 
@@ -142,16 +147,25 @@ that distinction by parsing error text.
 Blind-spot/process review remains separate from ordinary engineering correctness
 review. Review artifacts are evidence, not approval merely because files exist.
 
-When the exact current review requires human acknowledgement, the host first
-renders/surfaces the deterministic developer-facing review workbench and the
-exact report SHA-256, verdict/findings and implementation identity. The HTML is a
-presentation of owner evidence, never authority by itself.
+When the exact current review is ready for acknowledgement, the ordinary front
+door materializes/surfaces the deterministic developer-facing HTML workbench plus
+the exact report SHA-256, verdict/findings and implementation identity through
+`review_presentation`. Visibility is intentional even though the acknowledgement
+itself is normally delegated after the exact task Contract has already been
+approved. The returned `command_template` records the acting agent and exact
+report identity. Hosts that explicitly require a second manual acknowledgement
+may use the typed `WorkflowHumanDecisionService` as a stricter policy.
 
-Learning decisions stay explicit and evidence-backed. Recall selection is not
-proof that guidance was useful; unused/irrelevant outcomes remain truthful
-signals. Findings/proposals do not become durable project guidance without the
-Learning/review boundary that owns that promotion. When Learning disposition is
-human-owned, show the current evidence and available owner choices before asking.
+Learning decisions stay explicit, attributable and evidence-backed, but ordinary
+post-approval disposition is likewise delegated to the acting agent. Recall
+selection is not proof that guidance was useful; unused/irrelevant outcomes
+remain truthful signals. Findings/proposals do not become durable project
+guidance without the Learning/review boundary that owns that promotion.
+
+Accepted risk is not ordinary closeout bookkeeping: it transfers risk ownership
+and remains a genuine human decision. Material Contract supersession, changed
+product intent/policy/acceptance, and destructive or irreversible choices likewise
+re-enter a human authority boundary.
 
 Hosts consume the canonical lifecycle request for review/Learning work rather
 than deciding from a copied close checklist when those gates apply.
@@ -214,5 +228,5 @@ Resume from persisted lifecycle state, not from an agent's remembered phase.
   into several immediate blockers;
 - the earliest actionable deterministic gap is surfaced before later judgment
   gaps;
-- human approval/risk authority is never fabricated;
+- human Contract/risk/changed-intent authority is never fabricated;
 - falsify a phase's completion claim before declaring it done.

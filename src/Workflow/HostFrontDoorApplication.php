@@ -6,14 +6,16 @@ namespace voku\AgentLoop\Workflow;
 
 use Closure;
 use JsonException;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
 
 /**
  * CLI-facing presentation layer around HostFrontDoorCommand.
  *
  * Lifecycle authority stays in HostFrontDoorCommand and its owners. This layer
- * only enriches JSON with the exact human decision subject and materializes the
- * disposable review workbench before a review acknowledgement is requested.
+ * enriches JSON with exact human decision subjects and keeps the disposable
+ * review workbench visible even when acknowledgement is delegated after task
+ * approval.
  */
 final readonly class HostFrontDoorApplication
 {
@@ -62,12 +64,26 @@ final readonly class HostFrontDoorApplication
         $taskId = $payload['task_id'] ?? null;
         $nextAction = $payload['next_action'] ?? null;
         $nextActionKind = $payload['next_action_kind'] ?? null;
+        if (is_string($taskId) && $this->materializeReviewPresentationWhenRequired($taskId)) {
+            $review = (new WorkflowReviewReportReader($this->rootPath))->detail($taskId);
+            $html = new WorkflowHumanReviewCommand($this->rootPath);
+            $payload['review_presentation'] = [
+                'schema_version' => '1.0',
+                'kind' => 'html',
+                'path' => PathResolver::relativeTo($this->rootPath, $html->path($taskId)),
+                'exists' => is_file($html->path($taskId)),
+                'review_sha256' => $review->sha256,
+                'report_status' => $review->reportStatus,
+                'contract_revision' => $review->contractRevision,
+                'implementation_snapshot' => $review->implementationSnapshot,
+                'findings' => array_map(static fn ($finding): array => $finding->toArray(), $review->findings),
+            ];
+        }
         if (
             is_string($taskId)
             && is_string($nextAction)
             && $nextActionKind === RunPolicyEvaluation::KIND_DECISION_REQUIRED
         ) {
-            $this->materializeReviewPresentationWhenRequired($taskId);
             $blockers = $this->blockers($payload['blockers'] ?? null);
             $decision = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
                 $taskId,
@@ -88,11 +104,11 @@ final readonly class HostFrontDoorApplication
         return $exitCode;
     }
 
-    private function materializeReviewPresentationWhenRequired(string $taskId): void
+    private function materializeReviewPresentationWhenRequired(string $taskId): bool
     {
         $available = (new WorkflowHumanDecisionService($this->rootPath))->availableActions($taskId);
         if (!$available->allows(WorkflowHumanDecisionProjection::ACKNOWLEDGE_REVIEW)) {
-            return;
+            return false;
         }
 
         $level = ob_get_level();
@@ -104,6 +120,8 @@ final readonly class HostFrontDoorApplication
                 ob_end_clean();
             }
         }
+
+        return true;
     }
 
     /** @param list<string> $args */
