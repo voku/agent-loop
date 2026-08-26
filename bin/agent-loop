@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\GitCandidateEvidenceCommand;
-use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentMap\Cli\DiscoveryCliApplication;
 
 // The outer autoloader comes first on purpose. When this package is installed as a dependency its
@@ -41,7 +41,7 @@ if (in_array($frontDoor, ['enter', 'finish'], true)) {
         ...$recallRest,
     ]);
 
-    exit((new HostFrontDoorCommand(getcwd(), $recallRunner))->run($frontDoor, array_slice($argv, 2)));
+    exit((new HostFrontDoorApplication(getcwd(), $recallRunner))->run($frontDoor, array_slice($argv, 2)));
 }
 
 $verifyArgv = array_slice($argv, 2);
