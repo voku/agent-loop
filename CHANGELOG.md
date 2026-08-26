@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.2 - 2026-08-26
+
+### Added
+
+- Publish immutable deterministic `WorkflowPromptEnvelope` projections and the read-only `WorkflowPromptService::startTask()` / `continueTask()` embedding boundary, including current Contract/Run/Recall lineage, owner disagreements, canonical next action, and explicit mutation authority without parsing CLI prose or mutating workflow state.
+- Track acceptance-criterion observation coverage as durable Contract-side semantics without creating a second Session/execution evidence authority.
+
+### Changed
+
+- After the exact task Contract has been explicitly approved, ordinary review acknowledgement and Learning disposition are model-owned command-template work by default; Contract changes, accepted risk, destructive/irreversible actions, and genuinely new product intent remain human authority boundaries.
+- Keep the HTML review workbench visible through neutral `review_presentation` metadata even when review acknowledgement is delegated post-approval, and retain `WorkflowHumanDecisionService` for stricter/manual hosts.
+
+### Fixed
+
+- Restore margin under the bounded agent-discipline context budget after navigation/tooling guidance expansion.
+- Keep workflow prompt-envelope runtime guards fail-closed and PHPStan-valid while preserving immutable deep-snapshot digest provenance.
+
+### Validation
+
+- PR #306 passed PHP 8.3/8.4/8.5 CI, diagnostics, PHPStan/project rules, installed release-set/refactor lifecycles, governed execution-contract dogfood, deterministic slop review, and self-shape before merge.
+- PR #309 merged the typed prompt-envelope boundary after exact-head lifecycle/PHPUnit/PHPStan verification; the subsequent context-budget and runtime-guard fixes plus acceptance-observation regressions are included in this release target.
+
+
 ## 0.18.1 - 2026-08-25
 
 ### Added
