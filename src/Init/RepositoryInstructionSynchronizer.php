@@ -28,11 +28,11 @@ final readonly class RepositoryInstructionSynchronizer
         foreach ($this->desiredFiles($agent) as $relativePath => $body) {
             $absolutePath = $this->rootPath . '/' . $relativePath;
             $existing = $this->readOptional($absolutePath);
-            if ($this->isCurrent($relativePath, $body, $existing)) {
-                continue;
-            }
 
             try {
+                if ($this->isCurrent($relativePath, $body, $existing)) {
+                    continue;
+                }
                 $this->desiredContent($relativePath, $body, $existing ?? '');
             } catch (RuntimeException $exception) {
                 $operations[] = $this->blocked($agent, $relativePath, $absolutePath, $exception->getMessage());
