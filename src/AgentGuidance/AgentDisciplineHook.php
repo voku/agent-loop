@@ -357,12 +357,11 @@ final readonly class AgentDisciplineHook
         if (!is_string($content) || $content === '' || strlen($content) > self::MAX_RUN_MANIFEST_BYTES) {
             return null;
         }
-
-        try {
-            $manifest = json_decode($content, true, 32, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
+        if (!json_validate($content, 32)) {
             return null;
         }
+
+        $manifest = json_decode($content, true, 32);
         if (!is_array($manifest) || array_is_list($manifest)) {
             return null;
         }
