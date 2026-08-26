@@ -80,7 +80,7 @@ final class CanonicalActionKindTest extends TestCase
         self::assertSame('agent-loop workflow approve E5-001 --by <named-actor>', $policy->nextAction);
     }
 
-    public function testReviewAcknowledgementRemainsHumanDecision(): void
+    public function testReviewAcknowledgementIsDelegatedAfterContractApproval(): void
     {
         $references = $this->references(
             contract: 'approved',
@@ -96,11 +96,12 @@ final class CanonicalActionKindTest extends TestCase
 
         $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
 
-        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
         self::assertStringContainsString('--reviewed-report-sha256 sha256:' . str_repeat('a', 64), $policy->nextAction);
+        self::assertStringContainsString('--by <actor>', $policy->nextAction);
     }
 
-    public function testLearningDispositionRequiresHumanDecisionRatherThanPretendingToBeExecutable(): void
+    public function testLearningDispositionIsDelegatedAfterContractApproval(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
             'E5-001',
@@ -118,9 +119,10 @@ final class CanonicalActionKindTest extends TestCase
             [],
         );
 
-        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
         self::assertStringContainsString('--learning <no_durable_learning|findings_recorded|follow_up_required>', $policy->nextAction);
         self::assertStringContainsString('--learning-reason <learning-reason>', $policy->nextAction);
+        self::assertStringContainsString('--by <actor>', $policy->nextAction);
     }
 
     public function testExecutableAndTerminalStepsKeepDistinctKinds(): void
