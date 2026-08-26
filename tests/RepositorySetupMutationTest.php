@@ -184,7 +184,10 @@ final class RepositorySetupMutationTest extends TestCase
         return null;
     }
 
-    /** @param list<ManagedAssetOperation> $operations @return list<string> */
+    /**
+     * @param list<ManagedAssetOperation> $operations
+     * @return list<string>
+     */
     private function entries(array $operations): array
     {
         return array_map(

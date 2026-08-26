@@ -49,21 +49,20 @@ final readonly class RepositoryManagedAssetInstaller
                 continue;
             }
 
-            $applied = [
-                ...$applied,
-                ...match ($kind) {
-                    ManagedAssetKind::SKILLS => $this->applySkills($operations, $skillSources, $plan->agent, $paths),
-                    ManagedAssetKind::SUBAGENTS => $this->applySubagents($operations, $subagentSources, $plan->agent, $paths),
-                    ManagedAssetKind::HOOKS => $this->applyHooks($operations, $paths, $plan->agent),
-                    ManagedAssetKind::INSTRUCTIONS => [],
-                },
-            ];
+            if ($kind === ManagedAssetKind::SKILLS) {
+                $batch = $this->applySkills($operations, $skillSources, $plan->agent, $paths);
+            } elseif ($kind === ManagedAssetKind::SUBAGENTS) {
+                $batch = $this->applySubagents($operations, $subagentSources, $plan->agent, $paths);
+            } else {
+                $batch = $this->applyHooks($operations, $paths, $plan->agent);
+            }
+            array_push($applied, ...$batch);
         }
 
-        $applied = [
-            ...$applied,
+        array_push(
+            $applied,
             ...(new RepositoryInstructionSynchronizer($this->rootPath))->apply($plan),
-        ];
+        );
 
         return [
             'applied' => $applied,
@@ -135,7 +134,11 @@ final readonly class RepositoryManagedAssetInstaller
         return $sources;
     }
 
-    /** @param list<ManagedAssetOperation> $operations @param array<string,string> $sources @return list<ManagedAssetOperation> */
+    /**
+     * @param list<ManagedAssetOperation> $operations
+     * @param array<string, string> $sources
+     * @return list<ManagedAssetOperation>
+     */
     private function applySkills(array $operations, array $sources, string $agent, AgentAssetSourcePaths $paths): array
     {
         $target = $this->target($agent, ManagedAssetKind::SKILLS, $paths);
@@ -161,7 +164,11 @@ final readonly class RepositoryManagedAssetInstaller
         return $operations;
     }
 
-    /** @param list<ManagedAssetOperation> $operations @param array<string,array{path:string,definition:SubagentDefinition}> $sources @return list<ManagedAssetOperation> */
+    /**
+     * @param list<ManagedAssetOperation> $operations
+     * @param array<string, array{path:string, definition:SubagentDefinition}> $sources
+     * @return list<ManagedAssetOperation>
+     */
     private function applySubagents(array $operations, array $sources, string $agent, AgentAssetSourcePaths $paths): array
     {
         $target = $this->target($agent, ManagedAssetKind::SUBAGENTS, $paths);
@@ -193,7 +200,10 @@ final readonly class RepositoryManagedAssetInstaller
         return $operations;
     }
 
-    /** @param list<ManagedAssetOperation> $operations @return list<ManagedAssetOperation> */
+    /**
+     * @param list<ManagedAssetOperation> $operations
+     * @return list<ManagedAssetOperation>
+     */
     private function applyHooks(array $operations, AgentAssetSourcePaths $paths, string $agent): array
     {
         if (!in_array($agent, ['codex', 'claude'], true)) {

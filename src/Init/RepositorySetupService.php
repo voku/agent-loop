@@ -243,7 +243,7 @@ final readonly class RepositorySetupService
                 break;
             }
         }
-        if ((new ManagedAssetPlanner())->planUninstall($host, false, $drift)->mutates()) {
+        if ($this->planUninstall($host, false, $resolved)->mutates()) {
             $operations[] = RepositorySetupOperation::REMOVE_ASSETS;
         }
         if ($installPlan->blocked !== []) {
@@ -322,7 +322,7 @@ final readonly class RepositorySetupService
         }
 
         foreach (array_values(array_unique($sourceRoots)) as $root) {
-            $this->appendSourceFiles($files, $root);
+            array_push($files, ...$this->sourceFiles($root));
         }
 
         $files = array_values(array_unique($files));
@@ -331,13 +331,14 @@ final readonly class RepositorySetupService
         return $files;
     }
 
-    /** @param list<string> $files */
-    private function appendSourceFiles(array &$files, string $root): void
+    /** @return list<string> */
+    private function sourceFiles(string $root): array
     {
         if (!is_dir($root)) {
-            return;
+            return [];
         }
 
+        $files = [];
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
         );
@@ -346,6 +347,8 @@ final readonly class RepositorySetupService
                 $files[] = $item->getPathname();
             }
         }
+
+        return $files;
     }
 
     /** @return non-empty-string */

@@ -21,7 +21,10 @@ final readonly class RepositoryInstructionSynchronizer
     {
     }
 
-    /** @return list<ManagedAssetOperation> */
+    /**
+     * @param non-empty-string $agent
+     * @return list<ManagedAssetOperation>
+     */
     public function plan(string $agent): array
     {
         $operations = [];
@@ -51,7 +54,10 @@ final readonly class RepositoryInstructionSynchronizer
         return $operations;
     }
 
-    /** @return list<ManagedAssetOperation> */
+    /**
+     * @param non-empty-string $agent
+     * @return list<ManagedAssetOperation>
+     */
     public function planUninstall(string $agent): array
     {
         $operations = [];
@@ -346,6 +352,7 @@ final readonly class RepositoryInstructionSynchronizer
         }
     }
 
+    /** @param non-empty-string $agent */
     private function blocked(string $agent, string $entry, string $targetPath, string $reason): ManagedAssetOperation
     {
         return new ManagedAssetOperation(
