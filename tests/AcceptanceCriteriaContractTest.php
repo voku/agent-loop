@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
@@ -37,19 +38,107 @@ final class AcceptanceCriteriaContractTest extends TestCase
                 'Recall exposes the approved outcome.',
                 'Workflow report keeps the outcome visible.',
             ], $candidate->acceptanceCriteria);
+            self::assertSame($candidate->acceptanceCriteria, $candidate->uncoveredAcceptanceCriteria());
 
             $approved = $store->approve('ACCEPT-1', 'lars');
             self::assertSame(TaskContract::APPROVED, $approved->status);
             self::assertSame($candidate->acceptanceCriteria, $approved->acceptanceCriteria);
+            self::assertSame([], $approved->acceptanceObservations);
 
             $decoded = json_decode((string) file_get_contents($approved->path), true, 512, JSON_THROW_ON_ERROR);
             self::assertSame($approved->acceptanceCriteria, $decoded['acceptance_criteria'] ?? null);
+            self::assertSame([], $decoded['acceptance_observations'] ?? null);
         } finally {
             $this->removeDirectory($root);
         }
     }
 
-    public function testRevisionArchivesPreviousAcceptanceCriteria(): void
+    public function testStorePersistsObservationCoverageAndReportsUncoveredCriteria(): void
+    {
+        $root = $this->root('observations');
+        $store = new TaskContractStore($root);
+
+        try {
+            $contract = $store->create(
+                'ACCEPT-1',
+                'Map required outcomes to declared observations.',
+                ['src/Foo.php'],
+                [],
+                ['vendor/bin/phpunit --filter FooTest', 'composer ci'],
+                'agent',
+                acceptanceCriteria: ['Focused behavior works.', 'Repository remains valid.'],
+                acceptanceObservations: [[
+                    'acceptance' => 'Focused behavior works.',
+                    'validations' => ['vendor/bin/phpunit --filter FooTest'],
+                ]],
+            );
+
+            self::assertSame([[
+                'acceptance' => 'Focused behavior works.',
+                'validations' => ['vendor/bin/phpunit --filter FooTest'],
+            ]], $contract->acceptanceObservations);
+            self::assertSame(['Repository remains valid.'], $contract->uncoveredAcceptanceCriteria());
+
+            $approved = $store->approve('ACCEPT-1', 'lars');
+            self::assertSame($contract->acceptanceObservations, $approved->acceptanceObservations);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testDanglingObservationValidationFailsClosed(): void
+    {
+        $root = $this->root('dangling-validation');
+        $store = new TaskContractStore($root);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('unknown validation command');
+            $store->create(
+                'ACCEPT-1',
+                'Reject observations outside Contract validation.',
+                ['src/Foo.php'],
+                [],
+                ['composer ci'],
+                'agent',
+                acceptanceCriteria: ['Focused behavior works.'],
+                acceptanceObservations: [[
+                    'acceptance' => 'Focused behavior works.',
+                    'validations' => ['vendor/bin/phpunit --filter FooTest'],
+                ]],
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testDanglingObservationAcceptanceFailsClosed(): void
+    {
+        $root = $this->root('dangling-acceptance');
+        $store = new TaskContractStore($root);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('unknown acceptance criterion');
+            $store->create(
+                'ACCEPT-1',
+                'Reject observations outside Contract acceptance.',
+                ['src/Foo.php'],
+                [],
+                ['composer ci'],
+                'agent',
+                acceptanceCriteria: ['Focused behavior works.'],
+                acceptanceObservations: [[
+                    'acceptance' => 'Different outcome.',
+                    'validations' => ['composer ci'],
+                ]],
+            );
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testRevisionArchivesPreviousAcceptanceCriteriaAndObservationCoverage(): void
     {
         $root = $this->root('revision');
         $store = new TaskContractStore($root);
@@ -63,6 +152,10 @@ final class AcceptanceCriteriaContractTest extends TestCase
                 ['composer ci'],
                 'agent',
                 acceptanceCriteria: ['Initial required outcome.'],
+                acceptanceObservations: [[
+                    'acceptance' => 'Initial required outcome.',
+                    'validations' => ['composer ci'],
+                ]],
             );
             $store->approve('ACCEPT-1', 'lars');
 
@@ -74,15 +167,24 @@ final class AcceptanceCriteriaContractTest extends TestCase
                 ['composer ci'],
                 'agent',
                 acceptanceCriteria: ['Revised required outcome.'],
+                acceptanceObservations: [[
+                    'acceptance' => 'Revised required outcome.',
+                    'validations' => ['composer ci'],
+                ]],
             );
 
             self::assertSame(2, $revised->revision);
             self::assertSame(['Revised required outcome.'], $revised->acceptanceCriteria);
+            self::assertSame([], $revised->uncoveredAcceptanceCriteria());
 
             $historyPath = dirname($revised->path) . '/history/contract.001.json';
             self::assertFileExists($historyPath);
             $history = json_decode((string) file_get_contents($historyPath), true, 512, JSON_THROW_ON_ERROR);
             self::assertSame(['Initial required outcome.'], $history['acceptance_criteria'] ?? null);
+            self::assertSame([[
+                'acceptance' => 'Initial required outcome.',
+                'validations' => ['composer ci'],
+            ]], $history['acceptance_observations'] ?? null);
             self::assertSame(TaskContract::SUPERSEDED, $history['status'] ?? null);
         } finally {
             $this->removeDirectory($root);
@@ -117,7 +219,10 @@ final class AcceptanceCriteriaContractTest extends TestCase
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
         try {
-            self::assertSame([], (new TaskContractStore($root))->load('ACCEPT-1')->acceptanceCriteria);
+            $contract = (new TaskContractStore($root))->load('ACCEPT-1');
+            self::assertSame([], $contract->acceptanceCriteria);
+            self::assertSame([], $contract->acceptanceObservations);
+            self::assertSame([], $contract->uncoveredAcceptanceCriteria());
         } finally {
             $this->removeDirectory($root);
         }
