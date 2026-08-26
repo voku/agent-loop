@@ -20,7 +20,7 @@ final readonly class RepositoryManagedAssetInstaller
     }
 
     /**
-     * @return list<ManagedAssetOperation>
+     * @return array{applied:list<ManagedAssetOperation>, blocked:list<ManagedAssetOperation>, messages:list<string>}
      */
     public function apply(ManagedAssetChangePlan $plan, AgentAssetSourcePaths $paths): array
     {
@@ -30,6 +30,8 @@ final readonly class RepositoryManagedAssetInstaller
         if ($plan->blocked !== []) {
             throw new InvalidArgumentException('Refusing to apply an install plan that contains blocked operations.');
         }
+
+        $this->validateOperationTargets($plan, $paths);
 
         // Resolve and validate every source before the first target write. This
         // prevents a broken later source from leaving an avoidable partial sync.
@@ -50,15 +52,24 @@ final readonly class RepositoryManagedAssetInstaller
             $applied = [
                 ...$applied,
                 ...match ($kind) {
-                    ManagedAssetKind::SKILLS => $this->applySkills($operations, $skillSources, $plan->agent),
-                    ManagedAssetKind::SUBAGENTS => $this->applySubagents($operations, $subagentSources, $plan->agent),
+                    ManagedAssetKind::SKILLS => $this->applySkills($operations, $skillSources, $plan->agent, $paths),
+                    ManagedAssetKind::SUBAGENTS => $this->applySubagents($operations, $subagentSources, $plan->agent, $paths),
                     ManagedAssetKind::HOOKS => $this->applyHooks($operations, $paths, $plan->agent),
                     ManagedAssetKind::INSTRUCTIONS => [],
                 },
             ];
         }
 
-        return $applied;
+        $applied = [
+            ...$applied,
+            ...(new RepositoryInstructionSynchronizer($this->rootPath))->apply($plan),
+        ];
+
+        return [
+            'applied' => $applied,
+            'blocked' => [],
+            'messages' => [],
+        ];
     }
 
     /**
@@ -125,9 +136,9 @@ final readonly class RepositoryManagedAssetInstaller
     }
 
     /** @param list<ManagedAssetOperation> $operations @param array<string,string> $sources @return list<ManagedAssetOperation> */
-    private function applySkills(array $operations, array $sources, string $agent): array
+    private function applySkills(array $operations, array $sources, string $agent, AgentAssetSourcePaths $paths): array
     {
-        $target = $this->target($agent, ManagedAssetKind::SKILLS);
+        $target = $this->target($agent, ManagedAssetKind::SKILLS, $paths);
         $projectionSources = [];
         foreach ($target->desiredEntries() ?? [] as $entry) {
             $source = $sources[$entry] ?? null;
@@ -151,9 +162,9 @@ final readonly class RepositoryManagedAssetInstaller
     }
 
     /** @param list<ManagedAssetOperation> $operations @param array<string,array{path:string,definition:SubagentDefinition}> $sources @return list<ManagedAssetOperation> */
-    private function applySubagents(array $operations, array $sources, string $agent): array
+    private function applySubagents(array $operations, array $sources, string $agent, AgentAssetSourcePaths $paths): array
     {
-        $target = $this->target($agent, ManagedAssetKind::SUBAGENTS);
+        $target = $this->target($agent, ManagedAssetKind::SUBAGENTS, $paths);
         $projectionSources = [];
         foreach ($target->desiredEntries() ?? [] as $entry) {
             $source = $sources[$entry]['path'] ?? null;
@@ -189,7 +200,7 @@ final readonly class RepositoryManagedAssetInstaller
             throw new InvalidArgumentException('Executable host hooks are not supported for: ' . $agent);
         }
 
-        $target = $this->target($agent, ManagedAssetKind::HOOKS);
+        $target = $this->target($agent, ManagedAssetKind::HOOKS, $paths);
         $projectionSources = [];
         if ($agent === 'codex') {
             $root = $paths->absoluteHooksRoot();
@@ -253,9 +264,45 @@ final readonly class RepositoryManagedAssetInstaller
         }
     }
 
-    private function target(string $agent, ManagedAssetKind $kind): ManagedAssetTarget
+    private function validateOperationTargets(ManagedAssetChangePlan $plan, AgentAssetSourcePaths $paths): void
     {
-        $paths = $this->defaultPackageSourcePaths();
+        foreach ($plan->operations as $operation) {
+            if ($operation->host !== $plan->agent) {
+                throw new InvalidArgumentException('Install plan operation belongs to a different host: ' . $operation->entry);
+            }
+            if (!in_array($operation->operation, [ManagedAssetOperationKind::ADD, ManagedAssetOperationKind::UPDATE], true)) {
+                throw new InvalidArgumentException('Install plan contains a non-install operation: ' . $operation->entry);
+            }
+            if (!$this->isSafeRelativeEntry($operation->entry)) {
+                throw new InvalidArgumentException('Install plan contains an unsafe managed entry: ' . $operation->entry);
+            }
+
+            $expectedPath = $operation->kind === ManagedAssetKind::INSTRUCTIONS
+                ? rtrim($this->rootPath, '/') . '/' . $operation->entry
+                : rtrim($this->target($plan->agent, $operation->kind, $paths)->targetRoot, '/') . '/' . $operation->entry;
+            if ($operation->targetPath !== $expectedPath) {
+                throw new InvalidArgumentException('Install plan target is outside the managed owner path: ' . $operation->entry);
+            }
+        }
+    }
+
+    private function isSafeRelativeEntry(string $entry): bool
+    {
+        if ($entry === '' || str_starts_with($entry, '/') || str_contains($entry, '\\')) {
+            return false;
+        }
+
+        foreach (explode('/', $entry) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function target(string $agent, ManagedAssetKind $kind, AgentAssetSourcePaths $paths): ManagedAssetTarget
+    {
         foreach ((new ManagedAssetTargetCatalog($this->rootPath))->targetsForHost($paths, $agent) as $target) {
             if ($target->kind === $kind) {
                 return $target;
@@ -336,17 +383,5 @@ final readonly class RepositoryManagedAssetInstaller
         if (!rmdir($path)) {
             throw new InvalidArgumentException('Unable to replace managed directory: ' . $path);
         }
-    }
-
-    private function defaultPackageSourcePaths(): AgentAssetSourcePaths
-    {
-        return new AgentAssetSourcePaths(
-            $this->packageRoot,
-            'docs/agents/skills',
-            'docs/agents/subagents',
-            'docs/agents/codex-hooks',
-            'docs/agents/tools',
-            'docs/agents/claude-hooks',
-        );
     }
 }
