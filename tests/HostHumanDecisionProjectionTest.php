@@ -93,7 +93,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
         );
     }
 
-    public function testFinishShowsExactReviewAndMaterializesWorkbenchBeforeAcknowledgement(): void
+    public function testFinishSurfacesReviewWhileDelegatingAcknowledgementAndLearning(): void
     {
         [$contract, $run, $session, $snapshot] = $this->prepareReviewDecision('DECISION-2');
         $review = (new WorkflowReviewReportReader($this->root))->read('DECISION-2');
@@ -104,14 +104,15 @@ final class HostHumanDecisionProjectionTest extends TestCase
         $payload = $this->json($result['stdout']);
 
         self::assertSame(1, $result['exit'], $result['stderr']);
-        self::assertSame('decision_required', $payload['next_action_kind'] ?? null);
-        self::assertSame('review_acknowledgement', $payload['human_decision']['type'] ?? null);
-        self::assertSame($review['sha256'], $payload['human_decision']['subject']['review_sha256'] ?? null);
-        self::assertSame('ok', $payload['human_decision']['subject']['report_status'] ?? null);
-        self::assertSame($snapshot->digest, $payload['human_decision']['subject']['implementation_snapshot'] ?? null);
-        self::assertSame(0, $payload['human_decision']['subject']['findings_summary']['total'] ?? null);
-        self::assertTrue($payload['human_decision']['subject']['presentation']['exists'] ?? false);
-        $presentationPath = $payload['human_decision']['subject']['presentation']['path'] ?? null;
+        self::assertSame('command_template', $payload['next_action_kind'] ?? null);
+        self::assertArrayNotHasKey('human_decision', $payload);
+        self::assertStringContainsString('--reviewed-report-sha256 ' . $review['sha256'], $payload['next_action'] ?? '');
+        self::assertSame($review['sha256'], $payload['review_presentation']['review_sha256'] ?? null);
+        self::assertSame('ok', $payload['review_presentation']['report_status'] ?? null);
+        self::assertSame($snapshot->digest, $payload['review_presentation']['implementation_snapshot'] ?? null);
+        self::assertSame([], $payload['review_presentation']['findings'] ?? null);
+        self::assertTrue($payload['review_presentation']['exists'] ?? false);
+        $presentationPath = $payload['review_presentation']['path'] ?? null;
         self::assertIsString($presentationPath);
         self::assertFileExists($this->root . '/' . $presentationPath);
 
@@ -120,19 +121,19 @@ final class HostHumanDecisionProjectionTest extends TestCase
             $contract,
             $snapshot,
             $review['sha256'],
-            'lars',
+            'codex',
         );
 
         $learning = $this->runBinary(['finish', 'DECISION-2', '--format=json']);
         $learningPayload = $this->json($learning['stdout']);
         self::assertSame(1, $learning['exit'], $learning['stderr']);
-        self::assertSame('learning_disposition', $learningPayload['human_decision']['type'] ?? null);
-        self::assertSame($run->runId, $learningPayload['human_decision']['subject']['run_id'] ?? null);
-        self::assertSame(
-            ['no_durable_learning', 'findings_recorded', 'follow_up_required'],
-            $learningPayload['human_decision']['subject']['allowed_dispositions'] ?? null,
+        self::assertSame('command_template', $learningPayload['next_action_kind'] ?? null);
+        self::assertArrayNotHasKey('human_decision', $learningPayload);
+        self::assertStringContainsString(
+            '--learning <no_durable_learning|findings_recorded|follow_up_required>',
+            $learningPayload['next_action'] ?? '',
         );
-        self::assertTrue($learningPayload['human_decision']['subject']['reason_required'] ?? false);
+        self::assertStringContainsString('--learning-reason <learning-reason>', $learningPayload['next_action'] ?? '');
 
         self::assertSame($session->id, $run->sessionId);
     }
