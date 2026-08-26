@@ -4,23 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
-/**
- * Computes what install and uninstall would do, without doing any of it.
- *
- * The removal rules are the reason this class exists, and they are all
- * conservative:
- *
- *  - managed and unchanged  -> may be removed
- *  - managed but locally modified -> blocked, because the change is someone's work
- *  - incompatible or unverifiable -> blocked, because we cannot prove ownership
- *  - project-owned / adopted -> never touched
- *  - unreadable or missing manifest -> nothing is removable at all
- *  - hooks -> only when the caller explicitly asked for them
- *
- * Anything not provably ours stays. That asymmetry is deliberate: the cost of
- * leaving a file behind is a stale file, and the cost of the opposite is
- * someone's uncommitted work.
- */
+/** Computes conservative managed-asset install/uninstall plans. */
 final readonly class ManagedAssetPlanner
 {
     /** @param list<ManagedAssetDriftProjection> $projections */
@@ -32,7 +16,6 @@ final readonly class ManagedAssetPlanner
         foreach ($this->relevant($projections, $agent, $withHooks) as $projection) {
             $target = $projection->target;
             $expectation = $target->expectation;
-
             if (!$expectation->isKnown()) {
                 $blocked[] = new ManagedAssetOperation(
                     ManagedAssetOperationKind::BLOCKED,
@@ -42,15 +25,28 @@ final readonly class ManagedAssetPlanner
                     $target->targetRoot,
                     $expectation->failure ?? 'The source definition for this target could not be read.',
                 );
-
                 continue;
+            }
+
+            $desired = array_fill_keys($expectation->entries ?? [], true);
+            foreach ($projection->stale as $entry) {
+                if (isset($desired[$entry])) {
+                    continue;
+                }
+                $blocked[] = new ManagedAssetOperation(
+                    ManagedAssetOperationKind::BLOCKED,
+                    $target->host,
+                    $target->kind,
+                    $entry,
+                    rtrim($target->targetRoot, '/') . '/' . $entry,
+                    'This managed entry is no longer part of the desired projection. Safe install keeps its ownership evidence intact; review or remove it explicitly.',
+                );
             }
 
             foreach ($expectation->entries ?? [] as $entry) {
                 $operation = $this->installOperationFor($projection, $entry);
                 if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
                     $blocked[] = $operation;
-
                     continue;
                 }
                 $operations[] = $operation;
@@ -75,11 +71,7 @@ final readonly class ManagedAssetPlanner
 
         foreach ($this->relevant($projections, $agent, $withHooks) as $projection) {
             $target = $projection->target;
-
             if ($projection->manifestState !== ManagedAssetDriftProjection::MANIFEST_PRESENT) {
-                // No manifest, or one we cannot read: there is no evidence of
-                // ownership, so there is nothing this command may delete. Fail
-                // closed rather than globbing the host directory.
                 $blocked[] = new ManagedAssetOperation(
                     ManagedAssetOperationKind::BLOCKED,
                     $target->host,
@@ -90,7 +82,6 @@ final readonly class ManagedAssetPlanner
                         ? 'No manifest proves agent-loop owns anything here, so nothing is removable.'
                         : ($projection->failure ?? 'The manifest could not be read, so ownership is unproven.'),
                 );
-
                 continue;
             }
 
@@ -128,30 +119,26 @@ final readonly class ManagedAssetPlanner
     {
         $target = $projection->target;
         $targetPath = rtrim($target->targetRoot, '/') . '/' . $entry;
-
-        if (in_array($entry, $projection->projectOwned, true)) {
-            return new ManagedAssetOperation(
-                ManagedAssetOperationKind::BLOCKED,
-                $target->host,
-                $target->kind,
-                $entry,
-                $targetPath,
-                'This path is project-owned; repository setup will not overwrite it.',
-            );
+        $buckets = $projection->buckets();
+        foreach ([
+            'project_owned' => 'This path is project-owned; repository setup will not overwrite it.',
+            'locally_modified' => 'This managed entry was modified locally; overwriting it would discard that change.',
+            'incompatible' => 'This managed entry requires a host capability that is unsupported here.',
+            'unverifiable' => 'The manifest carries no usable evidence for this entry; overwriting it would be unsafe.',
+        ] as $bucket => $reason) {
+            if (in_array($entry, $buckets[$bucket], true)) {
+                return new ManagedAssetOperation(
+                    ManagedAssetOperationKind::BLOCKED,
+                    $target->host,
+                    $target->kind,
+                    $entry,
+                    $targetPath,
+                    $reason,
+                );
+            }
         }
 
-        if (in_array($entry, $projection->locallyModified, true)) {
-            return new ManagedAssetOperation(
-                ManagedAssetOperationKind::BLOCKED,
-                $target->host,
-                $target->kind,
-                $entry,
-                $targetPath,
-                'This managed entry was modified locally; overwriting it would discard that change.',
-            );
-        }
-
-        if (in_array($entry, $projection->current, true)) {
+        if (in_array($entry, $projection->current, true) || in_array($entry, $projection->stale, true)) {
             return new ManagedAssetOperation(
                 ManagedAssetOperationKind::UPDATE,
                 $target->host,
@@ -161,13 +148,7 @@ final readonly class ManagedAssetPlanner
             );
         }
 
-        return new ManagedAssetOperation(
-            ManagedAssetOperationKind::ADD,
-            $target->host,
-            $target->kind,
-            $entry,
-            $targetPath,
-        );
+        return new ManagedAssetOperation(ManagedAssetOperationKind::ADD, $target->host, $target->kind, $entry, $targetPath);
     }
 
     /**
@@ -176,25 +157,20 @@ final readonly class ManagedAssetPlanner
      */
     private function blockedRemovals(ManagedAssetTarget $target, array $entries, string $reason): array
     {
-        $operations = [];
-        foreach ($entries as $entry) {
-            $operations[] = new ManagedAssetOperation(
+        return array_map(
+            static fn (string $entry): ManagedAssetOperation => new ManagedAssetOperation(
                 ManagedAssetOperationKind::BLOCKED,
                 $target->host,
                 $target->kind,
                 $entry,
                 rtrim($target->targetRoot, '/') . '/' . $entry,
                 $reason,
-            );
-        }
-
-        return $operations;
+            ),
+            $entries,
+        );
     }
 
     /**
-     * Optional executable hooks are only in scope when the caller asked for
-     * them, whichever direction the operation runs in.
-     *
      * @param list<ManagedAssetDriftProjection> $projections
      * @return list<ManagedAssetDriftProjection>
      */

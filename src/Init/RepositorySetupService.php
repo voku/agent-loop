@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
 
 /**
- * Typed, mutation-free owner projection for repository/host setup state.
+ * Typed owner boundary for repository/host setup state and safe mutations.
  *
  * CLI adapters and human-facing hosts consume this service instead of
  * reconstructing init semantics from rendered command output or manifests.
@@ -22,25 +24,13 @@ final readonly class RepositorySetupService
     ) {
     }
 
-    /**
-     * Typed repository diagnostics: PHP, Composer, Git, Git integration, make
-     * targets, source assets, host runtime and capabilities, managed-asset
-     * drift and optional hooks.
-     *
-     * Mutation-free. `init doctor` renders exactly this.
-     */
     public function diagnostics(?AgentAssetSourcePaths $paths = null): RepositorySetupDiagnostics
     {
         return (new RepositorySetupDiagnosticsInspector($this->rootPath, $this->runtimeProbe))
             ->inspect($paths ?? $this->defaultSourcePaths());
     }
 
-    /**
-     * Drift classification for every (host, asset kind) target this repository
-     * projects into.
-     *
-     * @return list<ManagedAssetDriftProjection>
-     */
+    /** @return list<ManagedAssetDriftProjection> */
     public function managedAssetDrift(?AgentAssetSourcePaths $paths = null): array
     {
         return (new ManagedAssetDriftProjector())->project(
@@ -53,11 +43,74 @@ final readonly class RepositorySetupService
     public function planInstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
     {
         $resolved = $paths ?? $this->defaultSourcePaths();
+        $host = $this->requireSupportedHost($agent);
+        if ($withHooks && !in_array($host, ['codex', 'claude'], true)) {
+            throw new InvalidArgumentException('Executable host hooks are only supported for codex or claude.');
+        }
 
-        return (new ManagedAssetPlanner())->planInstall(
-            $this->requireSupportedHost($agent),
+        $drift = $this->managedAssetDrift($resolved);
+        $assetPlan = (new ManagedAssetPlanner())->planInstall($host, $withHooks, $drift);
+        $instructionPlan = (new RepositoryInstructionSynchronizer($this->rootPath))->plan($host);
+        $operations = $assetPlan->operations;
+        $blocked = $assetPlan->blocked;
+        foreach ($instructionPlan as $operation) {
+            if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
+                $blocked[] = $operation;
+            } else {
+                $operations[] = $operation;
+            }
+        }
+
+        return new ManagedAssetChangePlan(
+            ManagedAssetChangePlan::INTENT_INSTALL,
+            $host,
             $withHooks,
-            $this->managedAssetDrift($resolved),
+            RepositorySetupStateToken::fromDriftProjections(
+                $drift,
+                $this->installStateFiles($host, $withHooks, $resolved),
+            ),
+            $operations,
+            $blocked,
+        );
+    }
+
+    /**
+     * Applies only the exact typed plan the caller reviewed, and only while the
+     * repository/source evidence bound into the plan remains current.
+     *
+     * @throws StaleRepositorySetupPlan
+     */
+    public function install(
+        ManagedAssetChangePlan $plan,
+        string $expectedState,
+        ?AgentAssetSourcePaths $paths = null,
+    ): ManagedAssetMutationResult {
+        if ($plan->intent !== ManagedAssetChangePlan::INTENT_INSTALL) {
+            throw new InvalidArgumentException('Expected an install setup plan.');
+        }
+
+        $resolved = $paths ?? $this->defaultSourcePaths();
+        $this->assertCurrent($plan, $expectedState, $resolved);
+        if ($plan->blocked !== []) {
+            return new ManagedAssetMutationResult(
+                $plan,
+                false,
+                [],
+                $plan->blocked,
+                ['Install was not applied because the reviewed plan contains blocked operations.'],
+                $this->installStateToken($plan->agent, $plan->withHooks, $resolved),
+            );
+        }
+
+        $outcome = (new RepositoryManagedAssetInstaller($this->rootPath))->apply($plan, $resolved);
+
+        return new ManagedAssetMutationResult(
+            $plan,
+            $outcome['blocked'] === [],
+            $outcome['applied'],
+            $outcome['blocked'],
+            $outcome['messages'],
+            $this->installStateToken($plan->agent, $plan->withHooks, $resolved),
         );
     }
 
@@ -65,21 +118,36 @@ final readonly class RepositorySetupService
     public function planUninstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
     {
         $resolved = $paths ?? $this->defaultSourcePaths();
+        $host = $this->requireSupportedHost($agent);
+        $drift = $this->managedAssetDrift($resolved);
+        $assetPlan = (new ManagedAssetPlanner())->planUninstall($host, $withHooks, $drift);
+        $instructionPlan = (new RepositoryInstructionSynchronizer($this->rootPath))->planUninstall($host);
+        $operations = $assetPlan->operations;
+        $blocked = $assetPlan->blocked;
+        foreach ($instructionPlan as $operation) {
+            if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
+                $blocked[] = $operation;
+            } else {
+                $operations[] = $operation;
+            }
+        }
 
-        return (new ManagedAssetPlanner())->planUninstall(
-            $this->requireSupportedHost($agent),
+        return new ManagedAssetChangePlan(
+            ManagedAssetChangePlan::INTENT_UNINSTALL,
+            $host,
             $withHooks,
-            $this->managedAssetDrift($resolved),
+            RepositorySetupStateToken::fromDriftProjections(
+                $drift,
+                (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($host),
+            ),
+            $operations,
+            $blocked,
         );
     }
 
     /**
      * Removes only what the given plan authorised, and only if the repository
      * still looks the way the plan was computed against.
-     *
-     * `expectedState` is the token the caller was handed with the plan. A stale
-     * browser POST fails with {@see StaleRepositorySetupPlan} rather than
-     * applying a plan that was reasoned about against different files.
      *
      * @throws StaleRepositorySetupPlan
      */
@@ -88,29 +156,65 @@ final readonly class RepositorySetupService
         string $expectedState,
         ?AgentAssetSourcePaths $paths = null,
     ): ManagedAssetMutationResult {
+        if ($plan->intent !== ManagedAssetChangePlan::INTENT_UNINSTALL) {
+            throw new InvalidArgumentException('Expected an uninstall setup plan.');
+        }
+
         $resolved = $paths ?? $this->defaultSourcePaths();
         $this->assertCurrent($plan, $expectedState, $resolved);
 
-        $outcome = (new ManagedAssetUninstaller())->apply($plan);
+        $instructionOutcome = (new RepositoryInstructionSynchronizer($this->rootPath))->applyUninstall($plan);
+        $assetOperations = array_values(array_filter(
+            $plan->operations,
+            static fn (ManagedAssetOperation $operation): bool => $operation->kind !== ManagedAssetKind::INSTRUCTIONS,
+        ));
+        $assetPlan = new ManagedAssetChangePlan(
+            $plan->intent,
+            $plan->agent,
+            $plan->withHooks,
+            $plan->expectedState,
+            $assetOperations,
+            [],
+        );
+        $assetOutcome = (new ManagedAssetUninstaller())->apply($assetPlan);
+        $applied = [...$instructionOutcome['applied'], ...$assetOutcome['applied']];
+        $runtimeBlocked = [...$instructionOutcome['blocked'], ...$assetOutcome['blocked']];
 
         return new ManagedAssetMutationResult(
             $plan,
-            $outcome['blocked'] === [] || $outcome['applied'] !== [],
-            $outcome['applied'],
-            [...$plan->blocked, ...$outcome['blocked']],
-            $outcome['messages'],
-            RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($resolved)),
+            $runtimeBlocked === [] || $applied !== [],
+            $applied,
+            [...$plan->blocked, ...$runtimeBlocked],
+            [...$instructionOutcome['messages'], ...$assetOutcome['messages']],
+            RepositorySetupStateToken::fromDriftProjections(
+                $this->managedAssetDrift($resolved),
+                (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+            ),
         );
     }
 
-    /**
-     * The repository-owned operations a host may legally offer right now.
-     *
-     * Derived from owner facts only. A host renders these; it never infers
-     * them from a combination of status fields.
-     *
-     * @return list<RepositorySetupOperation>
-     */
+    /** Repository-owned policy projection only; host/user settings stay outside this boundary. */
+    public function syncPolicy(string $agent): RepositorySetupProjection
+    {
+        $host = $this->requireSupportedHost($agent);
+        if (!in_array($host, HostPolicyProjector::supportedAgents(), true)) {
+            throw new InvalidArgumentException('Repository policy projection is not supported for host: ' . $host);
+        }
+
+        (new HostPolicyProjector($this->rootPath))->sync($host);
+
+        return $this->overview($host);
+    }
+
+    /** Applies only repository-declared local Git integration. */
+    public function syncGitIntegration(): RepositorySetupProjection
+    {
+        (new RepositoryGitIntegrationSynchronizer($this->rootPath))->syncDeclared();
+
+        return $this->overview();
+    }
+
+    /** @return list<RepositorySetupOperation> */
     public function legalOperations(?string $requestedAgent = null, ?AgentAssetSourcePaths $paths = null): array
     {
         $projection = $this->overview($requestedAgent);
@@ -120,25 +224,22 @@ final readonly class RepositorySetupService
         }
 
         $resolved = $paths ?? $this->defaultSourcePaths();
-        $drift = $this->managedAssetDrift($resolved);
         $operations = [];
 
-        $installPlan = (new ManagedAssetPlanner())->planInstall($host, false, $drift);
+        $installPlan = $this->planInstall($host, false, $resolved);
         foreach ($installPlan->operations as $operation) {
             if ($operation->operation === ManagedAssetOperationKind::ADD) {
                 $operations[] = RepositorySetupOperation::INSTALL_ASSETS;
-
                 break;
             }
         }
         foreach ($installPlan->operations as $operation) {
             if ($operation->operation === ManagedAssetOperationKind::UPDATE) {
                 $operations[] = RepositorySetupOperation::UPDATE_ASSETS;
-
                 break;
             }
         }
-        if ((new ManagedAssetPlanner())->planUninstall($host, false, $drift)->mutates()) {
+        if ($this->planUninstall($host, false, $resolved)->mutates()) {
             $operations[] = RepositorySetupOperation::REMOVE_ASSETS;
         }
         if ($installPlan->blocked !== []) {
@@ -165,9 +266,7 @@ final readonly class RepositorySetupService
         return array_values(array_unique($operations, SORT_REGULAR));
     }
 
-    /**
-     * @throws StaleRepositorySetupPlan
-     */
+    /** @throws StaleRepositorySetupPlan */
     private function assertCurrent(
         ManagedAssetChangePlan $plan,
         string $expectedState,
@@ -177,18 +276,75 @@ final readonly class RepositorySetupService
             throw new StaleRepositorySetupPlan($plan->expectedState->value, $expectedState);
         }
 
-        $observed = RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($paths));
+        $observed = $plan->intent === ManagedAssetChangePlan::INTENT_INSTALL
+            ? $this->installStateToken($plan->agent, $plan->withHooks, $paths)
+            : RepositorySetupStateToken::fromDriftProjections(
+                $this->managedAssetDrift($paths),
+                (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+            );
         if (!$observed->matches($plan->expectedState->value)) {
             throw new StaleRepositorySetupPlan($plan->expectedState->value, $observed->value);
         }
     }
 
-    /**
-     * Normalises a requested host through the owner's own parser, so an
-     * unsupported host fails here rather than deep inside a plan.
-     *
-     * @return non-empty-string
-     */
+    private function installStateToken(string $agent, bool $withHooks, AgentAssetSourcePaths $paths): RepositorySetupStateToken
+    {
+        return RepositorySetupStateToken::fromDriftProjections(
+            $this->managedAssetDrift($paths),
+            $this->installStateFiles($agent, $withHooks, $paths),
+        );
+    }
+
+    /** @return list<string> */
+    private function installStateFiles(string $agent, bool $withHooks, AgentAssetSourcePaths $paths): array
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $files = (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($agent);
+        $files[] = $packageRoot . '/docs/agents/project-instructions.md';
+
+        $sourceRoots = [
+            $paths->absoluteSkillsRoot(),
+            ...FirstPartySkillRoots::resolve($packageRoot),
+            $paths->absoluteSubagentsRoot(),
+        ];
+        if ($withHooks && $agent === 'codex') {
+            $sourceRoots[] = $paths->absoluteHooksRoot();
+        }
+        if ($withHooks && $agent === 'claude') {
+            $sourceRoots[] = $paths->absoluteClaudeHooksRoot();
+        }
+
+        foreach (array_values(array_unique($sourceRoots)) as $root) {
+            array_push($files, ...$this->sourceFiles($root));
+        }
+
+        $files = array_values(array_unique($files));
+        sort($files, SORT_STRING);
+
+        return $files;
+    }
+
+    /** @return list<string> */
+    private function sourceFiles(string $root): array
+    {
+        if (!is_dir($root)) {
+            return [];
+        }
+
+        $files = [];
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $item) {
+            if ($item->isFile()) {
+                $files[] = $item->getPathname();
+            }
+        }
+
+        return $files;
+    }
+
+    /** @return non-empty-string */
     private function requireSupportedHost(string $agent): string
     {
         return InitAgent::parse($agent, InitAgent::canonicalNames())->canonicalName();
@@ -260,11 +416,7 @@ final readonly class RepositorySetupService
     }
 
     /**
-     * @return array{
-     *     host: non-empty-string|null,
-     *     selection: RepositorySetupSelection,
-     *     decision: non-empty-string|null
-     * }
+     * @return array{host:non-empty-string|null,selection:RepositorySetupSelection,decision:non-empty-string|null}
      */
     private function selectHost(?string $requestedAgent, HostRuntimeProbe $probe): array
     {
@@ -322,7 +474,7 @@ final readonly class RepositorySetupService
     }
 
     /**
-     * @return array{status: 'ready'|'missing'|'conflict'|'manual'|'unsupported', path: non-empty-string|null, detail: non-empty-string}
+     * @return array{status:'ready'|'missing'|'conflict'|'manual'|'unsupported',path:non-empty-string|null,detail:non-empty-string}
      */
     private function policyStatus(string $host): array
     {
@@ -426,9 +578,9 @@ final readonly class RepositorySetupService
     }
 
     /**
-     * @param array{status: 'ready'|'missing'|'conflict'|'manual'|'unsupported', path: non-empty-string|null, detail: non-empty-string} $policy
+     * @param array{status:'ready'|'missing'|'conflict'|'manual'|'unsupported',path:non-empty-string|null,detail:non-empty-string} $policy
      * @param non-empty-string|null $gitIntegrationAction
-     * @return array{kind: RepositorySetupNextActionKind, action: non-empty-string|null}
+     * @return array{kind:RepositorySetupNextActionKind,action:non-empty-string|null}
      */
     private function nextAction(
         string $host,
@@ -474,7 +626,7 @@ final readonly class RepositorySetupService
         return ['kind' => RepositorySetupNextActionKind::NONE, 'action' => null];
     }
 
-    /** @return array{status: 'ready'|'missing'|'not_declared', action: non-empty-string|null} */
+    /** @return array{status:'ready'|'missing'|'not_declared',action:non-empty-string|null} */
     private function gitIntegration(): array
     {
         $activation = new RepositoryActivation($this->rootPath);

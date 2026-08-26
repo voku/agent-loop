@@ -13,8 +13,8 @@ namespace voku\AgentLoop\Init;
  * repository moved underneath in between.
  *
  * The token covers manifest content and the current representation of every
- * entry the plan can touch, so a locally modified managed file invalidates a
- * removal plan that was computed while it was still pristine.
+ * entry the plan can touch, plus marker-owned repository files explicitly
+ * supplied by the planner.
  */
 final readonly class RepositorySetupStateToken
 {
@@ -22,8 +22,11 @@ final readonly class RepositorySetupStateToken
     {
     }
 
-    /** @param list<ManagedAssetDriftProjection> $projections */
-    public static function fromDriftProjections(array $projections): self
+    /**
+     * @param list<ManagedAssetDriftProjection> $projections
+     * @param list<string> $additionalFiles absolute marker-owned files the plan may write
+     */
+    public static function fromDriftProjections(array $projections, array $additionalFiles = []): self
     {
         $parts = [];
         foreach ($projections as $projection) {
@@ -43,12 +46,23 @@ final readonly class RepositorySetupStateToken
                 : 'absent';
 
             $parts[] = implode('|', [
+                'manifest-target',
                 $target->host,
                 $target->kind->value,
                 $target->targetRoot,
                 $projection->manifestState,
                 $manifestDigest,
                 implode(',', $entryDigests),
+            ]);
+        }
+
+        $additionalFiles = array_values(array_unique($additionalFiles));
+        sort($additionalFiles, SORT_STRING);
+        foreach ($additionalFiles as $path) {
+            $parts[] = implode('|', [
+                'repository-file',
+                $path,
+                is_file($path) ? (InitSyncManifest::digestPath($path) ?? 'unreadable') : 'absent',
             ]);
         }
 
