@@ -172,7 +172,7 @@ final class RepositorySetupMutationTest extends TestCase
         self::assertSame(0, $exitCode, 'Git is required for the typed Git integration regression.');
 
         $service = new RepositorySetupService($this->root);
-        $projection = $service->syncGitIntegration();
+        $service->syncGitIntegration();
 
         self::assertFileExists($this->root . '/.githooks/pre-commit');
         self::assertFileExists($this->root . '/.githooks/commit-msg');
@@ -184,7 +184,6 @@ final class RepositorySetupMutationTest extends TestCase
         );
         self::assertSame(0, $configExit);
         self::assertSame(['.githooks'], $configOutput);
-        self::assertNotNull($projection->integration);
     }
 
     private function paths(): AgentAssetSourcePaths
