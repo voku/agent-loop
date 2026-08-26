@@ -428,7 +428,7 @@ final readonly class RepositorySetupService
 
         $detected = [];
         foreach (InitAgent::canonicalNames() as $candidate) {
-            if ($probe->probe($candidate)['status'] === HostRuntimeProbe::AVAILABLE) {
+            if ($probe->probe($candidate)['status'] === 'available') {
                 $detected[] = $candidate;
             }
         }
@@ -468,7 +468,7 @@ final readonly class RepositorySetupService
     {
         $activation = new RepositoryActivation($this->rootPath);
         if (!$activation->declaresGitHookPolicy() && !$activation->declaresCommitTemplate()) {
-            return ['status' => RepositorySetupIntegrationState::NOT_APPLICABLE->value, 'action' => null];
+            return ['status' => RepositorySetupIntegrationState::NOT_DECLARED->value, 'action' => null];
         }
 
         $checks = $activation->localGitIntegrationChecks();
@@ -530,18 +530,18 @@ final readonly class RepositorySetupService
         return ['kind' => RepositorySetupNextActionKind::NONE, 'action' => null];
     }
 
-    /** @param array{status:string,command:string,path:?string} $runtime */
+    /** @param array{status:string,command:string|null,path:?string} $runtime */
     private function runtimeBoundary(string $host, array $runtime): ?RepositorySetupRuntimeBoundary
     {
-        if ($runtime['status'] === HostRuntimeProbe::AVAILABLE) {
+        if ($runtime['status'] === 'available') {
             return null;
         }
 
         return new RepositorySetupRuntimeBoundary(
             kind: RepositorySetupNextActionKind::HOST_USER_ACTION,
             detail: match ($runtime['status']) {
-                HostRuntimeProbe::MISSING => 'Install or expose the ' . $host . ' executable outside repository setup.',
-                HostRuntimeProbe::UNAVAILABLE => 'Repair the host runtime outside repository setup; repository policy cannot make the executable usable.',
+                'missing' => 'Install or expose the ' . $host . ' executable outside repository setup.',
+                'unprobed' => 'Confirm the ' . $host . ' runtime outside repository setup; this host cannot be probed automatically.',
                 default => 'Confirm host runtime readiness outside repository setup.',
             },
         );
