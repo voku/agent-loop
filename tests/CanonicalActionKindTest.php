@@ -10,7 +10,7 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 final class CanonicalActionKindTest extends TestCase
 {
-    public function testUnplannedTaskUsesOnePlaceholderNotationAndRequiresDecisionInput(): void
+    public function testUnplannedTaskUsesModelOwnedCommandTemplateInsteadOfHumanDecision(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
             'E5-001',
@@ -28,7 +28,7 @@ final class CanonicalActionKindTest extends TestCase
             [],
         );
 
-        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
         self::assertStringContainsString('--by <actor>', $policy->nextAction);
         self::assertStringContainsString('--file <path>', $policy->nextAction);
         self::assertStringContainsString('--goal <goal>', $policy->nextAction);
@@ -36,7 +36,71 @@ final class CanonicalActionKindTest extends TestCase
         self::assertStringNotContainsString('"..."', $policy->nextAction);
     }
 
-    public function testLearningDispositionRequiresDecisionInputRatherThanPretendingToBeExecutable(): void
+    public function testExecutionContractConstructionUsesModelOwnedCommandTemplate(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'E5-001',
+            'governed',
+            $this->references(
+                contract: 'approved',
+                approval: 'current',
+                session: 'active',
+                recall: 'compiled',
+                executionContract: 'missing',
+                verification: 'pending_close',
+                review: 'missing',
+                learning: 'unavailable',
+            ),
+            [],
+        );
+
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
+        self::assertStringContainsString('workflow contract E5-001 --status ready --from <l1.md>', $policy->nextAction);
+    }
+
+    public function testContractApprovalRemainsHumanDecision(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'E5-001',
+            'planned',
+            $this->references(
+                contract: 'candidate',
+                approval: 'unavailable',
+                session: 'missing',
+                recall: 'missing',
+                executionContract: 'not_required',
+                verification: 'pending_close',
+                review: 'missing',
+                learning: 'unavailable',
+            ),
+            [],
+        );
+
+        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
+        self::assertSame('agent-loop workflow approve E5-001 --by <named-actor>', $policy->nextAction);
+    }
+
+    public function testReviewAcknowledgementRemainsHumanDecision(): void
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'pending_close',
+            review: 'unacknowledged',
+            learning: 'missing',
+        );
+        $references['review']['source'] = ['sha256' => 'sha256:' . str_repeat('a', 64)];
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+
+        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
+        self::assertStringContainsString('--reviewed-report-sha256 sha256:' . str_repeat('a', 64), $policy->nextAction);
+    }
+
+    public function testLearningDispositionRequiresHumanDecisionRatherThanPretendingToBeExecutable(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
             'E5-001',
