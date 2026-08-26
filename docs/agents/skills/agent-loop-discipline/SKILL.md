@@ -21,7 +21,8 @@ vendor/bin/agent-loop finish <task-id> --format=json
 Obey `next_action_kind` and `next_action` from that result:
 
 - `command` - run it as written;
-- `decision_required` - supply the missing model/human values first;
+- `command_template` - fill model-owned placeholders from the actual request and current repository evidence, then execute it without asking a human merely because placeholders exist;
+- `decision_required` - a genuine human-authority decision is required; present the exact current decision subject before asking and never fabricate it;
 - `host_work` - do the described host-native implementation work;
 - `none` - there is no further lifecycle action.
 
@@ -35,7 +36,7 @@ A SessionStart/SubagentStart hint is navigation only. Never infer approval,
 contract readiness, validation, review, learning, product intent, or a next
 command from it.
 
-Human gates are Contract approval, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, reports, contract construction from approved evidence, and agent checkpoints remain agent work.
+Human gates include Contract approval, exact review acknowledgement, Learning disposition when requested by the owner, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, reports, model-owned PLAN/execution-contract construction, and agent checkpoints remain agent work.
 
 ## Agent I/O
 
@@ -84,6 +85,8 @@ vendor/bin/agent-loop workflow contract <task-id> \
   --from <project-specific-l1.md> \
   --by <actor>
 ```
+
+This is model-owned construction from approved task intent and Recall evidence unless the lifecycle explicitly reports a human authority boundary. Do not create an extra confirmation merely because the canonical command is a template.
 
 `missing`, `stale`, `invalid`, `blocked`, or `rejected` means IMPLEMENT is unavailable. Record the evidence and minimum required change; never weaken approved policy merely to reach `ready`.
 

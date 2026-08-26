@@ -43,10 +43,11 @@ For a stable task id, start or resume with:
 vendor/bin/agent-loop enter <task-id> --format=json
 ```
 
-For a genuinely new task the kernel may return a `decision_required` PLAN command
-template. Fill the missing Contract inputs from the actual request and current
-repository evidence, execute that command, then call `enter` again and obey the
-new structured `next_action_kind` / `next_action`.
+For a genuinely new task the kernel may return a `command_template` PLAN command.
+Fill the missing Contract inputs from the actual request and current repository
+evidence, execute that command without an extra human confirmation merely because
+placeholders exist, then call `enter` again and obey the new structured
+`next_action_kind` / `next_action`.
 
 Do not pre-build a map, manually create a Session, compile Recall, or infer that
 approval should run merely because an old startup checklist said so. If discovery
@@ -54,8 +55,11 @@ or another deterministic prerequisite is required, the owner-backed lifecycle
 result must name that repair.
 
 A named human approval remains authority-bearing. Never fabricate the approving
-actor or self-approve. Approval records authority for the exact Contract revision;
-Run, Session and Recall preparation happens deterministically behind `enter`.
+actor or self-approve. Before asking, show the exact candidate Contract the human
+would own: goal, scope, non-goals, acceptance criteria, validation and relevant
+behavior/prompt policy. Approval records authority for the exact Contract
+revision; Run, Session and Recall preparation happens deterministically behind
+`enter`.
 
 ## Contract Intent
 
@@ -87,13 +91,34 @@ should discover it before another plan is invented beside it.
 
 ## Choosing Scope
 
-Select files intentionally. Prefer the smallest scope that honestly contains the
-requested behavior and evidence. Typical inputs include:
+Select scope intentionally. The Contract should be narrow enough to constrain
+work but stable enough that ordinary discovery inside one cohesive subsystem does
+not force repeated supersession approvals.
 
-- the failing or focused test;
-- the implementation owner;
-- a task/decision document that constrains behavior;
-- architecture or policy files directly governing the change.
+Before persisting the first Contract for a non-trivial task, do one bounded
+read-only scope pass using the request and obvious repository evidence. The goal
+is not exhaustive design; it is to avoid approving an accidental first-file guess.
+Identify the likely implementation owner, its focused tests and the nearest
+cohesive path boundary that honestly contains the requested behavior.
+
+Use `--file` for concrete evidence/owners you already know. Use explicit
+`--scope` when the honest mutation boundary is broader than those seed files. For
+example, when a change clearly spans one component directory plus its focused
+tests, approve those bounded paths once rather than revising the Contract every
+time another sibling file is discovered.
+
+Prefer the smallest **stable** boundary, not the smallest textual list:
+
+- one exact file is appropriate for a genuinely isolated edit;
+- a focused implementation directory plus its focused test directory is
+  appropriate when the task is structurally multi-file;
+- repository root is not an acceptable default merely to avoid future prompts.
+
+A later file that is already inside the approved scope is ordinary implementation
+discovery and does not require re-planning. A file outside the approved scope
+requires supersession only when it is actually necessary. If that expansion also
+changes goal, policy, acceptance intent or a deliberate boundary, surface the
+changed Contract to the human for approval rather than quietly broadening it.
 
 Do not pass the whole repository merely because context is available. Initial
 `--file` values become approved scope unless explicit `--scope` values replace

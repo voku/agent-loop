@@ -10,6 +10,7 @@ use RecursiveIteratorIterator;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
@@ -136,7 +137,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
 
         self::assertSame(2, $statusExit);
         self::assertSame('recall_outcomes', $status['manifest']['references']['verification']['gate'] ?? null);
-        self::assertSame('decision_required', $status['manifest']['next_action_kind'] ?? null);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $status['manifest']['next_action_kind'] ?? null);
         $action = (string) ($status['manifest']['next_action'] ?? '');
         self::assertStringContainsString('agent-loop recall log-outcome', $action);
         self::assertStringContainsString('.agent-loop/recall/ABC-123/recall-log.draft.json', $action);
