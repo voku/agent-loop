@@ -1,0 +1,27 @@
+name: Finish setup owner wiring
+
+on:
+  push:
+    branches:
+      - fix/setup-typed-mutations
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/setup-typed-mutations
+          fetch-depth: 1
+      - name: Apply final owner wiring
+        run: python3 .github/scripts/finish_setup_owner.py
+      - name: Commit final owner wiring
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(setup): use typed Git integration owner'
+          git push origin HEAD:fix/setup-typed-mutations
