@@ -51,9 +51,11 @@ final class InitSyncInstructionsCommandTest extends TestCase
         // lifecycle vocabulary. Mutation: ready / Complete: yes were the old
         // wording; a router quoting kernel output is host-owned choreography.
         self::assertStringContainsString('next_action_kind', $agents);
-        foreach (['command', 'decision_required', 'host_work', 'none'] as $kind) {
+        foreach (['command', 'command_template', 'decision_required', 'host_work', 'none'] as $kind) {
             self::assertStringContainsString($kind, $agents, 'router must name the ' . $kind . ' step kind');
         }
+        self::assertStringContainsString('genuine human-authority decision', $agents);
+        self::assertStringContainsString('exact current decision subject', $agents);
         self::assertStringContainsString('do not pre-build Map/Search', $agents);
         self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
         self::assertStringContainsString('init sync-instructions', $agents);
