@@ -53,6 +53,40 @@ final class AcceptanceCriteriaContractTest extends TestCase
         }
     }
 
+    public function testPlanPersistsAcceptanceObservationMappings(): void
+    {
+        $root = $this->root('plan-observation');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'ACCEPT-1',
+                '--by', 'agent',
+                '--file', 'src/Foo.php',
+                '--goal', 'Bind acceptance to declared observation intent.',
+                '--validation', 'vendor/bin/phpunit --filter FooTest',
+                '--validation', 'composer ci',
+                '--acceptance', 'Focused behavior works.',
+                '--acceptance', 'Repository remains valid.',
+                '--acceptance-observation', json_encode([
+                    'acceptance' => 'Focused behavior works.',
+                    'validations' => ['vendor/bin/phpunit --filter FooTest'],
+                ], JSON_THROW_ON_ERROR),
+            ]);
+            ob_end_clean();
+
+            self::assertSame(0, $exit);
+            $contract = (new TaskContractStore($root))->load('ACCEPT-1');
+            self::assertSame([[
+                'acceptance' => 'Focused behavior works.',
+                'validations' => ['vendor/bin/phpunit --filter FooTest'],
+            ]], $contract->acceptanceObservations);
+            self::assertSame(['Repository remains valid.'], $contract->uncoveredAcceptanceCriteria());
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testStorePersistsObservationCoverageAndReportsUncoveredCriteria(): void
     {
         $root = $this->root('observations');
