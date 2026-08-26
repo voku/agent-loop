@@ -44,8 +44,11 @@ manifest.references
 Treat `next_action_kind` as follows:
 
 - `command` — execute `next_action` as written;
-- `decision_required` — supply the missing model/human input values in the
-  command template, then execute it;
+- `command_template` — fill model-owned placeholders from the actual request and
+  current repository evidence, then execute it without asking a human merely
+  because placeholders exist;
+- `decision_required` — a genuine human-authority decision is required; show the
+  exact current Contract/review/Learning/risk subject before asking for it;
 - `host_work` — perform the described implementation/model work; the text is not
   a command;
 - `none` — the lifecycle has no further action.
@@ -56,13 +59,15 @@ or another action is next, follow that exact result.
 
 ## 3. Define durable task intent when requested
 
-For an unplanned task, `enter` returns a PLAN template similar to:
+For an unplanned task, `enter` returns a `command_template` PLAN similar to:
 
 ```text
 agent-loop workflow plan DEMO-1 --by <actor> --file <path> --goal <goal> --validation <validation>
 ```
 
-Replace every placeholder with a real value before executing it. For example:
+Replace every placeholder with a real value from the user's request and current
+repository evidence before executing it. This is model-owned task construction,
+not a human approval gate. For example:
 
 ```bash
 vendor/bin/agent-loop workflow plan DEMO-1 \
@@ -77,16 +82,35 @@ A validation value must be an executable repository-supported command, not prose
 or an unresolved placeholder. Add repeatable `--acceptance` values when concrete
 outcomes must survive the task.
 
+For non-trivial work, do one bounded read-only scope pass before persisting the
+first Contract so an accidental first-file guess does not become an approval
+churn machine. Prefer the smallest stable honest boundary: exact files for an
+isolated change, or focused implementation/test paths when the request is
+structurally multi-file. Do not default to repository-wide scope merely to avoid
+future prompts.
+
 After PLAN, call `enter --format=json` again. Do **not** manually insert a map
 build or approval because an older quick-start used to list one. Existing PHP
-scope may require discovery; when it does, the lifecycle kernel now returns the
+scope may require discovery; when it does, the lifecycle kernel returns the
 owner-produced map repair as `next_action` before it asks for approval.
 
 ## 4. Respect authority-bearing decisions
 
-When `next_action_kind=decision_required`, some placeholders may be ordinary
-model choices and some may carry human authority. In particular, do not fabricate
-an approver, accepted-risk owner, or other explicitly human decision.
+When `next_action_kind=decision_required`, the decision is human-owned. Do not
+fabricate an approver, review acknowledgement, Learning disposition, accepted-risk
+owner, or other explicitly human authority.
+
+Do not ask for an opaque “confirm?” either. Before Contract approval, show the
+exact candidate revision including goal, scope, non-goals, acceptance criteria
+and validation. Before review acknowledgement, render the deterministic developer
+workbench and show the exact report identity being acknowledged:
+
+```bash
+vendor/bin/agent-loop workflow review DEMO-1
+```
+
+The generated HTML is presentation only; the exact owner-bound identity remains
+the authority.
 
 Approval seals one exact Contract revision. It does not create the governed Run,
 Session, or Recall output. The next `enter` performs deterministic preparation
@@ -128,9 +152,10 @@ That is deliberate: re-running the command that just observed the same failing
 implementation would not make progress. Fix the implementation, then call
 `finish` again.
 
-A review acknowledgement or Learning disposition may instead be
-`decision_required`; fill only the requested values and keep human authority
-truthful.
+A model-fillable close-out template is `command_template`; fill it from current
+evidence without inventing a human gate. Review acknowledgement, Learning
+ownership or accepted risk may instead be `decision_required`; show the exact
+subject first and keep human authority truthful.
 
 ## 7. Confirm completion
 
@@ -164,7 +189,9 @@ vendor/bin/agent-loop workflow plan PROJECT-1 \
 
 After that, return to `enter --format=json`. If the selected policy requires a
 project-specific execution contract, the lifecycle result surfaces that next
-step; do not copy Recall's construction rules into this tutorial.
+step; do not copy Recall's construction rules into this tutorial. Construction
+from approved evidence is a `command_template` unless the lifecycle explicitly
+names a human authority boundary.
 
 ## Lower-level tools
 
