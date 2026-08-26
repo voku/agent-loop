@@ -58,6 +58,18 @@ final readonly class RepositoryInstructionSynchronizer
         return $operations;
     }
 
+    /** @return list<string> absolute marker-owned files that may affect an install plan */
+    public function stateFiles(string $agent): array
+    {
+        $files = [];
+        foreach (array_keys($this->desiredFiles($agent)) as $relativePath) {
+            $files[] = $this->rootPath . '/' . $relativePath;
+        }
+        sort($files, SORT_STRING);
+
+        return $files;
+    }
+
     /**
      * Applies only instruction operations present in the exact plan.
      *
