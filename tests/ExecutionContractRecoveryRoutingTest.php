@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -26,7 +27,7 @@ final class ExecutionContractRecoveryRoutingTest extends TestCase
 
             $policy = $this->policy('F2-INVALID', $reference);
             self::assertSame('blocked', $policy->state);
-            self::assertSame('decision_required', $policy->nextActionKind);
+            self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
             self::assertSame(
                 'agent-loop workflow contract F2-INVALID --status ready --from <l1.md> --by <actor>',
                 $policy->nextAction,
@@ -61,7 +62,7 @@ final class ExecutionContractRecoveryRoutingTest extends TestCase
 
             $policy = $this->policy('F2-STALE', $reference);
             self::assertSame('blocked', $policy->state);
-            self::assertSame('decision_required', $policy->nextActionKind);
+            self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
             self::assertSame(
                 'agent-loop workflow contract F2-STALE --status ready --from <l1.md> --by <actor>',
                 $policy->nextAction,
