@@ -95,14 +95,14 @@ final readonly class ManagedAssetPlanner
                 );
             }
 
-            $blocked = [
+            $blocked = array_values([
                 ...$blocked,
                 ...$this->blockedRemovals($target, $projection->locallyModified, 'This managed entry was modified locally; removing it would discard that change.'),
                 ...$this->blockedRemovals($target, $projection->incompatible, 'This entry requires a host capability that is unsupported here, so its ownership cannot be verified.'),
                 ...$this->blockedRemovals($target, $projection->unverifiable, 'The manifest carries no usable evidence for this entry, so ownership is unproven.'),
                 ...$this->blockedRemovals($target, $projection->projectOwned, 'This path is project-owned; repository setup never removes it.'),
                 ...$this->blockedRemovals($target, $projection->stale, 'This managed entry no longer matches a current source, so it is reported rather than silently deleted.'),
-            ];
+            ]);
         }
 
         return new ManagedAssetChangePlan(
@@ -150,7 +150,10 @@ final readonly class ManagedAssetPlanner
         return new ManagedAssetOperation(ManagedAssetOperationKind::ADD, $target->host, $target->kind, $entry, $targetPath);
     }
 
-    /** @param list<string> $entries @return list<ManagedAssetOperation> */
+    /**
+     * @param list<string> $entries
+     * @return list<ManagedAssetOperation>
+     */
     private function blockedRemovals(ManagedAssetTarget $target, array $entries, string $reason): array
     {
         return array_map(
@@ -166,7 +169,10 @@ final readonly class ManagedAssetPlanner
         );
     }
 
-    /** @param list<ManagedAssetDriftProjection> $projections @return list<ManagedAssetDriftProjection> */
+    /**
+     * @param list<ManagedAssetDriftProjection> $projections
+     * @return list<ManagedAssetDriftProjection>
+     */
     private function relevant(array $projections, string $agent, bool $withHooks): array
     {
         return array_values(array_filter(
