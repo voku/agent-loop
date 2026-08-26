@@ -257,7 +257,7 @@ CARD
             $kanbanContext = json_decode($kanbanContextJson, true, 512, JSON_THROW_ON_ERROR);
             self::assertIsArray($kanbanContext);
             self::assertSame('ABC-123', $kanbanContext['task_id'] ?? null);
-            self::assertSame('.agent-loop/todo/cards/ABC-123.md', $kanbanContext['source']['path'] ?? null);
+            self::assertSame('todo/cards/ABC-123.md', $kanbanContext['source']['path'] ?? null);
             self::assertSame(
                 ['title', 'lane', 'status', 'priority', 'next_action'],
                 array_keys($kanbanContext['card'] ?? []),
