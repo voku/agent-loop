@@ -161,6 +161,32 @@ final class RepositorySetupMutationTest extends TestCase
         self::assertStringNotContainsString(InitSyncInstructionsCommand::END_MARKER, $remaining);
     }
 
+    public function testTypedGitIntegrationUsesRepositoryDeclaredPolicyWithoutCliDispatch(): void
+    {
+        if (!mkdir($this->root . '/.agent-loop', 0o775, true) && !is_dir($this->root . '/.agent-loop')) {
+            self::fail('Unable to create Git integration policy directory.');
+        }
+        file_put_contents($this->root . '/.agent-loop/githooks.json', "{}\n");
+
+        exec('git -C ' . escapeshellarg($this->root) . ' init -q', $output, $exitCode);
+        self::assertSame(0, $exitCode, 'Git is required for the typed Git integration regression.');
+
+        $service = new RepositorySetupService($this->root);
+        $projection = $service->syncGitIntegration();
+
+        self::assertFileExists($this->root . '/.githooks/pre-commit');
+        self::assertFileExists($this->root . '/.githooks/commit-msg');
+        self::assertFileExists($this->root . '/.githooks/.agent-loop-manifest.json');
+        exec(
+            'git -C ' . escapeshellarg($this->root) . ' config --get core.hooksPath',
+            $configOutput,
+            $configExit,
+        );
+        self::assertSame(0, $configExit);
+        self::assertSame(['.githooks'], $configOutput);
+        self::assertNotNull($projection->integration);
+    }
+
     private function paths(): AgentAssetSourcePaths
     {
         return new AgentAssetSourcePaths(
