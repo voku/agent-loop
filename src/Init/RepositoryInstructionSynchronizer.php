@@ -142,6 +142,10 @@ final readonly class RepositoryInstructionSynchronizer
     {
         $applied = [];
         $blocked = [];
+        $agent = $plan->agent;
+        if ($agent === '') {
+            throw new RuntimeException('Instruction removal plan is missing a host.');
+        }
 
         foreach ($plan->operations as $operation) {
             if ($operation->kind !== ManagedAssetKind::INSTRUCTIONS) {
@@ -150,7 +154,7 @@ final readonly class RepositoryInstructionSynchronizer
             if ($operation->operation !== ManagedAssetOperationKind::REMOVE) {
                 throw new RuntimeException('Instruction uninstaller only accepts removal operations.');
             }
-            if (!in_array($operation->entry, $this->ownedRelativePaths($plan->agent), true)) {
+            if (!in_array($operation->entry, $this->ownedRelativePaths($agent), true)) {
                 throw new RuntimeException('Instruction removal plan contains an entry not owned for this host: ' . $operation->entry);
             }
 
@@ -161,24 +165,24 @@ final readonly class RepositoryInstructionSynchronizer
 
             $existing = $this->readOptional($absolutePath);
             if ($existing === null) {
-                $blocked[] = $this->blocked($plan->agent, $operation->entry, $absolutePath, 'The managed instruction file disappeared before removal.');
+                $blocked[] = $this->blocked($agent, $operation->entry, $absolutePath, 'The managed instruction file disappeared before removal.');
                 continue;
             }
 
             try {
                 $updated = $this->withoutManagedBlock($existing, $operation->entry);
             } catch (RuntimeException $exception) {
-                $blocked[] = $this->blocked($plan->agent, $operation->entry, $absolutePath, $exception->getMessage());
+                $blocked[] = $this->blocked($agent, $operation->entry, $absolutePath, $exception->getMessage());
                 continue;
             }
 
             if (trim($updated) === '') {
                 if (!unlink($absolutePath)) {
-                    $blocked[] = $this->blocked($plan->agent, $operation->entry, $absolutePath, 'The managed instruction file could not be removed.');
+                    $blocked[] = $this->blocked($agent, $operation->entry, $absolutePath, 'The managed instruction file could not be removed.');
                     continue;
                 }
             } elseif (file_put_contents($absolutePath, $updated) === false) {
-                $blocked[] = $this->blocked($plan->agent, $operation->entry, $absolutePath, 'The managed instruction block could not be removed.');
+                $blocked[] = $this->blocked($agent, $operation->entry, $absolutePath, 'The managed instruction block could not be removed.');
                 continue;
             }
 
