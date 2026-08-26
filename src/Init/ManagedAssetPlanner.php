@@ -95,14 +95,14 @@ final readonly class ManagedAssetPlanner
                 );
             }
 
-            $blocked = array_values([
+            $blocked = [
                 ...$blocked,
                 ...$this->blockedRemovals($target, $projection->locallyModified, 'This managed entry was modified locally; removing it would discard that change.'),
                 ...$this->blockedRemovals($target, $projection->incompatible, 'This entry requires a host capability that is unsupported here, so its ownership cannot be verified.'),
                 ...$this->blockedRemovals($target, $projection->unverifiable, 'The manifest carries no usable evidence for this entry, so ownership is unproven.'),
                 ...$this->blockedRemovals($target, $projection->projectOwned, 'This path is project-owned; repository setup never removes it.'),
                 ...$this->blockedRemovals($target, $projection->stale, 'This managed entry no longer matches a current source, so it is reported rather than silently deleted.'),
-            ]);
+            ];
         }
 
         return new ManagedAssetChangePlan(
