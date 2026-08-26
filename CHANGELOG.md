@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.1 - 2026-08-25
+
 ### Added
 
 - Add the read-only `WorkflowTransparencyService` / `TaskTransparencyProjection` boundary so hosts can answer what the Contract approved and excluded, which repository paths changed since the Contract baseline and which of those are outside approved scope, what implementation snapshot is current, what context was skipped or omitted, and what the exact current-or-stale review report found. Every section keeps its authority class; nothing in the projection can declare implementation complete or an acceptance criterion satisfied.
