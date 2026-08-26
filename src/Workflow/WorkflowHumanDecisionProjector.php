@@ -176,7 +176,7 @@ final readonly class WorkflowHumanDecisionProjector
             [
                 'current_contract_revision' => $contract?->revision,
                 'goal' => $contract?->goal,
-                'scope' => $contract?->scope ?? [],
+                'scope' => $contract === null ? [] : $contract->scope,
                 'execution_contract_state' => $execution['state'] ?? null,
                 'minimum_contract_change' => $execution['minimum_contract_change'] ?? null,
                 'reason' => $execution['reason'] ?? null,
