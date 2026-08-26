@@ -19,6 +19,9 @@ final readonly class WorkflowPromptService
     {
     }
 
+    /**
+     * Project the non-authoritative workflow envelope for a new task.
+     */
     public function startTask(string $taskId): WorkflowPromptEnvelope
     {
         $task = new WorkflowTaskId($taskId);
@@ -43,11 +46,17 @@ final readonly class WorkflowPromptService
         );
     }
 
+    /**
+     * Project the current workflow-owned state and canonical next action without mutation.
+     */
     public function continueTask(string $taskId): WorkflowPromptEnvelope
     {
         $task = new WorkflowTaskId($taskId);
         $manifest = (new RunManifestProjector($this->rootPath))->project($task->value);
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+        $contractRevision = $manifest->references['contract']['revision'] ?? null;
+        $recallCompilationId = $manifest->references['recall']['compilation_id'] ?? null;
+        $recallBundleSha256 = $manifest->references['recall']['bundle_sha256'] ?? null;
         $content = implode("\n", [
             "Use this repository's agent-loop workflow.",
             'Continue task ' . $task->value . ' from the current owner-projected governed state.',
@@ -69,6 +78,9 @@ final readonly class WorkflowPromptService
             state: $policy->state,
             nextAction: $policy->nextAction,
             nextActionKind: $policy->nextActionKind,
+            contractRevision: is_int($contractRevision) ? $contractRevision : null,
+            recallCompilationId: is_string($recallCompilationId) ? $recallCompilationId : null,
+            recallBundleSha256: is_string($recallBundleSha256) ? $recallBundleSha256 : null,
             references: $manifest->references,
             disagreements: $manifest->disagreements,
         );
