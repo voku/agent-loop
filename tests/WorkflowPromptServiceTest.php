@@ -58,11 +58,53 @@ final class WorkflowPromptServiceTest extends TestCase
         self::assertSame('incomplete', $first->state);
         self::assertFalse($first->mutationAllowed);
         self::assertSame('missing', $first->references['contract']['state']);
+        self::assertNull($first->contractRevision);
+        self::assertNull($first->recallCompilationId);
+        self::assertNull($first->recallBundleSha256);
         self::assertSame($first->nextAction, $second->nextAction);
         self::assertSame($first->digest, $second->digest);
         self::assertNotNull($first->nextAction);
         self::assertStringContainsString($first->nextAction, $first->content);
         self::assertStringContainsString('generated prompt text is not approval', $first->content);
+    }
+
+    public function testEnvelopePublishesTypedContractAndRecallLineage(): void
+    {
+        $envelope = new WorkflowPromptEnvelope(
+            mode: WorkflowPromptEnvelope::MODE_CONTINUE,
+            taskId: 'ABC-123',
+            content: 'Continue through current workflow authority.',
+            mutationAllowed: true,
+            runId: 'run:ABC-123:1',
+            state: 'implementation',
+            nextAction: 'host work',
+            nextActionKind: 'host_work',
+            contractRevision: 3,
+            recallCompilationId: 'compilation.ABC-123.fixed',
+            recallBundleSha256: 'sha256:' . str_repeat('a', 64),
+        );
+
+        self::assertSame(3, $envelope->toArray()['contract_revision']);
+        self::assertSame('compilation.ABC-123.fixed', $envelope->toArray()['recall_compilation_id']);
+        self::assertSame('sha256:' . str_repeat('a', 64), $envelope->toArray()['recall_bundle_sha256']);
+    }
+
+    public function testEnvelopeRejectsMutableNestedProvenanceValues(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('provenance must contain JSON-compatible scalar/array values only');
+
+        new WorkflowPromptEnvelope(
+            mode: WorkflowPromptEnvelope::MODE_CONTINUE,
+            taskId: 'ABC-123',
+            content: 'Continue through current workflow authority.',
+            mutationAllowed: false,
+            runId: 'run:ABC-123:1',
+            state: 'blocked',
+            nextAction: 'inspect blocker',
+            nextActionKind: 'host_work',
+            references: ['owner' => ['mutable' => new \stdClass()]],
+        );
     }
 
     public function testInvalidTaskIdFailsBeforeProjection(): void
