@@ -106,10 +106,10 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         // advance the lifecycle.
         $this->repairDeclaredValidation();
         self::assertSame('host_work', $this->nextStep()[1]);
-        self::assertNotSame(0, $this->frontDoor('finish'), 'finish should stop at the next human review decision');
+        self::assertNotSame(0, $this->frontDoor('finish'), 'finish should stop at the delegated review checkpoint');
 
         [$action, $kind] = $this->nextStep();
-        self::assertSame('decision_required', $kind);
+        self::assertSame('command_template', $kind);
         self::assertStringContainsString('--reviewed-report-sha256', $action);
     }
 
