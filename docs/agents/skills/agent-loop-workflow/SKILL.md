@@ -52,9 +52,14 @@ Read the structured result, especially:
 `next_action_kind` has one treatment contract:
 
 - `command` — execute `next_action` as written;
-- `decision_required` — the action is a command template; supply the missing
-  model and/or human decision values before executing it. Never fabricate a
-  human approval or risk owner;
+- `command_template` — fill model-owned placeholders from the actual user request
+  and current repository evidence, then execute the resulting command. Do **not**
+  ask the human merely because a template contains placeholders. If a required
+  value is genuinely missing product intent rather than model-resolvable task
+  construction, stop and ask for that missing intent instead of inventing it;
+- `decision_required` — a genuine human-authority decision is required. Never
+  fabricate it, and never ask for a generic confirmation that hides what is being
+  decided. Present the exact current owner-backed decision subject first;
 - `host_work` — perform the described host-native implementation/model work;
   the text is not a shell command;
 - `none` — no further lifecycle action is required.
@@ -72,6 +77,43 @@ vendor/bin/agent-loop finish <task-id> --format=json
 Then obey the returned `next_action_kind` / `next_action` in the same way until
 `none` / complete. Repeated `enter` and `finish` calls are intended to reconcile
 current owner evidence; hosts should not reproduce their preconditions.
+
+## Human Decision Presentation
+
+A human gate is not useful if the developer cannot see the exact thing they are
+being asked to own. Before asking for any `decision_required` action, surface the
+smallest complete developer-readable projection of that exact current decision.
+Do not ask only “approve?”, “confirm?”, or repeat the command template.
+
+For Contract approval, show the current candidate Contract revision from owner
+context: goal, Contract scope, non-goals, acceptance criteria, required validation,
+behavior anchors and selected operating prompts when present. `enter --format=json`
+already carries bounded `context`; if the host no longer has it, refresh the
+read-only projection with:
+
+```bash
+vendor/bin/agent-loop workflow context <task-id> --format=json
+```
+
+The user must be able to see what scope and validation they are approving before
+the host supplies the approving actor.
+
+For exact review acknowledgement, first render the existing deterministic review
+workbench:
+
+```bash
+vendor/bin/agent-loop workflow review <task-id>
+```
+
+Surface the resulting human-review path together with the exact current review
+SHA-256, verdict/findings and implementation identity available from the current
+manifest/report. Only then ask the developer to acknowledge that exact report.
+The HTML is a disposable presentation, never lifecycle authority.
+
+For Learning or accepted-risk decisions, show the current evidence, available
+choices, and the consequence being recorded before requesting the human-owned
+selection. Do not turn optional model-generated explanation policy into another
+approval gate; deterministic owner projections may always be shown.
 
 ## Post-completion Future Work
 
@@ -107,15 +149,16 @@ Contract. Follow-up execution requires its own normal governance/approval.
 
 ## Planning And Human Authority
 
-A genuinely new task may cause `enter` to return a `decision_required` PLAN
-command template. Fill its goal, scope/files, validation and other selected task
-intent from the actual request and repository evidence. `agent-loop-task-start`
-contains guidance for choosing those Contract inputs.
+A genuinely new task may cause `enter` to return a `command_template` PLAN
+command. Fill its goal, scope/files, validation and other selected task intent
+from the actual request and repository evidence, execute it without an extra
+human round-trip, then call `enter` again. `agent-loop-task-start` contains
+guidance for choosing stable Contract inputs.
 
 Approval is authority-bearing. When the canonical next step asks for approval,
-obtain the named human decision instead of self-approving. Approval records
-Contract authority only; deterministic Run, Session and Recall preparation lives
-behind `enter`.
+present the exact candidate Contract as described above and obtain the named
+human decision instead of self-approving. Approval records Contract authority
+only; deterministic Run, Session and Recall preparation lives behind `enter`.
 
 Do **not** pre-emptively build a map, compile Recall, create a Session, select a
 repair command, or walk a remembered phase sequence because this skill once
@@ -142,10 +185,13 @@ currently actionable obligation. Do not restate which validation, review,
 Learning, Recall, integrity, or close gates must pass here; that list has changed
 before and a prose copy will drift again.
 
-When `finish` requests a decision or specialist action, satisfy exactly that
-canonical step and call `finish` again. Examples of values that may still require
-judgment include review acknowledgement, Learning disposition, accepted risk, or
-re-planning changed intent. The kernel owns when those decisions apply.
+When `finish` returns `command_template`, fill the model-owned values from current
+evidence and continue without inventing a human gate. When it returns
+`decision_required`, present the exact current decision subject first, obtain the
+real human authority, satisfy exactly that canonical step, and call `finish`
+again. Examples of values that may still require human judgment include exact
+review acknowledgement, Learning disposition, accepted risk, or re-planning
+changed intent. The kernel owns when those decisions apply.
 
 `agent-loop verify`, `workflow status`, `workflow report`, and reflection remain
 useful diagnostic/read-only surfaces when needed. They are not another mandatory
