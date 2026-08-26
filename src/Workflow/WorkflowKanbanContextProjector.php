@@ -6,7 +6,6 @@ namespace voku\AgentLoop\Workflow;
 
 use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
-use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\MarkdownCardRepository;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
@@ -19,6 +18,8 @@ use voku\AgentRecallCompiler\KanbanContextProjection;
  */
 final readonly class WorkflowKanbanContextProjector
 {
+    private const string CARD_ID_PATTERN = '/^[A-Z][A-Z0-9]*-[1-9][0-9]*$/';
+
     public function __construct(private string $rootPath)
     {
     }
@@ -30,13 +31,14 @@ final readonly class WorkflowKanbanContextProjector
         if (!is_file($configPath)) {
             return null;
         }
-        try {
-            $cardId = CardId::fromString($taskId);
-        } catch (ValidationException) {
+
+        $normalizedTaskId = strtoupper(trim($taskId));
+        if (str_contains($taskId, "\0") || preg_match(self::CARD_ID_PATTERN, $normalizedTaskId) !== 1) {
             // Local/ad-hoc task IDs are valid workflow tasks but have no card
             // identity in the typed board contract.
             return null;
         }
+        $cardId = CardId::fromString($normalizedTaskId);
 
         $repository = new MarkdownCardRepository(
             $boardRoot,
