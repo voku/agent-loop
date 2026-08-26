@@ -152,10 +152,12 @@ Generated map files are navigation state, not source evidence:
 vendor/bin/agent-loop map query <symbol>
 vendor/bin/agent-loop map related <symbol>
 vendor/bin/agent-loop map file <path>
+vendor/bin/agent-loop map scope <symbol>
+vendor/bin/agent-loop map context <symbol>
 vendor/bin/agent-loop map changed --base=<ref>
 ```
 
-Query the index, then inspect selected real source. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
+For PHP symbols, callers, tests, and source ranges, query these projections before a generic source search. Use `rg` for literal/config/template questions and `rg --files` for file discovery; `grep`, `find`, and `sed -i` are blocked by the Codex guardrail. Query the index, then inspect selected real source. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
 
 ## Dogfood contract
 

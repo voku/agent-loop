@@ -103,6 +103,18 @@ final readonly class AgentDisciplineHook
                 'Use agent-loop map query, related, file, changed, or stats. Generated map state is navigation state, not prompt evidence.',
             );
         }
+        if ($this->isLegacyRepositorySearch($command)) {
+            return $this->deny(
+                'Legacy repository search command is blocked.',
+                'Use rg for literal or file discovery. For PHP symbols, callers, tests, and source scope, use agent-loop map query, related, scope, or context first.',
+            );
+        }
+        if ($this->isInPlaceSedEdit($command)) {
+            return $this->deny(
+                'In-place sed edits are blocked.',
+                'Use agent-loop edit for an exact deterministic PHP replacement, or apply the verified patch through the host edit tool. Keep bounded sed reads only for already-selected non-map source.',
+            );
+        }
 
         return [
             'continue' => true,
@@ -410,6 +422,16 @@ final readonly class AgentDisciplineHook
             '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*' . $mapRoot . '[^;&|]*(?:\s|$)~i',
             $command,
         ) === 1;
+    }
+
+    private function isLegacyRepositorySearch(string $command): bool
+    {
+        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $command) === 1;
+    }
+
+    private function isInPlaceSedEdit(string $command): bool
+    {
+        return preg_match('~(?:^|[;&|]\s*)sed\b[^;&|]*(?:\s-i(?:\s|$)|\s--in-place(?:=\S+|\s|$))~i', $command) === 1;
     }
 
     /**

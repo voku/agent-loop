@@ -321,6 +321,29 @@ final class AgentDisciplineHookTest extends TestCase
         }
     }
 
+    /** @return iterable<string, array{string, string}> */
+    public static function discouragedShellToolProvider(): iterable
+    {
+        yield 'grep' => ['grep -R "class Foo" src', 'Use rg for literal or file discovery.'];
+        yield 'find' => ['find modules -name "*.php"', 'Use rg for literal or file discovery.'];
+        yield 'sed in-place short option' => ['sed -i "s/old/new/" src/Foo.php', 'Use agent-loop edit'];
+        yield 'sed in-place long option' => ['sed --in-place=".bak" "s/old/new/" src/Foo.php', 'Use agent-loop edit'];
+    }
+
+    #[DataProvider('discouragedShellToolProvider')]
+    public function testDiscouragedShellToolIsDeniedWithAnActionableAlternative(string $command, string $expectedContext): void
+    {
+        $output = $this->preTool($command);
+
+        self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
+        self::assertStringContainsString($expectedContext, $output['hookSpecificOutput']['additionalContext'] ?? '');
+    }
+
+    public function testBoundedSedReadRemainsAllowedAfterNavigation(): void
+    {
+        $this->assertPassThrough('sed -n "120,180p" src/Foo.php');
+    }
+
     public function testMalformedPayloadFailsWithContext(): void
     {
         $this->expectException(UnexpectedValueException::class);
