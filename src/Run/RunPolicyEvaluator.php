@@ -178,8 +178,11 @@ final readonly class RunPolicyEvaluator
         if ($action === 'none') {
             return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE];
         }
-        if (preg_match('/<[A-Za-z0-9_.|:-]+>/', $action) === 1) {
+        if ($this->isHumanDecisionAction($action)) {
             return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED];
+        }
+        if (preg_match('/<[A-Za-z0-9_.|:-]+>/', $action) === 1) {
+            return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_COMMAND_TEMPLATE];
         }
 
         return $this->command($action);
@@ -189,6 +192,22 @@ final readonly class RunPolicyEvaluator
     private function command(string $action): array
     {
         return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_COMMAND];
+    }
+
+    private function isHumanDecisionAction(string $action): bool
+    {
+        if (str_starts_with($action, 'agent-loop workflow approve ')) {
+            return true;
+        }
+        if (str_starts_with($action, 'agent-loop finish ') && str_contains($action, '--reviewed-report-sha256 ')) {
+            return true;
+        }
+        if (str_starts_with($action, 'agent-loop finish ') && str_contains($action, '--learning ')) {
+            return true;
+        }
+
+        return str_contains($action, '--accept-risk ')
+            || str_contains($action, '--accept-risk-by ');
     }
 
     /**
