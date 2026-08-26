@@ -45,9 +45,6 @@ final readonly class ManagedAssetPlanner
 
             foreach ($expectation->entries ?? [] as $entry) {
                 $operation = $this->installOperationFor($projection, $entry);
-                if ($operation === null) {
-                    continue;
-                }
                 if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
                     $blocked[] = $operation;
                     continue;
@@ -118,7 +115,7 @@ final readonly class ManagedAssetPlanner
         );
     }
 
-    private function installOperationFor(ManagedAssetDriftProjection $projection, string $entry): ?ManagedAssetOperation
+    private function installOperationFor(ManagedAssetDriftProjection $projection, string $entry): ManagedAssetOperation
     {
         $target = $projection->target;
         $targetPath = rtrim($target->targetRoot, '/') . '/' . $entry;
@@ -140,11 +137,14 @@ final readonly class ManagedAssetPlanner
             }
         }
 
-        if (in_array($entry, $projection->current, true)) {
-            return null;
-        }
-        if (in_array($entry, $projection->stale, true)) {
-            return new ManagedAssetOperation(ManagedAssetOperationKind::UPDATE, $target->host, $target->kind, $entry, $targetPath);
+        if (in_array($entry, $projection->current, true) || in_array($entry, $projection->stale, true)) {
+            return new ManagedAssetOperation(
+                ManagedAssetOperationKind::UPDATE,
+                $target->host,
+                $target->kind,
+                $entry,
+                $targetPath,
+            );
         }
 
         return new ManagedAssetOperation(ManagedAssetOperationKind::ADD, $target->host, $target->kind, $entry, $targetPath);
