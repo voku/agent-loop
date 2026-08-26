@@ -1,0 +1,33 @@
+name: Apply 285 Kanban context repair
+
+on:
+  push:
+    branches:
+      - refactor/285-in-memory-kanban-context
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/285-in-memory-kanban-context
+          fetch-depth: 0
+      - name: Apply bounded owner-boundary repair
+        run: python3 .github/scripts/apply-285-kanban-context.py
+      - name: Remove obsolete writer and temporary repair machinery
+        run: |
+          git rm src/Workflow/WorkflowKanbanContextWriter.php
+          git rm .github/scripts/apply-285-kanban-context.py
+          git rm .github/workflows/apply-285-kanban-context.yml
+      - name: Commit repaired consumer
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Workflow/WorkflowRunPreparer.php src/Workflow/WorkflowHandoffCommand.php tests/WorkflowPlanCommandTest.php
+          git commit -m 'refactor(workflow): keep Kanban Recall context in memory'
+          git push origin HEAD:refactor/285-in-memory-kanban-context
