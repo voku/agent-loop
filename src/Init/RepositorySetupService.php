@@ -13,8 +13,8 @@ use voku\AgentLoop\ProjectLayout;
 /**
  * Typed owner boundary for repository/host setup state and safe mutations.
  *
- * Read methods are mutation-free. Mutations revalidate owner state immediately
- * before writing, so a stale browser view never becomes write authority.
+ * CLI adapters and human-facing hosts consume this service instead of
+ * reconstructing init semantics from rendered command output or manifests.
  */
 final readonly class RepositorySetupService
 {
@@ -39,6 +39,7 @@ final readonly class RepositorySetupService
         );
     }
 
+    /** Exactly what an install would change, before anything is written. */
     public function planInstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
     {
         $resolved = $paths ?? $this->defaultSourcePaths();
@@ -49,10 +50,10 @@ final readonly class RepositorySetupService
 
         $drift = $this->managedAssetDrift($resolved);
         $assetPlan = (new ManagedAssetPlanner())->planInstall($host, $withHooks, $drift);
-        $instructions = (new RepositoryInstructionSynchronizer($this->rootPath))->plan($host);
+        $instructionPlan = (new RepositoryInstructionSynchronizer($this->rootPath))->plan($host);
         $operations = $assetPlan->operations;
         $blocked = $assetPlan->blocked;
-        foreach ($instructions as $operation) {
+        foreach ($instructionPlan as $operation) {
             if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
                 $blocked[] = $operation;
             } else {
@@ -74,9 +75,8 @@ final readonly class RepositorySetupService
     }
 
     /**
-     * Applies only the exact typed plan that was reviewed and only while its
-     * state token is still current. Any blocked operation makes install
-     * fail-closed before the first write.
+     * Applies only the exact typed plan the caller reviewed, and only while the
+     * repository/source evidence bound into the plan remains current.
      *
      * @throws StaleRepositorySetupPlan
      */
@@ -91,7 +91,6 @@ final readonly class RepositorySetupService
 
         $resolved = $paths ?? $this->defaultSourcePaths();
         $this->assertCurrent($plan, $expectedState, $resolved);
-
         if ($plan->blocked !== []) {
             return new ManagedAssetMutationResult(
                 $plan,
@@ -115,16 +114,17 @@ final readonly class RepositorySetupService
         );
     }
 
+    /** Exactly what an uninstall would remove, and what it refuses to touch. */
     public function planUninstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
     {
         $resolved = $paths ?? $this->defaultSourcePaths();
         $host = $this->requireSupportedHost($agent);
         $drift = $this->managedAssetDrift($resolved);
         $assetPlan = (new ManagedAssetPlanner())->planUninstall($host, $withHooks, $drift);
-        $instructions = (new RepositoryInstructionSynchronizer($this->rootPath))->planUninstall($host);
+        $instructionPlan = (new RepositoryInstructionSynchronizer($this->rootPath))->planUninstall($host);
         $operations = $assetPlan->operations;
         $blocked = $assetPlan->blocked;
-        foreach ($instructions as $operation) {
+        foreach ($instructionPlan as $operation) {
             if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
                 $blocked[] = $operation;
             } else {
@@ -145,7 +145,12 @@ final readonly class RepositorySetupService
         );
     }
 
-    /** @throws StaleRepositorySetupPlan */
+    /**
+     * Removes only what the given plan authorised, and only if the repository
+     * still looks the way the plan was computed against.
+     *
+     * @throws StaleRepositorySetupPlan
+     */
     public function uninstall(
         ManagedAssetChangePlan $plan,
         string $expectedState,
@@ -282,11 +287,8 @@ final readonly class RepositorySetupService
         }
     }
 
-    private function installStateToken(
-        string $agent,
-        bool $withHooks,
-        AgentAssetSourcePaths $paths,
-    ): RepositorySetupStateToken {
+    private function installStateToken(string $agent, bool $withHooks, AgentAssetSourcePaths $paths): RepositorySetupStateToken
+    {
         return RepositorySetupStateToken::fromDriftProjections(
             $this->managedAssetDrift($paths),
             $this->installStateFiles($agent, $withHooks, $paths),
@@ -407,178 +409,262 @@ final readonly class RepositorySetupService
             integration: $integration,
             policyDetail: $policy['detail'],
             policyPath: $policy['path'],
-            runtimeBoundary: $this->runtimeBoundary($host, $runtime),
+            runtimeBoundary: $this->runtimeBoundary($host),
             nextActionKind: $next['kind'],
             nextAction: $next['action'],
         );
     }
 
     /**
-     * @return array{host:?string,selection:string,decision:?string}
+     * @return array{host:non-empty-string|null,selection:RepositorySetupSelection,decision:non-empty-string|null}
      */
     private function selectHost(?string $requestedAgent, HostRuntimeProbe $probe): array
     {
-        if ($requestedAgent !== null && trim($requestedAgent) !== '') {
+        if ($requestedAgent !== null) {
+            try {
+                $agent = InitAgent::parse($requestedAgent, InitAgent::canonicalNames());
+            } catch (InvalidArgumentException $exception) {
+                $decision = $exception->getMessage();
+
+                return [
+                    'host' => null,
+                    'selection' => RepositorySetupSelection::MISSING,
+                    'decision' => $decision === ''
+                        ? 'Pass --agent=<' . implode('|', InitAgent::canonicalNames()) . '> because the requested host could not be resolved.'
+                        : $decision,
+                ];
+            }
+
             return [
-                'host' => $this->requireSupportedHost($requestedAgent),
-                'selection' => 'explicit',
+                'host' => $agent->canonicalName(),
+                'selection' => RepositorySetupSelection::EXPLICIT,
                 'decision' => null,
             ];
         }
 
-        $detected = [];
-        foreach (InitAgent::canonicalNames() as $candidate) {
-            if ($probe->probe($candidate)['status'] === 'available') {
-                $detected[] = $candidate;
+        $available = [];
+        foreach (InitAgent::canonicalNames() as $agent) {
+            if ($probe->probe($agent)['status'] === 'available') {
+                $available[] = $agent;
             }
         }
 
-        if (count($detected) === 1) {
-            return ['host' => $detected[0], 'selection' => 'auto', 'decision' => null];
+        if (count($available) === 1) {
+            return [
+                'host' => $available[0],
+                'selection' => RepositorySetupSelection::AUTO,
+                'decision' => null,
+            ];
+        }
+
+        $canonical = implode('|', InitAgent::canonicalNames());
+        if ($available === []) {
+            return [
+                'host' => null,
+                'selection' => RepositorySetupSelection::MISSING,
+                'decision' => 'Pass --agent=<' . $canonical . '> because no probed coding-host executable is visible on PATH. Hosts without a stable runtime probe must be selected explicitly.',
+            ];
         }
 
         return [
             'host' => null,
-            'selection' => $detected === [] ? 'none' : 'ambiguous',
-            'decision' => $detected === []
-                ? 'No supported coding host was detected. Select a host explicitly after installing it.'
-                : 'Multiple supported coding hosts were detected (' . implode(', ', $detected) . '). Select one explicitly.',
+            'selection' => RepositorySetupSelection::AMBIGUOUS,
+            'decision' => 'Pass --agent=<' . implode('|', $available) . '> because multiple coding-host executables are visible on PATH.',
         ];
-    }
-
-    /** @return array{status:string,detail:?string,path:?string} */
-    private function policyStatus(string $agent): array
-    {
-        if (!in_array($agent, HostPolicyProjector::supportedAgents(), true)) {
-            return ['status' => RepositorySetupIntegrationState::MANUAL->value, 'detail' => 'Host policy remains user-managed for this host.', 'path' => null];
-        }
-
-        $projector = new HostPolicyProjector($this->rootPath);
-        $status = $projector->status($agent);
-
-        return [
-            'status' => $status['status'],
-            'detail' => $status['detail'],
-            'path' => $status['path'],
-        ];
-    }
-
-    /** @return array{status:string,action:?string} */
-    private function gitIntegration(): array
-    {
-        $activation = new RepositoryActivation($this->rootPath);
-        if (!$activation->declaresGitHookPolicy() && !$activation->declaresCommitTemplate()) {
-            return ['status' => RepositorySetupIntegrationState::NOT_DECLARED->value, 'action' => null];
-        }
-
-        $checks = $activation->localGitIntegrationChecks();
-        foreach ($checks as $check) {
-            if (!$check->isOk()) {
-                return [
-                    'status' => RepositorySetupIntegrationState::MISSING->value,
-                    'action' => $activation->syncGitHooksCommand(),
-                ];
-            }
-        }
-
-        return ['status' => RepositorySetupIntegrationState::READY->value, 'action' => null];
     }
 
     /**
-     * @param array{status:string,detail:?string,path:?string} $policy
-     * @return array{kind:RepositorySetupNextActionKind,action:?string}
+     * @return array{status:'ready'|'missing'|'conflict'|'manual'|'unsupported',path:non-empty-string|null,detail:non-empty-string}
      */
-    private function nextAction(
-        string $host,
-        RepositorySetupIntegration $integration,
-        array $policy,
-        ?string $gitAction,
-    ): array {
-        if ($integration->instructions === RepositorySetupIntegrationState::MISSING) {
+    private function policyStatus(string $host): array
+    {
+        if (!in_array($host, HostPolicyProjector::supportedAgents(), true)) {
             return [
-                'kind' => RepositorySetupNextActionKind::REPOSITORY_ACTION,
-                'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init sync-instructions --agent=' . $host,
-            ];
-        }
-        if ($integration->skills === RepositorySetupIntegrationState::MISSING
-            || $integration->subagents === RepositorySetupIntegrationState::MISSING
-        ) {
-            return [
-                'kind' => RepositorySetupNextActionKind::REPOSITORY_ACTION,
-                'action' => (new RepositoryActivation($this->rootPath))->installAssetsCommand(),
-            ];
-        }
-        if ($integration->policy === RepositorySetupIntegrationState::MISSING) {
-            return [
-                'kind' => RepositorySetupNextActionKind::REPOSITORY_ACTION,
-                'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init sync-policy --agent=' . $host,
-            ];
-        }
-        if (in_array($integration->policy, [RepositorySetupIntegrationState::CONFLICT, RepositorySetupIntegrationState::MANUAL], true)) {
-            return [
-                'kind' => RepositorySetupNextActionKind::DECISION_REQUIRED,
-                'action' => $policy['detail'],
-            ];
-        }
-        if ($integration->gitIntegration === RepositorySetupIntegrationState::MISSING) {
-            return [
-                'kind' => RepositorySetupNextActionKind::REPOSITORY_ACTION,
-                'action' => $gitAction,
+                'status' => 'unsupported',
+                'path' => null,
+                'detail' => 'agent-loop has no repository policy projector for ' . $host . '; authority controls remain host/user owned',
             ];
         }
 
-        return ['kind' => RepositorySetupNextActionKind::NONE, 'action' => null];
+        return (new HostPolicyProjector($this->rootPath))->inspect($host);
     }
 
-    /** @param array{status:string,command:string|null,path:?string} $runtime */
-    private function runtimeBoundary(string $host, array $runtime): ?RepositorySetupRuntimeBoundary
+    /** @param list<string> $desiredEntries */
+    private function manifestReady(string $targetRoot, string $kind, string $agent, array $desiredEntries): bool
     {
-        if ($runtime['status'] === 'available') {
-            return null;
+        if ($desiredEntries === []) {
+            throw new RuntimeException('Expected managed ' . $kind . ' entries are unavailable for host inspection.');
         }
 
-        return new RepositorySetupRuntimeBoundary(
-            kind: RepositorySetupNextActionKind::HOST_USER_ACTION,
-            detail: match ($runtime['status']) {
-                'missing' => 'Install or expose the ' . $host . ' executable outside repository setup.',
-                'unprobed' => 'Confirm the ' . $host . ' runtime outside repository setup; this host cannot be probed automatically.',
-                default => 'Confirm host runtime readiness outside repository setup.',
-            },
-        );
-    }
+        $manifestPath = rtrim($targetRoot, '/') . '/' . InitSyncManifest::fileName();
+        if (!is_file($manifestPath)) {
+            return false;
+        }
 
-    private function manifestReady(string $root, string $kind, string $host, array $expected): bool
-    {
-        $manifest = InitSyncManifest::load($root, $kind, $host);
+        $manifest = InitSyncManifest::load($targetRoot, $kind, $agent);
+        if (!$manifest->hasDriftEvidence()) {
+            return false;
+        }
 
-        foreach ($expected as $entry) {
+        foreach ($desiredEntries as $entry) {
             if (!$manifest->isManaged($entry)) {
                 return false;
             }
         }
 
-        return true;
+        $states = ManagedAssetDriftInspector::inspect($manifest, $targetRoot, $agent, $desiredEntries);
+
+        return $states['locally_modified'] === []
+            && $states['stale'] === []
+            && $states['incompatible'] === []
+            && $states['unverifiable'] === [];
     }
 
     /** @return list<string> */
     private function expectedSkillEntries(): array
     {
-        return (new ManagedAssetTargetCatalog($this->rootPath))->expectedSkillEntries();
+        $packageRoot = dirname(__DIR__, 2);
+        $roots = FirstPartySkillRoots::resolve($packageRoot);
+
+        $entries = [];
+        foreach ($roots as $root) {
+            if (!is_dir($root)) {
+                throw new RuntimeException('First-party skills root is missing: ' . $root);
+            }
+            foreach (scandir($root) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                if (is_file($root . '/' . $entry . '/SKILL.md')) {
+                    $entries[] = $entry;
+                }
+            }
+        }
+
+        $entries = array_values(array_unique($entries));
+        sort($entries, SORT_STRING);
+        if ($entries === []) {
+            throw new RuntimeException('No first-party skill entries are available for host inspection.');
+        }
+
+        return $entries;
     }
 
     /** @return list<string> */
     private function expectedSubagentEntries(string $host): array
     {
-        return (new ManagedAssetTargetCatalog($this->rootPath))->expectedSubagentEntries($host);
+        $root = dirname(__DIR__, 2) . '/docs/agents/subagents';
+        if (!is_dir($root)) {
+            throw new RuntimeException('Bundled subagents root is missing: ' . $root);
+        }
+
+        $suffix = (new ManagedAssetTargetCatalog($this->rootPath))->subagentSuffix($host);
+        $entries = [];
+        foreach (scandir($root) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
+                continue;
+            }
+            if (is_file($root . '/' . $entry)) {
+                $entries[] = substr($entry, 0, -3) . $suffix;
+            }
+        }
+
+        sort($entries, SORT_STRING);
+        if ($entries === []) {
+            throw new RuntimeException('No bundled subagent entries are available for host inspection.');
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{status:'ready'|'missing'|'conflict'|'manual'|'unsupported',path:non-empty-string|null,detail:non-empty-string} $policy
+     * @param non-empty-string|null $gitIntegrationAction
+     * @return array{kind:RepositorySetupNextActionKind,action:non-empty-string|null}
+     */
+    private function nextAction(
+        string $host,
+        RepositorySetupIntegration $integration,
+        array $policy,
+        ?string $gitIntegrationAction,
+    ): array {
+        if (
+            $integration->instructions === RepositorySetupIntegrationState::MISSING
+            || $integration->skills === RepositorySetupIntegrationState::MISSING
+            || $integration->subagents === RepositorySetupIntegrationState::MISSING
+        ) {
+            return [
+                'kind' => RepositorySetupNextActionKind::COMMAND,
+                'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init install-assets --agent=' . $host,
+            ];
+        }
+
+        if ($integration->policy === RepositorySetupIntegrationState::MISSING) {
+            return [
+                'kind' => RepositorySetupNextActionKind::COMMAND,
+                'action' => (new RepositoryActivation($this->rootPath))->cliPath() . ' init sync-policy --agent=' . $host,
+            ];
+        }
+
+        if (in_array(
+            $integration->policy,
+            [RepositorySetupIntegrationState::CONFLICT, RepositorySetupIntegrationState::MANUAL],
+            true,
+        )) {
+            $path = $policy['path'] === null ? '' : '; review ' . $policy['path'];
+
+            return [
+                'kind' => RepositorySetupNextActionKind::HOST_WORK,
+                'action' => $policy['detail'] . $path . ' and preserve project-owned configuration before retrying.',
+            ];
+        }
+
+        if ($integration->gitIntegration === RepositorySetupIntegrationState::MISSING && $gitIntegrationAction !== null) {
+            return ['kind' => RepositorySetupNextActionKind::COMMAND, 'action' => $gitIntegrationAction];
+        }
+
+        return ['kind' => RepositorySetupNextActionKind::NONE, 'action' => null];
+    }
+
+    /** @return array{status:'ready'|'missing'|'not_declared',action:non-empty-string|null} */
+    private function gitIntegration(): array
+    {
+        $activation = new RepositoryActivation($this->rootPath);
+        $checks = $activation->localGitIntegrationChecks();
+        if ($checks === []) {
+            return ['status' => 'not_declared', 'action' => null];
+        }
+
+        foreach ($checks as $check) {
+            if (str_starts_with($check->render(), '[' . InitCheckLevel::WARN . ']')) {
+                return ['status' => 'missing', 'action' => $activation->syncGitHooksCommand()];
+            }
+        }
+
+        return ['status' => 'ready', 'action' => null];
+    }
+
+    /** @return non-empty-string */
+    private function runtimeBoundary(string $host): string
+    {
+        return match ($host) {
+            'claude' => HostPolicyProjector::claudeUserScopeAction(),
+            'codex' => 'Codex loads project rules from the trusted project config layer. Repository policy can prepare .codex/rules, but trusting the project remains an explicit host/user decision.',
+            'opencode' => 'OpenCode --auto automatically approves ask decisions. The projected agent-loop remote-mutation rules use deny because deny remains effective under --auto.',
+            'copilot' => 'agent-loop projects portable instructions, skills, and agents for Copilot, but does not claim a repository-native authority policy projector for this host.',
+            'gemini' => 'agent-loop projects portable instructions, skills, and agents for Gemini CLI, but does not claim a repository-native authority policy projector for this host.',
+            'antigravity' => 'agent-loop projects portable instructions, skills, and agents for Antigravity. Runtime auto-detection is unavailable, and authority controls remain host/user owned.',
+            default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
+        };
     }
 
     private function skillsRoot(string $host): string
     {
-        return (new ManagedAssetTargetCatalog($this->rootPath))->skillsRoot($host);
+        return (new ManagedAssetTargetCatalog($this->rootPath))->skillsTargetRoot($host);
     }
 
     private function subagentsRoot(string $host): string
     {
-        return (new ManagedAssetTargetCatalog($this->rootPath))->subagentsRoot($host);
+        return (new ManagedAssetTargetCatalog($this->rootPath))->subagentsTargetRoot($host);
     }
 }
