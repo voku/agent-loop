@@ -54,8 +54,8 @@ final readonly class WorkflowPromptEnvelope
             throw new InvalidArgumentException('workflow prompt envelope content must not be empty');
         }
 
-        $this->references = self::snapshotArray($references);
-        $this->disagreements = self::snapshotArray($disagreements);
+        $this->references = self::snapshotReferences($references);
+        $this->disagreements = self::snapshotDisagreements($disagreements);
         $this->digest = hash('sha256', CanonicalJson::pretty($this->payload()));
     }
 
@@ -91,19 +91,74 @@ final readonly class WorkflowPromptEnvelope
     }
 
     /**
-     * @template T of array<array-key, mixed>
-     * @param T $value
-     * @return T
+     * @param array<string, array<string, mixed>> $references
+     * @return array<string, array<string, mixed>>
      */
-    private static function snapshotArray(array $value): array
+    private static function snapshotReferences(array $references): array
     {
-        $snapshot = $value;
-        foreach ($snapshot as $key => $item) {
+        $snapshot = [];
+        foreach ($references as $key => $reference) {
+            $snapshot[$key] = self::snapshotJsonArray($reference);
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @return list<array{code: string, owner: string, message: string}>
+     */
+    private static function snapshotDisagreements(array $disagreements): array
+    {
+        $snapshot = [];
+        foreach ($disagreements as $disagreement) {
+            $snapshot[] = [
+                'code' => $disagreement['code'],
+                'owner' => $disagreement['owner'],
+                'message' => $disagreement['message'],
+            ];
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private static function snapshotJsonArray(array $value): array
+    {
+        $snapshot = [];
+        foreach ($value as $key => $item) {
             if (is_array($item)) {
-                $snapshot[$key] = self::snapshotArray($item);
+                $snapshot[$key] = self::snapshotNestedArray($item);
                 continue;
             }
             if ($item === null || is_bool($item) || is_int($item) || is_float($item) || is_string($item)) {
+                $snapshot[$key] = $item;
+                continue;
+            }
+
+            throw new InvalidArgumentException('workflow prompt envelope provenance must contain JSON-compatible scalar/array values only');
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * @param array<array-key, mixed> $value
+     * @return array<array-key, mixed>
+     */
+    private static function snapshotNestedArray(array $value): array
+    {
+        $snapshot = [];
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $snapshot[$key] = self::snapshotNestedArray($item);
+                continue;
+            }
+            if ($item === null || is_bool($item) || is_int($item) || is_float($item) || is_string($item)) {
+                $snapshot[$key] = $item;
                 continue;
             }
 
