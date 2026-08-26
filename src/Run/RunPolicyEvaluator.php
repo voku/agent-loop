@@ -199,13 +199,11 @@ final readonly class RunPolicyEvaluator
         if (str_starts_with($action, 'agent-loop workflow approve ')) {
             return true;
         }
-        if (str_starts_with($action, 'agent-loop finish ') && str_contains($action, '--reviewed-report-sha256 ')) {
-            return true;
-        }
-        if (str_starts_with($action, 'agent-loop finish ') && str_contains($action, '--learning ')) {
-            return true;
-        }
 
+        // Once a human has approved the exact Contract, ordinary review
+        // acknowledgement and Learning disposition are delegated task work. They
+        // remain explicit, attributable and auditable, but their model-owned
+        // actor/status/reason placeholders must not create another human gate.
         return str_contains($action, '--accept-risk ')
             || str_contains($action, '--accept-risk-by ');
     }

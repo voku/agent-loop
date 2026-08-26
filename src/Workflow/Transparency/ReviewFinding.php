@@ -10,8 +10,9 @@ use voku\AgentRecallCompiler\Review\BlindSpotFinding;
  * One finding from the exact persisted review report.
  *
  * Review evidence. A `FAIL` finding is not a rejection and an `INFO` finding is
- * not an approval: only a human acknowledgement bound to this report's SHA-256
- * carries authority.
+ * not an approval. The lifecycle only advances when an acknowledgement is bound
+ * to this exact report SHA-256; ordinary hosts may record that acknowledgement
+ * through the acting agent after the task Contract has already been approved.
  */
 final readonly class ReviewFinding
 {

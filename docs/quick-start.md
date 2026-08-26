@@ -48,7 +48,7 @@ Treat `next_action_kind` as follows:
   current repository evidence, then execute it without asking a human merely
   because placeholders exist;
 - `decision_required` — a genuine human-authority decision is required; show the
-  exact current Contract/review/Learning/risk subject before asking for it;
+  exact current Contract/risk/changed-intent subject before asking for it;
 - `host_work` — perform the described implementation/model work; the text is not
   a command;
 - `none` — the lifecycle has no further action.
@@ -97,20 +97,15 @@ owner-produced map repair as `next_action` before it asks for approval.
 ## 4. Respect authority-bearing decisions
 
 When `next_action_kind=decision_required`, the decision is human-owned. Do not
-fabricate an approver, review acknowledgement, Learning disposition, accepted-risk
-owner, or other explicitly human authority.
+fabricate an approver, accepted-risk owner, destructive/irreversible choice, or
+changed product intent.
 
 Do not ask for an opaque “confirm?” either. Before Contract approval, show the
 exact candidate revision including goal, scope, non-goals, acceptance criteria
-and validation. Before review acknowledgement, render the deterministic developer
-workbench and show the exact report identity being acknowledged:
-
-```bash
-vendor/bin/agent-loop workflow review DEMO-1
-```
-
-The generated HTML is presentation only; the exact owner-bound identity remains
-the authority.
+and validation. That approval is the ordinary task-authority gate. Once the exact
+Contract is approved, normal implementation, validation, review acknowledgement,
+Learning disposition, Recall outcome logging, local commits and closeout inside
+that Contract do not require ceremonial re-approval.
 
 Approval seals one exact Contract revision. It does not create the governed Run,
 Session, or Recall output. The next `enter` performs deterministic preparation
@@ -152,10 +147,17 @@ That is deliberate: re-running the command that just observed the same failing
 implementation would not make progress. Fix the implementation, then call
 `finish` again.
 
-A model-fillable close-out template is `command_template`; fill it from current
-evidence without inventing a human gate. Review acknowledgement, Learning
-ownership or accepted risk may instead be `decision_required`; show the exact
-subject first and keep human authority truthful.
+After the approved task reaches review, `finish --format=json` may return a
+review `command_template` plus `review_presentation`. Surface the generated HTML
+workbench and exact report SHA-256/verdict/findings so the developer can see the
+result, then let the acting agent record the acknowledgement and continue. A host
+that explicitly requires manual acknowledgement can use the typed
+`WorkflowHumanDecisionService` instead.
+
+Learning disposition is likewise ordinary post-approval judgment and normally
+arrives as a `command_template`; fill its status/reason from current evidence.
+Accepted risk, changed Contract intent/scope/policy, or another explicitly human
+choice may instead be `decision_required`; show that exact subject before asking.
 
 ## 7. Confirm completion
 
