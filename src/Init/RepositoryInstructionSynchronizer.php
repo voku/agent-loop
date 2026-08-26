@@ -10,8 +10,8 @@ use RuntimeException;
  * Typed owner mutation for the small marker-owned instruction surface.
  *
  * Project content outside the managed markers is never replaced. A malformed
- * marker boundary fails before any write, so this can safely back a browser
- * plan without routing through CLI output.
+ * marker boundary is projected as a blocked plan operation, so a host can show
+ * the conflict without learning marker semantics or attempting a partial write.
  */
 final readonly class RepositoryInstructionSynchronizer
 {
@@ -32,10 +32,20 @@ final readonly class RepositoryInstructionSynchronizer
                 continue;
             }
 
-            // Compute the merge now. This is deliberately part of planning:
-            // malformed/duplicate markers are a conflict, not a write-time
-            // surprise after another managed asset has already changed.
-            $this->desiredContent($relativePath, $body, $existing ?? '');
+            try {
+                $this->desiredContent($relativePath, $body, $existing ?? '');
+            } catch (RuntimeException $exception) {
+                $operations[] = new ManagedAssetOperation(
+                    ManagedAssetOperationKind::BLOCKED,
+                    $agent,
+                    ManagedAssetKind::INSTRUCTIONS,
+                    $relativePath,
+                    $absolutePath,
+                    $exception->getMessage(),
+                );
+                continue;
+            }
+
             $operations[] = new ManagedAssetOperation(
                 $existing === null ? ManagedAssetOperationKind::ADD : ManagedAssetOperationKind::UPDATE,
                 $agent,
