@@ -246,16 +246,28 @@ CARD
 
             $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
-            $contextPath = $sessions[0]->path . '/kanban-context.json';
+            self::assertFileDoesNotExist($sessions[0]->path . '/kanban-context.json');
             $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
-            self::assertFileExists($contextPath);
             self::assertFileExists($recallInput);
+            self::assertCount(1, $recallCalls);
+            $kanbanContextIndex = array_search('--kanban-context', $recallCalls[0], true);
+            self::assertIsInt($kanbanContextIndex);
+            $kanbanContextJson = $recallCalls[0][$kanbanContextIndex + 1] ?? null;
+            self::assertIsString($kanbanContextJson);
+            $kanbanContext = json_decode($kanbanContextJson, true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($kanbanContext);
+            self::assertSame('ABC-123', $kanbanContext['task_id'] ?? null);
+            self::assertSame('todo/cards/ABC-123.md', $kanbanContext['source']['path'] ?? null);
+            self::assertSame(
+                ['title', 'lane', 'status', 'priority', 'next_action'],
+                array_keys($kanbanContext['card'] ?? []),
+            );
             self::assertSame([[
                 'compile', '--root', $learningRoot,
                 '--task', 'ABC-123', '--task-brief', $recallInput,
                 '--document-manifest', $root . '/docs/agents/recall-documents.json',
                 '--document-manifest', $learningRoot . '/recall-documents.json',
-                '--kanban-context', $contextPath,
+                '--kanban-context', $kanbanContextJson,
                 '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
                 '--map-search-index', $root . '/.agent-loop/map/search.sqlite',
             ]], $recallCalls);

@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
-use voku\AgentLoop\Workflow\WorkflowKanbanContextWriter;
-use voku\AgentSession\SessionStore;
+use voku\AgentLoop\Workflow\WorkflowKanbanContextProjector;
 
-final class WorkflowKanbanContextWriterTest extends TestCase
+final class WorkflowKanbanContextProjectorTest extends TestCase
 {
     private string $root;
 
@@ -16,7 +15,6 @@ final class WorkflowKanbanContextWriterTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-kanban-context-' . bin2hex(random_bytes(8));
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
-        mkdir($this->root . '/.agent-loop/sessions', 0o775, true);
         file_put_contents(
             $this->root . '/.agent-loop/todo/kanban.config.json',
             json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR),
@@ -28,7 +26,7 @@ final class WorkflowKanbanContextWriterTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testRecallProjectionContainsOnlyConsumedFieldsWithoutTruncation(): void
+    public function testRecallProjectionContainsOnlyConsumedFieldsWithoutSessionMutation(): void
     {
         $summary = str_repeat('S', 1100);
         $nextAction = str_repeat('N', 1600);
@@ -64,27 +62,18 @@ CARD,
             ) . "\n",
         );
 
-        $session = (new SessionStore())->create(
-            $this->root . '/.agent-loop/sessions',
-            'ABC-123',
-            'token-diet',
-            'lars',
-        );
+        $projection = (new WorkflowKanbanContextProjector($this->root))->project('ABC-123');
+        self::assertNotNull($projection);
+        $context = $projection->toArray();
 
-        $path = (new WorkflowKanbanContextWriter($this->root))->write('ABC-123', $session);
-        self::assertNotNull($path);
-
-        $json = (string) file_get_contents($path);
-        $context = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        self::assertIsArray($context);
-        self::assertIsArray($context['card'] ?? null);
         self::assertSame(
             ['title', 'lane', 'status', 'priority', 'next_action'],
             array_keys($context['card']),
         );
         self::assertSame($nextAction, $context['card']['next_action']);
-        self::assertSame(0, substr_count(rtrim($json, "\n"), "\n"));
-        self::assertLessThan(2500, strlen($json));
+        self::assertSame('ABC-123', $context['task_id']);
+        self::assertSame('todo/cards/ABC-123.md', $context['source']['path']);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/sessions');
     }
 
     private function removeDirectory(string $path): void
