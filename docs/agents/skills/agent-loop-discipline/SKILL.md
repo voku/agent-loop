@@ -65,7 +65,7 @@ vendor/bin/agent-loop map context <symbol> --format=toon
 vendor/bin/agent-loop map changed --base=<ref> --format=toon
 ```
 
-For PHP symbols, callers, tests, and source ranges, use the map projections before generic source searches. Use `rg` for literals, templates, configuration, and file discovery (`rg --files`). Do not use `grep` or `find` for repository search, and never use `sed -i`; use `agent-loop edit` for an exact deterministic replacement or the host edit tool for an inspected patch. Bounded `sed -n` reads remain valid only after navigation has selected a non-map source range.
+Use map projections first for PHP symbols, callers, tests, and source ranges. Use `rg`/`rg --files` for literal/file discovery. Repository `grep`/`find` and `sed -i` are blocked. Edit with `agent-loop edit` or an inspected host patch; use bounded `sed -n` only after navigation selects a non-map range.
 
 Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
 
