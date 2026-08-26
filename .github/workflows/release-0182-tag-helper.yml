@@ -1,0 +1,46 @@
+name: Finish 0.18.2 tag
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-0182-tag-helper.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate marker, remove helper and tag exact target
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='0.18.2'
+          marker='.release/0.18.2.json'
+          target="$(jq -er '.target_sha' "$marker")"
+          [[ "$(jq -er '.version' "$marker")" == "$version" ]]
+          [[ "$target" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "${target}^{commit}"
+          git merge-base --is-ancestor "$target" HEAD
+          git show "${target}:CHANGELOG.md" | grep -Fq '## 0.18.2 - '
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm .github/workflows/release-0182-tag-helper.yml
+          git add .github/workflows/release-0182-tag-helper.yml
+          git commit -m 'chore: remove temporary 0.18.2 tag helper'
+          git push origin HEAD:main
+
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            existing="$(git rev-list -n 1 "$version")"
+            [[ "$existing" == "$target" ]]
+            exit 0
+          fi
+          git tag -a "$version" "$target" -m "agent-loop $version"
+          git push origin "refs/tags/$version"
