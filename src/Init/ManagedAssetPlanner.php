@@ -119,13 +119,14 @@ final readonly class ManagedAssetPlanner
     {
         $target = $projection->target;
         $targetPath = rtrim($target->targetRoot, '/') . '/' . $entry;
+        $buckets = $projection->buckets();
         foreach ([
-            'projectOwned' => 'This path is project-owned; repository setup will not overwrite it.',
-            'locallyModified' => 'This managed entry was modified locally; overwriting it would discard that change.',
+            'project_owned' => 'This path is project-owned; repository setup will not overwrite it.',
+            'locally_modified' => 'This managed entry was modified locally; overwriting it would discard that change.',
             'incompatible' => 'This managed entry requires a host capability that is unsupported here.',
             'unverifiable' => 'The manifest carries no usable evidence for this entry; overwriting it would be unsafe.',
-        ] as $property => $reason) {
-            if (in_array($entry, $projection->{$property}, true)) {
+        ] as $bucket => $reason) {
+            if (in_array($entry, $buckets[$bucket], true)) {
                 return new ManagedAssetOperation(
                     ManagedAssetOperationKind::BLOCKED,
                     $target->host,
