@@ -549,11 +549,7 @@ final readonly class RepositorySetupService
 
     private function manifestReady(string $root, string $kind, string $host, array $expected): bool
     {
-        try {
-            $manifest = InitSyncManifest::load($root, $kind, $host);
-        } catch (InvalidArgumentException) {
-            return false;
-        }
+        $manifest = InitSyncManifest::load($root, $kind, $host);
 
         foreach ($expected as $entry) {
             if (!$manifest->isManaged($entry)) {
