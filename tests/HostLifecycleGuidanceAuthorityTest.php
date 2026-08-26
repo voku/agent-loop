@@ -75,8 +75,16 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         $contents = file_get_contents($path);
         self::assertIsString($contents);
 
-        self::assertStringContainsString('Approval itself does **not** allocate the governed Run, Session or', $contents);
-        self::assertStringContainsString('Recall output.', $contents);
+        self::assertStringContainsString('Approval is an authority boundary.', $contents);
+        self::assertStringContainsString('That approval is the ordinary human task-authority gate.', $contents);
+        self::assertMatchesRegularExpression(
+            '/Approval itself does \*\*not\*\*\s+allocate the governed Run, Session or Recall output\./',
+            $contents,
+        );
         self::assertStringContainsString('`enter` owns deterministic post-approval preparation/reconciliation.', $contents);
+        self::assertMatchesRegularExpression(
+            '/review acknowledgement, Learning\s+judgment, Recall outcome logging, local commits and closeout inside the same\s+Contract may be delegated to the acting agent\./',
+            $contents,
+        );
     }
 }
