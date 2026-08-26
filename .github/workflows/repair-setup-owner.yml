@@ -1,0 +1,277 @@
+name: Repair setup owner branch
+
+on:
+  push:
+    branches:
+      - fix/setup-typed-mutations
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/setup-typed-mutations
+          fetch-depth: 1
+      - name: Patch typed setup orchestration
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('src/Init/RepositorySetupService.php')
+          text = path.read_text()
+
+          text = text.replace(
+              "use InvalidArgumentException;\nuse RuntimeException;\n",
+              "use InvalidArgumentException;\nuse RecursiveDirectoryIterator;\nuse RecursiveIteratorIterator;\nuse RuntimeException;\n",
+              1,
+          )
+
+          old = '''    public function planInstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
+              {
+                  $resolved = $paths ?? $this->defaultSourcePaths();
+
+                  return (new ManagedAssetPlanner())->planInstall(
+                      $this->requireSupportedHost($agent),
+                      $withHooks,
+                      $this->managedAssetDrift($resolved),
+                  );
+              }
+          '''
+          new = '''    public function planInstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
+              {
+                  $resolved = $paths ?? $this->defaultSourcePaths();
+                  $host = $this->requireSupportedHost($agent);
+                  if ($withHooks && !in_array($host, ['codex', 'claude'], true)) {
+                      throw new InvalidArgumentException('Executable host hooks are only supported for codex or claude.');
+                  }
+
+                  $drift = $this->managedAssetDrift($resolved);
+                  $assetPlan = (new ManagedAssetPlanner())->planInstall($host, $withHooks, $drift);
+                  $instructions = (new RepositoryInstructionSynchronizer($this->rootPath))->plan($host);
+                  $operations = $assetPlan->operations;
+                  $blocked = $assetPlan->blocked;
+                  foreach ($instructions as $operation) {
+                      if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
+                          $blocked[] = $operation;
+                      } else {
+                          $operations[] = $operation;
+                      }
+                  }
+
+                  return new ManagedAssetChangePlan(
+                      ManagedAssetChangePlan::INTENT_INSTALL,
+                      $host,
+                      $withHooks,
+                      RepositorySetupStateToken::fromDriftProjections(
+                          $drift,
+                          $this->installStateFiles($host, $withHooks, $resolved),
+                      ),
+                      $operations,
+                      $blocked,
+                  );
+              }
+          '''
+          if old not in text:
+              raise SystemExit('planInstall anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''    public function planUninstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
+              {
+                  $resolved = $paths ?? $this->defaultSourcePaths();
+
+                  return (new ManagedAssetPlanner())->planUninstall(
+                      $this->requireSupportedHost($agent),
+                      $withHooks,
+                      $this->managedAssetDrift($resolved),
+                  );
+              }
+          '''
+          new = '''    public function planUninstall(string $agent, bool $withHooks = false, ?AgentAssetSourcePaths $paths = null): ManagedAssetChangePlan
+              {
+                  $resolved = $paths ?? $this->defaultSourcePaths();
+                  $host = $this->requireSupportedHost($agent);
+                  $drift = $this->managedAssetDrift($resolved);
+                  $assetPlan = (new ManagedAssetPlanner())->planUninstall($host, $withHooks, $drift);
+                  $instructions = (new RepositoryInstructionSynchronizer($this->rootPath))->planUninstall($host);
+                  $operations = $assetPlan->operations;
+                  $blocked = $assetPlan->blocked;
+                  foreach ($instructions as $operation) {
+                      if ($operation->operation === ManagedAssetOperationKind::BLOCKED) {
+                          $blocked[] = $operation;
+                      } else {
+                          $operations[] = $operation;
+                      }
+                  }
+
+                  return new ManagedAssetChangePlan(
+                      ManagedAssetChangePlan::INTENT_UNINSTALL,
+                      $host,
+                      $withHooks,
+                      RepositorySetupStateToken::fromDriftProjections(
+                          $drift,
+                          (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($host),
+                      ),
+                      $operations,
+                      $blocked,
+                  );
+              }
+          '''
+          if old not in text:
+              raise SystemExit('planUninstall anchor not found')
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              'RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($resolved))',
+              '$this->installStateToken($plan->agent, $plan->withHooks, $resolved)',
+              2,
+          )
+
+          old = '''        $outcome = (new ManagedAssetUninstaller())->apply($plan);
+
+                  return new ManagedAssetMutationResult(
+                      $plan,
+                      $outcome['blocked'] === [] || $outcome['applied'] !== [],
+                      $outcome['applied'],
+                      [...$plan->blocked, ...$outcome['blocked']],
+                      $outcome['messages'],
+                      RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($resolved)),
+                  );
+          '''
+          new = '''        $instructionOutcome = (new RepositoryInstructionSynchronizer($this->rootPath))->applyUninstall($plan);
+                  $assetOperations = array_values(array_filter(
+                      $plan->operations,
+                      static fn (ManagedAssetOperation $operation): bool => $operation->kind !== ManagedAssetKind::INSTRUCTIONS,
+                  ));
+                  $assetPlan = new ManagedAssetChangePlan(
+                      $plan->intent,
+                      $plan->agent,
+                      $plan->withHooks,
+                      $plan->expectedState,
+                      $assetOperations,
+                      [],
+                  );
+                  $assetOutcome = (new ManagedAssetUninstaller())->apply($assetPlan);
+                  $applied = [...$instructionOutcome['applied'], ...$assetOutcome['applied']];
+                  $runtimeBlocked = [...$instructionOutcome['blocked'], ...$assetOutcome['blocked']];
+
+                  return new ManagedAssetMutationResult(
+                      $plan,
+                      $runtimeBlocked === [] || $applied !== [],
+                      $applied,
+                      [...$plan->blocked, ...$runtimeBlocked],
+                      [...$instructionOutcome['messages'], ...$assetOutcome['messages']],
+                      RepositorySetupStateToken::fromDriftProjections(
+                          $this->managedAssetDrift($resolved),
+                          (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                      ),
+                  );
+          '''
+          if old not in text:
+              raise SystemExit('uninstall outcome anchor not found')
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              '$installPlan = (new ManagedAssetPlanner())->planInstall($host, false, $drift);',
+              '$installPlan = $this->planInstall($host, false, $resolved);',
+              1,
+          )
+
+          old = '''        $observed = RepositorySetupStateToken::fromDriftProjections($this->managedAssetDrift($paths));
+                  if (!$observed->matches($plan->expectedState->value)) {
+          '''
+          new = '''        $observed = $plan->intent === ManagedAssetChangePlan::INTENT_INSTALL
+                      ? $this->installStateToken($plan->agent, $plan->withHooks, $paths)
+                      : RepositorySetupStateToken::fromDriftProjections(
+                          $this->managedAssetDrift($paths),
+                          (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                      );
+                  if (!$observed->matches($plan->expectedState->value)) {
+          '''
+          if old not in text:
+              raise SystemExit('assertCurrent anchor not found')
+          text = text.replace(old, new, 1)
+
+          marker = '''    /** @return non-empty-string */
+              private function requireSupportedHost(string $agent): string
+          '''
+          helper = '''    private function installStateToken(
+                  string $agent,
+                  bool $withHooks,
+                  AgentAssetSourcePaths $paths,
+              ): RepositorySetupStateToken {
+                  return RepositorySetupStateToken::fromDriftProjections(
+                      $this->managedAssetDrift($paths),
+                      $this->installStateFiles($agent, $withHooks, $paths),
+                  );
+              }
+
+              /** @return list<string> */
+              private function installStateFiles(string $agent, bool $withHooks, AgentAssetSourcePaths $paths): array
+              {
+                  $packageRoot = dirname(__DIR__, 2);
+                  $files = (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($agent);
+                  $files[] = $packageRoot . '/docs/agents/project-instructions.md';
+
+                  $sourceRoots = [
+                      $paths->absoluteSkillsRoot(),
+                      ...FirstPartySkillRoots::resolve($packageRoot),
+                      $paths->absoluteSubagentsRoot(),
+                  ];
+                  if ($withHooks && $agent === 'codex') {
+                      $sourceRoots[] = $paths->absoluteHooksRoot();
+                  }
+                  if ($withHooks && $agent === 'claude') {
+                      $sourceRoots[] = $paths->absoluteClaudeHooksRoot();
+                  }
+
+                  foreach (array_values(array_unique($sourceRoots)) as $root) {
+                      $this->appendSourceFiles($files, $root);
+                  }
+
+                  $files = array_values(array_unique($files));
+                  sort($files, SORT_STRING);
+
+                  return $files;
+              }
+
+              /** @param list<string> $files */
+              private function appendSourceFiles(array &$files, string $root): void
+              {
+                  if (!is_dir($root)) {
+                      return;
+                  }
+
+                  $iterator = new RecursiveIteratorIterator(
+                      new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS),
+                  );
+                  foreach ($iterator as $item) {
+                      if ($item->isFile()) {
+                          $files[] = $item->getPathname();
+                      }
+                  }
+              }
+
+              /** @return non-empty-string */
+              private function requireSupportedHost(string $agent): string
+          '''
+          if marker not in text:
+              raise SystemExit('helper insertion anchor not found')
+          text = text.replace(marker, helper, 1)
+
+          path.write_text(text)
+          Path('.github/workflows/repair-setup-owner.yml').unlink()
+          PY
+      - name: Commit owner repair
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Init/RepositorySetupService.php .github/workflows/repair-setup-owner.yml
+          git commit -m 'fix(setup): compose exact typed setup plans'
+          git push origin HEAD:fix/setup-typed-mutations
