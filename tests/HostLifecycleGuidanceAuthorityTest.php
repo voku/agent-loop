@@ -59,8 +59,14 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
             self::assertStringNotContainsString($retiredClaim, $contents);
         }
 
-        self::assertStringContainsString('Approval records authority for the exact Contract revision', $contents);
-        self::assertStringContainsString('preparation happens deterministically behind `enter`', $contents);
+        self::assertMatchesRegularExpression(
+            '/Approval records authority for the exact Contract\s+revision/',
+            $contents,
+        );
+        self::assertMatchesRegularExpression(
+            '/preparation happens deterministically behind\s+`enter`/',
+            $contents,
+        );
     }
 
     public function testLifecycleReferenceKeepsApprovalAndEnterOwnershipDistinct(): void
