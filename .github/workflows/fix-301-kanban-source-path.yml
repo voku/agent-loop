@@ -1,0 +1,28 @@
+name: Fix 301 Kanban source path fixture
+
+on:
+  push:
+    branches:
+      - refactor/285-in-memory-kanban-context
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/285-in-memory-kanban-context
+          fetch-depth: 0
+      - run: python3 .github/scripts/fix-301-kanban-source-path.py
+      - run: |
+          git rm .github/scripts/fix-301-kanban-source-path.py
+          git rm .github/workflows/fix-301-kanban-source-path.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/WorkflowPlanCommandTest.php
+          git commit -m 'test(workflow): preserve board source provenance'
+          git push origin HEAD:refactor/285-in-memory-kanban-context
