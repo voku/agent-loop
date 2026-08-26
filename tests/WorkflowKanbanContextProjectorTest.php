@@ -72,7 +72,7 @@ CARD,
         );
         self::assertSame($nextAction, $context['card']['next_action']);
         self::assertSame('ABC-123', $context['task_id']);
-        self::assertStringEndsWith('.agent-loop/todo/cards/ABC-123.md', str_replace('\\', '/', $this->root . '/' . $context['source']['path']));
+        self::assertSame('todo/cards/ABC-123.md', $context['source']['path']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/sessions');
     }
 
