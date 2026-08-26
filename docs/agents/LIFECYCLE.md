@@ -43,8 +43,11 @@ The structured lifecycle result exposes the facts needed for routing:
 Current `next_action_kind` values are:
 
 - `command` — execute the command as written;
-- `decision_required` — the command template still needs model and/or human
-  judgment/input before it is executable;
+- `command_template` — fill model-owned placeholders from current task intent and
+  repository evidence, then execute it without creating a human gate merely
+  because the command is incomplete text;
+- `decision_required` — a genuine human-authority decision is required; present
+  the exact current decision subject before requesting it;
 - `host_work` — perform the described host-native implementation/model work;
 - `none` — no further lifecycle action is required.
 
@@ -55,11 +58,21 @@ instruction to invent a workaround.
 ## Contract And Approval
 
 PLAN persists durable task intent: task id, goal, scope, validation and other
-selected policy. It creates neither a governed Run nor working Session.
+selected policy. It creates neither a governed Run nor working Session. Building
+a PLAN command from the user's request and bounded repository evidence is model
+work and is exposed as `command_template`, not as implicit human approval.
+
+For non-trivial work, one bounded read-only scope pass before the first PLAN
+should identify the smallest stable honest mutation boundary rather than binding
+an accidental first-file guess. Exact files remain appropriate for isolated
+changes; focused implementation/test paths are appropriate when the requested
+behavior is structurally multi-file. Repository-wide scope is not a shortcut for
+avoiding future approvals.
 
 Approval is an authority boundary. A named human approves the exact Contract
-revision. Approval itself does **not** allocate the governed Run, Session or
-Recall output.
+revision. Before asking, the host presents that exact candidate Contract: goal,
+scope, non-goals, acceptance criteria, validation and relevant selected policy.
+Approval itself does **not** allocate the governed Run, Session or Recall output.
 
 `enter` owns deterministic post-approval preparation/reconciliation. It creates
 or reuses the Run-bound Session, prepares the governed Run, compiles current
@@ -70,6 +83,11 @@ Discovery prerequisites are also surfaced by the lifecycle kernel. For example,
 when existing PHP scope requires map evidence and no usable map exists, the
 canonical next step names the owner-produced map repair before approval instead
 of letting the host discover that rule from a failing command's prose.
+
+A newly discovered file already inside the approved boundary is ordinary
+implementation discovery, not changed authority. Necessary work outside that
+boundary requires Contract supersession only when the approved mutation boundary
+really changes; goal/policy/acceptance changes remain explicit human-owned intent.
 
 ## Implementation
 
@@ -84,7 +102,9 @@ command exists.
 When selected Recall policy requires an L2 execution contract, the lifecycle
 result surfaces that requirement and the current Recall-owned construction
 instructions define its semantics. Hosts must not keep a parallel copy of those
-rules.
+rules. Constructing that project-specific L1 from approved intent/evidence is a
+`command_template` unless the lifecycle explicitly reports a human authority
+boundary.
 
 ## Finish And Close-Out
 
@@ -95,10 +115,11 @@ or close gates.
 
 Examples of the kinds of next step `finish` may expose include:
 
-- an executable lifecycle/specialist command;
-- a command template that still requires a decision or acknowledgement;
-- host-native implementation work when observed validation failed;
-- no action when the governed Run is complete.
+- an executable lifecycle/specialist `command`;
+- a model-owned `command_template` that can be completed from current evidence;
+- a `decision_required` human acknowledgement/disposition/risk decision;
+- `host_work` when observed validation means implementation must change;
+- `none` when the governed Run is complete.
 
 The exact gate set and ordering are executable policy and may evolve. Keeping
 that list in prose previously drifted, so this document intentionally does not
@@ -121,10 +142,16 @@ that distinction by parsing error text.
 Blind-spot/process review remains separate from ordinary engineering correctness
 review. Review artifacts are evidence, not approval merely because files exist.
 
+When the exact current review requires human acknowledgement, the host first
+renders/surfaces the deterministic developer-facing review workbench and the
+exact report SHA-256, verdict/findings and implementation identity. The HTML is a
+presentation of owner evidence, never authority by itself.
+
 Learning decisions stay explicit and evidence-backed. Recall selection is not
 proof that guidance was useful; unused/irrelevant outcomes remain truthful
 signals. Findings/proposals do not become durable project guidance without the
-Learning/review boundary that owns that promotion.
+Learning/review boundary that owns that promotion. When Learning disposition is
+human-owned, show the current evidence and available owner choices before asking.
 
 Hosts consume the canonical lifecycle request for review/Learning work rather
 than deciding from a copied close checklist when those gates apply.
@@ -176,6 +203,8 @@ Resume from persisted lifecycle state, not from an agent's remembered phase.
 - one semantic owner per decision;
 - host guidance routes and presents, it does not re-derive lifecycle legality;
 - `next_action` has one authority and `next_action_kind` states how to treat it;
+- command placeholders are not human authority; `command_template` and
+  `decision_required` stay distinct;
 - commands advertised as canonical must advance the state they name or reach
   an explicit decision/host-work boundary (constraint
   `workflow.recovery.next-action-must-advance`);
