@@ -28,7 +28,7 @@ final readonly class WorkflowPromptEnvelope
     public string $digest;
 
     /**
-     * @param self::MODE_* $mode
+     * @param string $mode Runtime input is validated below; keep the public guard real instead of narrowing it away in PHPDoc.
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
@@ -97,21 +97,19 @@ final readonly class WorkflowPromptEnvelope
      */
     private static function snapshotArray(array $value): array
     {
-        $snapshot = [];
-        foreach ($value as $key => $item) {
+        $snapshot = $value;
+        foreach ($snapshot as $key => $item) {
             if (is_array($item)) {
                 $snapshot[$key] = self::snapshotArray($item);
                 continue;
             }
             if ($item === null || is_bool($item) || is_int($item) || is_float($item) || is_string($item)) {
-                $snapshot[$key] = $item;
                 continue;
             }
 
             throw new InvalidArgumentException('workflow prompt envelope provenance must contain JSON-compatible scalar/array values only');
         }
 
-        /** @var T $snapshot */
         return $snapshot;
     }
 }
