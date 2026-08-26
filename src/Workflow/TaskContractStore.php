@@ -25,6 +25,7 @@ final class TaskContractStore
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
      * @param list<string> $acceptanceCriteria
+     * @param list<array{acceptance: string, validations: list<string>}> $acceptanceObservations
      */
     public function create(
         string $taskId,
@@ -39,6 +40,7 @@ final class TaskContractStore
         ?string $operatingPromptManifest = null,
         array $operatingPrompts = [],
         array $acceptanceCriteria = [],
+        array $acceptanceObservations = [],
     ): TaskContract {
         if ($this->find($taskId) !== null) {
             throw new RuntimeException('Task ' . $taskId . ' already has a Contract. Use revise instead.');
@@ -62,6 +64,7 @@ final class TaskContractStore
             $operatingPromptManifest,
             $operatingPrompts,
             $acceptanceCriteria,
+            $acceptanceObservations,
         );
         $this->write($contract);
 
@@ -76,6 +79,7 @@ final class TaskContractStore
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
      * @param list<string> $acceptanceCriteria
+     * @param list<array{acceptance: string, validations: list<string>}> $acceptanceObservations
      */
     public function revise(
         string $taskId,
@@ -90,6 +94,7 @@ final class TaskContractStore
         ?string $operatingPromptManifest = null,
         array $operatingPrompts = [],
         array $acceptanceCriteria = [],
+        array $acceptanceObservations = [],
     ): TaskContract {
         $previous = $this->load($taskId);
         $this->archive($previous);
@@ -111,6 +116,7 @@ final class TaskContractStore
             $operatingPromptManifest,
             $operatingPrompts,
             $acceptanceCriteria,
+            $acceptanceObservations,
         );
         $this->write($contract);
 
@@ -152,6 +158,7 @@ final class TaskContractStore
             $by,
             $now,
             $contract->acceptanceCriteria,
+            $contract->acceptanceObservations,
         );
         $this->write($approved);
 
@@ -207,6 +214,7 @@ final class TaskContractStore
             $contract->approvedBy,
             $contract->approvedAt,
             $contract->acceptanceCriteria,
+            $contract->acceptanceObservations,
         );
         $this->atomicWrite($superseded->path, CanonicalJson::pretty($superseded->toArray()));
     }
@@ -219,6 +227,7 @@ final class TaskContractStore
      * @param list<string> $behaviorAnchors
      * @param list<array{id: string, arguments: array<string, bool|int|string>}> $operatingPrompts
      * @param list<string> $acceptanceCriteria
+     * @param list<array{acceptance: string, validations: list<string>}> $acceptanceObservations
      */
     private function newContract(
         string $taskId,
@@ -237,6 +246,7 @@ final class TaskContractStore
         ?string $operatingPromptManifest,
         array $operatingPrompts,
         array $acceptanceCriteria,
+        array $acceptanceObservations,
     ): TaskContract {
         $goal = trim($goal);
         $plannedBy = trim($plannedBy);
@@ -259,6 +269,12 @@ final class TaskContractStore
         if ($validation === []) {
             throw new RuntimeException('A Contract requires at least one validation command.');
         }
+
+        $acceptanceObservations = $this->normalizedAcceptanceObservations(
+            $acceptanceObservations,
+            $acceptanceCriteria,
+            $validation,
+        );
 
         $operatingPromptManifest = $this->optionalString($operatingPromptManifest);
         $operatingPrompts = $this->normalizedOperatingPrompts($operatingPrompts);
@@ -284,6 +300,7 @@ final class TaskContractStore
             $operatingPromptManifest,
             $operatingPrompts,
             acceptanceCriteria: $acceptanceCriteria,
+            acceptanceObservations: $acceptanceObservations,
         );
     }
 
@@ -320,6 +337,7 @@ final class TaskContractStore
         $nonGoals = $this->listField($data, 'non_goals', $path);
         $validation = $this->listField($data, 'validation', $path, true);
         $acceptanceCriteria = $this->listField($data, 'acceptance_criteria', $path);
+        $acceptanceObservations = $this->acceptanceObservationsField($data, $path, $acceptanceCriteria, $validation);
         $tags = $this->listField($data, 'tags', $path);
         $behaviorAnchors = $this->listField($data, 'behavior_anchors', $path);
         $operatingPrompts = $this->operatingPromptsField($data, $path);
@@ -356,6 +374,7 @@ final class TaskContractStore
             $approvedBy,
             $approvedAt,
             $acceptanceCriteria,
+            $acceptanceObservations,
         );
     }
 
@@ -462,6 +481,71 @@ final class TaskContractStore
         }
 
         return $this->normalizedOperatingPrompts($prompts);
+    }
+
+    /**
+     * @param list<array{acceptance: string, validations: list<string>}> $observations
+     * @param list<string> $acceptanceCriteria
+     * @param list<string> $validation
+     * @return list<array{acceptance: string, validations: list<string>}>
+     */
+    private function normalizedAcceptanceObservations(array $observations, array $acceptanceCriteria, array $validation): array
+    {
+        $result = [];
+        $seen = [];
+        foreach ($observations as $observation) {
+            $acceptance = trim($observation['acceptance']);
+            $validations = $this->normalizedLines($observation['validations']);
+            if ($acceptance === '' || !in_array($acceptance, $acceptanceCriteria, true)) {
+                throw new RuntimeException('Contract acceptance observation references an unknown acceptance criterion: ' . $acceptance);
+            }
+            if ($validations === []) {
+                throw new RuntimeException('Contract acceptance observation requires at least one validation command.');
+            }
+            foreach ($validations as $command) {
+                if (!in_array($command, $validation, true)) {
+                    throw new RuntimeException('Contract acceptance observation references an unknown validation command: ' . $command);
+                }
+            }
+            if (isset($seen[$acceptance])) {
+                throw new RuntimeException('Contract acceptance observation may declare each acceptance criterion only once: ' . $acceptance);
+            }
+            $result[] = ['acceptance' => $acceptance, 'validations' => $validations];
+            $seen[$acceptance] = true;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param list<string> $acceptanceCriteria
+     * @param list<string> $validation
+     * @return list<array{acceptance: string, validations: list<string>}>
+     */
+    private function acceptanceObservationsField(array $data, string $path, array $acceptanceCriteria, array $validation): array
+    {
+        $value = $data['acceptance_observations'] ?? [];
+        if (!is_array($value)) {
+            throw new RuntimeException('Contract ' . $path . ' acceptance_observations must be an array.');
+        }
+
+        $observations = [];
+        foreach ($value as $entry) {
+            if (!is_array($entry) || !is_string($entry['acceptance'] ?? null) || !is_array($entry['validations'] ?? null)) {
+                throw new RuntimeException('Contract ' . $path . ' has an invalid acceptance observation entry.');
+            }
+            $validations = [];
+            foreach ($entry['validations'] as $command) {
+                if (!is_string($command)) {
+                    throw new RuntimeException('Contract ' . $path . ' acceptance observation validations must contain strings.');
+                }
+                $validations[] = $command;
+            }
+            $observations[] = ['acceptance' => $entry['acceptance'], 'validations' => $validations];
+        }
+
+        return $this->normalizedAcceptanceObservations($observations, $acceptanceCriteria, $validation);
     }
 
     /**

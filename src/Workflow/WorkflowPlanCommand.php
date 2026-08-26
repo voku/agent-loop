@@ -62,11 +62,13 @@ final readonly class WorkflowPlanCommand
                     $options['operatingPromptManifest'],
                     $options['operatingPrompts'],
                     $options['acceptanceCriteria'],
+                    $options['acceptanceObservations'],
                 );
                 $action = 'created';
             } else {
                 $preserve = $options['supersede'];
                 $preserveOperatingPrompts = $preserve && $options['operatingPrompts'] === [];
+                $preserveAcceptance = $preserve && $options['acceptanceCriteria'] === [];
                 $contract = $contracts->revise(
                     $taskId->value,
                     $options['goal'],
@@ -79,7 +81,8 @@ final readonly class WorkflowPlanCommand
                     $preserve && $options['behaviorAnchors'] === [] ? $existing->behaviorAnchors : $options['behaviorAnchors'],
                     $preserveOperatingPrompts ? $existing->operatingPromptManifest : $options['operatingPromptManifest'],
                     $preserveOperatingPrompts ? $existing->operatingPrompts : $options['operatingPrompts'],
-                    $preserve && $options['acceptanceCriteria'] === [] ? $existing->acceptanceCriteria : $options['acceptanceCriteria'],
+                    $preserveAcceptance ? $existing->acceptanceCriteria : $options['acceptanceCriteria'],
+                    $preserveAcceptance && $options['acceptanceObservations'] === [] ? $existing->acceptanceObservations : $options['acceptanceObservations'],
                 );
                 if ($activeSession !== null) {
                     // Persist the unapproved replacement intent first. If
@@ -134,7 +137,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool}
+     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, acceptanceObservations: list<array{acceptance: string, validations: list<string>}>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool}
      */
     private function parse(array $tokens): array
     {
@@ -145,6 +148,7 @@ final readonly class WorkflowPlanCommand
         $nonGoals = [];
         $validation = [];
         $acceptanceCriteria = [];
+        $acceptanceObservations = [];
         $tags = [];
         $behaviorAnchors = [];
         $operatingPromptManifest = null;
@@ -162,7 +166,7 @@ final readonly class WorkflowPlanCommand
                 $supersede = true;
                 continue;
             }
-            if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
+            if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--acceptance-observation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
             if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
@@ -195,6 +199,9 @@ final readonly class WorkflowPlanCommand
                     break;
                 case '--acceptance':
                     $acceptanceCriteria[] = $value;
+                    break;
+                case '--acceptance-observation':
+                    $acceptanceObservations[] = $this->acceptanceObservation($value);
                     break;
                 case '--tag':
                     $tags[] = $value;
@@ -249,6 +256,7 @@ final readonly class WorkflowPlanCommand
             'nonGoals' => $nonGoals,
             'validation' => $validation,
             'acceptanceCriteria' => $acceptanceCriteria,
+            'acceptanceObservations' => $acceptanceObservations,
             'tags' => $tags,
             'behaviorAnchors' => $behaviorAnchors,
             'operatingPromptManifest' => $operatingPromptManifest,
@@ -256,6 +264,36 @@ final readonly class WorkflowPlanCommand
             'baseCommit' => $baseCommit,
             'supersede' => $supersede,
         ];
+    }
+
+    /** @return array{acceptance: string, validations: list<string>} */
+    private function acceptanceObservation(string $json): array
+    {
+        try {
+            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('Acceptance observation must be valid JSON: ' . $exception->getMessage(), 0, $exception);
+        }
+        if (!is_array($data) || !is_string($data['acceptance'] ?? null) || !is_array($data['validations'] ?? null)) {
+            throw new InvalidArgumentException('Acceptance observation requires string acceptance and array validations.');
+        }
+        $acceptance = trim($data['acceptance']);
+        if ($acceptance === '') {
+            throw new InvalidArgumentException('Acceptance observation requires a non-empty acceptance criterion.');
+        }
+        $validations = [];
+        foreach ($data['validations'] as $validation) {
+            if (!is_string($validation) || trim($validation) === '') {
+                throw new InvalidArgumentException('Acceptance observation validations must contain non-empty strings.');
+            }
+            $validations[] = trim($validation);
+        }
+        $validations = array_values(array_unique($validations));
+        if ($validations === []) {
+            throw new InvalidArgumentException('Acceptance observation requires at least one validation command.');
+        }
+
+        return ['acceptance' => $acceptance, 'validations' => $validations];
     }
 
     /** @return array{id: string, arguments: array<string, bool|int|string>} */
