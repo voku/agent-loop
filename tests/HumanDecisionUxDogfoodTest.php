@@ -11,7 +11,7 @@ use voku\AgentLoop\Workflow\Transparency\ApprovedScope;
 
 final class HumanDecisionUxDogfoodTest extends TestCase
 {
-    public function testCrossCuttingLifecycleOnlyInterruptsAtGenuineAuthorityBoundaries(): void
+    public function testCrossCuttingLifecycleOnlyInterruptsForInitialTaskAuthority(): void
     {
         $evaluator = new RunPolicyEvaluator();
 
@@ -53,12 +53,12 @@ final class HumanDecisionUxDogfoodTest extends TestCase
             'source' => ['path' => '.agent-loop/review.json', 'sha256' => 'sha256:' . str_repeat('a', 64)],
         ];
         $review = $evaluator->evaluate('UX-1', 'governed', $reviewReferences, []);
-        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $review->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $review->nextActionKind);
 
         $learningReferences = $reviewReferences;
         $learningReferences['review']['state'] = 'ok';
         $learning = $evaluator->evaluate('UX-1', 'governed', $learningReferences, []);
-        self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $learning->nextActionKind);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $learning->nextActionKind);
 
         $scope = ApprovedScope::fromEntries(['src/Workflow']);
         self::assertTrue($scope->contains('src/Workflow/HostFrontDoorApplication.php'));
@@ -70,13 +70,9 @@ final class HumanDecisionUxDogfoodTest extends TestCase
             static fn (RunPolicyEvaluation $result): bool => $result->nextActionKind === RunPolicyEvaluation::KIND_DECISION_REQUIRED,
         ));
 
-        self::assertCount(3, $humanInterruptions);
+        self::assertCount(1, $humanInterruptions);
         self::assertSame(
-            [
-                'agent-loop workflow approve UX-1 --by <named-actor>',
-                'agent-loop finish UX-1 --reviewed-report-sha256 sha256:' . str_repeat('a', 64) . ' --by <actor>',
-                'agent-loop finish UX-1 --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason <learning-reason> --by <actor>',
-            ],
+            ['agent-loop workflow approve UX-1 --by <named-actor>'],
             array_map(static fn (RunPolicyEvaluation $result): string => $result->nextAction, $humanInterruptions),
         );
     }
