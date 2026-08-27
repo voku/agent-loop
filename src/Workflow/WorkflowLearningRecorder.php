@@ -18,7 +18,10 @@ final readonly class WorkflowLearningRecorder
     {
     }
 
-    /** @param list<FinishFindingInput> $findingInputs */
+    /**
+     * @param list<FinishFindingInput> $findingInputs
+     * @param list<string> $findingIds
+     */
     public function record(
         GovernedRun $run,
         TaskContract $contract,
@@ -28,6 +31,7 @@ final readonly class WorkflowLearningRecorder
         string $reason,
         array $findingInputs = [],
         ?string $followUpRef = null,
+        array $findingIds = [],
     ): RunLearningDecision {
         $decision = RunLearningDecisionStatus::tryFrom($decisionValue)
             ?? throw new RuntimeException('Unknown finish learning decision: ' . $decisionValue . '.');
@@ -39,8 +43,8 @@ final readonly class WorkflowLearningRecorder
         if ($run->taskId !== $contract->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Finish learning disposition does not match the governed task lineage.');
         }
-        if ($findingInputs !== [] && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
-            throw new RuntimeException('Finish Finding content is only valid with --learning findings_recorded.');
+        if (($findingInputs !== [] || $findingIds !== []) && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
+            throw new RuntimeException('Finish Finding content or ids are only valid with --learning findings_recorded.');
         }
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -62,7 +66,6 @@ final readonly class WorkflowLearningRecorder
         }
 
         $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
-        $findingIds = [];
         if ($findingInputs !== []) {
             $creator = new FindingCreator();
             $evidence = $this->findingEvidence($boundary, $reviewSha256);
