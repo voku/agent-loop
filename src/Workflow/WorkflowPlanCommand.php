@@ -252,7 +252,7 @@ final readonly class WorkflowPlanCommand
             'by' => $by,
             'files' => $files,
             'goal' => $goal,
-            'scope' => $scope === [] ? $files : $scope,
+            'scope' => $this->normalizeScope($scope === [] ? $files : $scope),
             'nonGoals' => $nonGoals,
             'validation' => $validation,
             'acceptanceCriteria' => $acceptanceCriteria,
@@ -264,6 +264,44 @@ final readonly class WorkflowPlanCommand
             'baseCommit' => $baseCommit,
             'supersede' => $supersede,
         ];
+    }
+
+    /**
+     * @param list<string> $scope
+     * @return list<string>
+     */
+    private function normalizeScope(array $scope): array
+    {
+        $normalized = [];
+        foreach ($scope as $path) {
+            $normalized[] = self::normalizeScopePath($path);
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeScopePath(string $path): string
+    {
+        $path = trim(str_replace('\\', '/', $path));
+        if (str_starts_with($path, './')) {
+            $path = substr($path, 2);
+        }
+        if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:/', $path) === 1) {
+            throw new InvalidArgumentException('Workflow scope must be repository-relative: ' . $path);
+        }
+        if (str_ends_with($path, '/')) {
+            $path = substr($path, 0, -1);
+        }
+        if ($path === '') {
+            throw new InvalidArgumentException('Workflow scope must be repository-relative.');
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new InvalidArgumentException('Workflow scope escapes or ambiguously addresses the repository: ' . $path);
+            }
+        }
+
+        return $path;
     }
 
     /** @return array{acceptance: string, validations: list<string>} */
