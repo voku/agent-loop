@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use voku\AgentLearning\FindingCreator;
+use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -18,7 +19,10 @@ final readonly class WorkflowLearningRecorder
     {
     }
 
-    /** @param list<FinishFindingInput> $findingInputs */
+    /**
+     * @param list<FinishFindingInput> $findingInputs
+     * @param list<string> $findingIds
+     */
     public function record(
         GovernedRun $run,
         TaskContract $contract,
@@ -28,6 +32,7 @@ final readonly class WorkflowLearningRecorder
         string $reason,
         array $findingInputs = [],
         ?string $followUpRef = null,
+        array $findingIds = [],
     ): RunLearningDecision {
         $decision = RunLearningDecisionStatus::tryFrom($decisionValue)
             ?? throw new RuntimeException('Unknown finish learning decision: ' . $decisionValue . '.');
@@ -39,8 +44,8 @@ final readonly class WorkflowLearningRecorder
         if ($run->taskId !== $contract->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Finish learning disposition does not match the governed task lineage.');
         }
-        if ($findingInputs !== [] && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
-            throw new RuntimeException('Finish Finding content is only valid with --learning findings_recorded.');
+        if (($findingInputs !== [] || $findingIds !== []) && $decision !== RunLearningDecisionStatus::FINDINGS_RECORDED) {
+            throw new RuntimeException('Finish Finding content or ids are only valid with --learning findings_recorded.');
         }
 
         $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -62,7 +67,6 @@ final readonly class WorkflowLearningRecorder
         }
 
         $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
-        $findingIds = [];
         if ($findingInputs !== []) {
             $creator = new FindingCreator();
             $evidence = $this->findingEvidence($boundary, $reviewSha256);
@@ -83,6 +87,7 @@ final readonly class WorkflowLearningRecorder
                 $findingIds[] = $created->finding->id;
             }
         }
+        $this->assertFindingLineage($learningRoot, $findingIds, $run, $session);
 
         return (new RunLearningDecisionStore($learningRoot))->record(
             $run->runId,
@@ -96,6 +101,33 @@ final readonly class WorkflowLearningRecorder
             $validationSha256,
             $reviewSha256,
         );
+    }
+
+    /**
+     * @param list<string> $findingIds
+     */
+    private function assertFindingLineage(
+        string $learningRoot,
+        array $findingIds,
+        GovernedRun $run,
+        Session $session,
+    ): void {
+        if ($findingIds === []) {
+            return;
+        }
+
+        $findings = (new FindingRepository())->loadValidated($learningRoot);
+        foreach ($findingIds as $findingId) {
+            $finding = $findings[$findingId] ?? null;
+            if ($finding === null) {
+                throw new RuntimeException('Finish finding id is not a validated Finding in the active Learning root: ' . $findingId . '.');
+            }
+            if ($finding->taskId !== $run->taskId || $finding->session !== $session->id) {
+                throw new RuntimeException(
+                    'Finish finding id does not belong to the governed task/session lineage: ' . $findingId . '.',
+                );
+            }
+        }
     }
 
     /**

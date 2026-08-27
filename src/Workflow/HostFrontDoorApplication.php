@@ -21,6 +21,8 @@ final readonly class HostFrontDoorApplication
 {
     private HostFrontDoorCommand $command;
 
+    private HostFinishFindingIdAdapter $findingIdAdapter;
+
     private ?Closure $recallRunner;
 
     /** @param null|callable(list<string>): int $recallRunner */
@@ -28,19 +30,20 @@ final readonly class HostFrontDoorApplication
     {
         $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
         $this->command = new HostFrontDoorCommand($rootPath, $this->recallRunner);
+        $this->findingIdAdapter = new HostFinishFindingIdAdapter($rootPath);
     }
 
     /** @param list<string> $args */
     public function run(string $command, array $args): int
     {
         if (!$this->jsonRequested($args)) {
-            return $this->command->run($command, $args);
+            return $this->runFrontDoor($command, $args);
         }
 
         $level = ob_get_level();
         ob_start();
         try {
-            $exitCode = $this->command->run($command, $args);
+            $exitCode = $this->runFrontDoor($command, $args);
             $stdout = (string) ob_get_contents();
         } finally {
             while (ob_get_level() > $level) {
@@ -64,6 +67,17 @@ final readonly class HostFrontDoorApplication
         $taskId = $payload['task_id'] ?? null;
         $nextAction = $payload['next_action'] ?? null;
         $nextActionKind = $payload['next_action_kind'] ?? null;
+        $blockers = $this->blockers($payload['blockers'] ?? null);
+        if ($command === 'finish') {
+            $finishFailure = $this->finishFailure($blockers);
+            if ($finishFailure !== null) {
+                $payload['mutation_status'] = 'refused';
+                $payload['error'] = $finishFailure;
+            } elseif (!isset($payload['mutation_status'])) {
+                $payload['mutation_status'] = 'accepted';
+            }
+        }
+
         if (is_string($taskId) && $this->materializeReviewPresentationWhenRequired($taskId)) {
             $review = (new WorkflowReviewReportReader($this->rootPath))->detail($taskId);
             $html = new WorkflowHumanReviewCommand($this->rootPath);
@@ -84,7 +98,6 @@ final readonly class HostFrontDoorApplication
             && is_string($nextAction)
             && $nextActionKind === RunPolicyEvaluation::KIND_DECISION_REQUIRED
         ) {
-            $blockers = $this->blockers($payload['blockers'] ?? null);
             $decision = (new WorkflowHumanDecisionProjector($this->rootPath))->project(
                 $taskId,
                 $nextAction,
@@ -102,6 +115,16 @@ final readonly class HostFrontDoorApplication
         ) . "\n";
 
         return $exitCode;
+    }
+
+    /** @param list<string> $args */
+    private function runFrontDoor(string $command, array $args): int
+    {
+        if ($command === 'finish' && $this->findingIdAdapter->supports($args)) {
+            return $this->findingIdAdapter->run($args);
+        }
+
+        return $this->command->run($command, $args);
     }
 
     private function materializeReviewPresentationWhenRequired(string $taskId): bool
@@ -137,6 +160,21 @@ final readonly class HostFrontDoorApplication
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{code: string, owner: string, message: string}> $blockers
+     * @return array{code: string, owner: string, message: string}|null
+     */
+    private function finishFailure(array $blockers): ?array
+    {
+        foreach ($blockers as $blocker) {
+            if (str_starts_with($blocker['code'], 'finish.')) {
+                return $blocker;
+            }
+        }
+
+        return null;
     }
 
     /**
