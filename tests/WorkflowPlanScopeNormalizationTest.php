@@ -52,7 +52,7 @@ final class WorkflowPlanScopeNormalizationTest extends TestCase
         $root = $this->root('invalid');
 
         try {
-            foreach (['../tests', 'tests//FooTest.php'] as $index => $scope) {
+            foreach (['../tests', 'tests//FooTest.php', 'C:tests'] as $index => $scope) {
                 $taskId = 'SCOPE-' . ($index + 2);
 
                 ob_start();
