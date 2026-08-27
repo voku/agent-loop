@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use voku\AgentLearning\FindingCreator;
+use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\RunLearningDecision;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -86,6 +87,7 @@ final readonly class WorkflowLearningRecorder
                 $findingIds[] = $created->finding->id;
             }
         }
+        $this->assertFindingLineage($learningRoot, $findingIds, $run, $session);
 
         return (new RunLearningDecisionStore($learningRoot))->record(
             $run->runId,
@@ -99,6 +101,33 @@ final readonly class WorkflowLearningRecorder
             $validationSha256,
             $reviewSha256,
         );
+    }
+
+    /**
+     * @param list<string> $findingIds
+     */
+    private function assertFindingLineage(
+        string $learningRoot,
+        array $findingIds,
+        GovernedRun $run,
+        Session $session,
+    ): void {
+        if ($findingIds === []) {
+            return;
+        }
+
+        $findings = (new FindingRepository())->loadValidated($learningRoot);
+        foreach ($findingIds as $findingId) {
+            $finding = $findings[$findingId] ?? null;
+            if ($finding === null) {
+                throw new RuntimeException('Finish finding id is not a validated Finding in the active Learning root: ' . $findingId . '.');
+            }
+            if ($finding->taskId !== $run->taskId || $finding->session !== $session->id) {
+                throw new RuntimeException(
+                    'Finish finding id does not belong to the governed task/session lineage: ' . $findingId . '.',
+                );
+            }
+        }
     }
 
     /**
