@@ -239,7 +239,7 @@ final readonly class InitStatusCommand
             return ['[WARN] ' . $label . ': ' . $exception->getMessage(), null, []];
         }
 
-        $desiredEntries = $this->includeInstalledFirstPartyEntries($manifest, $desiredEntries);
+        $desiredEntries = ManagedAssetExpectationResolver::resolve($manifest, $desiredEntries);
         $managedEntryCount = count($manifest->managedEntries());
         $manifestLine = '[OK] ' . $label . ': manifest found (' . $managedEntryCount . ' managed entrie(s))';
 
@@ -260,35 +260,6 @@ final readonly class InitStatusCommand
         );
 
         return [$manifestLine, $staleLine, $this->driftLines($label, $states)];
-    }
-
-    /**
-     * @param list<string>|null $desiredEntries
-     * @return list<string>|null
-     */
-    private function includeInstalledFirstPartyEntries(InitSyncManifest $manifest, ?array $desiredEntries): ?array
-    {
-        if ($desiredEntries === null || !$manifest->hasDriftEvidence()) {
-            return $desiredEntries;
-        }
-
-        foreach ($manifest->managedEntries() as $entry) {
-            $metadata = $manifest->entry($entry);
-            if ($metadata === null
-                || !in_array($metadata['semantic_owner'], ['voku/agent-loop', 'voku/agent-recall-compiler'], true)
-                || $metadata['source_path'] === null
-                || InitSyncManifest::digestPath($metadata['source_path']) === null
-            ) {
-                continue;
-            }
-
-            $desiredEntries[] = $entry;
-        }
-
-        $desiredEntries = array_values(array_unique($desiredEntries));
-        sort($desiredEntries, SORT_STRING);
-
-        return $desiredEntries;
     }
 
     /**
