@@ -18,13 +18,17 @@ final readonly class RunPolicyEvaluation
     public const string KIND_DECISION_REQUIRED = 'decision_required';
     public const string KIND_NONE = 'none';
 
+    public string $nextAction;
+
+    public string $nextActionKind;
+
     /** @param list<array{code: string, owner: string, message: string}> $blockers */
     public function __construct(
         public string $state,
         public bool $mutationAllowed,
         public bool $ordinaryCloseAllowed,
         public array $blockers,
-        public string $nextAction,
+        string $nextAction,
         /**
          * How the host must treat nextAction.
          *
@@ -38,7 +42,24 @@ final readonly class RunPolicyEvaluation
          *                     before the action can be executed
          * none              - nothing further is required
          */
-        public string $nextActionKind = self::KIND_COMMAND,
+        string $nextActionKind = self::KIND_COMMAND,
     ) {
+        $this->nextAction = $this->completeLearningTemplate($nextAction);
+        $this->nextActionKind = $nextActionKind;
+    }
+
+    private function completeLearningTemplate(string $nextAction): string
+    {
+        $learningTemplate = '--learning <no_durable_learning|findings_recorded|follow_up_required>'
+            . ' --learning-reason <learning-reason> --by <actor>';
+        if (!str_contains($nextAction, $learningTemplate)) {
+            return $nextAction;
+        }
+
+        return str_replace(
+            $learningTemplate,
+            $learningTemplate . ' [--finding <finding-id> ...]',
+            $nextAction,
+        );
     }
 }
