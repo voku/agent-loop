@@ -172,6 +172,7 @@ final class HostFinishFindingIdContractTest extends TestCase
             );
             $ids[] = $created->finding->id;
         }
+        sort($ids, SORT_STRING);
 
         return $ids;
     }
