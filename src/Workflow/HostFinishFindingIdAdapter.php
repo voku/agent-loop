@@ -29,7 +29,7 @@ final readonly class HostFinishFindingIdAdapter
     /** @param list<string> $args */
     public function supports(array $args): bool
     {
-        return $this->optionValues(array_slice($args, 1), 'finding') !== [];
+        return $this->hasOption(array_slice($args, 1), 'finding');
     }
 
     /** @param list<string> $args */
@@ -47,6 +47,14 @@ final readonly class HostFinishFindingIdAdapter
         try {
             if ($learning !== 'findings_recorded') {
                 throw new InvalidArgumentException('--finding is only valid with --learning findings_recorded.');
+            }
+            if ($findingIds === []) {
+                throw new InvalidArgumentException('--finding requires at least one non-empty Finding id.');
+            }
+            if ($this->hasInlineFindingInput($tokens)) {
+                throw new InvalidArgumentException(
+                    '--finding cannot be combined with inline --finding-observation/--finding-hypothesis/--finding-conclusion/--finding-confidence/--finding-sensitivity input.',
+                );
             }
             if ($by === null || $reason === null) {
                 throw new InvalidArgumentException('--learning requires --by <actor> and --learning-reason <text>.');
@@ -173,6 +181,35 @@ final readonly class HostFinishFindingIdAdapter
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
         return 1;
+    }
+
+    /** @param list<string> $tokens */
+    private function hasInlineFindingInput(array $tokens): bool
+    {
+        foreach (
+            ['finding-observation', 'finding-hypothesis', 'finding-conclusion', 'finding-confidence', 'finding-sensitivity']
+            as $name
+        ) {
+            if ($this->hasOption($tokens, $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<string> $tokens */
+    private function hasOption(array $tokens, string $name): bool
+    {
+        $exact = '--' . $name;
+        $prefix = $exact . '=';
+        foreach ($tokens as $token) {
+            if ($token === $exact || str_starts_with($token, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
