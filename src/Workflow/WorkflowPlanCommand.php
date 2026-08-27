@@ -286,7 +286,7 @@ final readonly class WorkflowPlanCommand
         if (str_starts_with($path, './')) {
             $path = substr($path, 2);
         }
-        if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:\//', $path) === 1) {
+        if ($path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:/', $path) === 1) {
             throw new InvalidArgumentException('Workflow scope must be repository-relative: ' . $path);
         }
         if (str_ends_with($path, '/')) {
