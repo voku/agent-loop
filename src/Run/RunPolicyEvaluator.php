@@ -277,7 +277,8 @@ final readonly class RunPolicyEvaluator
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
             return 'agent-loop finish ' . $taskId
-                . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason <learning-reason> --by <actor>';
+                . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason <learning-reason> --by <actor>'
+                . ' [--finding <finding-id> ...]';
         }
         if ($this->referenceState($references, 'verification') === 'blocked') {
             return $this->referenceAction($references, 'verification')
