@@ -38,10 +38,10 @@ final class HostFinishFindingIdContractTest extends TestCase
 
     public function testJsonFinishRecordsMultipleExistingFindingIds(): void
     {
-        [$run, $session, $reviewSha256] = $this->prepareReview('FINDING-JSON');
+        [$run, $session, $reviewSha256] = $this->prepareReview('FINISH-318');
         $findingIds = $this->createFindings($run, $session, 2);
 
-        $result = $this->finishJson('FINDING-JSON', [
+        $result = $this->finishJson('FINISH-318', [
             '--reviewed-report-sha256', $reviewSha256,
             '--learning', 'findings_recorded',
             '--learning-reason', 'Two existing durable findings explain the close-out.',
@@ -61,13 +61,13 @@ final class HostFinishFindingIdContractTest extends TestCase
 
     public function testTextFinishRecordsMultipleExistingFindingIds(): void
     {
-        [$run, $session, $reviewSha256] = $this->prepareReview('FINDING-TEXT');
+        [$run, $session, $reviewSha256] = $this->prepareReview('FINISH-319');
         $findingIds = $this->createFindings($run, $session, 2);
 
         ob_start();
         try {
             $exit = (new HostFrontDoorApplication($this->root))->run('finish', [
-                'FINDING-TEXT',
+                'FINISH-319',
                 '--reviewed-report-sha256', $reviewSha256,
                 '--learning', 'findings_recorded',
                 '--learning-reason', 'The text front door must preserve existing finding ids too.',
@@ -90,9 +90,9 @@ final class HostFinishFindingIdContractTest extends TestCase
 
     public function testJsonFinishMakesRefusedFindingsRecordedMutationExplicit(): void
     {
-        [, , $reviewSha256] = $this->prepareReview('FINDING-REFUSED');
+        [, , $reviewSha256] = $this->prepareReview('FINISH-320');
 
-        $result = $this->finishJson('FINDING-REFUSED', [
+        $result = $this->finishJson('FINISH-320', [
             '--reviewed-report-sha256', $reviewSha256,
             '--learning', 'findings_recorded',
             '--learning-reason', 'This intentionally omits the required finding id.',
@@ -104,6 +104,47 @@ final class HostFinishFindingIdContractTest extends TestCase
         self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
         self::assertSame('finish.closeout_failed', $result['payload']['error']['code'] ?? null);
         self::assertStringContainsString('finding id', (string) ($result['payload']['error']['message'] ?? ''));
+    }
+
+    public function testJsonFinishRefusesMissingFindingId(): void
+    {
+        [, , $reviewSha256] = $this->prepareReview('FINISH-321');
+
+        $result = $this->finishJson('FINISH-321', [
+            '--reviewed-report-sha256', $reviewSha256,
+            '--learning', 'findings_recorded',
+            '--learning-reason', 'A missing Finding must never become durable run lineage.',
+            '--by', 'fixture-reviewer',
+            '--finding', 'finding.2026-08-27.abcdef',
+        ]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
+        self::assertStringContainsString(
+            'not a validated Finding in the active Learning root',
+            (string) ($result['payload']['error']['message'] ?? ''),
+        );
+    }
+
+    public function testJsonFinishRefusesForeignFindingLineage(): void
+    {
+        [$run, $session, $reviewSha256] = $this->prepareReview('FINISH-322');
+        $foreignFindingId = $this->createFindings($run, $session, 1, 'FOREIGN-999')[0];
+
+        $result = $this->finishJson('FINISH-322', [
+            '--reviewed-report-sha256', $reviewSha256,
+            '--learning', 'findings_recorded',
+            '--learning-reason', 'A Finding from another task must not attach to this Run.',
+            '--by', 'fixture-reviewer',
+            '--finding', $foreignFindingId,
+        ]);
+
+        self::assertSame(1, $result['exit']);
+        self::assertSame('refused', $result['payload']['mutation_status'] ?? null);
+        self::assertStringContainsString(
+            'does not belong to the governed task/session lineage',
+            (string) ($result['payload']['error']['message'] ?? ''),
+        );
     }
 
     /** @return array{0: GovernedRun, 1: Session, 2: string} */
@@ -148,15 +189,19 @@ final class HostFinishFindingIdContractTest extends TestCase
     /**
      * @return list<string>
      */
-    private function createFindings(GovernedRun $run, Session $session, int $count): array
-    {
+    private function createFindings(
+        GovernedRun $run,
+        Session $session,
+        int $count,
+        ?string $taskId = null,
+    ): array {
         $creator = new FindingCreator();
         $root = WorkflowLearningRoot::forRun($this->root, $run);
         $ids = [];
         for ($index = 1; $index <= $count; ++$index) {
             $created = $creator->createValidated(
                 root: $root,
-                taskId: $run->taskId,
+                taskId: $taskId ?? $run->taskId,
                 session: $session->id,
                 createdBy: 'fixture-agent',
                 scope: ['src/Foo.php'],
