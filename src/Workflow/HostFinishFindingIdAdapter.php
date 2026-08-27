@@ -42,7 +42,7 @@ final readonly class HostFinishFindingIdAdapter
         $by = OptionTokens::value($tokens, 'by');
         $reason = OptionTokens::value($tokens, 'learning-reason');
         $followUpRef = OptionTokens::value($tokens, 'follow-up-ref');
-        $findingIds = $this->optionValues($tokens, 'finding');
+        $findingIds = OptionTokens::values($tokens, 'finding');
 
         try {
             if ($learning !== 'findings_recorded') {
@@ -186,10 +186,14 @@ final readonly class HostFinishFindingIdAdapter
     /** @param list<string> $tokens */
     private function hasInlineFindingInput(array $tokens): bool
     {
-        foreach (
-            ['finding-observation', 'finding-hypothesis', 'finding-conclusion', 'finding-confidence', 'finding-sensitivity']
-            as $name
-        ) {
+        $names = [
+            'finding-observation',
+            'finding-hypothesis',
+            'finding-conclusion',
+            'finding-confidence',
+            'finding-sensitivity',
+        ];
+        foreach ($names as $name) {
             if ($this->hasOption($tokens, $name)) {
                 return true;
             }
@@ -210,34 +214,5 @@ final readonly class HostFinishFindingIdAdapter
         }
 
         return false;
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @return list<string>
-     */
-    private function optionValues(array $tokens, string $name): array
-    {
-        $values = [];
-        $prefix = '--' . $name . '=';
-        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
-            $token = $tokens[$index];
-            if ($token === '--' . $name) {
-                $value = $tokens[$index + 1] ?? null;
-                if (is_string($value) && $value !== '' && !str_starts_with($value, '--')) {
-                    $values[] = $value;
-                }
-                ++$index;
-                continue;
-            }
-            if (str_starts_with($token, $prefix)) {
-                $value = substr($token, strlen($prefix));
-                if ($value !== '') {
-                    $values[] = $value;
-                }
-            }
-        }
-
-        return $values;
     }
 }
