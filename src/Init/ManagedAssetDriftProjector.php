@@ -50,13 +50,15 @@ final readonly class ManagedAssetDriftProjector
             );
         }
 
+        $desiredEntries = ManagedAssetExpectationResolver::resolve($manifest, $target->desiredEntries());
+
         return ManagedAssetDriftProjection::fromStates(
             $target,
             ManagedAssetDriftInspector::inspect(
                 $manifest,
                 $target->targetRoot,
                 $target->host,
-                $target->desiredEntries(),
+                $desiredEntries,
             ),
         );
     }
