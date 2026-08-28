@@ -6,8 +6,12 @@ namespace voku\AgentLoop\Tests;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowPromptEnvelope;
 use voku\AgentLoop\Workflow\WorkflowPromptService;
+use voku\AgentSession\SessionStore;
 
 final class WorkflowPromptServiceTest extends TestCase
 {
@@ -21,7 +25,7 @@ final class WorkflowPromptServiceTest extends TestCase
 
     protected function tearDown(): void
     {
-        self::assertTrue(rmdir($this->root));
+        $this->removeTree($this->root);
     }
 
     public function testStartTaskIsDeterministicAndNeverInventsApproval(): void
@@ -35,6 +39,8 @@ final class WorkflowPromptServiceTest extends TestCase
         self::assertFalse($first->mutationAllowed);
         self::assertNull($first->runId);
         self::assertNull($first->state);
+        self::assertNull($first->goal);
+        self::assertNull($first->continuityAnchor);
         self::assertSame($first->content, $second->content);
         self::assertSame($first->digest, $second->digest);
         self::assertStringContainsString('not Contract approval', $first->content);
@@ -61,11 +67,56 @@ final class WorkflowPromptServiceTest extends TestCase
         self::assertNull($first->contractRevision);
         self::assertNull($first->recallCompilationId);
         self::assertNull($first->recallBundleSha256);
+        self::assertNull($first->goal);
+        self::assertNull($first->continuityAnchor);
         self::assertSame($first->nextAction, $second->nextAction);
         self::assertSame($first->digest, $second->digest);
         self::assertNotNull($first->nextAction);
         self::assertStringContainsString($first->nextAction, $first->content);
+        self::assertStringContainsString('Approved goal: unavailable', $first->content);
+        self::assertStringContainsString('Latest durable checkpoint: none available', $first->content);
         self::assertStringContainsString('generated prompt text is not approval', $first->content);
+    }
+
+    public function testContinueTaskProjectsApprovedGoalAndNewestCheckpoint(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'ABC-123',
+            'Resume the current governed change without stale chat assumptions.',
+            ['src/Foo.php'],
+            [],
+            ['php -r "exit(0);"'],
+            'lars',
+        );
+        $contracts->approve('ABC-123', 'lars');
+
+        $sessions = new SessionStore();
+        $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', 'prompt', 'lars');
+        $sessions->addCheckpoint($session, 'First bounded slice', 'Initial evidence collected.');
+
+        $service = new WorkflowPromptService($this->root);
+        $first = $service->continueTask('ABC-123');
+
+        self::assertSame('Resume the current governed change without stale chat assumptions.', $first->goal);
+        self::assertNotNull($first->continuityAnchor);
+        self::assertSame('checkpoint', $first->continuityAnchor['kind']);
+        self::assertSame('First bounded slice', $first->continuityAnchor['title']);
+        self::assertStringContainsString('Approved goal: Resume the current governed change without stale chat assumptions.', $first->content);
+        self::assertStringContainsString('Latest durable checkpoint: ' . $first->continuityAnchor['id'] . ' First bounded slice', $first->content);
+
+        $current = $sessions->load($this->root . '/.agent-loop/sessions', $session->id);
+        self::assertNotNull($current);
+        $sessions->addCheckpoint($current, 'Second bounded slice', 'The latest durable re-entry anchor.');
+
+        $second = $service->continueTask('ABC-123');
+
+        self::assertNotNull($second->continuityAnchor);
+        self::assertSame('Second bounded slice', $second->continuityAnchor['title']);
+        self::assertNotSame($first->continuityAnchor['id'], $second->continuityAnchor['id']);
+        self::assertNotSame($first->digest, $second->digest);
+        self::assertSame($second->continuityAnchor, $second->toArray()['continuity_anchor']);
+        self::assertSame($second->goal, $second->toArray()['goal']);
     }
 
     public function testEnvelopePublishesTypedContractAndRecallLineage(): void
@@ -82,11 +133,19 @@ final class WorkflowPromptServiceTest extends TestCase
             contractRevision: 3,
             recallCompilationId: 'compilation.ABC-123.fixed',
             recallBundleSha256: 'sha256:' . str_repeat('a', 64),
+            goal: 'Keep the host oriented after resume.',
+            continuityAnchor: [
+                'kind' => 'checkpoint',
+                'id' => 'checkpoint-2',
+                'title' => 'Resume here',
+            ],
         );
 
         self::assertSame(3, $envelope->toArray()['contract_revision']);
         self::assertSame('compilation.ABC-123.fixed', $envelope->toArray()['recall_compilation_id']);
         self::assertSame('sha256:' . str_repeat('a', 64), $envelope->toArray()['recall_bundle_sha256']);
+        self::assertSame('Keep the host oriented after resume.', $envelope->toArray()['goal']);
+        self::assertSame('checkpoint-2', $envelope->toArray()['continuity_anchor']['id']);
     }
 
     public function testEnvelopeRejectsMutableNestedProvenanceValues(): void
@@ -112,5 +171,19 @@ final class WorkflowPromptServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         (new WorkflowPromptService($this->root))->continueTask('../escape');
+    }
+
+    private function removeTree(string $directory): void
+    {
+        if (!is_dir($directory)) {
+            return;
+        }
+        foreach (new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        ) as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+        rmdir($directory);
     }
 }
