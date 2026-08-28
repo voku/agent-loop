@@ -222,10 +222,6 @@ Use the existing view factory seam.
 CARD
 );
         $this->writeReadyMapAndSearch($root, 'sha256:current');
-        file_put_contents($learningRoot . '/recall-documents.json', json_encode([
-            'schema_version' => '1.0',
-            'documents' => [],
-        ], JSON_THROW_ON_ERROR));
 
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
@@ -266,7 +262,6 @@ CARD
                 'compile', '--root', $learningRoot,
                 '--task', 'ABC-123', '--task-brief', $recallInput,
                 '--document-manifest', $root . '/docs/agents/recall-documents.json',
-                '--document-manifest', $learningRoot . '/recall-documents.json',
                 '--kanban-context', $kanbanContextJson,
                 '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
                 '--map-search-index', $root . '/.agent-loop/map/search.sqlite',
