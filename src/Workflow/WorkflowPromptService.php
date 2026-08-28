@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
@@ -60,8 +61,7 @@ final readonly class WorkflowPromptService
         $contractRevision = $manifest->references['contract']['revision'] ?? null;
         $recallCompilationId = $manifest->references['recall']['compilation_id'] ?? null;
         $recallBundleSha256 = $manifest->references['recall']['bundle_sha256'] ?? null;
-        $contract = (new TaskContractStore($this->rootPath))->find($task->value);
-        $goal = $contract !== null && $contract->status === TaskContract::APPROVED ? $contract->goal : null;
+        $goal = $this->approvedGoal($task->value);
         $continuityAnchor = $this->continuityAnchor($task->value);
         $content = implode("\n", [
             "Use this repository's agent-loop workflow.",
@@ -98,6 +98,17 @@ final readonly class WorkflowPromptService
         );
     }
 
+    private function approvedGoal(string $taskId): ?string
+    {
+        try {
+            $contract = (new TaskContractStore($this->rootPath))->find($taskId);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $contract !== null && $contract->status === TaskContract::APPROVED ? $contract->goal : null;
+    }
+
     /** @return array{kind: 'checkpoint', id: string, title: string}|null */
     private function continuityAnchor(string $taskId): ?array
     {
@@ -106,10 +117,14 @@ final readonly class WorkflowPromptService
             return null;
         }
 
-        $sessions = array_values(array_filter(
-            (new SessionStore())->all($root),
-            static fn (Session $session): bool => $session->taskId === $taskId,
-        ));
+        try {
+            $sessions = array_values(array_filter(
+                (new SessionStore())->all($root),
+                static fn (Session $session): bool => $session->taskId === $taskId,
+            ));
+        } catch (Throwable) {
+            return null;
+        }
         $activeSessions = array_values(array_filter(
             $sessions,
             static fn (Session $session): bool => !$session->status->isClosed(),
