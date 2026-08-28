@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.2 - 2026-08-28
+
 ### Fixed
 
 - A governed Run is no longer sealed by its own first `finish`. Work can legitimately
