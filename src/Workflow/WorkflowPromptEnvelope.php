@@ -17,7 +17,10 @@ final readonly class WorkflowPromptEnvelope
 {
     public const string MODE_CONTINUE = 'continue';
     public const string MODE_START = 'start';
-    public const string SCHEMA_VERSION = '1.0';
+    public const string SCHEMA_VERSION = '1.1';
+
+    /** @var array{kind: 'checkpoint', id: string, title: string}|null */
+    public ?array $continuityAnchor;
 
     /** @var array<string, array<string, mixed>> */
     public array $references;
@@ -29,6 +32,7 @@ final readonly class WorkflowPromptEnvelope
 
     /**
      * @param string $mode Runtime input is validated below; keep the public guard real instead of narrowing it away in PHPDoc.
+     * @param array{kind: 'checkpoint', id: string, title: string}|null $continuityAnchor
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
@@ -44,6 +48,8 @@ final readonly class WorkflowPromptEnvelope
         public ?int $contractRevision = null,
         public ?string $recallCompilationId = null,
         public ?string $recallBundleSha256 = null,
+        public ?string $goal = null,
+        ?array $continuityAnchor = null,
         array $references = [],
         array $disagreements = [],
     ) {
@@ -53,7 +59,11 @@ final readonly class WorkflowPromptEnvelope
         if (trim($content) === '') {
             throw new InvalidArgumentException('workflow prompt envelope content must not be empty');
         }
+        if ($goal !== null && trim($goal) === '') {
+            throw new InvalidArgumentException('workflow prompt envelope goal must be non-empty when present');
+        }
 
+        $this->continuityAnchor = self::snapshotContinuityAnchor($continuityAnchor);
         $this->references = self::snapshotReferences($references);
         $this->disagreements = self::snapshotDisagreements($disagreements);
         $this->digest = hash('sha256', CanonicalJson::pretty($this->payload()));
@@ -85,8 +95,37 @@ final readonly class WorkflowPromptEnvelope
             'contract_revision' => $this->contractRevision,
             'recall_compilation_id' => $this->recallCompilationId,
             'recall_bundle_sha256' => $this->recallBundleSha256,
+            'goal' => $this->goal,
+            'continuity_anchor' => $this->continuityAnchor,
             'references' => $this->references,
             'disagreements' => $this->disagreements,
+        ];
+    }
+
+    /**
+     * @param array{kind: 'checkpoint', id: string, title: string}|null $continuityAnchor
+     * @return array{kind: 'checkpoint', id: string, title: string}|null
+     */
+    private static function snapshotContinuityAnchor(?array $continuityAnchor): ?array
+    {
+        if ($continuityAnchor === null) {
+            return null;
+        }
+        if (
+            ($continuityAnchor['kind'] ?? null) !== 'checkpoint'
+            || !isset($continuityAnchor['id'], $continuityAnchor['title'])
+            || !is_string($continuityAnchor['id'])
+            || !is_string($continuityAnchor['title'])
+            || trim($continuityAnchor['id']) === ''
+            || trim($continuityAnchor['title']) === ''
+        ) {
+            throw new InvalidArgumentException('workflow prompt envelope continuity anchor must be a non-empty checkpoint id/title');
+        }
+
+        return [
+            'kind' => 'checkpoint',
+            'id' => $continuityAnchor['id'],
+            'title' => $continuityAnchor['title'],
         ];
     }
 
