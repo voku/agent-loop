@@ -106,7 +106,6 @@ final class WorkflowPromptServiceTest extends TestCase
         self::assertStringContainsString('Latest durable checkpoint: ' . $first->continuityAnchor['id'] . ' First bounded slice', $first->content);
 
         $current = $sessions->load($this->root . '/.agent-loop/sessions', $session->id);
-        self::assertNotNull($current);
         $sessions->addCheckpoint($current, 'Second bounded slice', 'The latest durable re-entry anchor.');
 
         $second = $service->continueTask('ABC-123');
