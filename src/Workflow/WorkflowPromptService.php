@@ -8,6 +8,7 @@ use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -100,10 +101,11 @@ final readonly class WorkflowPromptService
 
     private function approvedGoal(string $taskId): ?string
     {
+        $contract = null;
         try {
             $contract = (new TaskContractStore($this->rootPath))->find($taskId);
         } catch (Throwable) {
-            return null;
+            // The manifest already owns the fail-closed disagreement. Orientation stays optional.
         }
 
         return $contract !== null && $contract->status === TaskContract::APPROVED ? $contract->goal : null;
@@ -116,10 +118,12 @@ final readonly class WorkflowPromptService
             return null;
         }
 
+        /** @var Session|null $session */
+        $session = null;
         try {
             $session = (new SessionStore())->load((new ProjectLayout($this->rootPath))->sessionsRoot(), $sessionId);
         } catch (Throwable) {
-            return null;
+            // The manifest already owns the fail-closed disagreement. Orientation stays optional.
         }
         if ($session === null || $session->taskId !== $taskId || $session->checkpoints === []) {
             return null;
