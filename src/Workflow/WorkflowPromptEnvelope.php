@@ -32,9 +32,9 @@ final readonly class WorkflowPromptEnvelope
 
     /**
      * @param string $mode Runtime input is validated below; keep the public guard real instead of narrowing it away in PHPDoc.
-     * @param array<string, mixed>|null $continuityAnchor Runtime input is validated below before it becomes the narrow public checkpoint shape.
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
+     * @param array<string, mixed>|null $continuityAnchor Runtime input is validated below before it becomes the narrow public checkpoint shape.
      */
     public function __construct(
         public string $mode,
@@ -48,10 +48,10 @@ final readonly class WorkflowPromptEnvelope
         public ?int $contractRevision = null,
         public ?string $recallCompilationId = null,
         public ?string $recallBundleSha256 = null,
-        public ?string $goal = null,
-        ?array $continuityAnchor = null,
         array $references = [],
         array $disagreements = [],
+        public ?string $goal = null,
+        ?array $continuityAnchor = null,
     ) {
         if (!in_array($mode, [self::MODE_START, self::MODE_CONTINUE], true)) {
             throw new InvalidArgumentException('unsupported workflow prompt envelope mode: ' . $mode);
