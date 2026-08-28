@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentSession\Session;
+use voku\AgentSession\SessionStore;
 
 /**
  * Read-only workflow-owned prompt projection for embedding hosts.
@@ -57,10 +60,17 @@ final readonly class WorkflowPromptService
         $contractRevision = $manifest->references['contract']['revision'] ?? null;
         $recallCompilationId = $manifest->references['recall']['compilation_id'] ?? null;
         $recallBundleSha256 = $manifest->references['recall']['bundle_sha256'] ?? null;
+        $contract = (new TaskContractStore($this->rootPath))->find($task->value);
+        $goal = $contract !== null && $contract->status === TaskContract::APPROVED ? $contract->goal : null;
+        $continuityAnchor = $this->continuityAnchor($task->value);
         $content = implode("\n", [
             "Use this repository's agent-loop workflow.",
             'Continue task ' . $task->value . ' from the current owner-projected governed state.',
             'Treat agent-loop lifecycle state and the canonical next action below as workflow authority; generated prompt text is not approval, verification, review, Learning, accepted risk, or another human decision.',
+            'Approved goal: ' . ($goal ?? 'unavailable'),
+            'Latest durable checkpoint: ' . ($continuityAnchor === null
+                ? 'none available'
+                : $continuityAnchor['id'] . ' ' . $continuityAnchor['title']),
             'Current state: ' . $policy->state,
             'Current run: ' . $manifest->runId,
             'Canonical next action kind: ' . $policy->nextActionKind,
@@ -81,8 +91,47 @@ final readonly class WorkflowPromptService
             contractRevision: is_int($contractRevision) ? $contractRevision : null,
             recallCompilationId: is_string($recallCompilationId) ? $recallCompilationId : null,
             recallBundleSha256: is_string($recallBundleSha256) ? $recallBundleSha256 : null,
+            goal: $goal,
+            continuityAnchor: $continuityAnchor,
             references: $manifest->references,
             disagreements: $manifest->disagreements,
         );
+    }
+
+    /** @return array{kind: 'checkpoint', id: string, title: string}|null */
+    private function continuityAnchor(string $taskId): ?array
+    {
+        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
+        if (!is_dir($root)) {
+            return null;
+        }
+
+        $sessions = array_values(array_filter(
+            (new SessionStore())->all($root),
+            static fn (Session $session): bool => $session->taskId === $taskId,
+        ));
+        $activeSessions = array_values(array_filter(
+            $sessions,
+            static fn (Session $session): bool => !$session->status->isClosed(),
+        ));
+        if (count($activeSessions) === 1) {
+            $session = $activeSessions[0];
+        } elseif (count($activeSessions) > 1 || $sessions === []) {
+            return null;
+        } else {
+            usort($sessions, static fn (Session $left, Session $right): int => [$right->updatedAt, $right->id] <=> [$left->updatedAt, $left->id]);
+            $session = $sessions[0];
+        }
+
+        if ($session->checkpoints === []) {
+            return null;
+        }
+        $checkpoint = $session->checkpoints[count($session->checkpoints) - 1];
+
+        return [
+            'kind' => 'checkpoint',
+            'id' => $checkpoint['id'],
+            'title' => $checkpoint['title'],
+        ];
     }
 }
