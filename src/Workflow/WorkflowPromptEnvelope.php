@@ -32,7 +32,7 @@ final readonly class WorkflowPromptEnvelope
 
     /**
      * @param string $mode Runtime input is validated below; keep the public guard real instead of narrowing it away in PHPDoc.
-     * @param array{kind: 'checkpoint', id: string, title: string}|null $continuityAnchor
+     * @param array<string, mixed>|null $continuityAnchor Runtime input is validated below before it becomes the narrow public checkpoint shape.
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string}> $disagreements
      */
@@ -103,7 +103,7 @@ final readonly class WorkflowPromptEnvelope
     }
 
     /**
-     * @param array{kind: 'checkpoint', id: string, title: string}|null $continuityAnchor
+     * @param array<string, mixed>|null $continuityAnchor
      * @return array{kind: 'checkpoint', id: string, title: string}|null
      */
     private static function snapshotContinuityAnchor(?array $continuityAnchor): ?array
