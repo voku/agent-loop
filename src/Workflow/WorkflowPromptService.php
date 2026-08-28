@@ -8,7 +8,6 @@ use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
-use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -61,8 +60,9 @@ final readonly class WorkflowPromptService
         $contractRevision = $manifest->references['contract']['revision'] ?? null;
         $recallCompilationId = $manifest->references['recall']['compilation_id'] ?? null;
         $recallBundleSha256 = $manifest->references['recall']['bundle_sha256'] ?? null;
+        $sessionId = $manifest->references['session']['session_id'] ?? null;
         $goal = $this->approvedGoal($task->value);
-        $continuityAnchor = $this->continuityAnchor($task->value);
+        $continuityAnchor = $this->continuityAnchor($task->value, is_string($sessionId) ? $sessionId : null);
         $content = implode("\n", [
             "Use this repository's agent-loop workflow.",
             'Continue task ' . $task->value . ' from the current owner-projected governed state.',
@@ -110,35 +110,18 @@ final readonly class WorkflowPromptService
     }
 
     /** @return array{kind: 'checkpoint', id: string, title: string}|null */
-    private function continuityAnchor(string $taskId): ?array
+    private function continuityAnchor(string $taskId, ?string $sessionId): ?array
     {
-        $root = (new ProjectLayout($this->rootPath))->sessionsRoot();
-        if (!is_dir($root)) {
+        if ($sessionId === null || trim($sessionId) === '') {
             return null;
         }
 
         try {
-            $sessions = array_values(array_filter(
-                (new SessionStore())->all($root),
-                static fn (Session $session): bool => $session->taskId === $taskId,
-            ));
+            $session = (new SessionStore())->load((new ProjectLayout($this->rootPath))->sessionsRoot(), $sessionId);
         } catch (Throwable) {
             return null;
         }
-        $activeSessions = array_values(array_filter(
-            $sessions,
-            static fn (Session $session): bool => !$session->status->isClosed(),
-        ));
-        if (count($activeSessions) === 1) {
-            $session = $activeSessions[0];
-        } elseif (count($activeSessions) > 1 || $sessions === []) {
-            return null;
-        } else {
-            usort($sessions, static fn (Session $left, Session $right): int => [$right->updatedAt, $right->id] <=> [$left->updatedAt, $left->id]);
-            $session = $sessions[0];
-        }
-
-        if ($session->checkpoints === []) {
+        if ($session === null || $session->taskId !== $taskId || $session->checkpoints === []) {
             return null;
         }
         $checkpoint = $session->checkpoints[count($session->checkpoints) - 1];
