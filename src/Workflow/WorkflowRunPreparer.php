@@ -339,11 +339,17 @@ final readonly class WorkflowRunPreparer
             }
 
             if ($sessions->exists($sessionsRoot, $boundRun->sessionId)) {
-                throw new RuntimeException(sprintf(
-                    'Governed Run %s is bound to Session %s, but that Session exists and is not active.',
-                    $boundRun->runId,
-                    $boundRun->sessionId,
-                ));
+                // A Run binds to exactly one Session id, and the branch below already recovers a Session
+                // that was pruned away entirely. A Session that is merely closed carries strictly more
+                // information than a pruned one, so refusing it here would seal the Run: work that
+                // legitimately continues after a finish - a follow-up change demanded by the closing
+                // Run's own review gate, for example - could reuse neither the bound Session nor a
+                // freshly started one. SessionStore::reopen() keeps that narrow: only a Session closed
+                // as done reopens, and it refuses while another open Session exists for the task.
+                return $sessions->reopen(
+                    $sessions->load($sessionsRoot, $boundRun->sessionId),
+                    sprintf('Governed Run %s continues after its Session was closed.', $boundRun->runId),
+                );
             }
 
             return $sessions->rehydrate(

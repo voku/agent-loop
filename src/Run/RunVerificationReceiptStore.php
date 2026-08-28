@@ -53,21 +53,34 @@ final class RunVerificationReceiptStore
             throw new RuntimeException('Verification receipt obligations do not exactly match Contract validation order.');
         }
 
+        $supersedes = [];
         $existing = $this->find($run->taskId);
         if ($existing !== null) {
             if (
                 $existing->runId !== $run->runId
                 || $existing->contractRevision !== $contract->revision
                 || $existing->contractSha256 !== $run->contractSource['sha256']
-                || $existing->implementationSnapshot !== $implementationSnapshot
-                || $existing->verdict !== $verdict
-                || $existing->obligations !== $obligations
-                || $existing->sourceSessionId !== $session->id
             ) {
                 throw new RuntimeException('Governed Run already has a different final verification receipt.');
             }
 
-            return $existing;
+            if (
+                $existing->implementationSnapshot === $implementationSnapshot
+                && $existing->verdict === $verdict
+                && $existing->obligations === $obligations
+                && $existing->sourceSessionId === $session->id
+            ) {
+                return $existing;
+            }
+
+            // A receipt attests one implementation, so a changed implementation needs a new receipt
+            // rather than a rewritten one. Work can legitimately continue after a first finish - the
+            // closing Run's own review gate can demand a follow-up change - and refusing to re-verify
+            // would seal the Run: `workflow close` would fail forever on evidence that no longer
+            // matches the code. The successor therefore supersedes its predecessor and carries the
+            // whole chain, so nothing that was attested is lost. Run identity and the approved
+            // Contract stay immutable: a different Run or Contract is still refused above.
+            $supersedes = [...$existing->supersedes, $existing->asSupersededEntry()];
         }
 
         $receipt = new RunVerificationReceipt(
@@ -81,6 +94,7 @@ final class RunVerificationReceiptStore
             (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
             $this->path($run->taskId),
             $implementationSnapshot,
+            $supersedes,
         );
         $this->write($receipt);
 
@@ -127,7 +141,7 @@ final class RunVerificationReceiptStore
             throw new RuntimeException('Invalid run verification receipt JSON in ' . $path . ': ' . $exception->getMessage(), 0, $exception);
         }
         $schema = is_array($data) ? ($data['schema_version'] ?? null) : null;
-        if (!is_array($data) || !in_array($schema, ['1.0', '1.1'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
+        if (!is_array($data) || !in_array($schema, ['1.0', '1.1', '1.2'], true) || ($data['kind'] ?? null) !== 'run_verification_receipt') {
             throw new RuntimeException('Unsupported run verification receipt schema in ' . $path . '.');
         }
         $taskId = PersistedJson::requiredString($data, 'task_id', $path);
@@ -143,7 +157,7 @@ final class RunVerificationReceiptStore
             throw new RuntimeException('Verification receipt contract_sha256 is invalid in ' . $path . '.');
         }
         $implementationSnapshot = null;
-        if ($schema === '1.1') {
+        if ($schema === '1.1' || $schema === '1.2') {
             $implementationSnapshot = PersistedJson::requiredString($data, 'implementation_snapshot', $path);
             if (preg_match('/^sha256:[a-f0-9]{64}$/', $implementationSnapshot) !== 1) {
                 throw new RuntimeException('Verification receipt implementation_snapshot is invalid in ' . $path . '.');
@@ -196,7 +210,47 @@ final class RunVerificationReceiptStore
             PersistedJson::requiredString($data, 'verified_at', $path),
             $path,
             $implementationSnapshot,
+            $this->supersedesField($data, $path),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return list<array{implementation_snapshot: string|null, verdict: string, source_session_id: string, verified_at: string}>
+     */
+    private function supersedesField(array $data, string $path): array
+    {
+        $raw = $data['supersedes'] ?? [];
+        if (!is_array($raw)) {
+            throw new RuntimeException('Verification receipt supersedes must be an array in ' . $path . '.');
+        }
+
+        $entries = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                throw new RuntimeException('Verification receipt supersedes entry must be an object in ' . $path . '.');
+            }
+
+            $snapshot = $this->nullableString($entry['implementation_snapshot'] ?? null, $path . '#supersedes.implementation_snapshot');
+            if ($snapshot !== null && preg_match('/^sha256:[a-f0-9]{64}$/', $snapshot) !== 1) {
+                throw new RuntimeException('Verification receipt supersedes implementation_snapshot is invalid in ' . $path . '.');
+            }
+
+            $verdict = PersistedJson::requiredString($entry, 'verdict', $path . '#supersedes');
+            if (!in_array($verdict, ['satisfied', 'unsatisfied', 'accepted_risk'], true)) {
+                throw new RuntimeException('Verification receipt supersedes verdict is invalid in ' . $path . '.');
+            }
+
+            $entries[] = [
+                'implementation_snapshot' => $snapshot,
+                'verdict' => $verdict,
+                'source_session_id' => PersistedJson::requiredString($entry, 'source_session_id', $path . '#supersedes'),
+                'verified_at' => PersistedJson::requiredString($entry, 'verified_at', $path . '#supersedes'),
+            ];
+        }
+
+        return $entries;
     }
 
     private function nullableString(mixed $value, string $path): ?string

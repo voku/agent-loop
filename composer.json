@@ -21,7 +21,7 @@
     "voku/agent-learning": "^0.13.2",
     "voku/agent-map": "^0.8.8",
     "voku/agent-recall-compiler": "^0.13.14",
-    "voku/agent-session": "^0.6.2"
+    "voku/agent-session": "^0.6.3"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",

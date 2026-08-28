@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- A governed Run is no longer sealed by its own first `finish`. Work can legitimately
+  continue afterwards - the closing Run's review gate can itself demand a follow-up
+  change - but two independent guards made that unrecoverable:
+  - `WorkflowRunPreparer::prepareSession()` threw whenever the bound Session existed
+    and was not active, while the very next branch already rehydrated a Session that
+    had been pruned away entirely. A merely closed Session carries strictly more
+    information than a pruned one, so it now reopens through
+    `SessionStore::reopen()` (which stays narrow: only a Session closed as `done`,
+    and never while another open Session exists for the task). Requires
+    `voku/agent-session` ^0.6.3.
+  - `RunVerificationReceiptStore::record()` refused any receipt whose implementation
+    snapshot differed from the stored one, so `workflow close` failed forever on
+    evidence that no longer matched the code. A newer implementation of the *same*
+    Run and the *same* approved Contract now supersedes the previous receipt and
+    carries the replaced attestations in a `supersedes` chain (receipt schema 1.2),
+    so nothing that was attested is lost. A different Run or Contract is still
+    refused, and re-recording an identical receipt stays idempotent.
+
 ## 0.18.1 - 2026-08-25
 
 ### Added

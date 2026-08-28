@@ -138,6 +138,99 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         self::assertSame('compiled', $retry['payload']['manifest']['references']['recall']['state'] ?? null);
     }
 
+    public function testEnterReopensTheBoundSessionInsteadOfSealingTheRun(): void
+    {
+        $this->createApprovedContract('Govern revision one.');
+        self::assertSame(0, $this->enter()['exit']);
+
+        $sessionStore = new SessionStore();
+        $sessionsRoot = (new ProjectLayout($this->root))->sessionsRoot();
+        $sessions = $sessionStore->all($sessionsRoot);
+        self::assertCount(1, $sessions);
+        $boundId = $sessions[0]->id;
+
+        // the Run finished once and closed its working memory
+        $sessionStore->close($sessions[0], SessionStatus::DONE, 'first finish');
+        self::assertSame(SessionStatus::DONE, $sessionStore->load($sessionsRoot, $boundId)->status);
+
+        // re-entering for a follow-up change must not deadlock on that closed Session
+        $reentered = $this->enter();
+        self::assertSame(0, $reentered['exit'], json_encode($reentered, JSON_THROW_ON_ERROR));
+
+        $resumed = $sessionStore->load($sessionsRoot, $boundId);
+        self::assertSame(SessionStatus::ACTIVE, $resumed->status);
+        self::assertSame($boundId, $resumed->id, 'the Run binds to this id, so re-entering must not allocate a new one');
+        self::assertCount(1, $sessionStore->all($sessionsRoot), 'reopening must not leave a second Session behind');
+    }
+
+    public function testAFollowUpImplementationSupersedesTheReceiptInsteadOfSealingTheRun(): void
+    {
+        $contracts = $this->createApprovedContract('Govern revision one.');
+        self::assertSame(0, $this->enter()['exit']);
+
+        $contract = $contracts->load(self::TASK_ID);
+        $run = (new GovernedRunStore($this->root))->find(self::TASK_ID);
+        self::assertNotNull($run);
+        $sessionStore = new SessionStore();
+        $sessions = $sessionStore->all((new ProjectLayout($this->root))->sessionsRoot());
+        $receipts = new RunVerificationReceiptStore($this->root);
+
+        $obligations = [[
+            'command' => 'composer ci',
+            'status' => 'passed',
+            'exit_code' => 0,
+            'executed_at' => '2026-08-28T09:00:00+00:00',
+            'recorded_by' => 'fixture',
+            'duration_ms' => 10,
+        ]];
+
+        $first = $receipts->record($run, $contract, $sessions[0], 'sha256:' . str_repeat('a', 64), 'satisfied', $obligations);
+        self::assertSame([], $first->supersedes);
+
+        // the review gate demanded a follow-up change, so the same Run verifies a newer implementation
+        $second = $receipts->record($run, $contract, $sessions[0], 'sha256:' . str_repeat('b', 64), 'satisfied', $obligations);
+
+        self::assertSame('sha256:' . str_repeat('b', 64), $second->implementationSnapshot);
+        self::assertCount(1, $second->supersedes, 'the replaced attestation must survive in the chain');
+        self::assertSame('sha256:' . str_repeat('a', 64), $second->supersedes[0]['implementation_snapshot']);
+
+        // and the chain keeps growing rather than collapsing to the latest pair
+        $third = $receipts->record($run, $contract, $sessions[0], 'sha256:' . str_repeat('c', 64), 'satisfied', $obligations);
+        self::assertCount(2, $third->supersedes);
+
+        $reloaded = $receipts->find(self::TASK_ID);
+        self::assertNotNull($reloaded);
+        self::assertSame('sha256:' . str_repeat('c', 64), $reloaded->implementationSnapshot);
+        self::assertCount(2, $reloaded->supersedes, 'the chain must survive a round-trip through disk');
+    }
+
+    public function testRecordingTheIdenticalReceiptTwiceStaysIdempotent(): void
+    {
+        $contracts = $this->createApprovedContract('Govern revision one.');
+        self::assertSame(0, $this->enter()['exit']);
+
+        $contract = $contracts->load(self::TASK_ID);
+        $run = (new GovernedRunStore($this->root))->find(self::TASK_ID);
+        self::assertNotNull($run);
+        $sessions = (new SessionStore())->all((new ProjectLayout($this->root))->sessionsRoot());
+        $receipts = new RunVerificationReceiptStore($this->root);
+
+        $obligations = [[
+            'command' => 'composer ci',
+            'status' => 'passed',
+            'exit_code' => 0,
+            'executed_at' => '2026-08-28T09:00:00+00:00',
+            'recorded_by' => 'fixture',
+            'duration_ms' => 10,
+        ]];
+
+        $snapshot = 'sha256:' . str_repeat('d', 64);
+        $receipts->record($run, $contract, $sessions[0], $snapshot, 'satisfied', $obligations);
+        $again = $receipts->record($run, $contract, $sessions[0], $snapshot, 'satisfied', $obligations);
+
+        self::assertSame([], $again->supersedes, 'an unchanged re-record must not grow the chain');
+    }
+
     public function testReplacementRunArchivesThePriorVerificationReceipt(): void
     {
         $contracts = $this->createApprovedContract('Govern revision one.');
