@@ -21,6 +21,7 @@ use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexReader;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentSession\Session;
+use voku\AgentSession\SessionHandoffProjector;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -315,25 +316,19 @@ final readonly class WorkflowContextCommand
 
     private function addSessionState(WorkflowContextBudget $budget, Session $session): void
     {
+        $handoff = (new SessionHandoffProjector())->project($session);
+
         $budget->section('Session decisions and assumptions');
-        foreach (['decisions.md' => 'decision', 'assumptions.md' => 'assumption'] as $file => $category) {
-            $content = is_file($session->path . '/' . $file) ? (string) file_get_contents($session->path . '/' . $file) : '';
-            foreach ($this->headings($content) as $heading) {
-                $budget->add($category, '  ' . $heading . ' (' . $file . ')');
-            }
+        foreach ($handoff->decisions as $decision) {
+            $budget->add('decision', '  ' . $decision . ' (Session handoff)');
+        }
+        foreach ($handoff->assumptions as $assumption) {
+            $budget->add('assumption', '  ' . $assumption . ' (Session handoff)');
         }
         $budget->section('Recent checkpoints');
-        foreach (array_slice(array_reverse($session->checkpoints), 0, 5) as $checkpoint) {
+        foreach (array_slice(array_reverse($handoff->checkpoints), 0, 5) as $checkpoint) {
             $budget->add('checkpoint', '  ' . $checkpoint['id'] . ' ' . $checkpoint['title']);
         }
-    }
-
-    /** @return list<string> */
-    private function headings(string $content): array
-    {
-        preg_match_all('/^##\s+(?:Decision|Assumption):\s+(.+)$/mi', $content, $matches);
-
-        return array_values(array_filter(array_map('trim', $matches[1]), static fn (string $heading): bool => $heading !== ''));
     }
 
     /**
