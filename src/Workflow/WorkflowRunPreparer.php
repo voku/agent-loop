@@ -151,10 +151,6 @@ final readonly class WorkflowRunPreparer
 
         $layout = new ProjectLayout($this->rootPath);
         $documentManifests = $layout->recallDocumentManifests();
-        $learningDocumentManifest = rtrim($learningRoot, '/') . '/recall-documents.json';
-        if (is_file($learningDocumentManifest) && !in_array($learningDocumentManifest, $documentManifests, true)) {
-            $documentManifests[] = $learningDocumentManifest;
-        }
         foreach ($documentManifests as $documentManifest) {
             $recallArgs[] = '--document-manifest';
             $recallArgs[] = $documentManifest;
