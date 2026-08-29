@@ -24,6 +24,7 @@ final readonly class InitScaffoldCommand
 /recall/
 /sessions/
 /edit/
+/runs/*/*.lock
 /tool-inventory.json
 GITIGNORE;
 

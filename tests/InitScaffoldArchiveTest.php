@@ -49,7 +49,7 @@ final class InitScaffoldArchiveTest extends TestCase
         self::assertSame(0, $first['exit'], $first['output']);
         self::assertSame($rootIgnore, file_get_contents($this->root . '/.gitignore'));
         self::assertSame(
-            "/map/\n/recall/\n/sessions/\n/edit/\n/tool-inventory.json\n",
+            "/map/\n/recall/\n/sessions/\n/edit/\n/runs/*/*.lock\n/tool-inventory.json\n",
             file_get_contents($this->root . '/.agent-loop/.gitignore'),
         );
         self::assertStringContainsString('[CREATE] .agent-loop/.gitignore', $first['output']);
@@ -60,7 +60,7 @@ final class InitScaffoldArchiveTest extends TestCase
         self::assertStringContainsString('[SKIP] .agent-loop/.gitignore already exists', $second['output']);
         self::assertSame($rootIgnore, file_get_contents($this->root . '/.gitignore'));
         self::assertSame(
-            "/map/\n/recall/\n/sessions/\n/edit/\n/tool-inventory.json\n",
+            "/map/\n/recall/\n/sessions/\n/edit/\n/runs/*/*.lock\n/tool-inventory.json\n",
             file_get_contents($this->root . '/.agent-loop/.gitignore'),
         );
     }
