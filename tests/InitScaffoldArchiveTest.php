@@ -80,6 +80,7 @@ final class InitScaffoldArchiveTest extends TestCase
             (string) file_get_contents($this->root . '/.agent-loop/todo/board.md'),
         );
         self::assertFileDoesNotExist($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/tasks/DEMO-1.md');
 
         $verify = $this->dispatch(['agent-loop', 'board', 'verify']);
         self::assertSame(0, $verify['exit'], $verify['output']);
