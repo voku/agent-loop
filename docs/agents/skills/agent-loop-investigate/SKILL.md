@@ -18,7 +18,7 @@ Do not edit code and do not turn a locator task into architecture advice.
 When the task already names a concrete PHP class, method, or function, resolve that identity directly instead of rediscovering it through fuzzy/text search:
 
 ```bash
-vendor/bin/agent-loop map scope <symbol> --format=toon
+vendor/bin/agent-loop map scope '<symbol>' --format=toon
 ```
 
 `scope` is the cheapest exact structural view: it reports the resolved source range and bounded calls inside that range. If the short symbol is ambiguous, retry with the fully qualified identity rather than choosing a ranked match.
@@ -26,7 +26,7 @@ vendor/bin/agent-loop map scope <symbol> --format=toon
 When the investigation is preparation for an intended method edit, use bounded edit context before broadening:
 
 ```bash
-vendor/bin/agent-loop map context <symbol> --format=toon
+vendor/bin/agent-loop map context '<symbol>' --format=toon
 ```
 
 The result may already contain the primary method, contracts/overrides, direct callers that may need adaptation, direct callees, referenced signature types, relevant tests, blind spots, omissions, and bounded source slices. Do not repeat those facts with repository-wide search merely because another tool can.
@@ -34,8 +34,8 @@ The result may already contain the primary method, contracts/overrides, direct c
 Ask exact relation questions only when the relation itself is the task or remains unresolved after context:
 
 ```bash
-vendor/bin/agent-loop map callers <symbol> --format=toon
-vendor/bin/agent-loop map callees <symbol> --format=toon
+vendor/bin/agent-loop map callers '<symbol>' --format=toon
+vendor/bin/agent-loop map callees '<symbol>' --format=toon
 ```
 
 When the task names a path rather than a symbol, inspect the indexed file directly:
