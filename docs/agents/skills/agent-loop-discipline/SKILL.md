@@ -57,10 +57,10 @@ These are L1 controls. They do not create an L2 gate by themselves.
 For a known PHP target, use exact Map surfaces before fuzzy/text rediscovery:
 
 ```bash
-vendor/bin/agent-loop map scope <symbol> --format=toon
-vendor/bin/agent-loop map context <symbol> --format=toon
-vendor/bin/agent-loop map callers <symbol> --format=toon
-vendor/bin/agent-loop map callees <symbol> --format=toon
+vendor/bin/agent-loop map scope '<symbol>' --format=toon
+vendor/bin/agent-loop map context '<symbol>' --format=toon
+vendor/bin/agent-loop map callers '<symbol>' --format=toon
+vendor/bin/agent-loop map callees '<symbol>' --format=toon
 ```
 
 Use `scope` first; for a method edit use `context`; ask callers/callees only when still needed. Use `query`/`related`/`file` before the target is known. Use `rg` only for literal/file/config/template shapes Map does not model. `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement; mutation stays host-owned.
