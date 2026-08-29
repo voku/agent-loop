@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, evidence, L2 gates, agent I/O, review routing, and guidance.
+description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, evidence, L2 gates, agent I/O, and review routing.
 ---
 
 # Agent Loop Discipline
@@ -39,14 +39,14 @@ Human gates include Contract approval, exact review acknowledgement, requested L
 ## Prompt Controls
 
 When selected by the approved Contract:
-- `checkpoint-autonomy`: at its anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never persist synthetic human/self approval.
+- `checkpoint-autonomy`: at its anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never persist a synthetic human/self approval.
 - `momentum`: reuse still-valid files, symbols, commands, constraints, decisions, and evidence; re-check authority/freshness when they may have changed.
 
 These are L1 controls, not L2 gates.
 
 ## Navigate Before Editing
 
-Use the cheapest reliable navigation for the information currently required. For known files/symbols, literals, config/templates, exception messages, or local tests, prefer `rg`, `rg --files`, and focused source reads; do not build Map merely to satisfy policy.
+Use the cheapest reliable navigation for the information required. For known files/symbols, literals, config/templates, exception messages, or local tests, prefer `rg`, `rg --files`, and focused source reads; do not build Map merely to satisfy policy.
 
 Escalate to `agent-loop map query`, `related`, `file`, `scope`, `context`, `callers`, or `callees` when PHP work needs structural answers: unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, or production/test relationships. If a relevant fresh Map already exists, prefer it earlier because its build cost is already paid.
 
