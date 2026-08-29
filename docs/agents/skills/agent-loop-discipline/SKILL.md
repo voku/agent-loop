@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Governed agent-* orchestration: resumable state, map-first navigation, exact evidence, L2 gates, token-efficient agent I/O, review routing, and guidance changes.
+description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, exact evidence, L2 gates, token-efficient agent I/O, review routing, and guidance changes.
 ---
 
 # Agent Loop Discipline
@@ -54,9 +54,11 @@ These are L1 controls. They do not create an L2 gate by themselves.
 
 ## Navigate Before Editing
 
-Use Map first for PHP navigation. If the target is unknown, use `agent-loop map query`, `related`, `file`, or `discover` before text search. Once a symbol is known, use `scope`; for method edits use `context`; ask `callers`/`callees` only when still needed. Use `rg` only for literal/config/template/filename evidence or an explicit Map capability gap. `grep`, `find`, and `sed -i` are blocked. Prefer governed Map change plans; mutation stays host-owned.
+Use the cheapest reliable navigation for the information currently required. For known files/symbols, literals, config/templates, exception messages, or local tests, prefer `rg`, `rg --files`, and focused source reads; do not build Map merely to satisfy policy.
 
-Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
+Escalate to `agent-loop map query`, `related`, `file`, `scope`, `context`, `callers`, or `callees` when PHP work needs structural answers: unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, or production/test relationships. If a relevant fresh Map already exists, prefer it earlier because its build cost is already paid.
+
+If Map is unavailable, stale, unsupported, or insufficient, record that limitation and fall back to CLI navigation. Never treat failed Map output or literal matches as proof of semantic relationships. Do not mechanically repeat equivalent discovery with both Map and `rg`; verify only remaining facts in real source. `grep`, `find`, and `sed -i` are blocked. Prefer governed Map change plans when useful; mutation stays host-owned. Never dump map databases; Map output selects bounded source reads and is not source evidence.
 
 ## L2 Execution Contract
 
