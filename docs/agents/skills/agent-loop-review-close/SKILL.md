@@ -58,6 +58,26 @@ The detailed Finding and durable-guidance lifecycle remains owned by `agent-lear
 
 When the current workflow explicitly requires a Recall outcome, record the truthful outcome using the Recall-owned surface and then return to `finish`. Do not make Recall logging part of an unconditional close checklist.
 
+## Optional Reflection
+
+Reflection is not one of the workflow lifecycle phases. It is a read-only prompt primitive that may add scrutiny without becoming alternate close-out choreography.
+
+When the task is ready to close, optional task reflection is:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope task
+```
+
+If it returns `RETURN_TO_REVIEW`, resolve that concrete review gap and return to `finish`. Do not translate reflection output directly into lifecycle state.
+
+After successful completion, optional project reflection can surface future investment:
+
+```bash
+vendor/bin/agent-loop workflow reflect <task-id> --scope project
+```
+
+Any resulting follow-up still requires its own normal governance and approval. Reflection never supplies validation, review acknowledgement, Learning disposition, or close authority.
+
 ## Accepted Risk
 
 Accepted risk is a named waiver only for bypassable evidence gates. Use it only when the lifecycle kernel exposes an accepted-risk action. It cannot change task authority, and it must not become a generic "make it green" switch.
