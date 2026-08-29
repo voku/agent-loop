@@ -54,16 +54,7 @@ These are L1 controls. They do not create an L2 gate by themselves.
 
 ## Navigate Before Editing
 
-For a known PHP target, use exact Map surfaces before fuzzy/text rediscovery:
-
-```bash
-vendor/bin/agent-loop map scope '<symbol>' --format=toon
-vendor/bin/agent-loop map context '<symbol>' --format=toon
-vendor/bin/agent-loop map callers '<symbol>' --format=toon
-vendor/bin/agent-loop map callees '<symbol>' --format=toon
-```
-
-Use `scope` first; for a method edit use `context`; ask callers/callees only when still needed. Use `agent-loop map query`/`related`/`file` before the target is known. Use `rg` only for literal/file/config/template shapes Map does not model. `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement; mutation stays host-owned.
+Use Map first for PHP navigation. If the target is unknown, use `agent-loop map query`, `related`, `file`, or `discover` before text search. Once a symbol is known, use `scope`; for method edits use `context`; ask `callers`/`callees` only when still needed. Use `rg` only for literal/config/template/filename evidence or an explicit Map capability gap. `grep`, `find`, and `sed -i` are blocked. Prefer governed Map change plans; mutation stays host-owned.
 
 Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
 
