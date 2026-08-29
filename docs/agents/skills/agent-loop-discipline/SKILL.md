@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, evidence, L2 gates, agent I/O, and review routing.
+description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, evidence, L2 gates, agent I/O, review routing.
 ---
 
 # Agent Loop Discipline
