@@ -11,7 +11,7 @@ shipping fact.
 
 ## Invariant
 
-Freeze the source candidate as a full Git object ID. Then identify the exact
+Freeze the source candidate as a full Git object ID **after any rebase that changes the candidate commit identity**. Then identify the exact
 commit that integrated it into the target and run:
 
 ```bash
@@ -24,9 +24,11 @@ vendor/bin/agent-loop verify \
 
 The check resolves the target ref once to an exact commit SHA and proves:
 
-- candidate -> integrated by Git ancestry for a normal merge/rebase-preserving history; or
+- candidate -> integrated by Git ancestry when the frozen candidate remains in the integrated history; or
 - candidate tree == integrated tree for an unchanged squash merge;
 - integrated -> frozen target by Git ancestry.
+
+A rebase that rewrites the candidate must happen **before** the candidate SHA is frozen. `GitCandidateEvidence` deliberately does not infer patch equivalence or map a pre-rebase commit to its rewritten descendant. If a candidate was frozen too early, freeze the actual post-rebase candidate and validate that exact result instead.
 
 A changed squash tree fails and requires validation of the actual integrated
 candidate. A branch name, PR number, `merged=true`, or the statement that a
