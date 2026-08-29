@@ -56,7 +56,7 @@ vendor/bin/agent-loop init install-assets \
 `agent-loop-discipline` is a compact workflow bootstrap, not a coding handbook. Session/subagent hooks may inject:
 
 - persisted workflow/resume navigation;
-- map-first source navigation;
+- adaptive PHP navigation across CLI and agent-map;
 - role and engineering-skill routing;
 - uncertainty/evidence rules;
 - hook and human-gate boundaries.
@@ -157,7 +157,9 @@ vendor/bin/agent-loop map context <symbol>
 vendor/bin/agent-loop map changed --base=<ref>
 ```
 
-For PHP symbols, callers, tests, and source ranges, query these projections before a generic source search. Use `rg` for literal/config/template questions and `rg --files` for file discovery; `grep`, `find`, and `sed -i` are blocked by the Codex guardrail. Query the index, then inspect selected real source. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
+Choose navigation by the information needed. For known files/symbols, literals, config/templates, exception messages, or local tests, use `rg`, `rg --files`, and focused reads without building Map merely for policy compliance. Use Map for structural PHP questions such as unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, and production/test relationships. A relevant fresh index can be preferred earlier because its construction cost is already paid.
+
+If Map is unavailable, stale, unsupported, or insufficient, record that limitation and fall back to CLI navigation. Do not mechanically repeat equivalent discovery with both Map and text search, and never infer a semantic relationship from a literal match alone. `grep`, `find`, and `sed -i` remain blocked by the Codex guardrail. Query Map when it adds structural value, then inspect only the selected real source still needed. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
 
 ## Dogfood contract
 
