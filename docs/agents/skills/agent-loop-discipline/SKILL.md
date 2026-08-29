@@ -54,41 +54,16 @@ These are L1 controls. They do not create an L2 gate by themselves.
 
 ## Navigate Before Editing
 
-Map is a deterministic navigation/planning layer for an intent the coding agent already has. Do not ask Map to choose refactorings or rediscover an exact target that the task already names.
-
-For a known PHP class, method, or function, start with the smallest exact surface:
+For a known PHP target, use exact Map surfaces before fuzzy/text rediscovery:
 
 ```bash
 vendor/bin/agent-loop map scope <symbol> --format=toon
-```
-
-For an intended method edit, expand only the bounded working set around that resolved target:
-
-```bash
 vendor/bin/agent-loop map context <symbol> --format=toon
-```
-
-`context` may already include the primary source, contracts/overrides, direct callers that may need adaptation, callees/dependencies, signature types, tests, blind spots, and omissions. Do not immediately repeat those reads with broad repository search.
-
-Ask exact relation questions only when the relation itself is still needed:
-
-```bash
 vendor/bin/agent-loop map callers <symbol> --format=toon
 vendor/bin/agent-loop map callees <symbol> --format=toon
 ```
 
-When the task does not yet identify an exact target, narrow with the broader surfaces instead of guessing files:
-
-```bash
-vendor/bin/agent-loop map query <term> --format=toon
-vendor/bin/agent-loop map related <term> --format=toon
-vendor/bin/agent-loop map file <path> --format=toon
-vendor/bin/agent-loop map changed --base=<ref> --format=toon
-```
-
-Use Map projections for PHP identities, callers, tests, ranges, and governed change plans. Use `rg`/`rg --files` only for literal strings, filenames, templates, configuration, generated text, or another source shape Map does not model. Repository `grep`, `find`, and `sed -i` are blocked. Edit via `agent-loop edit` or an inspected patch; bounded `sed -n` is read-only.
-
-When Map exposes a dedicated rename/removal/change plan for the explicit requested target, prefer that deterministic, hash-bound plan over repository-wide textual replacement. The host still owns mutation and validation; a Map plan is evidence, not authority.
+Use `scope` first; for an intended method edit use bounded `context`; ask callers/callees only when that relation is still needed. Use `query`/`related`/`file` when the target is not yet known. Use `rg`/`rg --files` only for literal/file/config/template shapes Map does not model. Repository `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement when one exists; mutation and validation remain host-owned.
 
 Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
 
