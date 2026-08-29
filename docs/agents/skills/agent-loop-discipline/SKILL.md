@@ -63,7 +63,7 @@ vendor/bin/agent-loop map callers '<symbol>' --format=toon
 vendor/bin/agent-loop map callees '<symbol>' --format=toon
 ```
 
-Use `scope` first; for a method edit use `context`; ask callers/callees only when still needed. Use `query`/`related`/`file` before the target is known. Use `rg` only for literal/file/config/template shapes Map does not model. `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement; mutation stays host-owned.
+Use `scope` first; for a method edit use `context`; ask callers/callees only when still needed. Use `agent-loop map query`/`related`/`file` before the target is known. Use `rg` only for literal/file/config/template shapes Map does not model. `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement; mutation stays host-owned.
 
 Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
 
