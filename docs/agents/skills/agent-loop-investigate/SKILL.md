@@ -15,13 +15,41 @@ Do not edit code and do not turn a locator task into architecture advice.
 
 ## Navigation
 
-When the task names a concrete symbol or path, start with the smallest relevant map operation:
+When the task already names a concrete PHP class, method, or function, resolve that identity directly instead of rediscovering it through fuzzy/text search:
 
 ```bash
-vendor/bin/agent-loop map query <symbol>
-vendor/bin/agent-loop map related <symbol>
-vendor/bin/agent-loop map file <path>
-vendor/bin/agent-loop map changed --base=<ref>
+vendor/bin/agent-loop map scope <symbol> --format=toon
+```
+
+`scope` is the cheapest exact structural view: it reports the resolved source range and bounded calls inside that range. If the short symbol is ambiguous, retry with the fully qualified identity rather than choosing a ranked match.
+
+When the investigation is preparation for an intended method edit, use bounded edit context before broadening:
+
+```bash
+vendor/bin/agent-loop map context <symbol> --format=toon
+```
+
+The result may already contain the primary method, contracts/overrides, direct callers that may need adaptation, direct callees, referenced signature types, relevant tests, blind spots, omissions, and bounded source slices. Do not repeat those facts with repository-wide search merely because another tool can.
+
+Ask exact relation questions only when the relation itself is the task or remains unresolved after context:
+
+```bash
+vendor/bin/agent-loop map callers <symbol> --format=toon
+vendor/bin/agent-loop map callees <symbol> --format=toon
+```
+
+When the task names a path rather than a symbol, inspect the indexed file directly:
+
+```bash
+vendor/bin/agent-loop map file <path> --format=toon
+```
+
+When the PHP target is not known yet, narrow with existing Map navigation before guessing source files:
+
+```bash
+vendor/bin/agent-loop map query <term> --format=toon
+vendor/bin/agent-loop map related <term> --format=toon
+vendor/bin/agent-loop map changed --base=<ref> --format=toon
 ```
 
 When the PHP repository is unfamiliar and the task does **not** identify a useful symbol/path yet, orient once before guessing search terms:
@@ -38,9 +66,9 @@ vendor/bin/agent-loop map discover --region=<label-or-id> --limit=10
 
 The region drill-down is the bridge between repository-level orientation and concrete source navigation. It exposes the selected root-to-region path, bounded files, interface files, and boundary evidence. Namespace-less PHP remains first-class because directory and file structure are independent architecture signals.
 
-After the region is narrowed, use `query`, `related`, `callers`, `callees`, or bounded source reads. Do not repeat repository-wide discovery once a plausible region or concrete target is known.
+After the region is narrowed, switch to `scope` as soon as one exact symbol is known. Use `query`, `related`, `callers`, `callees`, or bounded source reads only for the remaining question. Do not repeat repository-wide discovery once a plausible region or concrete target is known.
 
-For a proposed shared-method change, use architecture-aware impact before widening the read set:
+For a proposed shared-method change, use architecture-aware impact only when propagation beyond exact callers/context is the actual question:
 
 ```bash
 vendor/bin/agent-loop map impact 'App\\Service\\Thing::run' --depth=2
@@ -79,7 +107,7 @@ vendor/bin/agent-loop init paths --format=json
 
 Never dump the generated symbol index, search database, or history database. Map and temporal output are navigation/evidence, not a substitute for source verification. Read only the selected real source ranges before reporting a hit.
 
-Use `rg` only when the map cannot answer a literal/string/config/template question.
+Use `rg`/`rg --files` only when the question is literal/string/config/template/filename-shaped or Map cannot model the required evidence. Do not use text search to rediscover a PHP identity that `scope` already resolves.
 
 ## Terminal Result Contract
 
