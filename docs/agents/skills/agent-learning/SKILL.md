@@ -96,8 +96,8 @@ Never promote raw transcripts or secrets.
 
 ## Promotion Targets
 
-- `agent-loop-discipline` for map-first navigation, minimal PHP changes, concise
-  communication, package ownership, and evidence integrity;
+- `agent-loop-discipline` for adaptive PHP navigation, minimal PHP changes,
+  concise communication, package ownership, and evidence integrity;
 - `agent-loop-simplify-review` for complexity-only review;
 - `agent-loop-dogfood` and `docs/agents/dogfood/` for repeatable behavioral
   evaluation;
