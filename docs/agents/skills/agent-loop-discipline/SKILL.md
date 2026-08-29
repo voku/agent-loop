@@ -54,7 +54,17 @@ These are L1 controls. They do not create an L2 gate by themselves.
 
 ## Navigate Before Editing
 
-For a known PHP target, use exact Map surfaces before fuzzy/text rediscovery:
+Use Map first for PHP code navigation whenever the needed fact is represented by its model.
+
+If the exact class, method, function, or path is not known yet, find it with bounded Map navigation before falling back to repository text search:
+
+```bash
+vendor/bin/agent-loop map query <term> --format=toon
+vendor/bin/agent-loop map related <term> --format=toon
+vendor/bin/agent-loop map file <path> --format=toon
+```
+
+Once a concrete PHP target is known, switch to exact Map surfaces instead of rediscovering it:
 
 ```bash
 vendor/bin/agent-loop map scope '<symbol>' --format=toon
@@ -63,7 +73,7 @@ vendor/bin/agent-loop map callers '<symbol>' --format=toon
 vendor/bin/agent-loop map callees '<symbol>' --format=toon
 ```
 
-Use `scope` first; for a method edit use `context`; ask callers/callees only when still needed. Use `agent-loop map query`/`related`/`file` before the target is known. Use `rg` only for literal/file/config/template shapes Map does not model. `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement; mutation stays host-owned.
+Use `scope` first; for a method edit use `context`; ask callers/callees only when still needed. Use `discover` only when repository orientation is genuinely needed. Use `rg` only for literal/file/config/template shapes Map does not model or after Map reports that required evidence is unavailable. `grep`, `find`, and `sed -i` are blocked. Prefer a governed Map change plan over textual replacement; mutation stays host-owned.
 
 Skip map ceremony for trivial docs or already-localized edits. Never dump map databases; map output selects bounded source reads and is not source evidence.
 
