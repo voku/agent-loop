@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, exact evidence, L2 gates, token-efficient agent I/O, review routing, and guidance changes.
+description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, evidence, L2 gates, agent I/O, review routing, and guidance.
 ---
 
 # Agent Loop Discipline
@@ -9,34 +9,26 @@ Rule: persisted workflow state beats conversational state. Keep orchestration, e
 
 ## Governed Workflow
 
-The lifecycle kernel decides what may happen next. This skill is injected at
-SessionStart, so anything it states about ordering becomes an always-on rule
-the kernel cannot correct - which is why it states none.
+The lifecycle kernel decides what may happen next. This skill is injected at SessionStart, so anything it states about ordering becomes an always-on rule the kernel cannot correct - which is why it states none.
 
 ```bash
 vendor/bin/agent-loop enter <task-id> --format=json
 vendor/bin/agent-loop finish <task-id> --format=json
 ```
 
-Obey `next_action_kind` and `next_action` from that result:
+Obey `next_action_kind` and `next_action`:
 
 - `command` - run it as written;
-- `command_template` - fill model-owned placeholders from the actual request and current repository evidence, then execute it without asking a human merely because placeholders exist;
-- `decision_required` - a genuine human-authority decision is required; present the exact current decision subject before asking and never fabricate it;
+- `command_template` - fill model-owned placeholders from the request and repository evidence, then execute without asking a human merely because placeholders exist;
+- `decision_required` - a genuine human-authority decision is required; present the exact subject and never fabricate it;
 - `host_work` - do the described host-native implementation work;
-- `none` - there is no further lifecycle action.
+- `none` - no further lifecycle action.
 
-Do not decide when mutation is legal, which gate must pass, whether an
-execution contract is current, or how a superseded scope is replaced. Those are
-owner decisions the canonical result already carries. If an advertised command
-refuses without changing the next step, report a workflow defect rather than
-inventing a private repair sequence.
+Do not decide when mutation is legal, which gate must pass, whether an execution contract is current, or how superseded scope is replaced. The canonical result owns those decisions. If an advertised command refuses without changing the next step, report a workflow defect rather than inventing a repair sequence.
 
-A SessionStart/SubagentStart hint is navigation only. Never infer approval,
-contract readiness, validation, review, learning, product intent, or a next
-command from it.
+A SessionStart/SubagentStart hint is navigation only. Never infer approval, contract readiness, validation, review, learning, product intent, or a next command from it.
 
-Human gates include Contract approval, exact review acknowledgement, Learning disposition when requested by the owner, real risk/irreversible action, and genuinely missing product intent. Reads, edits, tests, diagnostics, reports, model-owned PLAN/execution-contract construction, and agent checkpoints remain agent work.
+Human gates include Contract approval, exact review acknowledgement, requested Learning disposition, real risk/irreversible action, and missing product intent. Reads, edits, tests, diagnostics, reports, model-owned PLAN/contract construction, and checkpoints remain agent work.
 
 ## Agent I/O
 
@@ -47,10 +39,10 @@ Human gates include Contract approval, exact review acknowledgement, Learning di
 ## Prompt Controls
 
 When selected by the approved Contract:
-- `checkpoint-autonomy`: at its explicit anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never persist a synthetic human/self approval.
+- `checkpoint-autonomy`: at its anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never persist synthetic human/self approval.
 - `momentum`: reuse still-valid files, symbols, commands, constraints, decisions, and evidence; re-check authority/freshness when they may have changed.
 
-These are L1 controls. They do not create an L2 gate by themselves.
+These are L1 controls, not L2 gates.
 
 ## Navigate Before Editing
 
@@ -72,7 +64,7 @@ Verification
 Done When
 ```
 
-`Verification` says how reality is measured; `Done When` says which observed result permits success.
+`Verification` measures reality; `Done When` names the observed success condition.
 
 ```bash
 vendor/bin/agent-loop workflow contract <task-id> \
@@ -81,9 +73,9 @@ vendor/bin/agent-loop workflow contract <task-id> \
   --by <actor>
 ```
 
-This is model-owned construction from approved task intent and Recall evidence unless the lifecycle explicitly reports a human authority boundary. Do not create an extra confirmation merely because the canonical command is a template.
+Construction is model-owned from approved intent and Recall evidence unless the lifecycle reports a human authority boundary. Do not add confirmation merely because the canonical command is a template.
 
-`missing`, `stale`, `invalid`, `blocked`, or `rejected` means IMPLEMENT is unavailable. Record the evidence and minimum required change; never weaken approved policy merely to reach `ready`.
+`missing`, `stale`, `invalid`, `blocked`, or `rejected` means IMPLEMENT is unavailable. Record the evidence and minimum required change; never weaken approved policy to reach `ready`.
 
 ## Engineering Skill Routing
 
@@ -144,13 +136,13 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Code,
 
 Run the narrowest proof first, then the Contract/L1 gates. Claim a pass only after observing it. Stop when approved behavior is satisfied and required gates are closed; do not manufacture follow-up work.
 
-At `ready_to_close`, optional task reflection can expose a concrete completion gap:
+At `ready_to_close`, optional task reflection can expose a completion gap:
 
 ```bash
 vendor/bin/agent-loop workflow reflect <task-id> --scope task
 ```
 
-`RETURN_TO_REVIEW` routes that gap back through REVIEW/IMPLEMENT/PLAN.
+`RETURN_TO_REVIEW` routes that gap through REVIEW/IMPLEMENT/PLAN.
 
 After successful close, optional project reflection may identify at most one future investment:
 
