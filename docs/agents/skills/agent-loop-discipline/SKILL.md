@@ -5,7 +5,7 @@ description: Governed agent-* orchestration: resumable state, adaptive navigatio
 
 # Agent Loop Discipline
 
-Persisted workflow state beats conversation. Keep orchestration, evidence, navigation, and human attention bounded.
+Rule: persisted workflow state beats conversational state. Keep orchestration, evidence, navigation, and human attention bounded.
 
 ## Governed Workflow
 
@@ -94,7 +94,7 @@ Use verified narrow roles: definitions/callers/tests -> `agent-loop-investigate`
 - Use owner state or a safe probe; otherwise state the exact unknown and whether it blocks.
 - Repeated equivalent failure means inspect the suspect assumption and return to CONTEXT, CONTRACT, or PLAN.
 
-Preserve exact paths, symbols, commands, constraints, errors, diffs, tests, contracts, and verification artifacts. Summaries point to evidence; never replace it.
+Preserve exact paths, symbols, commands, constraints, errors, diffs, tests, contracts, and verification artifacts. Summaries may point to evidence; they never replace it.
 
 ## Workflow Output
 
@@ -118,7 +118,7 @@ Receipts compress narration, never evidence.
 
 ## Hook Boundary
 
-Hooks are behavioral guardrails, never correctness/security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation only; authority comes from `workflow status`.
+Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation only; authority comes from `workflow status`.
 
 ## Validation And Close
 
