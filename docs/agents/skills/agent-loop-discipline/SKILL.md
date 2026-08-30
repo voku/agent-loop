@@ -1,15 +1,15 @@
 ---
 name: agent-loop-discipline
-description: Governed agent-* orchestration: resumable state, adaptive PHP navigation, evidence, L2 gates, agent I/O, review routing.
+description: Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing.
 ---
 
 # Agent Loop Discipline
 
-Rule: persisted workflow state beats conversational state. Keep orchestration, evidence, navigation, and human attention bounded.
+Persisted workflow state beats conversation. Keep orchestration, evidence, navigation, and human attention bounded.
 
 ## Governed Workflow
 
-The lifecycle kernel decides what may happen next. This skill is injected at SessionStart, so anything it states about ordering becomes an always-on rule the kernel cannot correct - which is why it states none.
+The lifecycle kernel decides what happens next; this SessionStart skill adds no independent ordering rules.
 
 ```bash
 vendor/bin/agent-loop enter <task-id> --format=json
@@ -19,27 +19,30 @@ vendor/bin/agent-loop finish <task-id> --format=json
 Obey `next_action_kind` and `next_action`:
 
 - `command` - run it as written;
-- `command_template` - fill model-owned placeholders from the request and repository evidence, then execute without asking a human merely because placeholders exist;
-- `decision_required` - a genuine human-authority decision is required; present the exact subject and never fabricate it;
+- `command_template` - fill model-owned placeholders from request/repository evidence and execute;
+- `decision_required` - present the exact human-authority decision; never fabricate it;
 - `host_work` - do the described host-native implementation work;
 - `none` - no further lifecycle action.
 
-Do not decide when mutation is legal, which gate must pass, whether an execution contract is current, or how superseded scope is replaced. The canonical result owns those decisions. If an advertised command refuses without changing the next step, report a workflow defect rather than inventing a repair sequence.
+Do not decide mutation legality, gates, contract currency, or superseded scope. The canonical result owns them. If its command refuses without changing the next step, report a workflow defect; do not invent choreography.
 
-A SessionStart/SubagentStart hint is navigation only. Never infer approval, contract readiness, validation, review, learning, product intent, or a next command from it.
+SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
 
-Human gates include Contract approval, exact review acknowledgement, requested Learning disposition, real risk/irreversible action, and missing product intent. Reads, edits, tests, diagnostics, reports, model-owned PLAN/contract construction, and checkpoints remain agent work.
+Human gates: Contract approval, review acknowledgement, Learning disposition, real risk/irreversible action, and missing product intent. Reads, edits, tests, diagnostics, reports, PLAN/contract construction, and checkpoints remain agent work.
 
 ## Agent I/O
 
 - Inside PHP call the owner's typed API; never render then parse in-process.
-- For structured agent reads, request the smallest owner projection and prefer TOON. Keep bounded text when smaller; keep JSON for durable/hash/replay contracts.
-- Projection drops fields, never truncates selected values; a missing projected key means “not requested”.
+- Request the smallest owner projection; prefer TOON, keeping JSON for durable/hash/replay contracts.
+- Projection drops fields, never truncates selected values; a missing key means “not requested”.
 
 ## Prompt Controls
 
 When selected by the approved Contract:
-- `checkpoint-autonomy`: at its anchor, inspect scope, evidence, validation, blockers, and done condition; if valid and no human gate exists, checkpoint and continue. Never persist a synthetic human/self approval.
+- `checkpoint-autonomy`: inspect scope, evidence, validation, blockers, and done condition. If no evidence challenges the framing and no human gate exists, checkpoint and continue. Never persist a synthetic human/self approval.
+- On concrete avoidable complexity, repeated repair, or contradictory observations, check the premise before adding machinery: approved outcome; assumption causing complexity; whether evidence still supports it; simpler route preserving Goal, acceptance, scope, and authority.
+- Result: `CONTINUE`, `REPLAN`, or `HUMAN_DECISION_REQUIRED`. `CONTINUE` needs materially new evidence before reopening. `REPLAN` is agent-owned when approved intent is unchanged; delete obsolete machinery pre-1.0. `HUMAN_DECISION_REQUIRED` is only for changing product intent, Goal, acceptance, scope, non-goals, public contract, or risk/irreversible authority.
+- Trigger by evidence, never timer/count or every checkpoint. A conceivable alternative alone is not evidence.
 - `momentum`: reuse still-valid files, symbols, commands, constraints, decisions, and evidence; re-check authority/freshness when they may have changed.
 
 These are L1 controls, not L2 gates.
@@ -73,44 +76,29 @@ vendor/bin/agent-loop workflow contract <task-id> \
   --by <actor>
 ```
 
-Construction is model-owned from approved intent and Recall evidence unless the lifecycle reports a human authority boundary. Do not add confirmation merely because the canonical command is a template.
+Construction is model-owned from approved intent/Recall evidence unless lifecycle reports a human boundary. A command template alone needs no confirmation.
 
-`missing`, `stale`, `invalid`, `blocked`, or `rejected` means IMPLEMENT is unavailable. Record the evidence and minimum required change; never weaken approved policy to reach `ready`.
+`missing`, `stale`, `invalid`, `blocked`, or `rejected` means IMPLEMENT is unavailable. Record evidence and the minimum repair; never weaken policy to reach `ready`.
 
 ## Engineering Skill Routing
 
-`agent-loop` owns orchestration, not reusable engineering judgment.
-
-- Simple coding/refactoring -> `coding-simplicity` when installed.
-- PHP implementation -> `php-best-practices` when relevant.
-- Engineering review -> one dominant installed `code-review-*` lens and at most one evidence-backed handoff.
-- Missing required skill -> name the capability gap; do not recreate its rules here.
-
-`coding-simplicity` owns implementation search order, root-cause, safety, and verification floors.
+`agent-loop` owns orchestration, not reusable engineering judgment. Route simple coding/refactoring to `coding-simplicity`, PHP work to `php-best-practices`, and review to one dominant installed `code-review-*` lens plus at most one evidence-backed handoff. Name missing capabilities; do not recreate their rules. `coding-simplicity` owns implementation search order, root-cause, safety, and verification floors.
 
 ## Role Routing
 
-Use narrow roles only when their verified contract fits:
-- definitions/callers/tests -> `agent-loop-investigate`;
-- understood 1–2 file edit -> `agent-loop-surgical-edit`;
-- correctness review -> `agent-loop-code-review`;
-- current-diff complexity -> `agent-loop-simplify-review`;
-- repo-wide complexity -> `agent-loop-simplify-audit`;
-- ambiguous, architectural, new-feature, or 3+ file work -> main governed workflow.
-
-A narrow role never widens scope or bypasses the execution contract.
+Use verified narrow roles: definitions/callers/tests -> `agent-loop-investigate`; 1–2 file edit -> `agent-loop-surgical-edit`; correctness -> `agent-loop-code-review`; current-diff complexity -> `agent-loop-simplify-review`; repo-wide complexity -> `agent-loop-simplify-audit`. Ambiguous, architectural, new-feature, or 3+ file work stays in main workflow. Narrow roles never widen scope or bypass the contract.
 
 ## Uncertainty Is State
 
-- Never fabricate versions, paths, lines, commands/results, approvals, contract state, validation/review results, product intent, or runtime facts.
-- Prefer the owning state/source or a safe probe; otherwise state the exact unknown and whether it blocks.
-- Repeated equivalent failure means inspect the suspect assumption and return to CONTEXT, CONTRACT, or PLAN when necessary.
+- Never fabricate versions, paths, commands/results, approvals, contract/review/validation state, product intent, or runtime facts.
+- Use owner state or a safe probe; otherwise state the exact unknown and whether it blocks.
+- Repeated equivalent failure means inspect the suspect assumption and return to CONTEXT, CONTRACT, or PLAN.
 
-Preserve exact paths, symbols, commands, numbers, constraints, negation, errors, diffs, tests, static-analysis output, contracts, and verification artifacts. Summaries may point to evidence; they never replace it.
+Preserve exact paths, symbols, commands, constraints, errors, diffs, tests, contracts, and verification artifacts. Summaries point to evidence; never replace it.
 
 ## Workflow Output
 
-Update only when result, blocker, scope, decision, or phase changes:
+Update only on result, blocker, scope, decision, or phase change:
 
 ```text
 RESULT: <verified result, decision, artifact, or blocker>
@@ -130,11 +118,11 @@ Receipts compress narration, never evidence.
 
 ## Hook Boundary
 
-Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust-boundary validation, and offline installation must remain correct without them. Resume hints expose navigation only; authoritative state comes from `workflow status`.
+Hooks are behavioral guardrails, never correctness/security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation only; authority comes from `workflow status`.
 
 ## Validation And Close
 
-Run the narrowest proof first, then the Contract/L1 gates. Claim a pass only after observing it. Stop when approved behavior is satisfied and required gates are closed; do not manufacture follow-up work.
+Run the narrowest proof first, then Contract/L1 gates. Claim a pass only after observing it. Stop when approved behavior is satisfied and required gates are closed; do not manufacture follow-up work.
 
 At `ready_to_close`, optional task reflection can expose a completion gap:
 
@@ -150,6 +138,6 @@ After successful close, optional project reflection may identify at most one fut
 vendor/bin/agent-loop workflow reflect <task-id> --scope project
 ```
 
-Reflection is read-only, not a close gate, and creates no follow-up automatically.
+Reflection is read-only, not a close gate, and creates no follow-up.
 
 `workflow close --status done` requires any selected L2 contract to remain current and `ready`. `--accept-risk` never bypasses that boundary.
