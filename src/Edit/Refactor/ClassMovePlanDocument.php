@@ -26,8 +26,7 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
     /** @param array<string, mixed> $data */
     public static function fromArray(array $data): self
     {
-        $type = self::string($data, 'type');
-        if ($type !== 'class_move_plan' || ($data['contract_version'] ?? null) !== '1.0') {
+        if (($data['type'] ?? null) !== 'class_move_plan' || ($data['contract_version'] ?? null) !== '1.0') {
             throw new RuntimeException('Unsupported agent-map class move plan contract.');
         }
         if (($data['status'] ?? null) === 'review_required') {
@@ -46,6 +45,7 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
             }
         }
 
+        $type = self::string($data, 'type');
         $targetId = self::string($data, 'target_id');
         if (!str_starts_with($targetId, 'class:')) {
             throw new RuntimeException('Class move target identity must use the class: prefix.');
@@ -110,11 +110,6 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
     public function targetId(): string
     {
         return $this->targetId;
-    }
-
-    public function requiresPhpStan(): bool
-    {
-        return false;
     }
 
     /** @return list<RenamePlanEditEvidence> */
