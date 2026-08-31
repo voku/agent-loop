@@ -201,7 +201,7 @@ PHP);
         $destination = $this->root . '/src/RenamedService.php';
         $applier = new RenamePlanApplier(
             renameOperation: static function (string $from, string $to) use ($destination): bool {
-                if ($to === $destination && str_contains($from, '.agent-loop-rename-plan-stage-')) {
+                if ($to === $destination && str_contains($from, '.agent-loop-refactor-plan-stage-')) {
                     return false;
                 }
 
@@ -319,7 +319,7 @@ PHP);
     /** @return list<string> */
     private function temporaryArtifacts(): array
     {
-        $matches = glob($this->root . '/src/*.agent-loop-rename-plan-*');
+        $matches = glob($this->root . '/src/*.agent-loop-refactor-plan-*');
 
         return is_array($matches) ? $matches : [];
     }
