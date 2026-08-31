@@ -55,7 +55,8 @@ PHP);
         $map = $this->map();
         $target = 'method:Demo\\Service::greet';
         $plan = $this->plan($map, $target, [
-            $this->edit($map, '$name', '$recipient', $target),
+            $this->edit($map, '$name', '$recipient', $target, 0, 'parameter_declaration'),
+            $this->edit($map, '$name', '$recipient', $target, 1, 'parameter_binding'),
         ]);
 
         $result = (new RenamePlanApplier())->apply($plan, $map, $this->root);
@@ -148,10 +149,22 @@ PHP);
     }
 
     /** @return array<string, int|string> */
-    private function edit(AgentMapIndex $map, string $needle, string $replacement, string $symbolId): array
-    {
+    private function edit(
+        AgentMapIndex $map,
+        string $needle,
+        string $replacement,
+        string $symbolId,
+        int $occurrence = 0,
+        string $role = 'parameter_declaration',
+    ): array {
         $source = (string) file_get_contents($this->root . '/src/Service.php');
-        $start = strpos($source, $needle);
+        $offset = 0;
+        $start = false;
+        for ($index = 0; $index <= $occurrence; ++$index) {
+            $start = strpos($source, $needle, $offset);
+            self::assertIsInt($start);
+            $offset = $start + strlen($needle);
+        }
         self::assertIsInt($start);
         $file = $map->file('src/Service.php');
         self::assertNotNull($file);
@@ -165,7 +178,7 @@ PHP);
             'line_end' => 1,
             'expected' => $needle,
             'replacement' => $replacement,
-            'role' => 'parameter_declaration',
+            'role' => $role,
             'symbol_id' => $symbolId,
             'resolution' => 'parser_exact',
         ];
