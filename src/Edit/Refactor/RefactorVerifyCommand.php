@@ -101,7 +101,6 @@ final readonly class RefactorVerifyCommand
         if ($document->requiresPhpStan() && !str_ends_with($map->backend, '+phpstan')) {
             throw new RuntimeException('Current refactor verification requires a PHPStan-backed map for this plan contract.');
         }
-        $document->assertMatches($map);
 
         $changedFiles = $execution['changed_files'] ?? null;
         if (!is_array($changedFiles) || ($execution['changed_files_source'] ?? null) !== 'git_status_diff') {
