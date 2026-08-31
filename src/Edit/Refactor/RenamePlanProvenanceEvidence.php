@@ -37,10 +37,10 @@ final readonly class RenamePlanProvenanceEvidence
         return new self($mapDigest, $backend, AnalysisFingerprint::fromArray($fingerprint));
     }
 
-    public function assertMatches(AgentMapIndex $map): void
+    public function assertMatches(AgentMapIndex $map, bool $requiresPhpStan): void
     {
-        if (!str_ends_with($map->backend, '+phpstan')) {
-            throw new RuntimeException('Governed rename plans require a PHPStan-backed current map.');
+        if ($requiresPhpStan && !str_ends_with($map->backend, '+phpstan')) {
+            throw new RuntimeException('This governed rename plan requires a PHPStan-backed current map.');
         }
         if (
             $this->mapDigest !== $map->mapDigest()
