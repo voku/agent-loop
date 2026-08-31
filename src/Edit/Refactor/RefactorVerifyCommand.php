@@ -11,7 +11,7 @@ use Throwable;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
 
-/** Verifies one applied rename-plan bundle against current source and Map evidence. */
+/** Verifies one applied edit/move refactor bundle against current source and Map evidence. */
 final readonly class RefactorVerifyCommand
 {
     public const FILE_NAME = 'verification-result.json';
@@ -66,10 +66,9 @@ final readonly class RefactorVerifyCommand
     {
         $execution = $this->readJson($bundle . '/execution.json');
         if (($execution['status'] ?? null) !== 'runner_succeeded'
-            || ($execution['runner']['name'] ?? null) !== 'rename-plan'
             || ($execution['runner']['dry_run'] ?? null) !== false
         ) {
-            throw new RuntimeException('Refactor verification requires one successfully applied non-dry rename execution.');
+            throw new RuntimeException('Refactor verification requires one successfully applied non-dry execution.');
         }
         $taskId = $this->requiredString($execution, 'task_id', 'execution.json');
         $planEvidence = $execution['plan'] ?? null;
@@ -80,24 +79,29 @@ final readonly class RefactorVerifyCommand
         $planSha256 = $this->requiredString($planEvidence, 'sha256', 'execution plan evidence');
         $planRaw = file_get_contents($planPath);
         if (!is_string($planRaw) || !hash_equals($planSha256, 'sha256:' . hash('sha256', $planRaw))) {
-            throw new RuntimeException('Bound rename plan changed after execution.');
+            throw new RuntimeException('Bound refactor plan changed after execution.');
         }
         $plan = $this->decodePlan($planPath, $planRaw);
-        $document = RenamePlanDocument::fromArray($plan);
-        if (($planEvidence['type'] ?? null) !== $document->type
+        $document = $this->decodeDocument($plan);
+        $expectedRunner = $document->planType() === 'class_move_plan' ? 'class-move-plan' : 'rename-plan';
+        if (($execution['runner']['name'] ?? null) !== $expectedRunner) {
+            throw new RuntimeException('Refactor execution runner identity does not match the loaded plan family.');
+        }
+        if (($planEvidence['type'] ?? null) !== $document->planType()
             || ($planEvidence['contract_version'] ?? null) !== '1.0'
-            || ($planEvidence['target_id'] ?? null) !== $document->targetId
+            || ($planEvidence['target_id'] ?? null) !== $document->targetId()
         ) {
-            throw new RuntimeException('Execution evidence is not bound to the loaded rename plan identity.');
+            throw new RuntimeException('Execution evidence is not bound to the loaded refactor plan identity.');
         }
 
         $map = $this->withRuntimeRoot($this->reader->read($mapIndex), $mapRoot);
         if ($map->staleEntries() !== []) {
             throw new RuntimeException('Current agent-map evidence is stale after refactor execution.');
         }
-        if ($document->type !== 'class_rename_plan' && !str_ends_with($map->backend, '+phpstan')) {
-            throw new RuntimeException('Current semantic rename verification requires a PHPStan-backed map.');
+        if ($document->requiresPhpStan() && !str_ends_with($map->backend, '+phpstan')) {
+            throw new RuntimeException('Current refactor verification requires a PHPStan-backed map for this plan contract.');
         }
+        $document->assertMatches($map);
 
         $changedFiles = $execution['changed_files'] ?? null;
         if (!is_array($changedFiles) || ($execution['changed_files_source'] ?? null) !== 'git_status_diff') {
@@ -115,23 +119,23 @@ final readonly class RefactorVerifyCommand
 
         $moveTargets = [];
         $expectedChanged = [];
-        foreach ($document->moves as $move) {
+        foreach ($document->moves() as $move) {
             $from = $this->relativePath($move->fromPath);
             $to = $this->relativePath($move->toPath);
             $moveTargets[$from] = $to;
             $expectedChanged[$from] = true;
             $expectedChanged[$to] = true;
             if (file_exists($mapRoot . '/' . $from) || is_link($mapRoot . '/' . $from)) {
-                throw new RuntimeException('Class rename source still exists after verified move: ' . $from);
+                throw new RuntimeException('Moved source still exists after verified refactor: ' . $from);
             }
             if (!is_file($mapRoot . '/' . $to)) {
-                throw new RuntimeException('Class rename destination is missing after verified move: ' . $to);
+                throw new RuntimeException('Refactor move destination is missing after execution: ' . $to);
             }
         }
 
         /** @var array<string, list<RenamePlanEditEvidence>> $editsByFinalPath */
         $editsByFinalPath = [];
-        foreach ($document->edits as $edit) {
+        foreach ($document->edits() as $edit) {
             $sourcePath = $this->relativePath($edit->path);
             $finalPath = $moveTargets[$sourcePath] ?? $sourcePath;
             $expectedChanged[$sourcePath] = true;
@@ -162,7 +166,7 @@ final readonly class RefactorVerifyCommand
                 $finalStart = $edit->startFilePos + $offsetDelta;
                 if (substr($content, $finalStart, strlen($edit->replacement)) !== $edit->replacement) {
                     throw new RuntimeException(sprintf(
-                        'Rewritten token no longer matches rename evidence at %s byte %d.',
+                        'Rewritten token no longer matches refactor evidence at %s byte %d.',
                         $finalPath,
                         $finalStart,
                     ));
@@ -184,13 +188,15 @@ final readonly class RefactorVerifyCommand
 
         return [
             'schema_version' => '1.0',
-            'kind' => 'rename_plan_verification',
+            'kind' => $document->planType() === 'class_move_plan'
+                ? 'class_move_plan_verification'
+                : 'rename_plan_verification',
             'status' => 'passed',
             'task_id' => $taskId,
             'plan' => [
-                'type' => $document->type,
+                'type' => $document->planType(),
                 'contract_version' => '1.0',
-                'target_id' => $document->targetId,
+                'target_id' => $document->targetId(),
                 'sha256' => $planSha256,
             ],
             'map' => [
@@ -206,6 +212,14 @@ final readonly class RefactorVerifyCommand
                 'moves' => 'passed',
             ],
         ];
+    }
+
+    /** @param array<string, mixed> $plan */
+    private function decodeDocument(array $plan): EditMovePlanEvidence
+    {
+        return ($plan['type'] ?? null) === 'class_move_plan'
+            ? ClassMovePlanDocument::fromArray($plan)
+            : RenamePlanDocument::fromArray($plan);
     }
 
     /**
@@ -255,7 +269,7 @@ final readonly class RefactorVerifyCommand
             ? Toon::decode($raw)
             : json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         if (!is_array($decoded)) {
-            throw new RuntimeException('Rename plan document must decode to an object: ' . $path);
+            throw new RuntimeException('Refactor plan document must decode to an object: ' . $path);
         }
 
         return $decoded;
@@ -393,10 +407,10 @@ final readonly class RefactorVerifyCommand
 Usage:
   agent-loop edit refactor verify --bundle=.agent-loop/edit/TASK [--map-index PATH] [--map-root PATH]
 
-Read-only verification for one successfully applied rename-plan bundle. It requires independently
-observed changed-file evidence, rebinds the current Map to the runtime root, rejects stale or wrong
-semantic backends, verifies every final replacement token and class move, and binds current Map file
-hashes to the rewritten sources before writing verification-result.json into the edit bundle.
+Read-only verification for one successfully applied Map 0.9 edit/move refactor bundle. It requires
+independently observed changed-file evidence, rebinds the current Map to the runtime root, enforces
+the loaded plan contract's backend requirement, verifies every final replacement token and file move,
+and binds current Map file hashes to the rewritten sources before writing verification-result.json.
 
 TXT;
     }
