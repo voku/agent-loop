@@ -13,8 +13,6 @@ interface EditMovePlanEvidence
 
     public function targetId(): string;
 
-    public function requiresPhpStan(): bool;
-
     /** @return list<RenamePlanEditEvidence> */
     public function edits(): array;
 
