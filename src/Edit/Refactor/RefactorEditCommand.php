@@ -19,6 +19,7 @@ use voku\AgentMap\Index\IndexReader;
 /** CLI boundary for consuming one already-produced, versioned agent-map refactor plan. */
 final readonly class RefactorEditCommand
 {
+    /** Wires the governed mutation boundary to project-local evidence services. */
     public function __construct(
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
@@ -244,6 +245,7 @@ final readonly class RefactorEditCommand
         return [$decoded, 'sha256:' . hash('sha256', $raw)];
     }
 
+    /** Resolves an existing in-scope file path for a required refactor input. */
     private function existingFile(string $root, string $path, string $label): string
     {
         $resolved = $this->resolvePath($root, $path);
@@ -255,6 +257,7 @@ final readonly class RefactorEditCommand
         return str_replace('\\', '/', $real);
     }
 
+    /** Resolves an existing in-scope directory for a required refactor input. */
     private function existingDirectory(string $root, string $path, string $label): string
     {
         $resolved = $this->resolvePath($root, $path);
@@ -266,6 +269,7 @@ final readonly class RefactorEditCommand
         return str_replace('\\', '/', $real);
     }
 
+    /** Resolves a project-relative or absolute refactor path without requiring existence. */
     private function resolvePath(string $root, string $path): string
     {
         $path = trim($path);
@@ -280,6 +284,7 @@ final readonly class RefactorEditCommand
         return rtrim($root, '/') . '/' . ltrim($path, '/');
     }
 
+    /** Creates the evidence directory when it does not already exist. */
     private function ensureDirectory(string $directory): void
     {
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
@@ -287,6 +292,7 @@ final readonly class RefactorEditCommand
         }
     }
 
+    /** Publishes one evidence file atomically through a same-directory temporary file. */
     private function write(string $path, string $content): void
     {
         $this->ensureDirectory(dirname($path));
@@ -315,6 +321,7 @@ final readonly class RefactorEditCommand
         }
     }
 
+    /** Prints the supported governed refactor CLI contract. */
     private function help(): int
     {
         echo <<<'TXT'

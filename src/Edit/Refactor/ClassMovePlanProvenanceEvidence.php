@@ -11,6 +11,7 @@ use voku\AgentMap\Index\AnalysisFingerprint;
 /** Snapshot identity decoded from the public agent-map class-move wire contract. */
 final readonly class ClassMovePlanProvenanceEvidence
 {
+    /** Captures the exact Map identity published with the class-move plan. */
     public function __construct(
         public string $mapDigest,
         public string $backend,
@@ -37,6 +38,7 @@ final readonly class ClassMovePlanProvenanceEvidence
         return new self($mapDigest, $backend, AnalysisFingerprint::fromArray($fingerprint));
     }
 
+    /** Fails closed when current Map identity differs from the frozen plan provenance. */
     public function assertMatches(AgentMapIndex $map): void
     {
         if (

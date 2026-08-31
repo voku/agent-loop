@@ -145,16 +145,19 @@ final readonly class RenamePlanDocument implements EditMovePlanEvidence
         );
     }
 
+    /** Returns the stable owner-published rename plan type. */
     public function planType(): string
     {
         return $this->type;
     }
 
+    /** Returns the exact owner-published target identity. */
     public function targetId(): string
     {
         return $this->targetId;
     }
 
+    /** Reports whether this rename family requires PHPStan-backed Map evidence. */
     public function requiresPhpStan(): bool
     {
         return in_array($this->type, [
@@ -177,6 +180,7 @@ final readonly class RenamePlanDocument implements EditMovePlanEvidence
         return $this->moves;
     }
 
+    /** Revalidates the frozen rename provenance against the current Map. */
     public function assertMatches(AgentMapIndex $map): void
     {
         $this->provenance->assertMatches($map, $this->requiresPhpStan());

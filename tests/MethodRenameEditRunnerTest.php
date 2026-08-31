@@ -20,6 +20,7 @@ final class MethodRenameEditRunnerTest extends TestCase
 {
     private string $root;
 
+    /** Creates an isolated two-file method-rename fixture. */
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-rename-apply-' . bin2hex(random_bytes(6));
@@ -28,6 +29,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         file_put_contents($this->root . '/src/Caller.php', "<?php\nnamespace Demo;\nfinal class Caller { public function run(Service \$service): void { \$service->save(); } }\n");
     }
 
+    /** Removes the isolated method-rename fixture after each test. */
     protected function tearDown(): void
     {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

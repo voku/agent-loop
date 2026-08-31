@@ -11,8 +11,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  released-dependency-set:
+    name: Released Map 0.9 + Recall 0.13.16 graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Resolve release-only dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe="${RUNNER_TEMP}/agent-loop-map09-release-set"
+          rm -rf "$probe"
+          mkdir -p "$probe"
+          cd "$probe"
+
+          cat > composer.json <<'JSON'
+          {
+            "name": "voku/agent-loop-map09-release-set-proof",
+            "type": "project",
+            "require": {
+              "voku/agent-map": "0.9.0",
+              "voku/agent-recall-compiler": "0.13.16"
+            },
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
+
+          jq -e '
+            (.packages + (. ["packages-dev"] // [])) as $packages
+            | ($packages | map(select(
+                (.version | startswith("dev-"))
+                or ((.dist.type // .source.type // "") == "path")
+              )) | length == 0)
+            and ($packages | any(.name == "voku/agent-map" and .version == "0.9.0"))
+            and ($packages | any(.name == "voku/agent-recall-compiler" and .version == "0.13.16"))
+          ' composer.lock >/dev/null
+
+          mkdir -p "${GITHUB_WORKSPACE}/build"
+          cp composer.lock "${GITHUB_WORKSPACE}/build/released-map09-recall01316.lock"
+
+      - name: Upload release-only dependency evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: released-map09-recall01316-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/released-map09-recall01316.lock
+
   installed-map09-refactor:
     name: Map 0.9 ${{ matrix.scenario }} consumer
+    needs: released-dependency-set
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -46,7 +106,7 @@ jobs:
           --workspace=${{ runner.temp }}/agent-loop-map09-${{ matrix.scenario }}
           --report=${{ github.workspace }}/build/installed-map09-${{ matrix.scenario }}.json
 
-      - name: Verify released dependency and governed evidence
+      - name: Verify candidate Loop and released dependency evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -59,6 +119,7 @@ jobs:
             and (.release_set["voku/agent-loop"].source_type == "path")
             and (.release_set["voku/agent-map"].version == "0.9.0")
             and (.release_set["voku/agent-map"].source_type != "path")
+            and (.release_set["voku/agent-recall-compiler"].version == "0.13.16")
             and (.release_set["voku/agent-recall-compiler"].source_type != "path")
             and ([.plan_capabilities[].plan_type] | sort == [
               "class_constant_removal_plan",

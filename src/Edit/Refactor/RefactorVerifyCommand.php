@@ -16,6 +16,7 @@ final readonly class RefactorVerifyCommand
 {
     public const FILE_NAME = 'verification-result.json';
 
+    /** Wires verification to the project root and Map reader. */
     public function __construct(
         private string $projectRoot,
         private IndexReader $reader = new IndexReader(),
@@ -277,6 +278,7 @@ final readonly class RefactorVerifyCommand
         return $decoded;
     }
 
+    /** Rebinds Map evidence to the runtime source root without changing its semantic contents. */
     private function withRuntimeRoot(AgentMapIndex $map, string $root): AgentMapIndex
     {
         $runtimeRoot = rtrim(str_replace('\\', '/', $root), '/');
@@ -325,6 +327,7 @@ final readonly class RefactorVerifyCommand
         return $decoded;
     }
 
+    /** Resolves one required verification input file inside the project root. */
     private function insideExistingFile(string $root, string $path, string $label): string
     {
         $resolved = $this->insidePath($root, $path, $label);
@@ -335,6 +338,7 @@ final readonly class RefactorVerifyCommand
         return $resolved;
     }
 
+    /** Resolves one required verification input directory inside the project root. */
     private function insideExistingDirectory(string $root, string $path, string $label): string
     {
         if ($path === '') {
@@ -348,6 +352,7 @@ final readonly class RefactorVerifyCommand
         return $resolved;
     }
 
+    /** Canonicalizes one verification path and rejects project-root escapes. */
     private function insidePath(string $root, string $path, string $label): string
     {
         $candidate = str_starts_with($path, '/') ? $path : $root . '/' . $path;
@@ -364,6 +369,7 @@ final readonly class RefactorVerifyCommand
         return $real;
     }
 
+    /** Normalizes and validates one project-relative changed-file path. */
     private function relativePath(string $path): string
     {
         $path = str_replace('\\', '/', trim($path));
@@ -380,6 +386,7 @@ final readonly class RefactorVerifyCommand
         return implode('/', $segments);
     }
 
+    /** Publishes the verification result through a same-directory temporary file. */
     private function write(string $path, string $content): void
     {
         $temporary = $path . '.tmp-' . getmypid();
@@ -403,6 +410,7 @@ final readonly class RefactorVerifyCommand
         ) . "\n";
     }
 
+    /** Returns the read-only verification CLI help text. */
     private function help(): string
     {
         return <<<'TXT'

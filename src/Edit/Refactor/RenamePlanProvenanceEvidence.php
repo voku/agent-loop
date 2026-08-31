@@ -11,6 +11,7 @@ use voku\AgentMap\Index\AnalysisFingerprint;
 /** Snapshot identity decoded from one agent-map rename plan. */
 final readonly class RenamePlanProvenanceEvidence
 {
+    /** Captures the exact Map identity published with the rename plan. */
     public function __construct(
         public string $mapDigest,
         public string $backend,
@@ -37,6 +38,7 @@ final readonly class RenamePlanProvenanceEvidence
         return new self($mapDigest, $backend, AnalysisFingerprint::fromArray($fingerprint));
     }
 
+    /** Fails closed when current Map identity or required backend differs from the plan. */
     public function assertMatches(AgentMapIndex $map, bool $requiresPhpStan): void
     {
         if ($requiresPhpStan && !str_ends_with($map->backend, '+phpstan')) {

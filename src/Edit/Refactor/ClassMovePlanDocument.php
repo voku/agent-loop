@@ -102,16 +102,19 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
         );
     }
 
+    /** Returns the owner-published plan type. */
     public function planType(): string
     {
         return $this->type;
     }
 
+    /** Returns the source class identity bound by the plan. */
     public function targetId(): string
     {
         return $this->targetId;
     }
 
+    /** Reports whether the current Map must be PHPStan-backed. */
     public function requiresPhpStan(): bool
     {
         return str_ends_with($this->provenance->backend, '+phpstan');
@@ -129,6 +132,7 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
         return $this->moves;
     }
 
+    /** Revalidates the frozen plan provenance against the current Map. */
     public function assertMatches(AgentMapIndex $map): void
     {
         $this->provenance->assertMatches($map);

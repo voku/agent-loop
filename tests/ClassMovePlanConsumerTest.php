@@ -16,6 +16,7 @@ final class ClassMovePlanConsumerTest extends TestCase
 {
     private string $root;
 
+    /** Creates an isolated structural-only class-move fixture. */
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-class-move-' . bin2hex(random_bytes(6));
@@ -33,6 +34,7 @@ final class Service
 PHP);
     }
 
+    /** Removes the isolated class-move fixture after each test. */
     protected function tearDown(): void
     {
         $iterator = new RecursiveIteratorIterator(
@@ -45,6 +47,7 @@ PHP);
         rmdir($this->root);
     }
 
+    /** Proves a structural-only plan can create its missing in-root destination directory. */
     public function testClassMoveCreatesDestinationDirectoryAndAppliesWithStructuralOnlyMap(): void
     {
         $map = $this->structuralMap();
@@ -60,6 +63,7 @@ PHP);
         self::assertStringContainsString('namespace Demo\\New;', (string) file_get_contents($this->root . '/src/New/Service.php'));
     }
 
+    /** Proves a pre-existing destination rejects the plan before mutation. */
     public function testClassMoveDestinationCollisionFailsBeforeMutation(): void
     {
         $map = $this->structuralMap();
@@ -78,6 +82,7 @@ PHP);
         }
     }
 
+    /** Proves destination-absence evidence cannot be weakened by plan tampering. */
     public function testClassMoveRejectsTamperedDestinationPrecondition(): void
     {
         $map = $this->structuralMap();
@@ -96,6 +101,7 @@ PHP);
         self::assertDirectoryDoesNotExist($this->root . '/src/New');
     }
 
+    /** Proves publication rollback restores both source and newly created directory state. */
     public function testClassMovePublicationFailureRestoresSourceAndCreatedDirectoryState(): void
     {
         $map = $this->structuralMap();
@@ -122,6 +128,7 @@ PHP);
         }
     }
 
+    /** Builds the structural-only Map snapshot used by class-move host tests. */
     private function structuralMap(): AgentMapIndex
     {
         $built = (new AgentMapBuilder())->build($this->root, ['src'], []);

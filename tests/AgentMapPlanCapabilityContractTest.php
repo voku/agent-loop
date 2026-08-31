@@ -9,6 +9,7 @@ use voku\AgentMap\Cli\CliApplication;
 
 final class AgentMapPlanCapabilityContractTest extends TestCase
 {
+    /** Proves released Map 0.9 exposes the complete ten-plan governed registry. */
     public function testReleasedMap09PublishesCompleteGovernedPlanRegistry(): void
     {
         ob_start();
