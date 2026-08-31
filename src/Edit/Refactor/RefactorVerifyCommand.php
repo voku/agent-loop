@@ -98,7 +98,10 @@ final readonly class RefactorVerifyCommand
         if ($map->staleEntries() !== []) {
             throw new RuntimeException('Current agent-map evidence is stale after refactor execution.');
         }
-        if ($document->requiresPhpStan() && !str_ends_with($map->backend, '+phpstan')) {
+        if ($document instanceof RenamePlanDocument
+            && $document->requiresPhpStan()
+            && !str_ends_with($map->backend, '+phpstan')
+        ) {
             throw new RuntimeException('Current refactor verification requires a PHPStan-backed map for this plan contract.');
         }
 
