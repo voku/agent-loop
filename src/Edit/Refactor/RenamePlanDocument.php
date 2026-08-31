@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit\Refactor;
 
 use RuntimeException;
+use voku\AgentMap\Index\AgentMapIndex;
 
 /** The fixed Map 0.9 rename wire envelope after fail-closed decoding. */
-final readonly class RenamePlanDocument
+final readonly class RenamePlanDocument implements EditMovePlanEvidence
 {
     /** @var array<string, string> */
     private const TARGET_PREFIX = [
@@ -142,6 +143,28 @@ final readonly class RenamePlanDocument
             edits: $edits,
             moves: $moves,
         );
+    }
+
+    public function planType(): string
+    {
+        return $this->type;
+    }
+
+    /** @return list<RenamePlanEditEvidence> */
+    public function edits(): array
+    {
+        return $this->edits;
+    }
+
+    /** @return list<RenamePlanMoveEvidence> */
+    public function moves(): array
+    {
+        return $this->moves;
+    }
+
+    public function assertMatches(AgentMapIndex $map): void
+    {
+        $this->provenance->assertMatches($map);
     }
 
     /** @param array<string, true> $allowed */
