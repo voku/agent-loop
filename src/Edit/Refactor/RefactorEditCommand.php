@@ -22,6 +22,7 @@ final readonly class RefactorEditCommand
     public function __construct(
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
+        private ClassMovePlanApplier $classMoveApplier = new ClassMovePlanApplier(),
         private MethodRemovalPlanApplier $removalApplier = new MethodRemovalPlanApplier(),
         private PropertyRemovalPlanApplier $propertyRemovalApplier = new PropertyRemovalPlanApplier(),
         private ClassConstantRemovalPlanApplier $classConstantRemovalApplier = new ClassConstantRemovalPlanApplier(),
@@ -59,6 +60,7 @@ final readonly class RefactorEditCommand
                 }
                 $mapIndexSha256 = 'sha256:' . $rawMapHash;
                 $applier = match ($plan['type'] ?? null) {
+                    'class_move_plan' => $this->classMoveApplier,
                     'method_removal_plan' => $this->removalApplier,
                     'property_removal_plan' => $this->propertyRemovalApplier,
                     'class_constant_removal_plan' => $this->classConstantRemovalApplier,
@@ -97,6 +99,7 @@ final readonly class RefactorEditCommand
             $after = $this->snapshotter->capture($this->projectRoot);
             $executionPath = $request['output_directory'] . '/execution.json';
             $runnerName = match ($plan['type'] ?? null) {
+                'class_move_plan' => 'class-move-plan',
                 'method_removal_plan' => 'method-removal-plan',
                 'property_removal_plan' => 'property-removal-plan',
                 'class_constant_removal_plan' => 'class-constant-removal-plan',
@@ -319,9 +322,10 @@ Usage:
   agent-loop edit refactor PLAN [options]
 
 Consumes one safe versioned agent-map refactor plan through agent-loop's mutation boundary.
-The fixed allowlist covers the five rename-plan contracts plus method_removal_plan@1.0,
-property_removal_plan@1.0, and class_constant_removal_plan@1.0. Each removal family keeps its own
-decoder and deletion invariants; arbitrary edit plans and Rector execution remain rejected.
+The fixed allowlist covers the six rename-plan contracts, class_move_plan@1.0, plus
+method_removal_plan@1.0, property_removal_plan@1.0, and class_constant_removal_plan@1.0.
+Each owner family keeps its own wire decoder and semantic invariants; arbitrary edit plans and Rector
+execution remain rejected.
 
 Options:
   --task ID            Required governed task ID.
@@ -333,7 +337,7 @@ Options:
 Mutation requires the task's current execution contract to be ready. Every source hash, inclusive
 byte range, expected token and plan provenance is revalidated under the shared project mutation lock.
 All rewritten PHP is staged and syntax-checked before publication; every source is restored on any
-publication failure. Class rename moves remain part of the rename-specific transaction only.
+publication failure. Preconditioned file moves are published in the same transaction as their edits.
 
 TXT;
 
