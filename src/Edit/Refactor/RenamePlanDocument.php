@@ -150,6 +150,21 @@ final readonly class RenamePlanDocument implements EditMovePlanEvidence
         return $this->type;
     }
 
+    public function targetId(): string
+    {
+        return $this->targetId;
+    }
+
+    public function requiresPhpStan(): bool
+    {
+        return in_array($this->type, [
+            'function_rename_plan',
+            'method_rename_plan',
+            'parameter_rename_plan',
+            'property_rename_plan',
+        ], true);
+    }
+
     /** @return list<RenamePlanEditEvidence> */
     public function edits(): array
     {
@@ -164,7 +179,7 @@ final readonly class RenamePlanDocument implements EditMovePlanEvidence
 
     public function assertMatches(AgentMapIndex $map): void
     {
-        $this->provenance->assertMatches($map);
+        $this->provenance->assertMatches($map, $this->requiresPhpStan());
     }
 
     /** @param array<string, true> $allowed */
