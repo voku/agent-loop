@@ -186,9 +186,6 @@ final readonly class RenamePlanDocument implements EditMovePlanEvidence
     private static function editSymbolIsAllowed(string $symbolId, array $allowed): bool
     {
         $members = explode(',', $symbolId);
-        if ($members === []) {
-            return false;
-        }
         foreach ($members as $member) {
             if ($member === '' || !isset($allowed[$member])) {
                 return false;

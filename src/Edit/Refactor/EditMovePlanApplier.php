@@ -319,7 +319,10 @@ final readonly class EditMovePlanApplier
         return $failures;
     }
 
-    /** @param list<string> $paths @return list<string> */
+    /**
+     * @param list<string> $paths
+     * @return list<string>
+     */
     private function cleanupPaths(array $paths): array
     {
         $failures = [];
@@ -332,7 +335,10 @@ final readonly class EditMovePlanApplier
         return $failures;
     }
 
-    /** @param list<string> $directories @return list<string> */
+    /**
+     * @param list<string> $directories
+     * @return list<string>
+     */
     private function cleanupDirectories(array $directories): array
     {
         $failures = [];
