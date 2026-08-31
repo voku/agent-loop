@@ -108,7 +108,7 @@ PHP);
         $applier = new RenamePlanApplier(
             renameOperation: static function (string $from, string $to) use (&$insideLock, &$observedPublication): bool {
                 self::assertTrue($insideLock, 'rename-plan publication must stay inside the shared edit mutation lock');
-                if (str_contains($from, '.agent-loop-rename-plan-stage-')) {
+                if (str_contains($from, '.agent-loop-refactor-plan-stage-')) {
                     $observedPublication = true;
                 }
 
