@@ -15,6 +15,7 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
      * @param list<RenamePlanMoveEvidence> $moves
      */
     public function __construct(
+        public string $type,
         public string $targetId,
         public ClassMovePlanProvenanceEvidence $provenance,
         public array $edits,
@@ -25,7 +26,8 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
     /** @param array<string, mixed> $data */
     public static function fromArray(array $data): self
     {
-        if (($data['type'] ?? null) !== 'class_move_plan' || ($data['contract_version'] ?? null) !== '1.0') {
+        $type = self::string($data, 'type');
+        if ($type !== 'class_move_plan' || ($data['contract_version'] ?? null) !== '1.0') {
             throw new RuntimeException('Unsupported agent-map class move plan contract.');
         }
         if (($data['status'] ?? null) === 'review_required') {
@@ -92,6 +94,7 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
         }
 
         return new self(
+            type: $type,
             targetId: $targetId,
             provenance: ClassMovePlanProvenanceEvidence::fromArray($rawProvenance),
             edits: $edits,
@@ -101,7 +104,7 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
 
     public function planType(): string
     {
-        return 'class_move_plan';
+        return $this->type;
     }
 
     public function targetId(): string
