@@ -276,7 +276,7 @@ final class InstalledMap09RefactorDogfood
 
     private function primaryFile(): string
     {
-        return $this->scenario === 'class-move' ? 'src/Legacy/Greeter.php' : 'src/Greeter.php';
+        return $this->scenario === 'class-move' ? 'src' : 'src/Greeter.php';
     }
 
     private function goal(): string
@@ -522,7 +522,7 @@ PHP);
         if ($this->scenario === 'parameter') {
             $greeter = (string) file_get_contents($this->consumer . '/src/Greeter.php');
             if (!str_contains($greeter, 'format(string $person)')
-                || !str_contains($greeter, "'Hello ' . $person")
+                || !str_contains($greeter, "'Hello ' . \$person")
                 || !str_contains($greeter, 'format(person: $name)')
                 || !str_contains($greeter, "format('Map')")
             ) {
