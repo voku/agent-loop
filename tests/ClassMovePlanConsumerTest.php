@@ -20,7 +20,6 @@ final class ClassMovePlanConsumerTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-class-move-' . bin2hex(random_bytes(6));
         mkdir($this->root . '/src/Old', 0o775, true);
-        mkdir($this->root . '/src/New', 0o775, true);
         file_put_contents($this->root . '/src/Old/Service.php', <<<'PHP'
 <?php
 
@@ -46,15 +45,17 @@ PHP);
         rmdir($this->root);
     }
 
-    public function testClassMoveAppliesEditAndMoveWithStructuralOnlyMap(): void
+    public function testClassMoveCreatesDestinationDirectoryAndAppliesWithStructuralOnlyMap(): void
     {
         $map = $this->structuralMap();
         $plan = $this->plan($map);
 
+        self::assertDirectoryDoesNotExist($this->root . '/src/New');
         $result = (new ClassMovePlanApplier())->apply($plan, $map, $this->root);
 
         self::assertTrue($result->succeeded());
         self::assertFileDoesNotExist($this->root . '/src/Old/Service.php');
+        self::assertDirectoryExists($this->root . '/src/New');
         self::assertFileExists($this->root . '/src/New/Service.php');
         self::assertStringContainsString('namespace Demo\\New;', (string) file_get_contents($this->root . '/src/New/Service.php'));
     }
@@ -63,6 +64,7 @@ PHP);
     {
         $map = $this->structuralMap();
         $plan = $this->plan($map);
+        mkdir($this->root . '/src/New', 0o775, true);
         file_put_contents($this->root . '/src/New/Service.php', "<?php\n// occupied\n");
         $before = (string) file_get_contents($this->root . '/src/Old/Service.php');
 
@@ -91,7 +93,33 @@ PHP);
         }
 
         self::assertSame($before, (string) file_get_contents($this->root . '/src/Old/Service.php'));
-        self::assertFileDoesNotExist($this->root . '/src/New/Service.php');
+        self::assertDirectoryDoesNotExist($this->root . '/src/New');
+    }
+
+    public function testClassMovePublicationFailureRestoresSourceAndCreatedDirectoryState(): void
+    {
+        $map = $this->structuralMap();
+        $plan = $this->plan($map);
+        $before = (string) file_get_contents($this->root . '/src/Old/Service.php');
+        $destination = str_replace('\\', '/', $this->root . '/src/New/Service.php');
+        $applier = new ClassMovePlanApplier(
+            renameOperation: static function (string $from, string $to) use ($destination): bool {
+                if (str_replace('\\', '/', $to) === $destination) {
+                    return false;
+                }
+
+                return rename($from, $to);
+            },
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('publication failed; every source file was restored');
+        try {
+            $applier->apply($plan, $map, $this->root);
+        } finally {
+            self::assertSame($before, (string) file_get_contents($this->root . '/src/Old/Service.php'));
+            self::assertDirectoryDoesNotExist($this->root . '/src/New');
+        }
     }
 
     private function structuralMap(): AgentMapIndex
