@@ -386,7 +386,7 @@ final readonly class RefactorVerifyCommand
         return implode('/', $segments);
     }
 
-    /** Publishes the verification result through a same-directory temporary file. */
+    /** Atomically writes the verification result by renaming a same-directory staging file. */
     private function write(string $path, string $content): void
     {
         $temporary = $path . '.tmp-' . getmypid();

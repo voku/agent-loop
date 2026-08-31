@@ -292,7 +292,7 @@ final readonly class RefactorEditCommand
         }
     }
 
-    /** Publishes one evidence file atomically through a same-directory temporary file. */
+    /** Atomically writes one evidence file by renaming a same-directory staging file. */
     private function write(string $path, string $content): void
     {
         $this->ensureDirectory(dirname($path));
