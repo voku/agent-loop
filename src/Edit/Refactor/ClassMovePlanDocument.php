@@ -104,6 +104,16 @@ final readonly class ClassMovePlanDocument implements EditMovePlanEvidence
         return 'class_move_plan';
     }
 
+    public function targetId(): string
+    {
+        return $this->targetId;
+    }
+
+    public function requiresPhpStan(): bool
+    {
+        return false;
+    }
+
     /** @return list<RenamePlanEditEvidence> */
     public function edits(): array
     {
