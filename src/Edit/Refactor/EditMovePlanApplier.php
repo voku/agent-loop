@@ -44,7 +44,7 @@ final readonly class EditMovePlanApplier
                 throw new RuntimeException('Refactor plan source evidence changed while staged; no source was changed.');
             }
 
-            $warnings = $this->publish($staged, $prepared['final_paths'], $prepared['source_hashes']);
+            $warnings = $this->publish($staged, $prepared['final_paths'], $prepared['source_hashes'], $root);
         } catch (Throwable $exception) {
             $cleanupFailures = $this->cleanupPaths(array_values($staged));
             if ($cleanupFailures !== []) {
@@ -234,12 +234,14 @@ final readonly class EditMovePlanApplier
      * @param array<string, string> $sourceHashes absolute source path => expected sha256
      * @return list<string> non-fatal cleanup warnings after success
      */
-    private function publish(array $staged, array $finalPaths, array $sourceHashes): array
+    private function publish(array $staged, array $finalPaths, array $sourceHashes, string $root): array
     {
         /** @var array<string, string> $backups */
         $backups = [];
         /** @var array<string, string> $published */
         $published = [];
+        /** @var array<string, true> $createdDirectories */
+        $createdDirectories = [];
 
         try {
             foreach ($finalPaths as $source => $final) {
@@ -261,8 +263,13 @@ final readonly class EditMovePlanApplier
                 }
 
                 $final = $finalPaths[$source];
-                if ($source !== $final && (file_exists($final) || is_link($final))) {
-                    throw new RuntimeException('Refactor destination appeared during publication: ' . $final);
+                if ($source !== $final) {
+                    foreach ($this->createDestinationDirectories($root, dirname($final)) as $directory) {
+                        $createdDirectories[$directory] = true;
+                    }
+                    if (file_exists($final) || is_link($final)) {
+                        throw new RuntimeException('Refactor destination appeared during publication: ' . $final);
+                    }
                 }
                 if (!$this->move($temporary, $final)) {
                     throw new RuntimeException('Unable to publish staged refactor source: ' . $final);
@@ -272,7 +279,8 @@ final readonly class EditMovePlanApplier
         } catch (Throwable $exception) {
             $rollbackFailures = $this->rollback($backups, $published);
             $stageCleanupFailures = $this->cleanupPaths(array_values($staged));
-            $failures = [...$rollbackFailures, ...$stageCleanupFailures];
+            $directoryCleanupFailures = $this->cleanupDirectories(array_keys($createdDirectories));
+            $failures = [...$rollbackFailures, ...$stageCleanupFailures, ...$directoryCleanupFailures];
             if ($failures !== []) {
                 throw new RuntimeException(
                     'Refactor plan publication failed and rollback was incomplete: ' . implode('; ', $failures),
@@ -324,6 +332,105 @@ final readonly class EditMovePlanApplier
         return $failures;
     }
 
+    /** @param list<string> $directories @return list<string> */
+    private function cleanupDirectories(array $directories): array
+    {
+        $failures = [];
+        foreach (array_reverse($directories) as $directory) {
+            if (!is_dir($directory) || is_link($directory)) {
+                continue;
+            }
+            $entries = scandir($directory);
+            if (!is_array($entries) || $entries !== ['.', '..']) {
+                $failures[] = 'unable to remove created refactor directory because it is not empty: ' . $directory;
+                continue;
+            }
+            if (!rmdir($directory)) {
+                $failures[] = 'unable to remove created refactor directory ' . $directory;
+            }
+        }
+
+        return $failures;
+    }
+
+    /** @return list<string> directories created by this call, outermost first */
+    private function createDestinationDirectories(string $root, string $directory): array
+    {
+        $realRoot = realpath($root);
+        if (!is_string($realRoot)) {
+            throw new RuntimeException('Unable to resolve refactor map root while creating destination directories.');
+        }
+        $realRoot = rtrim(str_replace('\\', '/', $realRoot), '/');
+        $directory = str_replace('\\', '/', $directory);
+
+        if (is_dir($directory)) {
+            $realDirectory = realpath($directory);
+            if (!is_string($realDirectory) || !$this->insideRoot($realRoot, $realDirectory, true)) {
+                throw new RuntimeException('Refactor destination directory escapes the map root: ' . $directory);
+            }
+
+            return [];
+        }
+        if (file_exists($directory) || is_link($directory)) {
+            throw new RuntimeException('Refactor destination parent is not a directory: ' . $directory);
+        }
+
+        $missing = [];
+        $probe = $directory;
+        while (!is_dir($probe)) {
+            if (file_exists($probe) || is_link($probe)) {
+                throw new RuntimeException('Refactor destination parent is not a directory: ' . $probe);
+            }
+            $missing[] = $probe;
+            $parent = dirname($probe);
+            if ($parent === $probe) {
+                throw new RuntimeException('Unable to find an existing refactor destination parent.');
+            }
+            $probe = $parent;
+        }
+
+        $existing = realpath($probe);
+        if (!is_string($existing) || !$this->insideRoot($realRoot, $existing, true)) {
+            throw new RuntimeException('Refactor destination parent escapes the map root: ' . $directory);
+        }
+
+        $created = [];
+        try {
+            foreach (array_reverse($missing) as $path) {
+                if (is_dir($path)) {
+                    $realPath = realpath($path);
+                    if (!is_string($realPath) || !$this->insideRoot($realRoot, $realPath, true)) {
+                        throw new RuntimeException('Refactor destination directory escaped the map root during publication: ' . $path);
+                    }
+                    continue;
+                }
+                if (file_exists($path) || is_link($path)) {
+                    throw new RuntimeException('Refactor destination parent changed during publication: ' . $path);
+                }
+                $realParent = realpath(dirname($path));
+                if (!is_string($realParent) || !$this->insideRoot($realRoot, $realParent, true)) {
+                    throw new RuntimeException('Refactor destination parent escaped the map root during publication: ' . $path);
+                }
+                if (!mkdir($path, 0o775) && !is_dir($path)) {
+                    throw new RuntimeException('Unable to create refactor destination directory: ' . $path);
+                }
+                $created[] = $path;
+            }
+        } catch (Throwable $exception) {
+            $cleanupFailures = $this->cleanupDirectories($created);
+            if ($cleanupFailures !== []) {
+                throw new RuntimeException(
+                    'Refactor destination directory creation failed and cleanup was incomplete: ' . implode('; ', $cleanupFailures),
+                    0,
+                    $exception,
+                );
+            }
+            throw $exception;
+        }
+
+        return $created;
+    }
+
     /** @param array<string, string> $hashes */
     private function rememberSourceHash(array &$hashes, string $path, string $sourceHash): void
     {
@@ -352,13 +459,23 @@ final readonly class EditMovePlanApplier
         if (!is_string($realRoot)) {
             throw new RuntimeException('Unable to resolve refactor map root.');
         }
-        $parentRelative = dirname($relative);
-        $parent = realpath($parentRelative === '.' ? $realRoot : $realRoot . '/' . $parentRelative);
-        if (!is_string($parent) || !$this->insideRoot($realRoot, $parent, true)) {
+        $realRoot = rtrim(str_replace('\\', '/', $realRoot), '/');
+        $destination = $realRoot . '/' . $relative;
+        $parent = dirname($destination);
+        $probe = $parent;
+        while (!file_exists($probe) && !is_link($probe)) {
+            $next = dirname($probe);
+            if ($next === $probe) {
+                throw new RuntimeException('Unable to find an existing refactor destination parent.');
+            }
+            $probe = $next;
+        }
+        $existingParent = realpath($probe);
+        if (!is_string($existingParent) || !is_dir($existingParent) || !$this->insideRoot($realRoot, $existingParent, true)) {
             throw new RuntimeException('Refactor destination parent escapes the map root: ' . $relative);
         }
 
-        return rtrim(str_replace('\\', '/', $parent), '/') . '/' . basename($relative);
+        return $destination;
     }
 
     private function relativePath(string $relative): string
