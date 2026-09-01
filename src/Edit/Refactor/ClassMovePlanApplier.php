@@ -8,8 +8,8 @@ use Closure;
 use voku\AgentLoop\Edit\EditRunResult;
 use voku\AgentMap\Index\AgentMapIndex;
 
-/** Rename-family adapter over the shared exact edit/move host transaction. */
-final readonly class RenamePlanApplier
+/** Class-move adapter over the shared exact edit/move host transaction. */
+final readonly class ClassMovePlanApplier
 {
     private EditMovePlanApplier $applier;
 
@@ -25,7 +25,7 @@ final readonly class RenamePlanApplier
     /** @param array<string, mixed> $plan */
     public function apply(array $plan, AgentMapIndex $map, string $root): EditRunResult
     {
-        return $this->applier->apply(RenamePlanDocument::fromArray($plan), $map, $root);
+        return $this->applier->apply(ClassMovePlanDocument::fromArray($plan), $map, $root);
     }
 
     /**
@@ -41,6 +41,6 @@ final readonly class RenamePlanApplier
      */
     public function preflight(array $plan, AgentMapIndex $map, string $root): array
     {
-        return $this->applier->preflight(RenamePlanDocument::fromArray($plan), $map, $root);
+        return $this->applier->preflight(ClassMovePlanDocument::fromArray($plan), $map, $root);
     }
 }

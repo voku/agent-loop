@@ -20,6 +20,7 @@ final class MethodRenameEditRunnerTest extends TestCase
 {
     private string $root;
 
+    /** Creates an isolated two-file method-rename fixture. */
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-rename-apply-' . bin2hex(random_bytes(6));
@@ -28,6 +29,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         file_put_contents($this->root . '/src/Caller.php', "<?php\nnamespace Demo;\nfinal class Caller { public function run(Service \$service): void { \$service->save(); } }\n");
     }
 
+    /** Removes the isolated method-rename fixture after each test. */
     protected function tearDown(): void
     {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
@@ -49,7 +51,7 @@ final class MethodRenameEditRunnerTest extends TestCase
             self::fail('Expected stale current-map evidence to fail closed.');
         } catch (RuntimeException $exception) {
             self::assertSame(
-                'Current agent-map source evidence is stale; rebuild the map before applying a rename plan.',
+                'Current agent-map source evidence is stale; rebuild the map before applying the refactor plan.',
                 $exception->getMessage(),
             );
         }
@@ -69,7 +71,7 @@ final class MethodRenameEditRunnerTest extends TestCase
             self::fail('Expected current per-edit hash evidence to fail closed.');
         } catch (RuntimeException $exception) {
             self::assertSame(
-                'Rename edit evidence changed before apply; rebuild and re-plan.',
+                'Refactor edit evidence changed before apply; rebuild and re-plan.',
                 $exception->getMessage(),
             );
         }
@@ -112,7 +114,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         $service = $this->root . '/src/Service.php';
         $runner = new MethodRenameEditRunner(
             renameOperation: static function (string $from, string $to) use ($service): bool {
-                if ($to === $service && str_contains($from, '.agent-loop-rename-plan-stage-')) {
+                if ($to === $service && str_contains($from, '.agent-loop-refactor-plan-stage-')) {
                     return false;
                 }
 
@@ -135,7 +137,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         $before = $this->sources();
         $runner = new MethodRenameEditRunner(
             lintOperation: static function (string $path): array {
-                if (str_contains($path, 'Service.php.agent-loop-rename-plan-stage-')) {
+                if (str_contains($path, 'Service.php.agent-loop-refactor-plan-stage-')) {
                     return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'forced parser failure'];
                 }
 
@@ -197,7 +199,7 @@ final class MethodRenameEditRunnerTest extends TestCase
     /** @return list<string> */
     private function temporaryArtifacts(): array
     {
-        $matches = glob($this->root . '/src/*.agent-loop-rename-plan-*');
+        $matches = glob($this->root . '/src/*.agent-loop-refactor-plan-*');
 
         return is_array($matches) ? $matches : [];
     }

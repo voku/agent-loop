@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit\Refactor;
 
 use RuntimeException;
+use voku\AgentMap\Index\AgentMapIndex;
 
-/** The fixed five-kind rename wire envelope after fail-closed decoding. */
-final readonly class RenamePlanDocument
+/** The fixed Map 0.9 rename wire envelope after fail-closed decoding. */
+final readonly class RenamePlanDocument implements EditMovePlanEvidence
 {
     /** @var array<string, string> */
     private const TARGET_PREFIX = [
@@ -16,6 +17,7 @@ final readonly class RenamePlanDocument
         'class_rename_plan' => 'class:',
         'property_rename_plan' => 'property:',
         'class_constant_rename_plan' => 'class_constant:',
+        'parameter_rename_plan' => 'method:',
     ];
 
     /**
@@ -77,6 +79,24 @@ final readonly class RenamePlanDocument
             throw new RuntimeException('Rename plan target identity does not match its plan type.');
         }
 
+        $allowedEditSymbols = [$targetId => true];
+        if ($type === 'parameter_rename_plan') {
+            $family = $data['family'] ?? null;
+            if (!is_array($family) || $family === []) {
+                throw new RuntimeException('Parameter rename plan requires non-empty method-family evidence.');
+            }
+            $allowedEditSymbols = [];
+            foreach ($family as $member) {
+                if (!is_string($member) || !str_starts_with($member, 'method:')) {
+                    throw new RuntimeException('Parameter rename plan contains invalid method-family evidence.');
+                }
+                $allowedEditSymbols[$member] = true;
+            }
+            if (!isset($allowedEditSymbols[$targetId])) {
+                throw new RuntimeException('Parameter rename target is not part of its declared method family.');
+            }
+        }
+
         $rawProvenance = $data['provenance'] ?? null;
         if (!is_array($rawProvenance)) {
             throw new RuntimeException('Rename plan requires typed provenance evidence.');
@@ -96,7 +116,7 @@ final readonly class RenamePlanDocument
                 throw new RuntimeException('Rename plan contains an invalid edit.');
             }
             $edit = RenamePlanEditEvidence::fromArray($rawEdit);
-            if ($edit->symbolId !== $targetId) {
+            if (!self::editSymbolIsAllowed($edit->symbolId, $allowedEditSymbols)) {
                 throw new RuntimeException('Rename plan edit is not bound to the declared target identity.');
             }
             $edits[] = $edit;
@@ -123,6 +143,60 @@ final readonly class RenamePlanDocument
             edits: $edits,
             moves: $moves,
         );
+    }
+
+    /** Returns the stable owner-published rename plan type. */
+    public function planType(): string
+    {
+        return $this->type;
+    }
+
+    /** Returns the exact owner-published target identity. */
+    public function targetId(): string
+    {
+        return $this->targetId;
+    }
+
+    /** Reports whether this rename family requires PHPStan-backed Map evidence. */
+    public function requiresPhpStan(): bool
+    {
+        return in_array($this->type, [
+            'function_rename_plan',
+            'method_rename_plan',
+            'parameter_rename_plan',
+            'property_rename_plan',
+        ], true);
+    }
+
+    /** @return list<RenamePlanEditEvidence> */
+    public function edits(): array
+    {
+        return $this->edits;
+    }
+
+    /** @return list<RenamePlanMoveEvidence> */
+    public function moves(): array
+    {
+        return $this->moves;
+    }
+
+    /** Revalidates the frozen rename provenance against the current Map. */
+    public function assertMatches(AgentMapIndex $map): void
+    {
+        $this->provenance->assertMatches($map, $this->requiresPhpStan());
+    }
+
+    /** @param array<string, true> $allowed */
+    private static function editSymbolIsAllowed(string $symbolId, array $allowed): bool
+    {
+        $members = explode(',', $symbolId);
+        foreach ($members as $member) {
+            if ($member === '' || !isset($allowed[$member])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @param array<string, mixed> $data */
