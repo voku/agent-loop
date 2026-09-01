@@ -67,7 +67,7 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.claude/hooks.json');
 
         $manifest = json_decode((string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(2, $manifest['version']);
+        self::assertSame(3, $manifest['version']);
         self::assertSame('claude', $manifest['agent']);
         self::assertContains('settings.json#hooks', array_column($manifest['entries'], 'target'));
         self::assertContains('hooks/policy.php', array_column($manifest['entries'], 'target'));
