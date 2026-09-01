@@ -100,6 +100,8 @@ final readonly class WorkflowPlanCommand
 
         echo "[OK] workflow plan: candidate Contract {$action} for {$taskId->value} revision {$contract->revision}\n";
         echo "[OK] workflow plan: durable source {$contract->path}\n";
+        echo "Goal:\n  {$contract->goal}\n";
+        echo "Scope:\n  " . implode("\n  ", $contract->scope) . "\n";
         echo "Next:\n";
         echo '  agent-loop workflow approve ' . $taskId->value . ' --by ' . self::shellArgument($options['by']) . "\n";
 
