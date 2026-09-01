@@ -14,6 +14,7 @@ final readonly class ManagedAssetSource
         public string $id,
         public string $owner,
         public string $path,
+        public ?string $reference,
     ) {
     }
 
@@ -24,9 +25,10 @@ final readonly class ManagedAssetSource
         $packageRoot = self::normalize(dirname(__DIR__, 2));
         $recallRoot = self::recallPackageRoot();
 
+        $ownerRoot = null;
         $owner = match (true) {
-            self::inside($sourcePath, $packageRoot) => 'voku/agent-loop',
-            $recallRoot !== null && self::inside($sourcePath, $recallRoot) => 'voku/agent-recall-compiler',
+            self::inside($sourcePath, $packageRoot) => self::owner('voku/agent-loop', $packageRoot, $ownerRoot),
+            $recallRoot !== null && self::inside($sourcePath, $recallRoot) => self::owner('voku/agent-recall-compiler', $recallRoot, $ownerRoot),
             self::inside($sourcePath, $projectRoot) => 'project',
             default => 'local',
         };
@@ -35,7 +37,37 @@ final readonly class ManagedAssetSource
             $owner . ':' . ltrim($assetId, ':'),
             $owner,
             $sourcePath,
+            $ownerRoot === null ? null : self::relativeTo($sourcePath, $ownerRoot),
         );
+    }
+
+    /**
+     * Resolves persisted provenance against the currently installed semantic owner.
+     *
+     * A portable reference always wins. A null reference deliberately means the
+     * manifest is using the older/local path-bound policy and is not reinterpreted.
+     */
+    public static function resolvePersistedPath(string $owner, ?string $reference, ?string $sourcePath): ?string
+    {
+        if ($reference === null) {
+            return $sourcePath === null ? null : self::normalize($sourcePath);
+        }
+        if (!self::validReference($reference)) {
+            return null;
+        }
+
+        $root = match ($owner) {
+            'voku/agent-loop' => self::normalize(dirname(__DIR__, 2)),
+            'voku/agent-recall-compiler' => self::recallPackageRoot(),
+            default => null,
+        };
+        if ($root === null) {
+            return null;
+        }
+
+        $candidate = self::normalize($root . '/' . $reference);
+
+        return self::inside($candidate, $root) ? $candidate : null;
     }
 
     private static function recallPackageRoot(): ?string
@@ -60,5 +92,32 @@ final readonly class ManagedAssetSource
         $path = $real === false ? $path : $real;
 
         return rtrim(str_replace('\\', '/', $path), '/');
+    }
+
+    private static function owner(string $owner, string $root, ?string &$ownerRoot): string
+    {
+        $ownerRoot = $root;
+
+        return $owner;
+    }
+
+    private static function relativeTo(string $path, string $root): string
+    {
+        return ltrim(substr($path, strlen(rtrim($root, '/'))), '/');
+    }
+
+    private static function validReference(string $reference): bool
+    {
+        if ($reference === '' || str_starts_with($reference, '/') || str_contains($reference, '\\')) {
+            return false;
+        }
+
+        foreach (explode('/', $reference) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
