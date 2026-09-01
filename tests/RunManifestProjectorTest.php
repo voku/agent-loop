@@ -144,6 +144,45 @@ MD
         );
     }
 
+    public function testDefaultDoingCardWithoutGovernedLifecycleIsExplicitlyBlocked(): void
+    {
+        $this->writeActiveBoardCard(['projectPrefix' => 'ABC']);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('legacy_inferred', $manifest->mode);
+        self::assertSame('blocked', $manifest->state);
+        self::assertSame('linked', $manifest->references['board']['state']);
+        self::assertSame('DOING', $manifest->references['board']['lane']);
+        self::assertCount(1, $manifest->disagreements);
+        self::assertSame('board.active_without_governed_lifecycle', $manifest->disagreements[0]['code']);
+        self::assertSame('agent-loop', $manifest->disagreements[0]['owner']);
+        self::assertStringContainsString('DOING', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('no Contract or governed Run', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('Create and approve a Contract', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('board.active_without_governed_lifecycle', $manifest->nextAction);
+        self::assertSame('host_work', $manifest->nextActionKind);
+    }
+
+    public function testCustomDoingLaneIsNotInterpretedAsLoopLifecycleAuthority(): void
+    {
+        $this->writeActiveBoardCard([
+            'projectPrefix' => 'ABC',
+            'lanes' => ['BACKLOG', 'DOING'],
+            'transitions' => [
+                'BACKLOG' => ['DOING'],
+                'DOING' => ['BACKLOG'],
+            ],
+        ]);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('legacy_inferred', $manifest->mode);
+        self::assertSame('incomplete', $manifest->state);
+        self::assertSame('DOING', $manifest->references['board']['lane']);
+        self::assertSame([], $manifest->disagreements);
+    }
+
     public function testCompletedRunIsTraceableThroughDurableOwningArtifacts(): void
     {
         [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
@@ -200,6 +239,28 @@ MD
         self::assertStringNotContainsString('workflow manifest', $manifest->nextAction);
         self::assertStringContainsString('run.contract_revision_mismatch', $manifest->nextAction);
         self::assertSame('host_work', $manifest->nextActionKind);
+    }
+
+    /** @param array<string, mixed> $config */
+    private function writeActiveBoardCard(array $config): void
+    {
+        mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/kanban.config.json',
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+        );
+        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<'MD'
+# ABC-123: Active without governance
+
+- **Ticket:** ABC-123
+- **Lane:** DOING
+- **Status:** In Progress
+
+## Agent Task Brief
+
+Prove that cross-owner lifecycle disagreement is explicit without inventing Kanban authority.
+MD
+            . "\n");
     }
 
     /** @return array{0: SessionStore, 1: Session, 2: string} */
