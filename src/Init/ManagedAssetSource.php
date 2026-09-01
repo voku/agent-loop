@@ -14,6 +14,7 @@ final readonly class ManagedAssetSource
         public string $id,
         public string $owner,
         public string $path,
+        public ?string $reference,
     ) {
     }
 
@@ -30,12 +31,47 @@ final readonly class ManagedAssetSource
             self::inside($sourcePath, $projectRoot) => 'project',
             default => 'local',
         };
+        $ownerRoot = match ($owner) {
+            'voku/agent-loop' => $packageRoot,
+            'voku/agent-recall-compiler' => $recallRoot,
+            default => null,
+        };
 
         return new self(
             $owner . ':' . ltrim($assetId, ':'),
             $owner,
             $sourcePath,
+            $ownerRoot === null ? null : self::relativeTo($sourcePath, $ownerRoot),
         );
+    }
+
+    /**
+     * Resolves persisted provenance against the currently installed semantic owner.
+     *
+     * A portable reference always wins. A null reference deliberately means the
+     * manifest is using the older/local path-bound policy and is not reinterpreted.
+     */
+    public static function resolvePersistedPath(string $owner, ?string $reference, ?string $sourcePath): ?string
+    {
+        if ($reference === null) {
+            return $sourcePath === null ? null : self::normalize($sourcePath);
+        }
+        if (!self::validReference($reference)) {
+            return null;
+        }
+
+        $root = match ($owner) {
+            'voku/agent-loop' => self::normalize(dirname(__DIR__, 2)),
+            'voku/agent-recall-compiler' => self::recallPackageRoot(),
+            default => null,
+        };
+        if ($root === null) {
+            return null;
+        }
+
+        $candidate = self::normalize($root . '/' . $reference);
+
+        return self::inside($candidate, $root) ? $candidate : null;
     }
 
     private static function recallPackageRoot(): ?string
@@ -60,5 +96,30 @@ final readonly class ManagedAssetSource
         $path = $real === false ? $path : $real;
 
         return rtrim(str_replace('\\', '/', $path), '/');
+    }
+
+    private static function relativeTo(string $path, string $root): string
+    {
+        $reference = ltrim(substr($path, strlen(rtrim($root, '/'))), '/');
+
+        return $reference === '' ? '.' : $reference;
+    }
+
+    private static function validReference(string $reference): bool
+    {
+        if ($reference === '.') {
+            return true;
+        }
+        if ($reference === '' || str_starts_with($reference, '/') || str_contains($reference, '\\')) {
+            return false;
+        }
+
+        foreach (explode('/', $reference) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

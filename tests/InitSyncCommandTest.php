@@ -62,7 +62,7 @@ final class InitSyncCommandTest extends TestCase
         self::assertFileExists($this->root . '/.agents/agents/demo-role.md');
 
         $manifest = json_decode((string) file_get_contents($this->root . '/.claude/agents/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(2, $manifest['version']);
+        self::assertSame(3, $manifest['version']);
         self::assertSame('claude', $manifest['agent']);
         self::assertContains('demo-role.md', array_column($manifest['entries'], 'target'));
         self::assertSame(['subagent-projection'], $manifest['required_capabilities']);
@@ -81,7 +81,7 @@ final class InitSyncCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/skills/.agent-loop-manifest.json');
 
         $manifest = json_decode((string) file_get_contents($this->root . '/.codex/skills/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(2, $manifest['version']);
+        self::assertSame(3, $manifest['version']);
         self::assertSame(['skill-projection'], $manifest['required_capabilities']);
         self::assertCount(1, $manifest['entries']);
         self::assertSame('demo-skill', $manifest['entries'][0]['target']);
@@ -217,7 +217,7 @@ final class InitSyncCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/.agent-loop-manifest.json');
 
         $manifest = json_decode((string) file_get_contents($this->root . '/.codex/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(2, $manifest['version']);
+        self::assertSame(3, $manifest['version']);
         self::assertContains('session-bootstrap', $manifest['required_capabilities']);
         self::assertContains('subagent-bootstrap', $manifest['required_capabilities']);
         self::assertContains('pre-tool-guardrail', $manifest['required_capabilities']);

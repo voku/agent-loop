@@ -37,7 +37,23 @@ final readonly class ManagedAssetDriftInspector
 
         foreach ($manifest->managedEntries() as $entry) {
             $metadata = $manifest->entry($entry);
-            if (!$manifest->hasDriftEvidence() || $metadata === null || $metadata['source_path'] === null || $metadata['source_sha256'] === null || $metadata['representation_sha256'] === null) {
+            if (!$manifest->hasDriftEvidence()
+                || $metadata === null
+                || $metadata['semantic_owner'] === null
+                || $metadata['source_sha256'] === null
+                || $metadata['representation_sha256'] === null
+            ) {
+                $states['unverifiable'][] = $entry;
+
+                continue;
+            }
+
+            $sourcePath = ManagedAssetSource::resolvePersistedPath(
+                $metadata['semantic_owner'],
+                $metadata['source_reference'],
+                $metadata['source_path'],
+            );
+            if ($sourcePath === null) {
                 $states['unverifiable'][] = $entry;
 
                 continue;
@@ -65,7 +81,7 @@ final readonly class ManagedAssetDriftInspector
                 continue;
             }
 
-            $sourceDigest = InitSyncManifest::digestPath($metadata['source_path']);
+            $sourceDigest = InitSyncManifest::digestPath($sourcePath);
             if ($sourceDigest === null || !hash_equals($metadata['source_sha256'], $sourceDigest)) {
                 $states['stale'][] = $entry;
 

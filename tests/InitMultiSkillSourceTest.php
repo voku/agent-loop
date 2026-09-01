@@ -63,7 +63,7 @@ final class InitMultiSkillSourceTest extends TestCase
             64,
             JSON_THROW_ON_ERROR,
         );
-        self::assertSame(2, $manifest['version']);
+        self::assertSame(3, $manifest['version']);
         self::assertSame(
             ['code-review-security', 'workflow-discipline'],
             array_column($manifest['entries'], 'target'),
