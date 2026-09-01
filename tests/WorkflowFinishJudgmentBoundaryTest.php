@@ -93,6 +93,56 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertTrue($third['payload']['complete'] ?? false);
     }
 
+    public function testFollowUpLearningRefusalIsVisibleAndReferenceCompletesDecision(): void
+    {
+        [$runId] = $this->prepareRun('FINISH-FOLLOW-UP');
+        $first = $this->finish('FINISH-FOLLOW-UP', ['--format=json']);
+
+        self::assertSame(1, $first['exit']);
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-FOLLOW-UP');
+        self::assertTrue($review['exists']);
+        self::assertFalse($review['invalid']);
+        self::assertNotNull($review['sha256']);
+
+        $missingReference = $this->finish('FINISH-FOLLOW-UP', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+            '--learning', 'follow_up_required',
+            '--learning-reason', 'A bounded follow-up remains after this run.',
+        ]);
+
+        self::assertSame(1, $missingReference['exit']);
+        self::assertFalse($missingReference['payload']['complete'] ?? true);
+        self::assertSame('finish.closeout_failed', $missingReference['payload']['blockers'][0]['code'] ?? null);
+        self::assertStringContainsString(
+            'follow_up_required requires a follow-up reference.',
+            (string) ($missingReference['payload']['blockers'][0]['message'] ?? ''),
+        );
+
+        $run = (new GovernedRunStore($this->root))->find('FINISH-FOLLOW-UP');
+        self::assertNotNull($run);
+        $learningStore = new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run));
+        self::assertNull($learningStore->find($runId));
+
+        $withReference = $this->finish('FINISH-FOLLOW-UP', [
+            '--format=json',
+            '--by', 'fixture-reviewer',
+            '--learning', 'follow_up_required',
+            '--learning-reason', 'A bounded follow-up remains after this run.',
+            '--follow-up-ref', 'issue://voku/agent-loop/334',
+        ]);
+
+        self::assertSame(0, $withReference['exit'], json_encode($withReference['payload'], JSON_THROW_ON_ERROR));
+        self::assertTrue($withReference['payload']['complete'] ?? false);
+        self::assertSame('none', $withReference['payload']['next_action'] ?? null);
+
+        $decision = $learningStore->find($runId);
+        self::assertNotNull($decision);
+        self::assertSame(RunLearningDecisionStatus::FOLLOW_UP_REQUIRED, $decision->decision);
+        self::assertSame('issue://voku/agent-loop/334', $decision->followUpRef);
+    }
+
     public function testWrongReviewDigestCannotCreateAcknowledgement(): void
     {
         $this->prepareRun('FINISH-4');
