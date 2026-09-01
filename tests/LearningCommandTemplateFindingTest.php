@@ -10,7 +10,7 @@ use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 final class LearningCommandTemplateFindingTest extends TestCase
 {
-    public function testLearningTemplateNamesExistingFindingInput(): void
+    public function testLearningTemplateNamesConditionalFindingAndFollowUpInputs(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
             'FINDING-TEMPLATE',
@@ -34,5 +34,6 @@ final class LearningCommandTemplateFindingTest extends TestCase
             $policy->nextAction,
         );
         self::assertStringContainsString('[--finding <finding-id> ...]', $policy->nextAction);
+        self::assertStringContainsString('[--follow-up-ref <follow-up-ref>]', $policy->nextAction);
     }
 }
