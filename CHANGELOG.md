@@ -10,6 +10,35 @@ All notable changes to this project will be documented in this file.
 - `agent-loop init install-assets`: Added `--config` and `--extra-subagents-root` support. Configured repository skills (`paths.skills_root`) and subagents (`paths.subagents_root`) from `.agent-loop/init.json` are now automatically detected and merged with first-party package guidance instead of being marked as stale and removed.
 - `agent-loop init sync-subagents`: Added support for multiple `--subagents-root` directories.
 
+## 0.18.4 - 2026-09-01
+
+### Added
+
+- Extend the immutable `WorkflowPromptEnvelope` re-entry projection with the current approved Contract goal and a bounded `continuity_anchor` containing only the newest durable checkpoint from the exact Session identity selected by the current Run manifest.
+- Consume the released `agent-map 0.9` plan surface as a governed host, including `parameter_rename_plan@1.0` and `class_move_plan@1.0`, with shared hash-bound transactional application, rollback, current-Map verification, and clean installed-consumer lifecycle proof.
+
+### Changed
+
+- `WorkflowPromptService::continueTask()` renders the approved goal and latest durable checkpoint before current state and canonical next action, while the host-facing envelope schema remains explicit at `1.1` and existing positional construction stays compatible.
+- PHP navigation is adaptive rather than universally Map-first or CLI-first: use focused CLI reads for already-localized/literal facts, use `agent-map` for structural and relational questions, prefer an already-fresh Map, and do not pay a cold build merely to satisfy policy.
+- Tighten owner boundaries by consuming Session state through its typed handoff projection, routing Recall document manifests only through `ProjectLayout`, and keeping `itp-context` architecture metadata and dogfood helpers in the development graph rather than production autoload.
+- Move the supported consumer floor to released `voku/agent-map ^0.9.0` and `voku/agent-recall-compiler ^0.13.16`; installed refactor dogfood exercises the released package set rather than sibling or `dev-main` implementations.
+- Review guidance now treats Loop/Recall `review code` / `review first-draft` as the guaranteed default correctness-review capability. Installed `code-review-*` engineering lenses may deepen one dominant concern but their absence does not block an otherwise executable review. Governed close-out remains owned by `finish`; the ungoverned path reaches `review first-draft` before any task-bound status call.
+
+### Fixed
+
+- Make first-party managed-asset provenance portable across checkout/vendor relocation. Manifest v3 persists package-relative `source_reference` values for Loop/Recall-owned assets, resolves them against the currently installed owner root, keeps v1/v2 readable until resync, preserves SHA-256 drift detection, rejects unsafe references fail-closed, and represents the package root itself explicitly as `.`.
+- Surface the default Kanban false-green where a linked task is in `DOING` but Loop has neither a Contract nor a governed Run. Custom board topologies remain uninterpreted rather than acquiring a second hidden lifecycle mapping.
+- Keep the Learning follow-up command template executable by advertising the conditional `--follow-up-ref` input required by `follow_up_required` close-out.
+- Scaffolded workflow state ignores per-Run execution lock files; the locks remain synchronization residue and are not deleted in a way that could break inode-based exclusion.
+- Class-move publication may create only the required destination directories inside the Map root and restores them on rollback; post-apply verification binds the exact plan digest and current rebuilt Map instead of comparing pre-mutation provenance to post-mutation identity.
+
+### Validation
+
+- PR #329 restored the complete pre-corruption release history byte-for-byte from the immutable pre-#325 `CHANGELOG.md` blob before this section was re-prepared; no historical release prose is reconstructed from memory.
+- The original re-entry slice in PR #324 passed PHP 8.3/8.4/8.5 CI, diagnostics, PHPStan/project rules, installed release-set/refactor lifecycles, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint, and CodeRabbit on exact head `12d75916b3b3ecc1928981b0e9c3e6ca9ff22bea` before merge.
+- The complete 0.18.4 release candidate is gated again on exact-head PHP 8.3/8.4/8.5 CI and diagnostics, PHPStan/project rules, installed release-set and refactor lifecycles, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint, and review checks before any tag marker may name the immutable release target.
+
 ## 0.18.3 - 2026-08-28
 
 ### Fixed
