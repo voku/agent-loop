@@ -101,11 +101,36 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringContainsString('without downloading remote code', $result['output']);
     }
 
-    public function testConfigIsRejectedInsteadOfChangingPackageOwnedSources(): void
+    public function testConfigIncludesRepositoryConfiguredSkillsAndSubagents(): void
     {
+        mkdir($this->root . '/custom-skills/my-custom-skill', 0o775, true);
+        file_put_contents(
+            $this->root . '/custom-skills/my-custom-skill/SKILL.md',
+            "---\nname: my-custom-skill\ndescription: Custom skill.\n---\n\nSkill content.\n",
+        );
+        mkdir($this->root . '/custom-subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/custom-subagents/my-custom-subagent.md',
+            "---\nname: my-custom-subagent\ndescription: Custom subagent.\n---\n\nSubagent prompt.\n",
+        );
+        file_put_contents(
+            $this->root . '/custom-init.json',
+            json_encode([
+                'version' => 1,
+                'paths' => [
+                    'skills_root' => 'custom-skills',
+                    'subagents_root' => 'custom-subagents',
+                ],
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        );
+
         $result = $this->runCommand(['--agent=codex', '--config=custom-init.json']);
 
-        self::assertSame(1, $result['exit']);
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/my-custom-skill/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
+        self::assertFileExists($this->root . '/.codex/agents/my-custom-subagent.toml');
     }
 
     public function testClaudePreservesExistingSettingsAndDoesNotRegisterExecutableHooks(): void
@@ -221,6 +246,21 @@ final class InitInstallAssetsCommandTest extends TestCase
     public function testUnknownOptionFails(): void
     {
         self::assertSame(1, $this->runCommand(['--agent=codex', '--download'])['exit']);
+    }
+
+    public function testExtraSubagentsRootMergesSubagents(): void
+    {
+        mkdir($this->root . '/extra-subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/extra-subagents/extra-worker.md',
+            "---\nname: extra-worker\ndescription: Extra worker.\n---\n\nWorker prompt.\n",
+        );
+
+        $result = $this->runCommand(['--agent=codex', '--extra-subagents-root=extra-subagents']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
+        self::assertFileExists($this->root . '/.codex/agents/extra-worker.toml');
     }
 
     public function testDeclaredGitHookPolicyIsActivatedInTheSameRun(): void

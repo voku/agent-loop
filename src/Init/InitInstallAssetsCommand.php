@@ -7,6 +7,8 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 
 final readonly class InitInstallAssetsCommand
 {
@@ -24,6 +26,15 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
 
+        $requestedConfig = OptionTokens::value($tokens, 'config');
+        $layout = new ProjectLayout($this->rootPath);
+        $canonicalConfig = $layout->configPath();
+        $configPath = $requestedConfig ?? (is_file($canonicalConfig) ? $layout->display($canonicalConfig) : null);
+        $config = (new InitConfigLoader($this->rootPath))->load($configPath);
+        foreach ($config['warnings'] as $warning) {
+            echo $warning . "\n";
+        }
+
         $requestedAgent = OptionTokens::value($tokens, 'agent');
         if ($requestedAgent === null) {
             fwrite(\STDERR, "Missing required option: --agent\n");
@@ -36,6 +47,7 @@ final readonly class InitInstallAssetsCommand
                 $requestedAgent,
                 InitAgent::canonicalNames(),
                 true,
+                $config['agents'],
             );
         } catch (InvalidArgumentException $exception) {
             fwrite(\STDERR, $exception->getMessage() . "\n");
@@ -62,8 +74,31 @@ final readonly class InitInstallAssetsCommand
 
             return 1;
         }
-        $subagentsRoot = $packageRoot . '/docs/agents/subagents';
+
+        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
+        $configuredSkillsRoot = $paths->absoluteSkillsRoot();
+        if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $skillRoots, true)) {
+            $skillRoots[] = $configuredSkillsRoot;
+        }
         $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
+        foreach ($extraSkillRoots as $extraSkillRoot) {
+            $skillRoots[] = PathResolver::join($this->rootPath, $extraSkillRoot);
+        }
+
+        $subagentsRoot = $packageRoot . '/docs/agents/subagents';
+        $subagentRoots = [];
+        if (is_dir($subagentsRoot)) {
+            $subagentRoots[] = $subagentsRoot;
+        }
+        $configuredSubagentsRoot = $paths->absoluteSubagentsRoot();
+        if (is_dir($configuredSubagentsRoot) && !in_array($configuredSubagentsRoot, $subagentRoots, true)) {
+            $subagentRoots[] = $configuredSubagentsRoot;
+        }
+        $extraSubagentRoots = OptionTokens::values($tokens, 'extra-subagents-root');
+        foreach ($extraSubagentRoots as $extraSubagentRoot) {
+            $subagentRoots[] = PathResolver::join($this->rootPath, $extraSubagentRoot);
+        }
+
         $installsSubagents = $agent->isAll()
             || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
         $hookAgents = !$withHooks
@@ -72,12 +107,12 @@ final readonly class InitInstallAssetsCommand
 
         foreach ($skillRoots as $skillRoot) {
             if (!is_dir($skillRoot)) {
-                fwrite(\STDERR, 'First-party skills root is missing: ' . $skillRoot . "\n");
+                fwrite(\STDERR, 'Skills root is missing: ' . $skillRoot . "\n");
 
                 return 1;
             }
         }
-        if ($installsSubagents && !is_dir($subagentsRoot)) {
+        if ($installsSubagents && $subagentRoots === []) {
             fwrite(\STDERR, 'Bundled subagents root is missing: ' . $subagentsRoot . "\n");
 
             return 1;
@@ -96,11 +131,11 @@ final readonly class InitInstallAssetsCommand
         $skillArguments = [
             '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
         ];
+        if ($configPath !== null) {
+            $skillArguments[] = '--config=' . $configPath;
+        }
         foreach ($skillRoots as $skillRoot) {
             $skillArguments[] = '--skills-root=' . $skillRoot;
-        }
-        foreach ($extraSkillRoots as $extraSkillRoot) {
-            $skillArguments[] = '--skills-root=' . $extraSkillRoot;
         }
 
         $skillsExit = (new InitSyncSkillsCommand($this->rootPath))->run(array_merge(
@@ -112,11 +147,18 @@ final readonly class InitInstallAssetsCommand
         }
 
         if ($installsSubagents) {
+            $subagentArguments = [
+                '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
+            ];
+            if ($configPath !== null) {
+                $subagentArguments[] = '--config=' . $configPath;
+            }
+            foreach ($subagentRoots as $subagentRoot) {
+                $subagentArguments[] = '--subagents-root=' . $subagentRoot;
+            }
+
             $subagentsExit = (new InitSyncSubagentsCommand($this->rootPath))->run(array_merge(
-                [
-                    '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
-                    '--subagents-root=' . $subagentsRoot,
-                ],
+                $subagentArguments,
                 $forwarded,
             ));
             if ($subagentsExit !== 0) {
@@ -155,9 +197,16 @@ final readonly class InitInstallAssetsCommand
             ? '[IMPORTANT] install assets: executable host hooks were explicitly requested with --with-hooks.' . "\n"
             : '[INFO] install assets: executable host hooks were not registered; rerun with --with-hooks to opt in.' . "\n";
 
-        $sourceDescription = $extraSkillRoots === []
+        $extraSources = [];
+        if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $this->firstPartySkillRoots($packageRoot), true)) {
+            $extraSources[] = 'configured repository guidance';
+        }
+        if ($extraSkillRoots !== []) {
+            $extraSources[] = count($extraSkillRoots) . ' explicit local skill source(s)';
+        }
+        $sourceDescription = $extraSources === []
             ? 'first-party package guidance'
-            : 'first-party package guidance plus ' . count($extraSkillRoots) . ' explicit local skill source(s)';
+            : 'first-party package guidance plus ' . implode(' and ', $extraSources);
 
         echo $dryRun
             ? '[DRY-RUN] install assets: ' . $sourceDescription . ' validated; no files written.' . "\n"
@@ -224,7 +273,7 @@ final readonly class InitInstallAssetsCommand
     /** @param list<string> $tokens */
     private function validateTokens(array $tokens): ?string
     {
-        $valueOptions = ['agent', 'extra-skills-root'];
+        $valueOptions = ['agent', 'config', 'extra-skills-root', 'extra-subagents-root'];
         $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config', 'with-hooks'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {

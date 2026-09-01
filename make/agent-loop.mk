@@ -43,6 +43,10 @@ agent_init_status:
 agent_init_host_status:
 	$(AGENT_LOOP_INIT) host-status --format=json
 
+.PHONY: agent_init_tools ## probe and cache reachability of CLI tools
+agent_init_tools:
+	$(AGENT_LOOP_INIT) tools $(ARGS)
+
 .PHONY: validate_agent_skills ## validate repo-managed agent skill definitions
 validate_agent_skills:
 	$(AGENT_LOOP_INIT) validate --kind=skills $(AGENT_LOOP_WITH_CONFIG)

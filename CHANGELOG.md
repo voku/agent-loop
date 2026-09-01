@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- `make/agent-loop.mk`: Added `agent_init_tools` target to probe and cache CLI tool availability.
+- `agent-loop init install-assets`: Added `--config` and `--extra-subagents-root` support. Configured repository skills (`paths.skills_root`) and subagents (`paths.subagents_root`) from `.agent-loop/init.json` are now automatically detected and merged with first-party package guidance instead of being marked as stale and removed.
+- `agent-loop init sync-subagents`: Added support for multiple `--subagents-root` directories.
+
 ## 0.18.3 - 2026-08-28
 
 ### Fixed

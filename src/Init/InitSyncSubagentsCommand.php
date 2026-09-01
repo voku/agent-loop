@@ -50,14 +50,21 @@ final readonly class InitSyncSubagentsCommand
             echo $message . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
+        $requestedSubagentRoots = OptionTokens::values($tokens, 'subagents-root');
+        $subagentRoots = $requestedSubagentRoots === []
+            ? [$paths->absoluteSubagentsRoot()]
+            : array_values(array_unique(array_map(
+                fn (string $path): string => PathResolver::join($this->rootPath, $path),
+                $requestedSubagentRoots,
+            )));
         $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
         $force = OptionTokens::hasFlag($tokens, 'force');
         $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
 
         $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
         foreach ($agents as $canonicalAgent) {
-            $exit = $this->syncAgent($canonicalAgent, $paths, $dryRun, $force, $adoptExisting);
+            $exit = $this->syncAgent($canonicalAgent, $subagentRoots, $paths, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
                 return $exit;
             }
@@ -66,11 +73,23 @@ final readonly class InitSyncSubagentsCommand
         return 0;
     }
 
-    private function syncAgent(string $agent, AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
+    /**
+     * @param non-empty-list<string> $subagentRoots
+     */
+    private function syncAgent(string $agent, array $subagentRoots, AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
     {
-        $sourceFiles = $this->findSubagentFiles($paths->absoluteSubagentsRoot());
+        $collected = $this->findSubagentFiles($subagentRoots);
+        if ($collected['errors'] !== []) {
+            foreach ($collected['errors'] as $error) {
+                echo $error . "\n";
+            }
+
+            return 1;
+        }
+
+        $sourceFiles = array_values($collected['files']);
         if ($sourceFiles === []) {
-            echo '[WARN] sync subagents: no subagents found under ' . $paths->subagentsRoot() . '/*.md' . "\n";
+            echo '[WARN] sync subagents: no subagents found under ' . implode(', ', array_map($this->displayPath(...), $subagentRoots)) . "\n";
 
             return 0;
         }
@@ -242,15 +261,9 @@ final readonly class InitSyncSubagentsCommand
         return is_file($path) || is_dir($path) || is_link($path);
     }
 
-    /**
-     * @param list<string> $tokens
-     * @return array<string, string>
-     */
-    private function readPathOverrides(array $tokens): array
+    private function displayPath(string $path): string
     {
-        $value = OptionTokens::value($tokens, 'subagents-root');
-
-        return $value === null ? [] : ['subagents-root' => $value];
+        return PathResolver::relativeTo($this->rootPath, $path);
     }
 
     /**
@@ -286,28 +299,50 @@ final readonly class InitSyncSubagentsCommand
     }
 
     /**
-     * @return list<string>
+     * @param non-empty-list<string> $subagentRoots
+     * @return array{files: array<string, string>, errors: list<string>}
      */
-    private function findSubagentFiles(string $subagentsRoot): array
+    private function findSubagentFiles(array $subagentRoots): array
     {
-        if (!is_dir($subagentsRoot)) {
-            return [];
-        }
-
         $files = [];
-        foreach (scandir($subagentsRoot) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
+        $sources = [];
+        $errors = [];
+
+        foreach ($subagentRoots as $subagentsRoot) {
+            if (!is_dir($subagentsRoot)) {
                 continue;
             }
 
-            $path = $subagentsRoot . '/' . $entry;
-            if (is_file($path)) {
-                $files[] = $path;
+            $entries = scandir($subagentsRoot);
+            if ($entries === false) {
+                $errors[] = '[FAIL] sync subagents: unable to read source root: ' . $this->displayPath($subagentsRoot);
+
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
+                    continue;
+                }
+
+                $path = $subagentsRoot . '/' . $entry;
+                if (!is_file($path)) {
+                    continue;
+                }
+
+                if (isset($files[$entry])) {
+                    $errors[] = '[FAIL] sync subagents: duplicate subagent file ' . $entry . ' from ' . $sources[$entry] . ' and ' . $this->displayPath($path);
+
+                    continue;
+                }
+
+                $files[$entry] = $path;
+                $sources[$entry] = $this->displayPath($path);
             }
         }
 
-        sort($files);
+        ksort($files);
 
-        return $files;
+        return ['files' => $files, 'errors' => $errors];
     }
 }

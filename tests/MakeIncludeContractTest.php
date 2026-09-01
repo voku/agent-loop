@@ -31,6 +31,8 @@ final class MakeIncludeContractTest extends TestCase
             'agent_init_doctor',
             'agent_init_install_plan',
             'agent_init_status',
+            'agent_init_host_status',
+            'agent_init_tools',
             'validate_agent_skills',
             'validate_agent_subagents',
             'validate_codex_hooks',
