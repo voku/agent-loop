@@ -100,11 +100,16 @@ final readonly class ManagedAssetSource
 
     private static function relativeTo(string $path, string $root): string
     {
-        return ltrim(substr($path, strlen(rtrim($root, '/'))), '/');
+        $reference = ltrim(substr($path, strlen(rtrim($root, '/'))), '/');
+
+        return $reference === '' ? '.' : $reference;
     }
 
     private static function validReference(string $reference): bool
     {
+        if ($reference === '.') {
+            return true;
+        }
         if ($reference === '' || str_starts_with($reference, '/') || str_contains($reference, '\\')) {
             return false;
         }
