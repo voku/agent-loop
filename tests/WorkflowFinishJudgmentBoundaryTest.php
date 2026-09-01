@@ -137,7 +137,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertTrue($withReference['payload']['complete'] ?? false);
         self::assertSame('none', $withReference['payload']['next_action'] ?? null);
 
-        $decision = $learningStore->find($runId);
+        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId);
         self::assertNotNull($decision);
         self::assertSame(RunLearningDecisionStatus::FOLLOW_UP_REQUIRED, $decision->decision);
         self::assertSame('issue://voku/agent-loop/334', $decision->followUpRef);
