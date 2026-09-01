@@ -35,27 +35,28 @@ final class WorkflowFinishFindingTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testFinishCreatesValidatedFindingWithoutFindingIdOrHandWrittenJson(): void
+    public function testFinishBindsAValidatedFindingToAnAdHocWorkflowTaskWithoutHandWrittenJson(): void
     {
+        $taskId = 'ad-hoc-learning-lineage-001';
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
-            'FINDING-1',
+            $taskId,
             'Create durable Learning through the owner API.',
             ['src/Foo.php'],
             [],
             ['php -r "exit(0);"'],
             'fixture-planner',
         );
-        $contract = $contracts->approve('FINDING-1', 'fixture-approver');
-        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'FINDING-1', by: 'fixture-agent');
+        $contract = $contracts->approve($taskId, 'fixture-approver');
+        $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', $taskId, by: 'fixture-agent');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
 
-        $recall = $this->root . '/.agent-loop/recall/FINDING-1';
+        $recall = $this->root . '/.agent-loop/recall/' . $taskId;
         mkdir($recall, 0o775, true);
         file_put_contents($recall . '/meta.json', json_encode([
             'schema_version' => '1.0',
-            'task_id' => 'FINDING-1',
-            'compilation_id' => 'finding-1-fixture',
+            'task_id' => $taskId,
+            'compilation_id' => $taskId . '-fixture',
             'bundle_sha256' => str_repeat('a', 64),
             'selected_guidance' => [],
             'selected_constraints' => [],
@@ -63,14 +64,14 @@ final class WorkflowFinishFindingTest extends TestCase
         ], JSON_THROW_ON_ERROR));
         file_put_contents($recall . '/validation-plan.md', "# Validation\n\nRun the approved command.\n");
 
-        $prepared = $this->finish('FINDING-1', ['--format=json']);
+        $prepared = $this->finish($taskId, ['--format=json']);
         self::assertSame(1, $prepared['exit']);
 
-        $review = (new WorkflowReviewReportReader($this->root))->read('FINDING-1');
+        $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
         self::assertSame('unacknowledged', $review['status']);
         self::assertNotNull($review['sha256']);
 
-        $closed = $this->finish('FINDING-1', [
+        $closed = $this->finish($taskId, [
             '--format=json',
             '--reviewed-report-sha256', (string) $review['sha256'],
             '--learning', 'findings_recorded',
@@ -95,7 +96,7 @@ final class WorkflowFinishFindingTest extends TestCase
         $findings = (new FindingRepository())->loadValidated($learningRoot);
         $finding = $findings[$decision->findingIds[0]] ?? null;
         self::assertNotNull($finding);
-        self::assertSame('FINDING-1', $finding->taskId);
+        self::assertSame($taskId, $finding->taskId);
         self::assertSame($session->id, $finding->session);
         self::assertSame(['src/Foo.php'], $finding->scope);
         self::assertSame('finish can create a validated Finding through FindingCreator.', $finding->validatedConclusion);

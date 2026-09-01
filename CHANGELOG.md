@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- `agent-loop enter` text output now renders the exact candidate Contract revision and complete goal before its human approval command, matching the structured decision projection.
+- Require `voku/agent-learning ^0.14.2` so governed Runs with multi-segment ad-hoc task IDs can record Findings bound to their exact task and Session lineage without weakening those checks.
+
 ## 0.18.5 - 2026-09-01
 
 ### Added

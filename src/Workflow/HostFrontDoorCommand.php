@@ -142,6 +142,7 @@ final readonly class HostFrontDoorCommand
             echo 'Mode: ' . $manifest->mode . "\n";
             echo 'State: ' . $policy->state . "\n";
             echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
+            $this->printCandidateApprovalSubject($taskId->value, $policy->nextActionKind);
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
             foreach ($warnings as $warning) {
@@ -165,6 +166,23 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->mutationAllowed ? 0 : 1;
+    }
+
+    private function printCandidateApprovalSubject(string $taskId, string $nextActionKind): void
+    {
+        if ($nextActionKind !== RunPolicyEvaluation::KIND_DECISION_REQUIRED) {
+            return;
+        }
+
+        $available = (new WorkflowHumanDecisionService($this->rootPath))->availableActions($taskId);
+        if (!$available->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {
+            return;
+        }
+
+        $contract = (new TaskContractStore($this->rootPath))->load($taskId);
+        echo "Approval subject:\n";
+        echo "  Contract revision: {$contract->revision}\n";
+        echo "  Goal:\n    {$contract->goal}\n";
     }
 
     /** @param list<string> $args */

@@ -54,6 +54,28 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame($before, $this->snapshotFiles(), 'enter must not create or modify workflow state.');
     }
 
+    public function testEnterTextShowsTheFullCandidateGoalBeforeApprovalAction(): void
+    {
+        $goal = 'Show this complete goal before an approver is asked to decide.';
+        (new TaskContractStore($this->root))->create(
+            'TEXT-1',
+            $goal,
+            ['src/Foo.php'],
+            [],
+            ['vendor/bin/phpunit'],
+            'fixture-planner',
+        );
+
+        $result = $this->runBinary(['enter', 'TEXT-1']);
+
+        self::assertSame(1, $result['exit'], $result['stderr']);
+        $goalOffset = strpos($result['stdout'], "Approval subject:\n  Contract revision: 1\n  Goal:\n    " . $goal);
+        $nextOffset = strpos($result['stdout'], 'Next: agent-loop workflow approve TEXT-1 --by <named-actor>');
+        self::assertNotFalse($goalOffset, $result['stdout']);
+        self::assertNotFalse($nextOffset, $result['stdout']);
+        self::assertLessThan($nextOffset, $goalOffset, $result['stdout']);
+    }
+
     public function testEnterJsonRemainsOneDocumentWhileRecallIsPrepared(): void
     {
         $docsDirectory = $this->root . '/docs';
