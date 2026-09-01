@@ -1,0 +1,30 @@
+{
+    "id": "finding.2026-09-01.40eb2e",
+    "task_id": "TODO@agent-loop/instruction-projection-symlink",
+    "session": "2026-09-01-init-instructions-symlink-safety-001-r1-3bfb3427",
+    "created_at": "2026-09-01T11:39:24+00:00",
+    "created_by": "moellekenl",
+    "scope": [
+        "src/Init/InitSyncInstructionsCommand.php",
+        "src/Init/RepositoryInstructionSynchronizer.php"
+    ],
+    "observation": "agent-loop init sync-instructions projiziert AGENTS.md und zusaetzlich Import-Dateien wie CLAUDE.md/GEMINI.md. In IT-Portal ist CLAUDE.md ein Symlink auf AGENTS.md, daher schrieb die Import-Projektion durch den Link und ersetzte den kompletten Router-Block in AGENTS.md durch @AGENTS.md.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": "src/Init/InitSyncInstructionsCommand.php",
+            "line": 64,
+            "summary": "syncImportFile(CLAUDE.md, @AGENTS.md) wrote through a symlink whose target is AGENTS.md, replacing the router block with an import of itself."
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "Reproduced on the real 40KB IT-Portal AGENTS.md: before the fix the router block was replaced by @AGENTS.md; after the fix the md5 is unchanged and the skip is reported."
+        }
+    ],
+    "hypothesis": "Der vorhandene Schutz greift nur, wenn die Datei keinen Managed-Marker hat und bereits AGENTS.md importiert. Ueber einen Symlink liest der Befehl den Inhalt des Ziels, der einen Managed-Marker enthaelt, wodurch genau die Schutzbedingung ausgehebelt wird.",
+    "validated_conclusion": "Ein Projektor, der mehrere well-known Pfade schreibt, muss vor dem Schreiben realpath() vergleichen und ein Ziel ueberspringen, das auf ein anderes verwaltetes Ziel zeigt. Ausserdem muss die zugehoerige is-current-Pruefung diesen Fall als aktuell melden, sonst verlangt host-status endlos denselben zerstoererischen Schreibvorgang.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}
