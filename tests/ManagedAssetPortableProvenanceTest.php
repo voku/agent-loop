@@ -65,6 +65,19 @@ final class ManagedAssetPortableProvenanceTest extends TestCase
         self::assertSame([], $states['unverifiable']);
     }
 
+    public function testPackageRootProjectionUsesExplicitPortableRootReference(): void
+    {
+        $packageRoot = dirname(__DIR__);
+        $source = ManagedAssetSource::fromPath($this->root, $packageRoot, 'skill:package-root');
+
+        self::assertSame('voku/agent-loop', $source->owner);
+        self::assertSame('.', $source->reference);
+        self::assertSame(
+            realpath($packageRoot),
+            ManagedAssetSource::resolvePersistedPath($source->owner, $source->reference, null),
+        );
+    }
+
     public function testPortableReferenceStillDetectsSourceDigestDrift(): void
     {
         $sourcePath = dirname(__DIR__) . '/src/Init/ManagedAssetSource.php';
