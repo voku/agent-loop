@@ -58,6 +58,10 @@ final class InstalledCodeReviewReachabilityTest extends TestCase
             $skill,
         );
         self::assertStringContainsString(
+            'guaranteed default correctness-review capability',
+            $reviewer,
+        );
+        self::assertStringContainsString(
             'do not block merely because no optional lens is installed',
             $reviewer,
         );
