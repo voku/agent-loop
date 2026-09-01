@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Run;
 use RuntimeException;
 use Throwable;
 use voku\AgentKanban\Cli\BoardContextFactory;
+use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -78,7 +79,7 @@ final readonly class RunManifestProjector
             MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
         );
         $references = [
-            'board' => $this->boardReference($taskId, $disagreements),
+            'board' => $this->boardReference($taskId, $contract, $run, $disagreements),
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract, $run),
             'approval' => $this->approvalReference($contract),
@@ -193,8 +194,12 @@ final readonly class RunManifestProjector
      * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
-    private function boardReference(string $taskId, array &$disagreements): array
-    {
+    private function boardReference(
+        string $taskId,
+        ?TaskContract $contract,
+        ?GovernedRun $run,
+        array &$disagreements,
+    ): array {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
         $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
         $metadataPath = rtrim($boardRoot, '/') . '/todo/board.md';
@@ -229,6 +234,23 @@ final readonly class RunManifestProjector
                 ];
             }
             $card = $repository->load($cardId);
+            if (
+                $contract === null
+                && $run === null
+                && $this->usesDefaultBoardTopology($context->config)
+                && $card->lane->toString() === 'DOING'
+            ) {
+                $disagreements[] = [
+                    'code' => 'board.active_without_governed_lifecycle',
+                    'owner' => 'agent-loop',
+                    'message' => sprintf(
+                        'Default Kanban card %s is in DOING while agent-loop has no Contract or governed Run. '
+                        . 'Create and approve a Contract and enter a governed Run before keeping the card in DOING, '
+                        . 'or move the card to a non-active lane.',
+                        $taskId,
+                    ),
+                ];
+            }
 
             return [
                 'owner' => 'agent-kanban',
@@ -263,6 +285,12 @@ final readonly class RunManifestProjector
         }
 
         return ['mode' => 'inferred'];
+    }
+
+    private function usesDefaultBoardTopology(BoardConfig $config): bool
+    {
+        return $config->lanes === BoardConfig::DEFAULT_LANES
+            && $config->transitions === BoardConfig::DEFAULT_TRANSITIONS;
     }
 
     /** @return array<string, mixed> */
@@ -550,8 +578,6 @@ final readonly class RunManifestProjector
                 'gate' => $failure['gate'] ?? 'unknown',
                 'reason' => $failure['detail'] ?? 'workflow close readiness failed without detail',
                 'action' => $this->closeReadinessAction($taskId, $readiness),
-                // Owner-supplied so the policy evaluator does not have to read
-                // the reason prose to tell a failed obligation from a missing one.
                 'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
             ];
@@ -610,8 +636,6 @@ final readonly class RunManifestProjector
                 'code' => 'review.report_invalid',
                 'owner' => 'agent-recall-compiler',
                 'message' => $reader->relativePath($taskId) . ' is not a valid blind-spot report.',
-                // The owner can regenerate this one, so the canonical next step
-                // can be the repair rather than an inspection command.
                 'repair_action' => 'agent-loop review blindspots ' . $taskId,
             ];
 
