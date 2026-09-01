@@ -15,9 +15,10 @@ final class InitSyncManifest
     private const string FILE_NAME = '.agent-loop-manifest.json';
     private const int LEGACY_VERSION = 1;
     private const int DRIFT_VERSION = 2;
+    private const int PORTABLE_PROVENANCE_VERSION = 3;
 
     /**
-     * @param array<string, array{source_id:string|null,semantic_owner:string|null,source_path:string|null,source_sha256:string|null,representation_sha256:string|null,adopted:bool}> $entries
+     * @param array<string, array{source_id:string|null,semantic_owner:string|null,source_path:string|null,source_reference:string|null,source_sha256:string|null,representation_sha256:string|null,adopted:bool}> $entries
      * @param list<string> $requiredCapabilities
      */
     private function __construct(
@@ -39,7 +40,7 @@ final class InitSyncManifest
     {
         $path = rtrim($targetRoot, '/') . '/' . self::FILE_NAME;
         if (!is_file($path)) {
-            return new self($path, $kind, $agent, [], [], self::DRIFT_VERSION);
+            return new self($path, $kind, $agent, [], [], self::PORTABLE_PROVENANCE_VERSION);
         }
 
         $raw = file_get_contents($path);
@@ -57,7 +58,7 @@ final class InitSyncManifest
             throw new InvalidArgumentException('Invalid sync manifest shape: ' . $path);
         }
         $version = $decoded['version'] ?? null;
-        if (!in_array($version, [self::LEGACY_VERSION, self::DRIFT_VERSION], true)) {
+        if (!in_array($version, [self::LEGACY_VERSION, self::DRIFT_VERSION, self::PORTABLE_PROVENANCE_VERSION], true)) {
             throw new InvalidArgumentException('Unsupported sync manifest version: ' . $path);
         }
         if (($decoded['kind'] ?? null) !== $kind || ($decoded['agent'] ?? null) !== $agent) {
@@ -69,12 +70,14 @@ final class InitSyncManifest
             throw new InvalidArgumentException('Sync manifest entries must be a list: ' . $path);
         }
 
-        $entries = $version === self::LEGACY_VERSION
-            ? self::parseLegacyEntries($rawEntries, $path)
-            : self::parseDriftEntries($rawEntries, $path);
+        $entries = match ($version) {
+            self::LEGACY_VERSION => self::parseLegacyEntries($rawEntries, $path),
+            self::DRIFT_VERSION => self::parseDriftEntries($rawEntries, $path, false),
+            self::PORTABLE_PROVENANCE_VERSION => self::parseDriftEntries($rawEntries, $path, true),
+        };
 
         $requiredCapabilities = [];
-        if ($version === self::DRIFT_VERSION) {
+        if ($version !== self::LEGACY_VERSION) {
             $rawCapabilities = $decoded['required_capabilities'] ?? [];
             if (!is_array($rawCapabilities) || !array_is_list($rawCapabilities)) {
                 throw new InvalidArgumentException('Sync manifest required_capabilities must be a list: ' . $path);
@@ -126,7 +129,7 @@ final class InitSyncManifest
 
     public function hasDriftEvidence(): bool
     {
-        return $this->version === self::DRIFT_VERSION;
+        return $this->version !== self::LEGACY_VERSION;
     }
 
     /** @return list<string> */
@@ -136,7 +139,7 @@ final class InitSyncManifest
     }
 
     /**
-     * @return array{source_id:string|null,semantic_owner:string|null,source_path:string|null,source_sha256:string|null,representation_sha256:string|null,adopted:bool}|null
+     * @return array{source_id:string|null,semantic_owner:string|null,source_path:string|null,source_reference:string|null,source_sha256:string|null,representation_sha256:string|null,adopted:bool}|null
      */
     public function entry(string $entry): ?array
     {
@@ -191,13 +194,14 @@ final class InitSyncManifest
             $entry = [
                 'source_id' => $source->id,
                 'semantic_owner' => $source->owner,
-                'source_path' => $source->path,
+                'source_path' => $source->reference === null ? $source->path : null,
+                'source_reference' => $source->reference,
                 'source_sha256' => $sourceDigest,
                 'representation_sha256' => $representationDigest,
                 'adopted' => isset($adopted[$target]),
             ];
             $entries[$target] = $entry;
-            $records[] = ['target' => $target] + $entry;
+            $records[] = self::projectionRecord($target, $entry, self::PORTABLE_PROVENANCE_VERSION);
         }
 
         $capabilityValues = array_values(array_unique(array_map(
@@ -207,7 +211,7 @@ final class InitSyncManifest
         sort($capabilityValues, SORT_STRING);
 
         $this->writePayload([
-            'version' => self::DRIFT_VERSION,
+            'version' => self::PORTABLE_PROVENANCE_VERSION,
             'kind' => $this->kind,
             'agent' => $this->agent,
             'required_capabilities' => $capabilityValues,
@@ -216,7 +220,7 @@ final class InitSyncManifest
 
         $this->entries = $entries;
         $this->requiredCapabilities = $capabilityValues;
-        $this->version = self::DRIFT_VERSION;
+        $this->version = self::PORTABLE_PROVENANCE_VERSION;
     }
 
     /**
@@ -260,11 +264,11 @@ final class InitSyncManifest
         ksort($retained, SORT_STRING);
         $records = [];
         foreach ($retained as $target => $entry) {
-            $records[] = ['target' => $target] + $entry;
+            $records[] = self::projectionRecord($target, $entry, $this->version);
         }
 
         $this->writePayload([
-            'version' => self::DRIFT_VERSION,
+            'version' => $this->version,
             'kind' => $this->kind,
             'agent' => $this->agent,
             'required_capabilities' => $this->requiredCapabilities,
@@ -353,7 +357,7 @@ final class InitSyncManifest
 
     /**
      * @param list<mixed> $rawEntries
-     * @return array<string, array{source_id:null,semantic_owner:null,source_path:null,source_sha256:null,representation_sha256:null,adopted:false}>
+     * @return array<string, array{source_id:null,semantic_owner:null,source_path:null,source_reference:null,source_sha256:null,representation_sha256:null,adopted:false}>
      */
     private static function parseLegacyEntries(array $rawEntries, string $path): array
     {
@@ -366,6 +370,7 @@ final class InitSyncManifest
                 'source_id' => null,
                 'semantic_owner' => null,
                 'source_path' => null,
+                'source_reference' => null,
                 'source_sha256' => null,
                 'representation_sha256' => null,
                 'adopted' => false,
@@ -378,9 +383,9 @@ final class InitSyncManifest
 
     /**
      * @param list<mixed> $rawEntries
-     * @return array<string, array{source_id:string,semantic_owner:string,source_path:string,source_sha256:string,representation_sha256:string,adopted:bool}>
+     * @return array<string, array{source_id:string,semantic_owner:string,source_path:string|null,source_reference:string|null,source_sha256:string,representation_sha256:string,adopted:bool}>
      */
-    private static function parseDriftEntries(array $rawEntries, string $path): array
+    private static function parseDriftEntries(array $rawEntries, string $path, bool $portableProvenance): array
     {
         $entries = [];
         foreach ($rawEntries as $record) {
@@ -391,13 +396,27 @@ final class InitSyncManifest
             $sourceId = $record['source_id'] ?? null;
             $owner = $record['semantic_owner'] ?? null;
             $sourcePath = $record['source_path'] ?? null;
+            $sourceReference = $portableProvenance ? ($record['source_reference'] ?? null) : null;
             $sourceSha = $record['source_sha256'] ?? null;
             $representationSha = $record['representation_sha256'] ?? null;
             $adopted = $record['adopted'] ?? false;
-            foreach ([$target, $sourceId, $owner, $sourcePath, $sourceSha, $representationSha] as $value) {
+            foreach ([$target, $sourceId, $owner, $sourceSha, $representationSha] as $value) {
                 if (!is_string($value) || trim($value) === '') {
                     throw new InvalidArgumentException('Sync manifest projection metadata must use non-empty strings: ' . $path);
                 }
+            }
+            if ($portableProvenance) {
+                if ($sourcePath !== null && (!is_string($sourcePath) || trim($sourcePath) === '')) {
+                    throw new InvalidArgumentException('Sync manifest source_path must be null or a non-empty string: ' . $path);
+                }
+                if ($sourceReference !== null && (!is_string($sourceReference) || trim($sourceReference) === '')) {
+                    throw new InvalidArgumentException('Sync manifest source_reference must be null or a non-empty string: ' . $path);
+                }
+                if (($sourcePath === null) === ($sourceReference === null)) {
+                    throw new InvalidArgumentException('Sync manifest projection must contain exactly one source locator: ' . $path);
+                }
+            } elseif (!is_string($sourcePath) || trim($sourcePath) === '') {
+                throw new InvalidArgumentException('Sync manifest projection metadata must use non-empty strings: ' . $path);
             }
             if (!is_bool($adopted)) {
                 throw new InvalidArgumentException('Sync manifest adopted flag must be boolean: ' . $path);
@@ -412,6 +431,7 @@ final class InitSyncManifest
                 'source_id' => $sourceId,
                 'semantic_owner' => $owner,
                 'source_path' => $sourcePath,
+                'source_reference' => $sourceReference,
                 'source_sha256' => $sourceSha,
                 'representation_sha256' => $representationSha,
                 'adopted' => $adopted,
@@ -420,6 +440,28 @@ final class InitSyncManifest
         ksort($entries, SORT_STRING);
 
         return $entries;
+    }
+
+    /**
+     * @param array{source_id:string|null,semantic_owner:string|null,source_path:string|null,source_reference:string|null,source_sha256:string|null,representation_sha256:string|null,adopted:bool} $entry
+     * @return array<string, string|bool|null>
+     */
+    private static function projectionRecord(string $target, array $entry, int $version): array
+    {
+        $record = [
+            'target' => $target,
+            'source_id' => $entry['source_id'],
+            'semantic_owner' => $entry['semantic_owner'],
+            'source_path' => $entry['source_path'],
+        ];
+        if ($version === self::PORTABLE_PROVENANCE_VERSION) {
+            $record['source_reference'] = $entry['source_reference'];
+        }
+        $record['source_sha256'] = $entry['source_sha256'];
+        $record['representation_sha256'] = $entry['representation_sha256'];
+        $record['adopted'] = $entry['adopted'];
+
+        return $record;
     }
 
     /** @param array<string, mixed> $payload */
