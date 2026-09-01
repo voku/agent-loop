@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
-use ItpContext\Attribute\Rule;
 use voku\AgentLoop\Cli\OptionTokens;
-use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -17,8 +15,6 @@ use voku\AgentLoop\ProjectLayout;
  * are read-only diagnostics of repo-managed agent assets and never write files.
  * InitToolsCommand's whole purpose is to write a small, gitignored cache file.
  */
-#[Rule(ArchitectureRules::ExternalToolsStayOptional)]
-#[Rule(ArchitectureRules::SingleStatePathOwner)]
 final readonly class InitToolsCommand
 {
     /**

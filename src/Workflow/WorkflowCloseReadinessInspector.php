@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use ItpContext\Attribute\Rule;
 use voku\AgentLearning\RunLearningDecisionStore;
 use RuntimeException;
 use voku\AgentLoop\AgentLoopVerifier;
-use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
@@ -20,7 +18,6 @@ use voku\AgentSession\ValidationStatus;
  * Single read-only owner for the gates that decide whether normal workflow
  * close can succeed. Mutations remain in WorkflowCloseCommand.
  */
-#[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
 final readonly class WorkflowCloseReadinessInspector
 {
     public function __construct(private string $rootPath)
