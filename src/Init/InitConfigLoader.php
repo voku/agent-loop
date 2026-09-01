@@ -86,6 +86,7 @@ final readonly class InitConfigLoader
                 'sessions_root',
                 'learning_root',
                 'recall_root',
+                'map_root',
             ] as $key) {
                 $value = $paths[$key] ?? null;
                 if (is_string($value) && $value !== '') {

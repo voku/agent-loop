@@ -95,6 +95,25 @@ final class ProjectLayoutOwnershipTest extends TestCase
         self::assertSame('.agent-loop/runs', $layout->display($layout->runsRoot()));
     }
 
+    /**
+     * A project that already builds an agent-map index somewhere else kept a
+     * second, weaker copy under the state root, and the workflow read that one.
+     */
+    public function testMapRootCanPointAtAnIndexTheProjectAlreadyMaintains(): void
+    {
+        $this->writeConfig(['map_root' => '.agent-map']);
+        $layout = new ProjectLayout($this->root);
+
+        self::assertSame($this->root . '/.agent-map', $layout->mapRoot());
+        self::assertSame('.agent-map/php-symbols.json', $layout->display($layout->mapIndex()));
+        self::assertSame('.agent-map/search.sqlite', $layout->display($layout->mapSearchIndex()));
+    }
+
+    public function testMapRootDefaultsToTheStateRoot(): void
+    {
+        self::assertSame('.agent-loop/map', (new ProjectLayout($this->root))->display((new ProjectLayout($this->root))->mapRoot()));
+    }
+
     public function testProjectRecallDocumentManifestsArePortableAndDeterministic(): void
     {
         mkdir($this->root . '/docs/agents', 0o775, true);

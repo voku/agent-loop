@@ -132,9 +132,14 @@ final readonly class ProjectLayout
         return $this->stateRoot() . '/risks';
     }
 
+    /**
+     * A project that already maintains an agent-map index elsewhere should point
+     * at it rather than keep a second, weaker copy. Two indexes always diverge,
+     * and the one the workflow reads is then not the one the project builds.
+     */
     public function mapRoot(): string
     {
-        return $this->stateRoot() . '/map';
+        return $this->configured('map_root') ?? $this->stateRoot() . '/map';
     }
 
     public function mapIndex(): string
