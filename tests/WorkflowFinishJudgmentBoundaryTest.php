@@ -190,8 +190,168 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         );
     }
 
-    /** @return array{0: string, 1: string} */
-    private function prepareRun(string $taskId): array
+    public function testSuppliedRecallOutcomeDraftClosesTheRunInTheSameFinishCall(): void
+    {
+        [, $sessionId] = $this->prepareRun('FINISH-RECALL-CLOSE', ['guidance.finish-recall-close']);
+        $draft = $this->root . '/.agent-loop/recall/FINISH-RECALL-CLOSE/recall-log.draft.json';
+        file_put_contents($draft, json_encode(['guidance_outcomes' => []], JSON_THROW_ON_ERROR));
+
+        $first = $this->finish('FINISH-RECALL-CLOSE', ['--format=json']);
+        self::assertSame(1, $first['exit']);
+
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-RECALL-CLOSE');
+        self::assertNotNull($review['sha256']);
+
+        $calls = [];
+        $second = $this->finish(
+            'FINISH-RECALL-CLOSE',
+            [
+                '--format=json',
+                '--reviewed-report-sha256', (string) $review['sha256'],
+                '--by', 'fixture-reviewer',
+                '--learning', 'no_durable_learning',
+                '--learning-reason', 'No durable workflow learning from this bounded fixture.',
+                '--recall-outcome-draft', $draft,
+                '--commit', 'working-tree',
+            ],
+            function (array $args) use (&$calls): int {
+                $calls[] = $args;
+                $this->recordRecallOutcome('FINISH-RECALL-CLOSE', 'guidance.finish-recall-close');
+
+                return 0;
+            },
+        );
+
+        self::assertSame(0, $second['exit'], json_encode($second['payload'], JSON_THROW_ON_ERROR));
+        self::assertTrue($second['payload']['complete'] ?? false);
+        self::assertSame('none', $second['payload']['next_action'] ?? null);
+        self::assertSame(
+            SessionStatus::DONE,
+            (new SessionStore())->load($this->root . '/.agent-loop/sessions', $sessionId)->status,
+        );
+
+        // The draft is handed to Recall unchanged: agent-loop delegates, it does
+        // not decide or rewrite the judgment.
+        self::assertSame(
+            [['log-outcome', '--draft', $draft, '--by', 'fixture-reviewer', '--commit', 'working-tree']],
+            $calls,
+        );
+    }
+
+    public function testRefusedRecallOutcomeLogLeavesTheRunOpenWithTheOwnersReason(): void
+    {
+        [, $sessionId] = $this->prepareRun('FINISH-RECALL-REFUSED', ['guidance.finish-recall-refused']);
+        $draft = $this->root . '/.agent-loop/recall/FINISH-RECALL-REFUSED/recall-log.draft.json';
+        file_put_contents($draft, json_encode(['guidance_outcomes' => []], JSON_THROW_ON_ERROR));
+
+        $first = $this->finish('FINISH-RECALL-REFUSED', ['--format=json']);
+        self::assertSame(1, $first['exit']);
+
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-RECALL-REFUSED');
+        self::assertNotNull($review['sha256']);
+
+        $second = $this->finish(
+            'FINISH-RECALL-REFUSED',
+            [
+                '--format=json',
+                '--reviewed-report-sha256', (string) $review['sha256'],
+                '--by', 'fixture-reviewer',
+                '--learning', 'no_durable_learning',
+                '--learning-reason', 'No durable workflow learning from this bounded fixture.',
+                '--recall-outcome-draft', $draft,
+                '--commit', 'working-tree',
+            ],
+            static function (array $args): int {
+                fwrite(STDERR, "[FAIL] recall log-outcome: placeholder outcome rows are not a judgment.\n");
+
+                return 1;
+            },
+        );
+
+        self::assertSame(1, $second['exit']);
+        self::assertFalse($second['payload']['complete'] ?? true);
+        self::assertSame('finish.closeout_failed', $second['payload']['blockers'][0]['code'] ?? null);
+        $message = (string) ($second['payload']['blockers'][0]['message'] ?? '');
+        self::assertStringContainsString('Recall refused the supplied outcome draft', $message);
+        self::assertStringContainsString('placeholder outcome rows are not a judgment.', $message);
+        self::assertSame(
+            SessionStatus::ACTIVE,
+            (new SessionStore())->load($this->root . '/.agent-loop/sessions', $sessionId)->status,
+        );
+    }
+
+    public function testRecallOutcomeDraftRefusesWithoutTheRequiredActorAndCommit(): void
+    {
+        $this->prepareRun('FINISH-RECALL-INPUTS', ['guidance.finish-recall-inputs']);
+        $draft = $this->root . '/.agent-loop/recall/FINISH-RECALL-INPUTS/recall-log.draft.json';
+        file_put_contents($draft, "{}\n");
+
+        $result = $this->finish(
+            'FINISH-RECALL-INPUTS',
+            ['--format=json', '--recall-outcome-draft', $draft, '--by', 'fixture-reviewer'],
+            static fn (array $args): int => throw new RuntimeException('Recall must not be called without a commit.'),
+        );
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString(
+            '--recall-outcome-draft requires --by <actor> and --commit <commit>.',
+            (string) ($result['payload']['blockers'][0]['message'] ?? ''),
+        );
+    }
+
+    private function recordRecallSelection(string $taskId, string $guidanceId, int $sequence): void
+    {
+        $this->appendLearningHistory('recall-selections.jsonl', [
+            'schema_version' => '1.0',
+            'id' => sprintf('recall-selection.%s.%03d', gmdate('Y-m-d'), $sequence),
+            'task_id' => $taskId,
+            'compilation_id' => strtolower($taskId) . '-fixture',
+            'guidance_id' => $guidanceId,
+            'guidance_type' => 'memory',
+            'eligible' => true,
+            'selected' => true,
+            'selection_reason' => 'Fixture selection for the finish handover regression.',
+            'task_files' => ['src/Foo.php'],
+            'recorded_at' => gmdate('Y-m-d\\TH:i:sP'),
+        ]);
+    }
+
+    private function recordRecallOutcome(string $taskId, string $guidanceId): void
+    {
+        $this->appendLearningHistory('outcomes.jsonl', [
+            'schema_version' => '1.0',
+            'id' => 'guidance-outcome.' . gmdate('Y-m-d') . '.001',
+            'task_id' => $taskId,
+            'compilation_id' => strtolower($taskId) . '-fixture',
+            'guidance_id' => $guidanceId,
+            'outcome' => 'helpful',
+            'applied' => true,
+            'comment' => 'Fixture outcome judged during the same finish invocation.',
+            'commit' => 'working-tree',
+            'recorded_by' => 'fixture-reviewer',
+            'recorded_at' => gmdate('Y-m-d\\TH:i:sP'),
+        ]);
+    }
+
+    /** @param array<string, mixed> $record */
+    private function appendLearningHistory(string $file, array $record): void
+    {
+        $history = $this->root . '/.agent-loop/learning/history';
+        if (!is_dir($history)) {
+            mkdir($history, 0o775, true);
+        }
+        file_put_contents(
+            $history . '/' . $file,
+            json_encode($record, JSON_THROW_ON_ERROR) . "\n",
+            FILE_APPEND,
+        );
+    }
+
+    /**
+     * @param list<string> $selectedGuidance
+     * @return array{0: string, 1: string}
+     */
+    private function prepareRun(string $taskId, array $selectedGuidance = []): array
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
@@ -206,6 +366,10 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', $taskId, by: 'fixture-agent');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
 
+        foreach ($selectedGuidance as $index => $guidanceId) {
+            $this->recordRecallSelection($taskId, $guidanceId, $index + 1);
+        }
+
         $recall = $this->root . '/.agent-loop/recall/' . $taskId;
         mkdir($recall, 0o775, true);
         file_put_contents($recall . '/meta.json', json_encode([
@@ -213,7 +377,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
             'task_id' => $taskId,
             'compilation_id' => strtolower($taskId) . '-fixture',
             'bundle_sha256' => str_repeat('a', 64),
-            'selected_guidance' => [],
+            'selected_guidance' => $selectedGuidance,
             'selected_constraints' => [],
             'output_hashes' => [],
         ], JSON_THROW_ON_ERROR));
@@ -224,13 +388,14 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
 
     /**
      * @param list<string> $options
+     * @param null|callable(list<string>): int $recallRunner
      * @return array{exit: int, payload: array<string, mixed>}
      */
-    private function finish(string $taskId, array $options): array
+    private function finish(string $taskId, array $options, ?callable $recallRunner = null): array
     {
         ob_start();
         try {
-            $exit = (new HostFrontDoorCommand($this->root))->run('finish', [$taskId, ...$options]);
+            $exit = (new HostFrontDoorCommand($this->root, $recallRunner))->run('finish', [$taskId, ...$options]);
             $stdout = ob_get_contents();
         } finally {
             ob_end_clean();

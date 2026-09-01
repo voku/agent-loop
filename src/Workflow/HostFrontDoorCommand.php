@@ -171,7 +171,7 @@ final readonly class HostFrontDoorCommand
     private function finish(array $args): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning STATUS --learning-reason TEXT --by ACTOR] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF]\n";
+            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning STATUS --learning-reason TEXT --by ACTOR] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT]\n";
             echo "Reconcile deterministic validation/review evidence, bind explicit judgments, create Learning Findings through their owner, and close when canonical policy permits.\n";
 
             return 0;
@@ -258,6 +258,16 @@ final readonly class HostFrontDoorCommand
                         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
                         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
                     }
+                }
+
+                if ($options['recallOutcomeDraft'] !== null) {
+                    $this->logRecallOutcome(
+                        $options['recallOutcomeDraft'],
+                        $options['by'],
+                        $options['commit'],
+                    );
+                    $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                    $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
                 }
 
                 if ($policy->ordinaryCloseAllowed && $policy->state !== 'complete') {
@@ -480,6 +490,30 @@ final readonly class HostFrontDoorCommand
             && in_array($manifest->references['execution_contract']['state'] ?? null, ['ready', 'not_required'], true);
     }
 
+    /**
+     * Hand an already-completed Recall outcome draft to its owner so the same
+     * finish invocation can reach close. Recall stays the outcome logger: this
+     * only delegates an explicitly supplied draft and relays a refusal, so a
+     * rejected judgment leaves the Run open with the owner's own reason.
+     */
+    private function logRecallOutcome(string $draft, ?string $by, ?string $commit): void
+    {
+        if ($by === null || $commit === null) {
+            throw new RuntimeException('--recall-outcome-draft requires --by <actor> and --commit <commit>.');
+        }
+        if (!is_file($draft)) {
+            throw new RuntimeException('--recall-outcome-draft must name an existing Recall outcome draft: ' . $draft);
+        }
+
+        $exitCode = $this->runRecallQuietly(['log-outcome', '--draft', $draft, '--by', $by, '--commit', $commit]);
+        if ($exitCode !== 0) {
+            throw new RuntimeException(
+                'Recall refused the supplied outcome draft with exit code ' . $exitCode . '.'
+                . $this->ownerFailureDetail(),
+            );
+        }
+    }
+
     private function closeOrdinaryRun(string $taskId): void
     {
         $level = ob_get_level();
@@ -504,7 +538,9 @@ final readonly class HostFrontDoorCommand
      *   learning: string|null,
      *   learningReason: string|null,
      *   findingInputs: list<FinishFindingInput>,
-     *   followUpRef: string|null
+     *   followUpRef: string|null,
+     *   recallOutcomeDraft: string|null,
+     *   commit: string|null
      * }
      */
     private function finishOptions(array $tokens): array
@@ -526,6 +562,8 @@ final readonly class HostFrontDoorCommand
             'learningReason' => OptionTokens::value($tokens, 'learning-reason'),
             'findingInputs' => $this->findingInputs($tokens),
             'followUpRef' => OptionTokens::value($tokens, 'follow-up-ref'),
+            'recallOutcomeDraft' => OptionTokens::value($tokens, 'recall-outcome-draft'),
+            'commit' => OptionTokens::value($tokens, 'commit'),
         ];
     }
 
@@ -600,7 +638,7 @@ final readonly class HostFrontDoorCommand
     private function runRecallQuietly(array $args): int
     {
         if ($this->recallRunner === null) {
-            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
+            throw new RuntimeException('The agent-loop front door requires a Recall runner to delegate to the Recall compiler.');
         }
 
         if (!in_array(self::STDOUT_DISCARD_FILTER, stream_get_filters(), true)) {
@@ -703,6 +741,8 @@ final readonly class HostFrontDoorCommand
             'finding-confidence',
             'finding-sensitivity',
             'follow-up-ref',
+            'recall-outcome-draft',
+            'commit',
         ]);
     }
 

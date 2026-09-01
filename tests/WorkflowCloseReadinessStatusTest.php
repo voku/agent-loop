@@ -139,8 +139,12 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame('recall_outcomes', $status['manifest']['references']['verification']['gate'] ?? null);
         self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $status['manifest']['next_action_kind'] ?? null);
         $action = (string) ($status['manifest']['next_action'] ?? '');
-        self::assertStringContainsString('agent-loop recall log-outcome', $action);
+        // The completed draft goes back through finish, so the same invocation
+        // that logs the outcome can also close the Run.
+        self::assertStringContainsString('agent-loop finish ABC-123 --recall-outcome-draft', $action);
         self::assertStringContainsString('.agent-loop/recall/ABC-123/recall-log.draft.json', $action);
+        self::assertStringContainsString('--by <actor> --commit <commit>', $action);
+        self::assertStringNotContainsString('agent-loop recall log-outcome', $action);
         self::assertStringNotContainsString('workflow status', $action);
     }
 

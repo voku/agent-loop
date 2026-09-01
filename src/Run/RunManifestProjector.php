@@ -608,7 +608,8 @@ final readonly class RunManifestProjector
             );
 
             return 'complete the Recall outcome judgment in ' . $draft
-                . ', then run agent-loop recall log-outcome --draft ' . $draft
+                . ', then run agent-loop finish ' . $taskId
+                . ' --recall-outcome-draft ' . $draft
                 . ' --by <actor> --commit <commit>';
         }
 
