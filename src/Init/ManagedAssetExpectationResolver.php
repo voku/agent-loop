@@ -31,11 +31,21 @@ final readonly class ManagedAssetExpectationResolver
 
         foreach ($manifest->managedEntries() as $entry) {
             $metadata = $manifest->entry($entry);
-            if ($metadata === null
-                || !in_array($metadata['semantic_owner'], self::FIRST_PARTY_OWNERS, true)
-                || $metadata['source_path'] === null
-                || InitSyncManifest::digestPath($metadata['source_path']) === null
-            ) {
+            if ($metadata === null) {
+                continue;
+            }
+
+            $owner = $metadata['semantic_owner'];
+            if (!is_string($owner) || !in_array($owner, self::FIRST_PARTY_OWNERS, true)) {
+                continue;
+            }
+
+            $sourcePath = ManagedAssetSource::resolvePersistedPath(
+                $owner,
+                $metadata['source_reference'],
+                $metadata['source_path'],
+            );
+            if ($sourcePath === null || InitSyncManifest::digestPath($sourcePath) === null) {
                 continue;
             }
 
