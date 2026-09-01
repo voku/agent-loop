@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.5 - 2026-09-01
+
 ### Added
 
 - `agent-loop workflow plan`: Display the task goal and file scope in CLI output upon planning or revising a candidate contract so human review has immediate goal context before approving.
