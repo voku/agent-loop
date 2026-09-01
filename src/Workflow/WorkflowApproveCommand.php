@@ -5,14 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
-use ItpContext\Attribute\Rule;
 use RuntimeException;
 use Throwable;
-use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Init\RepositoryActivation;
 
-#[Rule(ArchitectureRules::TypedPackageApisInsideWorkflow)]
-#[Rule(ArchitectureRules::EvidenceIsNotAuthority)]
 final readonly class WorkflowApproveCommand
 {
     public function __construct(private string $rootPath)

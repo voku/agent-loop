@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
-use ItpContext\Attribute\Rule;
+use PHPStan\Rules\Rule;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use voku\AgentLoop\Context\ArchitectureRules;
-use voku\AgentLoop\ProjectLayout;
 
 /**
  * External evidence tooling belongs to repository/dev validation, not to the
@@ -16,9 +15,9 @@ use voku\AgentLoop\ProjectLayout;
  *
  * `voku/itp-context` validates the package's architecture metadata during this
  * repository's development and CI. The rule enum itself lives under tools/ and
- * the dependency is therefore dev-only. Production classes may retain inert
- * Rule attributes as source metadata; a normal installed consumer does not need
- * either the attribute implementation or ArchitectureRules to execute Loop.
+ * the dependency is therefore dev-only. Production classes do not carry the
+ * Rule attributes or ArchitectureRules namespace; the rule definitions instead
+ * name concrete tests/PHPStan checks that CI executes.
  *
  * `voku/slop-scan` remains an isolated tool project because its published
  * dependency graph cannot currently co-resolve with the main package graph.
@@ -96,26 +95,7 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
         );
     }
 
-    /** A rule that names no symbol is a comment with extra steps. */
-    public function testDeclaredRulesAreAttachedToRealSymbols(): void
-    {
-        $attached = [];
-        foreach ($this->productionClasses() as $class) {
-            foreach ((new ReflectionClass($class))->getAttributes(Rule::class) as $attribute) {
-                $attached[$attribute->newInstance()->id->name] = true;
-            }
-        }
-
-        foreach (ArchitectureRules::cases() as $case) {
-            self::assertArrayHasKey(
-                $case->name,
-                $attached,
-                sprintf('ArchitectureRules::%s is declared but annotates no symbol.', $case->name),
-            );
-        }
-    }
-
-    /** `verified_by` is a check an agent can run, not a claim it has to trust. */
+    /** `verified_by` is executable proof for a dev-only rule, not a runtime annotation contract. */
     public function testEveryRuleNamesProofThatExists(): void
     {
         foreach (ArchitectureRules::cases() as $case) {
@@ -123,10 +103,7 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
 
             self::assertNotSame([], $definition->verifiedBy, $case->name . ' names no proof.');
             foreach ($definition->verifiedBy as $proof) {
-                self::assertTrue(
-                    class_exists($proof),
-                    sprintf('ArchitectureRules::%s names missing proof %s.', $case->name, $proof),
-                );
+                $this->assertExecutableProof($case->name, $proof);
             }
 
             foreach ($definition->refs as $ref) {
@@ -136,6 +113,44 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
                 );
             }
         }
+    }
+
+    /** @param class-string $proof */
+    private function assertExecutableProof(string $ruleName, string $proof): void
+    {
+        self::assertTrue(
+            class_exists($proof),
+            sprintf('ArchitectureRules::%s names missing proof %s.', $ruleName, $proof),
+        );
+
+        if (is_subclass_of($proof, TestCase::class)) {
+            $testsRoot = realpath(dirname(__DIR__) . '/tests');
+            $proofFile = (new ReflectionClass($proof))->getFileName();
+            self::assertIsString($testsRoot);
+            self::assertIsString($proofFile);
+            self::assertStringStartsWith(
+                $testsRoot . DIRECTORY_SEPARATOR,
+                $proofFile,
+                sprintf('ArchitectureRules::%s names PHPUnit proof %s outside the discovered tests directory.', $ruleName, $proof),
+            );
+            self::assertStringContainsString(
+                '<directory>tests</directory>',
+                (string) file_get_contents(dirname(__DIR__) . '/phpunit.xml'),
+                'phpunit.xml no longer discovers the tests directory used by ArchitectureRules verified_by proofs.',
+            );
+
+            return;
+        }
+
+        self::assertTrue(
+            is_subclass_of($proof, Rule::class),
+            sprintf('ArchitectureRules::%s proof %s is neither a PHPUnit test nor a PHPStan rule.', $ruleName, $proof),
+        );
+        self::assertStringContainsString(
+            'class: ' . $proof,
+            (string) file_get_contents(dirname(__DIR__) . '/phpstan.neon.dist'),
+            sprintf('ArchitectureRules::%s names PHPStan proof %s that is not registered in phpstan.neon.dist.', $ruleName, $proof),
+        );
     }
 
     /**
@@ -221,16 +236,5 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
                 ),
             );
         }
-    }
-
-    /** @return list<class-string> */
-    private function productionClasses(): array
-    {
-        return [
-            ProjectLayout::class,
-            \voku\AgentLoop\Init\InitToolsCommand::class,
-            \voku\AgentLoop\Workflow\WorkflowApproveCommand::class,
-            \voku\AgentLoop\Workflow\WorkflowCloseCommand::class,
-        ];
     }
 }

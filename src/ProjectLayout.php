@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
-use ItpContext\Attribute\Rule;
 use RuntimeException;
-use voku\AgentLoop\Context\ArchitectureRules;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentMap\MapArtifactPaths;
 
@@ -22,7 +20,6 @@ use voku\AgentMap\MapArtifactPaths;
  * Package-owned trees may own their filenames below a Loop-owned mount point.
  * `describe()` exists so a coding agent can ask instead of hardcoding.
  */
-#[Rule(ArchitectureRules::SingleStatePathOwner)]
 final readonly class ProjectLayout
 {
     private const string CONFIG_RELATIVE = '.agent-loop/init.json';
