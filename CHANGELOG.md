@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `agent-loop workflow plan`: Display the task goal and file scope in CLI output upon planning or revising a candidate contract so human review has immediate goal context before approving.
+- `agent-loop finish`: Added `--recall-outcome-draft` support to optionally delegate Recall outcome logging directly during the finish command.
 - `make/agent-loop.mk`: Added `agent_init_tools` target to probe and cache CLI tool availability.
 - `agent-loop init install-assets`: Added `--config` and `--extra-subagents-root` support. Configured repository skills (`paths.skills_root`) and subagents (`paths.subagents_root`) from `.agent-loop/init.json` are now automatically detected and merged with first-party package guidance instead of being marked as stale and removed.
 - `agent-loop init install-assets`: Added `package_skills` and `package_subagents` configuration options in `init.json` (as well as `--no-package-skills` and `--no-package-subagents` CLI flags) to allow repositories with their own adapted skill suites to disable first-party package skills and avoid context budget warnings.
