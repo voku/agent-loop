@@ -180,6 +180,56 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringNotContainsString('`vendor/bin/agent-loop', $packageRouter);
     }
 
+    public function testSymlinkedImportFileDoesNotOverwriteTheRouter(): void
+    {
+        // Reproduces the real breakage: CLAUDE.md is a symlink to AGENTS.md, so
+        // projecting "@AGENTS.md" onto it followed the link, replaced the router
+        // block with an import of itself and destroyed the instructions.
+        $first = $this->runCommand(['--agent=claude']);
+        self::assertSame(0, $first['exit'], $first['output']);
+
+        $router = (string) file_get_contents($this->root . '/AGENTS.md');
+        self::assertStringContainsString('agent-loop workflow router', $router);
+
+        unlink($this->root . '/CLAUDE.md');
+        symlink('AGENTS.md', $this->root . '/CLAUDE.md');
+
+        $second = $this->runCommand(['--agent=claude']);
+
+        self::assertSame(0, $second['exit'], $second['output']);
+        self::assertTrue(is_link($this->root . '/CLAUDE.md'), 'the symlink must be left alone');
+        self::assertSame(
+            $router,
+            file_get_contents($this->root . '/AGENTS.md'),
+            'AGENTS.md must keep its router block',
+        );
+        self::assertStringNotContainsString(
+            "\n@AGENTS.md\n",
+            (string) file_get_contents($this->root . '/AGENTS.md'),
+            'AGENTS.md must not end up importing itself',
+        );
+        self::assertStringContainsString('is a symlink to AGENTS.md', $second['output']);
+    }
+
+    public function testSymlinkedImportFileIsNotReportedAsPermanentlyStale(): void
+    {
+        self::assertSame(0, $this->runCommand(['--agent=claude'])['exit']);
+        unlink($this->root . '/CLAUDE.md');
+        symlink('AGENTS.md', $this->root . '/CLAUDE.md');
+
+        // Otherwise `init host-status` keeps demanding the same destructive write.
+        self::assertTrue((new InitSyncInstructionsCommand($this->root))->isCurrentFor('claude'));
+    }
+
+    public function testAPlainImportFileIsStillProjected(): void
+    {
+        $result = $this->runCommand(['--agent=claude']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFalse(is_link($this->root . '/CLAUDE.md'));
+        self::assertStringContainsString('@AGENTS.md', (string) file_get_contents($this->root . '/CLAUDE.md'));
+    }
+
     /**
      * @param list<string> $tokens
      * @return array{exit: int, output: string}

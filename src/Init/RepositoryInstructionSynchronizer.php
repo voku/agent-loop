@@ -17,6 +17,8 @@ final readonly class RepositoryInstructionSynchronizer
 {
     private const string CLI_PLACEHOLDER = '{{agent_loop_cli}}';
 
+    private const string ROUTER_FILE = 'AGENTS.md';
+
     public function __construct(private string $rootPath)
     {
     }
@@ -229,6 +231,12 @@ final readonly class RepositoryInstructionSynchronizer
         if ($existing === null) {
             return false;
         }
+        // A symlink to the router already serves the router's content. Planning a
+        // write for it would follow the link and replace the router block with an
+        // import of itself, so there is deliberately nothing to do here.
+        if ($this->resolvesToRouter($relativePath)) {
+            return true;
+        }
         if ($relativePath !== 'AGENTS.md'
             && !$this->hasManagedMarker($existing)
             && $this->alreadyImportsAgents($existing)
@@ -237,6 +245,23 @@ final readonly class RepositoryInstructionSynchronizer
         }
 
         return $this->mergeManagedBlock($existing, $body, $relativePath) === $existing;
+    }
+
+    private function resolvesToRouter(string $relativePath): bool
+    {
+        if ($relativePath === self::ROUTER_FILE) {
+            return false;
+        }
+
+        $absolutePath = $this->rootPath . '/' . $relativePath;
+        if (!is_link($absolutePath)) {
+            return false;
+        }
+
+        $linked = realpath($absolutePath);
+        $router = realpath($this->rootPath . '/' . self::ROUTER_FILE);
+
+        return $linked !== false && $router !== false && $linked === $router;
     }
 
     private function desiredContent(string $relativePath, string $body, string $existing): string

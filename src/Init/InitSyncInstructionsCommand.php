@@ -21,6 +21,8 @@ final readonly class InitSyncInstructionsCommand
 
     private const string CLI_PLACEHOLDER = '{{agent_loop_cli}}';
 
+    private const string ROUTER_FILE = 'AGENTS.md';
+
     public function __construct(private string $rootPath)
     {
     }
@@ -108,6 +110,13 @@ final readonly class InitSyncInstructionsCommand
     private function syncImportFile(string $relativePath, string $import, bool $dryRun): void
     {
         $absolutePath = $this->rootPath . '/' . $relativePath;
+        if ($this->resolvesToRouter($relativePath)) {
+            echo '[OK] sync instructions: ' . $relativePath . ' is a symlink to ' . self::ROUTER_FILE
+                . '; the import is already satisfied and writing it would overwrite the router.' . "\n";
+
+            return;
+        }
+
         $existing = $this->readOptional($absolutePath);
         if ($existing !== null && !$this->hasManagedMarker($existing) && $this->alreadyImportsAgents($existing)) {
             echo '[OK] sync instructions: ' . $relativePath . ' already imports AGENTS.md; existing import preserved.' . "\n";
@@ -160,6 +169,13 @@ final readonly class InitSyncInstructionsCommand
 
     private function importFileIsCurrent(string $relativePath, string $import): bool
     {
+        // A link to the router already resolves to the router's own content, so
+        // there is nothing to repair. Reporting it as stale would make
+        // `init host-status` demand the same destructive write forever.
+        if ($this->resolvesToRouter($relativePath)) {
+            return true;
+        }
+
         $existing = $this->readOptional($this->rootPath . '/' . $relativePath);
         if ($existing === null) {
             return false;
@@ -169,6 +185,28 @@ final readonly class InitSyncInstructionsCommand
         }
 
         return $this->mergeManagedBlock($existing, $import, $relativePath) === $existing;
+    }
+
+    /**
+     * An import file may be a symlink to AGENTS.md. Writing "@AGENTS.md" through
+     * that link replaces the router block with an import of itself and destroys
+     * the instructions this command exists to project.
+     */
+    private function resolvesToRouter(string $relativePath): bool
+    {
+        if ($relativePath === self::ROUTER_FILE) {
+            return false;
+        }
+
+        $absolutePath = $this->rootPath . '/' . $relativePath;
+        if (!is_link($absolutePath)) {
+            return false;
+        }
+
+        $linked = realpath($absolutePath);
+        $router = realpath($this->rootPath . '/' . self::ROUTER_FILE);
+
+        return $linked !== false && $router !== false && $linked === $router;
     }
 
     private function mergeManagedBlock(string $existing, string $body, string $relativePath): string
