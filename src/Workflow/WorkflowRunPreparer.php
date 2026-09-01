@@ -16,6 +16,7 @@ use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use Throwable;
 use voku\AgentMap\Build\StructuralOnlySemanticAnalyzer;
 use voku\AgentMap\Index\AgentMapBuilder;
+use voku\AgentMap\Index\IndexReader;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
@@ -91,6 +92,9 @@ final readonly class WorkflowRunPreparer
      * carries unrelated entries forward from a stale snapshot. Explicit Map
      * commands remain the front door for intentionally broader discovery.
      */
+    /** The backend automatic preparation produces; only a matching snapshot may be carried forward. */
+    private const string STRUCTURAL_BACKEND = 'simple-php-code-parser+structural-only';
+
     private function rebuildMap(TaskContract $contract): void
     {
         $scope = $this->existingPhpScope($contract);
@@ -107,9 +111,31 @@ final readonly class WorkflowRunPreparer
             artifacts: $artifacts,
         );
 
+        // Patch the Contract scope into an index of the same backend instead of
+        // replacing it. Writing a scope-sized build over the shared index made
+        // every later map consumer - queries, planners, Recall evidence - see only
+        // the handful of files this one Contract happened to touch.
+        //
+        // A different backend is still replaced rather than merged: carrying
+        // semantic entries into a structural-only build would claim analysis the
+        // result does not have.
+        $previous = null;
+        $indexPath = $artifacts->indexJson();
+        if (is_file($indexPath)) {
+            try {
+                $existing = (new IndexReader())->read($indexPath);
+                if ($existing->backend === self::STRUCTURAL_BACKEND) {
+                    $previous = $existing;
+                }
+            } catch (Throwable) {
+                // An unreadable snapshot is not authority to keep; rebuild the scope alone.
+                $previous = null;
+            }
+        }
+
         (new IndexWriter())->write(
-            $builder->build($this->rootPath, $scope, [], null, null, null),
-            $artifacts->indexJson(),
+            $builder->build($this->rootPath, $scope, [], null, null, $previous),
+            $indexPath,
         );
     }
 

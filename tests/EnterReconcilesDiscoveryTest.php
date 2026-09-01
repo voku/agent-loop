@@ -131,6 +131,36 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         self::assertFileDoesNotExist($this->mapIndex(), 'non-PHP work must not pay for Map discovery');
     }
 
+    /**
+     * Preparation used to write a scope-sized build straight over the shared
+     * index. A repository map of thousands of files was replaced by the handful
+     * this one Contract touched, and every later consumer - map queries, the
+     * plan family, Recall map evidence - silently saw only those.
+     */
+    public function testPreparingOneContractDoesNotDropTheRestOfAnExistingMap(): void
+    {
+        file_put_contents($this->root . '/src/Unrelated.php', "<?php\n\nfinal class Unrelated {}\n");
+        $this->approvedPhpContract('MAP-KEEP');
+
+        // A pre-existing repository-wide index, as a real project has.
+        $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
+        (new IndexWriter())->write(
+            (new AgentMapBuilder(artifacts: $artifacts))->build($this->root, ['src'], []),
+            $this->mapIndex(),
+        );
+        $before = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($before->file('src/Unrelated.php'));
+
+        $this->enter('MAP-KEEP');
+
+        $after = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull($after->file('src/Greeter.php'), 'the Contract scope must be present');
+        self::assertNotNull(
+            $after->file('src/Unrelated.php'),
+            'preparation must patch the Contract scope into the existing index, not replace it',
+        );
+    }
+
     private function mapIndex(): string
     {
         return $this->root . '/.agent-loop/map/php-symbols.json';
