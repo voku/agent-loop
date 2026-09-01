@@ -50,6 +50,8 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('Reflection is not one', $reviewClose);
         self::assertStringContainsString('workflow reflect <task-id> --scope project', $reviewClose);
         self::assertStringContainsString('workflow reflect <task-id> --scope task', $reviewClose);
+        self::assertStringContainsString('When there is no valid governed task id, route directly', $reviewClose);
+        self::assertStringContainsString('For a governed task, resolve current state first:', $reviewClose);
 
         self::assertStringContainsString('agent-loop review code <task-id>', $codeReview);
         self::assertStringContainsString('agent-loop review first-draft', $codeReview);

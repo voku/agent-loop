@@ -11,7 +11,13 @@ The lifecycle kernel owns deterministic close-out choreography. This skill must 
 
 ## Fast Path
 
-Resolve current state first:
+First establish whether there is a governed task/artifact set. When there is no valid governed task id, route directly to the context-light first-draft review instead of invoking task-bound workflow commands:
+
+```bash
+vendor/bin/agent-loop review first-draft
+```
+
+For a governed task, resolve current state first:
 
 ```bash
 vendor/bin/agent-loop workflow status <task-id> --format=json
