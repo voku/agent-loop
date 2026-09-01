@@ -55,7 +55,7 @@ final readonly class InitCli
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
           agent-loop init validate --kind=<skills|subagents|hooks|all> [--agent=<agent>] [--config=PATH] [--skills-root=PATH]
           agent-loop init install-plan --profile=<profile> --agent=<agent>
-          agent-loop init install-assets --agent=<agent|all> [--config=PATH] [--extra-skills-root=PATH ...] [--extra-subagents-root=PATH ...] [--with-hooks] [--dry-run] [--force] [--adopt-existing] [--skip-git-config]
+          agent-loop init install-assets --agent=<agent|all> [--config=PATH] [--extra-skills-root=PATH ...] [--extra-subagents-root=PATH ...] [--no-package-skills] [--no-package-subagents] [--with-hooks] [--dry-run] [--force] [--adopt-existing] [--skip-git-config]
           agent-loop init uninstall-assets --agent=<agent> [--with-hooks] [--yes]
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH ...] [--dry-run] [--force] [--adopt-existing]

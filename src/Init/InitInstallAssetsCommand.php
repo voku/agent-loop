@@ -67,12 +67,20 @@ final readonly class InitInstallAssetsCommand
         }
 
         $packageRoot = dirname(__DIR__, 2);
-        try {
-            $skillRoots = $this->firstPartySkillRoots($packageRoot);
-        } catch (InvalidArgumentException $exception) {
-            fwrite(\STDERR, $exception->getMessage() . "\n");
+        $includePackageSkills = !OptionTokens::hasFlag($tokens, 'no-package-skills')
+            && $config['package_skills'] !== false;
+        $includePackageSubagents = !OptionTokens::hasFlag($tokens, 'no-package-subagents')
+            && $config['package_subagents'] !== false;
 
-            return 1;
+        $skillRoots = [];
+        if ($includePackageSkills) {
+            try {
+                $skillRoots = $this->firstPartySkillRoots($packageRoot);
+            } catch (InvalidArgumentException $exception) {
+                fwrite(\STDERR, $exception->getMessage() . "\n");
+
+                return 1;
+            }
         }
 
         $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
@@ -85,10 +93,12 @@ final readonly class InitInstallAssetsCommand
             $skillRoots[] = PathResolver::join($this->rootPath, $extraSkillRoot);
         }
 
-        $subagentsRoot = $packageRoot . '/docs/agents/subagents';
         $subagentRoots = [];
-        if (is_dir($subagentsRoot)) {
-            $subagentRoots[] = $subagentsRoot;
+        if ($includePackageSubagents) {
+            $subagentsRoot = $packageRoot . '/docs/agents/subagents';
+            if (is_dir($subagentsRoot)) {
+                $subagentRoots[] = $subagentsRoot;
+            }
         }
         $configuredSubagentsRoot = $paths->absoluteSubagentsRoot();
         if (is_dir($configuredSubagentsRoot) && !in_array($configuredSubagentsRoot, $subagentRoots, true)) {
@@ -105,6 +115,11 @@ final readonly class InitInstallAssetsCommand
             ? []
             : ($agent->isAll() ? ['codex', 'claude'] : [$agent->canonicalName()]);
 
+        if ($skillRoots === []) {
+            fwrite(\STDERR, "No skills roots configured or found.\n");
+
+            return 1;
+        }
         foreach ($skillRoots as $skillRoot) {
             if (!is_dir($skillRoot)) {
                 fwrite(\STDERR, 'Skills root is missing: ' . $skillRoot . "\n");
@@ -113,7 +128,7 @@ final readonly class InitInstallAssetsCommand
             }
         }
         if ($installsSubagents && $subagentRoots === []) {
-            fwrite(\STDERR, 'Bundled subagents root is missing: ' . $subagentsRoot . "\n");
+            fwrite(\STDERR, "No subagents roots configured or found.\n");
 
             return 1;
         }
@@ -274,7 +289,7 @@ final readonly class InitInstallAssetsCommand
     private function validateTokens(array $tokens): ?string
     {
         $valueOptions = ['agent', 'config', 'extra-skills-root', 'extra-subagents-root'];
-        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config', 'with-hooks'];
+        $flagOptions = ['dry-run', 'force', 'adopt-existing', 'skip-git-config', 'with-hooks', 'no-package-skills', 'no-package-subagents'];
         $count = count($tokens);
         for ($i = 0; $i < $count; ++$i) {
             $token = $tokens[$i];

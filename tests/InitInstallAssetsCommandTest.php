@@ -317,6 +317,74 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertSame(1, $runner->run(['git', 'config', '--get', 'core.hooksPath'])['exit_code']);
     }
 
+    public function testDisabledPackageSkillsAndSubagentsViaConfig(): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        mkdir($this->root . '/custom-skills/my-skill', 0o775, true);
+        file_put_contents(
+            $this->root . '/custom-skills/my-skill/SKILL.md',
+            "---\nname: my-skill\ndescription: Custom skill.\n---\n\nSkill body.\n",
+        );
+        mkdir($this->root . '/custom-subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/custom-subagents/my-worker.md',
+            "---\nname: my-worker\ndescription: Custom worker.\n---\n\nWorker prompt.\n",
+        );
+
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'package_skills' => false,
+                'package_subagents' => false,
+                'paths' => [
+                    'skills_root' => 'custom-skills',
+                    'subagents_root' => 'custom-subagents',
+                ],
+            ], JSON_PRETTY_PRINT),
+        );
+
+        $result = $this->runCommand(['--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.codex/skills/my-skill/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-workflow/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/agents/my-worker.toml');
+        self::assertFileDoesNotExist($this->root . '/.codex/agents/agent-loop-investigator.toml');
+    }
+
+    public function testDisabledPackageSkillsAndSubagentsViaCliFlags(): void
+    {
+        mkdir($this->root . '/custom-skills/my-skill', 0o775, true);
+        file_put_contents(
+            $this->root . '/custom-skills/my-skill/SKILL.md',
+            "---\nname: my-skill\ndescription: Custom skill.\n---\n\nSkill body.\n",
+        );
+        mkdir($this->root . '/custom-subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/custom-subagents/my-worker.md',
+            "---\nname: my-worker\ndescription: Custom worker.\n---\n\nWorker prompt.\n",
+        );
+
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'paths' => [
+                    'skills_root' => 'custom-skills',
+                    'subagents_root' => 'custom-subagents',
+                ],
+            ], JSON_PRETTY_PRINT),
+        );
+
+        $result = $this->runCommand(['--agent=claude', '--no-package-skills', '--no-package-subagents']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.claude/skills/my-skill/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.claude/skills/agent-loop-workflow/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/agents/my-worker.md');
+        self::assertFileDoesNotExist($this->root . '/.claude/agents/agent-loop-investigator.md');
+    }
+
     /**
      * @param list<string> $tokens
      * @return array{exit: int, output: string}

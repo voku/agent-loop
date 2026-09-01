@@ -22,6 +22,8 @@ final readonly class InitConfigLoader
      *     warnings: list<string>,
      *     paths: array<string, string>,
      *     agents: array<string, array<string, string>>,
+     *     package_skills: bool,
+     *     package_subagents: bool,
      *     recall: array{document_manifests: list<string>},
      *     interaction: array{human_explanations: 'ask'|'always'|'never'},
      *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}}
@@ -33,6 +35,8 @@ final readonly class InitConfigLoader
             'warnings' => [],
             'paths' => [],
             'agents' => [],
+            'package_skills' => true,
+            'package_subagents' => true,
             'recall' => ['document_manifests' => []],
             'interaction' => ['human_explanations' => HumanExplanationPolicy::ASK->value],
             'workflow' => [
@@ -108,6 +112,22 @@ final readonly class InitConfigLoader
                 if ($normalizedAgentConfig !== []) {
                     $result['agents'][strtolower($agentName)] = $normalizedAgentConfig;
                 }
+            }
+        }
+
+        if (array_key_exists('package_skills', $decoded)) {
+            if (!is_bool($decoded['package_skills'])) {
+                $result['warnings'][] = '[WARN] init config: package_skills must be a boolean';
+            } else {
+                $result['package_skills'] = $decoded['package_skills'];
+            }
+        }
+
+        if (array_key_exists('package_subagents', $decoded)) {
+            if (!is_bool($decoded['package_subagents'])) {
+                $result['warnings'][] = '[WARN] init config: package_subagents must be a boolean';
+            } else {
+                $result['package_subagents'] = $decoded['package_subagents'];
             }
         }
 
