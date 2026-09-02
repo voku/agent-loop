@@ -15,6 +15,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseReadiness;
@@ -520,6 +521,59 @@ final readonly class RunManifestProjector
                     'owner' => 'agent-loop',
                     'message' => 'Verification receipt belongs to another Run.',
                 ];
+            }
+
+            if (
+                $contract !== null
+                && $run !== null
+                && $run->contractRevision === $contract->revision
+            ) {
+                if ($receipt->implementationSnapshot === null) {
+                    return [
+                        'owner' => 'agent-loop',
+                        'state' => 'stale',
+                        'observation_mode' => 'checked',
+                        'reason' => 'Verification receipt predates implementation-snapshot binding and cannot prove currentness.',
+                        'run_id' => $receipt->runId,
+                        'contract_revision' => $receipt->contractRevision,
+                        'implementation_snapshot' => null,
+                        'source_session_id' => $receipt->sourceSessionId,
+                        'source' => $this->artifact($receipt->path),
+                    ];
+                }
+
+                try {
+                    $currentImplementation = ImplementationSnapshot::capture($this->rootPath, $contract);
+                } catch (Throwable $exception) {
+                    $disagreements[] = [
+                        'code' => 'verification.current_snapshot_unavailable',
+                        'owner' => 'agent-loop',
+                        'message' => $exception->getMessage(),
+                    ];
+
+                    return [
+                        'owner' => 'agent-loop',
+                        'state' => 'invalid',
+                        'observation_mode' => 'checked',
+                        'reason' => 'Current implementation snapshot could not be established.',
+                        'source' => $this->artifact($receipt->path),
+                    ];
+                }
+
+                if (!hash_equals($receipt->implementationSnapshot, $currentImplementation->digest)) {
+                    return [
+                        'owner' => 'agent-loop',
+                        'state' => 'stale',
+                        'observation_mode' => 'checked',
+                        'reason' => 'Verification receipt describes a different implementation snapshot.',
+                        'run_id' => $receipt->runId,
+                        'contract_revision' => $receipt->contractRevision,
+                        'implementation_snapshot' => $receipt->implementationSnapshot,
+                        'current_implementation_snapshot' => $currentImplementation->digest,
+                        'source_session_id' => $receipt->sourceSessionId,
+                        'source' => $this->artifact($receipt->path),
+                    ];
+                }
             }
 
             $state = match ($receipt->verdict) {

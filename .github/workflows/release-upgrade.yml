@@ -1,0 +1,71 @@
+name: Release upgrade/resume proof
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      from_version:
+        description: Previous supported agent-loop release
+        required: false
+        default: 0.18.5
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade-resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FROM_VERSION: ${{ inputs.from_version || '0.18.5' }}
+      TO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      TO_BRANCH: ${{ github.head_ref || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - name: Lint upgrade harness
+        run: php -l tools/release-upgrade-dogfood.php
+      - name: Prove previous-release state survives candidate upgrade
+        run: >-
+          php tools/release-upgrade-dogfood.php
+          --workspace="${RUNNER_TEMP}/agent-loop-release-upgrade"
+          --from-version="${FROM_VERSION}"
+          --to-ref="${TO_REF}"
+          --to-branch="${TO_BRANCH}"
+          --repository-url="https://github.com/voku/agent-loop"
+          --report="${GITHUB_WORKSPACE}/build/release-upgrade-report.json"
+          --keep
+      - name: Verify bounded durability matrix
+        run: |
+          jq -e --arg from "${FROM_VERSION}" --arg ref "${TO_REF}" '
+            (.schema_version == "1.0")
+            and (.result == "passed")
+            and (.from_version == $from)
+            and (.to.ref == $ref)
+            and ((.scenarios | map(.scenario)) == [
+              "interrupted_run_legal_resume",
+              "pruned_session_exact_id_rehydration",
+              "stale_authority_and_contract_supersession"
+            ])
+            and (.scenarios[0].from == .scenarios[0].after_upgrade)
+            and (.scenarios[0].from == .scenarios[0].after_resume)
+            and (.scenarios[1].before_prune == .scenarios[1].after_rehydrate)
+            and (.scenarios[1].steal_refused == true)
+            and (.scenarios[2].drift_verification_state != "passed")
+            and (.scenarios[2].revision_two.contract_revision > .scenarios[2].revision_one.contract_revision)
+            and (.scenarios[2].revision_two.run_id != .scenarios[2].revision_one.run_id)
+          ' build/release-upgrade-report.json >/dev/null
+      - name: Upload upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-upgrade-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: build/release-upgrade-report.json
