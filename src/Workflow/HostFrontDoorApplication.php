@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use Closure;
 use JsonException;
+use Throwable;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
 
@@ -23,6 +24,8 @@ final readonly class HostFrontDoorApplication
 
     private HostFinishFindingIdAdapter $findingIdAdapter;
 
+    private HostLearningNoteFollowUpProjector $learningNoteFollowUps;
+
     private ?Closure $recallRunner;
 
     /** @param null|callable(list<string>): int $recallRunner */
@@ -31,6 +34,7 @@ final readonly class HostFrontDoorApplication
         $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
         $this->command = new HostFrontDoorCommand($rootPath, $this->recallRunner);
         $this->findingIdAdapter = new HostFinishFindingIdAdapter($rootPath);
+        $this->learningNoteFollowUps = new HostLearningNoteFollowUpProjector($rootPath);
     }
 
     /** @param list<string> $args */
@@ -75,6 +79,19 @@ final readonly class HostFrontDoorApplication
                 $payload['error'] = $finishFailure;
             } elseif (!isset($payload['mutation_status'])) {
                 $payload['mutation_status'] = 'accepted';
+            }
+
+            if (($payload['complete'] ?? false) === true && is_string($taskId)) {
+                try {
+                    $payload['optional_follow_ups'] = $this->learningNoteFollowUps->project($taskId);
+                } catch (Throwable $exception) {
+                    $payload['optional_follow_ups'] = [];
+                    $payload['follow_up_warnings'] = [[
+                        'code' => 'learning_note.follow_up_projection_failed',
+                        'owner' => 'agent-learning',
+                        'message' => $exception->getMessage(),
+                    ]];
+                }
             }
         }
 
