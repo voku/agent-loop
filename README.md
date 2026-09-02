@@ -367,7 +367,7 @@ the semantic map, compile bounded recall, and prepare an auditable execution
 bundle:
 
 ```bash
-vendor/bin/agent-loop edit 'App\Service\UserService::save' -- \
+vendor/bin/agent-loop edit 'App\\Service\\UserService::save' -- \
   'Reject inactive users before persistence and adapt affected callers.'
 ```
 
@@ -381,7 +381,7 @@ Artifacts are stored under:
 For a deterministic one-for-one replacement inside one resolved PHP method:
 
 ```bash
-vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
+vendor/bin/agent-loop edit 'Legacy\\ResourceService::save' \
   --runner=auto \
   --replace-old='$legacyUser->regionId' \
   --replace-new='$legacyUser->getCurrentRegionId()' -- \
@@ -404,7 +404,9 @@ vendor/bin/agent-loop edit verify \
 cross-package workflow state. They are intentionally different gates.
 
 ## Governed task workflow
-Plan the exact scope and validation contract:
+
+Plan the exact durable scope and validation contract, then approve that exact
+revision through a named human actor:
 
 ```bash
 vendor/bin/agent-loop workflow plan ABC-123 \
@@ -413,64 +415,69 @@ vendor/bin/agent-loop workflow plan ABC-123 \
   --goal 'Implement the approved task.' \
   --behavior-anchor 'request -> Foo service -> persisted state' \
   --validation 'vendor/bin/phpunit tests/FooTest.php'
-```
 
-Approve that exact revision through a named human actor:
-
-```bash
 vendor/bin/agent-loop workflow approve ABC-123 --by lars
 ```
 
-Build navigation state and render the bounded working context:
+After approval, use the host-facing lifecycle front door instead of scripting a
+second phase machine from `workflow`, `session`, `recall`, `review`, and `learn`
+commands:
 
 ```bash
-vendor/bin/agent-loop map build --paths=src,tests
-vendor/bin/agent-loop map query Foo
-vendor/bin/agent-loop map related Foo
-vendor/bin/agent-loop workflow context ABC-123 \
-  --max-lines 120 \
-  --max-bytes 12000
+vendor/bin/agent-loop enter ABC-123 --format=json
 ```
 
-After implementation, record the exact validation result:
+`enter` re-observes the current repository, binds or resumes the governed Run,
+prepares the exact Run-bound Session and Recall context, and returns the canonical
+`next_action`. If the payload says host-native implementation work is allowed,
+make the approved change with ordinary repository tools or an appropriate
+bounded agent. Lower-level owner/orchestration commands remain available because
+the front door may return one of them as the exact repair action; they are not an
+alternative lifecycle.
+
+After the implementation attempt, reconcile close-out through the other front
+door:
 
 ```bash
-vendor/bin/agent-loop session validation record ABC-123 \
-  --contract-revision 1 \
-  --command 'vendor/bin/phpunit tests/FooTest.php' \
-  --status passed \
-  --exit-code 0 \
-  --by lars
+vendor/bin/agent-loop finish ABC-123 --format=json
 ```
 
-When a deliberately minimal implementation has a known ceiling, record the
-ceiling and an observable revisit trigger in `agent-session` instead of leaving a
-tool-specific debt marker in product code.
+`finish` re-checks the current implementation, declared validation, review,
+Recall outcomes, Learning disposition, and close policy. When an explicit
+judgment or owner action is still required, follow the returned canonical
+`next_action` and call `finish` again after that action. Do not copy a prose list
+of gates into host automation: the executable policy is the source of truth.
 
-Review and verify:
+A successful close is explicit:
 
-```bash
-vendor/bin/agent-loop review blindspots ABC-123
-vendor/bin/agent-loop review code ABC-123
-vendor/bin/agent-loop verify --task-id=ABC-123
-vendor/bin/agent-loop workflow report ABC-123 \
-  --changed-file src/Foo.php
+```json
+{
+  "complete": true,
+  "next_action": "none"
+}
 ```
 
-Record the learning outcome and close only when every required gate passes:
+Completion may also expose `optional_follow_ups`. A Learning Finding classified
+by its owner as `ADD_LEARNING_NOTE` can produce a follow-up shaped like:
 
-```bash
-vendor/bin/agent-loop workflow learn ABC-123 \
-  --status no_durable_learning \
-  --by lars \
-  --reason 'No reusable finding from this bounded task.'
-
-vendor/bin/agent-loop workflow close ABC-123 --status done
-vendor/bin/agent-loop workflow status ABC-123 --expect complete
+```json
+{
+  "kind": "learning_note",
+  "finding_ids": ["finding.2026-09-02.001"],
+  "skill": "agent-learning-note"
+}
 ```
 
-A re-plan creates a new Contract revision. Approval and validation evidence from an
-older revision remain auditable but cannot satisfy the revised task.
+That is **post-close knowledge work**, not another software-close gate. The Run
+remains complete and `next_action` remains `none`. Author or update the note
+through the Learning-owned skill/API/CLI; Loop does not reconstruct Learning's
+private note paths or promote the note into active guidance.
+
+A re-plan creates a new Contract revision. Approval, review, validation, and
+Learning evidence bound to an older revision or implementation remain auditable
+but cannot silently satisfy the revised/current task. Resume always re-observes
+current owner facts rather than trusting a stored projection merely because it
+was once green.
 
 ## agent-map: navigate before reading broadly
 
@@ -495,15 +502,19 @@ smallest real source range, then inspect that source directly.
 | `voku/agent-kanban` | Git-native Markdown task board and optional external issue comparison |
 | `voku/agent-session` | Per-task working memory, decisions, assumptions, checkpoints, simplification ceilings, and validation evidence |
 | `voku/agent-map` | Compact PHP symbol maps and bounded source navigation |
-| `voku/agent-recall-compiler` | Task-scoped recall, validation plans, and deterministic review prompts |
-| `voku/agent-learning` | Findings, proposals, decision history, constraints, and reviewed guidance maintenance |
-| `voku/agent-loop` | Unified CLI, edit orchestration, governed lifecycle gates, first-party agent assets, memory review, and repository setup |
+| `voku/agent-recall-compiler` | Task-scoped recall, validation plans, LearningNote precedent projection, and deterministic review prompts |
+| `voku/agent-learning` | Findings, proposals, LearningNotes, decision history, constraints, and reviewed guidance maintenance |
+| `voku/agent-loop` | Unified CLI, governed `enter`/`finish` lifecycle front doors, edit orchestration, lifecycle gates, first-party agent assets, memory review, and repository setup |
 
 `agent-loop` does not become a second store for board, session, map, recall, or
 learning state. It orchestrates the focused packages and verifies their shared
 contract.
 
 ## CLI namespaces
+
+`enter` and `finish` are the host-facing lifecycle front doors described above.
+The stable namespace list below remains the executable namespace surface reported
+by `agent-loop help`:
 
 ```text
 edit         exact target -> semantic map -> bounded recall -> execution bundle
@@ -514,7 +525,7 @@ map          compact PHP symbol navigation
 recall       task-scoped recall / L2 briefing compilation
 review       deterministic blind-spot and code-review prompts
 learn        findings, proposals, constraints, and guidance maintenance
-workflow     plan / approve / contract / context / status / manifest / report / reflect / learn / close
+workflow     lower-level plan / approve / contract / context / status / manifest / report / reflect / learn / close
 verify       cross-package workflow consistency
 memory       read-only durable-memory promotion review
 init         diagnostics, offline asset installation, sync, and scaffolding
@@ -609,7 +620,7 @@ composer validate --strict
 phpunit
 phpstan
 php tools/project-phpstan-rules.php
-itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules'
+itp-context-validate 'voku\\AgentLoop\\Context\\ArchitectureRules'
 php tools/agent-discipline-dogfood.php
 ```
 
@@ -618,6 +629,7 @@ Never report a command as passed unless it ran and its exit code was observed.
 ## Documentation
 
 - [Your first governed task](docs/quick-start.md)
+- [Pre-1.0 compatibility and durable-state contract](docs/compatibility.md)
 - [Agent asset and offline installation contract](docs/agents/INFO_Agents.md)
 - [Cross-package lifecycle](docs/agents/LIFECYCLE.md)
 - [Learning and durable-memory boundary](docs/workflow/learning-boundary.md)
