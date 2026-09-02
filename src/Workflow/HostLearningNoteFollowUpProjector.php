@@ -34,8 +34,9 @@ final readonly class HostLearningNoteFollowUpProjector
             return [];
         }
 
-        $findings = (new FindingRepository())->loadAll($learningRoot);
+        /** @var list<non-empty-string> $candidateIds */
         $candidateIds = [];
+        $findings = (new FindingRepository())->loadAll($learningRoot);
         foreach ($decision->findingIds as $findingId) {
             $finding = $findings[$findingId] ?? null;
             if ($finding === null) {
@@ -46,7 +47,7 @@ final readonly class HostLearningNoteFollowUpProjector
             if ($finding->classification !== LearningClassification::ADD_LEARNING_NOTE) {
                 continue;
             }
-            $candidateIds[] = $finding->id;
+            $candidateIds[] = $this->nonEmptyFindingId($finding->id);
         }
 
         sort($candidateIds, SORT_STRING);
@@ -59,5 +60,16 @@ final readonly class HostLearningNoteFollowUpProjector
             'finding_ids' => $candidateIds,
             'skill' => 'agent-learning-note',
         ]];
+    }
+
+    /** @return non-empty-string */
+    private function nonEmptyFindingId(string $findingId): string
+    {
+        $findingId = trim($findingId);
+        if ($findingId === '') {
+            throw new RuntimeException('Learning owner returned an empty Finding id.');
+        }
+
+        return $findingId;
     }
 }
