@@ -14,6 +14,7 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -30,6 +31,10 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
             throw new RuntimeException('Unable to create test learning root.');
         }
+        if (!mkdir($this->root . '/docs', 0o775, true) && !is_dir($this->root . '/docs')) {
+            throw new RuntimeException('Unable to create scoped test source directory.');
+        }
+        file_put_contents($this->root . '/docs/note.txt', "revision one\n");
     }
 
     protected function tearDown(): void
@@ -49,12 +54,13 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         self::assertNotNull($run);
         $sessions = (new SessionStore())->all((new ProjectLayout($this->root))->sessionsRoot());
         self::assertCount(1, $sessions);
+        $implementation = ImplementationSnapshot::capture($this->root, $contract);
 
         (new RunVerificationReceiptStore($this->root))->record(
             $run,
             $contract,
             $sessions[0],
-            'sha256:' . str_repeat('b', 64),
+            $implementation->digest,
             'satisfied',
             [[
                 'command' => 'composer ci',
