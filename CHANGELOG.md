@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.6 - 2026-09-04
+
+### Fixed
+
+- Require `voku/agent-learning ^0.14.2` on the maintained 0.18.x line so released consumers can use Learning 0.14 owner APIs without an unsatisfiable Composer graph. No Loop runtime behavior changes.
+
 ## 0.18.5 - 2026-09-01
 
 ### Added
