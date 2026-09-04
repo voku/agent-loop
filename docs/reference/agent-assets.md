@@ -92,6 +92,8 @@ Reusable implementation behavior is selected when the task needs it:
 
 - `coding-simplicity`: coding, bug fixing, and refactoring with the smallest correct implementation;
 - `php-best-practices`: PHP-specific engineering guidance;
+- `agent-loop-solution-triage`: triage whether existing code/tests already satisfy a requirement;
+- `agent-loop-blindspot-review`: evidence-first stress testing of plans and diffs for hidden failure modes;
 - `code-review-*`: one dominant engineering review lens, with at most one evidence-backed handoff;
 - `code-review-simplicity`: review-time complexity judgment, distinct from implementation-time `coding-simplicity`.
 
@@ -104,11 +106,13 @@ If a required engineering skill is unavailable, report that capability gap. Do n
 Use narrow roles only when their verified scope fits:
 
 1. `agent-loop-investigate` / investigator: locate definitions, callers, and tests; never edit.
-2. `agent-loop-surgical-edit` / surgical builder: already-understood one/two-file edit; load `coding-simplicity` for implementation choices when installed.
-3. `agent-loop-code-review` / reviewer: complete raw diff through one dominant installed `code-review-*` lens.
-4. `agent-loop-simplify-review`: current-diff simplicity review.
-5. `agent-loop-simplify-audit`: bounded repository-wide simplicity audit.
-6. Ambiguous, architectural, new-feature, or broader work stays in the main governed workflow.
+2. `agent-loop-solution-triager`: determine whether existing code/tests already satisfy the ask before writing new code.
+3. `agent-loop-surgical-edit` / surgical builder: already-understood one/two-file edit; load `coding-simplicity` for implementation choices when installed.
+4. `agent-loop-blindspot-reviewer`: pressure-test plans and diffs for hidden failure modes, partial failures, and unhandled branches.
+5. `agent-loop-code-review` / reviewer: complete raw diff through one dominant installed `code-review-*` lens.
+6. `agent-loop-simplify-review`: current-diff simplicity review.
+7. `agent-loop-simplify-audit`: bounded repository-wide simplicity audit.
+8. Ambiguous, architectural, new-feature, or broader work stays in the main governed workflow.
 
 Narrow roles return deterministic terminal status instead of hiding escalation in prose.
 
