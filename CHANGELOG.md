@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Add end-to-end two-run dogfood test `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` proving behavioral closure of #349: Run One teaches by recording a validated Finding and authoring an active `LearningNote`, transient context (session, dispatcher, in-memory state) is destroyed, and Run Two remembers by entering normally via `agent-loop enter` where Recall compiles the note as precedent advice into `system.md`.
+- Add end-to-end dogfood test `tests/Dogfood/AutonomousReplanDogfoodTest.php` proving behavioral closure of #345: an agent facing an invalid implementation premise autonomously triggers `REPLAN` within the approved intent without human interruption, while premise failures requiring scope or goal changes strictly enforce `HUMAN_DECISION_REQUIRED` via superseded unapproved contract revisions.
 
 ## 0.19.0 - 2026-09-04
 
