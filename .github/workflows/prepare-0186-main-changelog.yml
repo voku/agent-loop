@@ -1,0 +1,42 @@
+name: Prepare 0.18.6 main changelog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-0186-main-changelog.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Record 0.18.6 maintenance release and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('CHANGELOG.md')
+          text = path.read_text()
+          section = '''## 0.18.6 - 2026-09-04\n\n### Fixed\n\n- Require `voku/agent-learning ^0.14.2` on the maintained 0.18.x line so released consumers can use Learning 0.14 owner APIs without an unsatisfiable Composer graph. No Loop runtime behavior changes.\n'''
+          if '## 0.18.6 - 2026-09-04' not in text:
+              marker = '## Unreleased\n'
+              if marker not in text:
+                  raise SystemExit('CHANGELOG.md has no Unreleased marker')
+              text = text.replace(marker, marker + '\n' + section, 1)
+              path.write_text(text)
+          PY
+          git rm .github/workflows/prepare-0186-main-changelog.yml
+          git add CHANGELOG.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(release): record agent-loop 0.18.6'
+          git push origin HEAD:main
