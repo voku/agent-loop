@@ -239,6 +239,40 @@ vendor/bin/itp-context-query var/itp-context --text='state path'
 is a real dependency because the rules implement its contract; it needs only
 PHP 8.3+, which this package already requires.
 
+## From learning to executable CI constraints
+
+Markdown guidance is useful when a rule needs human or model context. It is a
+poor final home for a recurring requirement that the repository can check
+mechanically. In that case the useful feedback loop is:
+
+```text
+coding task
+  -> observed Finding
+  -> repeated / corroborated Learning evidence
+  -> human-reviewed durable decision
+  -> executable project rule
+  -> CI enforces it on later changes
+```
+
+For a PHP project, an executable rule might be a custom PHPStan rule for a
+semantic or architectural invariant, a custom php-cs-fixer fixer for a
+deterministic code-shape rule, a focused regression test, or another repository
+linter/command. Future agents then get deterministic feedback from the same gate
+as humans instead of spending prompt context on an optional prose instruction.
+
+This is not automatic rule generation. Learning owns Findings, evidence,
+LearningNotes, proposals, and decision history; a human decides whether a pattern
+is stable and general enough to enforce. The host repository owns the PHPStan
+rule, fixer, test, linter, and CI configuration that implements that decision.
+Once the executable constraint exists, CI is the authoritative evidence for that
+invariant; Recall or guidance can explain *why* the rule exists without becoming
+a second enforcement mechanism.
+
+This repository dogfoods the pattern: `composer ci` includes project-specific
+PHPStan fixture checks and architecture-rule validation. See
+[Learning boundary](docs/workflow/learning-boundary.md) for the promotion boundary
+and why not every Finding should become code.
+
 ## Deterministic slop review
 
 [`voku/slop-scan`](https://github.com/voku/slop-scan) reports heuristic findings
