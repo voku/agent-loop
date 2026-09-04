@@ -41,12 +41,15 @@
         "exit_code": 0,
         "commit": "e05cf7d25261bf629b5ae389418399e9c51c228d",
         "target_source_ref": "MEMORY.md",
-        "target_content_hash": "6574f6f4d1b46d057eaaa2807bfe8767074ac44d32542844be026495df6ddbe7",
+        "target_content_hash": "83c29b4bcf51b283307f29b357a4f2e90fb7388203d7b8f52d9ee73e818aa056",
         "summary": "481 tests, PHPStan level 8 clean, nine project rule fixtures asserted out of process, context validate and discipline dogfood. composer review:slop reported 0 new findings and php tools/self-shape-dogfood.php governed this diff to PASSED.",
         "evidence": [
             "composer ci",
             "composer review:slop",
             "php tools/self-shape-dogfood.php"
-        ]
+        ],
+        "reanchored_by": "voku",
+        "reanchored_at": "2026-09-04T05:31:28+00:00",
+        "reanchor_reason": "Repository layout move: MEMORY.md evidence paths were repaired after docs/agents/ was split into resources/ and docs/<category>/. The guidance rows themselves are unchanged."
     }
 }

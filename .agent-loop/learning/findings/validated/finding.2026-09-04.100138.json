@@ -1,0 +1,31 @@
+{
+    "id": "finding.2026-09-04.100138",
+    "task_id": "TODO@agent-loop/repository-layout-resources",
+    "session": "2026-09-04-package-resources-move",
+    "created_at": "2026-09-04T05:19:03+00:00",
+    "created_by": "moellekenl",
+    "scope": [
+        "MEMORY.md",
+        "tools/Dogfood/SelfShapeEvidence.php",
+        "docs/contributing/repository-layout.md"
+    ],
+    "observation": "MEMORY.md rows cite their canonical home as a physical repository path. Moving the package-asset and documentation layout (docs/agents/ -> resources/ and docs/<category>/) invalidated four of those pointers at once, and the self-shape gate then refused the change because it reads any MEMORY.md edit as a durable-rule change that needs finding evidence.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": "tools/Dogfood/SelfShapeEvidence.php",
+            "line": 79,
+            "summary": "learningStatus() throws when MEMORY.md changed and no finding.*.json is in the diff, so a pointer-only repair fails the gate exactly like a new rule."
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "php tools/self-shape-dogfood.php failed with \"MEMORY.md changed but no project finding was recorded\" after the layout move updated four MEMORY.md evidence paths."
+        }
+    ],
+    "hypothesis": "The gate cannot distinguish a rule edit from an evidence-pointer repair, because MEMORY.md stores the evidence reference as a path string rather than as an owner-resolved identifier.",
+    "validated_conclusion": "A repository-layout move must treat every path-shaped evidence pointer as part of the move: update MEMORY.md rows and record the layout finding in the same change, or the durable rules quietly point at deleted files. Prefer citing evidence by a path an owner resolves (a class, a test name, a constant) over a directory that a layout slice can move.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}
