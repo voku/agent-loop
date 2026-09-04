@@ -19,6 +19,22 @@ It is local-first, auditable through files and Git, independent of a specific
 LLM provider, and built around focused `agent-*` packages rather than one large
 agent platform.
 
+## Ecosystem
+
+The workflow is composed of focused, independently testable packages with clear ownership boundaries:
+
+| Package | Role | Key Responsibility |
+| --- | --- | --- |
+| [`voku/agent-loop`](https://github.com/voku/agent-loop) | Kernel & Governance | Contract / Run lifecycle, approvals, canonical next actions, quality gates |
+| [`voku/agent-kanban`](https://github.com/voku/agent-kanban) | Board & Tasks | Git-native Markdown Kanban cards, deterministic parsing, safe mutations |
+| [`voku/agent-session`](https://github.com/voku/agent-session) | Working Memory | Volatile session state, plans, checkpoints, decisions, pruneable retention |
+| [`voku/agent-map`](https://github.com/voku/agent-map) | Code Intelligence | Structural & semantic PHP repository maps, callers, callees, edit context |
+| [`voku/agent-recall-compiler`](https://github.com/voku/agent-recall-compiler) | Context & Prompts | Task context compilation, provenance, L2 operational-prompt recipes |
+| [`voku/agent-learning`](https://github.com/voku/agent-learning) | Durable Learning | Reviewable findings, precedent (LearningNotes), proposals, dream audit |
+| [`voku/agent-loop-runner`](https://github.com/voku/agent-loop-runner) | Execution Plane | Optional external process supervisor, isolated Git worktrees, host adapters |
+| [`voku/agent-ui`](https://github.com/voku/agent-ui) | Control Plane | Local server-rendered human web UI, cockpit, board, task workbench |
+| [`voku/agent-skills`](https://github.com/voku/agent-skills) | Guidance Catalog | Portable engineering skills, review lenses, static-analysis rules |
+
 ## Installation
 
 ```bash
