@@ -15,7 +15,7 @@ final readonly class AgentAssetSourcePaths
         private string $subagentsRoot,
         private string $hooksRoot,
         private string $toolsRoot,
-        private string $claudeHooksRoot = PackageResources::ROOT . '/hooks/claude',
+        private string $claudeHooksRoot,
     ) {
     }
 

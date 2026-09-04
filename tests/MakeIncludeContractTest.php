@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\PackageResources;
 
 /**
  * The shipped Make include is the host-facing surface for asset installation.
@@ -15,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class MakeIncludeContractTest extends TestCase
 {
-    private const string INCLUDE_PATH = __DIR__ . '/../resources/make/agent-loop.mk';
+    private const string INCLUDE_PATH = __DIR__ . '/../' . PackageResources::MAKE_INCLUDE;
 
     public function testIncludeIsShippedAndReadable(): void
     {

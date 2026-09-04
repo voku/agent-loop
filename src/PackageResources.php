@@ -15,13 +15,12 @@ use InvalidArgumentException;
  * and getting a half-move whenever one of them was missed. Callers ask here
  * instead, so the layout is a fact of this class rather than of every consumer.
  *
- * Relative constants exist because release staging, documentation and CI talk
- * about the same directories without a package root to resolve against.
+ * The relative constants are public because they are also the default source
+ * roots a consuming repository uses for its own assets, and because tests assert
+ * the shipped layout against them.
  */
 final class PackageResources
 {
-    public const string ROOT = 'resources';
-
     public const string SKILLS = 'resources/skills';
 
     public const string SUBAGENTS = 'resources/subagents';
@@ -32,38 +31,18 @@ final class PackageResources
 
     public const string MAKE_INCLUDE = 'resources/make/agent-loop.mk';
 
-    public const string PROJECT_INSTRUCTIONS = 'resources/instructions/project-instructions.md';
+    private const string PROJECT_INSTRUCTIONS = 'resources/instructions/project-instructions.md';
 
-    public const string OPERATING_PROMPTS = 'resources/prompts/operating-prompts.json';
+    private const string OPERATING_PROMPTS = 'resources/prompts/operating-prompts.json';
 
-    public const string REVIEW = 'resources/review';
+    private const string REVIEW = 'resources/review';
 
     /** Host hook bundles this package ships, keyed by canonical agent name. */
     private const array HOOK_AGENTS = ['codex', 'claude'];
 
-    public static function root(): string
-    {
-        return dirname(__DIR__) . '/' . self::ROOT;
-    }
-
-    public static function path(string $relative): string
-    {
-        return dirname(__DIR__) . '/' . $relative;
-    }
-
-    public static function skillsRoot(): string
-    {
-        return self::path(self::SKILLS);
-    }
-
     public static function subagentsRoot(): string
     {
         return self::path(self::SUBAGENTS);
-    }
-
-    public static function toolsRoot(): string
-    {
-        return self::path(self::TOOLS);
     }
 
     public static function gitHooksRoot(): string
@@ -106,5 +85,10 @@ final class PackageResources
     public static function hooksRoot(string $agent): string
     {
         return self::path(self::hooks($agent));
+    }
+
+    private static function path(string $relative): string
+    {
+        return dirname(__DIR__) . '/' . $relative;
     }
 }
