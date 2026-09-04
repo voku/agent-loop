@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Add end-to-end two-run dogfood test `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` proving behavioral closure of #349: Run One teaches by recording a validated Finding and authoring an active `LearningNote`, transient context (session, dispatcher, in-memory state) is destroyed, and Run Two remembers by entering normally via `agent-loop enter` where Recall compiles the note as precedent advice into `system.md`.
+
 ## 0.19.0 - 2026-09-04
 
 ### Changed
