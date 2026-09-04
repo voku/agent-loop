@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   released-dependency-set:
-    name: Released Map 0.9 + Recall 0.13.16 graph
+    name: Released Map 0.10 + Recall 0.15.0 graph
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -37,8 +37,8 @@ jobs:
             "name": "voku/agent-loop-map09-release-set-proof",
             "type": "project",
             "require": {
-              "voku/agent-map": "0.9.0",
-              "voku/agent-recall-compiler": "0.13.16"
+              "voku/agent-map": "0.10.0",
+              "voku/agent-recall-compiler": "0.15.0"
             },
             "config": {
               "allow-plugins": false,
@@ -55,8 +55,8 @@ jobs:
                 (.version | startswith("dev-"))
                 or ((.dist.type // .source.type // "") == "path")
               )) | length == 0)
-            and ($packages | any(.name == "voku/agent-map" and .version == "0.9.0"))
-            and ($packages | any(.name == "voku/agent-recall-compiler" and .version == "0.13.16"))
+            and ($packages | any(.name == "voku/agent-map" and .version == "0.10.0"))
+            and ($packages | any(.name == "voku/agent-recall-compiler" and .version == "0.15.0"))
           ' composer.lock >/dev/null
 
           mkdir -p "${GITHUB_WORKSPACE}/build"
@@ -117,9 +117,9 @@ jobs:
             and (.scenario == "${{ matrix.scenario }}")
             and (.release_set["voku/agent-loop"].version == "dev-main")
             and (.release_set["voku/agent-loop"].source_type == "path")
-            and (.release_set["voku/agent-map"].version == "0.9.0")
+            and (.release_set["voku/agent-map"].version == "0.10.0")
             and (.release_set["voku/agent-map"].source_type != "path")
-            and (.release_set["voku/agent-recall-compiler"].version == "0.13.16")
+            and (.release_set["voku/agent-recall-compiler"].version == "0.15.0")
             and (.release_set["voku/agent-recall-compiler"].source_type != "path")
             and ([.plan_capabilities[].plan_type] | sort == [
               "class_constant_removal_plan",

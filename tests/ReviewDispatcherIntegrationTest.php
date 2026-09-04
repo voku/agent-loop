@@ -34,7 +34,9 @@ final class ReviewDispatcherIntegrationTest extends TestCase
         $result = $this->dispatch(['agent-loop', 'review', 'blindspots', 'ABC-123']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('Review blindspots for ABC-123: ok', $result['output']);
+        // Recall owns this wording; agent-loop re-exports its report verbatim.
+        self::assertStringContainsString('Deterministic blind-spot evidence audit for ABC-123: ok', $result['output']);
+        self::assertStringContainsString('Semantic review: NOT EXECUTED', $result['output']);
         self::assertFileExists($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.md');
         self::assertFileExists($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json');
         self::assertFileExists($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.prompt.md');

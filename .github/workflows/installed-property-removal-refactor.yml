@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-map
-          ref: 0.9.0
+          ref: 0.10.0
           path: build/released-agent-map
           persist-credentials: false
 
@@ -71,7 +71,7 @@ jobs:
                 "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-map": "0.9.0"}
+                  "versions": {"voku/agent-map": "0.10.0"}
                 }
               }
             ],
@@ -128,7 +128,7 @@ jobs:
           cd "$root"
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           composer show voku/agent-map --format=json > resolved-agent-map.json
-          jq -e '.versions | index("0.9.0") != null' resolved-agent-map.json >/dev/null
+          jq -e '.versions | index("0.10.0") != null' resolved-agent-map.json >/dev/null
 
           git init --initial-branch=main
           git config user.name 'Installed Property Removal Dogfood'

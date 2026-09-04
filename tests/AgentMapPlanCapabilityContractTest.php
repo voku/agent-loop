@@ -9,8 +9,8 @@ use voku\AgentMap\Cli\CliApplication;
 
 final class AgentMapPlanCapabilityContractTest extends TestCase
 {
-    /** Proves released Map 0.9 exposes the complete ten-plan governed registry. */
-    public function testReleasedMap09PublishesCompleteGovernedPlanRegistry(): void
+    /** Proves released Map 0.10 exposes the complete fourteen-plan governed registry. */
+    public function testReleasedMapPublishesCompleteGovernedPlanRegistry(): void
     {
         ob_start();
         try {
@@ -38,7 +38,9 @@ final class AgentMapPlanCapabilityContractTest extends TestCase
         sort($contracts, SORT_STRING);
 
         self::assertSame([
+            'copy:method_copy_plan@1.0',
             'move:class_move_plan@1.0',
+            'move:method_move_plan@1.0',
             'removal:class_constant_removal_plan@1.0',
             'removal:method_removal_plan@1.0',
             'removal:property_removal_plan@1.0',
@@ -48,6 +50,8 @@ final class AgentMapPlanCapabilityContractTest extends TestCase
             'rename:method_rename_plan@1.0',
             'rename:parameter_rename_plan@1.0',
             'rename:property_rename_plan@1.0',
+            'scaffold:class_scaffold_plan@1.0',
+            'scaffold:method_scaffold_plan@1.0',
         ], $contracts);
     }
 }

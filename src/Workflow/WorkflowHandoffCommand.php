@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use Closure;
-use ReflectionClass;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
-use voku\AgentRecallCompiler\RecallCompiler;
+use voku\AgentRecallCompiler\BundledOperatingPromptManifest;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -145,16 +144,9 @@ final readonly class WorkflowHandoffCommand
             return $this->operatingPromptManifest;
         }
 
-        $source = (new ReflectionClass(RecallCompiler::class))->getFileName();
-        if (!is_string($source)) {
-            throw new RuntimeException('Unable to resolve the installed agent-recall-compiler package path.');
-        }
-
-        $manifest = dirname($source, 2) . '/skills/agent-recall-consumer/operating-prompts.json';
-        if (!is_file($manifest)) {
-            throw new RuntimeException('Bundled todo-card-handoff manifest not found: ' . $manifest);
-        }
-
-        return $manifest;
+        // Recall owns where it ships this manifest; deriving it from a reflected
+        // source location silently broke when the package moved `skills/` to
+        // `resources/skills/`.
+        return BundledOperatingPromptManifest::consumer();
     }
 }

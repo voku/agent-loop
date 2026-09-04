@@ -31,10 +31,20 @@ final class TemporalDispatcherTest extends TestCase
             ob_end_clean();
             self::assertSame(0, $build);
 
-            $map = $directory . '/.agent-loop/map/php-symbols.json';
-            $before = $directory . '/before.json';
+            $mapDirectory = $directory . '/.agent-loop/map';
+            $map = $mapDirectory . '/php-symbols.json';
             self::assertFileExists($map);
+
+            // agent-map 0.10.0 splits the index into symbol definitions plus a
+            // companion relations file. A snapshot of the symbols file alone is
+            // an incomplete index: the live side resolves its relations and the
+            // copy cannot, so an unchanged tree reports spurious relation_added
+            // events. Snapshot the whole index, keeping the basename convention.
+            $snapshot = $directory . '/snapshot';
+            self::assertTrue(mkdir($snapshot, 0o775, true));
+            $before = $snapshot . '/php-symbols.json';
             self::assertTrue(copy($map, $before));
+            self::assertTrue(copy($mapDirectory . '/php-relations.json', $snapshot . '/php-relations.json'));
 
             ob_start();
             $status = $dispatcher->run([

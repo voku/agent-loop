@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.19.0 - 2026-09-04
+
+### Changed
+
+- **Breaking.** Adopt the coordinated pre-1.0 release set: `voku/agent-kanban ^0.4.0`,
+  `voku/agent-learning ^0.16.0`, `voku/agent-map ^0.10.0`,
+  `voku/agent-recall-compiler ^0.15.0`, `voku/agent-session ^0.7.0`. The root
+  development alias moves to `0.19.x-dev`.
+- Resolve Recall's bundled operating-prompt manifest through the owner's
+  `BundledOperatingPromptManifest::consumer()` instead of deriving
+  `skills/agent-recall-consumer/operating-prompts.json` from a reflected source
+  location. Recall moved that asset to `resources/skills/`, and the reconstructed
+  path failed closed with "Bundled todo-card-handoff manifest not found" - the
+  owner's own docblock forbids consumers knowing that layout.
+- Dogfood workflows pin the declared minimum release set (Recall `0.15.0`, Map
+  `0.10.0`) in checkout refs, Composer path-repository version aliases, and the
+  resolved-version assertions that guard them.
+
+### Fixed
+
+- `map history diff` coverage snapshots the complete index. agent-map 0.10.0
+  splits the index into symbol definitions plus a companion relations file, so
+  copying `php-symbols.json` alone produced an incomplete "before" side and an
+  unchanged tree reported spurious `relation_added` events.
+- The governed plan-capability contract expects Map 0.10's fourteen plans,
+  adding `copy:method_copy_plan`, `move:method_move_plan`,
+  `scaffold:class_scaffold_plan` and `scaffold:method_scaffold_plan`.
+- Review blind-spot coverage asserts Recall's current report wording, which the
+  0.13.16 pin had hidden.
+
 ### Added
 
 - Skills shipped by `voku/agent-session` are projected by `init install-assets`
