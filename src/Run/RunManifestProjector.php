@@ -202,11 +202,17 @@ final readonly class RunManifestProjector
         array &$disagreements,
     ): array {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-        $configPath = rtrim($boardRoot, '/') . '/todo/kanban.config.json';
-        $metadataPath = rtrim($boardRoot, '/') . '/todo/board.md';
+        $configPath = is_file(rtrim($boardRoot, '/') . '/kanban.config.json')
+            ? rtrim($boardRoot, '/') . '/kanban.config.json'
+            : rtrim($boardRoot, '/') . '/todo/kanban.config.json';
+        $metadataPath = is_file(rtrim($boardRoot, '/') . '/board.md')
+            ? rtrim($boardRoot, '/') . '/board.md'
+            : rtrim($boardRoot, '/') . '/todo/board.md';
         $cards = array_merge(
             glob(rtrim($boardRoot, '/') . '/todo/cards/*.md') ?: [],
             glob(rtrim($boardRoot, '/') . '/todo/jira/*.md') ?: [],
+            glob(rtrim($boardRoot, '/') . '/cards/*.md') ?: [],
+            glob(rtrim($boardRoot, '/') . '/jira/*.md') ?: [],
         );
         if (!is_file($configPath) && !is_file($metadataPath) && $cards === []) {
             return ['owner' => 'agent-kanban', 'state' => 'not_configured', 'observation_mode' => 'checked'];

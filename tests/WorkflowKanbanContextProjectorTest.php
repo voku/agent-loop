@@ -76,6 +76,26 @@ CARD,
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/sessions');
     }
 
+    public function testResolvesDirectKanbanConfigFileAtBoardRoot(): void
+    {
+        $customRoot = sys_get_temp_dir() . '/agent-loop-flat-board-' . bin2hex(random_bytes(8));
+        mkdir($customRoot . '/.agent-loop/cards', 0o775, true);
+        file_put_contents(
+            $customRoot . '/.agent-loop/kanban.config.json',
+            json_encode(['projectPrefix' => 'FLAT', 'cardDirectory' => 'cards'], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $customRoot . '/.agent-loop/cards/FLAT-1.md',
+            "# FLAT-1: Task\n\n- **Ticket:** FLAT-1\n- **Lane:** READY\n- **Status:** Selected\n- **Summary:** S\n- **Next:** N\n",
+        );
+
+        $projection = (new WorkflowKanbanContextProjector($customRoot))->project('FLAT-1');
+        self::assertNotNull($projection);
+        self::assertSame('FLAT-1', $projection->taskId);
+        self::assertSame('Task', $projection->title);
+        $this->removeDirectory($customRoot);
+    }
+
     private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {

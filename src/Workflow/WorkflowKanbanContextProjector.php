@@ -27,7 +27,9 @@ final readonly class WorkflowKanbanContextProjector
     public function project(string $taskId): ?KanbanContextProjection
     {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-        $configPath = $boardRoot . '/todo/kanban.config.json';
+        $configPath = is_file($boardRoot . '/kanban.config.json')
+            ? $boardRoot . '/kanban.config.json'
+            : $boardRoot . '/todo/kanban.config.json';
         if (!is_file($configPath)) {
             return null;
         }

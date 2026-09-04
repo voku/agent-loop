@@ -178,9 +178,14 @@ final class AgentLoopVerifier
     private function checkBoard(string $boardRoot, ?string $taskId): bool
     {
         $root = rtrim($boardRoot, '/');
-        $metadata = $root . '/todo/board.md';
-        $config = $root . '/todo/kanban.config.json';
-        $cards = array_merge(glob($root . '/todo/cards/*.md') ?: [], glob($root . '/todo/jira/*.md') ?: []);
+        $metadata = is_file($root . '/board.md') ? $root . '/board.md' : $root . '/todo/board.md';
+        $config = is_file($root . '/kanban.config.json') ? $root . '/kanban.config.json' : $root . '/todo/kanban.config.json';
+        $cards = array_merge(
+            glob($root . '/todo/cards/*.md') ?: [],
+            glob($root . '/todo/jira/*.md') ?: [],
+            glob($root . '/cards/*.md') ?: [],
+            glob($root . '/jira/*.md') ?: [],
+        );
         if (!is_file($metadata) && !is_file($config) && $cards === []) {
             echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, {$root}/todo/cards/, or {$root}/todo/jira/\n";
 
