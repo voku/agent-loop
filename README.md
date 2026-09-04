@@ -453,6 +453,10 @@ vendor/bin/agent-loop workflow plan ABC-123 \
 vendor/bin/agent-loop workflow approve ABC-123 --by lars
 ```
 
+The approved Contract remains the durable task-authority record. `enter` and
+`finish` reconcile and route that authority; neither command infers, broadens, or
+replaces human approval.
+
 After approval, use the host-facing lifecycle front door instead of scripting a
 second phase machine from `workflow`, `session`, `recall`, `review`, and `learn`
 commands:
@@ -463,11 +467,12 @@ vendor/bin/agent-loop enter ABC-123 --format=json
 
 `enter` re-observes the current repository, binds or resumes the governed Run,
 prepares the exact Run-bound Session and Recall context, and returns the canonical
-`next_action`. If the payload says host-native implementation work is allowed,
-make the approved change with ordinary repository tools or an appropriate
-bounded agent. Lower-level owner/orchestration commands remain available because
-the front door may return one of them as the exact repair action; they are not an
-alternative lifecycle.
+`next_action_kind` / `next_action`. Treat the pair exactly as returned instead of
+inferring lifecycle state from prose or sibling fields. If the payload says
+host-native implementation work is allowed, make the approved change with
+ordinary repository tools or an appropriate bounded agent. Lower-level
+owner/orchestration commands remain available because the front door may return
+one of them as the exact repair action; they are not an alternative lifecycle.
 
 After the implementation attempt, reconcile close-out through the other front
 door:
@@ -477,16 +482,17 @@ vendor/bin/agent-loop finish ABC-123 --format=json
 ```
 
 `finish` re-checks the current implementation, declared validation, review,
-Recall outcomes, Learning disposition, and close policy. When an explicit
-judgment or owner action is still required, follow the returned canonical
-`next_action` and call `finish` again after that action. Do not copy a prose list
-of gates into host automation: the executable policy is the source of truth.
+Recall outcomes, Learning disposition, and close policy. When another action is
+required, obey the returned `next_action_kind` / `next_action` and call `finish`
+again after that action. Do not copy a prose list of gates into host automation:
+the executable policy is the source of truth.
 
 A successful close is explicit:
 
 ```json
 {
   "complete": true,
+  "next_action_kind": "none",
   "next_action": "none"
 }
 ```
@@ -503,9 +509,10 @@ by its owner as `ADD_LEARNING_NOTE` can produce a follow-up shaped like:
 ```
 
 That is **post-close knowledge work**, not another software-close gate. The Run
-remains complete and `next_action` remains `none`. Author or update the note
-through the Learning-owned skill/API/CLI; Loop does not reconstruct Learning's
-private note paths or promote the note into active guidance.
+remains complete and `next_action_kind` / `next_action` remain `none`. Author or
+update the note through the Learning-owned skill/API/CLI; Loop does not
+reconstruct Learning's private note paths or promote the note into active
+guidance.
 
 A re-plan creates a new Contract revision. Approval, review, validation, and
 Learning evidence bound to an older revision or implementation remain auditable
