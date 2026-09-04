@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.6 - 2026-09-04
+
+### Fixed
+
+- Require `voku/agent-learning ^0.14.2` on the maintained 0.18.x line so released consumers can use Learning 0.14 owner APIs without an unsatisfiable Composer graph. No Loop runtime behavior changes.
+
 ### Changed
 
 - **Breaking.** Package-shipped assets moved out of `docs/` and the repository root into `resources/`, so `docs/` is human explanation only and `resources/` is what the package ships. `docs/agents/skills` -> `resources/skills`, `docs/agents/subagents` -> `resources/subagents`, `docs/agents/codex-hooks` -> `resources/hooks/codex`, `docs/agents/claude-hooks` -> `resources/hooks/claude`, `docs/agents/tools` -> `resources/tools`, `docs/agents/project-instructions.md` -> `resources/instructions/project-instructions.md`, `docs/agents/recall-documents.json` -> `docs/recall-documents.json`, `githooks/` -> `resources/githooks/`, `make/agent-loop.mk` -> `resources/make/agent-loop.mk`, and `resources/operating-prompts.json` -> `resources/prompts/operating-prompts.json`. There are no forwarding copies; a stale path fails loudly.
