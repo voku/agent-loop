@@ -45,7 +45,7 @@ jobs:
         run: php -l tools/execution-contract-dogfood.php
       - name: Prove L2 contract gate by mutating only after a bound L1 exists
         env:
-          AGENT_LOOP_OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json
+          AGENT_LOOP_OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
         run: php tools/execution-contract-dogfood.php
       - name: Upload execution-contract evidence
         if: always()

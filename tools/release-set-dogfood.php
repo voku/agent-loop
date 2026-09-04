@@ -461,8 +461,16 @@ final class ReleaseSetDogfood
      * @param list<int> $allowedExitCodes
      * @return array<string, mixed>
      */
-    private const string RECOVERY_L2_PROMPT_MANIFEST =
-        'vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json';
+
+    private function recoveryL2PromptManifest(string $root): string
+    {
+        $new = "vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json";
+        if (is_file($root . "/" . $new)) {
+            return $new;
+        }
+
+        return "vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json";
+    }
 
     /** @param list<string> $extra */
     private function recoveryPlan(string $root, string $task, array $extra = []): void
@@ -590,7 +598,7 @@ final class ReleaseSetDogfood
         $scenario = 'recovery.execution-contract-blocked';
         $root = $this->recoveryConsumer('execution-contract-blocked');
         $this->recoveryApproved($root, 'REC-5', [
-            '--operating-prompt-manifest', self::RECOVERY_L2_PROMPT_MANIFEST,
+            '--operating-prompt-manifest', $this->recoveryL2PromptManifest($root),
             '--operating-prompt', '{"id":"adversarial-review","arguments":{"minimum_failure_modes":3}}',
         ]);
         $this->mustRun([
@@ -614,7 +622,7 @@ final class ReleaseSetDogfood
         $scenario = 'recovery.preparation-refusal';
         $root = $this->recoveryConsumer('preparation-refusal');
         $this->recoveryApproved($root, 'REC-6', [
-            '--operating-prompt-manifest', self::RECOVERY_L2_PROMPT_MANIFEST,
+            '--operating-prompt-manifest', $this->recoveryL2PromptManifest($root),
             '--operating-prompt', '{"id":"release-set-gate-no-such-capability","arguments":{}}',
         ]);
 

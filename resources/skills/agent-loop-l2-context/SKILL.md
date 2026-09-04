@@ -29,8 +29,8 @@ Do not duplicate those contracts here. In an installed project, the canonical
 Recall skill and first-party recipe catalog are shipped with the tool at:
 
 ```text
-vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/SKILL.md
-vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json
+vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/SKILL.md
+vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
 ```
 
 When Recall changes, update its owned skill with the code. This Loop skill should
@@ -74,7 +74,7 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --file tests/ParserTest.php \
   --goal 'Harden the parser tests.' \
   --validation 'composer ci' \
-  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"coverage-mutation","arguments":{"minimum_percentage_points":10,"mutation_command":"vendor/bin/infection --threads=max"}}'
 ```
 

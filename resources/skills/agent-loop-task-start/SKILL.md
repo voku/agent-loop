@@ -192,7 +192,7 @@ vendor/bin/agent-loop workflow plan <task-id> \
   --file <path> \
   --goal <goal> \
   --validation <validation> \
-  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"test-driven-development","arguments":{}}'
 ```
 

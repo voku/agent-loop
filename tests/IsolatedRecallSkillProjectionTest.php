@@ -28,7 +28,7 @@ final class IsolatedRecallSkillProjectionTest extends TestCase
 
 - `vendor/bin/agent-loop recall compile`
 - `vendor/bin/agent-recall-compiler compile`
-- `vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json`
+- `vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json`
 MD,
         );
 
@@ -71,7 +71,7 @@ MD,
         self::assertStringContainsString('tools/agent-loop/vendor/bin/agent-loop recall compile', $projected);
         self::assertStringContainsString('tools/agent-loop/vendor/bin/agent-recall-compiler compile', $projected);
         self::assertStringContainsString(
-            'tools/agent-loop/vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json',
+            'tools/agent-loop/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json',
             $projected,
         );
         self::assertStringNotContainsString('`vendor/bin/', $projected);

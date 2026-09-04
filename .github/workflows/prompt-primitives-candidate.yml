@@ -48,7 +48,7 @@ jobs:
           consumer="${RUNNER_TEMP}/agent-loop-prompt-primitives/consumer"
           cd "${consumer}"
 
-          catalog='vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json'
+          catalog='vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json'
           test -f "${catalog}"
           grep -Fq 'distinct plausible failure-mode hypotheses or attack scenarios' "${catalog}"
           grep -Fq 'Do not manufacture defects merely to satisfy the numeric floor' "${catalog}"

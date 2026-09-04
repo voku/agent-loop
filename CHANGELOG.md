@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Adapt to sibling package asset moves in `voku/agent-recall-compiler`: resolve Recall consumer skills via `PackageResources::skillsRoot()` with fallback to `resources/skills/` and `skills/`. Update documentation, workflows, and dogfood prompt references to `vendor/voku/agent-recall-compiler/resources/skills/`.
 - Require `voku/agent-learning ^0.15.0`, which makes `agent-loop learn proposal-reanchor <target> --by ACTOR --reason TEXT` available. An applied `memory`/`skill` proposal pins its whole target file by hash, so editing any other row of a shared guidance home such as `MEMORY.md` made every applied proof on that file report drift it did not cause, and `agent-loop verify` failed with no way back: retiring answers a curation question nobody asked and re-applying is closed to an applied record. The repair is the owner's, reached through the existing `learn` delegation rather than reimplemented here.
 
 ## 0.18.6 - 2026-09-04

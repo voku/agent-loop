@@ -185,7 +185,7 @@ vendor/bin/agent-loop workflow plan PROJECT-1 \
   --file src/SomeOwningClass.php \
   --goal "Find and fix the smallest evidenced workflow integration gap." \
   --validation "composer ci" \
-  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"missingness-audit","arguments":{}}'
 ```
 

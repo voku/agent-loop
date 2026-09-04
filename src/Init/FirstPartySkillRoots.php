@@ -69,12 +69,21 @@ final readonly class FirstPartySkillRoots
 
     private static function recallSkillRoot(): ?string
     {
+        if (class_exists(\voku\AgentRecallCompiler\PackageResources::class)) {
+            return \voku\AgentRecallCompiler\PackageResources::skillsRoot();
+        }
+
         if (!class_exists(RecallCli::class)) {
             return null;
         }
 
         $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
+        if (!is_string($recallFile)) {
+            return null;
+        }
 
-        return is_string($recallFile) ? dirname($recallFile, 2) . '/skills' : null;
+        $base = dirname($recallFile, 2);
+
+        return is_dir($base . '/resources/skills') ? $base . '/resources/skills' : $base . '/skills';
     }
 }

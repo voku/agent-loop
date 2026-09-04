@@ -62,7 +62,7 @@ vendor/bin/agent-loop workflow plan TASK-1 \
   --goal 'Execute the already-approved plan.' \
   --acceptance 'The approved plan is complete and its declared verification passes.' \
   --validation 'composer ci' \
-  --operating-prompt-manifest vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json \
+  --operating-prompt-manifest vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json \
   --operating-prompt '{"id":"execute-plan-with-blind-spot-check","arguments":{}}'
 ```
 
@@ -102,7 +102,7 @@ Recall's bundled L2 `adversarial-review` recipe during PLAN using the installed
 manifest:
 
 ```text
-vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json
+vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
 ```
 
 Its `minimum_failure_modes` value is a floor on distinct plausible hypotheses or
