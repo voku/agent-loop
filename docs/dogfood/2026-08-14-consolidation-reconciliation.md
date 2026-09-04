@@ -6,7 +6,7 @@ handoff was replayed, so later work starts from evidence instead of from the
 brief.
 
 The reconciliation itself followed the repository's own
-[existing-work preflight](../skills/agent-loop-task-start/SKILL.md): inspect
+[existing-work preflight](../../resources/skills/agent-loop-task-start/SKILL.md): inspect
 overlap, falsify the strongest existing candidate, and repair or extend it
 rather than write a competing implementation.
 
