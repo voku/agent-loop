@@ -70,9 +70,9 @@ final class IsolatedToolActivationTest extends TestCase
 
     public function testSkillProjectionUsesTheResolvedToolBinary(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
         file_put_contents(
-            $this->root . '/docs/agents/skills/demo-skill/SKILL.md',
+            $this->root . '/resources/skills/demo-skill/SKILL.md',
             "# Demo\n\nRun `vendor/bin/agent-loop workflow status DEMO-1`.\n",
         );
 
@@ -89,9 +89,9 @@ final class IsolatedToolActivationTest extends TestCase
 
     public function testSubagentProjectionUsesTheResolvedToolBinary(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        mkdir($this->root . '/resources/subagents', 0o775, true);
         file_put_contents(
-            $this->root . '/docs/agents/subagents/demo-role.md',
+            $this->root . '/resources/subagents/demo-role.md',
             "---\nname: demo-role\ndescription: Demo role.\n---\n\nRun `vendor/bin/agent-loop map discover --limit=10`.\n",
         );
 

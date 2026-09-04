@@ -50,15 +50,15 @@ final class InitCliTest extends TestCase
 
     public function testInitValidationCoversSkillsSubagentsAndHooks(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
         file_put_contents(
-            $this->root . '/docs/agents/subagents/reviewer.md',
+            $this->root . '/resources/subagents/reviewer.md',
             "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n",
         );
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', json_encode([
             'hooks' => [
                 'SessionStart' => [['hooks' => [[
                     'type' => 'command',
@@ -74,9 +74,9 @@ final class InitCliTest extends TestCase
                 ]]]],
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
 
         $result = $this->dispatch(['agent-loop', 'init', 'validate', '--kind=all']);
 
@@ -88,11 +88,11 @@ final class InitCliTest extends TestCase
 
     public function testSyncProjectsPackageOwnedAssetsWithoutInventingUnsupportedCapabilities(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
         file_put_contents(
-            $this->root . '/docs/agents/subagents/reviewer.md',
+            $this->root . '/resources/subagents/reviewer.md',
             "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n",
         );
 

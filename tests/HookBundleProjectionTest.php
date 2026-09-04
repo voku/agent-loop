@@ -37,7 +37,7 @@ final class HookBundleProjectionTest extends TestCase
 
     public function testCodexSyncProjectsUnregisteredHelperAndRemovesItWhenBundleStopsOwningIt(): void
     {
-        $root = $this->root . '/docs/agents/codex-hooks';
+        $root = $this->root . '/resources/hooks/codex';
         $this->writeCodexBundle($root, true);
 
         $sync = $this->runSync(['--agent=codex']);
@@ -67,7 +67,7 @@ final class HookBundleProjectionTest extends TestCase
 
     public function testClaudeSyncProjectsUnregisteredHelperBesideRegisteredEntry(): void
     {
-        $root = $this->root . '/docs/agents/claude-hooks';
+        $root = $this->root . '/resources/hooks/claude';
         mkdir($root . '/hooks', 0o775, true);
         file_put_contents($root . '/hooks/runtime.php', "<?php\n\nreturn 'runtime-ok';\n");
         file_put_contents($root . '/hooks/policy.php', "<?php\n\nreturn require __DIR__ . '/runtime.php';\n");
@@ -100,7 +100,7 @@ final class HookBundleProjectionTest extends TestCase
 
     public function testValidationRejectsMalformedUnregisteredPhpHelperWithoutExecutingIt(): void
     {
-        $root = $this->root . '/docs/agents/codex-hooks';
+        $root = $this->root . '/resources/hooks/codex';
         $this->writeCodexBundle($root, true);
         file_put_contents($root . '/hooks/runtime.php', "<?php\n\nif (\n");
 

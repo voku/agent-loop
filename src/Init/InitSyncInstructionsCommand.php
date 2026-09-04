@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\PackageResources;
 
 /**
  * Projects the small always-on agent-loop router into host instruction files.
@@ -243,7 +244,7 @@ final readonly class InitSyncInstructionsCommand
 
     private function routerSource(): string
     {
-        $path = dirname(__DIR__, 2) . '/docs/agents/project-instructions.md';
+        $path = PackageResources::projectInstructions();
         $content = file_get_contents($path);
         if (!is_string($content) || trim($content) === '') {
             throw new RuntimeException('Package project instruction source is missing or empty: ' . $path);

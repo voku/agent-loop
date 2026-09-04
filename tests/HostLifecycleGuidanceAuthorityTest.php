@@ -17,9 +17,9 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
     {
         $root = dirname(__DIR__);
         $paths = [
-            $root . '/docs/agents/skills/agent-loop-workflow/SKILL.md',
-            $root . '/docs/agents/skills/agent-loop-task-start/SKILL.md',
-            $root . '/docs/agents/LIFECYCLE.md',
+            $root . '/resources/skills/agent-loop-workflow/SKILL.md',
+            $root . '/resources/skills/agent-loop-task-start/SKILL.md',
+            $root . '/docs/workflow/lifecycle.md',
             $root . '/docs/quick-start.md',
         ];
 
@@ -47,7 +47,7 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
 
     public function testTaskStartDoesNotClaimApprovalCreatesPreparedWorkingState(): void
     {
-        $path = dirname(__DIR__) . '/docs/agents/skills/agent-loop-task-start/SKILL.md';
+        $path = dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md';
         $contents = file_get_contents($path);
         self::assertIsString($contents);
 
@@ -71,7 +71,7 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
 
     public function testLifecycleReferenceKeepsApprovalAndEnterOwnershipDistinct(): void
     {
-        $path = dirname(__DIR__) . '/docs/agents/LIFECYCLE.md';
+        $path = dirname(__DIR__) . '/docs/workflow/lifecycle.md';
         $contents = file_get_contents($path);
         self::assertIsString($contents);
 

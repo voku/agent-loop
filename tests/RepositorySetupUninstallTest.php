@@ -212,7 +212,7 @@ final class RepositorySetupUninstallTest extends TestCase
     /** Projects one managed skill exactly the way the sync commands do. */
     private function projectManagedSkill(string $entry): void
     {
-        $sourceRoot = $this->root . '/docs/agents/skills/' . $entry;
+        $sourceRoot = $this->root . '/resources/skills/' . $entry;
         if (!mkdir($sourceRoot, 0o775, true) && !is_dir($sourceRoot)) {
             throw new RuntimeException('Unable to create fixture skill source.');
         }

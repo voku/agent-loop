@@ -50,8 +50,8 @@ final class FirstPartyAgentAssetContractTest extends TestCase
         array $invariants,
     ): void {
         $root = dirname(__DIR__);
-        $skillPath = $root . '/docs/agents/skills/' . $skillName . '/SKILL.md';
-        $subagentPath = $root . '/docs/agents/subagents/' . $subagentName . '.md';
+        $skillPath = $root . '/resources/skills/' . $skillName . '/SKILL.md';
+        $subagentPath = $root . '/resources/subagents/' . $subagentName . '.md';
 
         self::assertFileExists($skillPath);
         self::assertFileExists($subagentPath);
@@ -72,7 +72,7 @@ final class FirstPartyAgentAssetContractTest extends TestCase
 
     public function testPackageOwnedAgentAssetsContainNoRemoteBootstrap(): void
     {
-        $root = dirname(__DIR__) . '/docs/agents';
+        $root = dirname(__DIR__) . '/resources';
         $paths = array_merge(
             glob($root . '/skills/*/SKILL.md') ?: [],
             glob($root . '/subagents/*.md') ?: [],

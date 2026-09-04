@@ -81,11 +81,11 @@ final class InitDoctorCommandTest extends TestCase
     {
         $result = $this->runDoctor([]);
 
-        self::assertStringContainsString('[INFO] skills-root: docs/agents/skills', $result['output']);
-        self::assertStringContainsString('[INFO] subagents-root: docs/agents/subagents', $result['output']);
-        self::assertStringContainsString('[INFO] hooks-root: docs/agents/codex-hooks', $result['output']);
-        self::assertStringContainsString('[INFO] tools-root: docs/agents/tools', $result['output']);
-        self::assertStringContainsString('[WARN] Skills: no repo-managed skills found under docs/agents/skills/*/SKILL.md', $result['output']);
+        self::assertStringContainsString('[INFO] skills-root: resources/skills', $result['output']);
+        self::assertStringContainsString('[INFO] subagents-root: resources/subagents', $result['output']);
+        self::assertStringContainsString('[INFO] hooks-root: resources/hooks/codex', $result['output']);
+        self::assertStringContainsString('[INFO] tools-root: resources/tools', $result['output']);
+        self::assertStringContainsString('[WARN] Skills: no repo-managed skills found under resources/skills/*/SKILL.md', $result['output']);
     }
 
     public function testDoctorReportsCustomSkillsRoot(): void
@@ -115,7 +115,7 @@ final class InitDoctorCommandTest extends TestCase
 
         self::assertStringContainsString('[INFO] skills-root: .ai/skills', $result['output']);
         self::assertStringContainsString('[OK] Skills: 1 repo-managed skill file(s) found under .ai/skills', $result['output']);
-        self::assertStringNotContainsString('docs/agents/skills/*/SKILL.md', $result['output']);
+        self::assertStringNotContainsString('resources/skills/*/SKILL.md', $result['output']);
     }
 
     public function testDoctorReportsConfigProvidedPaths(): void
@@ -162,12 +162,12 @@ final class InitDoctorCommandTest extends TestCase
 
     public function testDoctorReportsSubagentsHooksAndTools(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        mkdir($this->root . '/docs/agents/tools', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "# Reviewer\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', "{}\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/preflight.php', "<?php\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        mkdir($this->root . '/resources/tools', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "# Reviewer\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', "{}\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/preflight.php', "<?php\n");
 
         $result = $this->runDoctor([]);
 

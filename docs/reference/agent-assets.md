@@ -8,11 +8,18 @@ The Composer package installs reviewed local assets only. Normal `init` does not
 
 Canonical package roots:
 
-- `docs/agents/skills/`
-- `docs/agents/subagents/`
-- `docs/agents/codex-hooks/`
-- `docs/agents/claude-hooks/`
-- `docs/agents/tools/`
+- `resources/skills/`
+- `resources/subagents/`
+- `resources/hooks/codex/`
+- `resources/hooks/claude/`
+- `resources/tools/`
+- `resources/githooks/`
+- `resources/make/agent-loop.mk`
+- `resources/instructions/project-instructions.md`
+- `resources/prompts/operating-prompts.json`
+
+`src/PackageResources.php` owns those locations; see
+[repository layout](../contributing/repository-layout.md).
 
 Do not duplicate engineering semantics in package workflow skills merely because a host can inject them at session start.
 
@@ -136,7 +143,7 @@ vendor/bin/agent-loop init install-assets --agent=all --dry-run
 vendor/bin/agent-loop init sync-policy --agent=codex --dry-run
 vendor/bin/agent-loop init sync-policy --agent=claude --dry-run
 vendor/bin/agent-loop init sync-policy --agent=opencode --dry-run
-vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=docs/agents/skills --dry-run
+vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=resources/skills --dry-run
 vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run

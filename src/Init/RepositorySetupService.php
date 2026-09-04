@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -300,7 +301,7 @@ final readonly class RepositorySetupService
     {
         $packageRoot = dirname(__DIR__, 2);
         $files = (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($agent);
-        $files[] = $packageRoot . '/docs/agents/project-instructions.md';
+        $files[] = PackageResources::projectInstructions();
 
         $sourceRoots = [
             $paths->absoluteSkillsRoot(),
@@ -553,7 +554,7 @@ final readonly class RepositorySetupService
     /** @return list<string> */
     private function expectedSubagentEntries(string $host): array
     {
-        $root = dirname(__DIR__, 2) . '/docs/agents/subagents';
+        $root = PackageResources::subagentsRoot();
         if (!is_dir($root)) {
             throw new RuntimeException('Bundled subagents root is missing: ' . $root);
         }

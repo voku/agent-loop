@@ -139,7 +139,7 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertSame(0, $this->runSync(['--agent=claude'])['exit']);
 
         // An empty bundle is the "no hooks at all" state; the manifest still owns the key.
-        file_put_contents($this->root . '/docs/agents/claude-hooks/hooks.json', json_encode([
+        file_put_contents($this->root . '/resources/hooks/claude/hooks.json', json_encode([
             'hooks' => [
                 'PreToolUse' => [
                     ['matcher' => '^Bash$', 'hooks' => [['type' => 'command', 'command' => 'php .claude/hooks/policy.php']]],
@@ -160,7 +160,7 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertSame(0, $valid['exit'], $valid['output']);
         self::assertStringContainsString('[OK] validate hooks', $valid['output']);
 
-        file_put_contents($this->root . '/docs/agents/claude-hooks/hooks.json', json_encode([
+        file_put_contents($this->root . '/resources/hooks/claude/hooks.json', json_encode([
             'hooks' => [
                 'PreToolUse' => [
                     ['hooks' => [['type' => 'command', 'command' => 'php .codex/hooks/policy.php']]],
@@ -190,7 +190,7 @@ final class InitClaudeHookSyncTest extends TestCase
      */
     private function writeBundle(array $scriptNames = ['policy.php']): void
     {
-        $bundleRoot = $this->root . '/docs/agents/claude-hooks';
+        $bundleRoot = $this->root . '/resources/hooks/claude';
         if (is_dir($bundleRoot . '/hooks')) {
             foreach ((array) glob($bundleRoot . '/hooks/*.php') as $existing) {
                 unlink((string) $existing);

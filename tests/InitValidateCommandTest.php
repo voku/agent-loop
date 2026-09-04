@@ -32,13 +32,13 @@ final class InitValidateCommandTest extends TestCase
         $result = $this->runValidate(['--kind=skills']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('[WARN] validate skills: no skills found under docs/agents/skills/*/SKILL.md', $result['output']);
+        self::assertStringContainsString('[WARN] validate skills: no skills found under resources/skills/*/SKILL.md', $result['output']);
     }
 
     public function testValidateSkillsSucceedsWhenSkillsAreValid(): void
     {
-        mkdir($this->root . '/docs/agents/skills/phpstan-debugging', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/phpstan-debugging/SKILL.md', "# Skill\n");
+        mkdir($this->root . '/resources/skills/phpstan-debugging', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/phpstan-debugging/SKILL.md', "# Skill\n");
 
         $result = $this->runValidate(['--kind=skills']);
 
@@ -48,8 +48,8 @@ final class InitValidateCommandTest extends TestCase
 
     public function testValidateSkillsFailsForEmptySkill(): void
     {
-        mkdir($this->root . '/docs/agents/skills/phpstan-debugging', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/phpstan-debugging/SKILL.md', " \n\t");
+        mkdir($this->root . '/resources/skills/phpstan-debugging', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/phpstan-debugging/SKILL.md', " \n\t");
 
         $result = $this->runValidate(['--kind=skills']);
 
@@ -59,8 +59,8 @@ final class InitValidateCommandTest extends TestCase
 
     public function testValidateSkillsFailsForInvalidSkillName(): void
     {
-        mkdir($this->root . '/docs/agents/skills/.hidden', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/.hidden/SKILL.md', "# Hidden\n");
+        mkdir($this->root . '/resources/skills/.hidden', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/.hidden/SKILL.md', "# Hidden\n");
 
         $result = $this->runValidate(['--kind=skills']);
 
@@ -120,13 +120,13 @@ final class InitValidateCommandTest extends TestCase
         $result = $this->runValidate(['--kind=subagents']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('[WARN] validate subagents: no subagents found under docs/agents/subagents/*.md', $result['output']);
+        self::assertStringContainsString('[WARN] validate subagents: no subagents found under resources/subagents/*.md', $result['output']);
     }
 
     public function testValidateSubagentsSucceedsWhenSubagentsAreValid(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
 
         $result = $this->runValidate(['--kind=subagents']);
 
@@ -136,8 +136,8 @@ final class InitValidateCommandTest extends TestCase
 
     public function testValidateSubagentsAcceptsCodexAgent(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
 
         $result = $this->runValidate(['--kind=subagents', '--agent=codex']);
 
@@ -147,8 +147,8 @@ final class InitValidateCommandTest extends TestCase
 
     public function testValidateSubagentsFailsForInvalidName(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: nope\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: nope\ndescription: Review things\n---\n\n# Reviewer\n");
 
         $result = $this->runValidate(['--kind=subagents']);
 
@@ -161,13 +161,13 @@ final class InitValidateCommandTest extends TestCase
         $result = $this->runValidate(['--kind=hooks']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('[WARN] validate hooks: no hooks found under docs/agents/codex-hooks', $result['output']);
+        self::assertStringContainsString('[WARN] validate hooks: no hooks found under resources/hooks/codex', $result['output']);
     }
 
     public function testValidateHooksSucceedsWhenHooksAreValid(): void
     {
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', json_encode([
             'hooks' => [
                 'SessionStart' => [[
                     'hooks' => [[
@@ -189,9 +189,9 @@ final class InitValidateCommandTest extends TestCase
                 ]],
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
 
         $result = $this->runValidate(['--kind=hooks']);
 
@@ -201,8 +201,8 @@ final class InitValidateCommandTest extends TestCase
 
     public function testValidateHooksFailsWhenRequiredEventIsMissing(): void
     {
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', json_encode([
             'hooks' => [
                 'SessionStart' => [[
                     'hooks' => [[
@@ -212,7 +212,7 @@ final class InitValidateCommandTest extends TestCase
                 ]],
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/session_context.php', "<?php\nreturn;\n");
 
         $result = $this->runValidate(['--kind=hooks']);
 
@@ -222,12 +222,12 @@ final class InitValidateCommandTest extends TestCase
 
     public function testValidateAllRunsAllChecksAndSucceeds(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo', 0o775, true);
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo/SKILL.md', "# Demo\n");
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+        mkdir($this->root . '/resources/skills/demo', 0o775, true);
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo/SKILL.md', "# Demo\n");
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', json_encode([
             'hooks' => [
                 'SessionStart' => [[
                     'hooks' => [[
@@ -249,9 +249,9 @@ final class InitValidateCommandTest extends TestCase
                 ]],
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
 
         $result = $this->runValidate(['--kind=all']);
 

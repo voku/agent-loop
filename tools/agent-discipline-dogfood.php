@@ -218,20 +218,20 @@ $checks = [];
 
 try {
     copyFile(
-        $repositoryRoot . '/docs/agents/skills/agent-loop-discipline/SKILL.md',
+        $repositoryRoot . '/resources/skills/agent-loop-discipline/SKILL.md',
         $workspace . '/.codex/skills/agent-loop-discipline/SKILL.md',
     );
     copyTree($repositoryRoot . '/src', $workspace . '/src');
     copyFile(
-        $repositoryRoot . '/docs/agents/codex-hooks/hooks.json',
+        $repositoryRoot . '/resources/hooks/codex/hooks.json',
         $workspace . '/.codex/hooks.json',
     );
     copyFile(
-        $repositoryRoot . '/docs/agents/codex-hooks/hooks/context.php',
+        $repositoryRoot . '/resources/hooks/codex/hooks/context.php',
         $workspace . '/.codex/hooks/context.php',
     );
     copyFile(
-        $repositoryRoot . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php',
+        $repositoryRoot . '/resources/hooks/codex/hooks/pre_tool_use_policy.php',
         $workspace . '/.codex/hooks/pre_tool_use_policy.php',
     );
 
@@ -272,12 +272,12 @@ try {
     assertTrue(!str_contains($skill, 'raw.githubusercontent.com'), 'Discipline skill contains a remote bootstrap URL.');
     foreach (['agent-loop-simplify-review', 'agent-loop-dogfood'] as $requiredSkill) {
         assertTrue(
-            is_file($repositoryRoot . '/docs/agents/skills/' . $requiredSkill . '/SKILL.md'),
+            is_file($repositoryRoot . '/resources/skills/' . $requiredSkill . '/SKILL.md'),
             'Missing bundled skill: ' . $requiredSkill,
         );
     }
 
-    $surgicalSkill = file_get_contents($repositoryRoot . '/docs/agents/skills/agent-loop-surgical-edit/SKILL.md');
+    $surgicalSkill = file_get_contents($repositoryRoot . '/resources/skills/agent-loop-surgical-edit/SKILL.md');
     assertTrue(is_string($surgicalSkill), 'Unable to read surgical edit skill.');
     assertTrue(str_contains($surgicalSkill, 'coding-simplicity'), 'Surgical edit skill misses coding-simplicity routing.');
     foreach (['STATUS: applied', 'STATUS: scope_expanded', 'STATUS: human_gate', 'STATUS: ambiguous', 'STATUS: regressed'] as $status) {

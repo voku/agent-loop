@@ -53,7 +53,7 @@ enum ArchitectureRules implements RuleIdentifier
                 rationale: 'Shelling out to a sibling package duplicates argv, path, default and failure knowledge that '
                     . 'the package already owns, and the duplicate drifts silently because nothing type-checks a string.',
                 verifiedBy: [NoFocusedPackageCliInWorkflowRule::class],
-                refs: ['docs/agents/FIRST_PARTY_CAPABILITY_MATRIX.md'],
+                refs: ['docs/architecture/first-party-capability-matrix.md'],
             ),
             self::EvidenceIsNotAuthority => new RuleDef(
                 statement: 'Generated evidence never becomes approval: a produced artifact is not a passed gate.',
@@ -63,7 +63,7 @@ enum ArchitectureRules implements RuleIdentifier
                     . 'produces evidence about a check, not the judgment the check exists to obtain. Collapsing the two '
                     . 'lets a lifecycle report success while the artifact it wrote says the decision is missing.',
                 verifiedBy: [WorkflowCloseCommandTest::class],
-                refs: ['docs/agents/dogfood/self-shaping.md', 'docs/workflow/learning-boundary.md'],
+                refs: ['docs/dogfood/self-shaping.md', 'docs/workflow/learning-boundary.md'],
             ),
             self::ExternalToolsStayOptional => new RuleDef(
                 statement: 'External evidence tools are discovered and reported, never required to run the workflow.',
@@ -73,7 +73,7 @@ enum ArchitectureRules implements RuleIdentifier
                     . 'presence as a precondition would make the workflow unusable in exactly the repositories that '
                     . 'have not adopted the tooling yet.',
                 verifiedBy: [RealIssueEvidenceToolBoundaryTest::class, InitToolsCommandTest::class],
-                refs: ['docs/agents/dogfood/real-issue-acceptance.md'],
+                refs: ['docs/dogfood/real-issue-acceptance.md'],
             ),
         };
     }

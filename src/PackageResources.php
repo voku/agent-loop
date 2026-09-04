@@ -1,0 +1,110 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop;
+
+use InvalidArgumentException;
+
+/**
+ * The single owner of package-shipped resource locations.
+ *
+ * Setup, hook, prompt and review code all need to find assets this package
+ * ships. While each caller spelled the physical directory itself, moving one
+ * asset meant editing production code, dogfood runners, CI and tests in lockstep
+ * and getting a half-move whenever one of them was missed. Callers ask here
+ * instead, so the layout is a fact of this class rather than of every consumer.
+ *
+ * Relative constants exist because release staging, documentation and CI talk
+ * about the same directories without a package root to resolve against.
+ */
+final class PackageResources
+{
+    public const string ROOT = 'resources';
+
+    public const string SKILLS = 'resources/skills';
+
+    public const string SUBAGENTS = 'resources/subagents';
+
+    public const string TOOLS = 'resources/tools';
+
+    public const string GIT_HOOKS = 'resources/githooks';
+
+    public const string MAKE_INCLUDE = 'resources/make/agent-loop.mk';
+
+    public const string PROJECT_INSTRUCTIONS = 'resources/instructions/project-instructions.md';
+
+    public const string OPERATING_PROMPTS = 'resources/prompts/operating-prompts.json';
+
+    public const string REVIEW = 'resources/review';
+
+    /** Host hook bundles this package ships, keyed by canonical agent name. */
+    private const array HOOK_AGENTS = ['codex', 'claude'];
+
+    public static function root(): string
+    {
+        return dirname(__DIR__) . '/' . self::ROOT;
+    }
+
+    public static function path(string $relative): string
+    {
+        return dirname(__DIR__) . '/' . $relative;
+    }
+
+    public static function skillsRoot(): string
+    {
+        return self::path(self::SKILLS);
+    }
+
+    public static function subagentsRoot(): string
+    {
+        return self::path(self::SUBAGENTS);
+    }
+
+    public static function toolsRoot(): string
+    {
+        return self::path(self::TOOLS);
+    }
+
+    public static function gitHooksRoot(): string
+    {
+        return self::path(self::GIT_HOOKS);
+    }
+
+    public static function projectInstructions(): string
+    {
+        return self::path(self::PROJECT_INSTRUCTIONS);
+    }
+
+    public static function operatingPrompts(): string
+    {
+        return self::path(self::OPERATING_PROMPTS);
+    }
+
+    public static function reviewRoot(): string
+    {
+        return self::path(self::REVIEW);
+    }
+
+    /**
+     * Relative location of a shipped host hook bundle.
+     *
+     * @throws InvalidArgumentException when the package ships no bundle for the agent
+     */
+    public static function hooks(string $agent): string
+    {
+        if (!in_array($agent, self::HOOK_AGENTS, true)) {
+            throw new InvalidArgumentException('No package hook bundle is shipped for agent: ' . $agent);
+        }
+
+        return 'resources/hooks/' . $agent;
+    }
+
+    /**
+     * @throws InvalidArgumentException when the package ships no bundle for the agent
+     */
+    public static function hooksRoot(string $agent): string
+    {
+        return self::path(self::hooks($agent));
+    }
+}

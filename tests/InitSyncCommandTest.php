@@ -47,9 +47,9 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSubagentsInstallsClaudeRolesForAllClients(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
+        mkdir($this->root . '/resources/subagents', 0o775, true);
         file_put_contents(
-            $this->root . '/docs/agents/subagents/demo-role.md',
+            $this->root . '/resources/subagents/demo-role.md',
             "---\nname: demo-role\ndescription: Demo role.\n---\n\nLocate and stop.\n",
         );
 
@@ -70,9 +70,9 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSkillsCopiesCanonicalDirectoriesIntoCodexTarget(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/notes.txt', "demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
+        file_put_contents($this->root . '/resources/skills/demo-skill/notes.txt', "demo\n");
 
         $result = $this->runSyncSkills(['--agent=codex']);
 
@@ -94,8 +94,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSkillsDryRunWritesNoFiles(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
 
         $result = $this->runSyncSkills(['--agent=codex', '--dry-run']);
 
@@ -106,9 +106,9 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSkillsRefusesToOverwriteUnmanagedTargetsWithoutForce(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
         mkdir($this->root . '/.codex/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
         file_put_contents($this->root . '/.codex/skills/demo-skill/SKILL.md', "# Existing\n");
 
         $result = $this->runSyncSkills(['--agent=codex']);
@@ -119,8 +119,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSkillsUsesGeminiTargetWithoutAliasWarning(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
 
         $result = $this->runSyncSkills(['--agent=gemini-cli']);
 
@@ -132,8 +132,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSubagentsRendersCodexTargets(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\nCheck \"quoted\" values.\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\nCheck \"quoted\" values.\n");
 
         $result = $this->runSyncSubagents(['--agent=codex']);
 
@@ -156,8 +156,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSubagentsRendersCopilotTargets(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
 
         $result = $this->runSyncSubagents(['--agent=copilot']);
 
@@ -168,8 +168,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncSubagentsRendersAntigravityTargets(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
 
         $result = $this->runSyncSubagents(['--agent=antigravity']);
 
@@ -182,8 +182,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncHooksCopiesManifestAndScripts(): void
     {
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', json_encode([
             'hooks' => [
                 'SessionStart' => [[
                     'hooks' => [[
@@ -205,9 +205,9 @@ final class InitSyncCommandTest extends TestCase
                 ]],
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
 
         $result = $this->runSyncHooks(['--agent=codex']);
 
@@ -226,8 +226,8 @@ final class InitSyncCommandTest extends TestCase
 
     public function testSyncHooksDryRunWritesNoFiles(): void
     {
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', json_encode([
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', json_encode([
             'hooks' => [
                 'SessionStart' => [[
                     'hooks' => [[
@@ -249,9 +249,9 @@ final class InitSyncCommandTest extends TestCase
                 ]],
             ],
         ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/session_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/subagent_context.php', "<?php\nreturn;\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/session_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/subagent_context.php', "<?php\nreturn;\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/pre_tool_use_policy.php', "<?php\nreturn;\n");
 
         $result = $this->runSyncHooks(['--agent=codex', '--dry-run']);
 

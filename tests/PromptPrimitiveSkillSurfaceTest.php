@@ -27,11 +27,11 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
 
     public function testWorkflowReviewAndReflectionSkillsKeepPromptPrimitivesRoutable(): void
     {
-        $root = dirname(__DIR__) . '/docs/agents/skills';
+        $root = dirname(__DIR__) . '/resources/skills';
         $workflow = (string) file_get_contents($root . '/agent-loop-workflow/SKILL.md');
         $reviewClose = (string) file_get_contents($root . '/agent-loop-review-close/SKILL.md');
         $codeReview = (string) file_get_contents($root . '/agent-loop-code-review/SKILL.md');
-        $promptPrimitives = (string) file_get_contents(dirname(__DIR__) . '/docs/agents/PROMPT_PRIMITIVES.md');
+        $promptPrimitives = (string) file_get_contents(dirname(__DIR__) . '/docs/reference/prompt-primitives.md');
 
         self::assertStringContainsString('checkpoint-autonomy', $workflow);
         self::assertStringContainsString('momentum', $workflow);

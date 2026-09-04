@@ -184,7 +184,7 @@ MD
                 'schema_version' => '1.0',
                 'task_id' => self::TASK,
                 'operating_prompt' => 'breaking-change-review',
-                'project_policy' => 'docs/agents/policies/pre-1.0-compatibility.md',
+                'project_policy' => 'docs/policies/pre-1.0-compatibility.md',
                 'discovery_before_approval' => true,
                 'pre_contract_state' => 'missing',
                 'pre_contract_mutation_exit' => $blockedEdit['exit_code'],

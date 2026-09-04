@@ -82,10 +82,10 @@ final class InitStatusCommandTest extends TestCase
     {
         $result = $this->runStatus([]);
 
-        self::assertStringContainsString('[OK] skills-root: docs/agents/skills', $result['output']);
-        self::assertStringContainsString('[OK] subagents-root: docs/agents/subagents', $result['output']);
-        self::assertStringContainsString('[OK] hooks-root: docs/agents/codex-hooks', $result['output']);
-        self::assertStringContainsString('[INFO] tools-root: docs/agents/tools', $result['output']);
+        self::assertStringContainsString('[OK] skills-root: resources/skills', $result['output']);
+        self::assertStringContainsString('[OK] subagents-root: resources/subagents', $result['output']);
+        self::assertStringContainsString('[OK] hooks-root: resources/hooks/codex', $result['output']);
+        self::assertStringContainsString('[INFO] tools-root: resources/tools', $result['output']);
     }
 
     public function testStatusRespectsSkillsRootOption(): void
@@ -129,35 +129,35 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusReportsSkillCount(): void
     {
-        mkdir($this->root . '/docs/agents/skills/alpha', 0o775, true);
-        mkdir($this->root . '/docs/agents/skills/beta', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/alpha/SKILL.md', "# Alpha\n");
-        file_put_contents($this->root . '/docs/agents/skills/beta/SKILL.md', "# Beta\n");
+        mkdir($this->root . '/resources/skills/alpha', 0o775, true);
+        mkdir($this->root . '/resources/skills/beta', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/alpha/SKILL.md', "# Alpha\n");
+        file_put_contents($this->root . '/resources/skills/beta/SKILL.md', "# Beta\n");
 
         $result = $this->runStatus([]);
 
-        self::assertStringContainsString('[OK] skills-root: docs/agents/skills (2 skill(s))', $result['output']);
+        self::assertStringContainsString('[OK] skills-root: resources/skills (2 skill(s))', $result['output']);
     }
 
     public function testStatusReportsSubagentCount(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
 
         $result = $this->runStatus([]);
 
-        self::assertStringContainsString('[OK] subagents-root: docs/agents/subagents (1 file(s))', $result['output']);
+        self::assertStringContainsString('[OK] subagents-root: resources/subagents (1 file(s))', $result['output']);
     }
 
     public function testStatusReportsHooksJsonAndScriptCount(): void
     {
-        mkdir($this->root . '/docs/agents/codex-hooks/hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', "{}\n");
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks/preflight.php', "<?php\n");
+        mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', "{}\n");
+        file_put_contents($this->root . '/resources/hooks/codex/hooks/preflight.php', "<?php\n");
 
         $result = $this->runStatus([]);
 
-        self::assertStringContainsString('[OK] hooks-root: docs/agents/codex-hooks (hooks.json: yes, scripts: 1)', $result['output']);
+        self::assertStringContainsString('[OK] hooks-root: resources/hooks/codex (hooks.json: yes, scripts: 1)', $result['output']);
     }
 
     public function testStatusPrintsCanonicalAgentAliases(): void
@@ -203,8 +203,8 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusReportsCodexSubagentManifestAndStaleEntries(): void
     {
-        mkdir($this->root . '/docs/agents/subagents', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents($this->root . '/resources/subagents/reviewer.md', "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n");
 
         mkdir($this->root . '/.codex/agents', 0o775, true);
         file_put_contents($this->root . '/.codex/agents/.agent-loop-manifest.json', json_encode([
@@ -222,8 +222,8 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusReportsStaleManagedEntries(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
 
         mkdir($this->root . '/.codex/skills', 0o775, true);
         file_put_contents($this->root . '/.codex/skills/.agent-loop-manifest.json', json_encode([
@@ -240,8 +240,8 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusReportsNoStaleManagedEntriesWhenInSync(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# Demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
 
         mkdir($this->root . '/.codex/skills', 0o775, true);
         file_put_contents($this->root . '/.codex/skills/.agent-loop-manifest.json', json_encode([
@@ -258,7 +258,7 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusDistinguishesCurrentLocalModificationAndStaleSource(): void
     {
-        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $source = $this->root . '/resources/skills/demo-skill/SKILL.md';
         $target = $this->root . '/.codex/skills/demo-skill/SKILL.md';
         mkdir(dirname($source), 0o775, true);
         file_put_contents($source, "# Demo\n");
@@ -280,7 +280,7 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusKeepsAdoptedAssetProjectOwned(): void
     {
-        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $source = $this->root . '/resources/skills/demo-skill/SKILL.md';
         $target = $this->root . '/.codex/skills/demo-skill/SKILL.md';
         mkdir(dirname($source), 0o775, true);
         mkdir(dirname($target), 0o775, true);
@@ -297,7 +297,7 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusReportsCapabilityMismatchAndResyncRepairsBaseline(): void
     {
-        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $source = $this->root . '/resources/skills/demo-skill/SKILL.md';
         mkdir(dirname($source), 0o775, true);
         file_put_contents($source, "# Demo\n");
 
@@ -323,7 +323,7 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusReportsExistingUnmanagedAssetWithoutManifestAsProjectOwned(): void
     {
-        $source = $this->root . '/docs/agents/skills/demo-skill/SKILL.md';
+        $source = $this->root . '/resources/skills/demo-skill/SKILL.md';
         $target = $this->root . '/.codex/skills/demo-skill/SKILL.md';
         mkdir(dirname($source), 0o775, true);
         mkdir(dirname($target), 0o775, true);
@@ -349,8 +349,8 @@ final class InitStatusCommandTest extends TestCase
 
     public function testStatusDoesNotFlagHooksAsStaleWhenHooksJsonIsInvalid(): void
     {
-        mkdir($this->root . '/docs/agents/codex-hooks', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/codex-hooks/hooks.json', '{invalid-json');
+        mkdir($this->root . '/resources/hooks/codex', 0o775, true);
+        file_put_contents($this->root . '/resources/hooks/codex/hooks.json', '{invalid-json');
 
         mkdir($this->root . '/.codex', 0o775, true);
         file_put_contents($this->root . '/.codex/.agent-loop-manifest.json', json_encode([
@@ -376,8 +376,8 @@ final class InitStatusCommandTest extends TestCase
 
     public function testFreshRepositoryIsReportedAsUnactivatedInsteadOfHealthy(): void
     {
-        mkdir($this->root . '/docs/agents/skills/demo-skill', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/skills/demo-skill/SKILL.md', "# demo\n");
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# demo\n");
 
         $result = $this->runStatus([]);
 

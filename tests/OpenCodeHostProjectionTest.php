@@ -27,12 +27,12 @@ final class OpenCodeHostProjectionTest extends TestCase
         }
 
         $this->root = sys_get_temp_dir() . '/agent-loop-opencode-projection-' . bin2hex(random_bytes(6));
-        if (!mkdir($this->root . '/docs/agents/subagents', 0o775, true) && !is_dir($this->root . '/docs/agents/subagents')) {
+        if (!mkdir($this->root . '/resources/subagents', 0o775, true) && !is_dir($this->root . '/resources/subagents')) {
             throw new RuntimeException('Unable to create OpenCode projection fixture root.');
         }
 
         file_put_contents(
-            $this->root . '/docs/agents/subagents/reviewer.md',
+            $this->root . '/resources/subagents/reviewer.md',
             "---\nname: reviewer\ndescription: Review code carefully\n---\n\nReview the implementation and report evidence.\n",
         );
     }

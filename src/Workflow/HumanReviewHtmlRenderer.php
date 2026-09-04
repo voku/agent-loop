@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
+use voku\AgentLoop\PackageResources;
 
 final readonly class HumanReviewHtmlRenderer
 {
@@ -16,7 +17,7 @@ final readonly class HumanReviewHtmlRenderer
 
     public static function fromPackageResources(): self
     {
-        $root = dirname(__DIR__, 2) . '/resources/review';
+        $root = PackageResources::reviewRoot();
         $css = file_get_contents($root . '/review.css');
         $javascript = file_get_contents($root . '/review.js');
         if (!is_string($css) || !is_string($javascript)) {

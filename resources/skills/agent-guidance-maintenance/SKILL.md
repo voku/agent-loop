@@ -12,7 +12,7 @@ Apply `agent-loop-discipline` to implementation work and
 
 ## Fast Path
 
-1. Edit the canonical source under `docs/agents/` or typed runtime under `src/`.
+1. Edit the canonical source under `resources/` or `docs/`, or typed runtime under `src/`.
 2. Keep the change scoped to the guidance contract.
 3. Update executable help and focused tests when public `init` behavior changes.
 4. Run the local dogfood case before broad validation.
@@ -25,14 +25,14 @@ Apply `agent-loop-discipline` to implementation work and
 
 ## Canonical Files
 
-- `docs/agents/skills/`;
-- `docs/agents/subagents/`;
-- `docs/agents/codex-hooks/`;
-- `docs/agents/claude-hooks/`;
-- `docs/agents/INFO_Agents.md`;
-- `docs/agents/UPSTREAM_CAPABILITY_MATRIX.md`;
-- `docs/agents/dogfood/`;
-- `docs/agents/THIRD_PARTY_NOTICES.md`;
+- `resources/skills/`;
+- `resources/subagents/`;
+- `resources/hooks/codex/`;
+- `resources/hooks/claude/`;
+- `docs/reference/agent-assets.md`;
+- `docs/architecture/upstream-capability-matrix.md`;
+- `docs/dogfood/`;
+- `docs/reference/third-party-notices.md`;
 - `src/AgentGuidance/`;
 - `src/Init/`;
 - `tools/agent-discipline-dogfood.php`;
@@ -61,7 +61,7 @@ Do not begin with generated copies under `.codex/`, `.claude/`, `.github/`, or
   `settings.json`, and records it as `settings.json#hooks`. When a client keeps
   hooks inside a shared settings document, own the single key and write every
   other key back unchanged; never rewrite a file the user also edits.
-- Host repositories consume the Make targets from `make/agent-loop.mk` instead of
+- Host repositories consume the Make targets from `resources/make/agent-loop.mk` instead of
   writing their own wrappers. Add a target there, not in every host Makefile.
 
 Do not make `install-assets` honor a host override for its source. That would

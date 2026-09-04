@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\PathResolver;
 
 /**
@@ -12,14 +13,14 @@ use voku\AgentLoop\PathResolver;
  *
  * Printed activation instructions must describe the repository in front of the
  * agent, not a hypothetical Composer consumer. The root package uses
- * bin/agent-loop and its tracked githooks/ directory; consumers normally use
+ * bin/agent-loop and its tracked resources/githooks/ directory; consumers normally use
  * vendor/bin/agent-loop and .githooks/. Consumers whose PHP floor cannot host
  * agent-loop may install it as an isolated Composer tool below tools/.
  */
 final readonly class RepositoryActivation
 {
     /** @var list<string> */
-    private const array HOOK_DIRECTORY_CANDIDATES = ['.githooks', 'githooks'];
+    private const array HOOK_DIRECTORY_CANDIDATES = ['.githooks', PackageResources::GIT_HOOKS];
 
     private const string HOOK_POLICY_FILE = '.agent-loop/githooks.json';
 
@@ -182,7 +183,7 @@ final readonly class RepositoryActivation
 
     private function pointsToExecutableCurrentAgentLoopHooks(string $configuredDirectory): bool
     {
-        $packageHooksRoot = dirname(__DIR__, 2) . '/githooks';
+        $packageHooksRoot = PackageResources::gitHooksRoot();
 
         foreach (['pre-commit', 'commit-msg'] as $hook) {
             $sourcePath = $packageHooksRoot . '/' . $hook;

@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class MakeIncludeContractTest extends TestCase
 {
-    private const string INCLUDE_PATH = __DIR__ . '/../make/agent-loop.mk';
+    private const string INCLUDE_PATH = __DIR__ . '/../resources/make/agent-loop.mk';
 
     public function testIncludeIsShippedAndReadable(): void
     {

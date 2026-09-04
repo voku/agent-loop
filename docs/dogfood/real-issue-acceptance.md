@@ -13,7 +13,7 @@ Real-issue acceptance answers the harsher question:
 
 This document defines the acceptance model. It does not define a second
 lifecycle: every artifact below is written by the governed workflow that
-already exists in `docs/agents/skills/agent-loop-workflow/SKILL.md`.
+already exists in `resources/skills/agent-loop-workflow/SKILL.md`.
 
 ## Three evidence planes
 
@@ -91,7 +91,7 @@ tools/
 ```
 
 `init sync-tools` writes exactly that layout from package-owned templates in
-`docs/agents/tools/`:
+`resources/tools/`:
 
 ```bash
 vendor/bin/agent-loop init sync-tools

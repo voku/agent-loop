@@ -40,7 +40,7 @@ final class PremiseCheckGuidanceTest extends TestCase
 
     private function disciplineSkill(): string
     {
-        $skill = file_get_contents(dirname(__DIR__) . '/docs/agents/skills/agent-loop-discipline/SKILL.md');
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
 
         self::assertIsString($skill);
         self::assertLessThanOrEqual(8_000, strlen($skill));

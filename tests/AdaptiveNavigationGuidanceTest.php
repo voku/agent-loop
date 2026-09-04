@@ -11,7 +11,7 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
 {
     public function testDisciplineUsesAdaptivePhpNavigation(): void
     {
-        $skill = file_get_contents(dirname(__DIR__) . '/docs/agents/skills/agent-loop-discipline/SKILL.md');
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
 
         self::assertIsString($skill);
         self::assertLessThanOrEqual(8_000, strlen($skill));
@@ -27,7 +27,7 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
 
     public function testPackageDocumentationKeepsCliAndMapComplementary(): void
     {
-        $info = file_get_contents(dirname(__DIR__) . '/docs/agents/INFO_Agents.md');
+        $info = file_get_contents(dirname(__DIR__) . '/docs/reference/agent-assets.md');
 
         self::assertIsString($info);
         self::assertStringContainsString('adaptive PHP navigation across CLI and agent-map', $info);
@@ -40,7 +40,7 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
 
     public function testLearningPointsBackToAdaptivePolicyOwner(): void
     {
-        $learning = file_get_contents(dirname(__DIR__) . '/docs/agents/skills/agent-learning/SKILL.md');
+        $learning = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-learning/SKILL.md');
 
         self::assertIsString($learning);
         self::assertStringContainsString('`agent-loop-discipline` for adaptive PHP navigation', $learning);

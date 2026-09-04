@@ -12,7 +12,7 @@ final class TaskStartExistingWorkPreflightTest extends TestCase
     public function testTaskStartRequiresOverlapAuditBeforeCompetingImplementation(): void
     {
         $skill = (string) file_get_contents(
-            dirname(__DIR__) . '/docs/agents/skills/agent-loop-task-start/SKILL.md',
+            dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md',
         );
 
         self::assertStringContainsString('Inspect overlap before invention.', $skill);

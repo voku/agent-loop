@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\PackageResources;
 
 /**
  * Installs the package-owned Git hooks into a host repository and points Git at them.
@@ -66,7 +67,7 @@ final readonly class InitSyncGitHooksCommand
             return 1;
         }
 
-        $sourceRoot = dirname(__DIR__, 2) . '/githooks';
+        $sourceRoot = PackageResources::gitHooksRoot();
         if (!is_dir($sourceRoot)) {
             fwrite(\STDERR, 'Bundled githooks root is missing: ' . $sourceRoot . "\n");
 
