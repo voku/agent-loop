@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\PathResolver;
 
 final readonly class AgentAssetSourcePaths
@@ -14,7 +15,7 @@ final readonly class AgentAssetSourcePaths
         private string $subagentsRoot,
         private string $hooksRoot,
         private string $toolsRoot,
-        private string $claudeHooksRoot = 'docs/agents/claude-hooks',
+        private string $claudeHooksRoot,
     ) {
     }
 
@@ -25,11 +26,11 @@ final readonly class AgentAssetSourcePaths
     public static function fromSources(string $rootPath, array $configPaths = [], array $cliOverrides = []): self
     {
         $paths = [
-            'skills_root' => 'docs/agents/skills',
-            'subagents_root' => 'docs/agents/subagents',
-            'codex_hooks_root' => 'docs/agents/codex-hooks',
-            'claude_hooks_root' => 'docs/agents/claude-hooks',
-            'tools_root' => 'docs/agents/tools',
+            'skills_root' => PackageResources::SKILLS,
+            'subagents_root' => PackageResources::SUBAGENTS,
+            'codex_hooks_root' => PackageResources::hooks('codex'),
+            'claude_hooks_root' => PackageResources::hooks('claude'),
+            'tools_root' => PackageResources::TOOLS,
         ];
 
         foreach ($configPaths as $key => $value) {

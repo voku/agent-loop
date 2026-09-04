@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Init;
 
 use ReflectionClass;
 use RuntimeException;
+use voku\AgentLoop\PackageResources;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 
 /**
@@ -32,7 +33,7 @@ final readonly class FirstPartySkillRoots
         }
 
         return [
-            $packageRoot . '/docs/agents/skills',
+            $packageRoot . '/' . PackageResources::SKILLS,
             $recallRoot,
         ];
     }

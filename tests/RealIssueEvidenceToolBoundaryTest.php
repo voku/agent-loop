@@ -24,7 +24,7 @@ use voku\AgentLoop\Context\ArchitectureRules;
  */
 final class RealIssueEvidenceToolBoundaryTest extends TestCase
 {
-    private const string ACCEPTANCE_DOCUMENT = 'docs/agents/dogfood/real-issue-acceptance.md';
+    private const string ACCEPTANCE_DOCUMENT = 'docs/dogfood/real-issue-acceptance.md';
 
     /** Isolated tool projects that own the binaries this package does not install. */
     private const array TOOL_PROJECT_PREFIXES = [

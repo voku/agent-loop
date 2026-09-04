@@ -51,7 +51,7 @@ final class HostAssetPathOwnershipTest extends TestCase
         $status = $this->capture(fn (): int => (new InitStatusCommand($this->root))->run([]));
         $sync = $this->capture(fn (): int => (new InitSyncHooksCommand($this->root))->run([
             '--agent=codex',
-            '--hooks-root=' . dirname(__DIR__) . '/docs/agents/codex-hooks',
+            '--hooks-root=' . dirname(__DIR__) . '/resources/hooks/codex',
             '--dry-run',
         ]));
 
@@ -71,7 +71,7 @@ final class HostAssetPathOwnershipTest extends TestCase
         $status = $this->capture(fn (): int => (new InitStatusCommand($this->root))->run([]));
         $sync = $this->capture(fn (): int => (new InitSyncHooksCommand($this->root))->run([
             '--agent=codex',
-            '--hooks-root=' . dirname(__DIR__) . '/docs/agents/codex-hooks',
+            '--hooks-root=' . dirname(__DIR__) . '/resources/hooks/codex',
             '--dry-run',
         ]));
 

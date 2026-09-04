@@ -25,7 +25,7 @@ final readonly class InitToolsCommand
     /**
      * External agent-facing evidence tools. They are deliberately not
      * dependencies of this package, so a bare PATH probe would report the
-     * layout that `docs/agents/dogfood/real-issue-acceptance.md` recommends as
+     * layout that `docs/dogfood/real-issue-acceptance.md` recommends as
      * "missing". Look where a project actually installs them.
      *
      * Project-local locations win over PATH: a repository that pinned the tool

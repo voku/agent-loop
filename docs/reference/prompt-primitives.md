@@ -1,7 +1,7 @@
 # Workflow prompt primitives
 
 `agent-loop` keeps a small set of context-independent L1 control prompts in
-`resources/operating-prompts.json`. They change how an already approved task is
+`resources/prompts/operating-prompts.json`. They change how an already approved task is
 executed; they do not create a second workflow or replace persisted authority.
 
 ## Checkpoint autonomy
@@ -16,7 +16,7 @@ vendor/bin/agent-loop workflow plan TASK-1 \
   --file src/Example.php \
   --goal 'Complete the approved change.' \
   --validation 'composer ci' \
-  --operating-prompt-manifest vendor/voku/agent-loop/resources/operating-prompts.json \
+  --operating-prompt-manifest vendor/voku/agent-loop/resources/prompts/operating-prompts.json \
   --operating-prompt '{"id":"checkpoint-autonomy","arguments":{"anchor_point":"each independently verifiable repository step"}}'
 ```
 

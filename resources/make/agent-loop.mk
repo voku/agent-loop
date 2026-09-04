@@ -3,7 +3,7 @@
 # Include this file from the host Makefile instead of re-declaring one wrapper
 # target per client:
 #
-#   -include vendor/voku/agent-loop/make/agent-loop.mk
+#   -include vendor/voku/agent-loop/resources/make/agent-loop.mk
 #
 # Everything is overridable with `?=` semantics, so a host that needs its own
 # entrypoint (extra bootstrap, raised memory limit, container dispatch) only

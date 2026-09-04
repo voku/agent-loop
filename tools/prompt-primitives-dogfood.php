@@ -46,7 +46,7 @@ final class PromptPrimitivesDogfood
 
         try {
             $this->runCommand(['composer', 'update', '--no-interaction', '--prefer-dist', '--no-progress', '--no-ansi']);
-            $this->assertFile('vendor/voku/agent-loop/resources/operating-prompts.json');
+            $this->assertFile('vendor/voku/agent-loop/resources/prompts/operating-prompts.json');
             $this->runCommand(['vendor/bin/agent-loop', 'init', 'scaffold']);
             $this->plan();
             $this->runCommand([
@@ -136,7 +136,7 @@ final class PromptPrimitivesDogfood
             '--non-goal', 'Do not create a new lifecycle phase, synthetic human approval, or automatic follow-up task.',
             '--behavior-anchor', 'explicit L1 controls -> governed run -> normal close gates -> optional read-only reflection',
             '--validation', self::VALIDATION,
-            '--operating-prompt-manifest', 'vendor/voku/agent-loop/resources/operating-prompts.json',
+            '--operating-prompt-manifest', 'vendor/voku/agent-loop/resources/prompts/operating-prompts.json',
             '--operating-prompt', $checkpoint,
             '--operating-prompt', $momentum,
         ]);

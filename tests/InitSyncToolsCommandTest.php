@@ -19,12 +19,12 @@ final class InitSyncToolsCommandTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-sync-tools-' . bin2hex(random_bytes(6));
-        mkdir($this->root . '/docs/agents/tools/slop-scan', 0o775, true);
-        mkdir($this->root . '/docs/agents/tools/itp-context', 0o775, true);
-        file_put_contents($this->root . '/docs/agents/tools/slop-scan/composer.json', '{"require":{"voku/slop-scan":"^0.1.4"}}');
-        file_put_contents($this->root . '/docs/agents/tools/slop-scan/slop-scan.php', "#!/usr/bin/env php\n");
-        chmod($this->root . '/docs/agents/tools/slop-scan/slop-scan.php', 0o755);
-        file_put_contents($this->root . '/docs/agents/tools/itp-context/composer.json', '{"require":{"voku/itp-context":"^0.3.0"}}');
+        mkdir($this->root . '/resources/tools/slop-scan', 0o775, true);
+        mkdir($this->root . '/resources/tools/itp-context', 0o775, true);
+        file_put_contents($this->root . '/resources/tools/slop-scan/composer.json', '{"require":{"voku/slop-scan":"^0.1.4"}}');
+        file_put_contents($this->root . '/resources/tools/slop-scan/slop-scan.php', "#!/usr/bin/env php\n");
+        chmod($this->root . '/resources/tools/slop-scan/slop-scan.php', 0o755);
+        file_put_contents($this->root . '/resources/tools/itp-context/composer.json', '{"require":{"voku/itp-context":"^0.3.0"}}');
     }
 
     protected function tearDown(): void
@@ -125,8 +125,8 @@ final class InitSyncToolsCommandTest extends TestCase
     public function testManagedEntryThatLeftThePackageIsRemoved(): void
     {
         $this->runSync([]);
-        unlink($this->root . '/docs/agents/tools/itp-context/composer.json');
-        rmdir($this->root . '/docs/agents/tools/itp-context');
+        unlink($this->root . '/resources/tools/itp-context/composer.json');
+        rmdir($this->root . '/resources/tools/itp-context');
 
         $result = $this->runSync([]);
 

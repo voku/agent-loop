@@ -13,8 +13,8 @@ final class TaskStartMapSearchPreflightTest extends TestCase
     {
         foreach ([
             dirname(__DIR__) . '/docs/quick-start.md',
-            dirname(__DIR__) . '/docs/agents/skills/agent-loop-task-start/SKILL.md',
-            dirname(__DIR__) . '/docs/agents/skills/agent-loop-workflow/SKILL.md',
+            dirname(__DIR__) . '/resources/skills/agent-loop-task-start/SKILL.md',
+            dirname(__DIR__) . '/resources/skills/agent-loop-workflow/SKILL.md',
         ] as $path) {
             $content = (string) file_get_contents($path);
 

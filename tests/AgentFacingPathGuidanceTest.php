@@ -60,7 +60,13 @@ final class AgentFacingPathGuidanceTest extends TestCase
     public static function agentFacingDocuments(): iterable
     {
         $root = dirname(__DIR__);
-        foreach ([$root . '/docs/agents', $root . '/docs/architecture'] as $directory) {
+        foreach ([
+            $root . '/resources/skills',
+            $root . '/resources/subagents',
+            $root . '/docs/architecture',
+            $root . '/docs/reference',
+            $root . '/docs/workflow',
+        ] as $directory) {
             if (!is_dir($directory)) {
                 continue;
             }
@@ -87,7 +93,7 @@ final class AgentFacingPathGuidanceTest extends TestCase
     public static function skillDocuments(): iterable
     {
         $root = dirname(__DIR__);
-        $directory = $root . '/docs/agents/skills';
+        $directory = $root . '/resources/skills';
         /** @var SplFileInfo $file */
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),

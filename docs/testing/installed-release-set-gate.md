@@ -43,7 +43,7 @@ a checkout and `composer.json` at its canonical `build/candidate-*` path fails
 before Composer resolution instead of falling back to a release.
 
 The runner itself has no Composer dependencies. It stages only the candidate
-package metadata, `src/`, `bin/`, and `docs/agents/`; the candidate's
+package metadata, `src/`, `bin/`, and `resources/`; the candidate's
 development `vendor/` directory is never copied into the consumer fixture.
 
 ## Installed topology
@@ -53,7 +53,7 @@ clean temporary workspace
 ├── candidate-agent-loop/
 │   ├── composer.json
 │   ├── bin/
-│   ├── docs/agents/
+│   ├── resources/
 │   └── src/
 ├── consumer/
 │   ├── composer.json

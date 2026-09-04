@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\PackageResources;
 use voku\AgentRecallCompiler\Compilation\RecallCompilationService;
 use voku\AgentRecallCompiler\OperatingPromptRequest;
 use voku\AgentRecallCompiler\Provider\OperatingPromptRecallProvider;
@@ -33,7 +34,7 @@ final class OperatingPromptPrimitivesTest extends TestCase
                     new OperatingPromptRequest('momentum'),
                 ],
             );
-            $manifest = dirname(__DIR__) . '/resources/operating-prompts.json';
+            $manifest = PackageResources::operatingPrompts();
             $compilation = (new RecallCompilationService([
                 new TaskContextRecallProvider(),
                 new OperatingPromptRecallProvider([$manifest]),

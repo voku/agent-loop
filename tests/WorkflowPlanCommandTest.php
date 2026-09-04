@@ -195,13 +195,13 @@ final class WorkflowPlanCommandTest extends TestCase
         $learningRoot = $root . '/.agent-loop/learning';
         mkdir($root . '/.agent-loop/todo/cards', 0o775, true);
         mkdir($root . '/.agent-loop/map', 0o775, true);
-        mkdir($root . '/docs/agents', 0o775, true);
+        mkdir($root . '/docs', 0o775, true);
         mkdir($learningRoot, 0o775, true);
         file_put_contents($root . '/.agent-loop/init.json', json_encode([
             'version' => 1,
-            'recall' => ['document_manifests' => ['docs/agents/recall-documents.json']],
+            'recall' => ['document_manifests' => ['docs/recall-documents.json']],
         ], JSON_THROW_ON_ERROR));
-        file_put_contents($root . '/docs/agents/recall-documents.json', json_encode([
+        file_put_contents($root . '/docs/recall-documents.json', json_encode([
             'schema_version' => '1.0',
             'documents' => [],
         ], JSON_THROW_ON_ERROR));
@@ -261,7 +261,7 @@ CARD
             self::assertSame([[
                 'compile', '--root', $learningRoot,
                 '--task', 'ABC-123', '--task-brief', $recallInput,
-                '--document-manifest', $root . '/docs/agents/recall-documents.json',
+                '--document-manifest', $root . '/docs/recall-documents.json',
                 '--kanban-context', $kanbanContextJson,
                 '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
                 '--map-search-index', $root . '/.agent-loop/map/search.sqlite',
@@ -308,7 +308,7 @@ CARD
         mkdir($root . '/.agent-loop', 0o775, true);
         file_put_contents($root . '/.agent-loop/init.json', json_encode([
             'version' => 1,
-            'recall' => ['document_manifests' => ['docs/agents/missing.json']],
+            'recall' => ['document_manifests' => ['docs/missing.json']],
         ], JSON_THROW_ON_ERROR));
         (new TaskContractStore($root))->create(
             'ABC-123',

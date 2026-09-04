@@ -18,7 +18,7 @@ final class AgentDisciplineContextBudgetTest extends TestCase
         $skillDirectory = $root . '/.claude/skills/agent-loop-discipline';
         self::assertTrue(mkdir($skillDirectory, 0o775, true));
 
-        $skill = file_get_contents(dirname(__DIR__) . '/docs/agents/skills/agent-loop-discipline/SKILL.md');
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
         self::assertIsString($skill);
         self::assertLessThanOrEqual(8_000, strlen($skill), 'Canonical bootstrap skill must leave room for the bounded resume hint.');
         self::assertNotFalse(file_put_contents($skillDirectory . '/SKILL.md', $skill));

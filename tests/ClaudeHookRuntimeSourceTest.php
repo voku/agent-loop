@@ -10,7 +10,7 @@ final class ClaudeHookRuntimeSourceTest extends TestCase
 {
     public function testRuntimeProbeGuardsPhpFloorAndDoesNotScanArbitraryToolAutoloaders(): void
     {
-        $root = dirname(__DIR__) . '/docs/agents/claude-hooks/hooks';
+        $root = dirname(__DIR__) . '/resources/hooks/claude/hooks';
         $runtime = file_get_contents($root . '/runtime.php');
 
         self::assertIsString($runtime);

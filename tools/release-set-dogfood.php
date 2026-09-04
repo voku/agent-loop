@@ -906,7 +906,7 @@ final class ReleaseSetDogfood
                 copy($source, $this->candidateRoot . '/' . $file);
             }
         }
-        foreach (['src', 'bin', 'docs/agents'] as $directory) {
+        foreach (['src', 'bin', 'resources'] as $directory) {
             $this->copyTree($this->repositoryRoot . '/' . $directory, $this->candidateRoot . '/' . $directory);
         }
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use RuntimeException;
+use voku\AgentLoop\PackageResources;
 
 /**
  * Typed owner mutation for the small marker-owned instruction surface.
@@ -333,7 +334,7 @@ final readonly class RepositoryInstructionSynchronizer
 
     private function routerSource(): string
     {
-        $path = dirname(__DIR__, 2) . '/docs/agents/project-instructions.md';
+        $path = PackageResources::projectInstructions();
         $content = file_get_contents($path);
         if (!is_string($content) || trim($content) === '') {
             throw new RuntimeException('Package project instruction source is missing or empty: ' . $path);

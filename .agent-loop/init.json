@@ -14,7 +14,7 @@
   },
   "recall": {
     "document_manifests": [
-      "docs/agents/recall-documents.json"
+      "docs/recall-documents.json"
     ]
   }
 }

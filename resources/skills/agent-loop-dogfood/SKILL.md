@@ -48,7 +48,7 @@ local work still remains.
 
 A guidance, context, prompting, review or learning change is accepted against a
 real issue, not only against a synthetic case written beside it. Use
-`docs/agents/dogfood/real-issue-acceptance.md` for that protocol: candidate
+`docs/dogfood/real-issue-acceptance.md` for that protocol: candidate
 pre-screen, freeze, the three evidence planes (`agent-map` structure,
 `itp-context` architecture intent, `slop-scan` candidate delta), regression
 before implementation, project-native gates as the correctness authority, and

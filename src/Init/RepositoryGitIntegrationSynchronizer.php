@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\PackageResources;
 
 /** Applies only the repository-declared local Git integration. */
 final readonly class RepositoryGitIntegrationSynchronizer
@@ -43,7 +44,7 @@ final readonly class RepositoryGitIntegrationSynchronizer
             throw new InvalidArgumentException('Repository does not declare a local Git hook policy.');
         }
 
-        $sourceRoot = dirname(__DIR__, 2) . '/githooks';
+        $sourceRoot = PackageResources::gitHooksRoot();
         if (!is_dir($sourceRoot)) {
             throw new RuntimeException('Bundled githooks root is missing: ' . $sourceRoot);
         }

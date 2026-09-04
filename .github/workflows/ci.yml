@@ -270,13 +270,13 @@ jobs:
             --agent=all \
             --extra-skills-root="${GITHUB_WORKSPACE}/build/agent-skills-source/skills"
           test ! -e .codex/hooks/context.php
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-discipline/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-investigate/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-surgical-edit/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-code-review/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/skills/agent-loop-simplify-audit/SKILL.md
-          test -f vendor/voku/agent-loop/docs/agents/subagents/agent-loop-investigator.md
-          test -f vendor/voku/agent-loop/docs/agents/codex-hooks/hooks/context.php
+          test -f vendor/voku/agent-loop/resources/skills/agent-loop-discipline/SKILL.md
+          test -f vendor/voku/agent-loop/resources/skills/agent-loop-investigate/SKILL.md
+          test -f vendor/voku/agent-loop/resources/skills/agent-loop-surgical-edit/SKILL.md
+          test -f vendor/voku/agent-loop/resources/skills/agent-loop-code-review/SKILL.md
+          test -f vendor/voku/agent-loop/resources/skills/agent-loop-simplify-audit/SKILL.md
+          test -f vendor/voku/agent-loop/resources/subagents/agent-loop-investigator.md
+          test -f vendor/voku/agent-loop/resources/hooks/codex/hooks/context.php
           test -f .codex/skills/agent-loop-discipline/SKILL.md
           test -f .codex/skills/agent-loop-investigate/SKILL.md
           test -f .codex/skills/coding-simplicity/SKILL.md

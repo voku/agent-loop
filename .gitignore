@@ -23,11 +23,11 @@ composer.lock
 /build-slop-report.json
 
 # Generated host projections and local Git-hook activation state.
-# `init install-assets` writes these; the canonical sources are docs/agents/ and githooks/.
+# `init install-assets` writes these; the canonical sources live under resources/.
 /.claude/
 /.codex/
 /.agents/
 /.github/skills/
 /.github/agents/
-/githooks/.agent-loop-manifest.json
-/githooks/lib/agent-loop-hooks.env
+/resources/githooks/.agent-loop-manifest.json
+/resources/githooks/lib/agent-loop-hooks.env

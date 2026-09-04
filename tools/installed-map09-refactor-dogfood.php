@@ -306,7 +306,7 @@ final class InstalledMap09RefactorDogfood
                 throw new InstalledMap09DogfoodFailure('Unable to stage Loop file: ' . $file);
             }
         }
-        foreach (['src', 'bin', 'docs/agents'] as $directory) {
+        foreach (['src', 'bin', 'resources'] as $directory) {
             $this->copyTree($this->repositoryRoot . '/' . $directory, $this->loopCandidate . '/' . $directory);
         }
     }

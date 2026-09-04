@@ -15,6 +15,74 @@ Do not hardcode `.agent-loop/` anywhere. It is the default, not the contract.
 
 ---
 
+## Package assets moved to `resources/`
+
+`docs/` is human explanation. `resources/` is what the package ships. Every
+package-owned asset moved accordingly, with no forwarding copies:
+
+| Before | After |
+| --- | --- |
+| `docs/agents/skills/` | `resources/skills/` |
+| `docs/agents/subagents/` | `resources/subagents/` |
+| `docs/agents/codex-hooks/` | `resources/hooks/codex/` |
+| `docs/agents/claude-hooks/` | `resources/hooks/claude/` |
+| `docs/agents/tools/` | `resources/tools/` |
+| `docs/agents/project-instructions.md` | `resources/instructions/project-instructions.md` |
+| `githooks/` | `resources/githooks/` |
+| `make/agent-loop.mk` | `resources/make/agent-loop.mk` |
+| `resources/operating-prompts.json` | `resources/prompts/operating-prompts.json` |
+
+**Action:** update anything in your repository that names a path below
+`vendor/voku/agent-loop/`. The common one is the Make include:
+
+```make
+-include vendor/voku/agent-loop/resources/make/agent-loop.mk
+```
+
+`docs/agents/recall-documents.json` moved to `docs/recall-documents.json`, beside
+the documents it indexes: its `source` entries are relative to the manifest
+itself, so a project that names a manifest in `recall.document_manifests` should
+update that path rather than the entries.
+
+Ordinary `init` usage needs no change: the commands resolve their own sources.
+
+The default source roots also moved. If `.agent-loop/init.json` does not set
+`paths.skills_root`, `paths.subagents_root`, `paths.codex_hooks_root`,
+`paths.claude_hooks_root` or `paths.tools_root`, they now resolve to
+`resources/skills`, `resources/subagents`, `resources/hooks/codex`,
+`resources/hooks/claude` and `resources/tools` inside *your* repository instead
+of `docs/agents/...`.
+
+**Action:** if your repository keeps its own skills, subagents, hooks or tool
+templates at the previous default location, either move them to the matching
+`resources/...` directory or name the old location explicitly:
+
+```json
+{
+  "version": 1,
+  "paths": {
+    "skills_root": "docs/agents/skills"
+  }
+}
+```
+
+Then re-run the installation and read the report:
+
+```bash
+vendor/bin/agent-loop init install-assets --agent=<your-agent> --dry-run
+vendor/bin/agent-loop init status
+```
+
+Human documentation moved to category paths at the same time:
+`docs/agents/LIFECYCLE.md` is now `docs/workflow/lifecycle.md`,
+`docs/agents/INFO_Agents.md` is `docs/reference/agent-assets.md`,
+`docs/agents/PROMPT_PRIMITIVES.md` is `docs/reference/prompt-primitives.md`,
+`docs/agents/THIRD_PARTY_NOTICES.md` is `docs/reference/third-party-notices.md`,
+the capability matrices are under `docs/architecture/`, policies under
+`docs/policies/`, and dogfood reports under `docs/dogfood/`.
+
+---
+
 ## Activation is resolved against your repository
 
 `init status` now reports activation, not just sources: the resolved CLI path,

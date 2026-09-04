@@ -9,6 +9,7 @@ use RuntimeException;
 use UnexpectedValueException;
 use Throwable;
 use voku\AgentLearning\FindingRepository;
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\ProjectLayout;
 
 final readonly class AgentDisciplineHook
@@ -200,7 +201,7 @@ final readonly class AgentDisciplineHook
     {
         foreach ([
             $this->repositoryRoot . '/' . $clientDirectory . '/skills/agent-loop-discipline/SKILL.md',
-            $this->repositoryRoot . '/docs/agents/skills/agent-loop-discipline/SKILL.md',
+            $this->repositoryRoot . '/' . PackageResources::SKILLS . '/agent-loop-discipline/SKILL.md',
         ] as $candidate) {
             if (!is_file($candidate) || !is_readable($candidate)) {
                 continue;

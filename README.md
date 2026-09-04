@@ -68,7 +68,7 @@ See [Your first governed task](docs/quick-start.md) for the complete first run.
 {
   "version": 1,
   "recall": {
-    "document_manifests": ["docs/agents/recall-documents.json"]
+    "document_manifests": ["docs/recall-documents.json"]
   }
 }
 ```
@@ -80,7 +80,7 @@ automatically. Missing, malformed, absolute, or project-escaping configured
 paths fail visibly instead of silently dropping review policy.
 
 This repository registers its own pre-1.0 compatibility decision in
-[`docs/agents/recall-documents.json`](docs/agents/recall-documents.json). The
+[`docs/recall-documents.json`](docs/recall-documents.json). The
 reusable `breaking-change-review` L2 recipe can turn the applicable policy and
 current task evidence into a project-specific review without treating backward
 compatibility or breakage as a universal default.
@@ -203,7 +203,7 @@ vendor/bin/agent-loop init validate --kind=hooks --agent=claude
 vendor/bin/agent-loop init sync-hooks --agent=claude
 ```
 
-Source roots default to `docs/agents/codex-hooks` and `docs/agents/claude-hooks`
+Source roots default to `resources/hooks/codex` and `resources/hooks/claude`
 and are overridable through `.agent-loop/init.json` (`codex_hooks_root`,
 `claude_hooks_root`) or `--hooks-root`.
 
@@ -295,7 +295,7 @@ can state the defect from the real source.
 `init tools` reports where both tools were found, the same way it reports `rg`
 and `docker`; an absent tool is information, not a broken setup. How the planes
 are used, and what "helped" has to mean before a tool earns trust, is in
-[the real-issue acceptance model](docs/agents/dogfood/real-issue-acceptance.md).
+[the real-issue acceptance model](docs/dogfood/real-issue-acceptance.md).
 
 ## Package-owned Git hooks
 
@@ -364,7 +364,7 @@ Host repositories should not re-declare one Make wrapper per client. Include the
 shipped targets instead:
 
 ```make
--include vendor/voku/agent-loop/make/agent-loop.mk
+-include vendor/voku/agent-loop/resources/make/agent-loop.mk
 ```
 
 That provides `agent_init_doctor`, `agent_init_status`, `agent_init_install_plan`,
@@ -389,10 +389,10 @@ Codex, Claude Code, OpenCode, Copilot, Gemini CLI, and Antigravity. Executable
 Codex/Claude hooks remain an explicit `--with-hooks` opt-in; repository authority
 policy is converged separately through `init host-status` / `init sync-policy`.
 The exact upstream-to-agent-* mapping and what was deliberately not ported are
-documented in [THIRD_PARTY_NOTICES.md](docs/agents/THIRD_PARTY_NOTICES.md).
+documented in [third-party notices](docs/reference/third-party-notices.md).
 
 The implementation and failed iterations are documented in
-[the dogfood report](docs/agents/dogfood/2026-08-07-first-party-discipline.md).
+[the dogfood report](docs/dogfood/2026-08-07-first-party-discipline.md).
 
 ## Exact target edit
 
@@ -599,7 +599,7 @@ Model confidence is not validation. A green close requires the recorded gates,
 not an agent claiming that everything looks fine.
 
 See [Learning boundary](docs/workflow/learning-boundary.md) and
-[Lifecycle contract](docs/agents/LIFECYCLE.md).
+[Lifecycle contract](docs/workflow/lifecycle.md).
 
 ## Repository-managed assets
 
@@ -627,7 +627,7 @@ projection owns only its narrow host-native keys/files and preserves unrelated
 project configuration.
 
 Detailed asset behavior is documented in
-[Agent Assets In agent-loop](docs/agents/INFO_Agents.md).
+[Agent Assets In agent-loop](docs/reference/agent-assets.md).
 
 ## Dogfood and validation
 
@@ -671,12 +671,12 @@ Never report a command as passed unless it ran and its exit code was observed.
 
 - [Your first governed task](docs/quick-start.md)
 - [Pre-1.0 compatibility and durable-state contract](docs/compatibility.md)
-- [Agent asset and offline installation contract](docs/agents/INFO_Agents.md)
-- [Cross-package lifecycle](docs/agents/LIFECYCLE.md)
+- [Agent asset and offline installation contract](docs/reference/agent-assets.md)
+- [Cross-package lifecycle](docs/workflow/lifecycle.md)
 - [Learning and durable-memory boundary](docs/workflow/learning-boundary.md)
-- [First-party discipline dogfood report](docs/agents/dogfood/2026-08-07-first-party-discipline.md)
-- [Real-issue acceptance model](docs/agents/dogfood/real-issue-acceptance.md)
-- [Upstream mechanism mapping and notices](docs/agents/THIRD_PARTY_NOTICES.md)
+- [First-party discipline dogfood report](docs/dogfood/2026-08-07-first-party-discipline.md)
+- [Real-issue acceptance model](docs/dogfood/real-issue-acceptance.md)
+- [Upstream mechanism mapping and notices](docs/reference/third-party-notices.md)
 
 ## Scheduled execution
 

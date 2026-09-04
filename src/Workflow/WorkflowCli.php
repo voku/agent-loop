@@ -86,8 +86,8 @@ Commands:
   close              Close the governed Run through safety gates and preserve durable close evidence.
 
 Built-in L1 control prompts:
-  Source checkout manifest: `resources/operating-prompts.json`.
-  Composer consumer manifest: `vendor/voku/agent-loop/resources/operating-prompts.json`.
+  Source checkout manifest: `resources/prompts/operating-prompts.json`.
+  Composer consumer manifest: `vendor/voku/agent-loop/resources/prompts/operating-prompts.json`.
   `checkpoint-autonomy` requires `{"anchor_point":"..."}` and self-checks bounded steps without fabricating human approval.
   `momentum` reuses still-valid fresh context while revalidating authority/freshness instead of restarting discovery.
   Select either or both through the normal `--operating-prompt-manifest` + `--operating-prompt` Contract policy.

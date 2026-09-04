@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Init\RepositoryActivation;
+use voku\AgentLoop\PackageResources;
 
 /**
  * @internal
@@ -75,14 +76,14 @@ final class RepositoryActivationTest extends TestCase
     public function testExistingPackageOwnedHookDirectoryIsMaintainedInsteadOfDuplicated(): void
     {
         $this->writeComposerName('voku/agent-loop');
-        $this->writePackageHooks('githooks');
+        $this->writePackageHooks(PackageResources::GIT_HOOKS);
         file_put_contents($this->root . '/.gitmessage', "# template\n");
 
         $activation = new RepositoryActivation($this->root);
 
-        self::assertSame('githooks', $activation->gitHooksDirectory());
+        self::assertSame(PackageResources::GIT_HOOKS, $activation->gitHooksDirectory());
         self::assertSame(
-            'bin/agent-loop init sync-githooks --hooks-dir=githooks --commit-template=.gitmessage --adopt-existing',
+            'bin/agent-loop init sync-githooks --hooks-dir=' . PackageResources::GIT_HOOKS . ' --commit-template=.gitmessage --adopt-existing',
             $activation->syncGitHooksCommand(),
         );
     }
@@ -178,12 +179,12 @@ final class RepositoryActivationTest extends TestCase
     {
         $this->writeComposerName('voku/agent-loop');
         $runner = $this->gitRepositoryWithHookPolicy();
-        $this->writePackageHooks('githooks');
+        $this->writePackageHooks(PackageResources::GIT_HOOKS);
         file_put_contents($this->root . '/.gitmessage', "# template\n");
 
         $rendered = $this->renderedChecks(new RepositoryActivation($this->root));
         self::assertStringContainsString(
-            'run bin/agent-loop init sync-githooks --hooks-dir=githooks --commit-template=.gitmessage --adopt-existing',
+            'run bin/agent-loop init sync-githooks --hooks-dir=' . PackageResources::GIT_HOOKS . ' --commit-template=.gitmessage --adopt-existing',
             $rendered,
         );
         self::assertStringNotContainsString('vendor/bin/agent-loop init sync-githooks', $rendered);
@@ -251,7 +252,7 @@ final class RepositoryActivationTest extends TestCase
             mkdir($target . '/lib', 0o775, true);
         }
 
-        $source = dirname(__DIR__) . '/githooks';
+        $source = PackageResources::gitHooksRoot();
         self::assertTrue(copy($source . '/lib/agent-loop-hooks.sh', $target . '/lib/agent-loop-hooks.sh'));
         foreach (['pre-commit', 'commit-msg'] as $hook) {
             self::assertTrue(copy($source . '/' . $hook, $target . '/' . $hook));

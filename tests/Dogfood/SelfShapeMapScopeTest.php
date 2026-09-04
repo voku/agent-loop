@@ -18,8 +18,8 @@ final class SelfShapeMapScopeTest extends TestCase
             'src/Init/RepositoryActivation.php',
             'tests/RepositoryActivationTest.php',
             'tools/self-shape-dogfood.php',
-            'docs/agents/claude-hooks/hooks/context.php',
-            'docs/agents/codex-hooks/hooks/context.php',
+            'resources/hooks/claude/hooks/context.php',
+            'resources/hooks/codex/hooks/context.php',
             'README.md',
         ]);
 
@@ -27,8 +27,8 @@ final class SelfShapeMapScopeTest extends TestCase
             'src',
             'tests',
             'tools',
-            'docs/agents/claude-hooks/hooks/context.php',
-            'docs/agents/codex-hooks/hooks/context.php',
+            'resources/hooks/claude/hooks/context.php',
+            'resources/hooks/codex/hooks/context.php',
         ], $paths);
     }
 

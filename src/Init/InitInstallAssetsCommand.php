@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 
@@ -95,7 +96,7 @@ final readonly class InitInstallAssetsCommand
 
         $subagentRoots = [];
         if ($includePackageSubagents) {
-            $subagentsRoot = $packageRoot . '/docs/agents/subagents';
+            $subagentsRoot = PackageResources::subagentsRoot();
             if (is_dir($subagentsRoot)) {
                 $subagentRoots[] = $subagentsRoot;
             }
@@ -133,7 +134,7 @@ final readonly class InitInstallAssetsCommand
             return 1;
         }
         foreach ($hookAgents as $hookAgent) {
-            $hooksRoot = $packageRoot . '/docs/agents/' . $hookAgent . '-hooks';
+            $hooksRoot = PackageResources::hooksRoot($hookAgent);
             if (!is_file($hooksRoot . '/hooks.json')) {
                 fwrite(\STDERR, 'Bundled ' . $hookAgent . ' hooks are missing: ' . $hooksRoot . '/hooks.json' . "\n");
 
@@ -182,7 +183,7 @@ final readonly class InitInstallAssetsCommand
         }
 
         foreach ($hookAgents as $hookAgent) {
-            $hooksRoot = $packageRoot . '/docs/agents/' . $hookAgent . '-hooks';
+            $hooksRoot = PackageResources::hooksRoot($hookAgent);
             $hooksExit = (new InitSyncHooksCommand($this->rootPath))->run(array_merge(
                 ['--agent=' . $hookAgent, '--hooks-root=' . $hooksRoot],
                 $forwarded,

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **Breaking.** Package-shipped assets moved out of `docs/` and the repository root into `resources/`, so `docs/` is human explanation only and `resources/` is what the package ships. `docs/agents/skills` -> `resources/skills`, `docs/agents/subagents` -> `resources/subagents`, `docs/agents/codex-hooks` -> `resources/hooks/codex`, `docs/agents/claude-hooks` -> `resources/hooks/claude`, `docs/agents/tools` -> `resources/tools`, `docs/agents/project-instructions.md` -> `resources/instructions/project-instructions.md`, `docs/agents/recall-documents.json` -> `docs/recall-documents.json`, `githooks/` -> `resources/githooks/`, `make/agent-loop.mk` -> `resources/make/agent-loop.mk`, and `resources/operating-prompts.json` -> `resources/prompts/operating-prompts.json`. There are no forwarding copies; a stale path fails loudly.
+- **Breaking.** The default asset source roots resolved from `.agent-loop/init.json` (`paths.skills_root`, `paths.subagents_root`, `paths.codex_hooks_root`, `paths.claude_hooks_root`, `paths.tools_root`) now default to the same `resources/...` layout instead of `docs/agents/...`. A repository that kept its own assets at the previous default either moves them or names the old location explicitly in `paths`.
+- Added `voku\AgentLoop\PackageResources` as the single owner of package-shipped resource locations. Setup, hook, prompt and review code resolve asset paths through it instead of each spelling a physical directory.
+- Human documentation moved to predictable category paths: `docs/agents/LIFECYCLE.md` -> `docs/workflow/lifecycle.md`, `docs/agents/INFO_Agents.md` -> `docs/reference/agent-assets.md`, `docs/agents/PROMPT_PRIMITIVES.md` -> `docs/reference/prompt-primitives.md`, `docs/agents/THIRD_PARTY_NOTICES.md` -> `docs/reference/third-party-notices.md`, `docs/agents/project-integrated-phpstan-tools.md` -> `docs/reference/project-integrated-phpstan-tools.md`, the capability matrices to `docs/architecture/`, `docs/agents/policies/` -> `docs/policies/`, and `docs/agents/dogfood/` -> `docs/dogfood/`.
+
 ### Fixed
 
 - `agent-loop enter` text output now renders the exact candidate Contract revision and complete goal before its human approval command, matching the structured decision projection.

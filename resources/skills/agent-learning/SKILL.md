@@ -12,7 +12,7 @@ bounded, and placed in the surface that owns it.
 ## Fast Path
 
 1. Check whether the lesson already exists in README, changelog,
-   `docs/agents/`, or `docs/workflow/`.
+   `docs/`, or `resources/skills/`.
 2. Search history only when prior decisions or failed attempts materially affect
    the conclusion.
 3. Sweep the complete validated backlog, not only the current session.
@@ -60,7 +60,7 @@ or map navigation behavior:
 - compare observable artifacts and review quality;
 - change one mechanism at a time;
 - rerun the same case after a failure;
-- record failed iterations in `docs/agents/dogfood/`;
+- record failed iterations in `docs/dogfood/`;
 - add the stable case to `composer dogfood:discipline` or the installed-consumer
   gate when it protects a package contract.
 
@@ -71,12 +71,12 @@ baseline. The unbuilt alternative is not measurable evidence.
 
 Inspect:
 
-- `docs/agents/INFO_Agents.md`;
+- `docs/reference/agent-assets.md`;
 - `agent-loop-discipline`;
 - `agent-loop-simplify-review`;
 - `agent-loop-dogfood`;
 - the relevant workflow skill;
-- `docs/agents/dogfood/` and `THIRD_PARTY_NOTICES.md`;
+- `docs/dogfood/` and `THIRD_PARTY_NOTICES.md`;
 - `docs/workflow/learning-boundary.md`;
 - README and changelog.
 
@@ -99,7 +99,7 @@ Never promote raw transcripts or secrets.
 - `agent-loop-discipline` for adaptive PHP navigation, minimal PHP changes,
   concise communication, package ownership, and evidence integrity;
 - `agent-loop-simplify-review` for complexity-only review;
-- `agent-loop-dogfood` and `docs/agents/dogfood/` for repeatable behavioral
+- `agent-loop-dogfood` and `docs/dogfood/` for repeatable behavioral
   evaluation;
 - typed classes under `src/AgentGuidance/` when behavior must execute;
 - focused PHPUnit and installed-consumer scenarios for runtime/package contracts;
