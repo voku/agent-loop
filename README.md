@@ -401,7 +401,7 @@ the semantic map, compile bounded recall, and prepare an auditable execution
 bundle:
 
 ```bash
-vendor/bin/agent-loop edit 'App\\Service\\UserService::save' -- \
+vendor/bin/agent-loop edit 'App\Service\UserService::save' -- \
   'Reject inactive users before persistence and adapt affected callers.'
 ```
 
@@ -415,7 +415,7 @@ Artifacts are stored under:
 For a deterministic one-for-one replacement inside one resolved PHP method:
 
 ```bash
-vendor/bin/agent-loop edit 'Legacy\\ResourceService::save' \
+vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
   --runner=auto \
   --replace-old='$legacyUser->regionId' \
   --replace-new='$legacyUser->getCurrentRegionId()' -- \
@@ -654,7 +654,7 @@ composer validate --strict
 phpunit
 phpstan
 php tools/project-phpstan-rules.php
-itp-context-validate 'voku\\AgentLoop\\Context\\ArchitectureRules'
+itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules'
 php tools/agent-discipline-dogfood.php
 ```
 
