@@ -12,6 +12,7 @@ use RuntimeException;
 use voku\AgentLoop\Edit\EditExecution;
 use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\MethodRenameEditRunner;
+use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Rename\MethodRenamePlanner;
@@ -47,7 +48,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         file_put_contents($caller, (string) file_get_contents($caller) . "// changed after planning\n");
 
         try {
-            (new MethodRenameEditRunner())->preflight($plan, $map, $this->root);
+            (new RenamePlanApplier())->preflight($plan, $map, $this->root);
             self::fail('Expected stale current-map evidence to fail closed.');
         } catch (RuntimeException $exception) {
             self::assertSame(
@@ -67,7 +68,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         $plan['edits'][0]['source_sha256'] = 'sha256:' . str_repeat('0', 64);
 
         try {
-            (new MethodRenameEditRunner())->preflight($plan, $map, $this->root);
+            (new RenamePlanApplier())->preflight($plan, $map, $this->root);
             self::fail('Expected current per-edit hash evidence to fail closed.');
         } catch (RuntimeException $exception) {
             self::assertSame(
@@ -89,7 +90,7 @@ final class MethodRenameEditRunnerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage($message);
         try {
-            (new MethodRenameEditRunner())->preflight($change($plan), $map, $this->root);
+            (new RenamePlanApplier())->preflight($change($plan), $map, $this->root);
         } finally {
             self::assertSame($before, $this->sources());
         }

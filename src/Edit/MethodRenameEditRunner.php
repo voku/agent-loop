@@ -59,15 +59,4 @@ final readonly class MethodRenameEditRunner implements EditRunner
 
         return $this->applier->apply($plan, $map, $execution->request->mapRoot);
     }
-
-    /**
-     * Compatibility seam for focused method-runner tests and callers that preflight a public plan.
-     *
-     * @param array<string, mixed> $plan
-     * @return array<string, string> absolute source path => final contents
-     */
-    public function preflight(array $plan, AgentMapIndex $map, string $root): array
-    {
-        return $this->applier->preflight($plan, $map, $root)['files'];
-    }
 }
