@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dogfood\ProcessRunner;
+use voku\AgentLoop\Init\FirstPartySkillRoots;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
 
 /** @internal */
@@ -54,7 +55,10 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-discipline', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-loop-investigate', $result['output']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install agent-recall-consumer', $result['output']);
-        self::assertStringContainsString('from 2 source root(s)', $result['output']);
+        self::assertStringContainsString(
+            'from ' . count(FirstPartySkillRoots::resolve(dirname(__DIR__))) . ' source root(s)',
+            $result['output'],
+        );
         self::assertStringContainsString('[DRY-RUN] sync subagents: install agent-loop-investigator.toml', $result['output']);
         self::assertStringNotContainsString('[DRY-RUN] sync hooks:', $result['output']);
         self::assertStringContainsString('executable host hooks were not registered', $result['output']);

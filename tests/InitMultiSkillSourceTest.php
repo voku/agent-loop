@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentLoop\Init\FirstPartySkillRoots;
 use voku\AgentLoop\Init\InitInstallAssetsCommand;
 use voku\AgentLoop\Init\InitSyncSkillsCommand;
 
@@ -165,7 +166,10 @@ JSON;
         self::assertStringNotContainsString('infra/doc/agent-learning', $recallSkill);
         self::assertStringNotContainsString('.agent-recall-output', $recallSkill);
 
-        self::assertStringContainsString('from 2 source root(s)', $output);
+        self::assertStringContainsString(
+            'from ' . count(FirstPartySkillRoots::resolve(dirname(__DIR__))) . ' source root(s)',
+            $output,
+        );
         self::assertStringContainsString('first-party package guidance', $output);
     }
 

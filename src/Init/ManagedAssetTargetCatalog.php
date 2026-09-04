@@ -155,17 +155,17 @@ final readonly class ManagedAssetTargetCatalog
     }
 
     /**
-     * Skill entries the current sources project, including the recall skills
-     * that are always part of the first-party set.
+     * Skill entries the current sources project, including the sibling-owner
+     * skills that are always part of the first-party set.
      *
      * @return list<string>
      */
     public function skillEntries(AgentAssetSourcePaths $paths): array
     {
         $entries = $this->skillSourceEntries($paths);
-        foreach (FirstPartySkillRoots::recallSkillEntries() as $recallEntry) {
-            if (!in_array($recallEntry, $entries, true)) {
-                $entries[] = $recallEntry;
+        foreach (FirstPartySkillRoots::siblingSkillEntries() as $siblingEntry) {
+            if (!in_array($siblingEntry, $entries, true)) {
+                $entries[] = $siblingEntry;
             }
         }
         sort($entries, SORT_STRING);

@@ -4,8 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Skills shipped by `voku/agent-session` are projected by `init install-assets`
+  alongside Loop's own and Recall's. The two siblings are wired asymmetrically on
+  purpose: Recall has shipped skills for as long as this projection existed, so
+  failing to locate it stays a hard error, while agent-session only ships skills
+  from the release that introduced its own `PackageResources`. An older installed
+  agent-session therefore contributes nothing instead of being reported as
+  breakage, and `resolve()` never hands callers a root that does not exist -
+  `RepositorySetupService::expectedSkillEntries()` treats every resolved root as
+  mandatory.
+
 ### Changed
 
+- `FirstPartySkillRoots::recallSkillEntries()` becomes `siblingSkillEntries()` and
+  returns the merged, sorted, de-duplicated contribution of every sibling owner
+  package rather than Recall alone.
+- The first-party install tests derive the expected source-root count from
+  `FirstPartySkillRoots::resolve()` instead of asserting the literal
+  `from 2 source root(s)`, so wiring a sibling in no longer breaks assertions
+  that were only ever about *extra* roots not leaking in.
 - Adapt to sibling package asset moves in `voku/agent-recall-compiler`: resolve Recall consumer skills via `PackageResources::skillsRoot()` with fallback to `resources/skills/` and `skills/`. Update documentation, workflows, and dogfood prompt references to `vendor/voku/agent-recall-compiler/resources/skills/`.
 - Require `voku/agent-learning ^0.15.0`, which makes `agent-loop learn proposal-reanchor <target> --by ACTOR --reason TEXT` available. An applied `memory`/`skill` proposal pins its whole target file by hash, so editing any other row of a shared guidance home such as `MEMORY.md` made every applied proof on that file report drift it did not cause, and `agent-loop verify` failed with no way back: retiring answers a curation question nobody asked and re-applying is closed to an applied record. The repair is the owner's, reached through the existing `learn` delegation rather than reimplemented here.
 
