@@ -11,7 +11,7 @@ final class RecallDocumentManifestTest extends TestCase
     public function testSelfShapeLifecycleIsRegisteredForItsOwningSurfaces(): void
     {
         $manifest = json_decode(
-            (string) file_get_contents(dirname(__DIR__) . '/resources/recall-documents.json'),
+            (string) file_get_contents(dirname(__DIR__) . '/docs/recall-documents.json'),
             true,
             512,
             JSON_THROW_ON_ERROR,

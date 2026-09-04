@@ -116,9 +116,9 @@ final class ProjectLayoutOwnershipTest extends TestCase
 
     public function testProjectRecallDocumentManifestsArePortableAndDeterministic(): void
     {
-        mkdir($this->root . '/resources', 0o775, true);
+        mkdir($this->root . '/docs', 0o775, true);
         mkdir($this->root . '/modules/payments', 0o775, true);
-        touch($this->root . '/resources/recall-documents.json');
+        touch($this->root . '/docs/recall-documents.json');
         touch($this->root . '/modules/payments/recall-documents.json');
         file_put_contents(
             $this->root . '/.agent-loop/init.json',
@@ -127,16 +127,16 @@ final class ProjectLayoutOwnershipTest extends TestCase
                 'recall' => [
                     'document_manifests' => [
                         'modules/payments/recall-documents.json',
-                        'resources/recall-documents.json',
-                        'resources/recall-documents.json',
+                        'docs/recall-documents.json',
+                        'docs/recall-documents.json',
                     ],
                 ],
             ], JSON_THROW_ON_ERROR),
         );
 
         self::assertSame([
+            $this->root . '/docs/recall-documents.json',
             $this->root . '/modules/payments/recall-documents.json',
-            $this->root . '/resources/recall-documents.json',
         ], (new ProjectLayout($this->root))->recallDocumentManifests());
     }
 

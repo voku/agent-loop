@@ -37,11 +37,16 @@ resources/
   instructions/project-instructions.md # managed instruction projection source
   prompts/operating-prompts.json       # operating-prompt manifest
   review/                              # human review page assets
-  recall-documents.json                # this repository's Recall document manifest
 
 docs/
   architecture/  contributing/  dogfood/  policies/  reference/  testing/  workflow/
+  recall-documents.json                # index of the documents beside it
 ```
+
+A manifest lives with the tree it indexes. `docs/recall-documents.json` names
+its documents relative to itself, so keeping it beside them is what makes those
+entries readable; moving it into `resources/` would have bought consistency with
+`../` escapes.
 
 `src/PackageResources.php` is the single owner of those locations for runtime
 code: setup, hook, prompt and review code ask it instead of each spelling a

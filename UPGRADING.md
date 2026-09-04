@@ -28,7 +28,6 @@ package-owned asset moved accordingly, with no forwarding copies:
 | `docs/agents/claude-hooks/` | `resources/hooks/claude/` |
 | `docs/agents/tools/` | `resources/tools/` |
 | `docs/agents/project-instructions.md` | `resources/instructions/project-instructions.md` |
-| `docs/agents/recall-documents.json` | `resources/recall-documents.json` |
 | `githooks/` | `resources/githooks/` |
 | `make/agent-loop.mk` | `resources/make/agent-loop.mk` |
 | `resources/operating-prompts.json` | `resources/prompts/operating-prompts.json` |
@@ -39,6 +38,11 @@ package-owned asset moved accordingly, with no forwarding copies:
 ```make
 -include vendor/voku/agent-loop/resources/make/agent-loop.mk
 ```
+
+`docs/agents/recall-documents.json` moved to `docs/recall-documents.json`, beside
+the documents it indexes: its `source` entries are relative to the manifest
+itself, so a project that names a manifest in `recall.document_manifests` should
+update that path rather than the entries.
 
 Ordinary `init` usage needs no change: the commands resolve their own sources.
 

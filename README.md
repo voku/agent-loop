@@ -68,7 +68,7 @@ See [Your first governed task](docs/quick-start.md) for the complete first run.
 {
   "version": 1,
   "recall": {
-    "document_manifests": ["resources/recall-documents.json"]
+    "document_manifests": ["docs/recall-documents.json"]
   }
 }
 ```
@@ -80,7 +80,7 @@ automatically. Missing, malformed, absolute, or project-escaping configured
 paths fail visibly instead of silently dropping review policy.
 
 This repository registers its own pre-1.0 compatibility decision in
-[`resources/recall-documents.json`](resources/recall-documents.json). The
+[`docs/recall-documents.json`](docs/recall-documents.json). The
 reusable `breaking-change-review` L2 recipe can turn the applicable policy and
 current task evidence into a project-specific review without treating backward
 compatibility or breakage as a universal default.
