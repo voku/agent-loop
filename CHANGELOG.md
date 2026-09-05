@@ -4,18 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.20.0 - 2026-09-05
+
 ### Added
 
 - Add fast-path micro-task flow (`agent-loop quick`): initiate, auto-approve, and enter a bounded surgical micro-task (up to 2 files) in a single command, with 1-shot auto-close enforcement (60-line diff ceiling, scope confinement, auto-recorded reviews/learning).
 - Add bounded auto-repair on verification failure (`agent-loop repair`): capture structured diagnostics (PHPStan, PHPUnit, PHP linter, PHP-CS-Fixer) on validation failure, project actionable repair instructions, and enforce a strict 2-attempt budget before human escalation to prevent infinite agent repair loops.
 - Add turnkey multi-stage execution runner (`agent-loop pipeline`): automate multi-stage profiles (`surgical`, `standard`, `hardened`) with role-based briefings, handoff envelopes carrying review feedback (e.g. `changes_required` loops back to `build`), and deterministic verification auto-progression.
-
-- Add end-to-end two-run dogfood test `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` proving behavioral closure of #349: Run One teaches by recording a validated Finding and authoring an active `LearningNote`, transient context (session, dispatcher, in-memory state) is destroyed, and Run Two remembers by entering normally via `agent-loop enter` where Recall compiles the note as precedent advice into `system.md`.
+- Add human/agent workflow front doors under `docs/workflow/` while keeping code authoritative for lifecycle semantics and `README.md` focused on product overview.
+- Add end-to-end two-run LearningNote dogfood for #349 through released owner APIs: Task A records a classified validated Finding, closes with the note route only as an optional follow-up, physically prunes its Session working memory, then publishes the note from durable Learning evidence; Task B enters normally and Recall supplies the exact current precedent with source lineage and deterministic scope evidence.
 - Add end-to-end dogfood test `tests/Dogfood/AutonomousReplanDogfoodTest.php` proving behavioral closure of #345: an agent facing an invalid implementation premise autonomously triggers `REPLAN` within the approved intent without human interruption, while premise failures requiring scope or goal changes strictly enforce `HUMAN_DECISION_REQUIRED` via superseded unapproved contract revisions.
 
 ### Changed
 
-- Update supported release set documentation in `docs/architecture/supported-release-set.md` to reflect the 0.19.0 boundary (`^0.4.0` kanban, `^0.16.0` learning, `^0.10.0` map, `^0.15.0` recall, `^0.7.0` session) and graduate `voku/agent-loop-runner 0.1.0` into the supported ecosystem graph.
+- Require `voku/agent-learning ^0.16.1`, making the released classified-Finding owner API part of Loop's supported dependency boundary instead of relying on Learning-private storage in the return-loop proof.
+- Advance the root development alias to `0.20.x-dev`.
 
 ## 0.19.0 - 2026-09-04
 
