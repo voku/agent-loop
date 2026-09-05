@@ -17,7 +17,7 @@ final class WorkflowCloseLearningHistoryOwnerBoundaryTest extends TestCase
         self::assertStringContainsString('RecallSelectionEventRepository', $source);
         self::assertStringNotContainsString('history/outcomes.jsonl', $source);
         self::assertStringNotContainsString('history/recall-selections.jsonl', $source);
-        self::assertStringNotContainsString("$outcome['task_id']", $source);
-        self::assertStringNotContainsString("$event['outcome_withheld_reason']", $source);
+        self::assertStringNotContainsString("\$outcome['task_id']", $source);
+        self::assertStringNotContainsString("\$event['outcome_withheld_reason']", $source);
     }
 }
