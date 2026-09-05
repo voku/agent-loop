@@ -11,6 +11,8 @@ use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Run\RunPolicyEvaluation;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /** Read-only lifecycle view built from package-owned artifacts. */
 final readonly class WorkflowStatusCommand
@@ -26,20 +28,23 @@ final readonly class WorkflowStatusCommand
             $taskId = new WorkflowTaskId($args[0] ?? '');
             $options = $this->parseOptions(array_slice($args, 1));
             $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+            $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
             $storage = (new RunManifestStore($this->rootPath))->status($manifest);
 
             if ($options['format'] === 'json') {
                 echo CanonicalJson::pretty([
+                    'policy' => $this->policyArray($policy),
                     'manifest' => $manifest->toArray(),
                     'storage' => $storage,
                 ]);
             } elseif ($options['format'] === 'toon') {
                 echo AgentOutput::toon([
+                    'policy' => $this->policyArray($policy),
                     'manifest' => $manifest->toArray(),
                     'storage' => $storage,
                 ]);
             } else {
-                $this->renderText($manifest, $storage);
+                $this->renderText($manifest, $policy, $storage);
             }
 
             if ($options['expect'] !== null && $manifest->state !== $options['expect']) {
@@ -70,12 +75,29 @@ final readonly class WorkflowStatusCommand
     /**
      * @param array{state: 'missing'|'current'|'stale', path: string, current_sha256: string, stored_sha256: string|null} $storage
      */
-    private function renderText(RunManifest $manifest, array $storage): void
+    private function renderText(RunManifest $manifest, RunPolicyEvaluation $policy, array $storage): void
     {
         echo 'Task ' . $manifest->taskId . "\n";
         printf("  %-19s %-22s %s\n", 'Run:', $manifest->runId, $manifest->mode);
-        printf("  %-19s %-22s %s\n", 'Overall:', $manifest->state, 'derived from owning artifacts');
+        printf("  %-19s %-22s %s\n", 'Overall:', $policy->state, 'lifecycle policy result');
         printf("  %-19s %-22s %s\n", 'Manifest:', $storage['state'], $storage['path']);
+
+        echo "\nPolicy:\n";
+        printf("  %-19s %s\n", 'Mutation:', $policy->mutationAllowed ? 'allowed' : 'not_allowed');
+        printf("  %-19s %s\n", 'Ordinary close:', $policy->ordinaryCloseAllowed ? 'allowed' : 'not_allowed');
+        printf("  %-19s %s\n", 'Next kind:', $policy->nextActionKind);
+
+        if ($policy->blockers !== []) {
+            echo "  Blockers:\n";
+            foreach ($policy->blockers as $blocker) {
+                echo sprintf(
+                    "    - %s [%s]: %s\n",
+                    $blocker['code'],
+                    $blocker['owner'],
+                    $blocker['message'],
+                );
+            }
+        }
 
         echo "\nLifecycle:\n";
         foreach ($this->orderedReferences($manifest) as $name => $reference) {
@@ -100,7 +122,29 @@ final readonly class WorkflowStatusCommand
             }
         }
 
-        echo "\nNext:\n  " . $manifest->nextAction . "\n";
+        echo "\nNext:\n  " . $policy->nextAction . "\n";
+    }
+
+    /**
+     * @return array{
+     *     state: string,
+     *     mutation_allowed: bool,
+     *     ordinary_close_allowed: bool,
+     *     blockers: list<array{code: string, owner: string, message: string}>,
+     *     next_action: string,
+     *     next_action_kind: string
+     * }
+     */
+    private function policyArray(RunPolicyEvaluation $policy): array
+    {
+        return [
+            'state' => $policy->state,
+            'mutation_allowed' => $policy->mutationAllowed,
+            'ordinary_close_allowed' => $policy->ordinaryCloseAllowed,
+            'blockers' => $policy->blockers,
+            'next_action' => $policy->nextAction,
+            'next_action_kind' => $policy->nextActionKind,
+        ];
     }
 
     /** @return array<string, array<string, mixed>> */
