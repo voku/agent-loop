@@ -267,12 +267,12 @@ final readonly class WorkflowCloseReadinessInspector
             return ['detail' => 'selected guidance without a compilation id', 'message' => null];
         }
 
+        $selected = array_values(array_unique($selected));
         try {
             $outcomes = (new GuidanceOutcomeEventRepository())->load($learningRoot);
-            $selections = (new RecallSelectionEventRepository())->load($learningRoot);
         } catch (ValidationException $exception) {
             return [
-                'detail' => 'invalid Learning history for selected guidance: ' . $exception->getMessage(),
+                'detail' => 'invalid Learning outcome history for selected guidance: ' . $exception->getMessage(),
                 'message' => null,
             ];
         }
@@ -284,7 +284,21 @@ final readonly class WorkflowCloseReadinessInspector
             }
         }
 
-        $selected = array_values(array_unique($selected));
+        try {
+            $selections = (new RecallSelectionEventRepository())->load($learningRoot);
+        } catch (ValidationException $exception) {
+            $missing = array_values(array_filter(
+                $selected,
+                static fn (string $id): bool => !isset($recorded[$id]),
+            ));
+            $detail = 'invalid Learning selection history for selected guidance: ' . $exception->getMessage();
+            if ($missing !== []) {
+                $detail .= '; missing explicit recall outcome for: ' . implode(', ', $missing);
+            }
+
+            return ['detail' => $detail, 'message' => null];
+        }
+
         $selectedSet = array_fill_keys($selected, true);
         $withheld = [];
         foreach ($selections as $selection) {
