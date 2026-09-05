@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use voku\AgentKanban\Domain\CardId;
+use voku\AgentKanban\Repository\BoardContext;
 use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
@@ -34,7 +35,14 @@ final readonly class WorkflowKanbanContextProjector
         $cardId = CardId::fromString($normalizedTaskId);
 
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-        $context = (new BoardContextResolver())->resolveOptional($boardRoot, boardId: $cardId->prefix);
+        $resolver = new BoardContextResolver();
+        $context = $resolver->resolveOptional($boardRoot);
+        if ($context === null) {
+            return null;
+        }
+        if ($context->config->projectPrefix !== $cardId->prefix) {
+            $context = $this->contextForPrefix($resolver->resolveAll($boardRoot), $cardId->prefix);
+        }
         if ($context === null || !$context->repository->exists($cardId)) {
             return null;
         }
@@ -50,5 +58,17 @@ final readonly class WorkflowKanbanContextProjector
             priority: $card->priority,
             nextAction: $card->nextAction,
         );
+    }
+
+    /** @param array<string, BoardContext> $contexts */
+    private function contextForPrefix(array $contexts, string $prefix): ?BoardContext
+    {
+        foreach ($contexts as $context) {
+            if ($context->config->projectPrefix === $prefix) {
+                return $context;
+            }
+        }
+
+        return null;
     }
 }
