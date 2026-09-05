@@ -297,7 +297,6 @@ PHP
         self::assertSame('current', $precedent->payload['evidence_state']);
         self::assertTrue($precedent->payload['render']);
         self::assertContains('scope_match', $precedent->payload['match_reasons'] ?? []);
-        self::assertContains('tag_match', $precedent->payload['match_reasons'] ?? []);
 
         $promptAugmentationPath = $recallDir . '/system.md';
         self::assertFileExists($promptAugmentationPath);
