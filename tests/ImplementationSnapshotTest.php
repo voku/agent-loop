@@ -164,6 +164,57 @@ final class ImplementationSnapshotTest extends TestCase
         ImplementationSnapshot::capture($this->root, $this->contract('SNAP-VENDOR-ROOT', ['vendor']));
     }
 
+    public function testCustomLearningHistoryInsideScopedParentDirectoryDoesNotAffectSnapshot(): void
+    {
+        mkdir($this->root . '/infra/doc/agent-learning/history/run-learning', 0o775, true);
+        mkdir($this->root . '/infra/src', 0o775, true);
+        file_put_contents($this->root . '/infra/src/Infra.php', "<?php // infra\n");
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'version' => 1,
+                'paths' => ['learning_root' => 'infra/doc/agent-learning'],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $contract = $this->contract('SNAP-CUSTOM-LEARNING-1', ['infra']);
+        $before = ImplementationSnapshot::capture($this->root, $contract);
+
+        self::assertSame(['infra/src/Infra.php'], array_column($before->files, 'path'));
+
+        // Adding run-learning history must not change the snapshot digest
+        file_put_contents(
+            $this->root . '/infra/doc/agent-learning/history/run-learning/decision.json',
+            "{\"decision\":\"no_durable_learning\"}\n",
+        );
+
+        $afterHistoryWrite = ImplementationSnapshot::capture($this->root, $contract);
+        self::assertSame($before->digest, $afterHistoryWrite->digest);
+        self::assertSame($before->files, $afterHistoryWrite->files);
+
+        // Modifying code inside the scoped parent directory must change the snapshot digest
+        file_put_contents($this->root . '/infra/src/Infra.php', "<?php // infra v2\n");
+        $afterCodeChange = ImplementationSnapshot::capture($this->root, $contract);
+        self::assertNotSame($before->digest, $afterCodeChange->digest);
+    }
+
+    public function testCustomLearningHistoryDirectoryRemainsExcludedAsMetadata(): void
+    {
+        mkdir($this->root . '/infra/doc/agent-learning/history', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode([
+                'version' => 1,
+                'paths' => ['learning_root' => 'infra/doc/agent-learning'],
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('workflow/dependency metadata');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-CUSTOM-LEARNING-DIR', ['infra/doc/agent-learning/history']));
+    }
+
     /** @param list<string> $scope */
     private function contract(string $taskId, array $scope): \voku\AgentLoop\Workflow\TaskContract
     {

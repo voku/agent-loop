@@ -62,7 +62,7 @@ final readonly class ImplementationSnapshot
                 }
                 throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
             }
-            if (self::excludedScopeDirectory($relative, $stateRelative)) {
+            if (self::excludedScopeDirectory($relative, $stateRelative, $learningRelative)) {
                 throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
             }
 
@@ -76,13 +76,13 @@ final readonly class ImplementationSnapshot
                 }
                 $path = str_replace('\\', '/', $item->getPathname());
                 $fileRelative = self::relative($root, $path);
+                if (self::excludedFile($fileRelative, $stateRelative, $learningRelative, $relative)) {
+                    continue;
+                }
                 if ($item->isLink()) {
                     throw new RuntimeException('Implementation snapshot refuses symlinked path inside approved scope: ' . $fileRelative);
                 }
                 if (!$item->isFile()) {
-                    continue;
-                }
-                if (self::excludedFile($fileRelative, $stateRelative, $relative)) {
                     continue;
                 }
                 $files[$fileRelative] = self::hashFile($path, $fileRelative);
@@ -156,6 +156,9 @@ final readonly class ImplementationSnapshot
         if (self::inside($path, '.git') || $path === 'vendor') {
             return true;
         }
+        if ($learningRelative !== '' && self::inside($path, $learningRelative . '/history')) {
+            return true;
+        }
         if ($stateRelative === '' || !self::inside($path, $stateRelative)) {
             return false;
         }
@@ -165,7 +168,6 @@ final readonly class ImplementationSnapshot
         if (
             $learningRelative !== ''
             && self::inside($path, $learningRelative)
-            && !self::inside($path, $learningRelative . '/history')
         ) {
             return false;
         }
@@ -173,24 +175,37 @@ final readonly class ImplementationSnapshot
         return true;
     }
 
-    private static function excludedScopeDirectory(string $path, string $stateRelative): bool
-    {
+    private static function excludedScopeDirectory(
+        string $path,
+        string $stateRelative,
+        string $learningRelative,
+    ): bool {
         if (self::inside($path, '.git') || $path === 'vendor') {
             return true;
         }
         if ($stateRelative !== '' && self::inside($path, $stateRelative)) {
             return true;
         }
+        if ($learningRelative !== '' && self::inside($path, $learningRelative . '/history')) {
+            return true;
+        }
 
         return false;
     }
 
-    private static function excludedFile(string $path, string $stateRelative, string $scopedDirectory): bool
-    {
+    private static function excludedFile(
+        string $path,
+        string $stateRelative,
+        string $learningRelative,
+        string $scopedDirectory,
+    ): bool {
         if (self::inside($path, '.git')) {
             return true;
         }
         if ($stateRelative !== '' && self::inside($path, $stateRelative)) {
+            return true;
+        }
+        if ($learningRelative !== '' && self::inside($path, $learningRelative . '/history')) {
             return true;
         }
         if (self::inside($path, 'vendor')) {
