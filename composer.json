@@ -18,7 +18,7 @@
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
     "voku/agent-kanban": "^0.4.0",
-    "voku/agent-learning": "^0.16.0",
+    "voku/agent-learning": "^0.16.1",
     "voku/agent-map": "^0.10.0",
     "voku/agent-recall-compiler": "^0.15.0",
     "voku/agent-session": "^0.7.0"
