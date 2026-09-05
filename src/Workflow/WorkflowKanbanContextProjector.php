@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
-use voku\AgentKanban\Repository\MarkdownCardRepository;
+use voku\AgentKanban\Exception\ConfigurationException;
+use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentRecallCompiler\KanbanContextProjection;
@@ -27,10 +27,9 @@ final readonly class WorkflowKanbanContextProjector
     public function project(string $taskId): ?KanbanContextProjection
     {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-        $configPath = is_file($boardRoot . '/kanban.config.json')
-            ? $boardRoot . '/kanban.config.json'
-            : $boardRoot . '/todo/kanban.config.json';
-        if (!is_file($configPath)) {
+        try {
+            $board = (new BoardContextResolver())->resolve($boardRoot);
+        } catch (ConfigurationException) {
             return null;
         }
 
@@ -42,14 +41,10 @@ final readonly class WorkflowKanbanContextProjector
         }
         $cardId = CardId::fromString($normalizedTaskId);
 
-        $repository = new MarkdownCardRepository(
-            $boardRoot,
-            BoardConfig::fromJsonFile($configPath),
-        );
-        if (!$repository->exists($cardId)) {
+        if (!$board->repository->exists($cardId)) {
             return null;
         }
-        $card = $repository->load($cardId);
+        $card = $board->repository->load($cardId);
 
         return new KanbanContextProjection(
             taskId: $taskId,
