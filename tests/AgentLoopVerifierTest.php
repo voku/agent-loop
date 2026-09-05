@@ -98,7 +98,7 @@ final class AgentLoopVerifierTest extends TestCase
         $result = $this->verify(['--strict']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('[SKIP] board: no typed board source', $result['output']);
+        self::assertStringContainsString('[SKIP] board: voku/agent-kanban resolved no board context', $result['output']);
         self::assertStringContainsString('[SKIP] learning root:', $result['output']);
     }
 
@@ -151,6 +151,37 @@ final class AgentLoopVerifierTest extends TestCase
 
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('[OK] board: kanban board projection verified', $result['output']);
+    }
+
+    public function testVerifyRecognizesBoardInferredFromExistingCard(): void
+    {
+        mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-1.md', <<<'MD'
+# ABC-1: Inferred board card
+
+- **Ticket:** ABC-1
+- **Lane:** BACKLOG
+- **Status:** Backlog
+MD
+            . "\n");
+
+        $result = $this->verify([]);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString('[OK] board: kanban board projection verified', $result['output']);
+    }
+
+    public function testBoardPresenceCheckDoesNotReconstructKanbanPrivateLayout(): void
+    {
+        $source = file_get_contents(dirname(__DIR__) . '/src/AgentLoopVerifier.php');
+        self::assertIsString($source);
+
+        self::assertStringContainsString('BoardContextResolver', $source);
+        self::assertStringContainsString('resolveOptionalWithProvenance', $source);
+        self::assertStringNotContainsString('kanban.config.json', $source);
+        self::assertStringNotContainsString('board.md', $source);
+        self::assertStringNotContainsString('/todo/cards/', $source);
+        self::assertStringNotContainsString('/todo/jira/', $source);
     }
 
     public function testTaskScopeIgnoresAnotherCardsLocalDriftButFullVerifyDoesNot(): void
@@ -240,11 +271,8 @@ MD
     }
 
     /**
-
      * @param list<string> $tokens
-
      * @return array{exit: int, output: string}
-
      */
     private function verify(array $tokens): array
     {

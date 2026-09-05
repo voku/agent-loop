@@ -6,6 +6,8 @@ namespace voku\AgentLoop;
 
 use RuntimeException;
 use voku\AgentKanban\Cli\CliApplication;
+use voku\AgentKanban\Exception\AgentKanbanException;
+use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentKanban\Verification\BoardVerifier;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\LearningRepositoryValidator;
@@ -177,19 +179,17 @@ final class AgentLoopVerifier
 
     private function checkBoard(string $boardRoot, ?string $taskId): bool
     {
-        $root = rtrim($boardRoot, '/');
-        $metadata = is_file($root . '/board.md') ? $root . '/board.md' : $root . '/todo/board.md';
-        $config = is_file($root . '/kanban.config.json') ? $root . '/kanban.config.json' : $root . '/todo/kanban.config.json';
-        $cards = array_merge(
-            glob($root . '/todo/cards/*.md') ?: [],
-            glob($root . '/todo/jira/*.md') ?: [],
-            glob($root . '/cards/*.md') ?: [],
-            glob($root . '/jira/*.md') ?: [],
-        );
-        if (!is_file($metadata) && !is_file($config) && $cards === []) {
-            echo "[SKIP] board: no typed board source at {$root}/todo/board.md, {$root}/todo/kanban.config.json, {$root}/todo/cards/, or {$root}/todo/jira/\n";
-
-            return true;
+        $resolutionFailure = null;
+        try {
+            $resolution = (new BoardContextResolver())->resolveOptionalWithProvenance($boardRoot);
+        } catch (AgentKanbanException $exception) {
+            $resolution = null; $resolutionFailure = $exception;
+        }
+        if ($resolution === null) {
+            echo $resolutionFailure === null
+                ? "[SKIP] board: voku/agent-kanban resolved no board context\n"
+                : "[FAIL] board: agent-kanban could not resolve board context: {$resolutionFailure->getMessage()}\n";
+            return $resolutionFailure === null;
         }
 
         ob_start();
