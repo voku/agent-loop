@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use voku\AgentLearning\RunLearningDecisionStore;
 use RuntimeException;
+use voku\AgentLearning\GuidanceOutcomeEventRepository;
+use voku\AgentLearning\RecallSelectionEventRepository;
+use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\AgentLoopVerifier;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
@@ -263,36 +265,26 @@ final readonly class WorkflowCloseReadinessInspector
         if ($compilationId === null || trim($compilationId) === '') {
             return ['detail' => 'selected guidance without a compilation id', 'message' => null];
         }
-        $outcomesPath = rtrim($learningRoot, '/') . '/history/outcomes.jsonl';
-        $outcomeLines = [];
-        if (is_file($outcomesPath)) {
-            $outcomeLines = file($outcomesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if ($outcomeLines === false) {
-                return ['detail' => 'cannot read history/outcomes.jsonl for selected guidance', 'message' => null];
+
+        try {
+            $outcomes = (new GuidanceOutcomeEventRepository())->load($learningRoot);
+            $recorded = [];
+            foreach ($outcomes as $outcome) {
+                if ($outcome->taskId === $taskId && $outcome->compilationId === $compilationId) {
+                    $recorded[$outcome->guidanceId] = true;
+                }
             }
+
+            $selected = array_values(array_unique($selected));
+            $selectedSet = array_fill_keys($selected, true);
+            $withheld = array_intersect_key(
+                $this->declaredWithholdings($learningRoot, $taskId, $compilationId),
+                $selectedSet,
+            );
+        } catch (RuntimeException $exception) {
+            return ['detail' => 'invalid Learning recall history: ' . $exception->getMessage(), 'message' => null];
         }
-        $recorded = [];
-        foreach ($outcomeLines as $line) {
-            try {
-                $outcome = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
-            } catch (\JsonException) {
-                continue;
-            }
-            if (
-                is_array($outcome)
-                && ($outcome['task_id'] ?? null) === $taskId
-                && ($outcome['compilation_id'] ?? null) === $compilationId
-                && is_string($outcome['guidance_id'] ?? null)
-            ) {
-                $recorded[$outcome['guidance_id']] = true;
-            }
-        }
-        $selected = array_values(array_unique($selected));
-        $selectedSet = array_fill_keys($selected, true);
-        $withheld = array_intersect_key(
-            $this->declaredWithholdings($learningRoot, $taskId, $compilationId),
-            $selectedSet,
-        );
+
         $missing = array_values(array_filter(
             $selected,
             static fn (string $id): bool => !isset($recorded[$id]) && !isset($withheld[$id]),
@@ -315,24 +307,16 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array<string, true> */
     private function declaredWithholdings(string $learningRoot, string $taskId, string $compilationId): array
     {
-        $path = rtrim($learningRoot, '/') . '/history/recall-selections.jsonl';
-        if (!is_file($path)) {
-            return [];
-        }
-
         $withheld = [];
-        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-            $event = json_decode($line, true);
+        foreach ((new RecallSelectionEventRepository())->load($learningRoot) as $event) {
             if (
-                is_array($event)
-                && ($event['task_id'] ?? null) === $taskId
-                && ($event['compilation_id'] ?? null) === $compilationId
-                && ($event['selected'] ?? null) === true
-                && is_string($event['guidance_id'] ?? null)
-                && is_string($event['outcome_withheld_reason'] ?? null)
-                && trim($event['outcome_withheld_reason']) !== ''
+                $event->taskId === $taskId
+                && $event->compilationId === $compilationId
+                && $event->selected
+                && $event->outcomeWithheldReason !== null
+                && trim($event->outcomeWithheldReason) !== ''
             ) {
-                $withheld[$event['guidance_id']] = true;
+                $withheld[$event->guidanceId] = true;
             }
         }
 
