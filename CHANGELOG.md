@@ -4,18 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.20.0 - 2026-09-05
+
 ### Added
 
 - Add fast-path micro-task flow (`agent-loop quick`): initiate, auto-approve, and enter a bounded surgical micro-task (up to 2 files) in a single command, with 1-shot auto-close enforcement (60-line diff ceiling, scope confinement, auto-recorded reviews/learning).
 - Add bounded auto-repair on verification failure (`agent-loop repair`): capture structured diagnostics (PHPStan, PHPUnit, PHP linter, PHP-CS-Fixer) on validation failure, project actionable repair instructions, and enforce a strict 2-attempt budget before human escalation to prevent infinite agent repair loops.
 - Add turnkey multi-stage execution runner (`agent-loop pipeline`): automate multi-stage profiles (`surgical`, `standard`, `hardened`) with role-based briefings, handoff envelopes carrying review feedback (e.g. `changes_required` loops back to `build`), and deterministic verification auto-progression.
-
-- Add end-to-end two-run dogfood test `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` proving behavioral closure of #349: Run One teaches by recording a validated Finding and authoring an active `LearningNote`, transient context (session, dispatcher, in-memory state) is destroyed, and Run Two remembers by entering normally via `agent-loop enter` where Recall compiles the note as precedent advice into `system.md`.
+- Add human/agent workflow front doors under `docs/workflow/` while keeping code authoritative for lifecycle semantics and `README.md` focused on product overview.
+- Add end-to-end two-run LearningNote dogfood for #349 through released owner APIs: Task A records a classified validated Finding, closes with the note route only as an optional follow-up, physically prunes its Session working memory, then publishes the note from durable Learning evidence; Task B enters normally and Recall supplies the exact current precedent with source lineage and deterministic scope evidence.
 - Add end-to-end dogfood test `tests/Dogfood/AutonomousReplanDogfoodTest.php` proving behavioral closure of #345: an agent facing an invalid implementation premise autonomously triggers `REPLAN` within the approved intent without human interruption, while premise failures requiring scope or goal changes strictly enforce `HUMAN_DECISION_REQUIRED` via superseded unapproved contract revisions.
 
 ### Changed
 
-- Update supported release set documentation in `docs/architecture/supported-release-set.md` to reflect the 0.19.0 boundary (`^0.4.0` kanban, `^0.16.0` learning, `^0.10.0` map, `^0.15.0` recall, `^0.7.0` session) and graduate `voku/agent-loop-runner 0.1.0` into the supported ecosystem graph.
+- Require `voku/agent-learning ^0.16.1`, making the released classified-Finding owner API part of Loop's supported dependency boundary instead of relying on Learning-private storage in the return-loop proof.
+- Advance the root development alias to `0.20.x-dev`.
 
 ## 0.19.0 - 2026-09-04
 
@@ -151,7 +154,6 @@ All notable changes to this project will be documented in this file.
       so nothing that was attested is lost. A different Run or Contract is still
       refused, and re-recording an identical receipt stays idempotent.
 
-
 ## 0.18.2 - 2026-08-26
 
 ### Added
@@ -173,7 +175,6 @@ All notable changes to this project will be documented in this file.
 
 - PR #306 passed PHP 8.3/8.4/8.5 CI, diagnostics, PHPStan/project rules, installed release-set/refactor lifecycles, governed execution-contract dogfood, deterministic slop review, and self-shape before merge.
 - PR #309 merged the typed prompt-envelope boundary after exact-head lifecycle/PHPUnit/PHPStan verification; the subsequent context-budget and runtime-guard fixes plus acceptance-observation regressions are included in this release target.
-
 
 ## 0.18.1 - 2026-08-25
 
@@ -264,7 +265,6 @@ All notable changes to this project will be documented in this file.
 - PR #270 passed PHP 8.3/8.4/8.5 CI, PHPStan, project PHPStan rules, deterministic slop review, governed execution-contract dogfood, self-shape, installed release-set and refactor lifecycles, AccessLint and CodeRabbit on exact head `f29be4faf0fccb4fabf4646bb77bea7cc8bfb665` before squash merge to `1f46648d4fb928aa256d5b6be6ac0f80f1a77d0e`.
 - The accumulated post-0.16.6 release set includes the released agent-map 0.8.x fixed contracts and the matching transactional agent-loop consumers, each proven through clean installed Composer consumers rather than sibling-checkout assumptions.
 
-
 ## 0.16.6 - 2026-08-17
 
 ### Changed
@@ -281,7 +281,6 @@ All notable changes to this project will be documented in this file.
 - The regression binds a Run to historical Session `2001-02-03-abc-123-r1-deadbeef`, removes working memory, reruns `workflow approve`, and proves both Run ID and Session ID stay unchanged. A second regression proves a conflicting active Session cannot steal that Run.
 - PHP 8.3/8.4/8.5, PHPStan, project PHPStan rules, diagnostics, acceptance/prompt candidate dogfoods, installed release-set, execution-contract, slop review, self-shape, AccessLint and CodeRabbit were green on the exact merge candidate.
 
-
 ## 0.16.5 - 2026-08-16
 
 ### Added
@@ -296,7 +295,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Claude hooks now share one package-owned runtime probe, no-op below PHP 8.3 before Composer loads, and only consider the known root or `tools/agent-loop` autoload locations instead of scanning arbitrary tool projects.
-- `init status` trusts persisted v2 first-party projection source evidence, so a clean installed consumer no longer reports freshly installed skills, subagents, or hook helpers as stale.
+- `init status` trusts persisted v2 first-party projection source evidence, so a clean installed consumer no longer reports freshly installed skills, subagents, or hook helpers as stale managed entries. The projected set was compared against this repository's skills root alone, so a successful install immediately produced a warning about itself.
 - Task-start and guidance-maintenance examples now preserve persisted-task preflight and behavior anchors without duplicating per-client projection validation commands.
 
 ### Validation
@@ -474,7 +473,6 @@ All notable changes to this project will be documented in this file.
 
 - PHP 8.3/8.4/8.5, diagnostics and project PHPStan rules, acceptance/prompt-primitives clean-consumer dogfood, installed release-set dogfood, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint and CodeRabbit were green on the exact current-base candidate before merge; the exact merge commit also passed main-branch CI.
 
-
 ## 0.16.1 - 2026-08-14
 
 ### Changed
@@ -488,6 +486,7 @@ All notable changes to this project will be documented in this file.
 - Agent-facing regressions reject retired or configurable hard-coded paths, normalize wrapped command examples, and verify documented `workflow` / `init` subcommands against the live CLI help.
 - Candidate dogfood derives the minimum Recall release from `composer.json`; clean-consumer tests inspect the installed Recall skill contents rather than only checking that a file exists.
 - PHP 8.3/8.4/8.5, PHPStan and project rules, acceptance/prompt-primitives candidate dogfood, installed release-set dogfood, governed execution-contract dogfood, deterministic slop review, and self-shape were green on the current combined tree before merge.
+
 ## 0.16.0 - 2026-08-14
 
 ### Changed
@@ -562,463 +561,6 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Requires `voku/agent-recall-compiler ^0.11.5`. Recall now owns and ships the
-  first-party operating-prompt catalog beside its consumer skill, so Loop uses
-  `vendor/voku/agent-recall-compiler/skills/agent-recall-consumer/operating-prompts.json`
-  instead of synchronizing Recall behavior through a separately pinned
-  `agent-skills` commit.
-- `agent-loop-l2-context` now owns only Loop orchestration around Recall and
-  defers Recall prompt schema, recipe semantics, and review primitives to the
-  Recall-owned skill. This removes a second Markdown implementation that had
-  already drifted from Recall's current L2 construction contract.
-
-### Learning
-
-- Validated `finding.2026-08-14.005`: skills and machine-readable instruction
-  assets whose correctness depends on a tool's CLI, schema, generated files,
-  output contract, or runtime behavior belong in that tool's repository and
-  ship/test with the implementation. Generic skill collections keep only
-  tool-neutral principles or references to the canonical owner.
-
-### Validation
-
-- The ownership handoff passed PHP 8.3/8.4/8.5 CI and diagnostics, project
-  PHPStan rules, acceptance and prompt-primitives clean-consumer dogfood,
-  governed execution-contract dogfood, installed release-set dogfood,
-  deterministic slop review, and agent-loop self-shape before merge.
-
-
-## 0.15.1 - 2026-08-14
-
-### Added
-
-- `workflow status <task-id> --expect <state>` turns the read-only Run
-  projection into an exact, CI-assertable lifecycle check without changing the
-  existing status exit semantics when no expectation is supplied.
-- Prompt review now has an installable falsification path end to end: the Loop
-  review namespace exposes Recall's context-light `review first-draft`, governed
-  `review code <task-id>` includes the same first-draft lens with task artifacts,
-  and installed `agent-skills` can supply project-grounded L2 recipes such as
-  `adversarial-review` through their copied `operating-prompts.json` manifest.
-
-- `voku/itp-context` is a runtime dependency, and `src/Context/ArchitectureRules.php`
-  declares four rules with the `Rule` attribute on the symbols they constrain:
-  `ProjectLayout` owns every state path, Workflow calls typed package APIs,
-  generated evidence is never approval, and external evidence tools stay
-  optional. Each names the check that catches the next violation, each was
-  violated at least once by a change that passed review, and `composer ci` runs
-  `context:validate`.
-- A `slop-scan` CI job reviews the candidate against `slop-baseline.json` using
-  `slop-scan.config.json`, so the gate fails on findings a change adds rather
-  than on the repository's existing history. `composer review:slop` runs the
-  same check locally. It installs from `tools/slop-scan` because 0.1.4 cannot
-  co-resolve with `agent-map` and 0.1.5 is untagged.
-
-### Changed
-
-- Requires `voku/agent-recall-compiler ^0.11.4`, whose released prompt surface
-  preserves acceptance/scope/evidence boundaries and provides the first-draft
-  review primitive. Prompt, acceptance, execution-contract, release-set, and
-  installed-asset dogfood now use the same released Recall floor and the same
-  pinned first-party `agent-skills` catalog instead of testing stale prompt
-  combinations.
-- `voku\AgentLoop\Cli\OptionTokens` owns argv option parsing. Twelve commands
-  carried a private copy of the same loop, ten byte for byte — including one
-  added in this release. `slop-scan` reported the cluster; the extraction
-  removed 13 duplicated methods across 12 files. `value()` now resolves to the
-  first non-empty occurrence, which differs from the old single-value copies
-  only for a repeated option whose first value is empty — an input none of
-  those commands accept.
-
-### Fixed
-
-- Task-scoped `verify` now requires the exact task Markdown or durable Contract
-  when task files exist, and filters
-  `agent-kanban` failures to that task while retaining board-wide failures, so a
-  missing task cannot pass and unrelated task-local drift cannot block it.
-- Run projection now resolves board context through `agent-kanban`'s canonical
-  config/metadata/inference rules. The metadata-only board created by `init
-  scaffold` is therefore linked instead of reported as unconfigured, and the
-  scaffold no longer writes stale derived `Source` or `Done count` metadata.
-- Agent-facing guidance, hook guards, edit help, and dogfood fixtures use the
-  canonical `.agent-loop/map` paths and current Contract/Learning commands.
-
-- The isolated tool projects pin `config.platform.php` to this package's lowest
-  supported PHP. Their lock files had been resolved on 8.4 and pulled
-  `symfony/string` 8.1, which requires PHP >= 8.4.1, so CI on 8.3 could not
-  install the tooling at all. A test now fails when a tool project stops
-  pinning, or pins a PHP this package does not support.
-- `RuntimeException` raised for invalid dogfood JSON now carries the
-  `JsonException` as `previous`, and three `@param mixed $value` annotations
-  that only repeated the native signature are gone. Both were `slop-scan`
-  findings.
-
-### Added
-
-- The real-issue acceptance model in `docs/agents/dogfood/real-issue-acceptance.md`:
-  candidate pre-screen, freeze, three separate evidence planes (`agent-map`
-  structure, `voku/itp-context` architecture intent, `voku/slop-scan` candidate
-  delta), regression before implementation, project-native gates as the
-  correctness authority, and a per-tool usefulness ledger in `LEARN`. It maps
-  onto the existing governed phases and adds no lifecycle state.
-- `init tools` probes the external evidence tools `itp-context` and `slop-scan`
-  beside `rg`, `git`, `php`, `composer` and `docker` — none of which this
-  package installs either. A project-local installation (`vendor/bin` or an
-  isolated `tools/` project) is preferred over an ambient PATH build, the
-  reported path is the one to invoke, and an absent tool is information rather
-  than a warning. `agent-loop-l2-context` and `agent-loop-code-review` route to
-  the planes when the inventory reports them.
-- `RealIssueEvidenceToolBoundaryTest` keeps the installation boundary
-  executable: `voku/itp-context` and `voku/slop-scan` are invoked from isolated
-  tool projects, not declared as dependencies of this package. The
-  Simple-PHP-Code-Parser conflict that used to force this (`^0.22` against
-  `^0.21`) is resolved by `slop-scan` 0.1.5; the boundary now rests on the PHP
-  8.3+ floor, on keeping agent tooling out of consumers' dependency trees, and
-  on neither tool having earned a place inside a gate yet.
-
-- `init sync-tools` installs the isolated evidence tool projects from
-  package-owned templates in `docs/agents/tools/`, following the existing
-  `sync-*` contract: managed entries in a target manifest, `--dry-run`,
-  `--force` and `--adopt-existing`, stale managed entries removed, unmanaged
-  targets refused. It writes project files and never runs Composer — that
-  reaches the network and picks versions, so the command names it instead.
-- Isolated tool projects `tools/itp-context/` and `tools/slop-scan/`, pinned by
-  their committed lock files, so the documented installation boundary is
-  executed rather than described. `tools/slop-scan/slop-scan.php` works around
-  `voku/slop-scan` 0.1.4 resolving its autoloader at a path that exists only in
-  a standalone checkout.
-
-### Fixed
-
-- `init tools` reported the `agent-map` index from the pre-consolidation
-  `.agent-map/php-symbols.json` while `ProjectLayout` had moved it to
-  `.agent-loop/map/php-symbols.json`, so a built index was reported as never
-  built and a configured `state_root` was ignored. The probe now asks the
-  layout owner for both the location and how to display it.
-
-## 0.15.0 - 2026-08-12
-
-The pre-1.0 semantic reset (#19). Ownership moves to the packages that can
-actually keep each promise, and every breaking change here deletes a
-demonstrated contradiction rather than expressing a preference.
-
-Requires agent-session ^0.5.0, agent-learning ^0.10.0 and
-agent-recall-compiler ^0.11.0. There is no compatibility shim anywhere in this
-release: a wrong path or a stale artifact fails loudly instead of being guessed
-at.
-
-### Changed
-
-- **Breaking:** PLAN is durable before a Session exists. `workflow plan` writes
-  a Contract and creates no Session and no Run. APPROVE binds that exact
-  approved revision to a governed Run with its own `run_id`, so Run identity is
-  never derived from Session identity.
-- **Breaking:** a governed Run records the durable Learning repository it is
-  governed against. `close`, `learn`, `report` and the Run projection read that
-  binding, and a `--learning-root` that disagrees is refused rather than
-  silently reading a different repository. Previously close gated on the
-  caller's flag while the projection it then wrote re-derived the location from
-  the layout default — close reported success while the durable manifest it
-  produced in the same command said the Learning decision was missing, and that
-  contradiction outlived Session pruning.
-- **Breaking:** repository-local workflow state lives under `.agent-loop/`, and
-  `ProjectLayout` is the only thing that resolves a state path. `state_root`
-  moves the whole tree; `sessions_root`, `learning_root` and `recall_root`
-  override one branch each, via `.agent-loop/init.json`.
-- **Breaking:** `workflow status`, `context` and `report` render from the
-  durable Contract and owner artifacts instead of Session-held state; the
-  pre-Contract workflow shortcuts and `workflow start` are removed.
-- **Breaking:** the CLI exposes only pruneable Session commands. Durable
-  approval and Learning close-out are owned by `agent-loop` and
-  `agent-learning`.
-- `close` reports which gate failed. Gate details were collected and then
-  discarded, so a caller saw `gates failed` with every gate printed `[OK]`, and
-  the Contract-binding refusal reached only STDERR.
-
-### Added
-
-- `agent-loop init paths [--format=text|json]` reports where this project keeps
-  its workflow state, so an agent can ask instead of assuming `.agent-loop/`.
-- L2 execution contracts are governed end to end, and the gate proving it now
-  requires anchors only the current Contract could supply rather than the
-  recipe template's own scaffolding.
-- Consumes agent-map 0.5 discovery, 0.6 architecture discovery and 0.7 temporal
-  evidence.
-
-### Upgrading
-
-See `UPGRADING.md`. Run artifacts written before this release are rejected by
-name; re-run `workflow approve` to re-prepare the Run against the same approved
-Contract revision. Durable Contracts, verification receipts and Learning
-decisions are untouched.
-
-Note: 0.14.0 was prepared but never released; its content is superseded by this
-release.
-
-## 0.13.0 - 2026-08-07
-
-- Pre-commit checks are declared by type instead of by command line:
-  `php-lint`, `phpcs`, `phpcbf`, `php-cs-fixer`, and `phpstan` render the standard
-  tool invocation from the package, so a repository configures its rule set
-  (`standard`, `config`, `level`, `memory_limit`) rather than another wrapper
-  script. `php-lint` runs per file because `php -l` takes exactly one path.
-  `type: command` stays the escape hatch for anything else, and an unknown type
-  fails with the list of known ones instead of running a broken command.
-- `init sync-subagents --agent=claude` renders repo-managed subagent roles into
-  `.claude/agents/*.md` (override with `CLAUDE_AGENTS_DIR`), and `--agent=all`
-  now includes Claude. `install-assets --agent=claude` therefore installs the
-  bundled investigator, surgical-builder, and code-reviewer roles as well;
-  repository hooks remain Codex-only.
-
-- `init sync-hooks --agent=claude` installs a host-owned hook bundle for Claude
-  Code. Claude registers hooks inside `settings.json` rather than in a hooks
-  file, so the sync owns exactly one key: it merges `hooks`, writes every other
-  setting back unchanged, and records `settings.json#hooks` in the target
-  manifest. That manifest entry is what makes the unmanaged-target refusal,
-  `--force`, `--adopt-existing`, and a later stale-removal behave the same way
-  they do for file-based targets. `CLAUDE_CONFIG_DIR` overrides the target
-  directory; the source root defaults to `docs/agents/claude-hooks` and is
-  configurable through `claude_hooks_root` or `--hooks-root`.
-- `init validate --kind=hooks --agent=claude` validates such a bundle. Claude has
-  no required event - a bundle may register only `PreToolUse` guardrails - but a
-  hook command must still call a script inside `.claude/hooks/`, so a bundle
-  cannot point at an unmanaged path.
-- Hook reading and validation moved into a client-agnostic `HooksDefinition`.
-  `CodexHooksDefinition` keeps its public API and now delegates, which is why the
-  Codex contract (required `SessionStart`, `SubagentStart`, `PreToolUse`, commands
-  under `.codex/hooks/`) is unchanged.
-- `agent-loop githooks pre-commit` and `agent-loop githooks commit-msg` implement
-  the hook logic every PHP repository was re-writing: skip merge commits, list the
-  staged files, drop the excluded ones, batch them, stop at the first failing
-  check - and for the message: header pattern, leftover template placeholders, a
-  required section that must contain something, and a nudge when that section is
-  short and vague. The project-specific half (check commands, commit convention)
-  is data in `.agent-loop/githooks.json`; without that file both hooks are a
-  no-op, so installing them cannot break a repository that has not configured
-  them yet.
-- `init sync-githooks` installs the package-owned Git hooks into a host
-  repository and points `core.hooksPath` (and optionally `commit.template`) at
-  them. The hooks themselves are generic - `post-merge` and `post-checkout` keep
-  the agent-map index in step with the working tree - while the project-specific
-  part (container service, image, workdir, user, index paths) is rendered next to
-  them as `lib/agent-loop-hooks.env` instead of being copied into a new shell
-  script per repository. Hooks the host owns, such as `pre-commit` and
-  `commit-msg` in the same directory, are never read, rewritten, or removed: only
-  the installed entries enter the target manifest.
-- The container lookup those hooks need (inside the container, through compose,
-  through a matching image, or plain host execution) now lives once in
-  `githooks/lib/agent-loop-hooks.sh`, together with a path mapper so a hook can
-  forward Git's temporary index for `git commit --only`.
-- Shipped `make/agent-loop.mk`. A host repository includes it instead of
-  maintaining one Make wrapper per client, and overrides `AGENT_LOOP_BIN`,
-  `AGENT_LOOP_CONFIG`, or `AGENT_LOOP_SYNC_FLAGS` when it needs its own
-  entrypoint. The asset content stays in the host repository; only the commands
-  live in the package. A contract test fails if the include calls an `init`
-  subcommand this package does not implement.
-
-## 0.12.0 - 2026-08-07
-
-- `workflow manifest <task-id>` projects the run manifest v1 contract: the one
-  place that names the kanban card, session, work brief revision and approval,
-  map and search-index state, recall compilation and output hashes, edit bundle,
-  verification, review, and learning decision as a single related run. It is
-  read-only by default; `--write` persists the projection atomically, and
-  `--format=json` is the stable machine surface. Consumers previously had to
-  reconstruct that relationship from directory names and per-package
-  conventions. The manifest describes the owning artifacts, it does not replace
-  any of them. See `docs/architecture/run-manifest-v1.md`.
-- `workflow plan`, `workflow approve`, and `workflow close` refresh the manifest
-  at their transitions, so the projection is current without a separate command.
-  A refresh failure is reported as its own `[FAIL]` with the state that did
-  change and the `workflow manifest <task-id> --write` recovery step,
-  rather than being folded into the command's normal exit code.
-- `workflow status` is now rendered from that same projection and accepts
-  `--format text|json`. The joined view and the manifest can no longer disagree,
-  because there is only one projection left to disagree with.
-- `workflow approve` is safe to rerun. It detects that the current brief
-  revision is already approved and resumes at recall compilation instead of
-  approving twice, which previously turned a failed compile into a state that
-  could only be fixed by hand. Before a newly approved revision is compiled, the
-  superseded recall output is archived rather than overwritten, so a failed
-  recompile leaves the previous revision's evidence intact instead of a half-
-  written canonical directory.
-- The package now ships its own reviewed agent behavior and no longer points
-  agents at RTK. Installed skills: `agent-loop-discipline` (concise human-facing
-  communication, smallest correct change, bounded context, and the rule that raw
-  evidence is never compressed or rewritten), `agent-loop-investigate`,
-  `agent-loop-surgical-edit`, `agent-loop-code-review`,
-  `agent-loop-simplify-review`, `agent-loop-simplify-audit`, and
-  `agent-loop-dogfood`, plus three bounded roles - investigator, surgical
-  builder, code reviewer - for clients that expose a repository-local role
-  format. The mechanisms adapted from the MIT-licensed Caveman and Ponytail
-  projects, reviewed at fixed commits, are credited and mapped one by one in
-  `docs/agents/THIRD_PARTY_NOTICES.md`; the reasoning and the rejected
-  alternatives are in `docs/agents/dogfood/2026-08-07-first-party-discipline.md`.
-- `agent-loop init install-assets --agent=<agent|all>` installs those assets
-  from the Composer package with `--dry-run`, `--force`, and `--adopt-existing`.
-  Nothing is downloaded and nothing is configurable: the assets are immutable
-  and package-owned, which is what makes "the agent read the guidance we
-  shipped" a checkable claim. `init install-plan` is correspondingly now an
-  offline plan for those assets instead of a set of third-party installer
-  commands, and `init tools` no longer probes for `rtk`.
-- Codex gets native support rather than a translated approximation: roles are
-  rendered as Codex role TOML with the `name`, `description`, and
-  `developer_instructions` its config layer requires, and the bundled PHP hooks
-  supply discipline context on `SessionStart` and `SubagentStart` and a
-  `PreToolUse` policy on `Bash`. `init status`, `init validate`, and `init
-  sync-subagents` report and check those manifests.
-- Codex hook command validation rejected nothing after the hook path. A command
-  that matched `php .codex/hooks/context.php` was accepted with arbitrary
-  trailing shell content still attached. Only the exact
-  `--event=SessionStart|SubagentStart` suffix is accepted now.
-- Added the installed release-set gate (`tools/release-set-dogfood.php`), which
-  installs the `agent-*` packages as a clean Composer consumer and runs the
-  lifecycle against that installation - catching an installed package that loads
-  a sibling checkout or a nested `vendor/` tree, which package-local tests
-  structurally cannot see. `composer ci` also runs the new
-  `composer dogfood:discipline` behavioral gate. Documented in
-  `docs/testing/installed-release-set-gate.md` and
-  `docs/architecture/supported-release-set.md`.
-- Dependency constraints are unchanged.
-
-## 0.11.0 - 2026-08-06
-
-- `workflow status` is now one joined lifecycle view instead of six independent
-  green lights. It names every stage - session, work brief, recall, edit bundle,
-  review, learning - and ends with the single next command for wherever the task
-  actually stands. Six packages each reporting their own status left the reader
-  to join six state machines by hand, which is where the surprises lived.
-- `workflow plan --ephemeral` (and `session start --ephemeral`, from
-  `voku/agent-session` 0.3.0) declares a session an experiment. `agent-loop
-  verify` skips ephemeral sessions instead of failing the repository-wide gate
-  for a throwaway, and `workflow status` shows it as an experiment and asks for
-  it to be closed.
-- Added `docs/agents/LIFECYCLE.md`: the cross-package contract for DISCOVER →
-  PLAN → APPROVE → PREPARE → EXECUTE → VERIFY → REVIEW → LEARN → CLOSE, with the
-  owning package, inputs, outputs, failure state and recovery command for each
-  transition - written from real runs, including the parts that are still
-  uneven.
-- The dispatcher raises a too-small `memory_limit` to 512M, because several
-  commands read a large map index and die on a default 128M process. It is a
-  floor and never a ceiling: `MemoryLimit` interprets PHP's shorthand, so
-  `-d memory_limit=4G` stays 4G. A plain `(int)` cast reads `2G` as `2` and would
-  have clamped a deliberately raised limit down to 512M - breaking exactly the
-  heavy commands the floor exists for. Unlimited (`-1`) and unparseable values
-  are left untouched.
-- The binary resolved its autoloader by preferring the package's own `vendor/`
-  directory. When one is present next to an installed copy - a path repository, a
-  mirrored checkout, a stale local install - that autoloader wins and silently
-  loads *its* dependencies instead of the project's. Found by a release-set smoke
-  test that reported `Undefined property Session::$ephemeral` against an
-  installed version that plainly had it. The outer autoloader is now tried first.
-- Requires `voku/agent-session` `0.3.*`.
-
-## 0.10.1 - 2026-08-05
-
-- RTK guidance in `agent-loop-workflow` and `docs/agents/INFO_Agents.md` now
-  distinguishes clients that carry the `rtk hook claude` PreToolUse hook, which
-  rewrite commands on their own, from clients that need an explicit `rtk` prefix.
-  Hand-prefixing in a hook-equipped client adds nothing.
-- Both documents now state that `rtk discover` / `rtk learn` derive coverage from
-  session transcripts, which store the pre-hook command text: a rewritten command
-  is counted as "not using RTK", so a low coverage number is not evidence on its
-  own. The guidance names the two checks that settle it - a `rtk hook claude`
-  probe for the rewrite, `rtk gain` for what actually executed.
-- Added the rule that a bind-mounted repository needs no `docker cp`: files a
-  container command has to read belong in a git-ignored scratch path
-  (`.agent-loop/tmp/`), which is also one of the commands RTK does not filter.
-
-## 0.10.0 - 2026-08-05
-
-- `workflow approve` now passes `--map-search-index .agent-map/search.sqlite` to
-  the recall compiler when that file exists, so a brief that names no exact
-  target still gets ranked candidates. A repository that never ran
-  `agent-map search-index build` produces exactly the same briefing as before -
-  the derived index is a cache, and its absence is not an error.
-- Requires `voku/agent-recall-compiler` `^0.9.0` for the flag.
-
-## 0.9.2 - 2026-08-05
-
-- Requires `voku/agent-map` `^0.4.0` and `voku/agent-recall-compiler` `^0.8.1`.
-  The edit orchestration and map-refresh paths are unchanged; the bump is what
-  unblocks the 0.4.x agent-map line for the whole tree, including the derived
-  hybrid-search index and the parallel chunk extraction added there.
-
-## 0.9.1 - 2026-08-05
-
-- `workflow help` advertised `--accept-risk <reason>` on its own, which 0.9.0
-  refuses. The usage line now shows the required `--accept-risk-by <name>` as
-  well; a CLI that documents a flag combination it rejects is worse than one
-  that documents nothing.
-
-## 0.9.0 - 2026-08-05
-
-- `workflow close` now gates on edit verification: when
-  `.agent-loop/edit/<task-id>/` exists it must contain a
-  `verification-result.json` with status `passed`. A task that never ran
-  `agent-loop edit` has no bundle and is not asked for one - demanding one would
-  only encourage faking it - but a bundle that exists and was never verified
-  blocks the close, which is the case the gate is for.
-- The accepted-risk override now records who overrode it, why, and every gate
-  that was failing at that moment, including which validation evidence was
-  missing, in `.agent-loop/risks/<task-id>.accepted-risk.md` and a
-  machine-readable `.json` beside it.
-- **Breaking:** `--accept-risk` now also requires `--accept-risk-by <name>`. An
-  override without a named owner is an anonymous decision, which is exactly what
-  the record exists to prevent.
-- Gates report why they failed instead of only that they failed, and every gate
-  still runs after the first failure: a human deciding whether to override needs
-  the whole picture, not the first problem in the list.
-
-## 0.8.0 - 2026-08-05
-
-- Added `agent-loop edit verify --bundle=.agent-loop/edit/<task-id>`, which
-  verifies one concrete edit execution and writes `verification-result.json`
-  into the bundle. It is not `agent-loop verify`, which checks cross-package
-  consistency and drift; those stay separate commands.
-- The command loads `verification-plan.json`, `verification-key.json`,
-  `agent-result.json` and `execution.json`, and refuses to grade anything whose
-  bindings do not line up: the key must be cut from the plan, the answer sheet
-  must answer that same plan, and task and target must match across all of
-  them. A mismatch exits 2 and writes no result, because a graded number from
-  mismatched artifacts looks exactly like evidence.
-- Grading: canonical probe answers against the private key (set equality, so
-  order and duplication never decide a grade), checklist evidence resolved
-  against real artifacts, and the declared objective gates - runner exit, PHP
-  lint of the changed files, post-edit map freshness, target resolvability.
-- Gates that shell out (`approved_validation_command`, `agent_loop_verify`)
-  report `not_run` unless `--run-commands` is passed, and a required gate that
-  did not run fails the verification. Refusing to run a command that arrived in
-  a JSON file is allowed; recording it as passed is not.
-- The post-edit map is refreshed into a bundle-local `post-edit-map.json` copy,
-  never the shared index, so verification observes the repository instead of
-  mutating it.
-- `agent-result.json` now records the canonical symbol id in `target`, with the
-  string the caller typed kept as `requested_target`. The plan and key are keyed
-  on the canonical id, and the previous mismatch made every bundle unverifiable.
-- Exit codes: 0 verified, 1 verification failed, 2 the bundle could not be read.
-
-## 0.7.0 - 2026-08-05
-
-- Requires `voku/agent-recall-compiler` `^0.8.0`, which emits
-  `verification-plan.json` and the verifier-owned `verification-key.json`.
-- `agent-loop edit` now writes `agent-result.json` into the edit bundle: the
-  structured answer sheet a verifier grades against the private key. It records
-  the plan the edit is bound to (`verification_plan_sha256`), the
-  `changed_files` observed by diffing a working-tree snapshot taken before the
-  runner against one taken after, the commands this process actually invoked
-  with their exit codes and stdout hashes, and the runner outcome; and it seeds
-  one empty slot per knowledge probe and checklist item so an unanswered probe
-  is visibly unanswered instead of silently absent.
-- The result file carries no expected answers, scores, verdicts or generated
-  learnings by design, and `changed_files_source` separates an empty diff from
-  an unreadable repository. `execution.json` gained an `artifacts.agent_result`
-  pointer.
-- A repository without Git, or a Git invocation that fails, yields an
-  unavailable snapshot rather than a failed edit.
-
-## 0.6.8 - 2026-08-04
-
 - Requires `voku/agent-map` `^0.3.0` and `voku/agent-recall-compiler` `^0.7.2`.
 - Added `agent-loop map refresh`, which re-analyses only changed or new files
   and patches them into the existing index instead of rebuilding the whole
@@ -1049,8 +591,7 @@ release.
 - Added package-owned historical replay coverage for a public one-line PHP fix.
   It compares `edit --runner=auto` against the committed result and a guarded
   Linux file-wide replacement baseline without invoking a coding agent.
-- `init tools` now inventories optional RTK availability so agents can use it
-  at the outer shell boundary for compact command output.
+- `init tools` now inventories optional RTK availability so agents can use it at the outer shell boundary for compact command output.
 
 ## 0.6.6 - 2026-08-03
 
@@ -1103,8 +644,6 @@ release.
   `voku/agent-recall-compiler` `^0.6.6` for tag-aware fact selection.
 
 ## 0.6.1 - 2026-07-22
-
-### Added
 
 - `workflow approve` now forwards an opt-in, Git-tracked
   `<learning-root>/recall-documents.json` manifest to the recall compiler. The
@@ -1214,8 +753,8 @@ release.
   defaults to `<root>/infra/doc/agent-learning/recall-output` when that
   directory exists, else `<root>/recall`. Wired into `Dispatcher`,
   `AgentLoopVerifier`, and all four `Workflow*Command` classes so `workflow
-  plan/context/status/report/close` and `agent-loop verify` always resolve
-  the same path.
+  plan/context/status/report/close` and `agent-loop verify` always resolve the
+  same path.
 - Fixed `AgentLoopVerifier::checkRecallCoverage()` and
   `checkRecallStaleness()` resolving two different recall roots in the same
   `verify` run (the documented `--recall-root` flag was silently ignored by
@@ -1324,13 +863,12 @@ release.
   preferred local Markdown card directory added in `voku/agent-kanban`
   0.1.0 (`todo/jira/*.md` still works for boards that already use it).
   Bumped the `voku/agent-kanban` constraint from `0.0.*@dev` to
-  `0.1.*@dev` to pick it up — this repo's own code needed no other
-  change, since the card directory is entirely owned and resolved by
-  `voku/agent-kanban`.
+  `0.1.*@dev` to pick it up — this repo's own code needed no other change, since
+  the card directory is entirely owned and resolved by `voku/agent-kanban`.
 - `verify` is now a cross-package consistency check (`AgentLoopVerifier`):
   tasks, board, session/recall linkage with hash-based staleness
-  detection, and the learning root, each skipping itself when its inputs
-  are absent. The previous board-only check remains available as
+  detection, and the learning root, each skipping itself when its inputs are
+  absent. The previous board-only check remains available as
   `board:verify`.
 - Reworked the README around the package map, the exact verified
   commands, and an explicit "what agent-loop does not do" section.
