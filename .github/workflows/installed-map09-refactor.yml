@@ -126,9 +126,13 @@ jobs:
               "class_constant_rename_plan",
               "class_move_plan",
               "class_rename_plan",
+              "class_scaffold_plan",
               "function_rename_plan",
+              "method_copy_plan",
+              "method_move_plan",
               "method_removal_plan",
               "method_rename_plan",
+              "method_scaffold_plan",
               "parameter_rename_plan",
               "property_removal_plan",
               "property_rename_plan"

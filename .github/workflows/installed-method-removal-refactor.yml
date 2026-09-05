@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse HEAD)" = "6ee3a819c15c55ec28099ec63c0fc5f740d67c61"
+          test "$(git -C build/released-agent-map rev-parse HEAD)" = "f34142b18d6a5f53871ffd6f7f8e1f040a20a723"
 
       - name: Run released method-removal plan through governed installed consumer
         shell: bash
