@@ -77,7 +77,7 @@ final readonly class WorkflowCloseReadinessInspector
             'recall' => $this->checkRecallGate($contract->taskId),
             'validation' => ['detail' => $validation['detail'], 'message' => null],
             'review' => $this->checkReviewGate($contract->taskId),
-            'recall_outcomes' => $this->checkRecallOutcomeGate($contract->taskId, $learningRoot),
+            'recall_outcomes' => $this->checkRecallOutcomeGate($contract, $learningRoot),
             'learning_decision' => $this->checkLearningDecisionGate($run, $learningRoot),
             'edit_verification' => $this->checkEditVerificationGate($contract->taskId),
             'verify' => $this->checkVerifyGate($contract->taskId),
@@ -231,8 +231,13 @@ final readonly class WorkflowCloseReadinessInspector
     }
 
     /** @return array{detail: string|null, message: string|null} */
-    private function checkRecallOutcomeGate(string $taskId, string $learningRoot): array
+    private function checkRecallOutcomeGate(TaskContract $contract, string $learningRoot): array
     {
+        if (in_array('fast_path', $contract->tags, true)) {
+            return ['detail' => null, 'message' => '[OK] recall outcomes: waived for fast-path micro-task'];
+        }
+
+        $taskId = $contract->taskId;
         $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         try {
             $output = (new CompiledRecallOutputReader())->read($directory);

@@ -65,6 +65,11 @@ final readonly class ProjectLayout
         return $this->stateRoot() . '/runs';
     }
 
+    public function diagnosticsRoot(): string
+    {
+        return $this->stateRoot() . '/diagnostics';
+    }
+
     /** Everything durable about one current governed Run lives under this directory. */
     public function runRoot(string $taskId): string
     {

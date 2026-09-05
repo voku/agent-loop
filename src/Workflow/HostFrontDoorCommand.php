@@ -8,7 +8,10 @@ use Closure;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Cli\OptionTokens;
+use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -51,6 +54,9 @@ final readonly class HostFrontDoorCommand
             return match ($command) {
                 'enter' => $this->enter($args),
                 'finish' => $this->finish($args),
+                'quick' => $this->quick($args),
+                'repair' => (new WorkflowRepairCommand($this->rootPath))->run($args),
+                'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($args),
                 default => throw new InvalidArgumentException('Unknown host front-door command: ' . $command),
             };
         } catch (InvalidArgumentException $exception) {
@@ -230,6 +236,62 @@ final readonly class HostFrontDoorCommand
                     $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
                     $reviewSha256 = $boundary->reviewEvidenceSha256();
                     $review = (new WorkflowReviewReportReader($this->rootPath))->read($taskId->value);
+
+                    if (in_array('fast_path', $contract->tags, true)) {
+                        $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
+                        if ($diff->available) {
+                            $allTouched = array_values(array_unique([...$diff->changedFiles, ...$diff->untrackedFiles]));
+                            $unexpected = array_diff($allTouched, $contract->scope);
+                            if ($unexpected !== []) {
+                                throw new RuntimeException(sprintf(
+                                    'Fast-path scope violated: modified undeclared file(s): %s. Escalate to standard contract.',
+                                    implode(', ', $unexpected),
+                                ));
+                            }
+                            $lineCount = 0;
+                            foreach (explode("\n", $diff->patch) as $patchLine) {
+                                if (str_starts_with($patchLine, '+++') || str_starts_with($patchLine, '---')) {
+                                    continue;
+                                }
+                                if (str_starts_with($patchLine, '+') || str_starts_with($patchLine, '-')) {
+                                    ++$lineCount;
+                                }
+                            }
+                            if ($lineCount > 60) {
+                                throw new RuntimeException(sprintf(
+                                    'Fast-path line limit exceeded: %d modified lines (limit: 60). Escalate to standard contract.',
+                                    $lineCount,
+                                ));
+                            }
+                        }
+
+                        if ($this->validationComplete($boundary) && $reviewSha256 !== null && !$review['invalid'] && in_array($review['report_status'], ['ok', 'warn'], true)) {
+                            $ackStore = new ReviewAcknowledgementStore($this->rootPath);
+                            if ($ackStore->find($run->taskId) === null) {
+                                $ackStore->record(
+                                    $run,
+                                    $contract,
+                                    $boundary->implementation,
+                                    $reviewSha256,
+                                    'fast-path-auto-review',
+                                );
+                            }
+                            $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
+                            $learningStore = new RunLearningDecisionStore($learningRoot);
+                            if ($learningStore->find($run->runId) === null) {
+                                (new WorkflowLearningRecorder($this->rootPath))->record(
+                                    $run,
+                                    $contract,
+                                    $session,
+                                    'no_durable_learning',
+                                    'fast-path-auto-close',
+                                    'Fast-path micro-task completed within declared surgical bounds.',
+                                );
+                            }
+                            $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+                            $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                        }
+                    }
 
                     if ($options['reviewedReportSha256'] !== null) {
                         if (
@@ -795,5 +857,177 @@ final readonly class HostFrontDoorCommand
             }
             ++$index;
         }
+    }
+
+    /** @param list<string> $args */
+    private function quick(array $args): int
+    {
+        if ($this->helpRequested($args)) {
+            echo "Usage: agent-loop quick [task-id] \"<goal>\" --file=<path> [--file=<path2>] [--verify=\"<cmd>\"] [--actor=<name>] [--format text|json] [--max-lines N] [--max-bytes N]\n";
+            echo "Initiate, approve, and enter a bounded fast-path micro-task within up to 2 target files.\n";
+
+            return 0;
+        }
+
+        $tokens = $args;
+        $positional = $this->extractPositionalTokens($tokens);
+        $taskIdString = null;
+        $goal = null;
+        if (count($positional) >= 2) {
+            $taskIdString = $positional[0];
+            $goal = $positional[1];
+        } elseif (count($positional) === 1) {
+            $goal = $positional[0];
+            $taskIdString = 'QUICK-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(2));
+        } else {
+            throw new InvalidArgumentException('agent-loop quick requires a goal description.');
+        }
+
+        $files = [];
+        $rawFiles = OptionTokens::values($tokens, 'file');
+        foreach ($rawFiles as $rawFile) {
+            foreach (explode(',', $rawFile) as $f) {
+                $f = trim($f);
+                if ($f !== '') {
+                    $files[] = $f;
+                }
+            }
+        }
+        $files = array_values(array_unique($files));
+        if ($files === []) {
+            throw new InvalidArgumentException('agent-loop quick requires at least one --file=<path>.');
+        }
+        if (count($files) > 2) {
+            throw new InvalidArgumentException('agent-loop quick allows at most 2 files. For larger changes, use the standard workflow.');
+        }
+
+        $resolvedFiles = [];
+        foreach ($files as $file) {
+            $clean = ltrim($file, '/');
+            $abs = PathResolver::join($this->rootPath, $clean);
+            if (!is_file($abs)) {
+                throw new InvalidArgumentException('Target file does not exist: ' . $clean);
+            }
+            $resolvedFiles[] = PathResolver::relativeTo($this->rootPath, $abs);
+        }
+
+        $taskId = new WorkflowTaskId($taskIdString);
+        $format = $this->format($tokens);
+        $maxLines = $this->positiveOption($tokens, 'max-lines', 120);
+        $maxBytes = $this->positiveOption($tokens, 'max-bytes', 12000);
+        $actor = OptionTokens::value($tokens, 'actor') ?? OptionTokens::value($tokens, 'by') ?? 'fast-path-preapproval';
+
+        $validations = OptionTokens::values($tokens, 'verify');
+        if ($validations === []) {
+            foreach ($resolvedFiles as $rf) {
+                if (str_ends_with($rf, '.php')) {
+                    $validations[] = 'php -l ' . escapeshellarg($rf);
+                }
+            }
+            if ($validations === []) {
+                $validations[] = 'git status --porcelain';
+            }
+        }
+
+        $contractStore = new TaskContractStore($this->rootPath);
+        if ($contractStore->find($taskId->value) !== null) {
+            throw new InvalidArgumentException('Task ' . $taskId->value . ' already has a Contract.');
+        }
+
+        $baseCommit = GitWorkTree::headCommit($this->rootPath);
+        $contractStore->create(
+            taskId: $taskId->value,
+            goal: $goal,
+            scope: $resolvedFiles,
+            nonGoals: [
+                'No architectural refactoring',
+                'No modifications outside declared fast-path scope',
+                'No breaking changes',
+            ],
+            validation: $validations,
+            plannedBy: $actor,
+            baseCommit: $baseCommit,
+            tags: ['fast_path', 'micro_task', 'surgical'],
+            acceptanceCriteria: [
+                'Surgical change applied within declared fast-path scope',
+                'Required verification passes',
+            ],
+        );
+        $contractStore->approve($taskId->value, $actor);
+
+        $preparationWarning = $this->prepareApprovedRun($taskId->value);
+        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);
+        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+        $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
+        $warnings = $preparationWarning === null ? [] : [[
+            'code' => 'quick.ranked_search_unavailable',
+            'owner' => 'agent-map',
+            'message' => $preparationWarning,
+        ]];
+
+        $nextAction = 'Apply surgical edit within declared scope and run agent-loop finish ' . $taskId->value;
+        $payload = [
+            'schema_version' => '1.0',
+            'command' => 'quick',
+            'task_id' => $taskId->value,
+            'goal' => $goal,
+            'scope' => $resolvedFiles,
+            'validation' => $validations,
+            'mutation_ready' => $policy->mutationAllowed,
+            'next_action' => $nextAction,
+            'next_action_kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+            'warnings' => $warnings,
+            'manifest' => $manifest->toArray(),
+            'context' => $context,
+        ];
+
+        if ($format === 'json') {
+            echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+        } else {
+            echo 'agent-loop quick ' . $taskId->value . "\n";
+            echo 'Goal: ' . $goal . "\n";
+            echo 'Scope: ' . implode(', ', $resolvedFiles) . "\n";
+            echo 'Validation: ' . implode('; ', $validations) . "\n";
+            echo 'Mutation: ' . ($policy->mutationAllowed ? 'ready' : 'not_ready') . "\n";
+            echo 'Next (your change): ' . $nextAction . "\n";
+            foreach ($warnings as $warning) {
+                echo '[WARN] ' . $warning['message'] . "\n";
+            }
+            echo "\nContext:\n";
+            echo implode("\n", $context['lines']) . "\n";
+        }
+
+        return $policy->mutationAllowed ? 0 : 1;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function extractPositionalTokens(array $tokens): array
+    {
+        $positional = [];
+        $count = count($tokens);
+        $valuedOptions = ['file', 'verify', 'actor', 'by', 'format', 'max-lines', 'max-bytes'];
+        for ($i = 0; $i < $count; ++$i) {
+            $token = $tokens[$i];
+            if (str_starts_with($token, '--')) {
+                $name = substr($token, 2);
+                $eqPos = strpos($name, '=');
+                if ($eqPos !== false) {
+                    continue;
+                }
+                if (in_array($name, $valuedOptions, true)) {
+                    $next = $tokens[$i + 1] ?? null;
+                    if (is_string($next) && !str_starts_with($next, '--')) {
+                        ++$i;
+                    }
+                }
+                continue;
+            }
+            $positional[] = $token;
+        }
+
+        return $positional;
     }
 }

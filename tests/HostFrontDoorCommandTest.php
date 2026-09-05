@@ -168,6 +168,111 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame($afterClose, $this->snapshotFiles(), 'finish must be read-only after completion.');
     }
 
+    public function testQuickRequiresGoalAndFile(): void
+    {
+        $result = $this->runBinary(['quick']);
+        self::assertSame(1, $result['exit']);
+        self::assertStringContainsString('requires a goal description', $result['stderr']);
+
+        $resultNoFile = $this->runBinary(['quick', 'Fix a typo']);
+        self::assertSame(1, $resultNoFile['exit']);
+        self::assertStringContainsString('requires at least one --file', $resultNoFile['stderr']);
+    }
+
+    public function testQuickCreatesApprovedContractPreparesRunAndEnters(): void
+    {
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning directory.');
+        }
+
+        $result = $this->runBinary([
+            'quick',
+            'QUICK-1',
+            'Fix typo in QuickTarget',
+            '--file=src/QuickTarget.php',
+            '--verify=php -l src/QuickTarget.php',
+            '--format=json',
+        ]);
+
+        self::assertSame(0, $result['exit'], $result['stderr']);
+        $payload = $this->json($result['stdout']);
+        self::assertSame('quick', $payload['command']);
+        self::assertSame('QUICK-1', $payload['task_id']);
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame(['src/QuickTarget.php'], $payload['scope']);
+        self::assertContains('fast_path', (new TaskContractStore($this->root))->load('QUICK-1')->tags);
+    }
+
+    public function testQuickFinishAutoClosesCleanFastPath(): void
+    {
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning directory.');
+        }
+
+        $quickResult = $this->runBinary([
+            'quick',
+            'QUICK-FINISH-1',
+            'Fix docblock in QuickTarget',
+            '--file=src/QuickTarget.php',
+            '--verify=php -r "exit(0);"',
+            '--format=json',
+        ]);
+        self::assertSame(0, $quickResult['exit'], $quickResult['stderr']);
+
+        $finishResult = $this->runBinary(['finish', 'QUICK-FINISH-1', '--format=json']);
+        self::assertSame(0, $finishResult['exit'], $finishResult['stderr']);
+        $finishPayload = $this->json($finishResult['stdout']);
+        self::assertTrue($finishPayload['complete'], $finishResult['stdout']);
+        self::assertSame('complete', $finishPayload['manifest']['state']);
+        self::assertSame('none', $finishPayload['next_action']);
+    }
+
+    public function testQuickFinishFailsClosedWhenScopeViolated(): void
+    {
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning directory.');
+        }
+
+        exec('git -C ' . escapeshellarg($this->root) . ' init -b main 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.name "Test" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.email "test@example.com" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/QuickTarget.php 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' commit -m "Initial commit" 2>&1');
+
+        $quickResult = $this->runBinary([
+            'quick',
+            'QUICK-FAIL-1',
+            'Fix docblock in QuickTarget',
+            '--file=src/QuickTarget.php',
+            '--verify=php -r "exit(0);"',
+            '--format=json',
+        ]);
+        self::assertSame(0, $quickResult['exit'], $quickResult['stderr']);
+
+        file_put_contents($sourceDirectory . '/Undeclared.php', "<?php\nfinal class Undeclared {}\n");
+
+        $finishResult = $this->runBinary(['finish', 'QUICK-FAIL-1', '--format=json']);
+        self::assertSame(1, $finishResult['exit']);
+        $finishPayload = $this->json($finishResult['stdout']);
+        self::assertFalse($finishPayload['complete']);
+        self::assertStringContainsString('Fast-path scope violated: modified undeclared file(s): src/Undeclared.php', $finishResult['stdout']);
+    }
+
     /** @return array{0: SessionStore, 1: Session} */
     private function prepareGovernedRun(bool $withCloseEvidence = false): array
     {

@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add fast-path micro-task flow (`agent-loop quick`): initiate, auto-approve, and enter a bounded surgical micro-task (up to 2 files) in a single command, with 1-shot auto-close enforcement (60-line diff ceiling, scope confinement, auto-recorded reviews/learning).
+- Add bounded auto-repair on verification failure (`agent-loop repair`): capture structured diagnostics (PHPStan, PHPUnit, PHP linter, PHP-CS-Fixer) on validation failure, project actionable repair instructions, and enforce a strict 2-attempt budget before human escalation to prevent infinite agent repair loops.
+- Add turnkey multi-stage execution runner (`agent-loop pipeline`): automate multi-stage profiles (`surgical`, `standard`, `hardened`) with role-based briefings, handoff envelopes carrying review feedback (e.g. `changes_required` loops back to `build`), and deterministic verification auto-progression.
+
 - Add end-to-end two-run dogfood test `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` proving behavioral closure of #349: Run One teaches by recording a validated Finding and authoring an active `LearningNote`, transient context (session, dispatcher, in-memory state) is destroyed, and Run Two remembers by entering normally via `agent-loop enter` where Recall compiles the note as precedent advice into `system.md`.
 - Add end-to-end dogfood test `tests/Dogfood/AutonomousReplanDogfoodTest.php` proving behavioral closure of #345: an agent facing an invalid implementation premise autonomously triggers `REPLAN` within the approved intent without human interruption, while premise failures requiring scope or goal changes strictly enforce `HUMAN_DECISION_REQUIRED` via superseded unapproved contract revisions.
 
