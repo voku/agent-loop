@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests\Dogfood;
 use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use SplFileInfo;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\LearningClassification;
 use voku\AgentLearning\LearningNoteContent;
@@ -85,6 +86,9 @@ PHP
         $directories = [$this->root];
         for ($index = 0; $index < count($directories); ++$index) {
             foreach (new FilesystemIterator($directories[$index], FilesystemIterator::SKIP_DOTS) as $item) {
+                if (!$item instanceof SplFileInfo) {
+                    throw new RuntimeException('FilesystemIterator did not return file metadata.');
+                }
                 if ($item->isDir() && !$item->isLink()) {
                     $directories[] = $item->getPathname();
                     continue;
