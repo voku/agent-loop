@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests\Dogfood;
 
+use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\LearningClassification;
@@ -79,7 +78,23 @@ PHP
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->root);
+        if (!is_dir($this->root)) {
+            return;
+        }
+
+        $directories = [$this->root];
+        for ($index = 0; $index < count($directories); ++$index) {
+            foreach (new FilesystemIterator($directories[$index], FilesystemIterator::SKIP_DOTS) as $item) {
+                if ($item->isDir() && !$item->isLink()) {
+                    $directories[] = $item->getPathname();
+                    continue;
+                }
+                unlink($item->getPathname());
+            }
+        }
+        foreach (array_reverse($directories) as $directory) {
+            rmdir($directory);
+        }
     }
 
     public function testRunOneTeachesAndRunTwoRemembersPrecedentWithoutTransientContext(): void
@@ -313,21 +328,5 @@ PHP
 
         /** @var array<string, mixed> $payload */
         return ['exit' => $exit, 'payload' => $payload];
-    }
-
-    private function removeDirectory(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-
-        foreach (new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        ) as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-
-        rmdir($path);
     }
 }
