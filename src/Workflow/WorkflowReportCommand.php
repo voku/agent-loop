@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use InvalidArgumentException;
-use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLearning\LearningRepositoryValidator;
+use voku\AgentLearning\OutcomeRepository;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
@@ -445,26 +445,15 @@ final readonly class WorkflowReportCommand
             return 0;
         }
 
-        $path = $learningRoot . '/history/outcomes.jsonl';
-        if (!is_file($path)) {
-            return 0;
-        }
-
         $count = 0;
-        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-            try {
-                $record = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
-                if (is_array($record) && ($record['task_id'] ?? null) === $taskId) {
-                    ++$count;
-                }
-            } catch (JsonException) {
-                continue;
+        foreach ((new OutcomeRepository())->loadAll($learningRoot) as $record) {
+            if (($record['task_id'] ?? null) === $taskId) {
+                ++$count;
             }
         }
 
         return $count;
     }
-
 
     private function relativePath(string $path): string
     {
