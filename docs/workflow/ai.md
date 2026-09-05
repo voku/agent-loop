@@ -30,6 +30,16 @@ enter -> current next action -> work when authorized -> finish -> current next a
 
 The kernel owns exact ordering and close readiness. This document intentionally does not enumerate lifecycle gates.
 
+## Use specialized front doors only when they fit
+
+`quick`, `repair`, and `pipeline` are host conveniences, not permission to bypass the current task authority.
+
+- Use `quick` only for a genuinely surgical micro-task that fits the command's bounded file/scope constraints. If the fast-path refuses because the change grew beyond those bounds, move to an ordinary governed task instead of weakening the bounds.
+- Use `repair` only after validation has recorded a concrete failure. Apply the projected repair instruction, return through `finish`, and escalate when the bounded repair budget is exhausted rather than looping privately.
+- Use `pipeline` only when the task has a governed execution profile. Follow its projected stage, mutation flag, accepted outcomes, handoff, and attention state; when it reports complete, return through `finish`.
+
+Do not reconstruct the internal stage sequence from this prose. Consume the current structured result from the command you are using.
+
 ## Treat authority explicitly
 
 - `decision_required` means present the exact decision subject and current evidence to the human.
