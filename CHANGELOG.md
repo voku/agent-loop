@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - Add end-to-end two-run dogfood test `tests/Dogfood/LearningNoteTwoRunDogfoodTest.php` proving behavioral closure of #349: Run One teaches by recording a validated Finding and authoring an active `LearningNote`, transient context (session, dispatcher, in-memory state) is destroyed, and Run Two remembers by entering normally via `agent-loop enter` where Recall compiles the note as precedent advice into `system.md`.
 - Add end-to-end dogfood test `tests/Dogfood/AutonomousReplanDogfoodTest.php` proving behavioral closure of #345: an agent facing an invalid implementation premise autonomously triggers `REPLAN` within the approved intent without human interruption, while premise failures requiring scope or goal changes strictly enforce `HUMAN_DECISION_REQUIRED` via superseded unapproved contract revisions.
 
+### Changed
+
+- Update supported release set documentation in `docs/architecture/supported-release-set.md` to reflect the 0.19.0 boundary (`^0.4.0` kanban, `^0.16.0` learning, `^0.10.0` map, `^0.15.0` recall, `^0.7.0` session) and graduate `voku/agent-loop-runner 0.1.0` into the supported ecosystem graph.
+
 ## 0.19.0 - 2026-09-04
 
 ### Changed
