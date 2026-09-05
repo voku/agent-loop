@@ -10,7 +10,6 @@ use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\BoardConfigurationMode;
-use voku\AgentKanban\Repository\BoardContext;
 use voku\AgentKanban\Repository\BoardContextResolution;
 use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -226,7 +225,13 @@ final readonly class RunManifestProjector
                 ];
             }
             if ($context->config->projectPrefix !== $cardId->prefix) {
-                $context = $this->contextForPrefix($resolver->resolveAll($boardRoot), $cardId->prefix);
+                $context = null;
+                foreach ($resolver->resolveAll($boardRoot) as $candidateContext) {
+                    if ($candidateContext->config->projectPrefix === $cardId->prefix) {
+                        $context = $candidateContext;
+                        break;
+                    }
+                }
             }
             if ($context === null || !$context->repository->exists($cardId)) {
                 return [
@@ -276,20 +281,6 @@ final readonly class RunManifestProjector
 
             return ['owner' => 'agent-kanban', 'state' => 'invalid', 'observation_mode' => 'checked'];
         }
-    }
-
-    /**
-     * @param array<string, BoardContext> $contexts
-     */
-    private function contextForPrefix(array $contexts, string $prefix): ?BoardContext
-    {
-        foreach ($contexts as $context) {
-            if ($context->config->projectPrefix === $prefix) {
-                return $context;
-            }
-        }
-
-        return null;
     }
 
     /** @return array{mode: 'json'|'metadata'|'inferred', source?: array{path: string, sha256: string}} */
