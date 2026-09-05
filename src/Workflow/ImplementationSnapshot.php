@@ -62,7 +62,7 @@ final readonly class ImplementationSnapshot
                 }
                 throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
             }
-            if (self::excluded($relative, $stateRelative)) {
+            if (self::excludedScopeDirectory($relative, $stateRelative)) {
                 throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
             }
 
@@ -82,7 +82,7 @@ final readonly class ImplementationSnapshot
                 if (!$item->isFile()) {
                     continue;
                 }
-                if (self::excluded($fileRelative, $stateRelative)) {
+                if (self::excludedFile($fileRelative, $stateRelative, $relative)) {
                     continue;
                 }
                 $files[$fileRelative] = self::hashFile($path, $fileRelative);
@@ -153,7 +153,7 @@ final readonly class ImplementationSnapshot
         string $learningRelative,
         array $projectStateFiles,
     ): bool {
-        if (self::inside($path, '.git') || self::inside($path, 'vendor')) {
+        if (self::inside($path, '.git') || $path === 'vendor') {
             return true;
         }
         if ($stateRelative === '' || !self::inside($path, $stateRelative)) {
@@ -173,10 +173,31 @@ final readonly class ImplementationSnapshot
         return true;
     }
 
-    private static function excluded(string $path, string $stateRelative): bool
+    private static function excludedScopeDirectory(string $path, string $stateRelative): bool
     {
-        foreach (array_filter([$stateRelative, '.git', 'vendor']) as $excluded) {
-            if (self::inside($path, $excluded)) {
+        if (self::inside($path, '.git') || $path === 'vendor') {
+            return true;
+        }
+        if ($stateRelative !== '' && self::inside($path, $stateRelative)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function excludedFile(string $path, string $stateRelative, string $scopedDirectory): bool
+    {
+        if (self::inside($path, '.git')) {
+            return true;
+        }
+        if ($stateRelative !== '' && self::inside($path, $stateRelative)) {
+            return true;
+        }
+        if (self::inside($path, 'vendor')) {
+            if (!self::inside($scopedDirectory, 'vendor')) {
+                return true;
+            }
+            if (self::inside($path, $scopedDirectory . '/vendor')) {
                 return true;
             }
         }

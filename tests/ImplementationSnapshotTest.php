@@ -145,6 +145,25 @@ final class ImplementationSnapshotTest extends TestCase
         ImplementationSnapshot::capture($this->root, $this->contract('SNAP-5', ['src']));
     }
 
+    public function testExplicitScopedVendorPackageCanBeCaptured(): void
+    {
+        $vendorPkgDir = $this->root . '/vendor/voku/agent-loop/src';
+        mkdir($vendorPkgDir, 0o775, true);
+        file_put_contents($vendorPkgDir . '/Test.php', "<?php // test\n");
+
+        $snapshot = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-VENDOR-1', ['vendor/voku/agent-loop']));
+
+        self::assertSame(['vendor/voku/agent-loop/src/Test.php'], array_column($snapshot->files, 'path'));
+    }
+
+    public function testRootVendorDirectoryRemainsExcludedAsDependencyMetadata(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('workflow/dependency metadata');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-VENDOR-ROOT', ['vendor']));
+    }
+
     /** @param list<string> $scope */
     private function contract(string $taskId, array $scope): \voku\AgentLoop\Workflow\TaskContract
     {
