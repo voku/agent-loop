@@ -9,6 +9,16 @@
 - **Looking for a particular journey or recovery path:** use the [Workflow index](workflow/README.md).
 - **Contributing to this repository:** read [`AGENTS.md`](../AGENTS.md) for package ownership and implementation rules, then the focused architecture/contributor documents relevant to the change.
 
+## Choose the smallest host front door
+
+The canonical durable lifecycle remains `enter -> work -> finish`. The newer host commands are convenience surfaces around that authority, not alternate lifecycle specifications:
+
+- `quick` starts a bounded surgical micro-task when the work genuinely fits the fast-path limits; it still produces governed task state and must stay inside its declared scope.
+- `repair` consumes an already-recorded validation failure and projects a bounded repair instruction. Its default repair budget is two attempts before human escalation.
+- `pipeline` drives an existing governed execution profile (`surgical`, `standard`, or `hardened`) through its current stage, handoff, verification, and attention state; completion returns to `finish`.
+
+Use the [Workflow index](workflow/README.md) to choose between those surfaces without memorizing their internal stage ordering.
+
 ## Ordinary durable task
 
 The host-facing path is deliberately small:
