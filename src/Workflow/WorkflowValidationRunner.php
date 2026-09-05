@@ -106,6 +106,7 @@ final readonly class WorkflowValidationRunner
     private function executeDeclaredValidationShell(string $command): array
     {
         $nullDevice = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+        /** @var array<int, resource> $pipes */
         $pipes = [];
         $process = proc_open(
             $command,
@@ -121,17 +122,54 @@ final readonly class WorkflowValidationRunner
             throw new RuntimeException('Unable to execute declared validation command: ' . $command);
         }
 
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        /** @var array<int, resource> $openPipes */
+        $openPipes = [];
+        foreach ([1, 2] as $index) {
+            if (isset($pipes[$index]) && is_resource($pipes[$index])) {
+                stream_set_blocking($pipes[$index], false);
+                $openPipes[$index] = $pipes[$index];
+            }
+        }
+
+        $buffers = [1 => '', 2 => ''];
+
+        while ($openPipes !== []) {
+            $read = array_values($openPipes);
+            $write = null;
+            $except = null;
+            $selected = stream_select($read, $write, $except, 0, 200000);
+            if ($selected === false) {
+                break;
+            }
+
+            foreach ($read as $stream) {
+                $index = array_search($stream, $openPipes, true);
+                if (!is_int($index)) {
+                    continue;
+                }
+                $chunk = fread($stream, 8192);
+                if (is_string($chunk) && $chunk !== '') {
+                    $buffers[$index] .= $chunk;
+                }
+                if (($chunk === false || $chunk === '') && feof($stream)) {
+                    fclose($stream);
+                    unset($openPipes[$index]);
+                }
+            }
+        }
+
+        foreach ($openPipes as $pipe) {
+            if (is_resource($pipe)) {
+                fclose($pipe);
+            }
+        }
 
         $exitCode = proc_close($process);
         if ($exitCode < 0) {
             throw new RuntimeException('Declared validation command terminated without an observable exit code: ' . $command);
         }
 
-        $output = trim((is_string($stdout) ? $stdout : '') . "\n" . (is_string($stderr) ? $stderr : ''));
+        $output = trim($buffers[1] . "\n" . $buffers[2]);
 
         return [
             'exitCode' => $exitCode,

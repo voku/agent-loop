@@ -92,6 +92,20 @@ final class WorkflowFinishValidationTest extends TestCase
         self::assertNotNull($evidence[0]->implementationSnapshot);
     }
 
+    public function testFinishHandlesLargeStderrWithoutDeadlock(): void
+    {
+        // 128KB of stderr before exiting; would deadlock sequential reads
+        [$command, $session] = $this->prepareRun('FINISH-LARGE-ERR', 'php -r "fwrite(STDERR, str_repeat(\"x\", 131072)); exit(0);"');
+
+        $result = $this->finish('FINISH-LARGE-ERR');
+
+        self::assertSame(1, $result['exit']);
+        $evidence = (new ValidationEvidenceStore())->all($session);
+        self::assertCount(1, $evidence);
+        self::assertSame(ValidationStatus::PASSED, $evidence[0]->status);
+        self::assertSame(0, $evidence[0]->exitCode);
+    }
+
     /** @return array{0: string, 1: Session} */
     private function prepareRun(string $taskId, string $validation): array
     {
