@@ -96,6 +96,25 @@ CARD,
         $this->removeDirectory($customRoot);
     }
 
+    public function testUsesKanbanOwnerFallbackWhenConfigFileIsAbsent(): void
+    {
+        unlink($this->root . '/.agent-loop/todo/kanban.config.json');
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/board.md',
+            "# Board\n\n- **Project prefix:** ABC\n",
+        );
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/cards/ABC-124.md',
+            "# ABC-124: Owner-resolved task\n\n- **Ticket:** ABC-124\n- **Lane:** READY\n- **Status:** Selected\n- **Summary:** S\n- **Next:** N\n",
+        );
+
+        $projection = (new WorkflowKanbanContextProjector($this->root))->project('ABC-124');
+
+        self::assertNotNull($projection);
+        self::assertSame('ABC-124', $projection->taskId);
+        self::assertSame('Owner-resolved task', $projection->title);
+    }
+
     private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
