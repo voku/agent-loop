@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentKanban\Exception\ConfigurationException;
 use voku\AgentLoop\Workflow\WorkflowKanbanContextProjector;
 
 final class WorkflowKanbanContextProjectorTest extends TestCase
@@ -113,6 +114,15 @@ CARD,
         self::assertNotNull($projection);
         self::assertSame('ABC-124', $projection->taskId);
         self::assertSame('Owner-resolved task', $projection->title);
+    }
+
+    public function testMalformedKanbanConfigRemainsAnError(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/todo/kanban.config.json', '{');
+
+        $this->expectException(ConfigurationException::class);
+
+        (new WorkflowKanbanContextProjector($this->root))->project('ABC-123');
     }
 
     private function removeDirectory(string $path): void
