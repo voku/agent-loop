@@ -8,28 +8,33 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLearning\FindingCreator;
+use voku\AgentLearning\LearningClassification;
 use voku\AgentLearning\LearningNoteContent;
 use voku\AgentLearning\LearningNoteDraft;
 use voku\AgentLearning\LearningNoteRepositoryEvidence;
 use voku\AgentLearning\LearningNoteService;
-use voku\AgentLearning\RecordIdGenerator;
+use voku\AgentLearning\ValidationCase;
 use voku\AgentLoop\Dispatcher;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
+use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 
 /**
  * End-to-end dogfood proof for #349:
  * "run one teaches, transient context disappears, run two remembers".
  *
- * Task A completes, records a validated finding, and authors an active LearningNote.
- * Transient session context is retired and not shared.
- * Task B enters normally via `agent-loop enter` without manual parameter coaching,
- * and Recall deterministically supplies the precedent from Task A.
+ * Task A completes, records a validated Finding through the released Learning owner API,
+ * and exposes LearningNote authoring only as an optional post-close follow-up. Its Session
+ * is then physically pruned before the note is published from durable Learning evidence.
+ * Task B enters normally via `agent-loop enter` without manual precedent coaching, and
+ * Recall deterministically supplies the exact precedent and its source lineage.
  */
 final class LearningNoteTwoRunDogfoodTest extends TestCase
 {
@@ -39,8 +44,6 @@ final class LearningNoteTwoRunDogfoodTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-two-run-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/src', 0o775, true);
-        mkdir($this->root . '/.agent-loop/learning/findings/validated', 0o775, true);
-        mkdir($this->root . '/.agent-loop/learning/notes/active', 0o775, true);
 
         file_put_contents(
             $this->root . '/src/AuthService.php',
@@ -81,6 +84,8 @@ PHP
 
     public function testRunOneTeachesAndRunTwoRemembersPrecedentWithoutTransientContext(): void
     {
+        $layout = new ProjectLayout($this->root);
+
         // -------------------------------------------------------------------------
         // RUN ONE (Task A: "Teaches")
         // -------------------------------------------------------------------------
@@ -107,55 +112,53 @@ PHP
         $enter1 = $this->runApp($app1, 'enter', [$taskA, '--format=json']);
         self::assertSame(0, $enter1['exit'], json_encode($enter1['payload'], JSON_THROW_ON_ERROR));
 
-        // Finish step 1: prepare review
+        // Finish step 1: prepare review.
         $finishPrep = $this->runApp($app1, 'finish', [$taskA, '--format=json']);
         self::assertSame(1, $finishPrep['exit']);
         $reviewReport = (new WorkflowReviewReportReader($this->root))->read($taskA);
         $reviewSha = $reviewReport['sha256'] ?? null;
         self::assertIsString($reviewSha);
 
-        // Record a validated Finding classified as ADD_LEARNING_NOTE bound to the active run/session lineage
+        // Record a classified Finding through Learning's public owner mutation.
         $runA = (new GovernedRunStore($this->root))->find($taskA);
         self::assertNotNull($runA);
-        $sessionA = (new SessionStore())->activeForTask($this->root . '/.agent-loop/sessions', $taskA);
+        $sessionStore = new SessionStore();
+        $sessionA = $sessionStore->activeForTask($layout->sessionsRoot(), $taskA);
         self::assertNotNull($sessionA);
-        $runLearningRoot = WorkflowLearningRoot::forRun($this->root, $runA);
-        if (!is_dir($runLearningRoot . '/findings/validated')) { mkdir($runLearningRoot . '/findings/validated', 0o775, true); }
+        $learningRoot = WorkflowLearningRoot::forRun($this->root, $runA);
 
-        $findingId = (new RecordIdGenerator())->generate('finding');
-        file_put_contents(
-            $runLearningRoot . '/findings/validated/' . $findingId . '.json',
-            json_encode([
-                'schema_version' => '1.0',
-                'id' => $findingId,
-                'task_id' => $taskA,
-                'session' => $sessionA->id,
-                'created_at' => '2026-09-04T00:00:00+00:00',
-                'created_by' => 'security-lead',
-                'scope' => ['src/AuthService.php'],
-                'tags' => ['security', 'auth'],
-                'observation' => 'Variable-time string comparisons leak token length and prefix timing.',
-                'evidence' => [[
-                    'type' => 'manual_verification',
-                    'summary' => 'Benchmarked comparison timing across mismatched token lengths.',
-                ]],
-                'hypothesis' => 'Constant-time comparison via hash_equals prevents timing side channels.',
-                'validated_conclusion' => 'Always use hash_equals for comparing secret tokens.',
-                'confidence' => 'high',
-                'validation_status' => 'validated',
-                'status' => 'validated',
-                'sensitivity' => 'public',
-                'classification' => 'ADD_LEARNING_NOTE',
-                'pattern_key' => 'auth.timing_leak_prevention',
-                'validation_case' => [
-                    'given' => 'Two authentication tokens to compare.',
-                    'when' => 'hash_equals is used.',
-                    'then' => 'Comparison executes in constant time regardless of match prefix.',
-                ],
-            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+        $finding = (new FindingCreator())->createValidated(
+            root: $learningRoot,
+            taskId: $taskA,
+            session: $sessionA->id,
+            createdBy: 'security-lead',
+            scope: ['src/AuthService.php'],
+            observation: 'Variable-time string comparisons leak token length and prefix timing.',
+            evidence: [[
+                'type' => 'manual_verification',
+                'summary' => 'Benchmarked comparison timing across mismatched token lengths.',
+            ]],
+            hypothesis: 'Constant-time comparison via hash_equals prevents timing side channels.',
+            validatedConclusion: 'Always use hash_equals for comparing secret tokens.',
+            confidence: 'high',
+            sensitivity: 'public',
+            classification: LearningClassification::ADD_LEARNING_NOTE,
+            patternKey: 'auth.timing_leak_prevention',
+            validationCase: new ValidationCase(
+                given: 'Two authentication tokens to compare.',
+                when: 'hash_equals is used.',
+                then: 'Comparison executes in constant time regardless of match prefix.',
+            ),
         );
+        $findingId = $finding->finding->id;
 
-        // Finish step 2: close with learning disposition
+        // Learning can prepare the optional note using only its durable owner state.
+        $learningService = new LearningNoteService();
+        $preparedNote = $learningService->prepare($learningRoot, [$findingId], $this->root);
+        self::assertSame('auth.timing_leak_prevention', $preparedNote->patternKey);
+        self::assertSame([$findingId], array_column($preparedNote->findings, 'id'));
+
+        // Finish step 2: close with the existing Learning disposition.
         $finishClose = $this->runApp($app1, 'finish', [
             $taskA,
             '--format=json',
@@ -173,18 +176,37 @@ PHP
 
         self::assertSame(0, $finishClose['exit'], json_encode($finishClose['payload'], JSON_THROW_ON_ERROR));
         self::assertTrue($finishClose['payload']['complete'] ?? false);
+        self::assertSame('none', $finishClose['payload']['next_action_kind'] ?? null);
         self::assertSame([[
             'kind' => 'learning_note',
             'finding_ids' => [$findingId],
             'skill' => 'agent-learning-note',
         ]], $finishClose['payload']['optional_follow_ups'] ?? null);
 
-        // Publish active LearningNote from the validated finding in the global learning store
-        $globalLearningRoot = $this->root . '/.agent-loop/learning';
-        $learningService = new LearningNoteService();
+        // The software Run is complete. Physically remove Task A working memory before
+        // authoring the note to prove the return loop does not depend on Session/chat state.
+        $removedSessions = $sessionStore->prune($layout->sessionsRoot(), 0, [SessionStatus::DONE]);
+        self::assertContains($sessionA->id, $removedSessions);
+        self::assertDirectoryDoesNotExist($sessionA->path);
+
+        unset(
+            $contracts,
+            $dispatcher1,
+            $recallRunner1,
+            $app1,
+            $enter1,
+            $finishPrep,
+            $finishClose,
+            $reviewReport,
+            $runA,
+            $sessionA,
+        );
+
+        // Author the optional precedent only from the durable Finding through Learning's
+        // public owner API. No Session object or Learning-private storage path is available.
         $sourceSha = (string) hash_file('sha256', $this->root . '/src/AuthService.php');
         $publishedNote = $learningService->publish(
-            $globalLearningRoot,
+            $learningRoot,
             new LearningNoteDraft(
                 sourceFindings: [$findingId],
                 sourceProposals: [],
@@ -208,19 +230,14 @@ PHP
             ),
             $this->root,
         );
-        self::assertNotEmpty($publishedNote->id);
-
-        // -------------------------------------------------------------------------
-        // TRANSIENT CONTEXT DISAPPEARS
-        // -------------------------------------------------------------------------
-        // Discard all in-memory state: Run 1 session is finished and not reused.
-        unset($dispatcher1, $recallRunner1, $app1, $enter1, $finishPrep, $finishClose);
+        self::assertSame([$findingId], $publishedNote->sourceFindings);
 
         // -------------------------------------------------------------------------
         // RUN TWO (Task B: "Remembers")
         // -------------------------------------------------------------------------
         $taskB = 'TASK-349-RECALL';
-        $contracts->create(
+        $contracts2 = new TaskContractStore($this->root);
+        $contracts2->create(
             $taskB,
             'Implement API token validation endpoint.',
             ['src/AuthService.php'],
@@ -228,7 +245,7 @@ PHP
             ['php -l src/AuthService.php'],
             'api-developer',
         );
-        $contracts->approve($taskB, 'security-approver');
+        $contracts2->approve($taskB, 'security-approver');
 
         $dispatcher2 = new Dispatcher($this->root);
         $recallRunner2 = static fn (array $recallRest): int => $dispatcher2->run(array_values([
@@ -238,32 +255,39 @@ PHP
         ]));
         $app2 = new HostFrontDoorApplication($this->root, $recallRunner2);
 
-        // Standard enter invocation without ANY manual precedent or learning flags:
+        // Standard enter invocation without any manual precedent/Learning preparation.
         $enter2 = $this->runApp($app2, 'enter', [$taskB, '--format=json']);
         self::assertSame(0, $enter2['exit'], json_encode($enter2['payload'], JSON_THROW_ON_ERROR));
 
         // -------------------------------------------------------------------------
-        // VERIFY PRECEDENT SUPPLY
+        // VERIFY PRECEDENT SUPPLY + PROVENANCE
         // -------------------------------------------------------------------------
-        $recallDir = $this->root . '/.agent-loop/recall/' . $taskB;
+        $recallDir = $layout->recallRoot() . '/' . $taskB;
         $recallOutput = (new CompiledRecallOutputReader())->read($recallDir);
         self::assertNotNull($recallOutput);
         self::assertTrue($recallOutput->hasFacts());
 
-        // Prove that Recall compiled the LearningNote precedent fact
         $precedentFacts = array_values(array_filter(
             $recallOutput->facts(),
             static fn ($fact): bool => $fact->type === 'learning_precedent',
         ));
         self::assertCount(1, $precedentFacts);
-        self::assertSame($publishedNote->id, $precedentFacts[0]->payload['note_id']);
-        self::assertSame('auth.timing_leak_prevention', $precedentFacts[0]->payload['pattern_key']);
-        self::assertContains('scope_match', $precedentFacts[0]->payload['match_reasons'] ?? []);
+        $precedent = $precedentFacts[0];
 
-        // Prove that the precedent guidance was projected into the system prompt
+        self::assertSame($publishedNote->id, $precedent->payload['note_id']);
+        self::assertSame('auth.timing_leak_prevention', $precedent->payload['pattern_key']);
+        self::assertSame('agent-learning:' . $publishedNote->id, $precedent->sourceRef);
+        self::assertSame([$findingId], $precedent->payload['source_findings']);
+        self::assertSame($publishedNote->digest, $precedent->payload['note_digest']);
+        self::assertSame('current', $precedent->payload['evidence_state']);
+        self::assertTrue($precedent->payload['render']);
+        self::assertContains('scope_match', $precedent->payload['match_reasons'] ?? []);
+        self::assertContains('tag_match', $precedent->payload['match_reasons'] ?? []);
+
         $promptAugmentationPath = $recallDir . '/system.md';
         self::assertFileExists($promptAugmentationPath);
         $promptAugmentation = (string) file_get_contents($promptAugmentationPath);
+        self::assertStringContainsString('Relevant Learning Precedents', $promptAugmentation);
         self::assertStringContainsString('Constant-time auth token comparison', $promptAugmentation);
         self::assertStringContainsString('hash_equals', $promptAugmentation);
     }
