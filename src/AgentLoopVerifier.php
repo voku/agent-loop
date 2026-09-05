@@ -183,18 +183,13 @@ final class AgentLoopVerifier
         try {
             $resolution = (new BoardContextResolver())->resolveOptionalWithProvenance($boardRoot);
         } catch (AgentKanbanException $exception) {
-            $resolution = null;
-            $resolutionFailure = $exception;
-        }
-        if ($resolutionFailure !== null) {
-            echo "[FAIL] board: agent-kanban could not resolve board context: {$resolutionFailure->getMessage()}\n";
-
-            return false;
+            $resolution = null; $resolutionFailure = $exception;
         }
         if ($resolution === null) {
-            echo "[SKIP] board: voku/agent-kanban resolved no board context\n";
-
-            return true;
+            echo $resolutionFailure === null
+                ? "[SKIP] board: voku/agent-kanban resolved no board context\n"
+                : "[FAIL] board: agent-kanban could not resolve board context: {$resolutionFailure->getMessage()}\n";
+            return $resolutionFailure === null;
         }
 
         ob_start();
