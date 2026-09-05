@@ -179,10 +179,15 @@ final class AgentLoopVerifier
 
     private function checkBoard(string $boardRoot, ?string $taskId): bool
     {
+        $resolutionFailure = null;
         try {
             $resolution = (new BoardContextResolver())->resolveOptionalWithProvenance($boardRoot);
         } catch (AgentKanbanException $exception) {
-            echo "[FAIL] board: agent-kanban could not resolve board context: {$exception->getMessage()}\n";
+            $resolution = null;
+            $resolutionFailure = $exception;
+        }
+        if ($resolutionFailure !== null) {
+            echo "[FAIL] board: agent-kanban could not resolve board context: {$resolutionFailure->getMessage()}\n";
 
             return false;
         }
