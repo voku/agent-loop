@@ -135,7 +135,8 @@ final class WorkflowCloseCommandTest extends TestCase
         $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('missing explicit recall outcome for: G-003', $result['output']);
+        self::assertStringContainsString('invalid Learning recall history', $result['output']);
+        self::assertStringContainsString('outcome_withheld_reason must be non-empty when present', $result['output']);
     }
 
     public function testCloseRefusesWithholdingFromAnUnselectedEvent(): void
