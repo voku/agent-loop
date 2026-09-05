@@ -44,6 +44,10 @@ final class WorkflowStatusCommandTest extends TestCase
         [$exit, $out] = $this->statusOf('ABC-123');
 
         self::assertSame(0, $exit);
+        self::assertStringContainsString('Policy:', $out);
+        self::assertStringContainsString('Mutation:', $out);
+        self::assertStringContainsString('Ordinary close:', $out);
+        self::assertStringContainsString('Next kind:', $out);
         foreach ([
             'Board:',
             'Session:',
@@ -63,6 +67,21 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringNotContainsString('Work brief:', $out);
         self::assertStringContainsString('workflow plan ABC-123', $out);
         self::assertSame($before, $this->files(), 'status is read-only');
+    }
+
+    public function testStatusProjectsLifecyclePolicyResultForDeveloper(): void
+    {
+        [$exit, $output] = $this->statusOf('ABC-123', ['--format=json']);
+        $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $exit);
+        self::assertSame('incomplete', $status['policy']['state'] ?? null);
+        self::assertFalse($status['policy']['mutation_allowed'] ?? true);
+        self::assertFalse($status['policy']['ordinary_close_allowed'] ?? true);
+        self::assertSame('command_template', $status['policy']['next_action_kind'] ?? null);
+        self::assertStringContainsString('workflow plan ABC-123', (string) ($status['policy']['next_action'] ?? ''));
+        self::assertIsArray($status['policy']['blockers'] ?? null);
+        self::assertSame($status['manifest']['state'] ?? null, $status['policy']['state'] ?? null);
     }
 
     public function testExpectedStateMakesIncompleteHostDogfoodFailExecutable(): void
