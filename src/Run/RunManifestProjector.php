@@ -18,6 +18,7 @@ use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\ValidationDiagnosticStore;
 use voku\AgentLoop\Workflow\WorkflowCloseReadiness;
 use voku\AgentLoop\Workflow\WorkflowCloseReadinessInspector;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
@@ -630,6 +631,11 @@ final readonly class RunManifestProjector
             }
 
             $failure = $readiness->firstFailure();
+            $repairAction = null;
+            $diagnosticStore = new ValidationDiagnosticStore($this->rootPath);
+            if ($diagnosticStore->find($taskId) !== null && $diagnosticStore->canAttemptRepair($taskId)) {
+                $repairAction = 'agent-loop repair ' . $taskId;
+            }
 
             return [
                 'owner' => 'agent-loop',
@@ -638,6 +644,7 @@ final readonly class RunManifestProjector
                 'gate' => $failure['gate'] ?? 'unknown',
                 'reason' => $failure['detail'] ?? 'workflow close readiness failed without detail',
                 'action' => $this->closeReadinessAction($taskId, $readiness),
+                'repair_action' => $repairAction,
                 'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
             ];

@@ -32,13 +32,17 @@ final readonly class WorkflowValidationRunner
         $store = new ValidationEvidenceStore();
         $existing = $store->all($session);
 
+        $diagStore = new ValidationDiagnosticStore($this->rootPath);
+
         foreach ($contract->validation as $command) {
             if ($this->hasCurrentPass($existing, $contract->revision, $command, $snapshot->digest)) {
                 continue;
             }
 
             $started = hrtime(true);
-            $exitCode = $this->executeDeclaredValidationShell($command);
+            $execResult = $this->executeDeclaredValidationShell($command);
+            $exitCode = $execResult['exitCode'];
+            $output = $execResult['output'];
             $durationMs = max(0, (int) ((hrtime(true) - $started) / 1_000_000));
 
             $after = ImplementationSnapshot::capture($this->rootPath, $contract);
@@ -62,9 +66,20 @@ final readonly class WorkflowValidationRunner
             $existing[] = $evidence;
 
             if ($exitCode !== 0) {
+                $diag = ValidationDiagnostic::fromExecution(
+                    $contract->taskId,
+                    $contract->revision,
+                    $command,
+                    $exitCode,
+                    $output,
+                );
+                $diagStore->record($diag);
+
                 return;
             }
         }
+
+        $diagStore->clear($contract->taskId);
     }
 
     /** @param list<ValidationEvidence> $evidence */
@@ -87,7 +102,8 @@ final readonly class WorkflowValidationRunner
         return false;
     }
 
-    private function executeDeclaredValidationShell(string $command): int
+    /** @return array{exitCode: int, output: string} */
+    private function executeDeclaredValidationShell(string $command): array
     {
         $nullDevice = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $pipes = [];
@@ -95,8 +111,8 @@ final readonly class WorkflowValidationRunner
             $command,
             [
                 0 => ['file', $nullDevice, 'r'],
-                1 => ['file', $nullDevice, 'a'],
-                2 => ['file', $nullDevice, 'a'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
             ],
             $pipes,
             $this->rootPath,
@@ -105,12 +121,22 @@ final readonly class WorkflowValidationRunner
             throw new RuntimeException('Unable to execute declared validation command: ' . $command);
         }
 
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
         $exitCode = proc_close($process);
         if ($exitCode < 0) {
             throw new RuntimeException('Declared validation command terminated without an observable exit code: ' . $command);
         }
 
-        return $exitCode;
+        $output = trim((is_string($stdout) ? $stdout : '') . "\n" . (is_string($stderr) ? $stderr : ''));
+
+        return [
+            'exitCode' => $exitCode,
+            'output' => $output,
+        ];
     }
 
     private function assertBinding(TaskContract $contract, GovernedRun $run, Session $session): void

@@ -33,7 +33,7 @@ if (!class_exists(Dispatcher::class)) {
 
 $dispatcher = new Dispatcher(getcwd());
 $frontDoor = $argv[1] ?? null;
-if (in_array($frontDoor, ['enter', 'finish'], true)) {
+if (in_array($frontDoor, ['enter', 'finish', 'quick', 'repair', 'pipeline'], true)) {
     $scriptName = $argv[0] ?? 'agent-loop';
     $recallRunner = static fn (array $recallRest): int => $dispatcher->run([
         $scriptName,

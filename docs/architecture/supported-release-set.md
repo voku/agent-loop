@@ -2,7 +2,7 @@
 
 Status: current clean-consumer compatibility evidence  
 Recorded: 2026-08-06  
-Updated: 2026-08-23 (`agent-loop` 0.17.1 release line)
+Updated: 2026-09-04 (`agent-loop` 0.19.0 release line)
 
 ## Purpose
 
@@ -15,35 +15,32 @@ run; this page is its human projection.
 
 ## Current declared boundary
 
-`agent-loop` 0.17.1 declares:
+`agent-loop` 0.19.0 declares:
 
 ```json
 {
-  "voku/agent-kanban": "^0.3.2",
-  "voku/agent-learning": "^0.13.2",
-  "voku/agent-map": "^0.8.8",
-  "voku/agent-recall-compiler": "^0.13.11",
-  "voku/agent-session": "^0.6.2",
-  "voku/itp-context": "^0.3.0"
+  "voku/agent-kanban": "^0.4.0",
+  "voku/agent-learning": "^0.16.0",
+  "voku/agent-map": "^0.10.0",
+  "voku/agent-recall-compiler": "^0.15.0",
+  "voku/agent-session": "^0.7.0"
 }
 ```
 
-The root development alias is `0.17.x-dev`.
+The root development alias is `0.19.x-dev`.
 
-## 0.17.1 exercised release set
+## 0.19.0 exercised release set
 
-The exact PR #273 candidate crossed the installed release-set dogfood on
-2026-08-23 before 0.17.1 was published. Composer resolved these released
-first-party dependencies through normal package resolution:
+Composer resolved these released first-party dependencies through normal package resolution:
 
 | Package | Exercised release | Declared constraint | Status |
 | --- | ---: | --- | --- |
-| `voku/agent-kanban` | `0.3.2` | `^0.3.2` | supported |
-| `voku/agent-learning` | `0.13.3` | `^0.13.2` | supported |
-| `voku/agent-map` | `0.8.8` | `^0.8.8` | supported |
-| `voku/agent-recall-compiler` | `0.13.11` | `^0.13.11` | supported |
-| `voku/agent-session` | `0.6.2` | `^0.6.2` | supported |
-| `voku/itp-context` | `0.3.0` | `^0.3.0` | supported |
+| `voku/agent-kanban` | `0.4.0` | `^0.4.0` | supported |
+| `voku/agent-learning` | `0.16.0` | `^0.16.0` | supported |
+| `voku/agent-map` | `0.10.0` | `^0.10.0` | supported |
+| `voku/agent-recall-compiler` | `0.15.0` | `^0.15.0` | supported |
+| `voku/agent-session` | `0.7.0` | `^0.7.0` | supported |
+| `voku/agent-loop-runner` | `0.1.0` | `^0.1.0` | supported |
 
 The release-set report used schema `2.0` and recorded `result=passed`. The only
 candidate package was `agent-loop` itself from the PR checkout; the dependencies
@@ -101,10 +98,9 @@ fail.
 | governed lifecycle, edit application and verification | `agent-loop` | only Loop accepts governed transitions and owns mutation/verification |
 | optional external process execution | `agent-loop-runner` | downstream consumer of released typed `agent-loop` execution APIs only |
 
-`agent-loop-runner` is not part of this supported release set yet. Its draft PR
-#2 consumes the released `agent-loop ^0.17.0` execution API, which includes
-0.17.1, but Runner joins the supported set only after its own installed-consumer
-dogfood and Definition of Done are complete.
+`agent-loop-runner` is released at `0.1.0` and consumed as a stable dependency
+by downstream applications such as `voku/agent-ui` (`^0.1.0`), closing the
+ecosystem release graph without requiring VCS fallback or `dev-main` pins.
 
 ## Required clean-consumer environment
 

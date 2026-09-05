@@ -11,6 +11,7 @@ use voku\AgentMap\Cli\CliApplication as AgentMapCli;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
+use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -44,8 +45,14 @@ final class Dispatcher
         $scriptName = $argv[0] ?? 'agent-loop';
         $namespace = $argv[1] ?? 'help';
         $rest = array_slice($argv, 2);
+        $recallRunner = fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest));
 
         return match ($namespace) {
+            'enter' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('enter', $rest),
+            'finish' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('finish', $rest),
+            'quick' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('quick', $rest),
+            'repair' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('repair', $rest),
+            'pipeline' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('pipeline', $rest),
             'edit' => (new EditCommand($this->rootPath))->run($rest),
             'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
@@ -434,10 +441,26 @@ final class Dispatcher
         agent-loop - unified CLI for the governed agentic-coding loop.
 
         Usage:
+          agent-loop quick [TASK-ID] "<goal>" --file=<path> [--verify="<cmd>"]
+          agent-loop enter <task-id> [options]
+          agent-loop finish <task-id> [options]
           agent-loop edit CLASS::METHOD [options] -- INSTRUCTION
           agent-loop <namespace> <command> [options]
 
         Namespaces:
+          quick   [TASK-ID] "<goal>" --file=<path> [--verify="<cmd>"]
+                  Fast-path micro-task flow: initiate, approve, and enter a bounded
+                  surgical task within up to 2 target files in one command.
+          enter   <task-id>
+                  Prepare deterministic post-approval workflow state and project
+                  bounded context before host mutation.
+          finish  <task-id>
+                  Reconcile deterministic validation/review evidence, bind judgments,
+                  and close when canonical policy permits.
+          repair  <task-id> [--max-attempts=2]
+                  Inspect the latest validation failure and project a bounded auto-repair instruction.
+          pipeline <status|stage|run|submit> <task-id> [options]
+                  Turnkey multi-stage execution runner for governed task profiles.
           edit    CLASS::METHOD [options] -- INSTRUCTION
                   Build or refresh the semantic map, compile target-aware recall,
                   and prepare or run one auditable edit execution bundle.
