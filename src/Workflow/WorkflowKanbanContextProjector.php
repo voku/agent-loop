@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ConfigurationException;
+use voku\AgentKanban\Repository\BoardContext;
 use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
@@ -19,6 +20,7 @@ use voku\AgentRecallCompiler\KanbanContextProjection;
 final readonly class WorkflowKanbanContextProjector
 {
     private const string CARD_ID_PATTERN = '/^[A-Z][A-Z0-9]*-[1-9][0-9]*$/';
+    private const string BOARD_NOT_CONFIGURED_PREFIX = 'Could not determine the project prefix.';
 
     public function __construct(private string $rootPath)
     {
@@ -26,10 +28,8 @@ final readonly class WorkflowKanbanContextProjector
 
     public function project(string $taskId): ?KanbanContextProjection
     {
-        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-        try {
-            $board = (new BoardContextResolver())->resolve($boardRoot);
-        } catch (ConfigurationException) {
+        $board = $this->resolveBoard();
+        if ($board === null) {
             return null;
         }
 
@@ -56,5 +56,21 @@ final readonly class WorkflowKanbanContextProjector
             priority: $card->priority,
             nextAction: $card->nextAction,
         );
+    }
+
+    private function resolveBoard(): ?BoardContext
+    {
+        $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
+        $board = null;
+
+        try {
+            $board = (new BoardContextResolver())->resolve($boardRoot);
+        } catch (ConfigurationException $exception) {
+            if (!str_starts_with($exception->getMessage(), self::BOARD_NOT_CONFIGURED_PREFIX)) {
+                throw $exception;
+            }
+        }
+
+        return $board;
     }
 }
