@@ -6,10 +6,13 @@ namespace voku\AgentLoop\Run;
 
 use RuntimeException;
 use Throwable;
-use voku\AgentKanban\Cli\BoardContextFactory;
 use voku\AgentKanban\Config\BoardConfig;
 use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ValidationException;
+use voku\AgentKanban\Repository\BoardConfigurationMode;
+use voku\AgentKanban\Repository\BoardContext;
+use voku\AgentKanban\Repository\BoardContextResolution;
+use voku\AgentKanban\Repository\BoardContextResolver;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
@@ -203,24 +206,15 @@ final readonly class RunManifestProjector
         array &$disagreements,
     ): array {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
-        $configPath = is_file(rtrim($boardRoot, '/') . '/kanban.config.json')
-            ? rtrim($boardRoot, '/') . '/kanban.config.json'
-            : rtrim($boardRoot, '/') . '/todo/kanban.config.json';
-        $metadataPath = is_file(rtrim($boardRoot, '/') . '/board.md')
-            ? rtrim($boardRoot, '/') . '/board.md'
-            : rtrim($boardRoot, '/') . '/todo/board.md';
-        $cards = array_merge(
-            glob(rtrim($boardRoot, '/') . '/todo/cards/*.md') ?: [],
-            glob(rtrim($boardRoot, '/') . '/todo/jira/*.md') ?: [],
-            glob(rtrim($boardRoot, '/') . '/cards/*.md') ?: [],
-            glob(rtrim($boardRoot, '/') . '/jira/*.md') ?: [],
-        );
-        if (!is_file($configPath) && !is_file($metadataPath) && $cards === []) {
-            return ['owner' => 'agent-kanban', 'state' => 'not_configured', 'observation_mode' => 'checked'];
-        }
         try {
-            $context = (new BoardContextFactory())->create($boardRoot, null, null);
-            $configuration = $this->boardConfigurationReference($configPath, $metadataPath);
+            $resolver = new BoardContextResolver();
+            $resolution = $resolver->resolveOptionalWithProvenance($boardRoot);
+            if ($resolution === null) {
+                return ['owner' => 'agent-kanban', 'state' => 'not_configured', 'observation_mode' => 'checked'];
+            }
+
+            $context = $resolution->context;
+            $configuration = $this->boardConfigurationReference($resolution);
             try {
                 $cardId = CardId::fromString($taskId);
             } catch (ValidationException) {
@@ -231,8 +225,10 @@ final readonly class RunManifestProjector
                     'configuration' => $configuration,
                 ];
             }
-            $repository = $context->repository;
-            if (!$repository->exists($cardId)) {
+            if ($context->config->projectPrefix !== $cardId->prefix) {
+                $context = $this->contextForPrefix($resolver->resolveAll($boardRoot), $cardId->prefix);
+            }
+            if ($context === null || !$context->repository->exists($cardId)) {
                 return [
                     'owner' => 'agent-kanban',
                     'state' => 'not_linked',
@@ -241,7 +237,7 @@ final readonly class RunManifestProjector
                     'configuration' => $configuration,
                 ];
             }
-            $card = $repository->load($cardId);
+            $card = $context->repository->load($cardId);
             if (
                 $contract === null
                 && $run === null
@@ -268,7 +264,7 @@ final readonly class RunManifestProjector
                 'revision' => $card->revision->toString(),
                 'lane' => $card->lane->toString(),
                 'status' => $card->status->toString(),
-                'source' => $this->artifact(rtrim($boardRoot, '/') . '/' . $card->sourceFile),
+                'source' => $this->artifact(rtrim($context->rootPath, '/') . '/' . $card->sourceFile),
                 'configuration' => $configuration,
             ];
         } catch (Throwable $exception) {
@@ -282,17 +278,36 @@ final readonly class RunManifestProjector
         }
     }
 
-    /** @return array{mode: 'json'|'metadata'|'inferred', source?: array{path: string, sha256: string}} */
-    private function boardConfigurationReference(string $configPath, string $metadataPath): array
+    /**
+     * @param array<string, BoardContext> $contexts
+     */
+    private function contextForPrefix(array $contexts, string $prefix): ?BoardContext
     {
-        if (is_file($configPath)) {
-            return ['mode' => 'json', 'source' => $this->artifact($configPath)];
-        }
-        if (is_file($metadataPath)) {
-            return ['mode' => 'metadata', 'source' => $this->artifact($metadataPath)];
+        foreach ($contexts as $context) {
+            if ($context->config->projectPrefix === $prefix) {
+                return $context;
+            }
         }
 
-        return ['mode' => 'inferred'];
+        return null;
+    }
+
+    /** @return array{mode: 'json'|'metadata'|'inferred', source?: array{path: string, sha256: string}} */
+    private function boardConfigurationReference(BoardContextResolution $resolution): array
+    {
+        $mode = match ($resolution->configurationMode) {
+            BoardConfigurationMode::JSON => 'json',
+            BoardConfigurationMode::METADATA => 'metadata',
+            BoardConfigurationMode::INFERRED => 'inferred',
+        };
+        if ($resolution->configurationSourcePath === null) {
+            return ['mode' => $mode];
+        }
+
+        return [
+            'mode' => $mode,
+            'source' => $this->artifact($resolution->configurationSourcePath),
+        ];
     }
 
     private function usesDefaultBoardTopology(BoardConfig $config): bool
