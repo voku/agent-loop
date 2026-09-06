@@ -6,14 +6,17 @@ namespace voku\AgentLoop\Init;
 
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentKanban\Config\BoardConfig;
+use voku\AgentKanban\Domain\CardId;
 use voku\AgentKanban\Exception\ConfigurationException;
+use voku\AgentKanban\Repository\BoardConfigurationWriter;
+use voku\AgentKanban\Repository\BoardContext;
+use voku\AgentKanban\Repository\BoardContextResolver;
 
 /**
  * Creates the smallest local state needed for the governed workflow.
  *
- * Demo state is opt-in. When requested, the example card is created through
- * agent-kanban's public CLI so this package never duplicates its Markdown card
- * format.
+ * Demo state is opt-in. Board configuration and storage are bootstrapped through
+ * agent-kanban's owner API, while the example card still uses its public CLI.
  */
 final readonly class InitScaffoldCommand
 {
@@ -45,14 +48,12 @@ GITIGNORE;
 
         $dryRun = $options['dryRun'];
         $agent = $options['agent'];
-        $boardConfig = $options['boardConfig'];
+        $boardPrefix = $options['boardPrefix'];
         $demo = $options['demo'];
         $root = rtrim($this->rootPath, '/');
         $stateRoot = $root . '/.agent-loop';
         $configPath = $stateRoot . '/init.json';
         $vcsPolicyPath = $stateRoot . '/.gitignore';
-        $boardConfigPath = $stateRoot . '/todo/kanban.config.json';
-        $boardMetadataPath = $stateRoot . '/todo/board.md';
         $sessionsRoot = $stateRoot . '/sessions';
         $learningRoot = $stateRoot . '/learning';
 
@@ -65,41 +66,34 @@ GITIGNORE;
         $this->ensureFile($vcsPolicyPath, '.agent-loop/.gitignore', self::VCS_POLICY . "\n", $dryRun);
 
         foreach ([
-            [$stateRoot . '/todo/cards', $this->relative($root, $stateRoot . '/todo/cards')],
-            [$stateRoot . '/todo/archive', $this->relative($root, $stateRoot . '/todo/archive')],
             [$stateRoot . '/tasks', $this->relative($root, $stateRoot . '/tasks')],
             [$sessionsRoot, $this->relative($root, $sessionsRoot)],
-            [$learningRoot . '/findings', $this->relative($root, $learningRoot . '/findings')],
+            [$learningRoot, $this->relative($root, $learningRoot)],
         ] as [$directory, $display]) {
             $this->ensureDirectory($directory, $display, $dryRun);
         }
 
-        if ($boardConfig !== null) {
-            $this->ensureFile(
-                $boardConfigPath,
-                $this->relative($root, $boardConfigPath),
-                json_encode(
-                    $boardConfig->toArray(),
-                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-                ) . "\n",
-                $dryRun,
-            );
-            $this->ensureFile(
-                $boardMetadataPath,
-                $this->relative($root, $boardMetadataPath),
-                "# Board Metadata\n\n- **Project prefix:** {$boardConfig->projectPrefix}\n",
-                $dryRun,
-            );
+        $boardContext = null;
+        if ($boardPrefix !== null) {
+            if ($dryRun) {
+                echo '[DRY-RUN] would bootstrap board configuration/storage for ' . $boardPrefix . "\n";
+            } else {
+                $boardContext = (new BoardConfigurationWriter())->bootstrapConventional($stateRoot, $boardPrefix);
+                echo '[OK] board configuration/storage ready for ' . $boardContext->config->projectPrefix . "\n";
+            }
         }
 
         if ($demo) {
-            $demoExit = $this->ensureDemoTaskAndCard($root, $stateRoot, $dryRun);
+            $demoExit = $this->ensureDemoTaskAndCard($root, $stateRoot, $dryRun, $boardContext);
             if ($demoExit !== 0) {
                 return $demoExit;
             }
         }
 
-        $hasBoardIdentity = $boardConfig !== null || is_file($boardConfigPath) || is_file($boardMetadataPath);
+        $hasBoardIdentity = $boardPrefix !== null;
+        if (!$dryRun && !$hasBoardIdentity) {
+            $hasBoardIdentity = (new BoardContextResolver())->resolveOptional($stateRoot) !== null;
+        }
         $cliPath = (new RepositoryActivation($root))->cliPath();
 
         if ($agent !== null) {
@@ -142,8 +136,12 @@ GITIGNORE;
         return 0;
     }
 
-    private function ensureDemoTaskAndCard(string $root, string $stateRoot, bool $dryRun): int
-    {
+    private function ensureDemoTaskAndCard(
+        string $root,
+        string $stateRoot,
+        bool $dryRun,
+        ?BoardContext $boardContext,
+    ): int {
         $this->ensureFile($stateRoot . '/tasks/DEMO-1.md', $this->relative($root, $stateRoot . '/tasks/DEMO-1.md'), <<<'MD'
 # DEMO-1: Add a small validated change
 
@@ -152,15 +150,16 @@ real change in this repository, then record the validation that proves it.
 MD
             . "\n", $dryRun);
 
-        $cardPath = $stateRoot . '/todo/cards/' . self::EXAMPLE_TASK_ID . '.md';
-        $cardDisplay = $this->relative($root, $cardPath);
-        if (is_file($cardPath) || is_file($stateRoot . '/todo/jira/' . self::EXAMPLE_TASK_ID . '.md')) {
-            echo '[SKIP] ' . $cardDisplay . ' already exists' . "\n";
+        if ($dryRun) {
+            echo '[DRY-RUN] would create demo board card ' . self::EXAMPLE_TASK_ID . "\n";
 
             return 0;
         }
-        if ($dryRun) {
-            echo '[DRY-RUN] would create ' . $cardDisplay . "\n";
+
+        $boardContext ??= (new BoardContextResolver())->resolve($stateRoot);
+        $cardId = CardId::fromString(self::EXAMPLE_TASK_ID);
+        if ($boardContext->repository->exists($cardId)) {
+            echo '[SKIP] demo board card ' . self::EXAMPLE_TASK_ID . ' already exists' . "\n";
 
             return 0;
         }
@@ -188,7 +187,7 @@ MD
             return $exit;
         }
 
-        echo '[CREATE] ' . $cardDisplay . "\n";
+        echo '[CREATE] demo board card ' . self::EXAMPLE_TASK_ID . "\n";
 
         return 0;
     }
@@ -211,7 +210,7 @@ MD
 
     /**
      * @param list<string> $tokens
-     * @return array{dryRun: bool, agent: InitAgent|null, boardConfig: BoardConfig|null, demo: bool}
+     * @return array{dryRun: bool, agent: InitAgent|null, boardPrefix: string|null, demo: bool}
      */
     private function parse(array $tokens): array
     {
@@ -277,14 +276,10 @@ MD
             ? null
             : InitAgent::parse($requestedAgent, InitAgent::canonicalNames(), true);
 
-        $prefix = $demo ? 'DEMO' : $requestedPrefix;
-        $boardConfig = null;
-        if ($prefix !== null) {
+        $boardPrefix = $demo ? 'DEMO' : $requestedPrefix;
+        if ($boardPrefix !== null) {
             try {
-                $boardConfig = new BoardConfig(
-                    projectPrefix: $prefix,
-                    archiveDirectory: 'todo/archive',
-                );
+                BoardConfig::default($boardPrefix);
             } catch (ConfigurationException $exception) {
                 throw new \InvalidArgumentException($exception->getMessage(), 0, $exception);
             }
@@ -293,7 +288,7 @@ MD
         return [
             'dryRun' => $dryRun,
             'agent' => $agent,
-            'boardConfig' => $boardConfig,
+            'boardPrefix' => $boardPrefix,
             'demo' => $demo,
         ];
     }

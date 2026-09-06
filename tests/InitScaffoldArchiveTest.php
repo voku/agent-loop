@@ -29,8 +29,8 @@ final class InitScaffoldArchiveTest extends TestCase
         $result = $this->dispatch(['agent-loop', 'init', 'scaffold']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertDirectoryExists($this->root . '/.agent-loop/todo/cards');
-        self::assertDirectoryExists($this->root . '/.agent-loop/todo/archive');
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/todo/cards');
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/todo/archive');
         self::assertDirectoryExists($this->root . '/.agent-loop/tasks');
         self::assertFileDoesNotExist($this->root . '/.agent-loop/todo/kanban.config.json');
         self::assertFileDoesNotExist($this->root . '/.agent-loop/todo/board.md');
@@ -75,9 +75,9 @@ final class InitScaffoldArchiveTest extends TestCase
         $config = json_decode((string) file_get_contents($configPath), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('SHD', $config['projectPrefix'] ?? null);
         self::assertSame('todo/archive', $config['archiveDirectory'] ?? null);
-        self::assertStringContainsString(
-            '- **Project prefix:** SHD',
-            (string) file_get_contents($this->root . '/.agent-loop/todo/board.md'),
+        self::assertFileDoesNotExist(
+            $this->root . '/.agent-loop/todo/board.md',
+            'Loop must not duplicate agent-kanban metadata beside owner configuration.',
         );
         self::assertFileDoesNotExist($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileDoesNotExist($this->root . '/.agent-loop/tasks/DEMO-1.md');
@@ -101,7 +101,7 @@ final class InitScaffoldArchiveTest extends TestCase
 
         $second = $this->dispatch(['agent-loop', 'init', 'scaffold', '--demo']);
         self::assertSame(0, $second['exit'], $second['output']);
-        self::assertStringContainsString('[SKIP] .agent-loop/todo/kanban.config.json already exists', $second['output']);
+        self::assertStringContainsString('[OK] board configuration/storage ready for DEMO', $second['output']);
         self::assertSame($originalConfig, file_get_contents($configPath));
 
         $archive = $this->dispatch(['agent-loop', 'board', 'card', 'archive', 'DEMO-1']);
@@ -116,10 +116,10 @@ final class InitScaffoldArchiveTest extends TestCase
 
         self::assertSame(0, $dryRun['exit'], $dryRun['output']);
         self::assertStringContainsString('[DRY-RUN] would create .agent-loop/.gitignore', $dryRun['output']);
-        self::assertStringContainsString('[DRY-RUN] would create .agent-loop/todo/archive/', $dryRun['output']);
-        self::assertStringContainsString('[DRY-RUN] would create .agent-loop/todo/kanban.config.json', $dryRun['output']);
+        self::assertStringContainsString('[DRY-RUN] would bootstrap board configuration/storage for DEMO', $dryRun['output']);
+        self::assertStringNotContainsString('kanban.config.json', $dryRun['output']);
         self::assertStringContainsString('[DRY-RUN] would create .agent-loop/tasks/DEMO-1.md', $dryRun['output']);
-        self::assertStringContainsString('[DRY-RUN] would create .agent-loop/todo/cards/DEMO-1.md', $dryRun['output']);
+        self::assertStringContainsString('[DRY-RUN] would create demo board card DEMO-1', $dryRun['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
     }
 
