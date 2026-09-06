@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLearning\FindingRepository;
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 
 final class AgentDisciplineHookLearningOwnerBoundaryTest extends TestCase
@@ -20,6 +21,8 @@ final class AgentDisciplineHookLearningOwnerBoundaryTest extends TestCase
 
     public function testMissingLearningTreeStaysSilentThroughOwnerRepository(): void
     {
+        self::assertTrue(class_exists(FindingRepository::class));
+
         $root = sys_get_temp_dir() . '/agent-loop-learning-owner-boundary-' . bin2hex(random_bytes(6));
         $skillsDirectory = $root . '/.codex/skills';
         $skillDirectory = $skillsDirectory . '/agent-loop-discipline';
