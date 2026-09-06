@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
-use ReflectionClass;
 use RuntimeException;
 use voku\AgentLoop\PackageResources;
-use voku\AgentRecallCompiler\Cli as RecallCli;
 
 /**
  * The skill sources `init install-assets` projects into a host.
@@ -19,23 +17,21 @@ use voku\AgentRecallCompiler\Cli as RecallCli;
  * skills were reported as stale managed entries immediately after a successful
  * install.
  *
- * The two siblings are not treated identically, and that asymmetry is
- * deliberate. Recall has shipped skills for as long as this projection has
- * existed, so failing to locate it is a broken installation. agent-session only
- * began shipping skills once it gained its own `PackageResources`, so an older
- * installed release contributes nothing and must not be reported as breakage.
+ * Recall is a required dependency and the supported ^0.15 line owns its shipped
+ * asset paths through PackageResources. agent-session remains optional at this
+ * projection boundary because older supported Session releases may ship no skills.
  */
 final readonly class FirstPartySkillRoots
 {
     /**
      * @return list<string>
-     * @throws RuntimeException when the installed Recall package cannot be located
+     * @throws RuntimeException when the installed Recall skill root is missing
      */
     public static function resolve(string $packageRoot): array
     {
         $recallRoot = self::recallSkillRoot();
-        if ($recallRoot === null) {
-            throw new RuntimeException('Unable to resolve the installed agent-recall-compiler package path.');
+        if (!is_dir($recallRoot)) {
+            throw new RuntimeException('Unable to resolve the installed agent-recall-compiler skill root.');
         }
 
         $roots = [
@@ -96,24 +92,9 @@ final readonly class FirstPartySkillRoots
         return $entries;
     }
 
-    private static function recallSkillRoot(): ?string
+    private static function recallSkillRoot(): string
     {
-        if (class_exists(\voku\AgentRecallCompiler\PackageResources::class)) {
-            return \voku\AgentRecallCompiler\PackageResources::skillsRoot();
-        }
-
-        if (!class_exists(RecallCli::class)) {
-            return null;
-        }
-
-        $recallFile = (new ReflectionClass(RecallCli::class))->getFileName();
-        if (!is_string($recallFile)) {
-            return null;
-        }
-
-        $base = dirname($recallFile, 2);
-
-        return is_dir($base . '/resources/skills') ? $base . '/resources/skills' : $base . '/skills';
+        return \voku\AgentRecallCompiler\PackageResources::skillsRoot();
     }
 
     /**
