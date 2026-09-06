@@ -242,9 +242,6 @@ final readonly class AgentDisciplineHook
         }
 
         $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
-        if (!is_dir($root . '/findings/validated')) {
-            return '';
-        }
 
         try {
             $unconsolidated = (new FindingRepository())->loadValidated($root);
