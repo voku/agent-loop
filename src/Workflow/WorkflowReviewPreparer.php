@@ -6,9 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use voku\AgentLoop\RecallOutputRoot;
-use voku\AgentRecallCompiler\Review\BlindSpotReviewer;
-use voku\AgentRecallCompiler\Review\ReviewReport;
-use voku\AgentRecallCompiler\Review\ReviewReportWriter;
+use voku\AgentRecallCompiler\Review\ReviewAuditPreparer;
 
 /**
  * Reconciles the deterministic blind-spot report for the current implementation.
@@ -47,14 +45,12 @@ final readonly class WorkflowReviewPreparer
         }
 
         $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId;
-        $report = (new BlindSpotReviewer($this->rootPath))->review($contract->taskId, $outputDirectory);
-        $bound = new ReviewReport(
-            taskId: $report->taskId,
-            findings: $report->findings,
+        (new ReviewAuditPreparer($this->rootPath))->prepare(
+            taskId: $contract->taskId,
+            outputDirectory: $outputDirectory,
             contractRevision: $contract->revision,
             implementationSnapshot: $snapshot->digest,
         );
-        (new ReviewReportWriter($this->rootPath))->write($bound, $outputDirectory);
 
         $prepared = $reader->read($contract->taskId);
         if (!$prepared['exists'] || $prepared['invalid'] || $prepared['sha256'] === null) {
