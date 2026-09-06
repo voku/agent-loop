@@ -119,10 +119,10 @@ final class InitCliTest extends TestCase
         self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
         self::assertDirectoryExists($this->root . '/.agent-loop/sessions');
-        self::assertDirectoryExists($this->root . '/.agent-loop/learning/findings');
-        self::assertSame(
-            "# Board Metadata\n\n- **Project prefix:** DEMO\n",
-            file_get_contents($this->root . '/.agent-loop/todo/board.md'),
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/learning/findings');
+        self::assertFileDoesNotExist(
+            $this->root . '/.agent-loop/todo/board.md',
+            'Loop must not duplicate agent-kanban metadata beside owner configuration.',
         );
 
         $plan = $this->dispatch([
