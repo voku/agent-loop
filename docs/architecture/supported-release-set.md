@@ -22,7 +22,7 @@ run; this page is its human projection.
   "voku/agent-kanban": "^0.4.4",
   "voku/agent-learning": "^0.16.1",
   "voku/agent-map": "^0.10.0",
-  "voku/agent-recall-compiler": "^0.16.0",
+  "voku/agent-recall-compiler": "^0.17.0",
   "voku/agent-session": "^0.7.0"
 }
 ```

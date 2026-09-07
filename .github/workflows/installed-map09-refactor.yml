@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   released-dependency-set:
-    name: Released Map 0.10 + Recall 0.16.0 graph
+    name: Released Map 0.10 + Recall 0.17.0 graph
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -38,7 +38,7 @@ jobs:
             "type": "project",
             "require": {
               "voku/agent-map": "0.10.0",
-              "voku/agent-recall-compiler": "0.16.0"
+              "voku/agent-recall-compiler": "0.17.0"
             },
             "config": {
               "allow-plugins": false,
@@ -56,19 +56,19 @@ jobs:
                 or ((.dist.type // .source.type // "") == "path")
               )) | length == 0)
             and ($packages | any(.name == "voku/agent-map" and .version == "0.10.0"))
-            and ($packages | any(.name == "voku/agent-recall-compiler" and .version == "0.16.0"))
+            and ($packages | any(.name == "voku/agent-recall-compiler" and .version == "0.17.0"))
           ' composer.lock >/dev/null
 
           mkdir -p "${GITHUB_WORKSPACE}/build"
-          cp composer.lock "${GITHUB_WORKSPACE}/build/released-map010-recall0160.lock"
+          cp composer.lock "${GITHUB_WORKSPACE}/build/released-map010-recall0170.lock"
 
       - name: Upload release-only dependency evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: released-map010-recall0160-${{ github.sha }}
+          name: released-map010-recall0170-${{ github.sha }}
           if-no-files-found: warn
-          path: build/released-map010-recall0160.lock
+          path: build/released-map010-recall0170.lock
 
   installed-map09-refactor:
     name: Map 0.9 ${{ matrix.scenario }} consumer
@@ -119,7 +119,7 @@ jobs:
             and (.release_set["voku/agent-loop"].source_type == "path")
             and (.release_set["voku/agent-map"].version == "0.10.0")
             and (.release_set["voku/agent-map"].source_type != "path")
-            and (.release_set["voku/agent-recall-compiler"].version == "0.16.0")
+            and (.release_set["voku/agent-recall-compiler"].version == "0.17.0")
             and (.release_set["voku/agent-recall-compiler"].source_type != "path")
             and ([.plan_capabilities[].plan_type] | sort == [
               "class_constant_removal_plan",
