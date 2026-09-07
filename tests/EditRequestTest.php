@@ -39,7 +39,7 @@ final class EditRequestTest extends TestCase
         yield 'whitespace' => ['Demo\\Service::run now'];
     }
 
-    public function testRejectsEmptyProgrammaticFocusTerm(): void
+    public function testRejectsWhitespaceOnlyProgrammaticFocusTerm(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Edit focus terms must not be empty.');
@@ -53,7 +53,7 @@ final class EditRequestTest extends TestCase
             mapIndex: '/tmp/project/map.json',
             mapRoot: '/tmp/project',
             outputDirectory: '/tmp/project/edit',
-            focusTerms: [''],
+            focusTerms: [' '],
         );
     }
 
