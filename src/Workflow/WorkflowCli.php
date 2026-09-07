@@ -30,7 +30,7 @@ final readonly class WorkflowCli
             'quick' => (new HostFrontDoorCommand($this->rootPath, $this->recallRunner))->run('quick', $rest),
             'repair' => (new WorkflowRepairCommand($this->rootPath))->run($rest),
             'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($rest),
-            'plan' => (new WorkflowPlanCommand($this->rootPath))->run($rest),
+            'plan' => self::isHelpRequest($rest) ? $this->printHelp() : (new WorkflowPlanCommand($this->rootPath))->run($rest),
             'approve' => (new WorkflowApproveCommand($this->rootPath))->run($rest),
             'execution-profile' => (new WorkflowExecutionProfileCommand($this->rootPath))->run($rest),
             'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
@@ -54,7 +54,7 @@ final readonly class WorkflowCli
         echo <<<'TXT'
 Usage:
   agent-loop workflow help
-  agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>]
+  agent-loop workflow plan <task-id> --by <actor> --file <path> [--file <path> ...] --goal <text> [--scope <path> ...] [--non-goal <text> ...] [--acceptance <text> ...] [--acceptance-observation <json> ...] --validation <command> [--validation <command> ...] [--tag <label> ...] [--behavior-anchor <text> ...] [--operating-prompt-manifest <path> --operating-prompt <json> ...] [--base-commit <sha>] [--supersede]
   agent-loop workflow approve <task-id> --by <actor>
   agent-loop workflow execution-profile <task-id> [--profile manual|surgical|standard|hardened --by <actor>]
   agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor>
@@ -114,6 +114,12 @@ For ungoverned experiments use `agent-loop session start --ephemeral`; there is 
 
 TXT;
         return 0;
+    }
+
+    /** @param list<string> $args */
+    private static function isHelpRequest(array $args): bool
+    {
+        return count($args) === 1 && in_array($args[0], ['help', '--help', '-h'], true);
     }
 
     private function unknown(string $command): int
