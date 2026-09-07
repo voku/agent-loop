@@ -46,10 +46,6 @@ final readonly class MinimumReleasePin
             }
         }
 
-        if ($minimum === null) {
-            throw new RuntimeException('Expected a caret constraint such as ^0.12.0, got: ' . $constraint);
-        }
-
         return $minimum;
     }
 
