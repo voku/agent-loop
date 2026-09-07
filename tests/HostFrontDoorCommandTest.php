@@ -237,6 +237,42 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame('none', $finishPayload['next_action']);
     }
 
+    public function testQuickFinishIgnoresUnchangedPreexistingOutOfScopeChanges(): void
+    {
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning directory.');
+        }
+
+        exec('git -C ' . escapeshellarg($this->root) . ' init -b main 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.name "Test" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.email "test@example.com" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/QuickTarget.php 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' commit -m "Initial commit" 2>&1');
+
+        file_put_contents($sourceDirectory . '/Preexisting.php', "<?php\nfinal class Preexisting {}\n");
+
+        $quickResult = $this->runBinary([
+            'quick',
+            'QUICK-DIRTY-1',
+            'Fix docblock in QuickTarget',
+            '--file=src/QuickTarget.php',
+            '--verify=php -r "exit(0);"',
+            '--format=json',
+        ]);
+        self::assertSame(0, $quickResult['exit'], $quickResult['stderr']);
+
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\n/** Fixed. */\nfinal class QuickTarget {}\n");
+
+        $finishResult = $this->runBinary(['finish', 'QUICK-DIRTY-1', '--format=json']);
+        self::assertSame(0, $finishResult['exit'], $finishResult['stderr']);
+        self::assertTrue($this->json($finishResult['stdout'])['complete']);
+    }
+
     public function testQuickFinishFailsClosedWhenScopeViolated(): void
     {
         $sourceDirectory = $this->root . '/src';

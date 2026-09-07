@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use Closure;
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -15,6 +16,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
@@ -240,8 +242,7 @@ final readonly class HostFrontDoorCommand
                     if (in_array('fast_path', $contract->tags, true)) {
                         $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
                         if ($diff->available) {
-                            $allTouched = array_values(array_unique([...$diff->changedFiles, ...$diff->untrackedFiles]));
-                            $unexpected = array_diff($allTouched, $contract->scope);
+                            $unexpected = $this->unexpectedFastPathTouchedFiles($contract, $diff);
                             if ($unexpected !== []) {
                                 throw new RuntimeException(sprintf(
                                     'Fast-path scope violated: modified undeclared file(s): %s. Escalate to standard contract.',
@@ -451,7 +452,155 @@ final readonly class HostFrontDoorCommand
             );
         }
 
+        $this->captureFastPathScopeBaseline($contract);
+
         return $result->searchWarning;
+    }
+
+    /** @return list<string> */
+    private function unexpectedFastPathTouchedFiles(TaskContract $contract, HumanReviewDiff $diff): array
+    {
+        $allTouched = array_values(array_unique([...$diff->changedFiles, ...$diff->untrackedFiles]));
+        sort($allTouched, SORT_STRING);
+        $baseline = $this->readFastPathScopeBaseline($contract);
+        if ($baseline === null) {
+            return array_values(array_diff($allTouched, $contract->scope));
+        }
+
+        $current = [];
+        foreach ($allTouched as $path) {
+            if (in_array($path, $contract->scope, true)) {
+                continue;
+            }
+            $fingerprint = $this->workingTreeFingerprint($path);
+            if ($fingerprint === null) {
+                return array_values(array_diff($allTouched, $contract->scope));
+            }
+            $current[$path] = $fingerprint;
+        }
+
+        $unexpected = [];
+        foreach ($current as $path => $fingerprint) {
+            if (($baseline[$path] ?? null) !== $fingerprint) {
+                $unexpected[] = $path;
+            }
+        }
+        foreach ($baseline as $path => $_fingerprint) {
+            if (!array_key_exists($path, $current)) {
+                $unexpected[] = $path;
+            }
+        }
+        $unexpected = array_values(array_unique($unexpected));
+        sort($unexpected, SORT_STRING);
+
+        return $unexpected;
+    }
+
+    private function captureFastPathScopeBaseline(TaskContract $contract): void
+    {
+        if (!in_array('fast_path', $contract->tags, true)) {
+            return;
+        }
+
+        $path = $this->fastPathScopeBaselinePath($contract);
+        if (is_file($path)) {
+            return;
+        }
+
+        $diff = (new HumanReviewDiffCollector($this->rootPath))->collect($contract);
+        if (!$diff->available) {
+            return;
+        }
+
+        $allTouched = array_values(array_unique([...$diff->changedFiles, ...$diff->untrackedFiles]));
+        sort($allTouched, SORT_STRING);
+        $entries = [];
+        foreach ($allTouched as $changedPath) {
+            if (in_array($changedPath, $contract->scope, true)) {
+                continue;
+            }
+            $fingerprint = $this->workingTreeFingerprint($changedPath);
+            if ($fingerprint === null) {
+                throw new RuntimeException('Unable to capture fast-path scope baseline for: ' . $changedPath);
+            }
+            $entries[$changedPath] = $fingerprint;
+        }
+        ksort($entries, SORT_STRING);
+
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create fast-path scope baseline directory: ' . $directory);
+        }
+        $payload = CanonicalJson::pretty([
+            'schema_version' => '1.0',
+            'task_id' => $contract->taskId,
+            'contract_revision' => $contract->revision,
+            'base_commit' => $contract->baseCommit,
+            'entries' => $entries,
+        ]);
+        $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+        if (file_put_contents($tmp, $payload) === false || !rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new RuntimeException('Unable to write fast-path scope baseline: ' . $path);
+        }
+    }
+
+    /** @return null|array<string, string> */
+    private function readFastPathScopeBaseline(TaskContract $contract): ?array
+    {
+        $path = $this->fastPathScopeBaselinePath($contract);
+        if (!is_file($path)) {
+            return null;
+        }
+        $contents = file_get_contents($path);
+        if (!is_string($contents)) {
+            return null;
+        }
+        try {
+            $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+        if (
+            !is_array($data)
+            || ($data['schema_version'] ?? null) !== '1.0'
+            || ($data['task_id'] ?? null) !== $contract->taskId
+            || ($data['contract_revision'] ?? null) !== $contract->revision
+            || ($data['base_commit'] ?? null) !== $contract->baseCommit
+            || !is_array($data['entries'] ?? null)
+        ) {
+            return null;
+        }
+
+        $entries = [];
+        foreach ($data['entries'] as $path => $fingerprint) {
+            if (!is_string($path) || !is_string($fingerprint)) {
+                return null;
+            }
+            $entries[$path] = $fingerprint;
+        }
+
+        return $entries;
+    }
+
+    private function fastPathScopeBaselinePath(TaskContract $contract): string
+    {
+        return (new ProjectLayout($this->rootPath))->runRoot($contract->taskId) . '/fast-path-scope-baseline.json';
+    }
+
+    private function workingTreeFingerprint(string $path): ?string
+    {
+        $absolute = PathResolver::join($this->rootPath, $path);
+        if (is_link($absolute)) {
+            return null;
+        }
+        if (is_file($absolute)) {
+            $hash = hash_file('sha256', $absolute);
+
+            return $hash === false ? null : 'file:' . $hash;
+        }
+
+        return file_exists($absolute) ? null : 'absent';
     }
 
     private function withPreparationDisagreement(RunManifest $manifest, Throwable $failure): RunManifest
