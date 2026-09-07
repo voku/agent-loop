@@ -62,7 +62,7 @@ final class MinimumReleasePinTest extends TestCase
         foreach (['prompt-primitives-dogfood.php', 'release-set-dogfood.php'] as $runner) {
             $source = (string) file_get_contents(dirname(__DIR__) . '/tools/' . $runner);
             self::assertDoesNotMatchRegularExpression(
-                "/'\\d+\\.\\d+\.999'/",
+                "/'\\d+\\.\\d+\\.999'/",
                 $source,
                 $runner . ' must derive its path-repository version from composer.json, not hard-code it.',
             );
