@@ -39,6 +39,24 @@ final class EditRequestTest extends TestCase
         yield 'whitespace' => ['Demo\\Service::run now'];
     }
 
+    public function testRejectsEmptyProgrammaticFocusTerm(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Edit focus terms must not be empty.');
+
+        new EditRequest(
+            taskId: 'TASK-1',
+            target: 'Demo\\Service::run',
+            instruction: 'Change it.',
+            projectRoot: '/tmp/project',
+            recallRoot: '/tmp/project',
+            mapIndex: '/tmp/project/map.json',
+            mapRoot: '/tmp/project',
+            outputDirectory: '/tmp/project/edit',
+            focusTerms: [''],
+        );
+    }
+
     public function testMechanicalRunnerRequiresBothReplacementLiterals(): void
     {
         $this->expectException(InvalidArgumentException::class);
