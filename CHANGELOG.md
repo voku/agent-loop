@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.20.1 - 2026-09-07
+
+### Added
+
+- Expose the governed lifecycle policy through workflow status so hosts can present the current authority boundary without reconstructing it.
+
+### Changed
+
+- Tighten cross-package ownership by routing Kanban context/provenance/bootstrap, Learning history/backlog reads, and Recall resources/review/inline compilation through their released owner APIs instead of Loop-private reconstruction.
+- Allow the released `voku/agent-learning ^0.18.0` and `voku/agent-map ^0.11.0` lines alongside the maintained `^0.16.1` / `^0.10.0` boundaries.
+- Require `voku/agent-recall-compiler ^0.17.1`, the first patch containing the optional-Learning provider fix, and pin exact released candidate evidence to that fixed floor.
+
+### Fixed
+
+- Keep implementation snapshots stable for explicitly scoped vendor paths and Learning history below a scoped parent, avoid validation-runner pipe deadlocks on large stderr output, and ignore unchanged pre-existing out-of-scope files during fast-path finish.
+- Derive path-repository candidate pins from supported caret unions such as `^0.16.1 || ^0.18.0`, preserving minimum-release dogfood instead of rejecting the current Composer contract.
+
+### Validation
+
+- PR #394 proved the exact released Recall `0.17.1` consumer on PHP 8.3, 8.4 and 8.5 and kept the installed release-set dogfood green.
+- PR #395 passed ordinary `composer ci` on PHP 8.3, 8.4 and 8.5 at exact head `5b57a469ce16cf3ebd077abe3b3ea522aecca85c`; installed release-set artifact `10032252678` passed on the same head.
+
 ## 0.20.0 - 2026-09-05
 
 ### Added
