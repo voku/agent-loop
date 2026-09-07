@@ -26,14 +26,31 @@ use RuntimeException;
  */
 final readonly class MinimumReleasePin
 {
-    /** The release a caret constraint declares as its minimum: `^0.12.0` -> `0.12.0`. */
+    /** The lowest release accepted by one or more exact caret alternatives. */
     public static function minimumRelease(string $constraint): string
     {
-        if (preg_match('/^\^(\d+\.\d+\.\d+)$/', trim($constraint), $matches) !== 1) {
+        $alternatives = preg_split('/\s*\|\|\s*/', trim($constraint));
+        if ($alternatives === false || $alternatives === []) {
             throw new RuntimeException('Expected a caret constraint such as ^0.12.0, got: ' . $constraint);
         }
 
-        return $matches[1];
+        $minimum = null;
+        foreach ($alternatives as $alternative) {
+            if (preg_match('/^\^(\d+\.\d+\.\d+)$/', $alternative, $matches) !== 1) {
+                throw new RuntimeException('Expected a caret constraint such as ^0.12.0, got: ' . $constraint);
+            }
+
+            $release = $matches[1];
+            if ($minimum === null || version_compare($release, $minimum, '<')) {
+                $minimum = $release;
+            }
+        }
+
+        if ($minimum === null) {
+            throw new RuntimeException('Expected a caret constraint such as ^0.12.0, got: ' . $constraint);
+        }
+
+        return $minimum;
     }
 
     /**

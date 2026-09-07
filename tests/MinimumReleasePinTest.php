@@ -23,12 +23,14 @@ final class MinimumReleasePinTest extends TestCase
         self::assertSame('0.11.999', MinimumReleasePin::pathRepositoryVersion('^0.11.6'));
         self::assertSame('0.12.999', MinimumReleasePin::pathRepositoryVersion('^0.12.0'));
         self::assertSame('1.4.999', MinimumReleasePin::pathRepositoryVersion('^1.4.2'));
+        self::assertSame('0.16.999', MinimumReleasePin::pathRepositoryVersion('^0.16.1 || ^0.18.0'));
     }
 
     public function testTheDeclaredMinimumIsReadFromTheConstraint(): void
     {
         self::assertSame('0.12.0', MinimumReleasePin::minimumRelease('^0.12.0'));
         self::assertSame('0.12.0', MinimumReleasePin::minimumRelease('  ^0.12.0 '));
+        self::assertSame('0.16.1', MinimumReleasePin::minimumRelease('^0.18.0 || ^0.16.1'));
     }
 
     public function testAConstraintShapeItCannotReasonAboutIsRefused(): void
@@ -46,9 +48,9 @@ final class MinimumReleasePinTest extends TestCase
         foreach (['voku/agent-recall-compiler', 'voku/agent-learning', 'voku/agent-session'] as $package) {
             $constraint = MinimumReleasePin::declaredConstraint($composer, $package);
             self::assertMatchesRegularExpression(
-                '/^\^\d+\.\d+\.\d+$/',
-                $constraint,
-                $package . ' must declare a caret constraint the candidate dogfoods can derive a mount version from.',
+                '/^\d+\.\d+\.999$/',
+                MinimumReleasePin::pathRepositoryVersion($constraint),
+                $package . ' must declare a supported caret constraint the candidate dogfoods can derive a mount version from.',
             );
         }
     }
@@ -60,7 +62,7 @@ final class MinimumReleasePinTest extends TestCase
         foreach (['prompt-primitives-dogfood.php', 'release-set-dogfood.php'] as $runner) {
             $source = (string) file_get_contents(dirname(__DIR__) . '/tools/' . $runner);
             self::assertDoesNotMatchRegularExpression(
-                "/'\\d+\\.\\d+\\.999'/",
+                "/'\\d+\\.\\d+\.999'/",
                 $source,
                 $runner . ' must derive its path-repository version from composer.json, not hard-code it.',
             );
