@@ -11,7 +11,7 @@ final readonly class EditRequest
     /**
      * @param list<string> $mapPaths
      * @param list<string> $mapExcludes
-     * @param list<string> $focusTerms
+     * @param list<non-empty-string> $focusTerms
      * @param list<string> $runnerArguments
      */
     public function __construct(
@@ -52,6 +52,12 @@ final readonly class EditRequest
         ] as $name => $value) {
             if (trim($value) === '') {
                 throw new InvalidArgumentException('Edit ' . $name . ' must not be empty.');
+            }
+        }
+
+        foreach ($focusTerms as $focusTerm) {
+            if (trim($focusTerm) === '') {
+                throw new InvalidArgumentException('Edit focus terms must not be empty.');
             }
         }
 

@@ -2,7 +2,7 @@
 
 Status: current clean-consumer compatibility evidence  
 Recorded: 2026-08-06  
-Updated: 2026-09-04 (`agent-loop` 0.19.0 release line)
+Updated: 2026-09-07 (`dev-main` raises the Recall floor to 0.16.0)
 
 ## Purpose
 
@@ -15,19 +15,21 @@ run; this page is its human projection.
 
 ## Current declared boundary
 
-`agent-loop` 0.19.0 declares:
+`agent-loop` `dev-main` (`0.20.x-dev`) declares:
 
 ```json
 {
-  "voku/agent-kanban": "^0.4.0",
-  "voku/agent-learning": "^0.16.0",
+  "voku/agent-kanban": "^0.4.4",
+  "voku/agent-learning": "^0.16.1",
   "voku/agent-map": "^0.10.0",
-  "voku/agent-recall-compiler": "^0.15.0",
+  "voku/agent-recall-compiler": "^0.16.0",
   "voku/agent-session": "^0.7.0"
 }
 ```
 
-The root development alias is `0.19.x-dev`.
+The last pinned released-set evidence below remains historical until the changed
+`dev-main` boundary completes its clean-consumer gates and is released. Do not
+rewrite old evidence merely because the development constraint moved.
 
 ## 0.19.0 exercised release set
 
@@ -137,7 +139,8 @@ solvers remain tragically uninterested in epistemology.
 The 2026-08-06 0.12-era baseline established the first clean-consumer proof. The
 0.17.0 release candidate then proved the external execution protocol and the
 expanded fixed-contract refactor/removal consumers. Those runs remain historical
-evidence, while the 0.17.1 run above is the current supported projection.
+evidence, while the pinned run above remains the last recorded released-set
+projection until a replacement run is accepted.
 
 ## Update rule
 
