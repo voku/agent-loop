@@ -33,6 +33,14 @@ final readonly class ExecutionContractDogfood
                 throw new ExecutionContractDogfoodFailure('Dogfood fixture is not at the expected validated starting state.');
             }
 
+            $this->runCommand([
+                PHP_BINARY,
+                'vendor/bin/agent-learning',
+                'lineage-rebuild',
+                '--root=.agent-loop/learning',
+                '--project-root=' . $worktree,
+            ], $worktree);
+
             // Discovery has to exist before the Contract can be approved and
             // `enter` freezes its governed Recall context. This harness
             // previously reached approval first and only let `edit --map-paths`

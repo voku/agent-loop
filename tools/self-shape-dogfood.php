@@ -139,6 +139,13 @@ $json($root . '/build/self-shape-input.json', [
 ]);
 
 $loop(['learn', 'validate', '--root', '.agent-loop/learning']);
+$runner->mustRun([
+    PHP_BINARY,
+    'vendor/bin/agent-learning',
+    'lineage-rebuild',
+    '--root=.agent-loop/learning',
+    '--project-root=' . $root,
+]);
 
 // `enter` compiles Recall. Build both map layers first or the governed briefing
 // cannot consume repository evidence that appears only after approval. Stable
