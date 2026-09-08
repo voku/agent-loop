@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Converge a stale verification receipt instead of routing back to read-only `workflow status`: when a governed Session can still record replacement evidence, verification is re-derived for the exact current implementation and the superseded receipt travels with it as `superseded_receipt`. (#399)
 - Project a Learning decision bound to a previous evidence boundary as `stale` so the canonical next action asks for a fresh disposition instead of disagreeing with close readiness. (#399)
+- Decode the fast-path scope baseline without a throwing JSON mode, so an unreadable file is answered by the shape check that already rejects it instead of a separate catch.
 
 ## 0.20.1 - 2026-09-07
 

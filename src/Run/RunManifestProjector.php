@@ -851,11 +851,17 @@ final readonly class RunManifestProjector
             return null;
         }
 
+        $boundary = null;
         try {
             $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
         } catch (Throwable) {
-            // Currentness cannot be established here; close readiness stays the
-            // authority that refuses, so nothing is silently accepted.
+            // The same unreadable implementation is already reported by the
+            // verification reference, which fails closed on it.
+        }
+        if ($boundary === null) {
+            // Currentness needs a boundary to measure the decision against.
+            // Without one the projection asserts nothing either way and close
+            // readiness stays the authority that refuses.
             return null;
         }
 

@@ -94,7 +94,6 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
 
     public function testFailedRecallArchiveCannotMakeSupersededBundleMutationReady(): void
     {
-        $this->requireEnforcedReadOnlyDirectories();
         $contracts = $this->createApprovedContract('Govern revision one.');
         $firstEnter = $this->enter();
         self::assertSame(0, $firstEnter['exit']);
@@ -117,6 +116,13 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         }
         $originalMode = $permissions & 0o777;
         self::assertTrue(chmod($recallRoot, 0o555));
+        clearstatcache(true, $recallRoot);
+        if (is_writable($recallRoot)) {
+            // A read-only directory cannot refuse a privileged process, so the
+            // archive failure this case needs can never be provoked here.
+            self::assertTrue(chmod($recallRoot, $originalMode));
+            self::markTestSkipped('This process can write to read-only directories.');
+        }
         set_error_handler(
             static fn (int $severity, string $message): bool => str_contains($message, 'rename('),
         );
@@ -386,23 +392,4 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         }
         rmdir($path);
     }
-    /**
-     * This case needs the filesystem to refuse a write, which a privileged
-     * process is never subject to. Asserting the refusal anyway would turn an
-     * environment fact into a product failure.
-     */
-    private function requireEnforcedReadOnlyDirectories(): void
-    {
-        $probe = sys_get_temp_dir() . '/agent-loop-readonly-probe-' . bin2hex(random_bytes(6));
-        if (!mkdir($probe, 0o555, true) && !is_dir($probe)) {
-            self::markTestSkipped('Unable to create the read-only probe directory.');
-        }
-        $enforced = @file_put_contents($probe . '/write.txt', 'x') === false;
-        @unlink($probe . '/write.txt');
-        rmdir($probe);
-        if (!$enforced) {
-            self::markTestSkipped('This process can write to read-only directories, so the archive failure cannot be provoked.');
-        }
-    }
-
 }
