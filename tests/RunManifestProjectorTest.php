@@ -37,6 +37,7 @@ final class RunManifestProjectorTest extends TestCase
 
     protected function tearDown(): void
     {
+        RunManifestProjector::clearCache();
         $this->rm($this->root);
     }
 
@@ -357,6 +358,17 @@ MD
         }
 
         return [$sessions, $session, $run->runId];
+    }
+
+    public function testArtifactHashIsMemoizedAcrossProjections(): void
+    {
+        mkdir($this->root . '/.agent-loop/map', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/map/php-symbols.json', '{"schema_version":"2.0","root":"/test","backend":"test","files":[],"relations":[]}');
+        $projector = new RunManifestProjector($this->root);
+        $manifest1 = $projector->project('TASK-1');
+        $manifest2 = $projector->project('TASK-2');
+
+        self::assertSame($manifest1->references['map']['source'], $manifest2->references['map']['source']);
     }
 
     private function rm(string $dir): void

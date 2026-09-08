@@ -38,9 +38,17 @@ use voku\AgentSession\SessionStore;
  * Read-only projection of one governed task across package-owned artifacts.
  * Session state may disappear after close; durable run state must not.
  */
-final readonly class RunManifestProjector
+final class RunManifestProjector
 {
-    public function __construct(private string $rootPath)
+    /** @var array<string, array{path: string, sha256: string}> */
+    private static array $artifactCache = [];
+
+    public static function clearCache(): void
+    {
+        self::$artifactCache = [];
+    }
+
+    public function __construct(private readonly string $rootPath)
     {
     }
 
@@ -825,12 +833,24 @@ final readonly class RunManifestProjector
         if (!is_file($path)) {
             throw new RuntimeException('Referenced artifact does not exist: ' . $path);
         }
+
+        clearstatcache(true, $path);
+        $mtime = filemtime($path) ?: 0;
+        $size = filesize($path) ?: 0;
+        $cacheKey = $path . '#' . $mtime . '#' . $size;
+        if (isset(self::$artifactCache[$cacheKey])) {
+            return self::$artifactCache[$cacheKey];
+        }
+
         $sha = hash_file('sha256', $path);
         if ($sha === false) {
             throw new RuntimeException('Unable to hash referenced artifact: ' . $path);
         }
 
-        return ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
+        $artifact = ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
+        self::$artifactCache[$cacheKey] = $artifact;
+
+        return $artifact;
     }
 
 }

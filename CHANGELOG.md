@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Skip companion relation decoding in `RunManifestProjector` and `WorkflowRunPreparer` when inspecting map readiness, and read only the `files` section in `WorkflowContextCommand`, keeping context generation resilient and fast when relations are unavailable or large.
 
+### Performance
+
+- Memoize artifact hashing by path, mtime, and filesize in `RunManifestProjector::artifact()`, preventing redundant repeated SHA256 calculations of large artifacts (such as SQLite databases and symbol maps) during batch task projections.
+
 ## 0.20.1 - 2026-09-07
 
 ### Added
