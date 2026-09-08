@@ -12,12 +12,14 @@ use voku\AgentKanban\Exception\ValidationException;
 use voku\AgentKanban\Repository\BoardConfigurationMode;
 use voku\AgentKanban\Repository\BoardContextResolution;
 use voku\AgentKanban\Repository\BoardContextResolver;
+use voku\AgentLearning\RunLearningDecision;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
+use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\ValidationDiagnosticStore;
@@ -94,7 +96,7 @@ final readonly class RunManifestProjector
             'edit' => $this->editReference($taskId),
             'verification' => $this->verificationReference($taskId, $run, $contract, $session, $disagreements),
             'review' => $this->reviewReference($taskId, $disagreements),
-            'learning' => $this->learningReference($run, $disagreements),
+            'learning' => $this->learningReference($run, $contract, $session, $disagreements),
             'outcome_lineage' => [
                 'owner' => 'agent-learning',
                 'state' => $run === null ? 'run_missing' : 'run_bound',
@@ -527,6 +529,7 @@ final readonly class RunManifestProjector
         }
 
         $receipt = $store->find($taskId);
+        $superseded = null;
         if ($receipt !== null) {
             if ($run !== null && $receipt->runId !== $run->runId) {
                 $disagreements[] = [
@@ -542,69 +545,58 @@ final readonly class RunManifestProjector
                 && $run->contractRevision === $contract->revision
             ) {
                 if ($receipt->implementationSnapshot === null) {
-                    return [
-                        'owner' => 'agent-loop',
-                        'state' => 'stale',
-                        'observation_mode' => 'checked',
-                        'reason' => 'Verification receipt predates implementation-snapshot binding and cannot prove currentness.',
-                        'run_id' => $receipt->runId,
-                        'contract_revision' => $receipt->contractRevision,
-                        'implementation_snapshot' => null,
-                        'source_session_id' => $receipt->sourceSessionId,
-                        'source' => $this->artifact($receipt->path),
-                    ];
-                }
+                    $superseded = $this->supersededReceipt(
+                        $receipt,
+                        'Verification receipt predates implementation-snapshot binding and cannot prove currentness.',
+                        null,
+                    );
+                } else {
+                    try {
+                        $currentImplementation = ImplementationSnapshot::capture($this->rootPath, $contract);
+                    } catch (Throwable $exception) {
+                        $disagreements[] = [
+                            'code' => 'verification.current_snapshot_unavailable',
+                            'owner' => 'agent-loop',
+                            'message' => $exception->getMessage(),
+                        ];
 
-                try {
-                    $currentImplementation = ImplementationSnapshot::capture($this->rootPath, $contract);
-                } catch (Throwable $exception) {
-                    $disagreements[] = [
-                        'code' => 'verification.current_snapshot_unavailable',
-                        'owner' => 'agent-loop',
-                        'message' => $exception->getMessage(),
-                    ];
+                        return [
+                            'owner' => 'agent-loop',
+                            'state' => 'invalid',
+                            'observation_mode' => 'checked',
+                            'reason' => 'Current implementation snapshot could not be established.',
+                            'source' => $this->artifact($receipt->path),
+                        ];
+                    }
 
-                    return [
-                        'owner' => 'agent-loop',
-                        'state' => 'invalid',
-                        'observation_mode' => 'checked',
-                        'reason' => 'Current implementation snapshot could not be established.',
-                        'source' => $this->artifact($receipt->path),
-                    ];
-                }
-
-                if (!hash_equals($receipt->implementationSnapshot, $currentImplementation->digest)) {
-                    return [
-                        'owner' => 'agent-loop',
-                        'state' => 'stale',
-                        'observation_mode' => 'checked',
-                        'reason' => 'Verification receipt describes a different implementation snapshot.',
-                        'run_id' => $receipt->runId,
-                        'contract_revision' => $receipt->contractRevision,
-                        'implementation_snapshot' => $receipt->implementationSnapshot,
-                        'current_implementation_snapshot' => $currentImplementation->digest,
-                        'source_session_id' => $receipt->sourceSessionId,
-                        'source' => $this->artifact($receipt->path),
-                    ];
+                    if (!hash_equals($receipt->implementationSnapshot, $currentImplementation->digest)) {
+                        $superseded = $this->supersededReceipt(
+                            $receipt,
+                            'Verification receipt describes a different implementation snapshot.',
+                            $currentImplementation->digest,
+                        );
+                    }
                 }
             }
 
-            $state = match ($receipt->verdict) {
-                'satisfied' => 'passed',
-                'accepted_risk' => 'accepted_risk',
-                default => 'failed',
-            };
+            if ($superseded === null) {
+                $state = match ($receipt->verdict) {
+                    'satisfied' => 'passed',
+                    'accepted_risk' => 'accepted_risk',
+                    default => 'failed',
+                };
 
-            return [
-                'owner' => 'agent-loop',
-                'state' => $state,
-                'observation_mode' => 'checked',
-                'run_id' => $receipt->runId,
-                'contract_revision' => $receipt->contractRevision,
-                'implementation_snapshot' => $receipt->implementationSnapshot,
-                'source_session_id' => $receipt->sourceSessionId,
-                'source' => $this->artifact($receipt->path),
-            ];
+                return [
+                    'owner' => 'agent-loop',
+                    'state' => $state,
+                    'observation_mode' => 'checked',
+                    'run_id' => $receipt->runId,
+                    'contract_revision' => $receipt->contractRevision,
+                    'implementation_snapshot' => $receipt->implementationSnapshot,
+                    'source_session_id' => $receipt->sourceSessionId,
+                    'source' => $this->artifact($receipt->path),
+                ];
+            }
         }
 
         if (
@@ -627,13 +619,13 @@ final readonly class RunManifestProjector
             }
 
             if ($readiness->isReady()) {
-                return [
+                return $this->withSupersededReceipt([
                     'owner' => 'agent-loop',
                     'state' => 'ready',
                     'observation_mode' => 'checked',
                     'implementation_snapshot' => $readiness->boundary?->implementation->digest,
                     'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
-                ];
+                ], $superseded);
             }
 
             $failure = $readiness->firstFailure();
@@ -643,7 +635,7 @@ final readonly class RunManifestProjector
                 $repairAction = 'agent-loop repair ' . $taskId;
             }
 
-            return [
+            return $this->withSupersededReceipt([
                 'owner' => 'agent-loop',
                 'state' => 'blocked',
                 'observation_mode' => 'checked',
@@ -653,6 +645,26 @@ final readonly class RunManifestProjector
                 'repair_action' => $repairAction,
                 'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
+            ], $superseded);
+        }
+
+        // Without an active governed Session there is nothing that could record
+        // a replacement receipt here, so the superseded evidence stays the
+        // projected answer. Lifecycle policy routes such a task back through
+        // `enter`, which is where a new Session — and therefore a new
+        // verification receipt — can legally come from.
+        if ($superseded !== null) {
+            return [
+                'owner' => 'agent-loop',
+                'state' => 'stale',
+                'observation_mode' => 'checked',
+                'reason' => $superseded['reason'],
+                'run_id' => $superseded['run_id'],
+                'contract_revision' => $superseded['contract_revision'],
+                'implementation_snapshot' => $superseded['implementation_snapshot'],
+                'current_implementation_snapshot' => $superseded['current_implementation_snapshot'],
+                'source_session_id' => $superseded['source_session_id'],
+                'source' => $superseded['source'],
             ];
         }
 
@@ -662,6 +674,52 @@ final readonly class RunManifestProjector
             'observation_mode' => 'checked',
             'path' => PathResolver::relativeTo($this->rootPath, $store->path($taskId)),
         ];
+    }
+
+    /**
+     * A receipt that cannot prove currentness for the exact current
+     * implementation is history, not a lifecycle answer.
+     *
+     * @return array{
+     *   reason: string,
+     *   run_id: string,
+     *   contract_revision: int,
+     *   implementation_snapshot: string|null,
+     *   current_implementation_snapshot: string|null,
+     *   source_session_id: string,
+     *   source: array{path: string, sha256: string}
+     * }
+     */
+    private function supersededReceipt(
+        RunVerificationReceipt $receipt,
+        string $reason,
+        ?string $currentImplementationSnapshot,
+    ): array {
+        return [
+            'reason' => $reason,
+            'run_id' => $receipt->runId,
+            'contract_revision' => $receipt->contractRevision,
+            'implementation_snapshot' => $receipt->implementationSnapshot,
+            'current_implementation_snapshot' => $currentImplementationSnapshot,
+            'source_session_id' => $receipt->sourceSessionId,
+            'source' => $this->artifact($receipt->path),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $reference
+     * @param array<string, mixed>|null $superseded
+     * @return array<string, mixed>
+     */
+    private function withSupersededReceipt(array $reference, ?array $superseded): array
+    {
+        if ($superseded === null) {
+            return $reference;
+        }
+
+        $reference['superseded_receipt'] = $superseded;
+
+        return $reference;
     }
 
     private function closeReadinessAction(string $taskId, WorkflowCloseReadiness $readiness): string
@@ -728,8 +786,12 @@ final readonly class RunManifestProjector
      * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
-    private function learningReference(?GovernedRun $run, array &$disagreements): array
-    {
+    private function learningReference(
+        ?GovernedRun $run,
+        ?TaskContract $contract,
+        ?Session $session,
+        array &$disagreements,
+    ): array {
         if ($run === null) {
             return ['owner' => 'agent-learning', 'state' => 'unavailable', 'observation_mode' => 'checked'];
         }
@@ -749,7 +811,7 @@ final readonly class RunManifestProjector
             return ['owner' => 'agent-learning', 'state' => 'missing', 'observation_mode' => 'checked', 'run_id' => $run->runId];
         }
 
-        return [
+        $reference = [
             'owner' => 'agent-learning',
             'state' => 'decided',
             'decision' => $decision->decision->value,
@@ -759,6 +821,45 @@ final readonly class RunManifestProjector
             'decided_at' => $decision->decidedAt,
             'source' => $this->artifact($decision->path),
         ];
+
+        // The decision is authority for the evidence boundary it was taken on.
+        // Projecting it as current after the implementation changed is what
+        // made close readiness and the canonical next action disagree.
+        $bindingFailure = $this->learningBindingFailure($run, $root, $contract, $session, $decision);
+        if ($bindingFailure !== null) {
+            $reference['state'] = 'stale';
+            $reference['reason'] = $bindingFailure;
+        }
+
+        return $reference;
+    }
+
+    private function learningBindingFailure(
+        GovernedRun $run,
+        string $learningRoot,
+        ?TaskContract $contract,
+        ?Session $session,
+        RunLearningDecision $decision,
+    ): ?string {
+        if ($contract === null || $session === null || $session->ephemeral) {
+            return null;
+        }
+        if ($decision->contractRevision === null && $decision->implementationSnapshot === null) {
+            // A decision that never recorded its own evidence boundary cannot
+            // be measured against one. Close readiness stays the authority that
+            // refuses it; the projection does not invent currentness either way.
+            return null;
+        }
+
+        try {
+            $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
+        } catch (Throwable) {
+            // Currentness cannot be established here; close readiness stays the
+            // authority that refuses, so nothing is silently accepted.
+            return null;
+        }
+
+        return WorkflowCloseReadinessInspector::learningBindingFailure($run, $learningRoot, $boundary);
     }
 
     /** @return array<string, mixed> */
