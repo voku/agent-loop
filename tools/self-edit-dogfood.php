@@ -32,6 +32,14 @@ final readonly class SelfEditDogfood
 
             $this->runCommand([
                 PHP_BINARY,
+                'vendor/bin/agent-learning',
+                'lineage-rebuild',
+                '--root=.agent-loop/learning',
+                '--project-root=' . $worktree,
+            ], $worktree);
+
+            $this->runCommand([
+                PHP_BINARY,
                 'bin/agent-loop',
                 'edit',
                 self::TARGET,
