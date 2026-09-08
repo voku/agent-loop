@@ -10,6 +10,7 @@ use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowContextCommandTest extends TestCase
@@ -138,6 +139,19 @@ final class WorkflowContextCommandTest extends TestCase
         $rendered = implode("\n", $context['lines']);
         self::assertStringContainsString('[SKIP] agent-map: index missing', $rendered);
         self::assertSame(1, substr_count($rendered, '[SKIP] agent-map: index missing'));
+    }
+
+    public function testContextReadsFileSectionWhenRelationCompanionIsUnavailable(): void
+    {
+        $index = $this->root . '/.agent-loop/map/php-symbols.json';
+        $relations = MapArtifactPaths::relationsFileFor($index);
+        self::assertFileExists($relations);
+        unlink($relations);
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+
+        self::assertStringContainsString('Demo\\Foo', implode("\n", $context['lines']));
+        self::assertNotContains('agent-map: index invalid (.agent-loop/map/php-symbols.json)', $context['skipped']);
     }
 
     public function testContextUsesNavigationFactsFromRecallBundleBeforeLegacyMap(): void

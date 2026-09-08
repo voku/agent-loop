@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Skip companion relation decoding in `RunManifestProjector` and `WorkflowRunPreparer` when inspecting map readiness, and read only the `files` section in `WorkflowContextCommand`, keeping context generation resilient and fast when relations are unavailable or large.
+
 ## 0.20.1 - 2026-09-07
 
 ### Added

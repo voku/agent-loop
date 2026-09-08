@@ -334,6 +334,7 @@ final readonly class WorkflowRunPreparer
 
         return (new MapReadinessInspector())->inspect(
             MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
+            false,
         );
     }
 

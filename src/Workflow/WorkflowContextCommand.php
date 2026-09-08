@@ -441,7 +441,7 @@ final readonly class WorkflowContextCommand
             return;
         }
         try {
-            $index = (new IndexReader())->read($indexPath);
+            $index = (new IndexReader())->readSections($indexPath, ['files']);
         } catch (Throwable) {
             $budget->skip('agent-map: index invalid (' . $relativeIndex . ')');
 

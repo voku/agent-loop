@@ -81,6 +81,7 @@ final readonly class RunManifestProjector
         $layout = new ProjectLayout($this->rootPath);
         $mapReadiness = (new MapReadinessInspector())->inspect(
             MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
+            false,
         );
         $references = [
             'board' => $this->boardReference($taskId, $contract, $run, $disagreements),
