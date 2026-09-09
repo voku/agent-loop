@@ -248,17 +248,23 @@ final readonly class WorkflowRunPreparer
         if ($existingPhpScope === []) {
             return null;
         }
+        // Every refusal below names the index agent-map judged. A repository can
+        // hold more than one - a repository-local `.agent-map/` beside the
+        // governed `.agent-loop/map/` - and a message that reports only which
+        // files are stale leaves a host refreshing the other one and seeing no
+        // change. The path is the owner's own answer, reported unchanged.
+        $index = ' (index: ' . $readiness->mapPath . ')';
         if ($readiness->mapState === 'missing') {
             return new DiscoveryRepair(
                 'Existing PHP scope requires agent-map discovery before governed preparation: '
-                . implode(', ', $existingPhpScope) . '.',
+                . implode(', ', $existingPhpScope) . $index . '.',
                 'agent-loop map build --paths=src,tests',
             );
         }
         if ($readiness->mapState === 'invalid') {
             return new DiscoveryRepair(
                 'Existing PHP scope requires a readable agent-map snapshot before governed preparation: '
-                . ($readiness->mapFailure ?? 'agent-map reported an invalid snapshot') . '.',
+                . ($readiness->mapFailure ?? 'agent-map reported an invalid snapshot') . $index . '.',
                 'agent-loop map build --paths=src,tests',
             );
         }
@@ -269,7 +275,7 @@ final readonly class WorkflowRunPreparer
                 'Existing PHP scope is not covered by a fresh agent-map snapshot before governed preparation (stale map entries: '
                 . implode(', ', $visible)
                 . (count($stale) > count($visible) ? sprintf(' (+%d more)', count($stale) - count($visible)) : '')
-                . ').',
+                . ')' . $index . '.',
                 'agent-loop map refresh',
             );
         }
@@ -277,7 +283,7 @@ final readonly class WorkflowRunPreparer
         $map = $readiness->currentMap();
         if ($map === null) {
             return new DiscoveryRepair(
-                'agent-map reported a ready snapshot without a readable current map.',
+                'agent-map reported a ready snapshot without a readable current map' . $index . '.',
                 'agent-loop map build --paths=src,tests',
             );
         }
@@ -291,7 +297,7 @@ final readonly class WorkflowRunPreparer
         if ($missingScope !== []) {
             return new DiscoveryRepair(
                 'Existing PHP scope is not covered by a fresh agent-map snapshot before governed preparation (scope not indexed: '
-                . implode(', ', $missingScope) . ').',
+                . implode(', ', $missingScope) . ')' . $index . '.',
                 'agent-loop map refresh',
             );
         }
