@@ -1,0 +1,86 @@
+name: Released Map 0.11.4 php-parser floor dogfood
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  class-move-prefer-lowest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Pin released Map 0.11.4 for staged Loop candidate
+        run: >-
+          composer require
+          --no-update
+          --no-interaction
+          --no-plugins
+          --no-scripts
+          voku/agent-map:0.11.4
+
+      - name: Adapt existing installed-consumer harness for released floor proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          source = Path('tools/installed-map09-refactor-dogfood.php').read_text()
+          source = source.replace("'voku/agent-map', '0.10.0', true", "'voku/agent-map', '0.11.4', true")
+          source = source.replace(
+              "['composer', 'update', '--no-interaction', '--prefer-dist', '--no-progress', '--no-ansi']",
+              "['composer', 'update', '--no-interaction', '--prefer-dist', '--prefer-lowest', '--no-progress', '--no-ansi']",
+              1,
+          )
+          Path('/tmp/installed-map0114-refactor-dogfood.php').write_text(source)
+          PY
+          php -l /tmp/installed-map0114-refactor-dogfood.php
+
+      - name: Run real governed class-move consumer with prefer-lowest
+        run: >-
+          php /tmp/installed-map0114-refactor-dogfood.php
+          --scenario=class-move
+          --workspace=${{ runner.temp }}/agent-loop-map0114-class-move
+          --report=${{ github.workspace }}/build/installed-map0114-class-move.json
+
+      - name: Assert released Map and parser floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          report=build/installed-map0114-class-move.json
+          jq -e '
+            (.result == "passed")
+            and (.scenario == "class-move")
+            and (.release_set["voku/agent-loop"].version == "dev-main")
+            and (.release_set["voku/agent-loop"].source_type == "path")
+            and (.release_set["voku/agent-map"].version == "0.11.4")
+            and (.release_set["voku/agent-map"].source_type != "path")
+            and (.release_set["nikic/php-parser"].version | test("^v?5\\."))
+            and (.plan.type == "class_move_plan")
+            and (.verification.status == "passed")
+            and (.final_state == "complete")
+          ' "$report" >/dev/null
+          jq '{result, scenario, map: .release_set["voku/agent-map"], php_parser: .release_set["nikic/php-parser"], verification: .verification.status, final_state}' "$report"
+
+      - name: Upload released-consumer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: released-map0114-class-move-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/installed-map0114-class-move.json
