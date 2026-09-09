@@ -25,7 +25,7 @@ final class DiscoveryRefusalNamesTheIndexTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-discovery-' . bin2hex(random_bytes(6));
-        if (!mkdir($this->root . '/src', 0o775, true)) {
+        if (!mkdir($this->root . '/src', 0o700, true)) {
             throw new RuntimeException('Unable to create fixture root.');
         }
         file_put_contents(
@@ -41,21 +41,14 @@ final class DiscoveryRefusalNamesTheIndexTest extends TestCase
 
     public function testAMissingIndexRefusalNamesWhereItLooked(): void
     {
-        $message = $this->refusalFor($this->contract());
-
-        self::assertStringContainsString('src/Greeter.php', $message);
-        self::assertStringContainsString($this->governedIndex(), $message);
+        $this->assertRefusal($this->contract(), ['src/Greeter.php', $this->governedIndex()]);
     }
 
     public function testAStaleIndexRefusalNamesTheIndexItJudgedNotOnlyTheStaleFiles(): void
     {
         $this->writeGovernedIndex(hash('sha256', 'a hash that no longer matches the file'));
 
-        $message = $this->refusalFor($this->contract());
-
-        self::assertStringContainsString('stale map entries', $message);
-        self::assertStringContainsString('src/Greeter.php', $message);
-        self::assertStringContainsString($this->governedIndex(), $message);
+        $this->assertRefusal($this->contract(), ['stale map entries', 'src/Greeter.php', $this->governedIndex()]);
     }
 
     public function testARepositoryLocalIndexIsNotTheOneNamed(): void
@@ -73,28 +66,33 @@ final class DiscoveryRefusalNamesTheIndexTest extends TestCase
         );
         $this->writeGovernedIndex(hash('sha256', 'stale'));
 
-        $message = $this->refusalFor($this->contract());
-
-        self::assertStringContainsString($this->governedIndex(), $message);
-        self::assertStringNotContainsString('/.agent-map/', $message);
+        $this->assertRefusal($this->contract(), [$this->governedIndex()], ['/.agent-map/']);
     }
 
     public function testScopeThatIsNotIndexedNamesTheIndexThatDoesNotCarryIt(): void
     {
         $this->writeGovernedIndex(hash_file('sha256', $this->root . '/src/Greeter.php') ?: '', indexTheFile: false);
 
-        $message = $this->refusalFor($this->contract());
-
-        self::assertStringContainsString('scope not indexed', $message);
-        self::assertStringContainsString($this->governedIndex(), $message);
+        $this->assertRefusal($this->contract(), ['scope not indexed', $this->governedIndex()]);
     }
 
-    private function refusalFor(TaskContract $contract): string
+    /**
+     * @param list<string> $contains
+     * @param list<string> $absent
+     */
+    private function assertRefusal(TaskContract $contract, array $contains, array $absent = []): void
     {
         try {
             (new WorkflowRunPreparer($this->root))->discoveryReadiness($contract);
         } catch (RuntimeException $exception) {
-            return $exception->getMessage();
+            foreach ($contains as $needle) {
+                self::assertStringContainsString($needle, $exception->getMessage());
+            }
+            foreach ($absent as $needle) {
+                self::assertStringNotContainsString($needle, $exception->getMessage());
+            }
+
+            return;
         }
 
         self::fail('discovery readiness did not refuse.');
@@ -160,6 +158,12 @@ final class DiscoveryRefusalNamesTheIndexTest extends TestCase
                 continue;
             }
             $full = $path . '/' . $entry;
+            // is_dir() follows a directory symlink, so a link inside the
+            // fixture would send this recursion outside it. Unlink the link.
+            if (is_link($full)) {
+                unlink($full);
+                continue;
+            }
             is_dir($full) ? $this->removeDirectory($full) : unlink($full);
         }
         rmdir($path);
