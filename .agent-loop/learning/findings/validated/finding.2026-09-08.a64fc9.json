@@ -1,0 +1,33 @@
+{
+    "id": "finding.2026-09-08.a64fc9",
+    "task_id": "LOOP-399",
+    "session": "2026-09-08-loop-399-r3-0e204344",
+    "created_at": "2026-09-08T20:40:31+00:00",
+    "created_by": "lars",
+    "scope": [
+        "src/Run/RunManifestProjector.php",
+        "src/Workflow/WorkflowCloseReadinessInspector.php",
+        "tests/RunVerificationReceiptCurrentnessTest.php",
+        "tests/StaleVerificationConvergenceTest.php",
+        "tests/WorkflowSupersessionRecoveryTest.php",
+        "CHANGELOG.md"
+    ],
+    "observation": "workflow status projected a stale verification receipt and a Learning decision bound to a previous implementation as current, then recommended the read-only 'workflow status' command, which cannot change the fact it just reported.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Observed passed with exit code 0 for implementation sha256:93008735ddb6e94685d6411fc658c55c7622f6c6eec6c9b7658a6a6a475081d1."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:138c90354ab6b85527e6990afaba998a4e5b2f53ef091bf01ea0ab433b2a7c9b."
+        }
+    ],
+    "hypothesis": "Lifecycle policy fell through to a read-only inspection command because the reference states carried no answer that any command could act on; the evidence-currentness rules lived only in close readiness.",
+    "validated_conclusion": "Project each owner reference against the exact current implementation and re-derive readiness when a Session can still record replacement evidence, so every projected state maps to an action that can change it; keep superseded evidence visible instead of collapsing it into a passing state.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

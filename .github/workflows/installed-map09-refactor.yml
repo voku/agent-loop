@@ -99,6 +99,15 @@ jobs:
       - name: Lint clean-consumer harness
         run: php -l tools/installed-map09-refactor-dogfood.php
 
+      - name: Pin historical Map 0.10 boundary
+        run: >-
+          composer require
+          --no-update
+          --no-interaction
+          --no-plugins
+          --no-scripts
+          voku/agent-map:0.10.0
+
       - name: Run governed released Map 0.9 consumer
         run: >-
           php tools/installed-map09-refactor-dogfood.php

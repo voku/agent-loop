@@ -63,7 +63,7 @@ final readonly class WorkflowCloseReadinessInspector
         foreach ($boundary->integrityFailures() as $detail) {
             $nonWaivable[] = ['gate' => 'integrity', 'detail' => $detail];
         }
-        $learningBindingFailure = $this->learningBindingFailure($run, $learningRoot, $boundary);
+        $learningBindingFailure = self::learningBindingFailure($run, $learningRoot, $boundary);
         if ($learningBindingFailure !== null) {
             $nonWaivable[] = ['gate' => 'integrity', 'detail' => $learningBindingFailure];
         }
@@ -207,7 +207,15 @@ final readonly class WorkflowCloseReadinessInspector
         ];
     }
 
-    private function learningBindingFailure(
+    /**
+     * A Learning decision is authority for the exact evidence it was taken on.
+     *
+     * The Run manifest projects the same currentness so a decision bound to a
+     * previous implementation is never projected as a current one; keeping a
+     * single implementation keeps close readiness and the projection from
+     * drifting apart.
+     */
+    public static function learningBindingFailure(
         GovernedRun $run,
         string $learningRoot,
         PostExecutionEvidenceBoundary $boundary,

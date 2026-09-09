@@ -6,7 +6,6 @@ namespace voku\AgentLoop\Workflow;
 
 use Closure;
 use InvalidArgumentException;
-use JsonException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -556,11 +555,10 @@ final readonly class HostFrontDoorCommand
         if (!is_string($contents)) {
             return null;
         }
-        try {
-            $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return null;
-        }
+        // Unreadable content is simply not a usable baseline, and the shape
+        // check below already rejects anything that is not one, so a decoding
+        // failure needs no separate answer.
+        $data = json_decode($contents, true);
         if (
             !is_array($data)
             || ($data['schema_version'] ?? null) !== '1.0'
