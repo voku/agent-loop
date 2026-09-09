@@ -47,13 +47,13 @@ jobs:
               "['composer', 'update', '--no-interaction', '--prefer-dist', '--prefer-lowest', '--no-progress', '--no-ansi']",
               1,
           )
-          Path('/tmp/installed-map0114-refactor-dogfood.php').write_text(source)
+          Path('tools/.installed-map0114-refactor-dogfood.php').write_text(source)
           PY
-          php -l /tmp/installed-map0114-refactor-dogfood.php
+          php -l tools/.installed-map0114-refactor-dogfood.php
 
       - name: Run real governed class-move consumer with prefer-lowest
         run: >-
-          php /tmp/installed-map0114-refactor-dogfood.php
+          php tools/.installed-map0114-refactor-dogfood.php
           --scenario=class-move
           --workspace=${{ runner.temp }}/agent-loop-map0114-class-move
           --report=${{ github.workspace }}/build/installed-map0114-class-move.json
