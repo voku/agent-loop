@@ -190,6 +190,53 @@ final class TaskContractStore
         return (new ProjectLayout($this->rootPath))->contractPath($taskId);
     }
 
+    /**
+     * Every superseded revision of one task's Contract, oldest first.
+     *
+     * `revise()` has always archived the revision it replaces, in full and
+     * including who approved it, but nothing could read those back. The
+     * decision that needs them most is the next approval: a human asked to
+     * approve revision 2 has already approved revision 1, and without the
+     * earlier revision neither this package nor a consumer can say what
+     * changed. The alternative was for consumers to read the archive
+     * directory themselves, which is exactly the private-layout coupling the
+     * store exists to prevent.
+     *
+     * An archive that cannot be read is reported as unreadable rather than
+     * skipped: a partial history would silently understate what changed.
+     *
+     * @return list<TaskContract> archived revisions, ascending by revision
+     */
+    public function supersededRevisions(string $taskId): array
+    {
+        $directory = dirname($this->path($taskId)) . '/history';
+        if (!is_dir($directory)) {
+            return [];
+        }
+
+        $paths = glob($directory . '/contract.*.json');
+        if ($paths === false) {
+            throw new RuntimeException('Unable to enumerate archived Contract revisions: ' . $directory);
+        }
+        sort($paths, SORT_STRING);
+
+        $revisions = [];
+        foreach ($paths as $path) {
+            $contents = file_get_contents($path);
+            if (!is_string($contents)) {
+                throw new RuntimeException('Unable to read archived Contract artifact: ' . $path);
+            }
+            $revisions[] = $this->decode($contents, $path, $taskId);
+        }
+
+        usort(
+            $revisions,
+            static fn (TaskContract $left, TaskContract $right): int => $left->revision <=> $right->revision,
+        );
+
+        return $revisions;
+    }
+
     private function archive(TaskContract $contract): void
     {
         $directory = dirname($contract->path) . '/history';
