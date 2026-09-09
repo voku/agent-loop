@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- `GovernedRunStore::taskIds()` reports the task ids that have a governed Run, in a deterministic order. `find()` has always answered about a task the caller can already name, which covers every CLI invocation but leaves a consumer showing a *project* with no list to start from — the board is the only enumerable set of work available to it, and a task may carry a governed Run without a card, a state `enter` reports without complaint. Those Runs were then not merely unrendered but absent from the question. In `voku/agent-ui` today that is 6 of 8 Runs. The history root and any directory without a `run.json` are excluded, and the ordering is the owner's so two consumers cannot disagree about what all governed work is. Reported as #409.
+
 ### Changed
 
 - Every `enter` discovery refusal now names the agent-map index it judged. A repository can hold more than one - a repository-local `.agent-map/` beside the governed `.agent-loop/map/`, read by different owners - and a refusal that listed only which files were stale left a host refreshing the other index, seeing no change, and re-running the same prescribed command. `MapReadiness::$mapPath` already carried the answer; it is now reported unchanged in the missing, invalid, stale, unreadable-current-map and scope-not-indexed refusals. Reported as #404.
