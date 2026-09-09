@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- `TaskContractStore::supersededRevisions()` returns every archived revision of one task's Contract, oldest first. `revise()` has always written the revision it replaces to `history/`, in full and including who approved it, but nothing could read it back. The decision that needs it most is the next approval: a human asked to approve revision 2 has already approved revision 1, and without the earlier revision neither this package nor a consumer can say what changed. The alternative left to consumers was reading the archive directory themselves, which is the private-layout coupling the store exists to prevent. An archived revision that cannot be decoded fails closed rather than being skipped, because a silently shortened history understates exactly what the projection is for.
+
 ### Changed
 
 - Ask `agent-recall-compiler` where its review artifacts live instead of spelling out the `reviews/` directory when placing the disposable human review workbench, and take the edit-verification map-index default from `agent-map` through `ProjectLayout::mapIndex()` instead of naming `php-symbols.json`. Loop still configures the mount roots; the filenames below them stay owner-owned. (#285)
