@@ -1,0 +1,36 @@
+{
+    "id": "finding.2026-09-09.a958dd",
+    "task_id": "LOOP-285",
+    "session": "2026-09-09-loop-285-r1-d83ed457",
+    "created_at": "2026-09-09T01:52:26+00:00",
+    "created_by": "lars",
+    "scope": [
+        "src/Workflow/WorkflowHumanReviewCommand.php",
+        "src/Edit/EditCommand.php",
+        "src/Edit/Refactor/RefactorEditCommand.php",
+        "src/Edit/Refactor/RefactorVerifyCommand.php",
+        "src/Edit/Refactor/MethodRemovalVerifyCommand.php",
+        "src/Edit/Refactor/PropertyRemovalVerifyCommand.php",
+        "src/Edit/Refactor/ClassConstantRemovalVerifyCommand.php",
+        "tests/WorkflowReviewReportPathOwnerBoundaryTest.php",
+        "CHANGELOG.md"
+    ],
+    "observation": "The #285 census listed one remaining private-path reconstruction, but the same grep across production src/ also found the human review workbench composing Recall's reviews/ directory and four edit-verification commands naming agent-map's php-symbols.json as a CLI default — while EditRequestParser, in the same package, already took that default from ProjectLayout::mapIndex().",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Observed passed with exit code 0 for implementation sha256:b3e2be8c644f4dbd945b4970e039fdd04a93891562152b63d50f63634a7363ea."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:8cadfb14d4c7bee0e93a7d0d24481e6f14046310fd289455b6af98a8b4b6aa17."
+        }
+    ],
+    "hypothesis": "A residual census that enumerates known violations misses the ones nobody wrote down; and a default duplicated in five places drifts because four of them are CLI option fallbacks that no test exercises, so the one correct call site does not pull the others along.",
+    "validated_conclusion": "Census by pattern over production source rather than by the issue's own list — owner artifact filenames and owner directory segments are the pattern — and when one call site already routes through an owner accessor, treat every sibling literal as the same defect rather than a separate judgement. Pin the result with a source-boundary test naming each call site, so the literal cannot come back through a copied option default.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

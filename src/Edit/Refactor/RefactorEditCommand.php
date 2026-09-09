@@ -336,7 +336,7 @@ execution remain rejected.
 
 Options:
   --task ID            Required governed task ID.
-  --map-index PATH     Current agent-map JSON/TOON. Default: .agent-loop/map/php-symbols.json
+  --map-index PATH     Current agent-map JSON/TOON. Default: the agent-map project index.
   --map-root PATH      Runtime source root for hash/currentness checks. Default: project root.
   --output-dir PATH    Evidence bundle. Default: .agent-loop/edit/<task-id>
   --dry-run            Validate the complete plan and current source without mutation.

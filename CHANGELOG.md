@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Ask `agent-recall-compiler` where its review artifacts live instead of spelling out the `reviews/` directory when placing the disposable human review workbench, and take the edit-verification map-index default from `agent-map` through `ProjectLayout::mapIndex()` instead of naming `php-symbols.json`. Loop still configures the mount roots; the filenames below them stay owner-owned. (#285)
+
 ### Fixed
 
 - Converge a stale verification receipt instead of routing back to read-only `workflow status`: when a governed Session can still record replacement evidence, verification is re-derived for the exact current implementation and the superseded receipt travels with it as `superseded_receipt`. (#399)
