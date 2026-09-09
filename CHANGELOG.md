@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Every `enter` discovery refusal now names the agent-map index it judged. A repository can hold more than one - a repository-local `.agent-map/` beside the governed `.agent-loop/map/`, read by different owners - and a refusal that listed only which files were stale left a host refreshing the other index, seeing no change, and re-running the same prescribed command. `MapReadiness::$mapPath` already carried the answer; it is now reported unchanged in the missing, invalid, stale, unreadable-current-map and scope-not-indexed refusals. Reported as #404.
+
 ## 0.20.2 - 2026-09-09
 
 ### Added
