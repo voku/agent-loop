@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Workflow;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentRecallCompiler\Review\ReviewReportPaths;
 use voku\AgentRecallCompiler\Review\ReviewReportReader;
 
 /**
@@ -62,9 +63,17 @@ final readonly class WorkflowHumanReviewCommand
         }
     }
 
+    /**
+     * The disposable HTML workbench is Loop's own artifact, but it sits beside
+     * the review report it renders, and that directory is Recall's layout to
+     * name. Only the filename below it belongs to Loop.
+     */
     public function path(string $taskId): string
     {
-        return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/reviews/' . $taskId . '.human.html';
+        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+
+        return (new ReviewReportPaths($this->rootPath))->reviewsDirectory($outputDirectory)
+            . '/' . $taskId . '.human.html';
     }
 
     /**

@@ -17,6 +17,7 @@
 composer.lock
 !/tools/*/composer.lock
 /.agent-loop/learning/history/
+/.agent-loop/learning/.derived/
 /tools/*/vendor/
 /.slop-scan.cache.json
 /var/
