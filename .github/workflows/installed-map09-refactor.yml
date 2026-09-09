@@ -100,6 +100,8 @@ jobs:
         run: php -l tools/installed-map09-refactor-dogfood.php
 
       - name: Run governed released Map 0.9 consumer
+        env:
+          COMPOSER_PREFER_LOWEST: '1'
         run: >-
           php tools/installed-map09-refactor-dogfood.php
           --scenario=${{ matrix.scenario }}
