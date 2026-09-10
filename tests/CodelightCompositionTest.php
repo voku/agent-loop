@@ -22,4 +22,15 @@ final class CodelightCompositionTest extends TestCase
         self::assertStringNotContainsString('### 1. Evidence and authority', $skill);
         self::assertStringNotContainsString('no code -> reuse -> stdlib/native', $skill);
     }
+
+    public function testBootstrapKeepsColonBearingDescriptionYamlSafe(): void
+    {
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
+
+        self::assertIsString($skill);
+        self::assertStringContainsString(
+            'description: "Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing."',
+            $skill,
+        );
+    }
 }
