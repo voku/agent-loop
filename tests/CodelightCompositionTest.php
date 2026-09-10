@@ -39,7 +39,6 @@ final class CodelightCompositionTest extends TestCase
         $description = trim($descriptionMatches['description']);
 
         self::assertStringContainsString(': ', $description);
-        self::assertStringStartsWith('"', $description);
-        self::assertStringEndsWith('"', $description);
+        self::assertMatchesRegularExpression('/^".*"$/', $description);
     }
 }
