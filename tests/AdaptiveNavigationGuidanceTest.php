@@ -78,6 +78,28 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
         self::assertStringContainsString('do not build Map merely to satisfy policy', $skill);
     }
 
+    /**
+     * The route has to name the commands, not merely the shape.
+     *
+     * "identity-shaped" tells a host which category it is in; it does not tell it
+     * what to run. A routing rule that cannot be executed without a second lookup
+     * is the same defect as no routing rule, so the exact resolution command and
+     * the exact planned-edit command are both pinned here.
+     */
+    public function testTheIdentityRouteNamesTheExactCommandsToRun(): void
+    {
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
+
+        self::assertIsString($skill);
+        self::assertStringContainsString('`map scope`', $skill, 'Identity resolution must name map scope.');
+        self::assertStringContainsString('`map context`', $skill, 'A planned edit must name map context.');
+        self::assertMatchesRegularExpression(
+            '/`map scope`.{0,60}`map context` for a planned edit/s',
+            $skill,
+            'scope resolves the identity; context is the planned-edit path. Both, in that order.',
+        );
+    }
+
     /** Supported structural mutation routes to a governed plan. */
     public function testStructuralMutationRoutesToAGovernedPlan(): void
     {
