@@ -142,6 +142,6 @@ final readonly class ControlPlanePresentationProjector
 
     private function boundedDetail(string $detail): string
     {
-        return mb_substr($detail, 0, 300);
+        return substr($detail, 0, 300);
     }
 }
