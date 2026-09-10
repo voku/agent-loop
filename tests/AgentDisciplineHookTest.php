@@ -25,6 +25,8 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertStringContainsString('Engineering Skill Routing', $context);
         self::assertStringContainsString('coding-simplicity', $context);
         self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
+        self::assertStringNotContainsString('## Nine laws', $context);
+        self::assertStringNotContainsString('### 1. Evidence and authority', $context);
         self::assertStringContainsString('agent-loop map query', $context);
         self::assertStringContainsString(
             'Hooks are behavioral guardrails, never correctness or security boundaries.',
@@ -37,16 +39,19 @@ final class AgentDisciplineHookTest extends TestCase
         $output = $this->hook()->contextOutput('SubagentStart', $this->json([
             'hook_event_name' => 'SubagentStart',
         ]));
+        $context = $output['hookSpecificOutput']['additionalContext'];
 
         self::assertSame('SubagentStart', $output['hookSpecificOutput']['hookEventName']);
         self::assertStringContainsString(
             'Summaries may point to evidence; they never replace it.',
-            $output['hookSpecificOutput']['additionalContext'],
+            $context,
         );
         self::assertStringNotContainsString(
             'Minimal Implementation Ladder',
-            $output['hookSpecificOutput']['additionalContext'],
+            $context,
         );
+        self::assertStringNotContainsString('## Nine laws', $context);
+        self::assertStringNotContainsString('### 1. Evidence and authority', $context);
     }
 
     public function testSessionStartAddsOnlyBoundedWorkflowResumeState(): void
