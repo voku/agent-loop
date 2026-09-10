@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing.
+description: "Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing."
 ---
 
 # Agent Loop Discipline
