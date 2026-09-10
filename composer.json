@@ -37,7 +37,7 @@
     "psr-4": {
       "voku\\AgentLoop\\Context\\": "tools/Context/",
       "voku\\AgentLoop\\Dogfood\\": "tools/Dogfood/",
-      "voku\\AgentLoop\\PHPStan\\": "phpstan/Rules/",
+      "voku\\AgentLoop\\PHPStan\\": "phpstan/",
       "voku\\AgentLoop\\Tests\\": "tests/"
     }
   },
