@@ -32,6 +32,77 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testControlPlaneDefaultsToDisabledLoopback(): void
+    {
+        $root = $this->tempDir();
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame([
+            'enabled' => false,
+            'host' => '127.0.0.1',
+            'port' => 8088,
+        ], $config['interaction']['control_plane']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testControlPlaneAcceptsExplicitLocalEndpoint(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'interaction' => [
+                'control_plane' => [
+                    'enabled' => true,
+                    'host' => 'LOCALHOST',
+                    'port' => 9123,
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame([
+            'enabled' => true,
+            'host' => 'localhost',
+            'port' => 9123,
+        ], $config['interaction']['control_plane']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testInvalidControlPlaneConfigurationWarnsAndStaysDisabled(): void
+    {
+        foreach ([
+            [
+                'value' => false,
+                'warning' => '[WARN] init config: interaction.control_plane must be an object',
+            ],
+            [
+                'value' => ['enabled' => 'yes'],
+                'warning' => '[WARN] init config: interaction.control_plane.enabled must be a boolean',
+            ],
+            [
+                'value' => ['enabled' => true, 'host' => 'example.com'],
+                'warning' => '[WARN] init config: interaction.control_plane.host must be a loopback host',
+            ],
+            [
+                'value' => ['enabled' => true, 'port' => 70000],
+                'warning' => '[WARN] init config: interaction.control_plane.port must be an integer from 1 to 65535',
+            ],
+        ] as $case) {
+            $root = $this->tempDir();
+            mkdir($root . '/.agent-loop', 0o775, true);
+            file_put_contents($root . '/.agent-loop/init.json', json_encode([
+                'interaction' => ['control_plane' => $case['value']],
+            ], JSON_THROW_ON_ERROR));
+
+            $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+            self::assertFalse($config['interaction']['control_plane']['enabled']);
+            self::assertContains($case['warning'], $config['warnings']);
+        }
+    }
+
     public function testFutureWorkDefaultsToFocus(): void
     {
         $root = $this->tempDir();
@@ -124,6 +195,7 @@ final class InitConfigLoaderTest extends TestCase
         $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
 
         self::assertSame('ask', $config['interaction']['human_explanations']);
+        self::assertFalse($config['interaction']['control_plane']['enabled']);
         self::assertSame([], $config['warnings']);
     }
 
@@ -172,6 +244,7 @@ final class InitConfigLoaderTest extends TestCase
             $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
 
             self::assertSame('ask', $config['interaction']['human_explanations']);
+            self::assertFalse($config['interaction']['control_plane']['enabled']);
             self::assertContains('[WARN] init config: interaction must be an object', $config['warnings']);
         }
     }
