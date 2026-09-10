@@ -1,0 +1,40 @@
+{
+    "id": "finding.2026-09-10.2ca0fd",
+    "task_id": "LOOP-423",
+    "session": "2026-09-10-loop-423-r1-50e31932",
+    "created_at": "2026-09-10T15:16:52+00:00",
+    "created_by": "claude",
+    "scope": [],
+    "observation": "agent-loop-discipline routed 'known files/symbols' to rg in the same clause as literals and config/templates, while agent-loop-investigate in the same package forbade using text search to rediscover a PHP identity that map scope already resolves. tests/AdaptiveNavigationGuidanceTest.php asserted the wrong wording was present, so the contradiction was held in place by a passing regression test.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": "resources/skills/agent-loop-discipline/SKILL.md",
+            "line": 52,
+            "summary": "Routed known files/symbols to rg together with literals and config/templates."
+        },
+        {
+            "type": "file_reference",
+            "path": "resources/skills/agent-loop-investigate/SKILL.md",
+            "line": 110,
+            "summary": "Same package, opposite rule: do not use text search to rediscover a PHP identity that scope already resolves."
+        },
+        {
+            "type": "file_reference",
+            "path": "tests/AdaptiveNavigationGuidanceTest.php",
+            "line": 19,
+            "summary": "assertStringContainsString(known files/symbols) pinned the defect; reverting the skill now fails 5 of 8 tests."
+        },
+        {
+            "type": "issue_reference",
+            "issue": "voku/agent-loop#345",
+            "summary": "Records that #344 introduced the adaptive wording and that #342 still expected map scope for a known target, which is the overshoot this finding names."
+        }
+    ],
+    "hypothesis": "A correction that removes an over-strong default can overshoot by one clause. #344 replaced Map-first ceremony with adaptive navigation and, while doing so, moved the one case that genuinely belonged to the semantic index onto the text-search side. The overshoot survived because the test written with it pinned the new wording verbatim rather than the distinction the wording was meant to encode.",
+    "validated_conclusion": "When a guidance change reverses a default, check every case the old default covered correctly, and assert the distinction rather than the sentence. A test that pins exact prose from the change it accompanies cannot detect that the prose is wrong; it only detects that it changed. Two documents in one package that both route the same decision must be checked against each other, because the always-on one wins in practice.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "low"
+}

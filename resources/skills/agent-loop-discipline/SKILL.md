@@ -49,11 +49,11 @@ These are L1 controls, not L2 gates.
 
 ## Navigate Before Editing
 
-Use the cheapest reliable navigation for the information required. For known files/symbols, literals, config/templates, exception messages, or local tests, prefer `rg`, `rg --files`, and focused source reads; do not build Map merely to satisfy policy.
+Use the cheapest reliable navigation for the information required. Literal, config/template, exception-message, and filename questions are text-shaped: prefer `rg`, `rg --files`, and focused source reads. A named PHP class/method/function is identity-shaped: when a relevant fresh Map already exists, resolve it with `map scope`, or `map context` for a planned edit, rather than rediscovering that identity by text; do not build Map merely to satisfy policy.
 
-Escalate to `agent-loop map query`, `related`, `file`, `scope`, `context`, `callers`, or `callees` when PHP work needs structural answers: unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, or production/test relationships. If a relevant fresh Map already exists, prefer it earlier because its build cost is already paid.
+Use `agent-loop map query`, `related`, `file`, `scope`, `context`, `callers`, or `callees` when PHP work needs structural answers: unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, or production/test relationships. Narrow unknown ownership first, then resolve exactly. Prefer a governed Map plan for supported rename/removal/move.
 
-If Map is unavailable, stale, unsupported, or insufficient, record that limitation and fall back to CLI navigation. Never treat failed Map output or literal matches as proof of semantic relationships. Do not mechanically repeat equivalent discovery with both Map and `rg`; verify only remaining facts in real source. `grep`, `find`, and `sed -i` are blocked. Prefer governed Map change plans when useful; mutation stays host-owned. Never dump map databases; Map output selects bounded source reads and is not source evidence.
+If Map is unavailable or stale and repairing it costs more than the question warrants, record that limitation and fall back to CLI navigation. Never treat failed Map output or literal matches as proof of semantic relationships. Do not mechanically repeat equivalent discovery with both Map and `rg`; verify only remaining facts in real source. `grep`, `find`, and `sed -i` are blocked. Mutation stays host-owned. Never dump map databases; Map output selects bounded source reads and is not source evidence.
 
 ## L2 Execution Contract
 

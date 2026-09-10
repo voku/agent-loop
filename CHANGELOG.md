@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Route a named PHP identity to `map scope` instead of text search in `agent-loop-discipline`. The skill grouped "known files/symbols" with literals, config/templates and exception messages under one "prefer `rg`" clause, so the one case the semantic index resolves exactly was sent to the tool that only approximates it. `agent-loop-investigate` in the same package already said the opposite - do not use text search to rediscover a PHP identity that `scope` already resolves - and the always-on bootstrap skill is the one that wins in practice. Navigation now routes by question shape: text-shaped questions keep `rg`, identity-shaped questions resolve through `scope` (or `context` for a planned edit) when a fresh Map already exists, unknown ownership narrows first and then resolves exactly, and supported structural mutation prefers a governed plan. Everything #344 bought is kept: no cold build for a cheap question, no duplicated Map and `rg` discovery, and native fallback when repair would cost more than the question warrants. Reported as #423.
+
 ## 0.20.4 - 2026-09-10
 
 ### Fixed
