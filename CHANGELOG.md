@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Require `voku/agent-map` `^0.11.6`. The constraint was `^0.10.0 || ^0.11.0`, which resolved whatever happened to be installed: this repository was vendoring 0.11.2 against a latest release of 0.11.5, so neither the executable refresh remedy from agent-map#85 nor the read repair from agent-map#87 reached it. A stale index answered `scope` with `Agent map is stale. Rebuild it before inspecting a scope.` and the host had to run `stale`, then `refresh`, then ask its original question again - which is how a semantic index loses to text search. The floor now names the release that removes that round trip, proven against the vendored binary rather than the lockfile.
+
 ### Fixed
 
 - Route a named PHP identity to `map scope` instead of text search in `agent-loop-discipline`. The skill grouped "known files/symbols" with literals, config/templates and exception messages under one "prefer `rg`" clause, so the one case the semantic index resolves exactly was sent to the tool that only approximates it. `agent-loop-investigate` in the same package already said the opposite - do not use text search to rediscover a PHP identity that `scope` already resolves - and the always-on bootstrap skill is the one that wins in practice. Navigation now routes by question shape: text-shaped questions keep `rg`, identity-shaped questions resolve through `scope` (or `context` for a planned edit) when a fresh Map already exists, unknown ownership narrows first and then resolves exactly, and supported structural mutation prefers a governed plan. Everything #344 bought is kept: no cold build for a cheap question, no duplicated Map and `rg` discovery, and native fallback when repair would cost more than the question warrants. Reported as #423.
