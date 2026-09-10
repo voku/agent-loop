@@ -28,7 +28,7 @@ Do not decide mutation legality, gates, contract currency, or superseded scope. 
 
 SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
 
-Human gates: Contract approval, review acknowledgement, Learning disposition, real risk/irreversible action, and missing product intent. Reads, edits, tests, diagnostics, reports, PLAN/contract construction, and checkpoints remain agent work.
+Human authority exists only when the current lifecycle returns `decision_required`; present the exact subject and investigate agent-resolvable facts first. Review/Learning are agent work unless returned otherwise.
 
 ## Agent I/O
 
@@ -82,7 +82,7 @@ Construction is model-owned from approved intent/Recall evidence unless lifecycl
 
 ## Engineering Skill Routing
 
-`agent-loop` owns orchestration, not reusable engineering judgment. Route simple coding/refactoring to `coding-simplicity`, PHP work to `php-best-practices`, and review to one dominant installed `code-review-*` lens plus at most one evidence-backed handoff. Name missing capabilities; do not recreate their rules. `coding-simplicity` owns implementation search order, root-cause, safety, and verification floors.
+Route non-trivial engineering reasoning to `engineering-codelight` when installed, minimization to `coding-simplicity`, PHP to `php-best-practices`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Load only what applies; name missing capabilities instead of copying them.
 
 ## Role Routing
 
@@ -118,7 +118,7 @@ Receipts compress narration, never evidence.
 
 ## Hook Boundary
 
-Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation only; authority comes from `workflow status`.
+Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints and `workflow status` are navigation/projection only; workflow authority comes from the canonical lifecycle result's `next_action_kind` / `next_action`.
 
 ## Validation And Close
 
