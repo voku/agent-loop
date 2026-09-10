@@ -28,7 +28,7 @@ Do not decide mutation legality, gates, contract currency, or superseded scope. 
 
 SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
 
-Human authority exists only when the current lifecycle returns `decision_required`. Present that exact decision instead of maintaining a parallel gate checklist; investigate agent-resolvable facts first. Ordinary review acknowledgement and Learning disposition remain agent work unless the lifecycle explicitly returns human authority.
+Human authority exists only for lifecycle `decision_required`; present its exact subject after resolving agent-owned facts. Ordinary review acknowledgement and Learning disposition stay agent work unless the lifecycle says otherwise.
 
 ## Agent I/O
 
@@ -82,7 +82,7 @@ Construction is model-owned from approved intent/Recall evidence unless lifecycl
 
 ## Engineering Skill Routing
 
-`agent-loop` owns orchestration, not reusable engineering judgment. Route non-trivial engineering reasoning to `engineering-codelight` when installed, implementation minimization to `coding-simplicity`, PHP-specific work to `php-best-practices`, and review to one dominant installed `code-review-*` lens plus at most one evidence-backed handoff. Load only the smallest relevant combination. Name missing capabilities; do not recreate their rules. `coding-simplicity` owns implementation search order, root-cause, safety, and verification floors.
+`agent-loop` owns orchestration, not engineering judgment. Route non-trivial reasoning to `engineering-codelight`, minimization to `coding-simplicity`, PHP work to `php-best-practices`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Load the smallest relevant set; never copy missing skill rules. `coding-simplicity` owns implementation search, root-cause, safety, and verification rules.
 
 ## Role Routing
 
@@ -114,7 +114,7 @@ Receipts compress narration, never evidence.
 
 ## Hook Boundary
 
-Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation only. `workflow status` is the read-only current-policy projection; canonical lifecycle transition authority comes from the current `enter`/`finish` result and its `next_action_kind` / `next_action`.
+Hooks are guardrails, not correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation. `workflow status` is read-only policy; `enter`/`finish` results carry transition authority through `next_action_kind` / `next_action`.
 
 ## Validation And Close
 
