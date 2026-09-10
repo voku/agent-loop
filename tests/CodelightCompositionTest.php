@@ -22,4 +22,24 @@ final class CodelightCompositionTest extends TestCase
         self::assertStringNotContainsString('### 1. Evidence and authority', $skill);
         self::assertStringNotContainsString('no code -> reuse -> stdlib/native', $skill);
     }
+
+    public function testBootstrapKeepsColonBearingDescriptionYamlSafe(): void
+    {
+        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
+
+        self::assertIsString($skill);
+        self::assertSame(1, preg_match('/\A---\R(?<frontmatter>.*?)\R---\R/s', $skill, $matches));
+        self::assertArrayHasKey('frontmatter', $matches);
+        self::assertSame(
+            1,
+            preg_match('/^description:\s*(?<description>.+)$/m', $matches['frontmatter'], $descriptionMatches),
+        );
+        self::assertArrayHasKey('description', $descriptionMatches);
+
+        $description = trim($descriptionMatches['description']);
+
+        self::assertStringContainsString(': ', $description);
+        self::assertStringStartsWith('"', $description);
+        self::assertStringEndsWith('"', $description);
+    }
 }
