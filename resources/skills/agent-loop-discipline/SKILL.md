@@ -5,11 +5,11 @@ description: Governed agent-* orchestration: resumable state, adaptive navigatio
 
 # Agent Loop Discipline
 
-Rule: persisted workflow state beats conversational state. Keep orchestration, evidence, navigation, and human attention bounded.
+Rule: persisted workflow state beats conversational state. Keep attention bounded.
 
 ## Governed Workflow
 
-The lifecycle kernel decides what happens next; this SessionStart skill adds no independent ordering rules.
+The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.
 
 ```bash
 vendor/bin/agent-loop enter <task-id> --format=json
@@ -28,7 +28,7 @@ Do not decide mutation legality, gates, contract currency, or superseded scope. 
 
 SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
 
-Human authority exists only when the current lifecycle returns `decision_required`; present the exact subject and investigate agent-resolvable facts first. Review/Learning are agent work unless returned otherwise.
+Human authority exists only for lifecycle `decision_required`; present its exact subject after resolving agent-owned facts. Ordinary review acknowledgement and Learning disposition stay agent work unless the lifecycle says otherwise.
 
 ## Agent I/O
 
@@ -82,19 +82,15 @@ Construction is model-owned from approved intent/Recall evidence unless lifecycl
 
 ## Engineering Skill Routing
 
-Route non-trivial engineering reasoning to `engineering-codelight` when installed, minimization to `coding-simplicity`, PHP to `php-best-practices`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Load only what applies; name missing capabilities instead of copying them.
+`agent-loop` owns orchestration, not engineering judgment. Route non-trivial reasoning to `engineering-codelight`, minimization to `coding-simplicity`, PHP work to `php-best-practices`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Load the smallest relevant set; never copy missing skill rules. `coding-simplicity` owns implementation search, root-cause, safety, and verification rules.
 
 ## Role Routing
 
 Use verified narrow roles: definitions/callers/tests -> `agent-loop-investigate`; 1–2 file edit -> `agent-loop-surgical-edit`; correctness -> `agent-loop-code-review`; current-diff complexity -> `agent-loop-simplify-review`; repo-wide complexity -> `agent-loop-simplify-audit`. Ambiguous, architectural, new-feature, or 3+ file work stays in main workflow. Narrow roles never widen scope or bypass the contract.
 
-## Uncertainty Is State
+## Workflow Evidence Integrity
 
-- Never fabricate versions, paths, commands/results, approvals, contract/review/validation state, product intent, or runtime facts.
-- Use owner state or a safe probe; otherwise state the exact unknown and whether it blocks.
-- Repeated equivalent failure means inspect the suspect assumption and return to CONTEXT, CONTRACT, or PLAN.
-
-Preserve exact paths, symbols, commands, constraints, errors, diffs, tests, contracts, and verification artifacts. Summaries may point to evidence; they never replace it.
+Never fabricate workflow state or runtime facts. Preserve exact commands, errors, diffs, contracts, and verification artifacts. Summaries may point to evidence; they never replace it. General uncertainty reasoning belongs to `engineering-codelight`.
 
 ## Workflow Output
 
@@ -118,7 +114,7 @@ Receipts compress narration, never evidence.
 
 ## Hook Boundary
 
-Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints and `workflow status` are navigation/projection only; workflow authority comes from the canonical lifecycle result's `next_action_kind` / `next_action`.
+Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation. `workflow status` is read-only policy; `enter`/`finish` results carry transition authority through `next_action_kind` / `next_action`.
 
 ## Validation And Close
 
