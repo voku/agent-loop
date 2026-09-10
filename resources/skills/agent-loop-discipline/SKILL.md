@@ -28,7 +28,7 @@ Do not decide mutation legality, gates, contract currency, or superseded scope. 
 
 SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
 
-Human authority exists only when the current lifecycle returns `decision_required`. Present that exact decision instead of maintaining a parallel gate checklist; investigate agent-resolvable facts first. Ordinary review acknowledgement and Learning disposition remain agent work unless the lifecycle explicitly returns human authority.
+Human authority exists only when the current lifecycle returns `decision_required`; present the exact subject and investigate agent-resolvable facts first. Review/Learning are agent work unless returned otherwise.
 
 ## Agent I/O
 
@@ -82,7 +82,7 @@ Construction is model-owned from approved intent/Recall evidence unless lifecycl
 
 ## Engineering Skill Routing
 
-`agent-loop` owns orchestration, not reusable engineering judgment. Route non-trivial engineering reasoning to `engineering-codelight` when installed, implementation minimization to `coding-simplicity`, PHP-specific work to `php-best-practices`, and review to one dominant installed `code-review-*` lens plus at most one evidence-backed handoff. Load only the smallest relevant combination. Name missing capabilities; do not recreate their rules. `coding-simplicity` owns implementation search order, root-cause, safety, and verification floors.
+Route non-trivial engineering reasoning to `engineering-codelight` when installed, minimization to `coding-simplicity`, PHP to `php-best-practices`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Load only what applies; name missing capabilities instead of copying them.
 
 ## Role Routing
 
