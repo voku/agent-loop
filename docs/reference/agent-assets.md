@@ -131,7 +131,7 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Produ
 
 `HostCapabilityMatrix` reports adapter evidence, not vendor marketing surface:
 
-- `supported`: agent-loop owns a repository-side adapter/projector for the capability and contract tests can exercise it;
+- `supported`: agent-loop owns a repository-side adapter/projector for the capability and contract tests can exercise that repository-side boundary;
 - `degraded`: a native adapter exists, but the stronger host runtime/delegation behavior has not been observed;
 - `unsupported`: agent-loop has no adapter/projector for that capability.
 
@@ -177,9 +177,9 @@ If Map is unavailable, stale, unsupported, or insufficient, record that limitati
 
 ## Dogfood contract
 
-`composer dogfood:discipline` verifies the bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, and bounded map denial. In particular, it proves both the implementation ladder and the full Codelight reasoning body are **absent** from SessionStart/SubagentStart context while the discipline routes to the corresponding loadable skills.
+`composer dogfood:discipline` verifies the existing bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, bounded map denial, and absence of the implementation ladder from SessionStart/SubagentStart context.
 
-PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects an exact pinned `voku/agent-skills` revision, including `engineering-codelight`. That cross-repository run is the executable proof that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
+PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects the exact pinned `voku/agent-skills` revision, including `engineering-codelight`; that path proves Codelight projection, discipline routing, and absence of the Codelight body from the package bootstrap. Together these paths prove that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
 
 A green installer proves projection mechanics only. Runtime/delegation claims require their own evidence.
 
