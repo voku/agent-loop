@@ -28,17 +28,9 @@ final class CodelightCompositionTest extends TestCase
         $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
 
         self::assertIsString($skill);
-        self::assertSame(1, preg_match('/\A---\R(?<frontmatter>.*?)\R---\R/s', $skill, $matches));
-        self::assertArrayHasKey('frontmatter', $matches);
-        self::assertSame(
-            1,
-            preg_match('/^description:\s*(?<description>.+)$/m', $matches['frontmatter'], $descriptionMatches),
+        self::assertStringContainsString(
+            'description: "Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing."',
+            $skill,
         );
-        self::assertArrayHasKey('description', $descriptionMatches);
-
-        $description = trim($descriptionMatches['description']);
-
-        self::assertStringContainsString(': ', $description);
-        self::assertMatchesRegularExpression('/^".*"$/', $description);
     }
 }
