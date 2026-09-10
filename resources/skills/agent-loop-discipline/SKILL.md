@@ -114,7 +114,7 @@ Receipts compress narration, never evidence.
 
 ## Hook Boundary
 
-Hooks are guardrails, not correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation. `workflow status` is read-only policy; `enter`/`finish` results carry transition authority through `next_action_kind` / `next_action`.
+Hooks are behavioral guardrails, never correctness or security boundaries. Code, CI, trust validation, and offline install remain correct without them. Resume hints are navigation. `workflow status` is read-only policy; `enter`/`finish` results carry transition authority through `next_action_kind` / `next_action`.
 
 ## Validation And Close
 
