@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- `workflow status` shows the Contract goal and acceptance criteria in its text output. The command can end by naming `workflow approve` as the next action while rendering the Contract as nothing more than `revision N (<path>)`, so a human told a decision was required was given the command and not its subject; the only way to see what was being approved was a second command or the raw JSON. This was never missing data: `RunManifestProjector::contractReference()` already carried both fields and `--format=json` and `--format=toon` already returned them, and the text renderer, which shows every reference as a state plus a one-line detail, dropped them. Structured output is unchanged. Reported as #413.
+
 ## 0.20.3 - 2026-09-09
 
 ### Added

@@ -82,6 +82,8 @@ final readonly class WorkflowStatusCommand
         printf("  %-19s %-22s %s\n", 'Overall:', $policy->state, 'lifecycle policy result');
         printf("  %-19s %-22s %s\n", 'Manifest:', $storage['state'], $storage['path']);
 
+        $this->renderContractSubject($manifest);
+
         echo "\nPolicy:\n";
         printf("  %-19s %s\n", 'Mutation:', $policy->mutationAllowed ? 'allowed' : 'not_allowed');
         printf("  %-19s %s\n", 'Ordinary close:', $policy->ordinaryCloseAllowed ? 'allowed' : 'not_allowed');
@@ -211,6 +213,60 @@ final readonly class WorkflowStatusCommand
         }
 
         return $this->pathOrOwner($reference);
+    }
+
+    /**
+     * The decision subject, shown wherever the manifest carries it.
+     *
+     * `Next:` can ask for an approval, so the goal and the acceptance criteria being
+     * approved belong in the same view rather than one command away. The projector
+     * already carries both; only this renderer used to drop them.
+     */
+    private function renderContractSubject(RunManifest $manifest): void
+    {
+        $contract = $manifest->references['contract'] ?? null;
+        if (!is_array($contract)) {
+            return;
+        }
+
+        $goal = $contract['goal'] ?? null;
+        if (!is_string($goal) || trim($goal) === '') {
+            return;
+        }
+
+        echo "\nContract:\n";
+        echo "  Goal:\n";
+        foreach ($this->wrap(trim($goal)) as $line) {
+            echo '    ' . $line . "\n";
+        }
+
+        $criteria = $contract['acceptance_criteria'] ?? null;
+        if (!is_array($criteria)) {
+            return;
+        }
+
+        $criteria = array_values(array_filter(
+            array_map(static fn (mixed $one): string => is_string($one) ? trim($one) : '', $criteria),
+            static fn (string $one): bool => $one !== '',
+        ));
+        if ($criteria === []) {
+            return;
+        }
+
+        echo "  Acceptance criteria:\n";
+        foreach ($criteria as $one) {
+            $lines = $this->wrap($one, 74);
+            echo '    - ' . array_shift($lines) . "\n";
+            foreach ($lines as $line) {
+                echo '      ' . $line . "\n";
+            }
+        }
+    }
+
+    /** @return non-empty-list<string> */
+    private function wrap(string $text, int $width = 76): array
+    {
+        return explode("\n", wordwrap($text, $width, "\n", true));
     }
 
     /** @param array<string, mixed> $reference */
