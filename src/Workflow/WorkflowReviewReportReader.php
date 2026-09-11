@@ -28,7 +28,9 @@ final readonly class WorkflowReviewReportReader
 
     public function absolutePath(string $taskId): string
     {
-        return RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/reviews/' . $taskId . '.blindspots.json';
+        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+
+        return (new ReviewReportReader($this->rootPath))->jsonPath($taskId, $outputDirectory);
     }
 
     public function relativePath(string $taskId): string

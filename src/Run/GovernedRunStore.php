@@ -108,6 +108,51 @@ final class GovernedRunStore
         return $this->decode($contents, $path, $taskId);
     }
 
+    /**
+     * The task ids that have a governed Run, ordered deterministically.
+     *
+     * `find()` answers about a task you can already name, which is all the CLI
+     * ever needs. A consumer showing a project rather than a task has no such
+     * list: the board is the only enumerable set of work available to it, and
+     * a task with a governed Run but no card - a supported state, reported by
+     * `enter` without complaint - is then not merely unrendered but absent from
+     * the question. The ordering is the owner's so that two consumers cannot
+     * disagree about what "all governed work" is.
+     *
+     * Superseded Runs live under the history root and are a different question,
+     * so anything beginning with a dot is skipped; a directory carrying no
+     * `run.json` is a leftover rather than a Run.
+     *
+     * @return list<string>
+     */
+    public function taskIds(): array
+    {
+        $directory = (new ProjectLayout($this->rootPath))->runsRoot();
+        if (!is_dir($directory)) {
+            return [];
+        }
+
+        $entries = scandir($directory);
+        if ($entries === false) {
+            throw new RuntimeException('Unable to enumerate governed Runs: ' . $directory);
+        }
+
+        $taskIds = [];
+        foreach ($entries as $entry) {
+            if ($entry === '' || str_starts_with($entry, '.')) {
+                continue;
+            }
+            if (!is_file($directory . '/' . $entry . '/run.json')) {
+                continue;
+            }
+
+            $taskIds[] = $entry;
+        }
+        sort($taskIds, SORT_STRING);
+
+        return $taskIds;
+    }
+
     public function findForContract(TaskContract $contract): ?GovernedRun
     {
         $existing = $this->find($contract->taskId);

@@ -260,9 +260,13 @@ try {
     assertTrue(is_string($skill), 'Unable to read staged discipline skill.');
     assertTrue(strlen($skill) <= 8_000, 'Discipline skill exceeds the 8 KiB bootstrap budget.');
     assertTrue(str_contains($skill, 'Engineering Skill Routing'), 'Discipline skill misses engineering skill routing.');
+    assertTrue(str_contains($skill, 'engineering-codelight'), 'Discipline skill misses engineering-codelight route.');
     assertTrue(str_contains($skill, 'coding-simplicity'), 'Discipline skill misses coding-simplicity route.');
     assertTrue(!str_contains($skill, 'Minimal Implementation Ladder'), 'Discipline bootstrap still embeds implementation minimization rules.');
-    assertTrue(str_contains($skill, 'Uncertainty Is State'), 'Discipline skill misses uncertainty boundary.');
+    assertTrue(!str_contains($skill, '## Nine laws'), 'Discipline bootstrap embeds the Codelight law body.');
+    assertTrue(!str_contains($skill, '### 1. Evidence and authority'), 'Discipline bootstrap embeds Codelight law text.');
+    assertTrue(str_contains($skill, 'Workflow Evidence Integrity'), 'Discipline skill misses workflow evidence boundary.');
+    assertTrue(str_contains($skill, 'next_action_kind'), 'Discipline skill misses canonical lifecycle authority.');
     assertTrue(
         str_contains($skill, 'Summaries may point to evidence; they never replace it.'),
         'Discipline skill misses evidence integrity boundary.',

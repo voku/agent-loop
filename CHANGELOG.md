@@ -6,11 +6,49 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Raise the `voku/agent-map` floor on the 0.11 line to `^0.10.0 || ^0.11.6`. The old `^0.10.0 || ^0.11.0` let this package sit on 0.11.2 while 0.11.6 was released, so a consumer could ask `map scope` for a known PHP identity and be told `Agent map is stale. Rebuild it before inspecting a scope.` - the round trip that sends a coding agent back to text search. `^0.11.6` is the release where an exact read repairs a stale index itself when that is safe and refuses with an executable command when it is not. The 0.10 line is deliberately kept: five installed-consumer workflows pin `0.10.0` to prove the released refactor plan contracts still work for a consumer that has not moved, and a blanket `^0.11.6` would have deleted that evidence to guarantee something a plain resolve already provides.
 - Skip companion relation decoding in `RunManifestProjector` and `WorkflowRunPreparer` when inspecting map readiness, and read only the `files` section in `WorkflowContextCommand`, keeping context generation resilient and fast when relations are unavailable or large.
+
+### Fixed
+
+- Route a named PHP identity to `map scope` instead of text search in `agent-loop-discipline`. The skill grouped "known files/symbols" with literals, config/templates and exception messages under one "prefer `rg`" clause, so the one case the semantic index resolves exactly was sent to the tool that only approximates it. `agent-loop-investigate` in the same package already said the opposite - do not use text search to rediscover a PHP identity that `scope` already resolves - and the always-on bootstrap skill is the one that wins in practice. Navigation now routes by question shape: text-shaped questions keep `rg`, identity-shaped questions resolve through `scope` (or `context` for a planned edit) when a fresh Map already exists, unknown ownership narrows first and then resolves exactly, and supported structural mutation prefers a governed plan. Everything #344 bought is kept: no cold build for a cheap question, no duplicated Map and `rg` discovery, and native fallback when repair would cost more than the question warrants. Reported as #423.
 
 ### Performance
 
 - Memoize artifact hashing by path, mtime, and filesize in `RunManifestProjector::artifact()`, preventing redundant repeated SHA256 calculations of large artifacts (such as SQLite databases and symbol maps) during batch task projections.
+
+
+## 0.20.4 - 2026-09-10
+
+### Fixed
+
+- `workflow status` shows the Contract goal and acceptance criteria in its text output. The command can end by naming `workflow approve` as the next action while rendering the Contract as nothing more than `revision N (<path>)`, so a human told a decision was required was given the command and not its subject; the only way to see what was being approved was a second command or the raw JSON. This was never missing data: `RunManifestProjector::contractReference()` already carried both fields and `--format=json` and `--format=toon` already returned them, and the text renderer, which shows every reference as a state plus a one-line detail, dropped them. Structured output is unchanged. Reported as #413.
+
+## 0.20.3 - 2026-09-09
+
+### Added
+
+- `GovernedRunStore::taskIds()` reports the task ids that have a governed Run, in a deterministic order. `find()` has always answered about a task the caller can already name, which covers every CLI invocation but leaves a consumer showing a *project* with no list to start from — the board is the only enumerable set of work available to it, and a task may carry a governed Run without a card, a state `enter` reports without complaint. Those Runs were then not merely unrendered but absent from the question. In `voku/agent-ui` today that is 6 of 8 Runs. The history root and any directory without a `run.json` are excluded, and the ordering is the owner's so two consumers cannot disagree about what all governed work is. Reported as #409.
+
+### Changed
+
+- Every `enter` discovery refusal now names the agent-map index it judged. A repository can hold more than one - a repository-local `.agent-map/` beside the governed `.agent-loop/map/`, read by different owners - and a refusal that listed only which files were stale left a host refreshing the other index, seeing no change, and re-running the same prescribed command. `MapReadiness::$mapPath` already carried the answer; it is now reported unchanged in the missing, invalid, stale, unreadable-current-map and scope-not-indexed refusals. Reported as #404.
+
+## 0.20.2 - 2026-09-09
+
+### Added
+
+- `TaskContractStore::supersededRevisions()` returns every archived revision of one task's Contract, oldest first. `revise()` has always written the revision it replaces to `history/`, in full and including who approved it, but nothing could read it back. The decision that needs it most is the next approval: a human asked to approve revision 2 has already approved revision 1, and without the earlier revision neither this package nor a consumer can say what changed. The alternative left to consumers was reading the archive directory themselves, which is the private-layout coupling the store exists to prevent. An archived revision that cannot be decoded fails closed rather than being skipped, because a silently shortened history understates exactly what the projection is for.
+
+### Changed
+
+- Ask `agent-recall-compiler` where its review artifacts live instead of spelling out the `reviews/` directory when placing the disposable human review workbench, and take the edit-verification map-index default from `agent-map` through `ProjectLayout::mapIndex()` instead of naming `php-symbols.json`. Loop still configures the mount roots; the filenames below them stay owner-owned. (#285)
+
+### Fixed
+
+- Converge a stale verification receipt instead of routing back to read-only `workflow status`: when a governed Session can still record replacement evidence, verification is re-derived for the exact current implementation and the superseded receipt travels with it as `superseded_receipt`. (#399)
+- Project a Learning decision bound to a previous evidence boundary as `stale` so the canonical next action asks for a fresh disposition instead of disagreeing with close readiness. (#399)
+- Decode the fast-path scope baseline without a throwing JSON mode, so an unreadable file is answered by the shape check that already rejects it instead of a separate catch.
 
 ## 0.20.1 - 2026-09-07
 

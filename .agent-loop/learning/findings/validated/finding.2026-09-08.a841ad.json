@@ -1,0 +1,35 @@
+{
+    "id": "finding.2026-09-08.a841ad",
+    "task_id": "LOOP-399",
+    "session": "2026-09-08-loop-399-r4-8e302486",
+    "created_at": "2026-09-08T20:59:34+00:00",
+    "created_by": "lars",
+    "scope": [
+        "src/Run/RunManifestProjector.php",
+        "src/Workflow/WorkflowCloseReadinessInspector.php",
+        "src/Workflow/HostFrontDoorCommand.php",
+        "tests/RunVerificationReceiptCurrentnessTest.php",
+        "tests/StaleVerificationConvergenceTest.php",
+        "tests/WorkflowSupersessionRecoveryTest.php",
+        "CHANGELOG.md",
+        "slop-baseline.json"
+    ],
+    "observation": "The deterministic slop gate reported a repo-wide clone cluster as a new finding although no clone was added: an unrelated edit shifted one already-baselined member's line number.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Observed passed with exit code 0 for implementation sha256:338706ea3c372494a8cc7a3f96726ee0b8bf28a00fa603486335362713837fd4."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:bcd00ce37b49b391a16ede971fa8f15d0d9e36716b0d738fabe408de2c7ce761."
+        }
+    ],
+    "hypothesis": "The baseline pins each cluster member by file and line, so any edit above a member invalidates the recorded identity and the gate reports a known, accepted finding as new.",
+    "validated_conclusion": "Read a location-pinned repo-wide finding as a location change until proven otherwise: attribute it by scanning the base revision and the head revision with a cleared cache before changing code, and regenerate the baseline for a pure location shift instead of restructuring code the gate did not actually object to.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

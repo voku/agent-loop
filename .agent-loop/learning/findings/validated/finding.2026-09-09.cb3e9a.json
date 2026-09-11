@@ -1,0 +1,30 @@
+{
+    "id": "finding.2026-09-09.cb3e9a",
+    "task_id": "LOOP-409",
+    "session": "2026-09-09-loop-409-r1-03940160",
+    "created_at": "2026-09-09T22:53:57+00:00",
+    "created_by": "claude",
+    "scope": [
+        "src/Run/GovernedRunStore.php"
+    ],
+    "observation": "Mutation testing showed two of the three claims in this change were untested while the suite was green. Removing the dot guard from the directory scan left all five tests passing, and so did removing the deterministic sort. The dot guard turned out to be genuinely load-bearing for a reason the fixture never reached: runsRoot()/.. is the state root, so a file at .agent-loop/run.json is reachable as runs/../run.json, the entry '..' satisfies the run-artifact check, and the enumeration reports a task id named '..' that no caller can resolve. The fixture that was supposed to prove the guard wrote its artifact at runs/.history/<task>/run.json, so the entry '.history' had no direct run.json and was rejected by the other check instead - the test passed for the wrong reason and would have kept passing after the guard was deleted.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter GovernedRunEnumerationTest",
+            "summary": "before the parent-directory test: deleting the dot guard left 5/5 green; after it: the same mutation fails"
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Run/GovernedRunStore.php",
+            "line": 128,
+            "summary": "the scan walks entries of runsRoot(), where . and .. are entries like any other"
+        }
+    ],
+    "hypothesis": "A guard against a malformed entry is written from the shape the author imagines - here a sibling directory that should not count - and the fixture is built from that same imagination. Both then describe the same case, and the case that actually needs the guard is one nobody pictured, so nothing in the suite touches it. Green is evidence about the fixtures, not about the guard.",
+    "validated_conclusion": "A defensive branch needs a mutation check before it is trusted, because a test written alongside it tends to exercise the author-imagined case rather than the one the branch protects against. When deleting the branch leaves the suite green, exactly two readings exist and both demand action: the branch is dead and should go, or the branch is load-bearing and the test is aimed at the wrong case. Assuming the first without checking removes real protection; assuming the second without checking keeps unfalsifiable code. Directory scans deserve this treatment specifically, since '.' and '..' are ordinary entries and the parent of a scanned root usually holds files with the very names being looked for.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

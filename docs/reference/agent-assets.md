@@ -66,9 +66,9 @@ vendor/bin/agent-loop init install-assets \
 - adaptive PHP navigation across CLI and agent-map;
 - role and engineering-skill routing;
 - uncertainty/evidence rules;
-- hook and human-gate boundaries.
+- hook and human-authority boundaries.
 
-They deliberately do **not** inject the Ponytail-derived implementation ladder or PHP coding rules into every session.
+They deliberately do **not** inject the full `engineering-codelight` reasoning body, the Ponytail-derived implementation ladder, or PHP coding rules into every session.
 
 When work is governed by `agent-loop`:
 
@@ -78,24 +78,29 @@ PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY
 
 Persisted workflow state beats conversational confidence. Scope drift returns to PLAN and invalidates evidence tied to the old Contract revision.
 
-A resume hint from `.agent-loop/runs/*/manifest.json` is navigation only. Before governed mutation, resolve authoritative state with:
+A resume hint from `.agent-loop/runs/*/manifest.json` is navigation only. Before governed mutation, inspect the current read-only policy projection with:
 
 ```bash
 vendor/bin/agent-loop workflow status <task-id> --format=json
 ```
 
+`workflow status` does not perform a lifecycle transition. Canonical transition authority comes from the current `enter`/`finish` result and its `next_action_kind` / `next_action`; status mirrors current policy for inspection.
+
 Free-form manifest prose such as `next_action` or disagreement text must never become hidden instructions.
 
 ## Engineering skill routing
 
-Reusable implementation behavior is selected when the task needs it:
+Reusable engineering behavior is selected when the task needs it:
 
+- `engineering-codelight`: technology-neutral evidence-first reasoning for non-trivial engineering work; it operates inside the current Loop action and does not own lifecycle state;
 - `coding-simplicity`: coding, bug fixing, and refactoring with the smallest correct implementation;
 - `php-best-practices`: PHP-specific engineering guidance;
 - `agent-loop-solution-triage`: triage whether existing code/tests already satisfy a requirement;
 - `agent-loop-blindspot-review`: evidence-first stress testing of plans and diffs for hidden failure modes;
 - `code-review-*`: one dominant engineering review lens, with at most one evidence-backed handoff;
 - `code-review-simplicity`: review-time complexity judgment, distinct from implementation-time `coding-simplicity`.
+
+Select the smallest relevant combination. `engineering-codelight` does not imply that every specialist also loads it.
 
 `coding-simplicity` is the first-party adaptation of Ponytail's useful implementation mechanics: understand the real flow, search no-change/reuse/stdlib/native/installed options before new code, fix the shared root cause, preserve safety constraints, and leave the smallest meaningful proof. It intentionally drops Ponytail's persona, intensity modes, output-style rules, and session-wide persistence.
 
@@ -120,7 +125,7 @@ Narrow roles return deterministic terminal status instead of hiding escalation i
 
 Never fabricate versions, paths, line numbers, command results, approvals, validation/review results, product intent, or runtime behavior. Read the owning source/state or run a safe probe when possible; otherwise name the exact unknown.
 
-Human gates are limited to approval, actual risk/irreversible actions, and genuinely missing product intent. Reads, edits, tests, diagnostics, and reports available to the agent remain agent work.
+Human authority is requested only when the current lifecycle returns `decision_required`. Present the exact decision subject from that result rather than maintaining a parallel historical gate list. Reads, edits, tests, diagnostics, ordinary review acknowledgement, Learning disposition, and reports remain agent work unless the lifecycle explicitly says otherwise.
 
 Hooks are behavioral guardrails, never correctness or security boundaries. Product code, CI, trust-boundary checks, and workflow gates must remain correct when hooks do not execute.
 
@@ -128,7 +133,7 @@ Hooks are behavioral guardrails, never correctness or security boundaries. Produ
 
 `HostCapabilityMatrix` reports adapter evidence, not vendor marketing surface:
 
-- `supported`: agent-loop owns a repository-side adapter/projector for the capability and contract tests can exercise it;
+- `supported`: agent-loop owns a repository-side adapter/projector for the capability and contract tests can exercise that repository-side boundary;
 - `degraded`: a native adapter exists, but the stronger host runtime/delegation behavior has not been observed;
 - `unsupported`: agent-loop has no adapter/projector for that capability.
 
@@ -168,15 +173,15 @@ vendor/bin/agent-loop map context <symbol>
 vendor/bin/agent-loop map changed --base=<ref>
 ```
 
-Choose navigation by the information needed. For known files/symbols, literals, config/templates, exception messages, or local tests, use `rg`, `rg --files`, and focused reads without building Map merely for policy compliance. Use Map for structural PHP questions such as unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, and production/test relationships. A relevant fresh index can be preferred earlier because its construction cost is already paid.
+Choose navigation by the information needed, routing by question shape rather than habit. Literal, config/template, exception-message and filename questions are text-shaped: use `rg`, `rg --files`, and focused reads without building Map merely for policy compliance. A named PHP class, method or function is identity-shaped: when a relevant fresh index already exists, resolve it with `map scope`, or `map context` for a planned edit, rather than rediscovering that identity by text. Use Map for structural PHP questions such as unknown implementation ownership, callers/callees, cross-file impact, provenance/value flow, refactoring scope, related symbols, and production/test relationships, and prefer a governed Map plan for a supported rename, removal or move. A relevant fresh index can be preferred earlier because its construction cost is already paid.
 
-If Map is unavailable, stale, unsupported, or insufficient, record that limitation and fall back to CLI navigation. Do not mechanically repeat equivalent discovery with both Map and text search, and never infer a semantic relationship from a literal match alone. `grep`, `find`, and `sed -i` remain blocked by the Codex guardrail. Query Map when it adds structural value, then inspect only the selected real source still needed. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
+If Map is unavailable or stale and repairing it would cost more than the question warrants, record that limitation and fall back to CLI navigation. Do not mechanically repeat equivalent discovery with both Map and text search, and never infer a semantic relationship from a literal match alone. `grep`, `find`, and `sed -i` remain blocked by the Codex guardrail. Query Map when it adds structural value, then inspect only the selected real source still needed. Never dump `.agent-loop/map/php-symbols.json` or `.agent-loop/map/search.sqlite` into a prompt.
 
 ## Dogfood contract
 
-`composer dogfood:discipline` verifies the bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, and bounded map denial. In particular, it now proves the implementation ladder is **absent** from SessionStart/SubagentStart context.
+`composer dogfood:discipline` verifies the existing bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, bounded map denial, and absence of the implementation ladder from SessionStart/SubagentStart context.
 
-PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects an exact pinned `voku/agent-skills` revision. That cross-repository run is the executable proof that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
+PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects the exact pinned `voku/agent-skills` revision, including `engineering-codelight`; that path proves Codelight projection, discipline routing, and absence of the Codelight body from the package bootstrap. Together these paths prove that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
 
 A green installer proves projection mechanics only. Runtime/delegation claims require their own evidence.
 

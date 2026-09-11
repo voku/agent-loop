@@ -116,6 +116,13 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         }
         $originalMode = $permissions & 0o777;
         self::assertTrue(chmod($recallRoot, 0o555));
+        clearstatcache(true, $recallRoot);
+        if (is_writable($recallRoot)) {
+            // A read-only directory cannot refuse a privileged process, so the
+            // archive failure this case needs can never be provoked here.
+            self::assertTrue(chmod($recallRoot, $originalMode));
+            self::markTestSkipped('This process can write to read-only directories.');
+        }
         set_error_handler(
             static fn (int $severity, string $message): bool => str_contains($message, 'rename('),
         );

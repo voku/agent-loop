@@ -41,28 +41,15 @@ Start or resume through the front door:
 vendor/bin/agent-loop enter <task-id> --format=json
 ```
 
-Read the structured result, especially:
+Obey `next_action_kind` / `next_action` from that result. The always-on router in
+`AGENTS.md` already defines how to treat each kind, so this skill does not restate
+it: a third copy of a rule the router and the result both carry is a second source
+of truth that can drift from its authority.
 
-- `mutation_ready` — whether host-native implementation work is currently authorized;
-- `next_action_kind` — how to treat the canonical next step;
-- `next_action` — the one decisive next step;
-- `manifest.references` — supporting owner-backed evidence and reasons;
-- `future_work` — repository policy for optional post-completion reflection; it never widens the current Contract.
-
-`next_action_kind` has one treatment contract:
-
-- `command` — execute `next_action` as written;
-- `command_template` — fill model-owned placeholders from the actual user request
-  and current repository evidence, then execute the resulting command. Do **not**
-  ask the human merely because a template contains placeholders. If a required
-  value is genuinely missing product intent rather than model-resolvable task
-  construction, stop and ask for that missing intent instead of inventing it;
-- `decision_required` — a genuine human-authority decision is required. Never
-  fabricate it, and never ask for a generic confirmation that hides what is being
-  decided. Present the exact current owner-backed decision subject first;
-- `host_work` — perform the described host-native implementation/model work;
-  the text is not a shell command;
-- `none` — no further lifecycle action is required.
+The result also reports `mutation_ready` (whether host-native implementation is
+authorized now), `manifest.references` (owner-backed evidence and reasons), and
+`future_work` (repository policy for optional post-completion reflection, which
+never widens the current Contract).
 
 Do not combine sibling fields to invent a different workflow decision. If a
 canonical command refuses deterministically without changing the next step,

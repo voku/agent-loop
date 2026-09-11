@@ -1,0 +1,35 @@
+{
+    "id": "finding.2026-09-09.3db1d5",
+    "task_id": "LOOP-404",
+    "session": "2026-09-09-loop-404-r2-97183a54",
+    "created_at": "2026-09-09T17:56:00+00:00",
+    "created_by": "claude",
+    "scope": [
+        "src/Workflow/WorkflowRunPreparer.php"
+    ],
+    "observation": "Three independent instances of one defect shape in a single day, across three packages. (1) enter refused preparation with 'stale map entries: <files>' and never named the index those files were stale in, while the repository held two indexes read by different owners; a host refreshed the other one, saw no change, and re-ran the same prescribed command. (2) agent-map's 'refresh --index=map.json' read map.json, wrote php-symbols.json, and printed 'Refreshed 1 changed file(s)' - the named index stayed stale forever and every repeat re-read the same unchanged source. (3) agent-ui's Map Readiness panel reported a path computed from configuration while every count on the page came from a file chosen by a different rule. In all three the operation was correct and the message was not: it described a result without naming the artifact the result was about.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter DiscoveryRefusalNamesTheIndexTest",
+            "summary": "dropping the index suffix, or naming the repository-local root instead of the one preparation read, each fail all four regressions"
+        },
+        {
+            "type": "issue_reference",
+            "issue": "voku/agent-loop#404",
+            "summary": "the reported loop: enter -> map refresh -> refusal -> enter, with no message naming the index"
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Workflow/WorkflowRunPreparer.php",
+            "line": 256,
+            "summary": "MapReadiness::$mapPath carried the answer all along; the refusal simply did not use it"
+        }
+    ],
+    "hypothesis": "The artifact identity is ambient at the point the message is written - the code already resolved it, so naming it feels redundant to the author, who has only ever seen a repository with one of them. It stops being redundant exactly when a second artifact exists, which is also exactly when nobody is reading the code and everybody is reading the message.",
+    "validated_conclusion": "An operation that could have acted on more than one artifact must name the one it did act on, in the success message as much as the refusal. A count of stale files, a 'refreshed N files', or a rendered statistic is not identifying: two artifacts produce the same sentence, and the reader has no way to tell a repair that failed from a repair applied to the wrong file. Where the owner already reports the path - MapReadiness::mapPath here - report it unchanged rather than recomputing a location that can drift from the one that was read.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

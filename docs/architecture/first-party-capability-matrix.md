@@ -9,6 +9,7 @@ This is the current ownership map for first-party agent behavior. Historical mig
 | Capability | Owner | `agent-loop` responsibility |
 |---|---|---|
 | Engineering lessons and principle history | `voku/learnings` | Architecture input only; never dump it wholesale into runtime context |
+| Technology-neutral non-trivial engineering reasoning | `voku/agent-skills/engineering-codelight` | Route to the portable reasoning lens inside the current lifecycle action when relevant; do not copy its laws or create parallel workflow state |
 | Implementation-time simplicity | `voku/agent-skills/coding-simplicity` | Select/project it for coding, bug fixing, and refactoring; do not copy its rules into session bootstrap |
 | PHP/testing/security/performance/type/architecture engineering guidance | `voku/agent-skills` | Select/project the relevant skill; engineering truth stays outside the umbrella package |
 | Engineering review lenses | `voku/agent-skills/code-review-*` | Provide exact scope/evidence, select one dominant lens, persist the lens-local result, allow at most one evidence-backed handoff |
@@ -28,7 +29,9 @@ This is the current ownership map for first-party agent behavior. Historical mig
 
 `agent-loop-discipline` is intentionally smaller than the engineering skills it can route to.
 
-For example, the Ponytail-derived rules now live in `coding-simplicity`:
+`engineering-codelight` owns technology-neutral reasoning for non-trivial engineering work. It is workflow-neutral: the active project lifecycle remains authoritative, and Loop loads only the smallest relevant skill combination instead of injecting Codelight into every session or specialist.
+
+For implementation minimization, the Ponytail-derived rules live in `coding-simplicity`:
 
 ```text
 understand flow
@@ -41,7 +44,7 @@ understand flow
   -> minimum new code
 ```
 
-That skill also owns the safety and verification floors. SessionStart/SubagentStart do not inject this implementation ladder into unrelated planning, research, review orchestration, or delegation.
+That skill also owns the safety and verification floors. SessionStart/SubagentStart do not inject either the Codelight reasoning body or this implementation ladder into unrelated planning, research, review orchestration, or delegation.
 
 Review-time simplicity is a separate concern: `code-review-simplicity` judges an existing diff; `coding-simplicity` guides implementation choices.
 
@@ -56,7 +59,7 @@ Review-time simplicity is a separate concern: `code-review-simplicity` judges an
 - no remote source is downloaded by `install-assets`;
 - the caller owns source provenance and may pin/check out the source before invocation.
 
-Installed release-set CI pins the merged first-party `voku/agent-skills` revision and proves package workflow skills plus `coding-simplicity`/review skills coexist in the projected host roots.
+Installed release-set CI pins the merged first-party `voku/agent-skills` revision and proves package workflow skills plus `engineering-codelight`, `coding-simplicity`, and review skills coexist in the projected host roots.
 
 ## Projection is not runtime behavior
 
@@ -100,7 +103,9 @@ A vendor feature can prove that a possible mechanism exists; it does not turn an
 
 Changes to these boundaries run through `agent-loop` itself. PR CI executes the real diff through self-shape governance, while installed release-set dogfood projects the exact pinned first-party engineering-skill source into a clean consumer.
 
-For coding-simplicity specifically, dogfood must prove both sides of the boundary:
+For Codelight composition, dogfood must prove both sides of the boundary:
 
-1. the loadable skill is present with search-order, safety, verification, and no-persona semantics;
-2. the always-on discipline/session context does **not** contain the implementation ladder.
+1. the exact pinned `engineering-codelight` skill is loadable/projected beside package-owned workflow skills;
+2. the always-on discipline/session context routes to it without containing the nine-law reasoning body, and workflow authority remains the lifecycle result's `next_action_kind` / `next_action`.
+
+For `coding-simplicity`, dogfood likewise proves the loadable implementation skill remains present while the always-on discipline/session context does **not** contain its implementation ladder.

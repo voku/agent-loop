@@ -77,10 +77,21 @@ final class RunVerificationReceiptCurrentnessTest extends TestCase
         $manifest = (new RunManifestProjector($this->root))->project('VERIFY-328');
         $verification = $manifest->references['verification'];
 
-        self::assertSame('stale', $verification['state'] ?? null);
-        self::assertSame($snapshotA->digest, $verification['implementation_snapshot'] ?? null);
-        self::assertSame($snapshotB->digest, $verification['current_implementation_snapshot'] ?? null);
-        self::assertStringContainsString('different implementation snapshot', (string) ($verification['reason'] ?? ''));
+        // A receipt that cannot prove currentness is history, not a lifecycle
+        // answer: with a Session that can still record replacement evidence the
+        // projection re-derives verification for the exact current
+        // implementation instead of reporting a fact nothing can act on.
+        self::assertNotContains(
+            $verification['state'] ?? null,
+            ['passed', 'accepted_risk'],
+            'evidence bound to a previous implementation must never read as current.',
+        );
+        self::assertSame($snapshotB->digest, $verification['implementation_snapshot'] ?? null);
+        $superseded = $verification['superseded_receipt'] ?? null;
+        self::assertIsArray($superseded);
+        self::assertSame($snapshotA->digest, $superseded['implementation_snapshot'] ?? null);
+        self::assertSame($snapshotB->digest, $superseded['current_implementation_snapshot'] ?? null);
+        self::assertStringContainsString('different implementation snapshot', (string) ($superseded['reason'] ?? ''));
 
         $persisted = (new RunVerificationReceiptStore($this->root))->find('VERIFY-328');
         self::assertNotNull($persisted);

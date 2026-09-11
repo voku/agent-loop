@@ -8,6 +8,7 @@ use HelgeSverre\Toon\Toon;
 use JsonException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
 
@@ -259,7 +260,7 @@ final readonly class RefactorVerifyCommand
             throw new RuntimeException('Project root not found: ' . $this->projectRoot);
         }
         $bundle = $this->insideExistingDirectory($root, $values['bundle'] ?? '', 'bundle');
-        $mapIndex = $this->insideExistingFile($root, $values['map-index'] ?? '.agent-loop/map/php-symbols.json', 'map index');
+        $mapIndex = $this->insideExistingFile($root, $values['map-index'] ?? (new ProjectLayout($root))->mapIndex(), 'map index');
         $mapRoot = $this->insideExistingDirectory($root, $values['map-root'] ?? '.', 'map root');
 
         return ['bundle' => $bundle, 'map_index' => $mapIndex, 'map_root' => $mapRoot];
