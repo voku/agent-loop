@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.20.5 - 2026-09-11
 
 ### Changed
 
@@ -16,7 +16,6 @@ All notable changes to this project will be documented in this file.
 ### Performance
 
 - Memoize artifact hashing by path, mtime, and filesize in `RunManifestProjector::artifact()`, preventing redundant repeated SHA256 calculations of large artifacts (such as SQLite databases and symbol maps) during batch task projections.
-
 
 ## 0.20.4 - 2026-09-10
 
