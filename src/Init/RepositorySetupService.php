@@ -353,13 +353,25 @@ final readonly class RepositorySetupService
 
     private function defaultSourcePaths(): AgentAssetSourcePaths
     {
+        return $this->configuredAssetSources()['paths'];
+    }
+
+    /**
+     * @return array{paths:AgentAssetSourcePaths,packageSkills:bool,packageSubagents:bool}
+     */
+    private function configuredAssetSources(): array
+    {
         $layout = new ProjectLayout($this->rootPath);
         $canonicalConfig = $layout->configPath();
         $config = (new InitConfigLoader($this->rootPath))->load(
             is_file($canonicalConfig) ? $layout->display($canonicalConfig) : null,
         );
 
-        return AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], []);
+        return [
+            'paths' => AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], []),
+            'packageSkills' => $config['package_skills'],
+            'packageSubagents' => $config['package_subagents'],
+        ];
     }
 
     public function overview(?string $requestedAgent = null): RepositorySetupProjection
@@ -381,6 +393,7 @@ final readonly class RepositorySetupService
         }
 
         $host = $selection['host'];
+        $sources = $this->configuredAssetSources();
         $runtime = $probe->probe($host);
         $policy = $this->policyStatus($host);
         $git = $this->gitIntegration();
@@ -388,10 +401,20 @@ final readonly class RepositorySetupService
             instructions: (new InitSyncInstructionsCommand($this->rootPath))->isCurrentFor($host)
                 ? RepositorySetupIntegrationState::READY
                 : RepositorySetupIntegrationState::MISSING,
-            skills: $this->manifestReady($this->skillsRoot($host), 'skills', $host, $this->expectedSkillEntries())
+            skills: $this->manifestReady(
+                $this->skillsRoot($host),
+                'skills',
+                $host,
+                $this->expectedSkillEntries($sources['paths'], $sources['packageSkills']),
+            )
                 ? RepositorySetupIntegrationState::READY
                 : RepositorySetupIntegrationState::MISSING,
-            subagents: $this->manifestReady($this->subagentsRoot($host), 'subagents', $host, $this->expectedSubagentEntries($host))
+            subagents: $this->manifestReady(
+                $this->subagentsRoot($host),
+                'subagents',
+                $host,
+                $this->expectedSubagentEntries($sources['paths'], $host, $sources['packageSubagents']),
+            )
                 ? RepositorySetupIntegrationState::READY
                 : RepositorySetupIntegrationState::MISSING,
             policy: RepositorySetupIntegrationState::from($policy['status']),
@@ -522,15 +545,20 @@ final readonly class RepositorySetupService
     }
 
     /** @return list<string> */
-    private function expectedSkillEntries(): array
+    private function expectedSkillEntries(AgentAssetSourcePaths $paths, bool $includePackageSkills): array
     {
-        $packageRoot = dirname(__DIR__, 2);
-        $roots = FirstPartySkillRoots::resolve($packageRoot);
+        $roots = $includePackageSkills
+            ? FirstPartySkillRoots::resolve(dirname(__DIR__, 2))
+            : [];
+        $configuredRoot = $paths->absoluteSkillsRoot();
+        if (is_dir($configuredRoot) && !in_array($configuredRoot, $roots, true)) {
+            $roots[] = $configuredRoot;
+        }
 
         $entries = [];
         foreach ($roots as $root) {
             if (!is_dir($root)) {
-                throw new RuntimeException('First-party skills root is missing: ' . $root);
+                throw new RuntimeException('Managed skills root is missing: ' . $root);
             }
             foreach (scandir($root) ?: [] as $entry) {
                 if ($entry === '.' || $entry === '..') {
@@ -545,34 +573,48 @@ final readonly class RepositorySetupService
         $entries = array_values(array_unique($entries));
         sort($entries, SORT_STRING);
         if ($entries === []) {
-            throw new RuntimeException('No first-party skill entries are available for host inspection.');
+            throw new RuntimeException('No managed skill entries are available for host inspection.');
         }
 
         return $entries;
     }
 
     /** @return list<string> */
-    private function expectedSubagentEntries(string $host): array
+    private function expectedSubagentEntries(
+        AgentAssetSourcePaths $paths,
+        string $host,
+        bool $includePackageSubagents,
+    ): array
     {
-        $root = PackageResources::subagentsRoot();
-        if (!is_dir($root)) {
-            throw new RuntimeException('Bundled subagents root is missing: ' . $root);
+        $roots = [];
+        if ($includePackageSubagents) {
+            $root = PackageResources::subagentsRoot();
+            if (is_dir($root)) {
+                $roots[] = $root;
+            }
+        }
+        $configuredRoot = $paths->absoluteSubagentsRoot();
+        if (is_dir($configuredRoot) && !in_array($configuredRoot, $roots, true)) {
+            $roots[] = $configuredRoot;
         }
 
         $suffix = (new ManagedAssetTargetCatalog($this->rootPath))->subagentSuffix($host);
         $entries = [];
-        foreach (scandir($root) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
-                continue;
-            }
-            if (is_file($root . '/' . $entry)) {
-                $entries[] = substr($entry, 0, -3) . $suffix;
+        foreach ($roots as $root) {
+            foreach (scandir($root) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
+                    continue;
+                }
+                if (is_file($root . '/' . $entry)) {
+                    $entries[] = substr($entry, 0, -3) . $suffix;
+                }
             }
         }
 
+        $entries = array_values(array_unique($entries));
         sort($entries, SORT_STRING);
         if ($entries === []) {
-            throw new RuntimeException('No bundled subagent entries are available for host inspection.');
+            throw new RuntimeException('No managed subagent entries are available for host inspection.');
         }
 
         return $entries;

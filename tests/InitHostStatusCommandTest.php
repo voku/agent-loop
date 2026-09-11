@@ -160,6 +160,23 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('does not claim a repository-native authority policy projector', (string) $ready['runtime_boundary']);
     }
 
+    public function testConfiguredAssetsWithoutPackageAssetsConvergeThroughCanonicalRepositoryActions(): void
+    {
+        $this->configureRepositoryAssets();
+
+        $initial = $this->hostStatus();
+        self::assertSame('missing', $initial['integration']['skills'] ?? null);
+        self::assertSame('missing', $initial['integration']['subagents'] ?? null);
+
+        $this->installAssets('opencode', false);
+
+        $afterAssets = $this->hostStatus();
+        self::assertSame('ready', $afterAssets['integration']['skills'] ?? null);
+        self::assertSame('ready', $afterAssets['integration']['subagents'] ?? null);
+        self::assertSame('command', $afterAssets['next_action_kind']);
+        self::assertSame('vendor/bin/agent-loop init sync-policy --agent=opencode', $afterAssets['next_action']);
+    }
+
     public function testModifiedManagedSkillReopensAssetRepairInsteadOfClaimingReady(): void
     {
         $this->installAssets('opencode');
@@ -240,7 +257,7 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('--agent=<claude|opencode>', (string) $status['next_action']);
     }
 
-    private function installAssets(string $agent): void
+    private function installAssets(string $agent, bool $expectsPackageAssets = true): void
     {
         $install = $this->capture(fn (): int => (new InitInstallAssetsCommand($this->root))->run(['--agent=' . $agent]));
         self::assertSame(0, $install['exit'], $install['output']);
@@ -249,7 +266,50 @@ final class InitHostStatusCommandTest extends TestCase
         if ($agent === 'opencode') {
             self::assertFileExists($this->root . '/.opencode/skills/.agent-loop-manifest.json');
             self::assertFileExists($this->root . '/.opencode/agents/.agent-loop-manifest.json');
-            self::assertFileExists($this->root . '/.opencode/agents/agent-loop-investigator.md');
+            if ($expectsPackageAssets) {
+                self::assertFileExists($this->root . '/.opencode/agents/agent-loop-investigator.md');
+            }
+        }
+    }
+
+    private function configureRepositoryAssets(): void
+    {
+        $skillsRoot = $this->root . '/custom-skills/repository-skill';
+        if (!mkdir($skillsRoot, 0o775, true) && !is_dir($skillsRoot)) {
+            throw new RuntimeException('Unable to create configured skills root.');
+        }
+        if (file_put_contents(
+            $skillsRoot . '/SKILL.md',
+            "---\nname: repository-skill\ndescription: Repository skill.\n---\n\nSkill body.\n",
+        ) === false) {
+            throw new RuntimeException('Unable to create configured skill.');
+        }
+
+        $subagentsRoot = $this->root . '/custom-subagents';
+        if (!mkdir($subagentsRoot, 0o775, true) && !is_dir($subagentsRoot)) {
+            throw new RuntimeException('Unable to create configured subagents root.');
+        }
+        if (file_put_contents(
+            $subagentsRoot . '/repository-agent.md',
+            "---\nname: repository-agent\ndescription: Repository agent.\n---\n\nAgent body.\n",
+        ) === false) {
+            throw new RuntimeException('Unable to create configured subagent.');
+        }
+
+        $configRoot = $this->root . '/.agent-loop';
+        if (!mkdir($configRoot, 0o775, true) && !is_dir($configRoot)) {
+            throw new RuntimeException('Unable to create configured asset directory.');
+        }
+        $config = json_encode([
+            'package_skills' => false,
+            'package_subagents' => false,
+            'paths' => [
+                'skills_root' => 'custom-skills',
+                'subagents_root' => 'custom-subagents',
+            ],
+        ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        if (file_put_contents($configRoot . '/init.json', $config) === false) {
+            throw new RuntimeException('Unable to create configured asset manifest.');
         }
     }
 
