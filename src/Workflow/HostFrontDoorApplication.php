@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use Closure;
+use InvalidArgumentException;
 use JsonException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
@@ -206,9 +207,11 @@ final readonly class HostFrontDoorApplication
 
         try {
             return (new WorkflowTaskId($candidate))->value;
-        } catch (Throwable) {
-            return null;
+        } catch (InvalidArgumentException) {
+            // HostFrontDoorCommand already reports the canonical invalid-task refusal.
         }
+
+        return null;
     }
 
     /**
