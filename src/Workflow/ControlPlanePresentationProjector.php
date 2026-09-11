@@ -116,7 +116,6 @@ final readonly class ControlPlanePresentationProjector
     }
 
     /**
-     * @param 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed' $status
      * @return array{
      *     schema_version: '1.0',
      *     kind: 'control_plane',
