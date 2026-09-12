@@ -8,6 +8,7 @@ enum HostCapability: string
 {
     case SkillProjection = 'skill-projection';
     case SubagentProjection = 'subagent-projection';
+    case SubagentReadOnlyEnforcement = 'subagent-read-only-enforcement';
     case PolicyProjection = 'policy-projection';
     case SessionBootstrap = 'session-bootstrap';
     case SubagentBootstrap = 'subagent-bootstrap';
