@@ -138,6 +138,33 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         }
     }
 
+    public function testUnicodeDetailIsTruncatedWithoutSplittingCharacters(): void
+    {
+        $root = $this->configuredRoot(['enabled' => true]);
+        $this->installAgentUiPlaceholder($root);
+        $detail = str_repeat('a', 299) . '😃tail';
+        $projector = new ControlPlanePresentationProjector(
+            $root,
+            static fn (array $command): CommandProcessResult => new CommandProcessResult(
+                2,
+                json_encode([
+                    'status' => 'unreachable',
+                    'url' => null,
+                    'project_id' => 'owner-result',
+                    'detail' => $detail,
+                ], JSON_THROW_ON_ERROR),
+                '',
+                false,
+            ),
+        );
+
+        $result = $projector->project('ATTN-UTF8');
+
+        self::assertNotNull($result);
+        self::assertSame(str_repeat('a', 299) . '😃', $result['detail']);
+        self::assertIsString(json_encode($result, JSON_THROW_ON_ERROR));
+    }
+
     public function testProbeFailuresRemainPresentationFailures(): void
     {
         $cases = [
