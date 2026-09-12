@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use SplFileInfo;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
@@ -210,6 +211,9 @@ MD;
         $directories = [$path];
         for ($index = 0; $index < count($directories); ++$index) {
             foreach (new FilesystemIterator($directories[$index], FilesystemIterator::SKIP_DOTS) as $item) {
+                if (!$item instanceof SplFileInfo) {
+                    throw new RuntimeException('FilesystemIterator returned an unexpected entry type.');
+                }
                 if ($item->isDir() && !$item->isLink()) {
                     $directories[] = $item->getPathname();
                     continue;
