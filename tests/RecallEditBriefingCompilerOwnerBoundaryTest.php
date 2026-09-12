@@ -33,6 +33,6 @@ final class RecallEditBriefingCompilerOwnerBoundaryTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
         self::assertIsArray($composer);
-        self::assertSame('^0.17.4', $composer['require']['voku/agent-recall-compiler'] ?? null);
+        self::assertSame('^0.17.5', $composer['require']['voku/agent-recall-compiler'] ?? null);
     }
 }
