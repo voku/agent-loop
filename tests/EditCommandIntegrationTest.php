@@ -218,24 +218,26 @@ final class EditCommandIntegrationTest extends TestCase
 
     public function testMethodRenamePublicationRunsInsideSharedMutationLock(): void
     {
-        $insideLock = false;
-        $observedPublicationMove = false;
+        $state = new class {
+            public bool $insideLock = false;
+            public bool $observedPublicationMove = false;
+        };
         $mutationLock = new EditMutationLock(
-            synchronizeOperation: static function (string $projectRoot, Closure $operation) use (&$insideLock): mixed {
+            synchronizeOperation: static function (string $projectRoot, Closure $operation) use ($state): mixed {
                 self::assertNotSame('', $projectRoot);
-                self::assertFalse($insideLock);
-                $insideLock = true;
+                self::assertFalse($state->insideLock);
+                $state->insideLock = true;
                 try {
                     return $operation();
                 } finally {
-                    $insideLock = false;
+                    $state->insideLock = false;
                 }
             },
         );
         $renameRunner = new MethodRenameEditRunner(
-            renameOperation: static function (string $from, string $to) use (&$insideLock, &$observedPublicationMove): bool {
-                self::assertTrue($insideLock, 'source publication must stay inside the shared edit mutation lock');
-                $observedPublicationMove = true;
+            renameOperation: static function (string $from, string $to) use ($state): bool {
+                self::assertTrue($state->insideLock, 'source publication must stay inside the shared edit mutation lock');
+                $state->observedPublicationMove = true;
 
                 return rename($from, $to);
             },
@@ -258,8 +260,8 @@ final class EditCommandIntegrationTest extends TestCase
         ob_end_clean();
 
         self::assertSame(0, $exit);
-        self::assertTrue($observedPublicationMove);
-        self::assertFalse($insideLock);
+        self::assertTrue($state->observedPublicationMove);
+        self::assertFalse($state->insideLock);
     }
 
     public function testAutoRunnerUsesMechanicalExecutionForAnExactReplacement(): void
