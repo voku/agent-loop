@@ -40,16 +40,9 @@ use voku\AgentSession\SessionStore;
  * Read-only projection of one governed task across package-owned artifacts.
  * Session state may disappear after close; durable run state must not.
  */
-final class RunManifestProjector
+final readonly class RunManifestProjector
 {
-    /**
-     * @deprecated Artifact identities are content-exact and are no longer cached.
-     */
-    public static function clearCache(): void
-    {
-    }
-
-    public function __construct(private readonly string $rootPath)
+    public function __construct(private string $rootPath)
     {
     }
 
@@ -527,7 +520,7 @@ final class RunManifestProjector
         array &$disagreements,
     ): array {
         $store = new RunVerificationReceiptStore($this->rootPath);
-        if ($this->approvedContractSupersedesRun($run, $contract)) {
+        if ($this->approvedContractSupersesRun($run, $contract)) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'pending_close',
