@@ -138,7 +138,7 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         }
     }
 
-    public function testUnicodeDetailIsTruncatedWithoutSplittingCharacters(): void
+    public function testUnicodeDetailPreservesUtf8AndTheByteBound(): void
     {
         $root = $this->configuredRoot(['enabled' => true]);
         $this->installAgentUiPlaceholder($root);
@@ -161,7 +161,8 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         $result = $projector->project('ATTN-UTF8');
 
         self::assertNotNull($result);
-        self::assertSame(str_repeat('a', 299) . '😃', $result['detail']);
+        self::assertSame(str_repeat('a', 299), $result['detail']);
+        self::assertLessThanOrEqual(300, strlen($result['detail']));
         self::assertIsString(json_encode($result, JSON_THROW_ON_ERROR));
     }
 
