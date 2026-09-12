@@ -62,8 +62,8 @@ final readonly class InitInstallPlanCommand
 
         This command prints a setup plan only. It writes nothing.
 
-        Optional system tool:
-        {$this->renderRipgrepBlock($profile)}
+        Recommended system tools:
+        {$this->renderRecommendedSystemToolsBlock($profile)}
 
         First-party agent assets:
 
@@ -84,16 +84,17 @@ final readonly class InitInstallPlanCommand
         TXT;
     }
 
-    private function renderRipgrepBlock(string $profile): string
+    private function renderRecommendedSystemToolsBlock(string $profile): string
     {
         $shell = in_array($profile, ['windows', 'powershell'], true) ? 'powershell' : 'bash';
 
         return <<<TXT
         ```{$shell}
         rg --version
+        jq --version
         ```
 
-        If `rg` is missing, install ripgrep through your reviewed operating-system
+        If `rg` or `jq` is missing, install it through your reviewed operating-system
         package source. `agent-loop` does not fetch or execute an installer.
         TXT;
     }
