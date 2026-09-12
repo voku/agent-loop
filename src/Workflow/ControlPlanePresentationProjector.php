@@ -22,11 +22,14 @@ final readonly class ControlPlanePresentationProjector
     public function __construct(private string $rootPath, ?callable $runner = null)
     {
         $this->runner = $runner === null
-            ? fn (array $command): CommandProcessResult => (new CommandProcessRunner())->run(
-                $command,
-                $this->rootPath,
-                3,
-            )
+            ? function (array $command): CommandProcessResult {
+                /** @var non-empty-list<string> $command */
+                return (new CommandProcessRunner())->run(
+                    $command,
+                    $this->rootPath,
+                    3,
+                );
+            }
             : Closure::fromCallable($runner);
     }
 
@@ -117,10 +120,11 @@ final readonly class ControlPlanePresentationProjector
     }
 
     /**
+     * @param 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed' $status
      * @return array{
      *     schema_version: '1.0',
      *     kind: 'control_plane',
-     *     status: string,
+     *     status: 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed',
      *     required: false,
      *     url: string|null,
      *     detail: string|null
