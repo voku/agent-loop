@@ -33,6 +33,7 @@ final readonly class SubagentDefinition
     private function __construct(
         private string $name,
         private string $description,
+        private SubagentMutationIntent $mutationIntent,
         private string $body,
     ) {
     }
@@ -45,6 +46,7 @@ final readonly class SubagentDefinition
         return new self(
             $parsed['frontmatter']['name'],
             $parsed['frontmatter']['description'],
+            $parsed['mutation_intent'],
             $parsed['body'],
         );
     }
@@ -92,11 +94,16 @@ final readonly class SubagentDefinition
     public function renderForClient(string $client): string
     {
         if ($client === 'codex') {
-            return implode("\n", [
+            $lines = [
                 'name = ' . self::tomlString($this->name),
                 'description = ' . self::tomlString($this->description),
-                'developer_instructions = ' . self::tomlString(ltrim($this->body)),
-            ]);
+            ];
+            if ($this->mutationIntent === SubagentMutationIntent::ReadOnly) {
+                $lines[] = 'sandbox_mode = "read-only"';
+            }
+            $lines[] = 'developer_instructions = ' . self::tomlString(ltrim($this->body));
+
+            return implode("\n", $lines);
         }
 
         $frontmatter = $client === 'opencode'
@@ -152,7 +159,11 @@ final readonly class SubagentDefinition
     }
 
     /**
-     * @return array{frontmatter: array{name: string, description: string}, body: string}
+     * @return array{
+     *     frontmatter: array{name: string, description: string},
+     *     mutation_intent: SubagentMutationIntent,
+     *     body: string
+     * }
      */
     private static function parseContent(string $filePath, string $content): array
     {
@@ -187,11 +198,20 @@ final readonly class SubagentDefinition
             throw new InvalidArgumentException("Missing or invalid 'description' in frontmatter");
         }
 
+        $mutation = $frontmatter['mutation'] ?? SubagentMutationIntent::Writable->value;
+        $mutationIntent = SubagentMutationIntent::tryFrom($mutation);
+        if ($mutationIntent === null) {
+            throw new InvalidArgumentException(
+                "Invalid 'mutation' in frontmatter; expected 'read-only' or 'writable'",
+            );
+        }
+
         return [
             'frontmatter' => [
                 'name' => $name,
                 'description' => $description,
             ],
+            'mutation_intent' => $mutationIntent,
             'body' => $matches[2],
         ];
     }
