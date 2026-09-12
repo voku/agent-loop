@@ -155,6 +155,7 @@ jobs:
             and (.verification.checks.current_map == "passed")
             and (.verification.checks.changed_files == "passed")
             and (.verification.checks.replacements == "passed")
+            and (.verification.checks.moves == "passed")
             and (.final_state == "complete")
           ' "$report" >/dev/null
 
