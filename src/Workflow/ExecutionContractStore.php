@@ -100,6 +100,46 @@ final readonly class ExecutionContractStore
         }
     }
 
+    /**
+     * Resolves the current owner state and, only when it is ready, returns the
+     * exact document bytes bound to the owner-reported artifact identity.
+     *
+     * @return array<string, mixed>
+     */
+    public function materializeCurrentReadyDocument(string $taskId): array
+    {
+        $reference = $this->inspect($taskId);
+        if (($reference['state'] ?? null) !== 'ready') {
+            return $reference;
+        }
+
+        $source = $reference['document'] ?? null;
+        if (!is_array($source)) {
+            throw new RuntimeException('Ready execution contract has no document source.');
+        }
+        $path = $source['path'] ?? null;
+        $sha256 = $source['sha256'] ?? null;
+        if (!is_string($path) || trim($path) === '' || !is_string($sha256) || preg_match('/^sha256:[a-f0-9]{64}$/', $sha256) !== 1) {
+            throw new RuntimeException('Ready execution contract source identity is invalid.');
+        }
+
+        $content = file_get_contents(PathResolver::join($this->rootPath, $path));
+        if (!is_string($content) || trim($content) === '') {
+            throw new RuntimeException('Ready execution contract document is unreadable or empty.');
+        }
+        if (!hash_equals($sha256, 'sha256:' . hash('sha256', $content))) {
+            throw new RuntimeException('Ready execution contract changed after its owner projection was inspected.');
+        }
+
+        return [
+            ...$reference,
+            'materialized_document' => [
+                'source' => ['path' => $path, 'sha256' => $sha256],
+                'content' => $content,
+            ],
+        ];
+    }
+
     public function writeReady(string $taskId, string $actor, string $content): string
     {
         $binding = $this->requireResolvedL2Binding($taskId);
