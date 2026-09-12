@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   consumer:
-    name: Typed Map owner report drives Loop
+    name: Released Map owner report drives Loop
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -40,27 +40,42 @@ jobs:
           changed="$(git diff --name-only HEAD^1 HEAD)"
           test "$changed" = '.github/workflows/map-definition-capability-consumer.yml'
 
-      - name: Install released Loop dependencies then overlay the exact Map owner
+      - name: Install released Loop dependencies and prove released Map owner
         shell: bash
         run: |
           set -euo pipefail
           composer install --prefer-dist --no-interaction --no-progress
 
-          owner='cbfe8841bc65e94e51254d30ac0d9fe61c106143'
-          rm -rf vendor/voku/agent-map
-          git init --quiet vendor/voku/agent-map
-          git -C vendor/voku/agent-map remote add origin https://github.com/voku/agent-map.git
-          git -C vendor/voku/agent-map fetch --quiet --depth=1 origin "$owner"
-          git -C vendor/voku/agent-map checkout --quiet --detach FETCH_HEAD
-          test "$(git -C vendor/voku/agent-map rev-parse HEAD)" = "$owner"
+          map_version="$(jq -r '
+            (.packages + (.["packages-dev"] // []))[]
+            | select(.name == "voku/agent-map")
+            | .version
+          ' composer.lock)"
+
+          if [[ ! "$map_version" =~ ^0\.12\.[0-9]+$ ]]; then
+            echo "Expected released voku/agent-map 0.12.x, got: $map_version" >&2
+            exit 1
+          fi
+
+          jq -e '
+            (.packages + (.["packages-dev"] // []))
+            | any(
+                .name == "voku/agent-map"
+                and (.version | test("^0\\.12\\.[0-9]+$"))
+                and (.dist.type != "path")
+                and (.source.type != "path")
+              )
+          ' composer.lock >/dev/null
 
           php -r '
             require "vendor/autoload.php";
             if (!class_exists(\voku\AgentMap\Evidence\DefinitionCapabilityProbe::class)) {
-                fwrite(STDERR, "Exact Map owner does not expose DefinitionCapabilityProbe.\n");
+                fwrite(STDERR, "Released Map owner does not expose DefinitionCapabilityProbe.\n");
                 exit(1);
             }
           '
+
+          printf '%s\n' "$map_version" > "$RUNNER_TEMP/resolved-map-version.txt"
 
       - name: Materialize pinned repositories
         shell: bash
@@ -212,11 +227,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          map_version="$(cat "$RUNNER_TEMP/resolved-map-version.txt")"
           {
             echo '### Map definition capability consumer'
             echo
-            echo '- Loop product source and Composer dependency graph: unchanged'
-            echo '- exact experimental Map owner overlaid for this dogfood only: `cbfe8841bc65e94e51254d30ac0d9fe61c106143`'
+            echo '- Loop product source: unchanged'
+            echo "- released Map owner resolved through the ordinary Composer graph: \`$map_version\`"
+            echo '- pre-release vendor overlay: removed'
             echo '- JS/TS typed owner report operational -> existing `agent-loop map query buildCallGraph` answered'
             echo '- Python typed owner report operational -> existing `agent-loop map query Flask` answered'
             echo '- missing Python provider: owner report and query both explicit unavailable'
