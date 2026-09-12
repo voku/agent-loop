@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.6 - 2026-09-12
+
+### Added
+
+- Add the optional local control-plane presentation boundary: configured `agent-ui` task links are projected only after the endpoint is verified, presentation status stays explicit, and bounded detail text remains valid UTF-8 while respecting its byte ceiling. The control plane remains presentation only; it does not acquire workflow authority.
+- Project typed subagent mutation intent through installed host assets. Investigator, triager and review roles declare read-only intent, the surgical builder declares writable intent, and Codex projection reports whether read-only sandbox enforcement is actually available instead of treating a requested policy as an enforced one.
+- Add an installed workflow-only consumer proof for agent-map 0.12's typed definition-capability boundary without introducing a second Loop product front door.
+
+### Changed
+
+- Allow configured skill/subagent source roots and package-asset toggles so repositories can keep adapted local assets without receiving an unnecessary duplicate package projection.
+- Raise the released owner floors to `voku/agent-learning ^0.18.6` and `voku/agent-recall-compiler ^0.17.4`, allow the released `voku/agent-map ^0.12.0` line beside the maintained 0.10/0.11 compatibility lines, and use `voku/portable-utf8 ^6.1` for bounded Unicode-safe presentation.
+
+### Fixed
+
+- Keep projected Run artifact identity content-exact. The previous path/mtime/filesize hash cache could reuse a digest after content changed without those metadata changing; the cache surface is removed so SHA-256 identity again reflects the bytes being governed.
+- For L2-selected agent stages, dispatch the current hash-bound `execution-contract.md` as the executor prompt and fail closed when that concrete L1 is missing, stale, invalid, blocked, or rejected. Recall's `system.md` remains construction/briefing evidence and is no longer injected into the acting host once the final L1 exists. Direct-L1/no-L2 tasks retain the existing governed Recall path. (#445, #446)
+- Keep control-plane projection typing/status enforcement and UTF-8 truncation exact, including quote handling in projected subagent definitions.
+
+### Validation
+
+- PR #446 passed PHP 8.3/8.4/8.5 CI, PHPStan/project rules, deterministic slop review, self-shape, governed execution-contract dogfood, installed release-set dogfood, diagnostics, refactor consumers, and release upgrade/resume evidence on exact head `0e10f7622dbb7005f61d787234eeb1508f5b1e2f` before merge as `1719f67ca64e1b7df952f24ac026d48823f3aa12`.
+- `voku/agent-loop-runner#20` independently replayed that exact Loop candidate through the real `ExecutionGateway -> ExecutionCoordinator -> HostExecutionRequest` path: PHPUnit and PHPStan passed on PHP 8.3/8.4/8.5, the acting host received the final five-section L1, and the L2 construction briefing was absent. The Runner PR remains unmergeable by policy until this release replaces its temporary candidate pin.
+
 ## 0.20.5 - 2026-09-11
 
 ### Changed
@@ -832,8 +856,6 @@ release.
   tool invocation from the package, so a repository configures its rule set
   (`standard`, `config`, `level`, `memory_limit`) rather than another wrapper
   script. `php-lint` runs per file because `php -l` takes exactly one path.
-  `type: command` stays the escape hatch for anything else, and an unknown type
-  fails with the list of known ones instead of running a broken command.
 - `init sync-subagents --agent=claude` renders repo-managed subagent roles into
   `.claude/agents/*.md` (override with `CLAUDE_AGENTS_DIR`), and `--agent=all`
   now includes Claude. `install-assets --agent=claude` therefore installs the
