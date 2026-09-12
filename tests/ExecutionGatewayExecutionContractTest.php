@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
@@ -207,12 +206,20 @@ MD;
         if (!is_dir($path)) {
             return;
         }
-        foreach (new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        ) as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+
+        $directories = [$path];
+        for ($index = 0; $index < count($directories); ++$index) {
+            foreach (new FilesystemIterator($directories[$index], FilesystemIterator::SKIP_DOTS) as $item) {
+                if ($item->isDir() && !$item->isLink()) {
+                    $directories[] = $item->getPathname();
+                    continue;
+                }
+                unlink($item->getPathname());
+            }
         }
-        rmdir($path);
+
+        foreach (array_reverse($directories) as $directory) {
+            rmdir($directory);
+        }
     }
 }
