@@ -1,0 +1,58 @@
+name: Closed learning-loop self-discovery
+
+on:
+  pull_request:
+    paths:
+      - 'tools/closed-learning-loop-self-discovery.php'
+      - '.github/workflows/closed-learning-loop-self-discovery.yml'
+      - '.agent-loop/learning/**'
+
+jobs:
+  self-discovery:
+    name: Finding -> LearningNote boundary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Lint self-discovery runner
+        run: php -l tools/closed-learning-loop-self-discovery.php
+      - name: Materialize the first real soft-learning boundary through owner APIs
+        run: php tools/closed-learning-loop-self-discovery.php
+      - name: Validate resulting Learning-owned state
+        run: |
+          vendor/bin/agent-learning validate --root .agent-loop/learning
+          vendor/bin/agent-learning-note status --root .agent-loop/learning > build/closed-learning-loop-learning-note-status.json
+      - name: Assert honest stop boundary
+        run: |
+          jq -e '
+            (.result == "boundary_discovered")
+            and (.active_notes_before == 0)
+            and (.active_notes_after == 1)
+            and (.finding.promotion_readiness == "ready")
+            and (.deterministic_boundary.finding_to_learning_note == "proven_in_this_run")
+            and (.behavioral_handoff.state == "unknown")
+            and (.deterministic_promotion.state == "not_justified")
+          ' build/closed-learning-loop-self-discovery.json >/dev/null
+      - name: Upload closed-loop evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closed-learning-loop-self-discovery-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            build/closed-learning-loop-self-discovery.json
+            build/closed-learning-loop-learning-note-status.json
+            .agent-loop/learning/findings/validated/finding.2026-09-12.457001.json
+            .agent-loop/learning/notes/active/learning-note.2026-09-12.457001.json
