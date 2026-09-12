@@ -9,6 +9,22 @@ use voku\AgentLoop\Init\SubagentDefinition;
 
 final class SubagentMutationIntentTest extends TestCase
 {
+    /** @var list<string> */
+    private array $tempDirectories = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->tempDirectories as $directory) {
+            foreach (scandir($directory) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                unlink($directory . '/' . $entry);
+            }
+            rmdir($directory);
+        }
+    }
+
     public function testFirstPartyReadOnlyRolesProjectCodexSandboxWithoutClaimingItForOtherHosts(): void
     {
         $root = dirname(__DIR__) . '/resources/subagents';
@@ -74,13 +90,9 @@ final class SubagentMutationIntentTest extends TestCase
     {
         $directory = sys_get_temp_dir() . '/agent-loop-subagent-intent-' . bin2hex(random_bytes(6));
         self::assertTrue(mkdir($directory, 0o775, true));
+        $this->tempDirectories[] = $directory;
         $path = $directory . '/' . $filename;
         file_put_contents($path, $content);
-        $this->addToAssertionCount(1);
-        register_shutdown_function(static function () use ($path, $directory): void {
-            @unlink($path);
-            @rmdir($directory);
-        });
 
         return $path;
     }
