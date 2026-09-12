@@ -5,11 +5,34 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\After;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Init\SubagentDefinition;
 
 final class SubagentMutationIntentTest extends TestCase
 {
+    /** @var list<string> */
+    private array $tempDirs = [];
+
+    #[After]
+    public function cleanupTempDirs(): void
+    {
+        foreach ($this->tempDirs as $directory) {
+            if (!is_dir($directory)) {
+                continue;
+            }
+            foreach (scandir($directory) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $path = $directory . '/' . $entry;
+                is_dir($path) ? rmdir($path) : unlink($path);
+            }
+            rmdir($directory);
+        }
+        $this->tempDirs = [];
+    }
+
     public function testFirstPartyReadOnlyIntentProjectsOnlyToCodexSandbox(): void
     {
         $root = dirname(__DIR__) . '/resources/subagents';
@@ -70,27 +93,10 @@ final class SubagentMutationIntentTest extends TestCase
     {
         $directory = sys_get_temp_dir() . '/agent-loop-subagent-mutation-' . bin2hex(random_bytes(6));
         self::assertTrue(mkdir($directory, 0o775, true));
+        $this->tempDirs[] = $directory;
         $path = $directory . '/fixture.md';
         self::assertIsInt(file_put_contents($path, $content));
-        $this->registerCleanup($directory);
 
         return $path;
-    }
-
-    private function registerCleanup(string $directory): void
-    {
-        register_shutdown_function(static function () use ($directory): void {
-            if (!is_dir($directory)) {
-                return;
-            }
-            foreach (scandir($directory) ?: [] as $entry) {
-                if ($entry === '.' || $entry === '..') {
-                    continue;
-                }
-                $path = $directory . '/' . $entry;
-                is_dir($path) ? rmdir($path) : unlink($path);
-            }
-            rmdir($directory);
-        });
     }
 }
