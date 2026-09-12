@@ -66,6 +66,22 @@ final readonly class HostCapabilityMatrix
             ];
         }
 
+        if ($capability === HostCapability::SubagentReadOnlyEnforcement) {
+            if ($canonicalAgent === 'codex') {
+                return [
+                    'status' => HostCapabilityStatus::Degraded,
+                    'mechanism' => 'canonical read-only intent -> Codex agent TOML sandbox_mode = "read-only"',
+                    'evidence' => 'adapter-declared;live-runtime-unverified',
+                ];
+            }
+
+            return [
+                'status' => HostCapabilityStatus::Unsupported,
+                'mechanism' => 'no agent-loop host-native read-only subagent projector',
+                'evidence' => 'no-agent-loop-projector',
+            ];
+        }
+
         if ($capability === HostCapability::PolicyProjection) {
             if (in_array($canonicalAgent, ['codex', 'claude', 'opencode'], true)) {
                 return [
