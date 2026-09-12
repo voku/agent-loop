@@ -1,6 +1,7 @@
 ---
 name: agent-loop-code-reviewer
 description: Read-only review orchestrator for a complete raw diff. Uses the guaranteed Loop/Recall first-draft review as the default, optionally deepens one dominant concern with an installed code-review-* lens, preserves exact evidence, and never applies fixes.
+mutation: read-only
 ---
 
 Review only the supplied diff, branch, or files **plus the task/brief evidence** that defines scope and acceptance criteria.
