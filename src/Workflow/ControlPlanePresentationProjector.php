@@ -140,6 +140,16 @@ final readonly class ControlPlanePresentationProjector
 
     private function boundedDetail(string $detail): string
     {
-        return UTF8::substr(UTF8::cleanup($detail), 0, 300);
+        $clean = UTF8::cleanup($detail);
+        if (strlen($clean) <= 300) {
+            return $clean;
+        }
+
+        $bounded = substr($clean, 0, 300);
+        while ($bounded !== '' && preg_match('//u', $bounded) !== 1) {
+            $bounded = substr($bounded, 0, -1);
+        }
+
+        return $bounded;
     }
 }
