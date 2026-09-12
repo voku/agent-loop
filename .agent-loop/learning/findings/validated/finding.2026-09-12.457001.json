@@ -1,0 +1,43 @@
+{
+    "id": "finding.2026-09-12.457001",
+    "task_id": "GH-457",
+    "session": "2026-09-12-gh-457-closed-learning-loop-self-discovery",
+    "created_at": "2026-09-12T20:53:21+00:00",
+    "created_by": "agent-loop-self-discovery",
+    "scope": [
+        "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+        "tools/execution-contract-dogfood.php"
+    ],
+    "observation": "The repository proves the two deterministic halves of the learning thesis separately but has no durable LearningNote in its real .agent-loop/learning root. LearningNoteTwoRunDogfoodTest publishes a note only inside a temporary test root and proves Task B receives it in Recall system.md. execution-contract-dogfood.php proves an L2-gated task consumes a bound L1, but that L1 is authored as a literal heredoc by the harness rather than synthesized by a real coding-agent host. Therefore green mechanics do not yet prove that a persisted prior LearningNote changes a later real agent decision through Recall -> L2 -> L1 -> execution.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+            "line": 1,
+            "summary": "The two-run dogfood publishes its LearningNote in a temporary project and stops after asserting the precedent is present in Recall system.md."
+        },
+        {
+            "type": "file_reference",
+            "path": "tools/execution-contract-dogfood.php",
+            "line": 1,
+            "summary": "The execution-contract dogfood writes the project-specific L1 as a harness-owned literal before recording it through workflow contract."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "LearningNoteService::activeProjections() returned zero active notes for the real agent-loop learning root before this experiment."
+        }
+    ],
+    "hypothesis": "A stack can have correct Finding, Recall, L2-gate, and Constraint mechanics while still never exercising its core soft-learning product path in real durable owner state. Treating isolated green halves as closed-loop proof hides the only transition whose value depends on an actual coding agent: whether selected precedent changes the L1 and the resulting engineering decision.",
+    "validated_conclusion": "Do not claim the closed learning loop from fixture-only precedent and a separately hand-authored L1. Persist at least one owner-published LearningNote in the consuming repository, trace it into a later independent task, and require observable L2 -> L1 -> host behavior before calling the soft-learning loop proven. Keep the behavioral result UNKNOWN when a real coding-agent host has not executed the handoff.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public",
+    "classification": "ADD_LEARNING_NOTE",
+    "pattern_key": "workflow.closed_loop_requires_real_precedent_handoff",
+    "validation_case": {
+        "given": "A consuming repository claims a closed learning loop and has separately green Finding/Recall and L2/L1 mechanics.",
+        "when": "Its real durable Learning root contains no owner-published LearningNote and no later real coding-agent run demonstrates precedent-driven behavior.",
+        "then": "The soft-learning product thesis remains unproven even though the component mechanics are green."
+    }
+}
