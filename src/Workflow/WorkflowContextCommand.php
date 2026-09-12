@@ -216,6 +216,7 @@ final readonly class WorkflowContextCommand
         if ($session !== null) {
             $this->addSessionState($budget, $session);
         }
+        $this->addExecutionContract($budget, $taskId);
         $hasBundleNavigation = $this->addRecall($budget, $taskId);
         if (!$hasBundleNavigation) {
             $this->addMap($budget, $this->stringList($contract['scope'] ?? null));
@@ -234,6 +235,11 @@ final readonly class WorkflowContextCommand
             $budget->add('validation', '  [SKIP] no Contract validation requirements');
         }
         $budget->finish();
+        if (($budget->omitted()['execution_contract'] ?? 0) > 0) {
+            throw new RuntimeException(
+                'Governed execution contract exceeds the current context budget. Increase --max-lines/--max-bytes; refusing to present a partial L1.',
+            );
+        }
 
         return [
             'schema_version' => '2.0',
@@ -328,6 +334,39 @@ final readonly class WorkflowContextCommand
         $budget->section('Recent checkpoints');
         foreach (array_slice(array_reverse($handoff->checkpoints), 0, 5) as $checkpoint) {
             $budget->add('checkpoint', '  ' . $checkpoint['id'] . ' ' . $checkpoint['title']);
+        }
+    }
+
+    private function addExecutionContract(WorkflowContextBudget $budget, string $taskId): void
+    {
+        $reference = (new ExecutionContractStore($this->rootPath))->inspect($taskId);
+        if (($reference['state'] ?? null) !== 'ready') {
+            return;
+        }
+
+        $source = $reference['document'] ?? null;
+        if (!is_array($source)) {
+            throw new RuntimeException('Ready execution contract has no document source.');
+        }
+        $path = $source['path'] ?? null;
+        $sha256 = $source['sha256'] ?? null;
+        if (!is_string($path) || trim($path) === '' || !is_string($sha256) || preg_match('/^sha256:[a-f0-9]{64}$/', $sha256) !== 1) {
+            throw new RuntimeException('Ready execution contract source identity is invalid.');
+        }
+
+        $content = file_get_contents(PathResolver::join($this->rootPath, $path));
+        if (!is_string($content) || trim($content) === '') {
+            throw new RuntimeException('Ready execution contract document is unreadable or empty.');
+        }
+        $document = new ExecutionContractDocument($content);
+        if (!hash_equals($sha256, $document->sha256())) {
+            throw new RuntimeException('Ready execution contract changed after its owner projection was inspected.');
+        }
+
+        $budget->section('Governed execution contract');
+        $budget->add('execution_contract', '  Source: ' . $path . ' (' . $sha256 . ')');
+        foreach (explode("\n", rtrim($document->content, "\n")) as $line) {
+            $budget->add('execution_contract', $line === '' ? '' : '  ' . $line);
         }
     }
 
