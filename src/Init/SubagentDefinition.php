@@ -30,10 +30,15 @@ final readonly class SubagentDefinition
         '/~\/\.agents\//',
     ];
 
+    private const string MUTATION_READ_ONLY = 'read-only';
+
+    private const string MUTATION_WRITE = 'write';
+
     private function __construct(
         private string $name,
         private string $description,
         private string $body,
+        private ?string $mutation,
     ) {
     }
 
@@ -46,6 +51,7 @@ final readonly class SubagentDefinition
             $parsed['frontmatter']['name'],
             $parsed['frontmatter']['description'],
             $parsed['body'],
+            $parsed['frontmatter']['mutation'] ?? null,
         );
     }
 
@@ -92,11 +98,16 @@ final readonly class SubagentDefinition
     public function renderForClient(string $client): string
     {
         if ($client === 'codex') {
-            return implode("\n", [
+            $lines = [
                 'name = ' . self::tomlString($this->name),
                 'description = ' . self::tomlString($this->description),
-                'developer_instructions = ' . self::tomlString(ltrim($this->body)),
-            ]);
+            ];
+            if ($this->mutation === self::MUTATION_READ_ONLY) {
+                $lines[] = 'sandbox_mode = "read-only"';
+            }
+            $lines[] = 'developer_instructions = ' . self::tomlString(ltrim($this->body));
+
+            return implode("\n", $lines);
         }
 
         $frontmatter = $client === 'opencode'
@@ -119,7 +130,7 @@ final readonly class SubagentDefinition
                 continue;
             }
 
-            $escaped = str_replace('"', '\"', $value);
+            $escaped = str_replace('"', '\\"', $value);
             $lines[] = $key . ': "' . $escaped . '"';
         }
         $lines[] = '---';
@@ -152,7 +163,7 @@ final readonly class SubagentDefinition
     }
 
     /**
-     * @return array{frontmatter: array{name: string, description: string}, body: string}
+     * @return array{frontmatter: array{name: string, description: string, mutation?: 'read-only'|'write'}, body: string}
      */
     private static function parseContent(string $filePath, string $content): array
     {
@@ -187,11 +198,21 @@ final readonly class SubagentDefinition
             throw new InvalidArgumentException("Missing or invalid 'description' in frontmatter");
         }
 
+        $mutation = $frontmatter['mutation'] ?? null;
+        if ($mutation !== null && !in_array($mutation, [self::MUTATION_READ_ONLY, self::MUTATION_WRITE], true)) {
+            throw new InvalidArgumentException("Invalid 'mutation' in frontmatter; expected read-only or write");
+        }
+
+        $parsedFrontmatter = [
+            'name' => $name,
+            'description' => $description,
+        ];
+        if ($mutation !== null) {
+            $parsedFrontmatter['mutation'] = $mutation;
+        }
+
         return [
-            'frontmatter' => [
-                'name' => $name,
-                'description' => $description,
-            ],
+            'frontmatter' => $parsedFrontmatter,
             'body' => $matches[2],
         ];
     }
@@ -224,7 +245,7 @@ final readonly class SubagentDefinition
                 $value = substr($value, 1, -1);
             }
 
-            $parsed[$key] = str_replace('\"', '"', $value);
+            $parsed[$key] = str_replace('\\"', '"', $value);
         }
 
         return $parsed;
