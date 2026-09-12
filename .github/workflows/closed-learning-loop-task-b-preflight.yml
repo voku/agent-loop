@@ -1,0 +1,55 @@
+name: Closed learning-loop Task B preflight
+
+on:
+  pull_request:
+    paths:
+      - 'tools/closed-learning-loop-task-b-preflight.php'
+      - '.github/workflows/closed-learning-loop-task-b-preflight.yml'
+      - '.agent-loop/learning/**'
+
+jobs:
+  task-b-preflight:
+    name: Durable precedent -> Recall -> L2 -> STOP before L1
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Lint Task-B preflight
+        run: php -l tools/closed-learning-loop-task-b-preflight.php
+      - name: Prove durable precedent reaches exact L2 boundary
+        env:
+          AGENT_LOOP_OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
+        run: php tools/closed-learning-loop-task-b-preflight.php
+      - name: Assert honest model-handoff stop
+        run: |
+          jq -e '
+            (.result == "deterministic_handoff_proven_model_handoff_unknown")
+            and (.learning_to_recall.state == "proven")
+            and (.learning_to_recall.note_id == "learning-note.2026-09-12.457001")
+            and (.learning_to_recall.evidence_state == "current")
+            and (.recall_to_l2.state == "proven")
+            and (.recall_to_l2.l2_contains_precedent == true)
+            and (.l2_to_l1_model_handoff.state == "unknown")
+            and (.l2_to_l1_model_handoff.execution_contract_state == "missing")
+            and (.guidance_outcome.state == "not_judged")
+            and (.deterministic_promotion.state == "not_justified")
+          ' build/closed-learning-loop-task-b-preflight.json >/dev/null
+      - name: Upload Task-B handoff evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closed-learning-loop-task-b-${{ github.sha }}
+          if-no-files-found: error
+          path: build/closed-learning-loop-task-b-preflight.json
