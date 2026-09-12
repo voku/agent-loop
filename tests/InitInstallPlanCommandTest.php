@@ -98,6 +98,7 @@ final class InitInstallPlanCommandTest extends TestCase
     private static function assertOfflineContract(string $output): void
     {
         self::assertStringContainsString('rg --version', $output);
+        self::assertStringContainsString('jq --version', $output);
         self::assertStringContainsString('does not fetch or execute an installer', $output);
         self::assertStringContainsString('copies package-owned instructions, skills, and bundled roles', $output);
         foreach ([
