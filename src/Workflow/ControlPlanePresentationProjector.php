@@ -11,6 +11,7 @@ use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\Process\CommandProcessResult;
 use voku\AgentLoop\Process\CommandProcessRunner;
 use voku\AgentLoop\ProjectLayout;
+use voku\helper\UTF8;
 
 final readonly class ControlPlanePresentationProjector
 {
@@ -139,6 +140,6 @@ final readonly class ControlPlanePresentationProjector
 
     private function boundedDetail(string $detail): string
     {
-        return substr($detail, 0, 300);
+        return UTF8::substr(UTF8::cleanup($detail), 0, 300);
     }
 }
