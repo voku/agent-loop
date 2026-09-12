@@ -70,8 +70,8 @@ final class RunManifestProjector
                         'message' => sprintf(
                             'Run %s references Contract revision %d while current revision is %d.',
                             $run->runId,
-                            $contract->revision,
                             $run->contractRevision,
+                            $contract->revision,
                         ),
                     ];
                 }
