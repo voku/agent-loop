@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use Closure;
+use InvalidArgumentException;
 use JsonException;
 use Throwable;
 use voku\AgentLoop\PathResolver;
@@ -14,9 +15,8 @@ use voku\AgentLoop\Run\RunPolicyEvaluation;
  * CLI-facing presentation layer around HostFrontDoorCommand.
  *
  * Lifecycle authority stays in HostFrontDoorCommand and its owners. This layer
- * enriches JSON with exact human decision subjects and keeps the disposable
- * review workbench visible even when acknowledgement is delegated after task
- * approval.
+ * enriches JSON with exact human decision subjects and optional human-facing
+ * projections while keeping those projections outside lifecycle legality.
  */
 final readonly class HostFrontDoorApplication
 {
@@ -25,6 +25,8 @@ final readonly class HostFrontDoorApplication
     private HostFinishFindingIdAdapter $findingIdAdapter;
 
     private HostLearningNoteFollowUpProjector $learningNoteFollowUps;
+
+    private ControlPlanePresentationProjector $controlPlane;
 
     private ?Closure $recallRunner;
 
@@ -35,13 +37,22 @@ final readonly class HostFrontDoorApplication
         $this->command = new HostFrontDoorCommand($rootPath, $this->recallRunner);
         $this->findingIdAdapter = new HostFinishFindingIdAdapter($rootPath);
         $this->learningNoteFollowUps = new HostLearningNoteFollowUpProjector($rootPath);
+        $this->controlPlane = new ControlPlanePresentationProjector($rootPath);
     }
 
     /** @param list<string> $args */
     public function run(string $command, array $args): int
     {
         if (!$this->jsonRequested($args)) {
-            return $this->runFrontDoor($command, $args);
+            $exitCode = $this->runFrontDoor($command, $args);
+            if (in_array($command, ['enter', 'finish'], true)) {
+                $taskId = $this->taskIdFromArgs($args);
+                if ($taskId !== null) {
+                    $this->printControlPlanePresentation($this->controlPlane->project($taskId));
+                }
+            }
+
+            return $exitCode;
         }
 
         $level = ob_get_level();
@@ -126,6 +137,13 @@ final readonly class HostFrontDoorApplication
             }
         }
 
+        if (is_string($taskId)) {
+            $controlPlane = $this->controlPlane->project($taskId);
+            if ($controlPlane !== null) {
+                $payload['control_plane_presentation'] = $controlPlane;
+            }
+        }
+
         echo json_encode(
             $payload,
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
@@ -177,6 +195,52 @@ final readonly class HostFrontDoorApplication
         }
 
         return false;
+    }
+
+    /** @param list<string> $args */
+    private function taskIdFromArgs(array $args): ?string
+    {
+        $candidate = $args[0] ?? null;
+        if (!is_string($candidate) || $candidate === '' || str_starts_with($candidate, '-')) {
+            return null;
+        }
+
+        try {
+            return (new WorkflowTaskId($candidate))->value;
+        } catch (InvalidArgumentException) {
+            // HostFrontDoorCommand already reports the canonical invalid-task refusal.
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{
+     *     status: string,
+     *     url: string|null,
+     *     detail: string|null
+     * }|null $presentation
+     */
+    private function printControlPlanePresentation(?array $presentation): void
+    {
+        if ($presentation === null) {
+            return;
+        }
+
+        $status = $presentation['status'];
+        $url = $presentation['url'];
+        if ($status === 'ready' && is_string($url)) {
+            echo "\nOpen in agent-ui: " . $url . "\n";
+
+            return;
+        }
+
+        echo "\nagent-ui: " . $status;
+        $detail = $presentation['detail'];
+        if (is_string($detail) && $detail !== '') {
+            echo ' (' . $detail . ')';
+        }
+        echo "\n";
     }
 
     /**

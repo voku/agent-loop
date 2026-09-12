@@ -1,0 +1,171 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Workflow;
+
+use Closure;
+use JsonException;
+use LogicException;
+use Throwable;
+use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentLoop\Process\CommandProcessResult;
+use voku\AgentLoop\Process\CommandProcessRunner;
+use voku\AgentLoop\ProjectLayout;
+use voku\helper\UTF8;
+
+final readonly class ControlPlanePresentationProjector
+{
+    /** @var Closure(non-empty-list<string>): CommandProcessResult */
+    private Closure $runner;
+
+    /** @param null|callable(non-empty-list<string>): CommandProcessResult $runner */
+    public function __construct(private string $rootPath, ?callable $runner = null)
+    {
+        $this->runner = $runner === null
+            ? function (array $command): CommandProcessResult {
+                /** @var non-empty-list<string> $command */
+                return (new CommandProcessRunner())->run(
+                    $command,
+                    $this->rootPath,
+                    3,
+                );
+            }
+            : Closure::fromCallable($runner);
+    }
+
+    /**
+     * @return array{
+     *     schema_version: '1.0',
+     *     kind: 'control_plane',
+     *     status: 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed',
+     *     required: false,
+     *     url: string|null,
+     *     detail: string|null
+     * }|null
+     */
+    public function project(string $taskId): ?array
+    {
+        $layout = new ProjectLayout($this->rootPath);
+        $config = (new InitConfigLoader($this->rootPath))->load($layout->configPath());
+        $controlPlane = $config['interaction']['control_plane'];
+        if (!$controlPlane['enabled']) {
+            return null;
+        }
+
+        $binary = rtrim($this->rootPath, '/\\') . '/vendor/bin/agent-ui';
+        if (!is_file($binary)) {
+            return $this->result('not_installed', null, 'vendor/bin/agent-ui is not installed.');
+        }
+
+        $command = [
+            $binary,
+            'status',
+            '--root=' . $this->rootPath,
+            '--host=' . $controlPlane['host'],
+            '--port=' . $controlPlane['port'],
+            '--format=json',
+        ];
+
+        try {
+            $process = ($this->runner)($command);
+        } catch (Throwable $exception) {
+            return $this->result('probe_failed', null, $this->boundedDetail($exception->getMessage()));
+        }
+
+        if ($process->timedOut) {
+            return $this->result('probe_failed', null, 'agent-ui status probe timed out.');
+        }
+
+        try {
+            $payload = json_decode($process->stdout, true, 32, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return $this->result('probe_failed', null, 'agent-ui status did not return valid JSON.');
+        }
+        if (!is_array($payload)) {
+            return $this->result('probe_failed', null, 'agent-ui status did not return a JSON object.');
+        }
+
+        $status = $payload['status'] ?? null;
+        if (!is_string($status) || !in_array($status, [
+            'ready',
+            'unreachable',
+            'wrong_service',
+            'wrong_project',
+            'invalid_response',
+        ], true)) {
+            return $this->result('probe_failed', null, 'agent-ui status returned an unsupported state.');
+        }
+
+        $detail = is_string($payload['detail'] ?? null)
+            ? $this->boundedDetail($payload['detail'])
+            : null;
+
+        if ($status !== 'ready') {
+            return $this->result($status, null, $detail);
+        }
+        if ($process->exitCode !== 0) {
+            return $this->result('probe_failed', null, 'agent-ui reported ready with a non-zero exit code.');
+        }
+
+        $baseUrl = $payload['url'] ?? null;
+        if (!is_string($baseUrl) || $baseUrl === '') {
+            return $this->result('probe_failed', null, 'agent-ui reported ready without a usable URL.');
+        }
+
+        return $this->result(
+            'ready',
+            rtrim($baseUrl, '/') . '/task/' . rawurlencode($taskId),
+            null,
+        );
+    }
+
+    /**
+     * @return array{
+     *     schema_version: '1.0',
+     *     kind: 'control_plane',
+     *     status: 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed',
+     *     required: false,
+     *     url: string|null,
+     *     detail: string|null
+     * }
+     */
+    private function result(string $status, ?string $url, ?string $detail): array
+    {
+        if (!in_array($status, [
+            'ready',
+            'not_installed',
+            'unreachable',
+            'wrong_service',
+            'wrong_project',
+            'invalid_response',
+            'probe_failed',
+        ], true)) {
+            throw new LogicException('Unsupported control-plane presentation status: ' . $status);
+        }
+
+        return [
+            'schema_version' => '1.0',
+            'kind' => 'control_plane',
+            'status' => $status,
+            'required' => false,
+            'url' => $url,
+            'detail' => $detail,
+        ];
+    }
+
+    private function boundedDetail(string $detail): string
+    {
+        $clean = UTF8::cleanup($detail);
+        if (strlen($clean) <= 300) {
+            return $clean;
+        }
+
+        $bounded = substr($clean, 0, 300);
+        while ($bounded !== '' && preg_match('//u', $bounded) !== 1) {
+            $bounded = substr($bounded, 0, -1);
+        }
+
+        return $bounded;
+    }
+}

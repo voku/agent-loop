@@ -25,7 +25,10 @@ final readonly class InitConfigLoader
      *     package_skills: bool,
      *     package_subagents: bool,
      *     recall: array{document_manifests: list<string>},
-     *     interaction: array{human_explanations: 'ask'|'always'|'never'},
+     *     interaction: array{
+     *         human_explanations: 'ask'|'always'|'never',
+     *         control_plane: array{enabled: bool, host: string, port: int}
+     *     },
      *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}}
      * }
      */
@@ -38,7 +41,14 @@ final readonly class InitConfigLoader
             'package_skills' => true,
             'package_subagents' => true,
             'recall' => ['document_manifests' => []],
-            'interaction' => ['human_explanations' => HumanExplanationPolicy::ASK->value],
+            'interaction' => [
+                'human_explanations' => HumanExplanationPolicy::ASK->value,
+                'control_plane' => [
+                    'enabled' => false,
+                    'host' => '127.0.0.1',
+                    'port' => 8088,
+                ],
+            ],
             'workflow' => [
                 'future_work' => [
                     'mode' => FutureWorkMode::FOCUS->value,
@@ -167,15 +177,55 @@ final readonly class InitConfigLoader
         $interaction = $decoded['interaction'] ?? null;
         if ($hasInteraction && !$interactionShape instanceof stdClass) {
             $result['warnings'][] = '[WARN] init config: interaction must be an object';
-        } elseif ($interactionShape instanceof stdClass && is_array($interaction) && array_key_exists('human_explanations', $interaction)) {
-            $configured = $interaction['human_explanations'];
-            $policy = is_string($configured)
-                ? HumanExplanationPolicy::tryFrom(strtolower(trim($configured)))
-                : null;
-            if ($policy === null) {
-                $result['warnings'][] = '[WARN] init config: interaction.human_explanations must be ask, always, or never';
-            } else {
-                $result['interaction']['human_explanations'] = $policy->value;
+        } elseif ($interactionShape instanceof stdClass && is_array($interaction)) {
+            if (array_key_exists('human_explanations', $interaction)) {
+                $configured = $interaction['human_explanations'];
+                $policy = is_string($configured)
+                    ? HumanExplanationPolicy::tryFrom(strtolower(trim($configured)))
+                    : null;
+                if ($policy === null) {
+                    $result['warnings'][] = '[WARN] init config: interaction.human_explanations must be ask, always, or never';
+                } else {
+                    $result['interaction']['human_explanations'] = $policy->value;
+                }
+            }
+
+            if (property_exists($interactionShape, 'control_plane')) {
+                $controlPlaneShape = $interactionShape->control_plane;
+                $controlPlane = $interaction['control_plane'] ?? null;
+                if (!$controlPlaneShape instanceof stdClass || !is_array($controlPlane)) {
+                    $result['warnings'][] = '[WARN] init config: interaction.control_plane must be an object';
+                } else {
+                    $enabled = $controlPlane['enabled'] ?? false;
+                    $host = $controlPlane['host'] ?? '127.0.0.1';
+                    $port = $controlPlane['port'] ?? 8088;
+                    $valid = true;
+
+                    if (!is_bool($enabled)) {
+                        $result['warnings'][] = '[WARN] init config: interaction.control_plane.enabled must be a boolean';
+                        $valid = false;
+                    }
+
+                    if (!is_string($host) || !in_array(strtolower(trim($host)), ['127.0.0.1', 'localhost', '::1'], true)) {
+                        $result['warnings'][] = '[WARN] init config: interaction.control_plane.host must be a loopback host';
+                        $valid = false;
+                    } else {
+                        $host = strtolower(trim($host));
+                    }
+
+                    if (!is_int($port) || $port < 1 || $port > 65535) {
+                        $result['warnings'][] = '[WARN] init config: interaction.control_plane.port must be an integer from 1 to 65535';
+                        $valid = false;
+                    }
+
+                    if ($valid) {
+                        $result['interaction']['control_plane'] = [
+                            'enabled' => $enabled,
+                            'host' => $host,
+                            'port' => $port,
+                        ];
+                    }
+                }
             }
         }
 
