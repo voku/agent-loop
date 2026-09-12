@@ -308,7 +308,7 @@ final readonly class ExecutionGateway
             return null;
         }
 
-        $reference = (new ExecutionContractStore($this->rootPath))->inspect($taskId);
+        $reference = (new ExecutionContractStore($this->rootPath))->materializeCurrentReadyDocument($taskId);
         $state = $reference['state'] ?? null;
         if (in_array($state, ['not_required', 'not_applicable'], true)) {
             return null;
@@ -321,28 +321,13 @@ final readonly class ExecutionGateway
             ));
         }
 
-        $source = $reference['document'] ?? null;
-        if (!is_array($source)) {
-            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract has no document source.');
-        }
-        $path = $source['path'] ?? null;
-        $sha256 = $source['sha256'] ?? null;
-        if (!is_string($path) || trim($path) === '' || !is_string($sha256) || preg_match('/^sha256:[a-f0-9]{64}$/', $sha256) !== 1) {
-            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract source identity is invalid.');
+        $document = $reference['materialized_document'] ?? null;
+        if (!is_array($document)) {
+            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract has no materialized document.');
         }
 
-        $content = file_get_contents(PathResolver::join($this->rootPath, $path));
-        if (!is_string($content) || trim($content) === '') {
-            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract document is unreadable or empty.');
-        }
-        if (!hash_equals($sha256, 'sha256:' . hash('sha256', $content))) {
-            throw new RuntimeException('STALE_EXECUTION_CONTRACT: execution contract changed after its owner projection was inspected.');
-        }
-
-        return [
-            'source' => ['path' => $path, 'sha256' => $sha256],
-            'content' => $content,
-        ];
+        /** @var array{source: array{path: non-empty-string, sha256: non-empty-string}, content: non-empty-string} $document */
+        return $document;
     }
 
     /** @return list<StageOutcome> */

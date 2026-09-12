@@ -216,6 +216,7 @@ final readonly class WorkflowContextCommand
         if ($session !== null) {
             $this->addSessionState($budget, $session);
         }
+        $this->addExecutionContract($budget, $taskId);
         $hasBundleNavigation = $this->addRecall($budget, $taskId);
         if (!$hasBundleNavigation) {
             $this->addMap($budget, $this->stringList($contract['scope'] ?? null));
@@ -234,6 +235,11 @@ final readonly class WorkflowContextCommand
             $budget->add('validation', '  [SKIP] no Contract validation requirements');
         }
         $budget->finish();
+        if (($budget->omitted()['execution_contract'] ?? 0) > 0) {
+            throw new RuntimeException(
+                'Governed execution contract exceeds the current context budget. Increase --max-lines/--max-bytes; refusing to present a partial L1.',
+            );
+        }
 
         return [
             'schema_version' => '2.0',
@@ -328,6 +334,35 @@ final readonly class WorkflowContextCommand
         $budget->section('Recent checkpoints');
         foreach (array_slice(array_reverse($handoff->checkpoints), 0, 5) as $checkpoint) {
             $budget->add('checkpoint', '  ' . $checkpoint['id'] . ' ' . $checkpoint['title']);
+        }
+    }
+
+    private function addExecutionContract(WorkflowContextBudget $budget, string $taskId): void
+    {
+        $reference = (new ExecutionContractStore($this->rootPath))->materializeCurrentReadyDocument($taskId);
+        if (($reference['state'] ?? null) !== 'ready') {
+            return;
+        }
+
+        $document = $reference['materialized_document'] ?? null;
+        if (!is_array($document)) {
+            throw new RuntimeException('Ready execution contract has no materialized document.');
+        }
+        $source = $document['source'] ?? null;
+        $content = $document['content'] ?? null;
+        if (!is_array($source) || !is_string($content)) {
+            throw new RuntimeException('Ready execution contract materialization is invalid.');
+        }
+        $path = $source['path'] ?? null;
+        $sha256 = $source['sha256'] ?? null;
+        if (!is_string($path) || !is_string($sha256)) {
+            throw new RuntimeException('Ready execution contract materialization has an invalid source.');
+        }
+
+        $budget->section('Governed execution contract');
+        $budget->add('execution_contract', '  Source: ' . $path . ' (' . $sha256 . ')');
+        foreach (explode("\n", rtrim($content, "\n")) as $line) {
+            $budget->add('execution_contract', $line === '' ? '' : '  ' . $line);
         }
     }
 

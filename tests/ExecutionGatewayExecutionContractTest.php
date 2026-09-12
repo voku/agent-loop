@@ -12,6 +12,7 @@ use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
+use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
@@ -106,6 +107,47 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         self::assertStringNotContainsString('# Governed execution contract', $bundle->prompt);
     }
 
+    public function testReadyL2ContractIsProjectedThroughOrdinaryEnterContext(): void
+    {
+        $this->prepareSurgicalRun(l2: true);
+        (new ExecutionContractStore($this->root))->writeReady(self::TASK, 'constructor', $this->l1Contract());
+
+        $payload = $this->enterPayload();
+        $context = implode("\n", $payload['context']['lines']);
+
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame('host_work', $payload['next_action_kind']);
+        self::assertStringContainsString('Governed execution contract:', $context);
+        self::assertStringContainsString('.agent-loop/recall/' . self::TASK . '/execution-contract.md', $context);
+        self::assertStringContainsString('## Goal', $context);
+        self::assertStringContainsString('Inspect the exact current owner boundary before changing code.', $context);
+        self::assertStringNotContainsString('L2 Operational Prompt Construction', $context);
+        self::assertStringNotContainsString('Create a project-specific L1 execution contract.', $context);
+    }
+
+    public function testNoL2EnterContextDoesNotInventExecutionContract(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+
+        $payload = $this->enterPayload();
+        $context = implode("\n", $payload['context']['lines']);
+
+        self::assertTrue($payload['mutation_ready']);
+        self::assertSame('host_work', $payload['next_action_kind']);
+        self::assertStringNotContainsString('Governed execution contract:', $context);
+    }
+
+    public function testExecutionContractCannotBeSilentlyTruncatedByContextBudget(): void
+    {
+        $this->prepareSurgicalRun(l2: true);
+        (new ExecutionContractStore($this->root))->writeReady(self::TASK, 'constructor', $this->largeL1Contract());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('refusing to present a partial L1');
+
+        (new WorkflowContextCommand($this->root))->build(self::TASK, 12, 512);
+    }
+
     private function prepareSurgicalRun(bool $l2): void
     {
         $plan = [
@@ -182,6 +224,20 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         self::assertSame($l2 ? 1 : 0, $exit);
     }
 
+    /** @return array<string, mixed> */
+    private function enterPayload(): array
+    {
+        ob_start();
+        $exit = (new HostFrontDoorCommand($this->root))->run('enter', [self::TASK, '--format=json']);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit, $output);
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($payload);
+
+        return $payload;
+    }
+
     private function l1Contract(): string
     {
         return <<<'MD'
@@ -200,6 +256,28 @@ Run `vendor/bin/phpunit` and inspect the resulting diff.
 ## Done When
 The bounded task is implemented and the declared verification passes.
 MD;
+    }
+
+    private function largeL1Contract(): string
+    {
+        return sprintf(<<<'MD'
+## Goal
+Execute the currently approved bounded task.
+
+## Context
+%s
+
+## Constraints
+Stay inside src/Foo.php and preserve workflow authority.
+
+## Verification
+Run `vendor/bin/phpunit` and inspect the resulting diff.
+
+## Done When
+The bounded task is implemented and the declared verification passes.
+MD,
+            str_repeat('Current owner evidence must remain exact and visible. ', 40),
+        );
     }
 
     private function rm(string $path): void
