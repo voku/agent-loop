@@ -42,12 +42,11 @@ use voku\AgentSession\SessionStore;
  */
 final class RunManifestProjector
 {
-    /** @var array<string, array{path: string, sha256: string}> */
-    private static array $artifactCache = [];
-
+    /**
+     * @deprecated Artifact identities are content-exact and are no longer cached.
+     */
     public static function clearCache(): void
     {
-        self::$artifactCache = [];
     }
 
     public function __construct(private readonly string $rootPath)
@@ -71,8 +70,8 @@ final class RunManifestProjector
                         'message' => sprintf(
                             'Run %s references Contract revision %d while current revision is %d.',
                             $run->runId,
-                            $run->contractRevision,
                             $contract->revision,
+                            $run->contractRevision,
                         ),
                     ];
                 }
@@ -941,23 +940,12 @@ final class RunManifestProjector
             throw new RuntimeException('Referenced artifact does not exist: ' . $path);
         }
 
-        clearstatcache(true, $path);
-        $mtime = filemtime($path) ?: 0;
-        $size = filesize($path) ?: 0;
-        $cacheKey = $path . '#' . $mtime . '#' . $size;
-        if (isset(self::$artifactCache[$cacheKey])) {
-            return self::$artifactCache[$cacheKey];
-        }
-
         $sha = hash_file('sha256', $path);
         if ($sha === false) {
             throw new RuntimeException('Unable to hash referenced artifact: ' . $path);
         }
 
-        $artifact = ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
-        self::$artifactCache[$cacheKey] = $artifact;
-
-        return $artifact;
+        return ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
     }
 
 }
