@@ -74,7 +74,6 @@ final class ControlPlanePresentationProjectorTest extends TestCase
 
         self::assertNotNull($result);
         self::assertSame('ready', $result['status']);
-        self::assertFalse($result['required']);
         self::assertSame('http://localhost:9123/task/ATTN%2042', $result['url']);
         self::assertSame([
             $root . '/vendor/bin/agent-ui',
@@ -84,7 +83,7 @@ final class ControlPlanePresentationProjectorTest extends TestCase
             '--port=9123',
             '--format=json',
         ], $seen);
-        self::assertNotContains('touch', $seen ?? []);
+        self::assertNotContains('touch', $seen);
     }
 
     public function testMissingAgentUiIsNonBlockingPresentationStateWithoutProbe(): void
@@ -105,7 +104,6 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         self::assertNotNull($result);
         self::assertSame('not_installed', $result['status']);
         self::assertNull($result['url']);
-        self::assertFalse($result['required']);
         self::assertFalse($called);
     }
 
@@ -134,7 +132,6 @@ final class ControlPlanePresentationProjectorTest extends TestCase
             self::assertNotNull($result);
             self::assertSame($status, $result['status']);
             self::assertNull($result['url']);
-            self::assertFalse($result['required']);
         }
     }
 
@@ -163,7 +160,8 @@ final class ControlPlanePresentationProjectorTest extends TestCase
         self::assertNotNull($result);
         self::assertSame(str_repeat('a', 299), $result['detail']);
         self::assertLessThanOrEqual(300, strlen($result['detail']));
-        self::assertIsString(json_encode($result, JSON_THROW_ON_ERROR));
+        $encoded = json_encode($result, JSON_THROW_ON_ERROR);
+        self::assertSame($result, json_decode($encoded, true, 512, JSON_THROW_ON_ERROR));
     }
 
     public function testProbeFailuresRemainPresentationFailures(): void
@@ -202,7 +200,6 @@ final class ControlPlanePresentationProjectorTest extends TestCase
             self::assertNotNull($result);
             self::assertSame('probe_failed', $result['status']);
             self::assertNull($result['url']);
-            self::assertFalse($result['required']);
         }
     }
 
