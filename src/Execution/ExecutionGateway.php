@@ -10,6 +10,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 
@@ -187,6 +188,7 @@ final readonly class ExecutionGateway
         }
 
         $stage = $plan->stage($stageId);
+        $executionContract = $this->executionContractForStage($taskId, $stage);
         if ($environment !== null) {
             if ($stage->kind !== ExecutionStageKind::AGENT) {
                 throw new RuntimeException('ENVIRONMENT_MISMATCH: bounded environment observation is accepted only for agent stages.');
@@ -223,8 +225,17 @@ final readonly class ExecutionGateway
             $priorHandoff,
             $acceptedOutcomes,
             self::COMPLETION_MARKER,
-            $this->prompt($contract, $plan, $stage, $projection->currentAttempt, $acceptedOutcomes, $environment),
+            $this->prompt(
+                $contract,
+                $plan,
+                $stage,
+                $projection->currentAttempt,
+                $acceptedOutcomes,
+                $environment,
+                $executionContract['content'] ?? null,
+            ),
             $environment?->digest(),
+            $executionContract['source'] ?? null,
         );
     }
 
@@ -285,6 +296,55 @@ final readonly class ExecutionGateway
         return ['path' => $relative, 'sha256' => 'sha256:' . $sha];
     }
 
+    /**
+     * @return array{
+     *     source: array{path: non-empty-string, sha256: non-empty-string},
+     *     content: non-empty-string
+     * }|null
+     */
+    private function executionContractForStage(string $taskId, ExecutionStage $stage): ?array
+    {
+        if ($stage->kind !== ExecutionStageKind::AGENT) {
+            return null;
+        }
+
+        $reference = (new ExecutionContractStore($this->rootPath))->inspect($taskId);
+        $state = $reference['state'] ?? null;
+        if (in_array($state, ['not_required', 'not_applicable'], true)) {
+            return null;
+        }
+        if ($state !== 'ready') {
+            throw new RuntimeException(sprintf(
+                'EXECUTION_CONTRACT_NOT_READY: agent stage %s requires the current L2 execution contract; state is %s.',
+                $stage->id,
+                is_string($state) && $state !== '' ? $state : 'unknown',
+            ));
+        }
+
+        $source = $reference['document'] ?? null;
+        if (!is_array($source)) {
+            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract has no document source.');
+        }
+        $path = $source['path'] ?? null;
+        $sha256 = $source['sha256'] ?? null;
+        if (!is_string($path) || trim($path) === '' || !is_string($sha256) || preg_match('/^sha256:[a-f0-9]{64}$/', $sha256) !== 1) {
+            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract source identity is invalid.');
+        }
+
+        $content = file_get_contents(PathResolver::join($this->rootPath, $path));
+        if (!is_string($content) || trim($content) === '') {
+            throw new RuntimeException('EXECUTION_CONTRACT_INVALID: ready execution contract document is unreadable or empty.');
+        }
+        if (!hash_equals($sha256, 'sha256:' . hash('sha256', $content))) {
+            throw new RuntimeException('STALE_EXECUTION_CONTRACT: execution contract changed after its owner projection was inspected.');
+        }
+
+        return [
+            'source' => ['path' => $path, 'sha256' => $sha256],
+            'content' => $content,
+        ];
+    }
+
     /** @return list<StageOutcome> */
     private function acceptedOutcomes(ExecutionStage $stage): array
     {
@@ -330,6 +390,7 @@ final readonly class ExecutionGateway
         int $attempt,
         array $acceptedOutcomes,
         ?ExecutionEnvironmentObservation $environment,
+        ?string $executionContract,
     ): string {
         $outcomes = implode('|', array_map(static fn (StageOutcome $outcome): string => $outcome->value, $acceptedOutcomes));
         $lines = [
@@ -371,13 +432,19 @@ final readonly class ExecutionGateway
         $lines[] = self::COMPLETION_MARKER . '{"outcome":"<allowed-outcome>","summary":"<brief factual summary>","artifact_references":[],"validation_references":[]}';
         $lines[] = 'Do not place Markdown fences around that final line. The marker is transport syntax, not workflow approval.';
 
-        $recallPath = (new ProjectLayout($this->rootPath))->recallRoot() . '/' . $contract->taskId . '/system.md';
-        if (is_file($recallPath)) {
-            $recall = file_get_contents($recallPath);
-            if (is_string($recall) && trim($recall) !== '') {
-                $lines[] = '';
-                $lines[] = '# Governed Recall';
-                $lines[] = trim($recall);
+        if ($executionContract !== null) {
+            $lines[] = '';
+            $lines[] = '# Governed execution contract';
+            $lines[] = trim($executionContract);
+        } else {
+            $recallPath = (new ProjectLayout($this->rootPath))->recallRoot() . '/' . $contract->taskId . '/system.md';
+            if (is_file($recallPath)) {
+                $recall = file_get_contents($recallPath);
+                if (is_string($recall) && trim($recall) !== '') {
+                    $lines[] = '';
+                    $lines[] = '# Governed Recall';
+                    $lines[] = trim($recall);
+                }
             }
         }
 

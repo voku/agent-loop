@@ -12,6 +12,7 @@ final readonly class StageExecutionBundle
      * @param list<non-empty-string> $allowedScope
      * @param list<non-empty-string> $requiredValidation
      * @param list<StageOutcome> $acceptedOutcomes
+     * @param array{path: non-empty-string, sha256: non-empty-string}|null $executionContractSource
      */
     public function __construct(
         public string $taskId,
@@ -35,6 +36,7 @@ final readonly class StageExecutionBundle
         public string $completionMarker,
         public string $prompt,
         public ?string $environmentObservationDigest = null,
+        public ?array $executionContractSource = null,
     ) {
     }
 }
