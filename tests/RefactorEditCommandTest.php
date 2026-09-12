@@ -91,25 +91,27 @@ PHP);
 
     public function testMutationPublicationRunsInsideSharedProjectLock(): void
     {
-        $insideLock = false;
-        $observedPublication = false;
+        $state = new class {
+            public bool $insideLock = false;
+            public bool $observedPublication = false;
+        };
         $lock = new EditMutationLock(
-            synchronizeOperation: static function (string $projectRoot, Closure $operation) use (&$insideLock): mixed {
+            synchronizeOperation: static function (string $projectRoot, Closure $operation) use ($state): mixed {
                 self::assertNotSame('', $projectRoot);
-                self::assertFalse($insideLock);
-                $insideLock = true;
+                self::assertFalse($state->insideLock);
+                $state->insideLock = true;
                 try {
                     return $operation();
                 } finally {
-                    $insideLock = false;
+                    $state->insideLock = false;
                 }
             },
         );
         $applier = new RenamePlanApplier(
-            renameOperation: static function (string $from, string $to) use (&$insideLock, &$observedPublication): bool {
-                self::assertTrue($insideLock, 'rename-plan publication must stay inside the shared edit mutation lock');
+            renameOperation: static function (string $from, string $to) use ($state): bool {
+                self::assertTrue($state->insideLock, 'rename-plan publication must stay inside the shared edit mutation lock');
                 if (str_contains($from, '.agent-loop-refactor-plan-stage-')) {
-                    $observedPublication = true;
+                    $state->observedPublication = true;
                 }
 
                 return rename($from, $to);
@@ -126,8 +128,8 @@ PHP);
         ob_end_clean();
 
         self::assertSame(0, $exit);
-        self::assertTrue($observedPublication);
-        self::assertFalse($insideLock);
+        self::assertTrue($state->observedPublication);
+        self::assertFalse($state->insideLock);
         self::assertStringContainsString('function newName()', (string) file_get_contents($this->root . '/src/Service.php'));
         self::assertSame('runner_succeeded', $this->execution('REFACTOR-LOCK')['status']);
     }
