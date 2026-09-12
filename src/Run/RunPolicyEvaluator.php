@@ -275,6 +275,13 @@ final readonly class RunPolicyEvaluator
         if ($reviewState === 'fail') {
             return 'agent-loop review blindspots ' . $taskId;
         }
+        if (
+            $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'recall_outcomes'
+        ) {
+            return $this->referenceAction($references, 'verification')
+                ?? 'agent-loop finish ' . $taskId;
+        }
         if ($this->referenceState($references, 'learning') !== 'decided') {
             return 'agent-loop finish ' . $taskId
                 . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason <learning-reason> --by <actor>'

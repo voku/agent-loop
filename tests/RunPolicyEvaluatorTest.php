@@ -128,6 +128,34 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertStringContainsString('approved host-native implementation', $policy->nextAction);
     }
 
+    public function testRecallOutcomesGateEmitsOutcomeTemplateBeforeLearningDecision(): void
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'blocked',
+            review: 'ok',
+            learning: 'missing',
+        );
+        $references['verification']['gate'] = 'recall_outcomes';
+        $references['verification']['action'] = 'agent-loop finish ABC-123 --recall-outcome-draft .agent-loop/recall/ABC-123/recall-log.draft.json --by <actor> --commit <commit>';
+
+        $policy = (new RunPolicyEvaluator())->evaluate('ABC-123', 'governed', $references, []);
+
+        self::assertSame('incomplete', $policy->state);
+        self::assertFalse($policy->mutationAllowed);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+        self::assertSame('command_template', $policy->nextActionKind);
+        self::assertSame(
+            'agent-loop finish ABC-123 --recall-outcome-draft .agent-loop/recall/ABC-123/recall-log.draft.json --by <actor> --commit <commit>',
+            $policy->nextAction,
+        );
+        self::assertStringNotContainsString('--learning', $policy->nextAction);
+    }
+
     public function testReadyToCloseNeverReopensMutation(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
