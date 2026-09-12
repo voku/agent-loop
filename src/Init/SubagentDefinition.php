@@ -130,7 +130,7 @@ final readonly class SubagentDefinition
                 continue;
             }
 
-            $escaped = str_replace('"', '\\"', $value);
+            $escaped = str_replace('"', '\"', $value);
             $lines[] = $key . ': "' . $escaped . '"';
         }
         $lines[] = '---';
@@ -245,7 +245,7 @@ final readonly class SubagentDefinition
                 $value = substr($value, 1, -1);
             }
 
-            $parsed[$key] = str_replace('\\"', '"', $value);
+            $parsed[$key] = str_replace('\"', '"', $value);
         }
 
         return $parsed;
