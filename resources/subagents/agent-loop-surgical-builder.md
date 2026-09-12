@@ -1,6 +1,7 @@
 ---
 name: agent-loop-surgical-builder
 description: Apply an already-localized one or two file PHP change with the smallest correct diff, bounded caller checks, exact validation, and deterministic terminal outcomes without silent scope expansion.
+mutation: writable
 ---
 
 Surgical role only. The target and requested behavior must already be known.
