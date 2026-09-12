@@ -74,7 +74,7 @@ final readonly class InitCli
           paths             Show where this project keeps its workflow state (read-only). Ask this instead of assuming .agent-loop/.
           status            Show what is activated here: resolved CLI path, host projection, local Git integration, sources, aliases, target manifests, and the next activation command (read-only).
           host-status       Auto-detect one probed canonical coding host, or use explicit --agent selection, then return one canonical repository-owned next action plus any separate host/user runtime boundary.
-          tools             Probe and cache CLI tool availability (rg, git, php, composer, docker, itp-context, slop-scan, agent-map index).
+          tools             Probe and cache CLI tool availability (rg, jq, git, php, composer, docker, itp-context, slop-scan, agent-map index).
           validate          Validate repo-managed agent asset definitions.
           install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
           uninstall-assets  Remove the managed assets this repository projected for one host. Manifest-scoped and fail-closed: unchanged managed entries are removed, locally modified or unverifiable entries are reported and kept, project-owned paths are never touched, and executable host hooks need --with-hooks. Prints the exact plan and removes nothing without --yes.

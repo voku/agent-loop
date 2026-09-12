@@ -20,7 +20,7 @@ final readonly class InitToolsCommand
     /**
      * @var list<string>
      */
-    private const array KNOWN_TOOLS = ['rg', 'git', 'php', 'composer', 'docker'];
+    private const array KNOWN_TOOLS = ['rg', 'jq', 'git', 'php', 'composer', 'docker'];
 
     /**
      * External agent-facing evidence tools. They are deliberately not
@@ -485,7 +485,7 @@ final readonly class InitToolsCommand
         Usage:
           agent-loop init tools [--refresh] [--max-age=SECONDS] [--cache=PATH]
 
-        Probes whether rg, git, php, composer, and docker are reachable in PATH,
+        Probes whether rg, jq, git, php, composer, and docker are reachable in PATH,
         and whether an agent-map index exists, then caches the result so agents
         do not have to re-probe availability at the start of every session.
 

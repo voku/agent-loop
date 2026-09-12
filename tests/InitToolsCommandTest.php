@@ -44,20 +44,23 @@ final class InitToolsCommandTest extends TestCase
     public function testProbeReportsAvailableToolAndWritesCache(): void
     {
         $this->makeFakeExecutable('rg');
+        $this->makeFakeExecutable('jq');
         putenv('PATH=' . $this->fakeBinDir);
 
         $result = $this->runTools([]);
 
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('[OK] rg: available (' . $this->fakeBinDir . '/rg)', $result['output']);
+        self::assertStringContainsString('[OK] jq: available (' . $this->fakeBinDir . '/jq)', $result['output']);
         self::assertStringNotContainsString('rtk', strtolower($result['output']));
         self::assertFileExists($this->root . '/.agent-loop/tool-inventory.json');
 
         $cache = json_decode((string) file_get_contents($this->root . '/.agent-loop/tool-inventory.json'), true);
         self::assertIsArray($cache);
         self::assertTrue($cache['tools']['rg']['available']);
+        self::assertTrue($cache['tools']['jq']['available']);
         self::assertSame(
-            ['rg', 'git', 'php', 'composer', 'docker', 'itp-context', 'slop-scan'],
+            ['rg', 'jq', 'git', 'php', 'composer', 'docker', 'itp-context', 'slop-scan'],
             array_keys($cache['tools']),
         );
     }
@@ -166,6 +169,7 @@ final class InitToolsCommandTest extends TestCase
         $result = $this->runTools([]);
 
         self::assertStringContainsString('[WARN] rg: not found in PATH', $result['output']);
+        self::assertStringContainsString('[WARN] jq: not found in PATH', $result['output']);
     }
 
     public function testProbeReportsMissingAgentMapIndex(): void
