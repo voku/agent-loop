@@ -520,7 +520,7 @@ final readonly class RunManifestProjector
         array &$disagreements,
     ): array {
         $store = new RunVerificationReceiptStore($this->rootPath);
-        if ($this->approvedContractSupersesRun($run, $contract)) {
+        if ($this->approvedContractSupersedesRun($run, $contract)) {
             return [
                 'owner' => 'agent-loop',
                 'state' => 'pending_close',
