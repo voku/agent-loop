@@ -9,7 +9,7 @@ on:
 
 jobs:
   self-discovery:
-    name: Finding -> LearningNote boundary
+    name: Finding -> LearningNote -> Dream boundary
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,6 +34,12 @@ jobs:
         run: |
           vendor/bin/agent-learning validate --root .agent-loop/learning
           vendor/bin/agent-learning-note status --root .agent-loop/learning > build/closed-learning-loop-learning-note-status.json
+      - name: Dream without inventing usage evidence
+        run: |
+          vendor/bin/agent-learning dream \
+            --root=.agent-loop/learning \
+            --report=build/closed-learning-loop-dream.json \
+            --dry-run
       - name: Assert honest stop boundary
         run: |
           jq -e '
@@ -45,6 +51,7 @@ jobs:
             and (.behavioral_handoff.state == "unknown")
             and (.deterministic_promotion.state == "not_justified")
           ' build/closed-learning-loop-self-discovery.json >/dev/null
+          test -s build/closed-learning-loop-dream.json
       - name: Upload closed-loop evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,5 +61,6 @@ jobs:
           path: |
             build/closed-learning-loop-self-discovery.json
             build/closed-learning-loop-learning-note-status.json
+            build/closed-learning-loop-dream.json
             .agent-loop/learning/findings/validated/finding.2026-09-12.457001.json
             .agent-loop/learning/notes/active/learning-note.2026-09-12.457001.json
