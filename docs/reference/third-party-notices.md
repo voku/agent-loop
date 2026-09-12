@@ -10,7 +10,9 @@ reviewing these MIT-licensed projects at fixed commits:
   `16f29800fd2681bdf24f3eb4ccffe38be3baec6b`, rechecked against
   `2ed6c52c9d7e5e56942508591085fd45dea277d3`;
 - **Attention Control**, aaddrick:
-  `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`.
+  `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`;
+- **Everything Claude Code (ECC)**, Affaan Mustafa:
+  `c9148d0bb239ed01a95724a5928b98cdf9c30658`.
 
 A source review is not an adaptation claim. The reviewed repositories contain
 more mechanisms than `agent-loop` should or currently does implement.
@@ -61,6 +63,19 @@ The generic `RESULT` / `STATE` / `NEXT` progress receipt and
 not copies of Attention Control's reader-specific presentation model. Their
 fields map to persisted workflow state and `agent-loop` evidence gates.
 
+### From Everything Claude Code
+
+- express read-only role intent in the canonical role source and project it to a
+  host-native read-only sandbox where the host exposes that capability;
+- keep the portable role semantics independent of the host-specific sandbox
+  spelling;
+- treat generated host configuration as projection evidence, not proof that a
+  host actually launched or enforced the role at runtime.
+
+The adapted mechanism is deliberately narrower than ECC's agent configuration:
+`agent-loop` does not import its model selection, agent taxonomy, provider
+routing, or workflow.
+
 ## Deliberately not ported
 
 `agent-loop` does not download, execute, or depend on these upstream projects at
@@ -102,3 +117,4 @@ available under their own MIT license files:
 - <https://github.com/JuliusBrussee/caveman/blob/14d4f2e21a16b573373ca24698cd6bd3db75bf52/LICENSE>
 - <https://github.com/DietrichGebert/ponytail/blob/2ed6c52c9d7e5e56942508591085fd45dea277d3/LICENSE>
 - <https://github.com/aaddrick/attention-control/blob/3c8a2a8a38f163aa85ad325812b5ce3ba330ad27/LICENSE>
+- <https://github.com/affaan-m/ECC/blob/c9148d0bb239ed01a95724a5928b98cdf9c30658/LICENSE>
