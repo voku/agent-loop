@@ -21,7 +21,6 @@ final class RunManifestArtifactIdentityTest extends TestCase
 
     protected function tearDown(): void
     {
-        RunManifestProjector::clearCache();
         $this->removeDirectory($this->root);
     }
 
