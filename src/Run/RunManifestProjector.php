@@ -739,8 +739,7 @@ final readonly class RunManifestProjector
                 RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/recall-log.draft.json',
             );
 
-            return 'complete the Recall outcome judgment in ' . $draft
-                . ', then run agent-loop finish ' . $taskId
+            return 'agent-loop finish ' . $taskId
                 . ' --recall-outcome-draft ' . $draft
                 . ' --by <actor> --commit <commit>';
         }

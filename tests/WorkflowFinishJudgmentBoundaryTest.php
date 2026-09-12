@@ -238,6 +238,63 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         );
     }
 
+    public function testAcknowledgedReviewWithPendingRecallOutcomeEmitsOutcomeTemplateAndAdvancesGate(): void
+    {
+        [, $sessionId] = $this->prepareRun('FINISH-RECALL-GATE', ['guidance.finish-recall-gate']);
+        $draft = $this->root . '/.agent-loop/recall/FINISH-RECALL-GATE/recall-log.draft.json';
+        file_put_contents($draft, json_encode(['guidance_outcomes' => []], JSON_THROW_ON_ERROR));
+
+        $first = $this->finish('FINISH-RECALL-GATE', ['--format=json']);
+        self::assertSame(1, $first['exit']);
+
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-RECALL-GATE');
+        self::assertNotNull($review['sha256']);
+
+        $ack = $this->finish('FINISH-RECALL-GATE', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+        ]);
+
+        self::assertSame(1, $ack['exit']);
+        self::assertFalse($ack['payload']['complete'] ?? true);
+        self::assertSame('recall_outcomes', $ack['payload']['manifest']['references']['verification']['gate'] ?? null);
+        self::assertSame('command_template', $ack['payload']['next_action_kind'] ?? null);
+        $nextAction = (string) ($ack['payload']['next_action'] ?? '');
+        self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --recall-outcome-draft', $nextAction);
+        self::assertStringContainsString('.agent-loop/recall/FINISH-RECALL-GATE/recall-log.draft.json', $nextAction);
+        self::assertStringContainsString('--by <actor> --commit <commit>', $nextAction);
+        self::assertStringNotContainsString('--learning', $nextAction);
+
+        $calls = [];
+        $recorded = $this->finish(
+            'FINISH-RECALL-GATE',
+            [
+                '--format=json',
+                '--recall-outcome-draft', $draft,
+                '--by', 'fixture-reviewer',
+                '--commit', 'working-tree',
+            ],
+            function (array $args) use (&$calls): int {
+                $calls[] = $args;
+                $this->recordRecallOutcome('FINISH-RECALL-GATE', 'guidance.finish-recall-gate');
+
+                return 0;
+            },
+        );
+
+        self::assertSame(1, $recorded['exit']);
+        self::assertFalse($recorded['payload']['complete'] ?? true);
+        self::assertSame('command_template', $recorded['payload']['next_action_kind'] ?? null);
+        $advancedAction = (string) ($recorded['payload']['next_action'] ?? '');
+        self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --learning', $advancedAction);
+        self::assertStringNotContainsString('--recall-outcome-draft', $advancedAction);
+        self::assertSame(
+            [['log-outcome', '--draft', $draft, '--by', 'fixture-reviewer', '--commit', 'working-tree']],
+            $calls,
+        );
+    }
+
     public function testRefusedRecallOutcomeLogLeavesTheRunOpenWithTheOwnersReason(): void
     {
         [, $sessionId] = $this->prepareRun('FINISH-RECALL-REFUSED', ['guidance.finish-recall-refused']);
