@@ -1,6 +1,7 @@
 ---
 name: agent-loop-blindspot-reviewer
 description: Stress-test proposed changes, execution plans, or open diffs with evidence-first blind-spot review, failure-mode analysis, and deterministic terminal status without applying fixes.
+mutation: read-only
 ---
 
 # Blindspot Reviewer
