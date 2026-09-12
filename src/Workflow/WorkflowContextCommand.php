@@ -339,33 +339,29 @@ final readonly class WorkflowContextCommand
 
     private function addExecutionContract(WorkflowContextBudget $budget, string $taskId): void
     {
-        $reference = (new ExecutionContractStore($this->rootPath))->inspect($taskId);
+        $reference = (new ExecutionContractStore($this->rootPath))->materializeCurrentReadyDocument($taskId);
         if (($reference['state'] ?? null) !== 'ready') {
             return;
         }
 
-        $source = $reference['document'] ?? null;
-        if (!is_array($source)) {
-            throw new RuntimeException('Ready execution contract has no document source.');
+        $document = $reference['materialized_document'] ?? null;
+        if (!is_array($document)) {
+            throw new RuntimeException('Ready execution contract has no materialized document.');
+        }
+        $source = $document['source'] ?? null;
+        $content = $document['content'] ?? null;
+        if (!is_array($source) || !is_string($content)) {
+            throw new RuntimeException('Ready execution contract materialization is invalid.');
         }
         $path = $source['path'] ?? null;
         $sha256 = $source['sha256'] ?? null;
-        if (!is_string($path) || trim($path) === '' || !is_string($sha256) || preg_match('/^sha256:[a-f0-9]{64}$/', $sha256) !== 1) {
-            throw new RuntimeException('Ready execution contract source identity is invalid.');
-        }
-
-        $content = file_get_contents(PathResolver::join($this->rootPath, $path));
-        if (!is_string($content) || trim($content) === '') {
-            throw new RuntimeException('Ready execution contract document is unreadable or empty.');
-        }
-        $document = new ExecutionContractDocument($content);
-        if (!hash_equals($sha256, $document->sha256())) {
-            throw new RuntimeException('Ready execution contract changed after its owner projection was inspected.');
+        if (!is_string($path) || !is_string($sha256)) {
+            throw new RuntimeException('Ready execution contract materialization has an invalid source.');
         }
 
         $budget->section('Governed execution contract');
         $budget->add('execution_contract', '  Source: ' . $path . ' (' . $sha256 . ')');
-        foreach (explode("\n", rtrim($document->content, "\n")) as $line) {
+        foreach (explode("\n", rtrim($content, "\n")) as $line) {
             $budget->add('execution_contract', $line === '' ? '' : '  ' . $line);
         }
     }
