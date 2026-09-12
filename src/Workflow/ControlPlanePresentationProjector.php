@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use Closure;
 use JsonException;
+use LogicException;
 use Throwable;
 use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\Process\CommandProcessResult;
@@ -120,7 +121,6 @@ final readonly class ControlPlanePresentationProjector
     }
 
     /**
-     * @param 'ready'|'not_installed'|'unreachable'|'wrong_service'|'wrong_project'|'invalid_response'|'probe_failed' $status
      * @return array{
      *     schema_version: '1.0',
      *     kind: 'control_plane',
@@ -132,6 +132,18 @@ final readonly class ControlPlanePresentationProjector
      */
     private function result(string $status, ?string $url, ?string $detail): array
     {
+        if (!in_array($status, [
+            'ready',
+            'not_installed',
+            'unreachable',
+            'wrong_service',
+            'wrong_project',
+            'invalid_response',
+            'probe_failed',
+        ], true)) {
+            throw new LogicException('Unsupported control-plane presentation status: ' . $status);
+        }
+
         return [
             'schema_version' => '1.0',
             'kind' => 'control_plane',
