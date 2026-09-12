@@ -20,7 +20,7 @@ This is the current ownership map for first-party agent behavior. Historical mig
 | Task-scoped L2 context compilation | `voku/agent-recall-compiler` | Compile/select task guidance |
 | Findings, proposals, evidence, reviewed learning boundary | `voku/agent-learning` | Route reusable observations through explicit review before durable guidance |
 | Skill projection/install | `voku/agent-loop` | Merge explicit local canonical roots, fail duplicate IDs, track one managed projection |
-| Subagent representation | `voku/agent-loop` | Render one canonical role into host-native representation |
+| Subagent representation and mutation intent | `voku/agent-loop` | Render one canonical role into host-native representation; project mutation enforcement only where the host exposes an owned native mapping |
 | Host authority policy projection | `voku/agent-loop` | Project only policy that the host can represent honestly; keep trust, Auto Mode, and other user/runtime decisions outside repository ownership |
 | Workflow/bootstrap hooks | `voku/agent-loop` | Project workflow/navigation/evidence discipline through explicit host adapters; do not smuggle engineering skills into every session |
 | Host capability/discovery reporting | `voku/agent-loop` | Report adapter capability through `HostCapabilityMatrix` and converge current repository integration through `init host-status`; never claim runtime consumption from file presence |
@@ -75,6 +75,7 @@ Status meanings are strict:
 |---|---|---|---|---|---|---|
 | skill projection | supported | supported | supported | supported | supported | supported |
 | subagent projection | supported | supported | supported | supported | supported | supported |
+| read-only subagent enforcement projection | supported | unsupported | unsupported | unsupported | unsupported | unsupported |
 | policy projection | supported | supported | supported | unsupported | unsupported | unsupported |
 | session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
 | subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
@@ -84,8 +85,10 @@ Status meanings are strict:
 Host-specific policy semantics are intentionally not flattened:
 
 - Codex receives project-layer `.codex/rules/*.rules`; the host still owns project trust.
+- Codex roles with canonical `mutation: read-only` receive native `sandbox_mode = "read-only"`; this proves deterministic repository projection, not that a running host selected the role or enforced the sandbox.
 - Claude receives shared-project hard `deny` rules for authority-bearing remote mutations; Auto Mode classifier configuration remains user/local/managed scoped.
 - OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.
+- Claude, OpenCode, Copilot, Gemini, and Antigravity still receive portable role semantics, but Loop does not invent a read-only enforcement claim without an owned native host mapping.
 - Copilot, Gemini, and Antigravity still converge portable instructions/skills/subagents; absence of an `agent-loop` policy projector is reported as a runtime boundary, not as a broken host.
 
 A vendor feature can prove that a possible mechanism exists; it does not turn an `unsupported` or `degraded` cell green. Change a status only with evidence at the boundary that new status claims.

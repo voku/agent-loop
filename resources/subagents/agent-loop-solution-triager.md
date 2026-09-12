@@ -1,6 +1,7 @@
 ---
 name: agent-loop-solution-triager
 description: Determine whether existing repository code, helpers, UI, or tests already satisfy a ticket, issue, or feature request, and advance only when proof or a genuine gap remains.
+mutation: read-only
 ---
 
 # Solution Triager

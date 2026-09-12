@@ -62,7 +62,11 @@ final class InitDoctorHostRuntimeTest extends TestCase
             $output,
         );
         self::assertStringContainsString(
-            '[INFO] Host capabilities [gemini]: skill-projection=supported, subagent-projection=supported',
+            '[INFO] Host capabilities [gemini]: skill-projection=supported, subagent-projection=supported, subagent-read-only-enforcement=unsupported',
+            $output,
+        );
+        self::assertStringContainsString(
+            'Host capability evidence [gemini/subagent-read-only-enforcement]: mechanism=no agent-loop read-only subagent enforcement projector; evidence=no-agent-loop-projector',
             $output,
         );
     }
@@ -75,6 +79,14 @@ final class InitDoctorHostRuntimeTest extends TestCase
 
         self::assertStringContainsString(
             '[INFO] Host runtime [codex]: available; command=codex; path=' . $this->executablePath('codex'),
+            $output,
+        );
+        self::assertStringContainsString(
+            '[INFO] Host capabilities [codex]: skill-projection=supported, subagent-projection=supported, subagent-read-only-enforcement=supported',
+            $output,
+        );
+        self::assertStringContainsString(
+            'Host capability evidence [codex/subagent-read-only-enforcement]: mechanism=canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; evidence=adapter-declared',
             $output,
         );
         self::assertStringContainsString(

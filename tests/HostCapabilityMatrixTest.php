@@ -43,6 +43,33 @@ final class HostCapabilityMatrixTest extends TestCase
         }
     }
 
+    public function testReadOnlySubagentEnforcementIsProjectedOnlyWhereOwnedNatively(): void
+    {
+        self::assertSame(
+            HostCapabilityStatus::Supported,
+            HostCapabilityMatrix::status('codex', HostCapability::SubagentReadOnlyEnforcement),
+        );
+        $codex = HostCapabilityMatrix::describe('codex', HostCapability::SubagentReadOnlyEnforcement);
+        self::assertSame('adapter-declared', $codex['evidence']);
+        self::assertSame(
+            'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only',
+            $codex['mechanism'],
+        );
+
+        foreach (['claude', 'opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
+            self::assertSame(
+                HostCapabilityStatus::Unsupported,
+                HostCapabilityMatrix::status($agent, HostCapability::SubagentReadOnlyEnforcement),
+            );
+            $description = HostCapabilityMatrix::describe($agent, HostCapability::SubagentReadOnlyEnforcement);
+            self::assertSame('no-agent-loop-projector', $description['evidence']);
+            self::assertSame(
+                'no agent-loop read-only subagent enforcement projector',
+                $description['mechanism'],
+            );
+        }
+    }
+
     public function testPolicyProjectionExistsOnlyWhereRepositoryPolicyCanBeRepresentedHonestly(): void
     {
         foreach (['codex', 'claude', 'opencode'] as $agent) {
