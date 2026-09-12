@@ -1,0 +1,225 @@
+name: Map definition capability consumer
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/map-definition-capability-consumer.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: map-definition-capability-consumer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  consumer:
+    name: Typed Map owner report drives Loop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          package-manager-cache: false
+
+      - name: Prove the experiment does not modify Loop product code
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only HEAD^1 HEAD)"
+          test "$changed" = '.github/workflows/map-definition-capability-consumer.yml'
+
+      - name: Install released Loop dependencies then overlay the exact Map owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --prefer-dist --no-interaction --no-progress
+
+          owner='cbfe8841bc65e94e51254d30ac0d9fe61c106143'
+          rm -rf vendor/voku/agent-map
+          git init --quiet vendor/voku/agent-map
+          git -C vendor/voku/agent-map remote add origin https://github.com/voku/agent-map.git
+          git -C vendor/voku/agent-map fetch --quiet --depth=1 origin "$owner"
+          git -C vendor/voku/agent-map checkout --quiet --detach FETCH_HEAD
+          test "$(git -C vendor/voku/agent-map rev-parse HEAD)" = "$owner"
+
+          php -r '
+            require "vendor/autoload.php";
+            if (!class_exists(\voku\AgentMap\Evidence\DefinitionCapabilityProbe::class)) {
+                fwrite(STDERR, "Exact Map owner does not expose DefinitionCapabilityProbe.\n");
+                exit(1);
+            }
+          '
+
+      - name: Materialize pinned repositories
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/agent-loop-map-capability"
+          rm -rf "$root"
+          mkdir -p "$root"
+
+          checkout_exact() {
+            local url="$1"
+            local commit="$2"
+            local target="$3"
+            git init --quiet "$target"
+            git -C "$target" remote add origin "$url"
+            git -C "$target" fetch --quiet --depth=1 origin "$commit"
+            git -C "$target" checkout --quiet --detach FETCH_HEAD
+            test "$(git -C "$target" rev-parse HEAD)" = "$commit"
+          }
+
+          checkout_exact https://github.com/manojmallick/sigmap.git 9297a43660fe68230992cc20144adeb3b8a1e5e8 "$root/sigmap"
+          checkout_exact https://github.com/pallets/flask.git d73fa1cdcbd8b1465c151db8924ba58b1dd14e35 "$root/flask"
+
+      - name: Install the owner-proven semantic toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global \
+            @sourcegraph/scip-typescript@0.4.0 \
+            @sourcegraph/scip-python@0.6.6
+
+          version='0.9.0'
+          archive='scip-linux-amd64.tar.gz'
+          expected='fc2e7273e110be9f35924da1066000183791e8bfdb0391355de6eaaa070fec75'
+          dir="$RUNNER_TEMP/scip-${version}"
+          mkdir -p "$dir"
+          curl --fail --location --silent --show-error \
+            "https://github.com/scip-code/scip/releases/download/v${version}/${archive}" \
+            --output "$RUNNER_TEMP/$archive"
+          printf '%s  %s\n' "$expected" "$RUNNER_TEMP/$archive" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$dir"
+          scip_bin="$(find "$dir" -type f -name scip -print -quit)"
+          test -n "$scip_bin"
+          chmod +x "$scip_bin"
+          echo "$(dirname "$scip_bin")" >> "$GITHUB_PATH"
+
+      - name: Prove typed owner reporting and the existing Loop Map route agree
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$GITHUB_WORKSPACE"
+          root="$RUNNER_TEMP/agent-loop-map-capability"
+
+          capability_report() {
+            local repo="$1"
+            local output="$2"
+            (
+              cd "$repo"
+              php -r '
+                require $argv[1] . "/vendor/autoload.php";
+                $report=(new \voku\AgentMap\Evidence\DefinitionCapabilityProbe())->probe(
+                    getcwd(),
+                    getcwd() . "/.agent-loop/map/php-symbols.json",
+                );
+                echo json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+              ' "$workspace"
+            ) > "$output"
+          }
+
+          capability_report "$root/sigmap" "$root/js-capabilities.json"
+          jq -e '.route == "javascript_typescript" and .capabilities.javascript_typescript.status == "operational"' "$root/js-capabilities.json"
+          (
+            cd "$root/sigmap"
+            php "$workspace/bin/agent-loop" map query buildCallGraph --format=json
+          ) > "$root/js-query.json"
+          jq -e '.status == "answered" and .provider == "scip" and ([.definitions[].file] | index("src/graph/call-graph.js") != null)' "$root/js-query.json"
+
+          capability_report "$root/flask" "$root/python-capabilities.json"
+          jq -e '.route == "python" and .capabilities.python.status == "operational"' "$root/python-capabilities.json"
+          (
+            cd "$root/flask"
+            php "$workspace/bin/agent-loop" map query Flask --format=json
+          ) > "$root/python-query.json"
+          jq -e '.status == "answered" and .provider == "scip" and ([.definitions[].file] | index("src/flask/app.py") != null)' "$root/python-query.json"
+
+      - name: Prove missing provider capability stays owner-reported
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$GITHUB_WORKSPACE"
+          root="$RUNNER_TEMP/agent-loop-map-capability"
+          limited="$root/limited-bin"
+          mkdir -p "$limited"
+          ln -s "$(command -v scip)" "$limited/scip"
+          php_bin="$(command -v php)"
+
+          (
+            cd "$root/flask"
+            env PATH="$limited:/usr/bin:/bin" "$php_bin" -r '
+              require $argv[1] . "/vendor/autoload.php";
+              $report=(new \voku\AgentMap\Evidence\DefinitionCapabilityProbe())->probe(
+                  getcwd(),
+                  getcwd() . "/.agent-loop/map/php-symbols.json",
+              );
+              echo json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+            ' "$workspace" > "$root/python-missing-capabilities.json"
+
+            set +e
+            env PATH="$limited:/usr/bin:/bin" "$php_bin" "$workspace/bin/agent-loop" map query Flask --format=json > "$root/python-missing-query.json"
+            status=$?
+            set -e
+            test "$status" -ne 0
+          )
+
+          jq -e '.route == "python" and .capabilities.python.status == "unavailable" and (.capabilities.python.reason | type == "string")' "$root/python-missing-capabilities.json"
+          jq -e '.status == "unavailable" and (.reason | type == "string")' "$root/python-missing-query.json"
+
+      - name: Prove PHP map remains the owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$GITHUB_WORKSPACE"
+          root="$RUNNER_TEMP/agent-loop-map-capability/sigmap"
+          mkdir -p "$root/.agent-loop/map"
+          printf '{}\n' > "$root/.agent-loop/map/php-symbols.json"
+          (
+            cd "$root"
+            php -r '
+              require $argv[1] . "/vendor/autoload.php";
+              $report=(new \voku\AgentMap\Evidence\DefinitionCapabilityProbe())->probe(
+                  getcwd(),
+                  getcwd() . "/.agent-loop/map/php-symbols.json",
+              );
+              echo json_encode($report->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+            ' "$workspace"
+          ) > "$RUNNER_TEMP/php-owner.json"
+          jq -e '.route == "php" and .capabilities.php.status == "operational"' "$RUNNER_TEMP/php-owner.json"
+
+      - name: Prove provider choreography stays outside Loop product code
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E '(^|[^[:alnum:]_-])scip(-typescript|-python)?([^[:alnum:]_-]|$)' src tests; then
+            echo 'agent-loop product code/tests duplicated provider executable knowledge' >&2
+            exit 1
+          fi
+
+      - name: Publish evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '### Map definition capability consumer'
+            echo
+            echo '- Loop product source and Composer dependency graph: unchanged'
+            echo '- exact experimental Map owner overlaid for this dogfood only: `cbfe8841bc65e94e51254d30ac0d9fe61c106143`'
+            echo '- JS/TS typed owner report operational -> existing `agent-loop map query buildCallGraph` answered'
+            echo '- Python typed owner report operational -> existing `agent-loop map query Flask` answered'
+            echo '- missing Python provider: owner report and query both explicit unavailable'
+            echo '- PHP map: route remains PHP'
+            echo '- provider choreography exists only in this evidence workflow, not Loop product code/tests'
+          } >> "$GITHUB_STEP_SUMMARY"
