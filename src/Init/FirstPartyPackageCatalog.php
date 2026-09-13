@@ -72,9 +72,20 @@ final readonly class FirstPartyPackageCatalog
         $sourcePath = self::normalize($sourcePath);
         $projectRoot = self::normalize($projectRoot);
 
+        $roots = [];
         foreach (self::FIRST_PARTY_OWNERS as $packageName) {
             $root = self::packageRoot($packageName);
-            if ($root !== null && self::inside($sourcePath, $root)) {
+            if ($root !== null) {
+                $roots[$packageName] = $root;
+            }
+        }
+        uasort(
+            $roots,
+            static fn (string $left, string $right): int => strlen($right) <=> strlen($left),
+        );
+
+        foreach ($roots as $packageName => $root) {
+            if (self::inside($sourcePath, $root)) {
                 return $packageName;
             }
         }
