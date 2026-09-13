@@ -19,7 +19,7 @@ final readonly class RepositorySetupContributor
 
     /**
      * @param non-empty-string $owner
-     * @param self::SCOPE_* $scope
+     * @param self::SCOPE_CONSUMER|self::SCOPE_OWNER_REPOSITORY|self::SCOPE_PROJECT|self::SCOPE_LOCAL $scope
      * @param int<0, max> $skillCount
      * @param int<0, max> $subagentCount
      * @param int<0, max> $instructionCount
@@ -50,7 +50,7 @@ final readonly class RepositorySetupContributor
     /**
      * @return array{
      *     owner: non-empty-string,
-     *     scope: self::SCOPE_*,
+     *     scope: self::SCOPE_CONSUMER|self::SCOPE_OWNER_REPOSITORY|self::SCOPE_PROJECT|self::SCOPE_LOCAL,
      *     skill_count: int<0, max>,
      *     subagent_count: int<0, max>,
      *     instruction_count: int<0, max>
