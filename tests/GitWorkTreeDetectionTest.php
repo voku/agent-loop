@@ -86,6 +86,27 @@ final class GitWorkTreeDetectionTest extends TestCase
         self::assertSame('.githooks', self::git('-C', $linked, 'config', '--get', 'core.hooksPath'));
     }
 
+    public function testPackagedHookHelperKeepsTheLinkedWorktreeRoot(): void
+    {
+        $linked = $this->linkedWorktree();
+        $helper = dirname(__DIR__) . '/resources/githooks/lib/agent-loop-hooks.sh';
+        $process = proc_open(
+            ['bash', '-lc', 'source ' . escapeshellarg($helper) . '; agent_loop_hooks_repo_root'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            $linked,
+        );
+        self::assertIsResource($process);
+
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        self::assertSame(0, proc_close($process), (string) $stderr);
+        self::assertSame($linked, trim((string) $stdout));
+    }
+
     private function linkedWorktree(): string
     {
         $main = $this->repository();

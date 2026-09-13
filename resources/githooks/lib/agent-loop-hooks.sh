@@ -25,6 +25,13 @@ if [[ -f "$agent_loop_hooks_lib_dir/agent-loop-hooks.env" ]]; then
 fi
 
 agent_loop_hooks_repo_root() {
+    # A linked worktree can load hook files from the common checkout. Resolve
+    # Git before following the hook file's path, otherwise the helper changes
+    # into that common checkout and runs its tools instead of this worktree's.
+    if git rev-parse --show-toplevel 2>/dev/null; then
+        return 0
+    fi
+
     cd -- "$agent_loop_hooks_lib_dir/../.." >/dev/null 2>&1 || return 1
     git rev-parse --show-toplevel 2>/dev/null || pwd
 }

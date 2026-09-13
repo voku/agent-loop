@@ -86,8 +86,9 @@ final readonly class ProcessRunner
     public function vendorBinary(string $name): string
     {
         $base = $this->workingDirectory . '/vendor/bin/' . $name;
-        foreach ([$base . '.bat', $base] as $candidate) {
-            if (is_file($candidate) && (DIRECTORY_SEPARATOR === '\\' ? str_ends_with($candidate, '.bat') : true)) {
+        $candidates = DIRECTORY_SEPARATOR === '\\' ? [$base . '.bat', $base] : [$base];
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
                 return $candidate;
             }
         }
