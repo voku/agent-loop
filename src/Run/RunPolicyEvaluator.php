@@ -175,6 +175,24 @@ final readonly class RunPolicyEvaluator
         }
 
         $action = $this->nextAction($taskId, $state, $mode, $references, $disagreements);
+        if (
+            $state === 'blocked'
+            && (
+                str_starts_with($action, 'agent-loop workflow status ')
+                || str_starts_with($action, 'agent-loop workflow manifest ')
+            )
+        ) {
+            $blockers = $this->blockers($state, $references, $disagreements);
+            if ($blockers !== []) {
+                $first = $blockers[0];
+
+                return [
+                    'action' => 'repair the ' . $first['owner'] . ' blocker this task depends on ('
+                        . $first['code'] . '): ' . $first['message'],
+                    'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+                ];
+            }
+        }
         if ($action === 'none') {
             return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE];
         }
