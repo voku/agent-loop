@@ -38,8 +38,9 @@ final class RepositorySkillSourceResolverTest extends TestCase
 
         self::assertArrayHasKey('agent-recall-consumer', $sources);
         self::assertSame('voku/agent-recall-compiler', $sources['agent-recall-consumer']->owner);
-        self::assertNotNull($sources['agent-recall-consumer']->reference);
-        self::assertSame(array_keys($sources), array_values(array_unique(array_keys($sources))));
+        $recallReference = $sources['agent-recall-consumer']->reference;
+        self::assertNotNull($recallReference);
+        self::assertFalse(str_starts_with($recallReference, '/'));
 
         $sorted = array_keys($sources);
         sort($sorted, SORT_STRING);
