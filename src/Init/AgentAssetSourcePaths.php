@@ -16,6 +16,8 @@ final readonly class AgentAssetSourcePaths
         private string $hooksRoot,
         private string $toolsRoot,
         private string $claudeHooksRoot,
+        private bool $packageSkills = true,
+        private bool $packageSubagents = true,
     ) {
     }
 
@@ -23,8 +25,13 @@ final readonly class AgentAssetSourcePaths
      * @param array<string, string> $configPaths
      * @param array<string, string> $cliOverrides
      */
-    public static function fromSources(string $rootPath, array $configPaths = [], array $cliOverrides = []): self
-    {
+    public static function fromSources(
+        string $rootPath,
+        array $configPaths = [],
+        array $cliOverrides = [],
+        bool $packageSkills = true,
+        bool $packageSubagents = true,
+    ): self {
         $paths = [
             'skills_root' => PackageResources::SKILLS,
             'subagents_root' => PackageResources::SUBAGENTS,
@@ -61,6 +68,46 @@ final readonly class AgentAssetSourcePaths
             $paths['codex_hooks_root'],
             $paths['tools_root'],
             $paths['claude_hooks_root'],
+            $packageSkills,
+            $packageSubagents,
+        );
+    }
+
+    public function packageSkills(): bool
+    {
+        return $this->packageSkills;
+    }
+
+    public function packageSubagents(): bool
+    {
+        return $this->packageSubagents;
+    }
+
+    public function withPackageSkills(bool $packageSkills): self
+    {
+        return new self(
+            $this->rootPath,
+            $this->skillsRoot,
+            $this->subagentsRoot,
+            $this->hooksRoot,
+            $this->toolsRoot,
+            $this->claudeHooksRoot,
+            $packageSkills,
+            $this->packageSubagents,
+        );
+    }
+
+    public function withPackageSubagents(bool $packageSubagents): self
+    {
+        return new self(
+            $this->rootPath,
+            $this->skillsRoot,
+            $this->subagentsRoot,
+            $this->hooksRoot,
+            $this->toolsRoot,
+            $this->claudeHooksRoot,
+            $this->packageSkills,
+            $packageSubagents,
         );
     }
 

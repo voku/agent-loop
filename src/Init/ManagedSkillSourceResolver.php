@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use InvalidArgumentException;
+use voku\AgentLoop\PackageResources;
 
 /** Resolves the desired managed skill set once, with provenance attached. */
 final readonly class ManagedSkillSourceResolver
@@ -16,8 +17,9 @@ final readonly class ManagedSkillSourceResolver
     /**
      * @return array<string, ManagedAssetSource> skill-id => source
      */
-    public function resolve(AgentAssetSourcePaths $paths, bool $includeFirstParty = true): array
+    public function resolve(AgentAssetSourcePaths $paths, ?bool $includeFirstParty = null): array
     {
+        $includeFirstParty ??= $paths->packageSkills();
         $sources = [];
 
         if ($includeFirstParty) {
@@ -36,24 +38,30 @@ final readonly class ManagedSkillSourceResolver
 
         $configuredRoot = $paths->absoluteSkillsRoot();
         if (is_dir($configuredRoot)) {
-            foreach (scandir($configuredRoot) ?: [] as $entry) {
-                if ($entry === '.' || $entry === '..') {
-                    continue;
-                }
+            $loopPackageRoot = FirstPartyPackageCatalog::packageRoot('voku/agent-loop');
+            $packageSkillsDir = $loopPackageRoot !== null ? $loopPackageRoot . '/' . PackageResources::SKILLS : null;
+            $isPackageRoot = $packageSkillsDir !== null && realpath($configuredRoot) === realpath($packageSkillsDir);
 
-                $sourcePath = $configuredRoot . '/' . $entry;
-                if (!is_file($sourcePath . '/SKILL.md')) {
-                    continue;
-                }
-                if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $sourcePath, $this->rootPath)) {
-                    continue;
-                }
+            if (!$isPackageRoot || $includeFirstParty) {
+                foreach (scandir($configuredRoot) ?: [] as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
 
-                $this->register(
-                    $sources,
-                    $entry,
-                    ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'skill:' . $entry),
-                );
+                    $sourcePath = $configuredRoot . '/' . $entry;
+                    if (!is_file($sourcePath . '/SKILL.md')) {
+                        continue;
+                    }
+                    if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $sourcePath, $this->rootPath)) {
+                        continue;
+                    }
+
+                    $this->register(
+                        $sources,
+                        $entry,
+                        ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'skill:' . $entry),
+                    );
+                }
             }
         }
 

@@ -305,7 +305,7 @@ final readonly class RepositorySetupService
             $files[] = $fragmentPath;
         }
 
-        $sourceRoots = [$paths->absoluteSubagentsRoot()];
+        $sourceRoots = [];
         foreach ((new ManagedSkillSourceResolver($this->rootPath))->resolve($paths) as $source) {
             $sourceRoots[] = $source->path;
         }
@@ -318,6 +318,12 @@ final readonly class RepositorySetupService
 
         foreach (array_values(array_unique($sourceRoots)) as $root) {
             array_push($files, ...$this->sourceFiles($root));
+        }
+
+        foreach ((new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths) as $source) {
+            if (is_file($source->path)) {
+                $files[] = $source->path;
+            }
         }
 
         $files = array_values(array_unique($files));
@@ -369,7 +375,13 @@ final readonly class RepositorySetupService
         );
 
         return [
-            'paths' => AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], []),
+            'paths' => AgentAssetSourcePaths::fromSources(
+                $this->rootPath,
+                $config['paths'],
+                [],
+                $config['package_skills'],
+                $config['package_subagents'],
+            ),
             'packageSkills' => $config['package_skills'],
             'packageSubagents' => $config['package_subagents'],
         ];
@@ -563,34 +575,13 @@ final readonly class RepositorySetupService
         AgentAssetSourcePaths $paths,
         string $host,
         bool $includePackageSubagents,
-    ): array
-    {
-        $roots = [];
-        if ($includePackageSubagents) {
-            $root = PackageResources::subagentsRoot();
-            if (is_dir($root)) {
-                $roots[] = $root;
-            }
-        }
-        $configuredRoot = $paths->absoluteSubagentsRoot();
-        if (is_dir($configuredRoot) && !in_array($configuredRoot, $roots, true)) {
-            $roots[] = $configuredRoot;
-        }
-
+    ): array {
         $suffix = (new ManagedAssetTargetCatalog($this->rootPath))->subagentSuffix($host);
+        $sources = (new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths, $includePackageSubagents);
         $entries = [];
-        foreach ($roots as $root) {
-            foreach (scandir($root) ?: [] as $entry) {
-                if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
-                    continue;
-                }
-                if (is_file($root . '/' . $entry)) {
-                    $entries[] = substr($entry, 0, -3) . $suffix;
-                }
-            }
+        foreach (array_keys($sources) as $name) {
+            $entries[] = $name . $suffix;
         }
-
-        $entries = array_values(array_unique($entries));
         sort($entries, SORT_STRING);
         if ($entries === []) {
             throw new RuntimeException('No managed subagent entries are available for host inspection.');
