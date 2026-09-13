@@ -484,9 +484,11 @@ final readonly class HostFrontDoorCommand
                 $unexpected[] = $path;
             }
         }
-        foreach ($baseline as $path => $_fingerprint) {
+        foreach ($baseline as $path => $fingerprint) {
             if (!array_key_exists($path, $current)) {
-                $unexpected[] = $path;
+                if ($this->workingTreeFingerprint($path) !== $fingerprint) {
+                    $unexpected[] = $path;
+                }
             }
         }
         $unexpected = array_values(array_unique($unexpected));

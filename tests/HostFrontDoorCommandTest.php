@@ -309,6 +309,48 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertStringContainsString('Fast-path scope violated: modified undeclared file(s): src/Undeclared.php', $finishResult['stdout']);
     }
 
+    public function testQuickFinishAllowsUntrackedBaselineFilesThatBecomeIgnoredWhenFingerprintUnchanged(): void
+    {
+        $sourceDirectory = $this->root . '/src';
+        if (!mkdir($sourceDirectory, 0o775, true) && !is_dir($sourceDirectory)) {
+            throw new RuntimeException('Unable to create source directory.');
+        }
+        file_put_contents($sourceDirectory . '/QuickTarget.php', "<?php\nfinal class QuickTarget {}\n");
+        file_put_contents($this->root . '/.gitignore', "vendor/\n");
+        if (!mkdir($this->root . '/.agent-loop/learning', 0o775, true) && !is_dir($this->root . '/.agent-loop/learning')) {
+            throw new RuntimeException('Unable to create learning directory.');
+        }
+
+        exec('git -C ' . escapeshellarg($this->root) . ' init -b main 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.name "Test" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' config user.email "test@example.com" 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/QuickTarget.php .gitignore 2>&1');
+        exec('git -C ' . escapeshellarg($this->root) . ' commit -m "Initial commit" 2>&1');
+
+        // Create an untracked directory and file outside declared scope
+        $untrackedDir = $this->root . '/.gemini';
+        mkdir($untrackedDir, 0o775, true);
+        file_put_contents($untrackedDir . '/sample.txt', "hello\n");
+
+        $quickResult = $this->runBinary([
+            'quick',
+            'QUICK-IGN-1',
+            'Ignore .gemini in .gitignore',
+            '--file=.gitignore',
+            '--verify=php -r "exit(0);"',
+            '--format=json',
+        ]);
+        self::assertSame(0, $quickResult['exit'], $quickResult['stderr']);
+
+        // In scope: add /.gemini/ to .gitignore, so .gemini/ becomes ignored
+        file_put_contents($this->root . '/.gitignore', "vendor/\n/.gemini/\n");
+
+        $finishResult = $this->runBinary(['finish', 'QUICK-IGN-1', '--format=json']);
+        self::assertSame(0, $finishResult['exit'], $finishResult['stderr']);
+        $finishPayload = $this->json($finishResult['stdout']);
+        self::assertTrue($finishPayload['complete']);
+    }
+
     /** @return array{0: SessionStore, 1: Session} */
     private function prepareGovernedRun(bool $withCloseEvidence = false): array
     {
