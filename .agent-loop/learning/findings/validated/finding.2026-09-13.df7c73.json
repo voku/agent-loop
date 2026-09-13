@@ -1,0 +1,41 @@
+{
+    "id": "finding.2026-09-13.df7c73",
+    "task_id": "AGENT-LEARNING-01810-CONSUMER-001",
+    "session": "2026-09-13-agent-learning-01810-consumer-001-r6-f8e60799",
+    "created_at": "2026-09-13T15:16:59+00:00",
+    "created_by": "Codex",
+    "scope": [
+        "composer.json",
+        "tools/Dogfood/ProcessRunner.php",
+        "tests/ProcessRunnerTest.php",
+        "resources/githooks/lib/agent-loop-hooks.sh",
+        "tests/GitWorkTreeDetectionTest.php",
+        ".github/workflows/acceptance-criteria-candidate.yml",
+        ".github/workflows/prompt-primitives-candidate.yml",
+        "tests/AgentFacingPathGuidanceTest.php",
+        "tests/RecallEditBriefingCompilerOwnerBoundaryTest.php"
+    ],
+    "observation": "On Linux, ProcessRunner selected vendor/bin/phpstan.bat before the extensionless Composer binary, so proc_open failed with Exec format error and the deterministic project PHPStan fixture gate could not run.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Observed passed with exit code 0 for implementation sha256:1a6becc553930febc6f185ad446d93aad4fb20a5b5dea06318aeb192e66c32cb."
+        },
+        {
+            "type": "test_result",
+            "command": "composer show voku/agent-learning --format=json",
+            "summary": "Observed passed with exit code 0 for implementation sha256:1a6becc553930febc6f185ad446d93aad4fb20a5b5dea06318aeb192e66c32cb."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:a65cf185de96c077db39867963584adfec22825335998239dc5344c00e84a56e."
+        }
+    ],
+    "hypothesis": "The vendor-binary candidate loop treated the Windows .bat wrapper as valid on non-Windows hosts.",
+    "validated_conclusion": "Select the host-appropriate Composer wrapper before invoking deterministic static-analysis tooling, and cover linked-worktree hook root resolution with executable regression tests.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
