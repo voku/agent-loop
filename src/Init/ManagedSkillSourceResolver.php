@@ -31,6 +31,7 @@ final readonly class ManagedSkillSourceResolver
                         $metadata['owner'],
                         $metadata['path'],
                         'skill:' . $entry,
+                        $this->rootPath,
                     ),
                 );
             }
@@ -76,6 +77,9 @@ final readonly class ManagedSkillSourceResolver
     private function register(array &$sources, string $entry, ManagedAssetSource $source): void
     {
         $existing = $sources[$entry] ?? null;
+        if ($existing instanceof ManagedAssetSource && $existing->path === $source->path) {
+            return;
+        }
         if ($existing instanceof ManagedAssetSource && $existing->path !== $source->path) {
             throw new InvalidArgumentException('Multiple skill sources own the same entry: ' . $entry);
         }

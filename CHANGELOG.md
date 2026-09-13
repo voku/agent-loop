@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.9 - 2026-09-13
+
+### Added
+
+- Add typed repository setup contributor projection (`RepositorySetupContributor`) and projector (`RepositorySetupContributorProjector`), deriving asset contributor scopes (`consumer`, `owner_repository`, `project`, `local`) and asset counts (`skillCount`, `subagentCount`, `instructionCount`) directly from resolved source truth and first-party instruction exports.
+- Expose typed contributors on `RepositorySetupProjection` and render contributor summaries in `InitHostStatusCommand` CLI output.
+- Add `ManagedSubagentSourceResolver` to resolve managed subagents once with provenance and lazy definition validation across setup planning and drift checks.
+
+### Changed
+
+- Resolve managed skill and subagent sources once during setup planning rather than repeatedly rediscovering asset sources across planning, installer provenance, and overview readiness.
+- Preserve real-host Task-B evidence receipt in dogfood documentation without changing behavioral attribution.
+
+### Fixed
+
+- Prefer owner repository checked-out skill sources over vendor fallbacks when resolving exportable skills in first-party packages.
+- Honor configured package asset policy (`package_skills: false`, `package_subagents: false`) in typed setup plans and managed asset drift projections so disabled package assets are not planned or claimed.
+- Align active Recall compatibility proofs with the supported `^0.17.7` owner floor while preserving historical Map 0.10 compatibility boundaries.
+
 ## 0.20.8 - 2026-09-13
 
 ### Added

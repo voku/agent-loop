@@ -81,6 +81,11 @@ final class RepositorySetupProjectionTest extends TestCase
             $this->root . '/composer.json',
             json_encode(['name' => 'voku/agent-learning'], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
         );
+        foreach (['agent-learning-consumer', 'agent-learning-maintainer', 'agent-learning-note', 'agent-learning-ctx-evidence', 'agent-hard-constraint-author'] as $skill) {
+            $dir = $this->root . '/resources/skills/' . $skill;
+            mkdir($dir, 0o775, true);
+            file_put_contents($dir . '/SKILL.md', '# ' . $skill . "\n");
+        }
 
         $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
         $projection = (new RepositorySetupService($this->root, $probe))->overview();
