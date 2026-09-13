@@ -72,12 +72,22 @@ final readonly class FirstPartyPackageCatalog
     {
         $sourcePath = self::normalize($sourcePath);
         $projectRoot = self::normalize($projectRoot);
+        $matchedOwner = null;
+        $matchedRoot = null;
 
         foreach (self::FIRST_PARTY_OWNERS as $packageName) {
             $root = self::packageRoot($packageName);
-            if ($root !== null && self::inside($sourcePath, $root)) {
-                return $packageName;
+            if ($root === null || !self::inside($sourcePath, $root)) {
+                continue;
             }
+            if ($matchedRoot === null || strlen($root) > strlen($matchedRoot)) {
+                $matchedOwner = $packageName;
+                $matchedRoot = $root;
+            }
+        }
+
+        if ($matchedOwner !== null) {
+            return $matchedOwner;
         }
 
         if (self::inside($sourcePath, $projectRoot)) {
