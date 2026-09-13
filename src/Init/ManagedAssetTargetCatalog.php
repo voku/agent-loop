@@ -187,9 +187,10 @@ final readonly class ManagedAssetTargetCatalog
     /** @return list<string> */
     public function subagentEntries(AgentAssetSourcePaths $paths, string $targetSuffix): array
     {
+        $sources = (new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths);
         $entries = [];
-        foreach ($this->subagentSourceFiles($paths) as $file) {
-            $entries[] = substr($file, 0, -3) . $targetSuffix;
+        foreach (array_keys($sources) as $name) {
+            $entries[] = $name . $targetSuffix;
         }
 
         sort($entries, SORT_STRING);

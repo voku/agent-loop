@@ -69,27 +69,20 @@ final readonly class RepositoryManagedAssetInstaller
     }
 
     /**
-     * @return array<string, array{path:string, definition:SubagentDefinition}>
+     * @return array<string, array{path:string, definition:SubagentDefinition, source:ManagedAssetSource}>
      */
     private function subagentSources(AgentAssetSourcePaths $paths, string $agent): array
     {
         $sources = [];
-        $root = $paths->absoluteSubagentsRoot();
         $suffix = (new ManagedAssetTargetCatalog($this->rootPath))->subagentSuffix($agent);
-        foreach (is_dir($root) ? (scandir($root) ?: []) : [] as $entry) {
-            if ($entry === '.' || $entry === '..' || !str_ends_with($entry, '.md')) {
-                continue;
-            }
-            $path = $root . '/' . $entry;
-            if (!is_file($path)) {
-                continue;
-            }
-            $errors = SubagentDefinition::validationErrors($path);
-            if ($errors !== []) {
-                throw new InvalidArgumentException('Invalid subagent ' . $entry . ': ' . implode('; ', $errors));
-            }
-            $targetEntry = substr($entry, 0, -3) . $suffix;
-            $sources[$targetEntry] = ['path' => $path, 'definition' => SubagentDefinition::fromCanonicalFile($path)];
+        $resolved = (new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths);
+        foreach ($resolved as $name => $source) {
+            $targetEntry = $name . $suffix;
+            $sources[$targetEntry] = [
+                'path' => $source->path,
+                'definition' => $source->definition(),
+                'source' => $source->assetSource,
+            ];
         }
         ksort($sources, SORT_STRING);
 
@@ -128,7 +121,7 @@ final readonly class RepositoryManagedAssetInstaller
 
     /**
      * @param list<ManagedAssetOperation> $operations
-     * @param array<string, array{path:string, definition:SubagentDefinition}> $sources
+     * @param array<string, array{path:string, definition:SubagentDefinition, source:ManagedAssetSource}> $sources
      * @return list<ManagedAssetOperation>
      */
     private function applySubagents(array $operations, array $sources, string $agent, AgentAssetSourcePaths $paths): array
@@ -136,15 +129,11 @@ final readonly class RepositoryManagedAssetInstaller
         $target = $this->target($agent, ManagedAssetKind::SUBAGENTS, $paths);
         $projectionSources = [];
         foreach ($target->desiredEntries() ?? [] as $entry) {
-            $source = $sources[$entry]['path'] ?? null;
-            if (!is_string($source)) {
+            $source = $sources[$entry]['source'] ?? null;
+            if (!$source instanceof ManagedAssetSource) {
                 throw new RuntimeException('No subagent source is available for planned entry: ' . $entry);
             }
-            $projectionSources[$entry] = ManagedAssetSource::fromPath(
-                $this->rootPath,
-                $source,
-                'subagent:' . preg_replace('/(?:\.agent)?\.(?:md|toml)$/', '', basename($entry)),
-            );
+            $projectionSources[$entry] = $source;
         }
 
         $cliPath = (new RepositoryActivation($this->rootPath))->cliPath();
