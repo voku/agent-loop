@@ -1,0 +1,67 @@
+{
+    "schema_version": "1.0",
+    "proposal": {
+        "id": "proposal.2026-09-13.2acd04",
+        "created_at": "2026-09-13T09:35:19+00:00",
+        "action": "ADD",
+        "source_findings": [
+            "finding.2026-08-07.005",
+            "finding.2026-08-14.006",
+            "finding.2026-09-13.2c3f55"
+        ],
+        "reason": "Two independent coding-run findings established that an in-process PHPStan RuleTestCase can destabilize the normal PHPUnit process, and the current governed run proved that stale soft guidance blocks Recall rather than enforcing the rule. The existing PHPStan detector, its registered invalid fixture, and its dedicated runner now provide a cheaper deterministic boundary; this proposal adopts that enforcement without generating a duplicate rule.",
+        "remaining_uncertainty": [
+            "The detector intentionally covers direct RuleTestCase inheritance; different PHPStan test-harness designs need separate evidence before they are constrained."
+        ],
+        "status": "approved",
+        "proposed_by": "consolidation",
+        "approved_by": "Lars Moelleken",
+        "approved_at": "2026-09-13T09:36:49+00:00",
+        "target_type": "constraint",
+        "target": "agent-loop.phpstan.in-process-rule-test-case",
+        "scope": [
+            "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+            "phpstan/project-rule-test.neon",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+            "tools/project-phpstan-rules.php"
+        ],
+        "old": null,
+        "new": "The registered NoInProcessPhpstanRuleTestCaseRule rejects direct in-process PHPStan RuleTestCase fixtures through the dedicated project PHPStan runner.",
+        "boundary": "Only direct classes extending PHPStan\\Testing\\RuleTestCase are rejected. The rule does not constrain isolated subprocess fixtures or unrelated PHPStan test-harness patterns.",
+        "validation": [
+            "php tools/project-phpstan-rules.php",
+            "composer ci"
+        ],
+        "scope_justification": "Two independent coding-run findings established that an in-process PHPStan RuleTestCase can destabilize the normal PHPUnit process, and the current governed run proved that stale soft guidance blocks Recall rather than enforcing the rule. The existing PHPStan detector, its registered invalid fixture, and its dedicated runner now provide a cheaper deterministic boundary; this proposal adopts that enforcement without generating a duplicate rule.",
+        "constraint": {
+            "rule_id": "agent-loop.phpstan.in-process-rule-test-case",
+            "engine": "phpstan",
+            "rule_class_name": "NoInProcessPhpstanRuleTestCaseRule",
+            "target_rule_path": "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+            "registration_files": [
+                "phpstan/project-rule-test.neon",
+                "composer.json"
+            ],
+            "scope": [
+                "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+                "phpstan/project-rule-test.neon",
+                "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+                "tools/project-phpstan-rules.php"
+            ],
+            "violation": "A project PHPUnit test class directly extends PHPStan\\Testing\\RuleTestCase and can load a PHPStan container into the normal test process.",
+            "allowed_boundaries": [
+                "Isolated PHPStan subprocess fixtures are outside this rule.",
+                "Only direct RuleTestCase inheritance is detected."
+            ],
+            "detectability": "static",
+            "false_positive_risk": "low",
+            "validation_commands": [
+                "php tools/project-phpstan-rules.php",
+                "composer ci"
+            ],
+            "example_rule_paths": [
+                "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php"
+            ]
+        }
+    }
+}

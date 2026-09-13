@@ -1,0 +1,9 @@
+{
+    "schema_version": "1.0",
+    "mode": "adopt_existing",
+    "commands": [
+        "php tools/project-phpstan-rules.php",
+        "composer ci"
+    ],
+    "expected_fixtures": []
+}

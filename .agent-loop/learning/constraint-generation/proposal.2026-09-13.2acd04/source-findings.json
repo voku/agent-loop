@@ -1,0 +1,95 @@
+{
+    "schema_version": "1.0",
+    "findings": [
+        {
+            "id": "finding.2026-08-07.005",
+            "task_id": "TODO@agent-loop/self-shape-pr-28",
+            "session": "2026-08-07-self-shape",
+            "created_at": "2026-08-07T23:05:00+02:00",
+            "created_by": "agent-loop-self-shape",
+            "scope": [
+                "phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php",
+                "phpstan/project-rule-test.neon",
+                "tests/PHPStan/data/focused-package-cli-in-workflow.php",
+                "tools/project-phpstan-rules.sh"
+            ],
+            "observation": "The first project-specific PHPStan rule test used PHPStan\\Testing\\RuleTestCase inside the normal PHPUnit process. Later WorkflowContext tests then failed inside agent-map because Composer\\InstalledVersions could no longer locate phpstan/phpstan, even though the package was installed. Removing the in-process PHPStan testing runtime and executing the rule fixture in a separate PHPStan process restored the normal test matrix.",
+            "evidence": [
+                {
+                    "type": "test_result",
+                    "command": "composer ci",
+                    "summary": "CI run 31218074774 failed in four WorkflowContext tests with 'Unable to locate phpstan/phpstan installation' after the in-process RuleTestCase executed. CI run 31218247902 then passed PHP 8.3, 8.4, and 8.5 after the rule fixture moved to tools/project-phpstan-rules.sh, while the project rule itself still produced the expected diagnostic."
+                }
+            ],
+            "hypothesis": "Tooling test harnesses that load executable analysis runtimes into the application PHPUnit process can mutate global autoload or Composer package-discovery state and create unrelated order-dependent failures.",
+            "validated_conclusion": "Test agent-loop project-specific PHPStan rules in an isolated PHPStan subprocess. Do not load PHPStan\\Testing\\RuleTestCase into the normal agent-loop PHPUnit process while agent-map also performs Composer-based PHPStan discovery in that process.",
+            "confidence": "high",
+            "validation_status": "validated",
+            "status": "consolidated",
+            "sensitivity": "public"
+        },
+        {
+            "id": "finding.2026-08-14.006",
+            "task_id": "GH-96",
+            "session": "2026-08-14-agent-loop-consolidation",
+            "created_at": "2026-08-14T05:20:00+02:00",
+            "created_by": "agent-loop-consolidation",
+            "scope": [
+                "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+                "tools/project-phpstan-rules.sh",
+                "phpstan/project-rule-test.neon",
+                "MEMORY.md"
+            ],
+            "observation": "The reviewed durable rule 'Tooling test isolation' states that project PHPStan rule fixtures must not load `PHPStan\\Testing\\RuleTestCase` into agent-loop's PHPUnit process, because agent-map performs Composer-based PHPStan discovery there. That rule was enforced only by convention: `tools/project-phpstan-rules.sh` runs the fixtures out of process, but nothing failed if somebody added an in-process `RuleTestCase` subclass beside the ordinary tests. A MEMORY row whose canonical home is a shell script is a rule with no detector.",
+            "evidence": [
+                {
+                    "type": "manual_verification",
+                    "summary": "Before this change `grep -rn RuleTestCase tests/ src/ phpstan/` returned nothing, so the convention held only because no one had broken it yet. The MEMORY row named `tools/project-phpstan-rules.sh` and `phpstan/project-rule-test.neon` as its canonical home; neither can observe a new PHPUnit test class."
+                },
+                {
+                    "type": "test_result",
+                    "command": "bash tools/project-phpstan-rules.sh",
+                    "summary": "The isolated fixture run now reports `agentLoop.phpstan.inProcessRuleTestCase` for tests/PHPStan/data/in-process-phpstan-rule-test-case.php, and the runner asserts that exact diagnostic alongside the other eight project rules."
+                }
+            ],
+            "hypothesis": "Learning that stops at a MEMORY row plus a shell convention decays: the next contributor reaches for the idiomatic in-process RuleTestCase and only discovers the incompatibility as a confusing runtime failure in an unrelated suite.",
+            "validated_conclusion": "When a durable rule is mechanically detectable, its canonical home is the detector. This one is now `NoInProcessPhpstanRuleTestCaseRule`, and the MEMORY row points at the rule rather than at the convention that predated it.",
+            "confidence": "high",
+            "validation_status": "validated",
+            "status": "consolidated",
+            "sensitivity": "public"
+        },
+        {
+            "id": "finding.2026-09-13.2c3f55",
+            "task_id": "LOCAL-STATIC-ENFORCEMENT-001",
+            "session": "2026-09-13-local-static-enforcement-001-r2-fbce10a4",
+            "created_at": "2026-09-13T09:33:31+00:00",
+            "created_by": "codex",
+            "scope": [
+                "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+                "tools/project-phpstan-rules.php",
+                ".agent-loop/learning/proposals/approved/proposal.2026-08-14.004.json"
+            ],
+            "observation": "A governed Recall compilation selected approved proposal.2026-08-14.004 and blocked because its validation references tools/project-phpstan-rules.sh, which no longer exists; the live deterministic runner is tools/project-phpstan-rules.php.",
+            "evidence": [
+                {
+                    "type": "test_result",
+                    "command": "bin/agent-loop enter LOCAL-STATIC-ENFORCEMENT-001 --format=json",
+                    "summary": "Recall blocked selected guidance proposal.2026-08-14.004 because validation names missing tools/project-phpstan-rules.sh."
+                },
+                {
+                    "type": "file_reference",
+                    "path": ".agent-loop/learning/proposals/approved/proposal.2026-08-14.004.json",
+                    "line": 26,
+                    "summary": "The approved validation command names tools/project-phpstan-rules.sh while the current executable is tools/project-phpstan-rules.php."
+                }
+            ],
+            "hypothesis": "An approved guidance record and its detector drifted during the shell-to-PHP runner migration, so Recall preserves the stale path as a fail-closed blocker instead of emitting unusable guidance.",
+            "validated_conclusion": "Correct a durable guidance entry toward the live executable command and bind the already-existing detector as an adopted static constraint; do not add another prose rule or duplicate analyzer.",
+            "confidence": "high",
+            "validation_status": "validated",
+            "status": "validated",
+            "sensitivity": "public"
+        }
+    ]
+}

@@ -1,0 +1,34 @@
+{
+  "generated_files": [
+    "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+    "phpstan/project-rule-test.neon",
+    "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+    "tools/project-phpstan-rules.php"
+  ],
+  "registration_file": "phpstan/project-rule-test.neon",
+  "commit": "working-tree",
+  "tests": [
+    {
+      "command": "php tools/project-phpstan-rules.php",
+      "result": "passed",
+      "expected_violation_identifier": "agentLoop.phpstan.inProcessRuleTestCase"
+    },
+    {
+      "command": "composer ci",
+      "result": "passed",
+      "exit_code": 0,
+      "tests": 1223,
+      "assertions": 8118
+    }
+  ],
+  "validation_result": {
+    "result": "passed",
+    "summary": "Existing PHPStan enforcement was adopted: the isolated bad fixture emitted the expected identifier and the full project CI gate passed."
+  },
+  "content_hashes": {
+    "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php": "sha256:51e1e24eb3d800ef9d60aa0fa2c77c7a9beb8df9caf6859a5d77c499d08ff2d4",
+    "phpstan/project-rule-test.neon": "sha256:abd70b3e62c0df1e1f53811695a7d33e5c509c762a23d6ce5c5fe405a1ea9a70",
+    "tests/PHPStan/data/in-process-phpstan-rule-test-case.php": "sha256:926b1aca81d8d6153997bbb2b854855fa3c3800ec1f504e383dbd26012cdb003",
+    "tools/project-phpstan-rules.php": "sha256:f920b0f9e790629c2ce6226c30ccab74cb446c07a76c267e0f9b91142de1f094"
+  }
+}

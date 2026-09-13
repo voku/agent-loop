@@ -1,0 +1,32 @@
+{
+    "id": "finding.2026-09-13.2c3f55",
+    "task_id": "LOCAL-STATIC-ENFORCEMENT-001",
+    "session": "2026-09-13-local-static-enforcement-001-r2-fbce10a4",
+    "created_at": "2026-09-13T09:33:31+00:00",
+    "created_by": "codex",
+    "scope": [
+        "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "tools/project-phpstan-rules.php",
+        ".agent-loop/learning/proposals/approved/proposal.2026-08-14.004.json"
+    ],
+    "observation": "A governed Recall compilation selected approved proposal.2026-08-14.004 and blocked because its validation references tools/project-phpstan-rules.sh, which no longer exists; the live deterministic runner is tools/project-phpstan-rules.php.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "bin/agent-loop enter LOCAL-STATIC-ENFORCEMENT-001 --format=json",
+            "summary": "Recall blocked selected guidance proposal.2026-08-14.004 because validation names missing tools/project-phpstan-rules.sh."
+        },
+        {
+            "type": "file_reference",
+            "path": ".agent-loop/learning/proposals/approved/proposal.2026-08-14.004.json",
+            "line": 26,
+            "summary": "The approved validation command names tools/project-phpstan-rules.sh while the current executable is tools/project-phpstan-rules.php."
+        }
+    ],
+    "hypothesis": "An approved guidance record and its detector drifted during the shell-to-PHP runner migration, so Recall preserves the stale path as a fail-closed blocker instead of emitting unusable guidance.",
+    "validated_conclusion": "Correct a durable guidance entry toward the live executable command and bind the already-existing detector as an adopted static constraint; do not add another prose rule or duplicate analyzer.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

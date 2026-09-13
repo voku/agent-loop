@@ -1,0 +1,101 @@
+{
+    "id": "proposal.2026-09-13.2acd04",
+    "created_at": "2026-09-13T09:35:19+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-07.005",
+        "finding.2026-08-14.006",
+        "finding.2026-09-13.2c3f55"
+    ],
+    "reason": "Two independent coding-run findings established that an in-process PHPStan RuleTestCase can destabilize the normal PHPUnit process, and the current governed run proved that stale soft guidance blocks Recall rather than enforcing the rule. The existing PHPStan detector, its registered invalid fixture, and its dedicated runner now provide a cheaper deterministic boundary; this proposal adopts that enforcement without generating a duplicate rule.",
+    "remaining_uncertainty": [
+        "The detector intentionally covers direct RuleTestCase inheritance; different PHPStan test-harness designs need separate evidence before they are constrained."
+    ],
+    "status": "applied",
+    "proposed_by": "consolidation",
+    "approved_by": "Lars Moelleken",
+    "approved_at": "2026-09-13T09:36:49+00:00",
+    "target_type": "constraint",
+    "target": "agent-loop.phpstan.in-process-rule-test-case",
+    "scope": [
+        "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "phpstan/project-rule-test.neon",
+        "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+        "tools/project-phpstan-rules.php"
+    ],
+    "old": null,
+    "new": "The registered NoInProcessPhpstanRuleTestCaseRule rejects direct in-process PHPStan RuleTestCase fixtures through the dedicated project PHPStan runner.",
+    "boundary": "Only direct classes extending PHPStan\\Testing\\RuleTestCase are rejected. The rule does not constrain isolated subprocess fixtures or unrelated PHPStan test-harness patterns.",
+    "validation": [
+        "php tools/project-phpstan-rules.php",
+        "composer ci"
+    ],
+    "scope_justification": "Two independent coding-run findings established that an in-process PHPStan RuleTestCase can destabilize the normal PHPUnit process, and the current governed run proved that stale soft guidance blocks Recall rather than enforcing the rule. The existing PHPStan detector, its registered invalid fixture, and its dedicated runner now provide a cheaper deterministic boundary; this proposal adopts that enforcement without generating a duplicate rule.",
+    "constraint": {
+        "rule_id": "agent-loop.phpstan.in-process-rule-test-case",
+        "engine": "phpstan",
+        "rule_class_name": "NoInProcessPhpstanRuleTestCaseRule",
+        "target_rule_path": "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "registration_files": [
+            "phpstan/project-rule-test.neon",
+            "composer.json"
+        ],
+        "scope": [
+            "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+            "phpstan/project-rule-test.neon",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+            "tools/project-phpstan-rules.php"
+        ],
+        "violation": "A project PHPUnit test class directly extends PHPStan\\Testing\\RuleTestCase and can load a PHPStan container into the normal test process.",
+        "allowed_boundaries": [
+            "Isolated PHPStan subprocess fixtures are outside this rule.",
+            "Only direct RuleTestCase inheritance is detected."
+        ],
+        "detectability": "static",
+        "false_positive_risk": "low",
+        "validation_commands": [
+            "php tools/project-phpstan-rules.php",
+            "composer ci"
+        ],
+        "example_rule_paths": [
+            "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php"
+        ]
+    },
+    "applied_by": "codex",
+    "applied_at": "2026-09-13T09:45:07+00:00",
+    "commit": "working-tree",
+    "applied_validation": {
+        "generated_files": [
+            "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+            "phpstan/project-rule-test.neon",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+            "tools/project-phpstan-rules.php"
+        ],
+        "registration_file": "phpstan/project-rule-test.neon",
+        "commit": "working-tree",
+        "tests": [
+            {
+                "command": "php tools/project-phpstan-rules.php",
+                "result": "passed",
+                "expected_violation_identifier": "agentLoop.phpstan.inProcessRuleTestCase"
+            },
+            {
+                "command": "composer ci",
+                "result": "passed",
+                "exit_code": 0,
+                "tests": 1223,
+                "assertions": 8118
+            }
+        ],
+        "validation_result": {
+            "result": "passed",
+            "summary": "Existing PHPStan enforcement was adopted: the isolated bad fixture emitted the expected identifier and the full project CI gate passed."
+        },
+        "content_hashes": {
+            "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php": "sha256:51e1e24eb3d800ef9d60aa0fa2c77c7a9beb8df9caf6859a5d77c499d08ff2d4",
+            "phpstan/project-rule-test.neon": "sha256:abd70b3e62c0df1e1f53811695a7d33e5c509c762a23d6ce5c5fe405a1ea9a70",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case.php": "sha256:926b1aca81d8d6153997bbb2b854855fa3c3800ec1f504e383dbd26012cdb003",
+            "tools/project-phpstan-rules.php": "sha256:f920b0f9e790629c2ce6226c30ccab74cb446c07a76c267e0f9b91142de1f094"
+        }
+    }
+}
