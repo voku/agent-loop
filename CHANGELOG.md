@@ -876,12 +876,12 @@ release.
   tool invocation from the package, so a repository configures its rule set
   (`standard`, `config`, `level`, `memory_limit`) rather than another wrapper
   script. `php-lint` runs per file because `php -l` takes exactly one path.
-
 - `init sync-subagents --agent=claude` renders repo-managed subagent roles into
   `.claude/agents/*.md` (override with `CLAUDE_AGENTS_DIR`), and `--agent=all`
   now includes Claude. `install-assets --agent=claude` therefore installs the
   bundled investigator, surgical-builder, and code-reviewer roles as well;
   repository hooks remain Codex-only.
+
 - `init sync-hooks --agent=claude` installs a host-owned hook bundle for Claude
   Code. Claude registers hooks inside `settings.json` rather than in a hooks
   file, so the sync owns exactly one key: it merges `hooks`, writes every other
@@ -1436,12 +1436,14 @@ release.
   preferred local Markdown card directory added in `voku/agent-kanban`
   0.1.0 (`todo/jira/*.md` still works for boards that already use it).
   Bumped the `voku/agent-kanban` constraint from `0.0.*@dev` to
-  `0.1.*@dev` to pick it up — this repo's own code needed no other change, since
-  the card directory is entirely owned and resolved by `voku/agent-kanban`.
+  `0.1.*@dev` to pick it up — this repo's own code needed no other
+  change, since the card directory is entirely owned and resolved by
+  `voku/agent-kanban`.
 - `verify` is now a cross-package consistency check (`AgentLoopVerifier`):
   tasks, board, session/recall linkage with hash-based staleness
-  detection, and the learning root, each skipping itself when its inputs are
-  absent. The previous board-only check remains available as `board:verify`.
+  detection, and the learning root, each skipping itself when its inputs
+  are absent. The previous board-only check remains available as
+  `board:verify`.
 - Reworked the README around the package map, the exact verified
   commands, and an explicit "what agent-loop does not do" section.
 - Added `tests/fixtures/basic-loop` and `SmokeLoopTest`, an end-to-end
