@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLoop\Execution\CurrentExecutionStageReader;
 use voku\AgentLoop\Execution\ExecutionPlan;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
@@ -15,6 +16,7 @@ use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionStageKind;
 use voku\AgentLoop\Execution\ExecutionState;
 use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentLoop\Run\CanonicalJson;
 
 final class CurrentExecutionStageReaderTest extends TestCase
 {
@@ -36,25 +38,18 @@ final class CurrentExecutionStageReaderTest extends TestCase
             RecursiveIteratorIterator::CHILD_FIRST,
         );
         foreach ($iterator as $entry) {
-            $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
+            if ($entry->isDir()) {
+                rmdir($entry->getPathname());
+                continue;
+            }
+            unlink($entry->getPathname());
         }
         rmdir($this->root);
     }
 
     public function testRoleAndKindComeFromTheExactPersistedPlanStage(): void
     {
-        $plan = ExecutionPlan::resolve(
-            ExecutionProfile::firstParty(ExecutionProfileName::SURGICAL),
-            'TASK-466',
-            'run:TASK-466:1',
-            1,
-            [
-                'path' => '.agent-loop/contracts/TASK-466.json',
-                'sha256' => 'sha256:' . str_repeat('a', 64),
-            ],
-            str_repeat('1', 40),
-            '2026-09-13T05:00:00+00:00',
-        );
+        $plan = $this->surgicalPlan('a', '1');
         $this->writePlan($plan);
 
         $this->writeState($plan, 'investigate', 1);
@@ -78,18 +73,7 @@ final class CurrentExecutionStageReaderTest extends TestCase
 
     public function testCompletedExecutionHasNoCurrentStageRoleOrKind(): void
     {
-        $plan = ExecutionPlan::resolve(
-            ExecutionProfile::firstParty(ExecutionProfileName::SURGICAL),
-            'TASK-466',
-            'run:TASK-466:1',
-            1,
-            [
-                'path' => '.agent-loop/contracts/TASK-466.json',
-                'sha256' => 'sha256:' . str_repeat('b', 64),
-            ],
-            str_repeat('2', 40),
-            '2026-09-13T05:00:00+00:00',
-        );
+        $plan = $this->surgicalPlan('b', '2');
         $this->writePlan($plan);
         $this->writeState($plan, null, 0);
 
@@ -101,10 +85,48 @@ final class CurrentExecutionStageReaderTest extends TestCase
         self::assertSame(0, $completed->attempt);
     }
 
+    public function testStaleStateBindingFailsClosed(): void
+    {
+        $plan = $this->surgicalPlan('c', '3');
+        $this->writePlan($plan);
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            'sha256:' . str_repeat('0', 64),
+            'investigate',
+            1,
+            $plan->baseCommit ?? 'candidate:initial',
+            null,
+            [],
+        );
+        $this->writeJson((new ExecutionStateStore($this->root))->path($plan->taskId), $state->toArray());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Execution state is stale for the current governed execution plan.');
+
+        (new CurrentExecutionStageReader($this->root))->read('TASK-466');
+    }
+
+    private function surgicalPlan(string $digestByte, string $baseByte): ExecutionPlan
+    {
+        return ExecutionPlan::resolve(
+            ExecutionProfile::firstParty(ExecutionProfileName::SURGICAL),
+            'TASK-466',
+            'run:TASK-466:1',
+            1,
+            [
+                'path' => '.agent-loop/contracts/TASK-466.json',
+                'sha256' => 'sha256:' . str_repeat($digestByte, 64),
+            ],
+            str_repeat($baseByte, 40),
+            '2026-09-13T05:00:00+00:00',
+        );
+    }
+
     private function writePlan(ExecutionPlan $plan): void
     {
-        $path = (new ExecutionPlanStore($this->root))->path($plan->taskId);
-        $this->writeJson($path, $plan->toArray());
+        $this->writeJson((new ExecutionPlanStore($this->root))->path($plan->taskId), $plan->toArray());
     }
 
     private function writeState(ExecutionPlan $plan, ?string $stageId, int $attempt): void
@@ -120,8 +142,7 @@ final class CurrentExecutionStageReaderTest extends TestCase
             null,
             [],
         );
-        $path = (new ExecutionStateStore($this->root))->path($plan->taskId);
-        $this->writeJson($path, $state->toArray());
+        $this->writeJson((new ExecutionStateStore($this->root))->path($plan->taskId), $state->toArray());
     }
 
     /** @param array<string, mixed> $value */
@@ -131,6 +152,6 @@ final class CurrentExecutionStageReaderTest extends TestCase
         if (!is_dir($directory)) {
             mkdir($directory, 0o775, true);
         }
-        file_put_contents($path, json_encode($value, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        file_put_contents($path, CanonicalJson::pretty($value));
     }
 }
