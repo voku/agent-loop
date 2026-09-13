@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.7 - 2026-09-13
+
+### Added
+
+- Persist the first real Learning-owned closed-loop precedent in the repository's durable Learning root, keeping the behavioral handoff honest: selection into future Recall context is evidence of exposure, not proof that a later coding agent used the lesson.
+- Add `CurrentExecutionStageReader` / `CurrentExecutionStageProjection` as a narrow read boundary for the exact persisted current execution stage. The projection binds task, Run, Contract revision, execution-plan digest, stage, attempt and candidate revision before exposing stage kind and role, and fails closed on stale plan/state identity.
+- Recommend and probe `jq` alongside `rg` in the existing system-tool setup path without making either tool a package-managed dependency.
+
+### Changed
+
+- Materialize the current ready L1 through the Loop-owned execution-contract store and consume that owner result from both execution preparation and ordinary bounded workflow context, keeping L2 construction evidence separate from the exact executable L1.
+- Compile the repeated in-process PHPStan rule-test-case lesson into an active deterministic constraint, retain its Learning provenance, and retire the superseded soft guidance once enforcement is present.
+- Raise the released owner floor to `voku/agent-learning ^0.18.8` and `voku/agent-recall-compiler ^0.17.6`, and allow the released `voku/agent-map ^0.13.0` line beside the maintained compatibility lines.
+
+### Fixed
+
+- Advance the Recall-outcome gate before advertising the later Learning decision, so the canonical finish action addresses the actual unsatisfied blocker instead of skipping ahead.
+- Generalize blocked recovery convergence: when a blocked lifecycle would otherwise advertise read-only status/manifest inspection as the canonical next action, preserve the existing blocker evidence and project actionable host work instead.
+- Keep the PHPStan 2.2.14 test suite analyzable without suppressions by representing shared callback lock state as explicit mutable test state instead of by-reference scalar variables that the analyzer can constant-fold.
+
 ## 0.20.6 - 2026-09-12
 
 ### Added
@@ -856,12 +876,12 @@ release.
   tool invocation from the package, so a repository configures its rule set
   (`standard`, `config`, `level`, `memory_limit`) rather than another wrapper
   script. `php-lint` runs per file because `php -l` takes exactly one path.
+
 - `init sync-subagents --agent=claude` renders repo-managed subagent roles into
   `.claude/agents/*.md` (override with `CLAUDE_AGENTS_DIR`), and `--agent=all`
   now includes Claude. `install-assets --agent=claude` therefore installs the
   bundled investigator, surgical-builder, and code-reviewer roles as well;
   repository hooks remain Codex-only.
-
 - `init sync-hooks --agent=claude` installs a host-owned hook bundle for Claude
   Code. Claude registers hooks inside `settings.json` rather than in a hooks
   file, so the sync owns exactly one key: it merges `hooks`, writes every other
@@ -1416,14 +1436,12 @@ release.
   preferred local Markdown card directory added in `voku/agent-kanban`
   0.1.0 (`todo/jira/*.md` still works for boards that already use it).
   Bumped the `voku/agent-kanban` constraint from `0.0.*@dev` to
-  `0.1.*@dev` to pick it up — this repo's own code needed no other
-  change, since the card directory is entirely owned and resolved by
-  `voku/agent-kanban`.
+  `0.1.*@dev` to pick it up — this repo's own code needed no other change, since
+  the card directory is entirely owned and resolved by `voku/agent-kanban`.
 - `verify` is now a cross-package consistency check (`AgentLoopVerifier`):
   tasks, board, session/recall linkage with hash-based staleness
-  detection, and the learning root, each skipping itself when its inputs
-  are absent. The previous board-only check remains available as
-  `board:verify`.
+  detection, and the learning root, each skipping itself when its inputs are
+  absent. The previous board-only check remains available as `board:verify`.
 - Reworked the README around the package map, the exact verified
   commands, and an explicit "what agent-loop does not do" section.
 - Added `tests/fixtures/basic-loop` and `SmokeLoopTest`, an end-to-end
