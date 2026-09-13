@@ -126,10 +126,34 @@ final readonly class ManagedAssetTargetCatalog
         return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
     }
 
-    /** @return list<string> */
+    /**
+     * Skill entries present in the configured source tree.
+     *
+     * Deliberately separate from {@see skillEntries()}: this counts what the
+     * repository actually ships, while the projection expectation also
+     * includes the sibling-owner skills in the resolved first-party set.
+     *
+     * @return list<string>
+     */
     public function skillSourceEntries(AgentAssetSourcePaths $paths): array
     {
-        return array_keys((new ManagedSkillSourceResolver($this->rootPath))->resolve($paths, false));
+        $entries = [];
+        $skillsRoot = $paths->absoluteSkillsRoot();
+        if (is_dir($skillsRoot)) {
+            foreach (scandir($skillsRoot) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                if (is_file($skillsRoot . '/' . $entry . '/SKILL.md')) {
+                    if (FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $skillsRoot . '/' . $entry, $this->rootPath)) {
+                        $entries[] = $entry;
+                    }
+                }
+            }
+        }
+        sort($entries, SORT_STRING);
+
+        return $entries;
     }
 
     /** @return list<string> */
