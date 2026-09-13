@@ -20,8 +20,6 @@ final readonly class InitSyncInstructionsCommand
     public const string BEGIN_MARKER = '<!-- agent-loop:project-instructions:begin -->';
     public const string END_MARKER = '<!-- agent-loop:project-instructions:end -->';
 
-    private const string CLI_PLACEHOLDER = '{{agent_loop_cli}}';
-
     private const string ROUTER_FILE = 'AGENTS.md';
 
     public function __construct(private string $rootPath)
@@ -244,17 +242,7 @@ final readonly class InitSyncInstructionsCommand
 
     private function routerSource(): string
     {
-        $path = PackageResources::projectInstructions();
-        $content = file_get_contents($path);
-        if (!is_string($content) || trim($content) === '') {
-            throw new RuntimeException('Package project instruction source is missing or empty: ' . $path);
-        }
-
-        return str_replace(
-            self::CLI_PLACEHOLDER,
-            (new RepositoryActivation($this->rootPath))->cliPath(),
-            $content,
-        );
+        return FirstPartyPackageCatalog::composedProjectInstructions($this->rootPath);
     }
 
     private function readOptional(string $path): ?string

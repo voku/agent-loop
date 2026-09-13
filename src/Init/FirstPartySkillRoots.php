@@ -39,6 +39,11 @@ final readonly class FirstPartySkillRoots
             $recallRoot,
         ];
 
+        $learningRoot = self::learningSkillRoot();
+        if ($learningRoot !== null) {
+            $roots[] = $learningRoot;
+        }
+
         $sessionRoot = self::sessionSkillRoot();
         if ($sessionRoot !== null) {
             $roots[] = $sessionRoot;
@@ -58,6 +63,7 @@ final readonly class FirstPartySkillRoots
     {
         $entries = [
             ...self::skillEntriesIn(self::recallSkillRoot()),
+            ...self::skillEntriesIn(self::learningSkillRoot()),
             ...self::skillEntriesIn(self::sessionSkillRoot()),
         ];
 
@@ -97,6 +103,17 @@ final readonly class FirstPartySkillRoots
         return \voku\AgentRecallCompiler\PackageResources::skillsRoot();
     }
 
+    private static function learningSkillRoot(): ?string
+    {
+        if (!class_exists(\voku\AgentLearning\PackageResources::class)) {
+            return null;
+        }
+
+        $root = \voku\AgentLearning\PackageResources::skillsRoot();
+
+        return is_dir($root) ? $root : null;
+    }
+
     /**
      * Unlike Recall, a missing root here is a supported state rather than an
      * error: `RepositorySetupService::expectedSkillEntries()` treats every root
@@ -114,3 +131,4 @@ final readonly class FirstPartySkillRoots
         return is_dir($root) ? $root : null;
     }
 }
+

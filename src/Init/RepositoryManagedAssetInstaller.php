@@ -95,12 +95,22 @@ final readonly class RepositoryManagedAssetInstaller
                     continue;
                 }
                 $source = $root . '/' . $entry;
+                if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $source, $this->rootPath)) {
+                    continue;
+                }
                 if (isset($sources[$entry]) && realpath($sources[$entry]) !== realpath($source)) {
                     throw new InvalidArgumentException('Multiple skill sources own the same entry: ' . $entry);
                 }
                 $sources[$entry] = $source;
             }
         }
+
+        foreach (FirstPartyPackageCatalog::exportableSkills($this->rootPath) as $entry => $meta) {
+            if (!isset($sources[$entry])) {
+                $sources[$entry] = $meta['path'];
+            }
+        }
+
         ksort($sources, SORT_STRING);
 
         return $sources;

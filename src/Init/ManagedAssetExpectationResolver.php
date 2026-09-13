@@ -7,12 +7,6 @@ namespace voku\AgentLoop\Init;
 /** Resolves the effective managed-entry expectation from current sources plus persisted first-party provenance. */
 final readonly class ManagedAssetExpectationResolver
 {
-    /** @var list<string> */
-    private const array FIRST_PARTY_OWNERS = [
-        'voku/agent-loop',
-        'voku/agent-recall-compiler',
-    ];
-
     /**
      * `init install-assets` projects package-owned assets into a consumer whose
      * repository-local source roots may legitimately contain none of them.
@@ -36,7 +30,7 @@ final readonly class ManagedAssetExpectationResolver
             }
 
             $owner = $metadata['semantic_owner'];
-            if (!is_string($owner) || !in_array($owner, self::FIRST_PARTY_OWNERS, true)) {
+            if (!is_string($owner) || !FirstPartyPackageCatalog::isFirstPartyOwner($owner)) {
                 continue;
             }
 

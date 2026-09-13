@@ -302,6 +302,9 @@ final readonly class RepositorySetupService
         $packageRoot = dirname(__DIR__, 2);
         $files = (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($agent);
         $files[] = PackageResources::projectInstructions();
+        foreach (FirstPartyPackageCatalog::instructionFragments($this->rootPath) as $fragmentPath) {
+            $files[] = $fragmentPath;
+        }
 
         $sourceRoots = [
             $paths->absoluteSkillsRoot(),
@@ -565,7 +568,18 @@ final readonly class RepositorySetupService
                     continue;
                 }
                 if (is_file($root . '/' . $entry . '/SKILL.md')) {
+                    if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $root . '/' . $entry, $this->rootPath)) {
+                        continue;
+                    }
                     $entries[] = $entry;
+                }
+            }
+        }
+
+        if ($includePackageSkills) {
+            foreach (array_keys(FirstPartyPackageCatalog::exportableSkills($this->rootPath)) as $id) {
+                if (!in_array($id, $entries, true)) {
+                    $entries[] = $id;
                 }
             }
         }

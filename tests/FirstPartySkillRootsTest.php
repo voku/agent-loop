@@ -60,6 +60,11 @@ final class FirstPartySkillRootsTest extends TestCase
         self::assertContains('agent-recall-consumer', FirstPartySkillRoots::siblingSkillEntries());
     }
 
+    public function testSiblingSkillEntriesContributeTheLearningConsumerSkill(): void
+    {
+        self::assertContains('agent-learning-consumer', FirstPartySkillRoots::siblingSkillEntries());
+    }
+
     /**
      * agent-session only ships skills from the release that introduced its own
      * `PackageResources`. Both states are supported: contribute the skill when

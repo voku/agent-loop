@@ -59,6 +59,8 @@ final class InitSyncInstructionsCommandTest extends TestCase
         self::assertStringContainsString('do not pre-build Map/Search', $agents);
         self::assertStringContainsString('vendor/bin/agent-loop init status', $agents);
         self::assertStringContainsString('init sync-instructions', $agents);
+        self::assertStringContainsString('voku/agent-learning', $agents);
+        self::assertStringContainsString('agent-learning-consumer', $agents);
         self::assertStringNotContainsString('agent-map', $agents);
         self::assertStringNotContainsString('agent-recall-compiler', $agents);
         self::assertFileDoesNotExist($this->root . '/CLAUDE.md');

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.8 - 2026-09-13
+
+### Added
+
+- Add `FirstPartyPackageCatalog` as the single owner of first-party workflow package roots, scoped asset exports, and composed project instructions.
+- Support consumer vs. owner repository scoping during asset installation: consuming projects receive only consumer-facing skills (`agent-learning-consumer`, `agent-learning-note`, `agent-hard-constraint-author`, `agent-learning-ctx-evidence`, `agent-recall-consumer`, Loop core skills), while owner repositories receive their respective maintainer skills (`agent-learning-maintainer`, `agent-recall-compiler-maintainer`, `agent-session-maintainer`).
+- Compose consumer instruction fragments from first-party packages (`voku/agent-learning`, etc.) into `AGENTS.md` within the managed router marker block without touching project-owned text.
+
+### Changed
+
+- Raise dependency floors to `voku/agent-learning ^0.18.9`, `voku/agent-recall-compiler ^0.17.7`, and `voku/agent-session ^0.7.1` to consume typed `PackageResources` skill and instruction definitions.
+- Delegate managed asset source root and provenance resolution from `ManagedAssetSource` and `ManagedAssetExpectationResolver` to `FirstPartyPackageCatalog`.
+- Filter skill targets in `RepositorySetupService`, `RepositoryManagedAssetInstaller`, `ManagedAssetTargetCatalog`, and `InitSyncSkillsCommand` with project-scoped authority.
+
 ## 0.20.7 - 2026-09-13
 
 ### Added

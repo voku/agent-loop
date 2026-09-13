@@ -433,6 +433,10 @@ final readonly class InitSyncSkillsCommand
                     continue;
                 }
 
+                if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $skillsRoot . '/' . $entry, $this->rootPath)) {
+                    continue;
+                }
+
                 if (isset($files[$entry])) {
                     $errors[] = '[FAIL] sync skills: duplicate skill id ' . $entry . ' from ' . $sources[$entry] . ' and ' . $this->displayPath($skillFile);
                     continue;

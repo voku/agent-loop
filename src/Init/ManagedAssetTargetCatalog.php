@@ -145,7 +145,9 @@ final readonly class ManagedAssetTargetCatalog
                     continue;
                 }
                 if (is_file($skillsRoot . '/' . $entry . '/SKILL.md')) {
-                    $entries[] = $entry;
+                    if (FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $skillsRoot . '/' . $entry, $this->rootPath)) {
+                        $entries[] = $entry;
+                    }
                 }
             }
         }
@@ -163,7 +165,7 @@ final readonly class ManagedAssetTargetCatalog
     public function skillEntries(AgentAssetSourcePaths $paths): array
     {
         $entries = $this->skillSourceEntries($paths);
-        foreach (FirstPartySkillRoots::siblingSkillEntries() as $siblingEntry) {
+        foreach (array_keys(FirstPartyPackageCatalog::exportableSkills($this->rootPath)) as $siblingEntry) {
             if (!in_array($siblingEntry, $entries, true)) {
                 $entries[] = $siblingEntry;
             }
