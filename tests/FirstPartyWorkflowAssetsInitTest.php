@@ -72,6 +72,9 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         $learningRoot = $this->root . '/learning-owner';
         mkdir($learningRoot, 0o775, true);
         file_put_contents($learningRoot . '/composer.json', json_encode(['name' => 'voku/agent-learning'], JSON_PRETTY_PRINT));
+        $learningSkill = $learningRoot . '/resources/skills/agent-learning-maintainer';
+        mkdir($learningSkill, 0o775, true);
+        file_put_contents($learningSkill . '/SKILL.md', "# Learning maintainer\n");
 
         $learningSkills = FirstPartyPackageCatalog::exportableSkills($learningRoot);
         self::assertArrayHasKey('agent-learning-maintainer', $learningSkills);
@@ -82,6 +85,9 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         $recallRoot = $this->root . '/recall-owner';
         mkdir($recallRoot, 0o775, true);
         file_put_contents($recallRoot . '/composer.json', json_encode(['name' => 'voku/agent-recall-compiler'], JSON_PRETTY_PRINT));
+        $recallSkill = $recallRoot . '/resources/skills/agent-recall-compiler-maintainer';
+        mkdir($recallSkill, 0o775, true);
+        file_put_contents($recallSkill . '/SKILL.md', "# Recall maintainer\n");
 
         $recallSkills = FirstPartyPackageCatalog::exportableSkills($recallRoot);
         self::assertArrayHasKey('agent-recall-compiler-maintainer', $recallSkills);
@@ -92,6 +98,9 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         $sessionRoot = $this->root . '/session-owner';
         mkdir($sessionRoot, 0o775, true);
         file_put_contents($sessionRoot . '/composer.json', json_encode(['name' => 'voku/agent-session'], JSON_PRETTY_PRINT));
+        $sessionSkill = $sessionRoot . '/resources/skills/agent-session-maintainer';
+        mkdir($sessionSkill, 0o775, true);
+        file_put_contents($sessionSkill . '/SKILL.md', "# Session maintainer\n");
 
         $sessionSkills = FirstPartyPackageCatalog::exportableSkills($sessionRoot);
         self::assertArrayHasKey('agent-session-maintainer', $sessionSkills);
