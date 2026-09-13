@@ -126,53 +126,16 @@ final readonly class ManagedAssetTargetCatalog
         return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
     }
 
-    /**
-     * Skill entries present in the configured source tree.
-     *
-     * Deliberately separate from {@see skillEntries()}: this counts what the
-     * repository actually ships, while the projection expectation also
-     * includes the recall skills that are always part of the first-party set.
-     *
-     * @return list<string>
-     */
+    /** @return list<string> */
     public function skillSourceEntries(AgentAssetSourcePaths $paths): array
     {
-        $entries = [];
-        $skillsRoot = $paths->absoluteSkillsRoot();
-        if (is_dir($skillsRoot)) {
-            foreach (scandir($skillsRoot) ?: [] as $entry) {
-                if ($entry === '.' || $entry === '..') {
-                    continue;
-                }
-                if (is_file($skillsRoot . '/' . $entry . '/SKILL.md')) {
-                    if (FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $skillsRoot . '/' . $entry, $this->rootPath)) {
-                        $entries[] = $entry;
-                    }
-                }
-            }
-        }
-        sort($entries, SORT_STRING);
-
-        return $entries;
+        return array_keys((new ManagedSkillSourceResolver($this->rootPath))->resolve($paths, false));
     }
 
-    /**
-     * Skill entries the current sources project, including the sibling-owner
-     * skills that are always part of the first-party set.
-     *
-     * @return list<string>
-     */
+    /** @return list<string> */
     public function skillEntries(AgentAssetSourcePaths $paths): array
     {
-        $entries = $this->skillSourceEntries($paths);
-        foreach (array_keys(FirstPartyPackageCatalog::exportableSkills($this->rootPath)) as $siblingEntry) {
-            if (!in_array($siblingEntry, $entries, true)) {
-                $entries[] = $siblingEntry;
-            }
-        }
-        sort($entries, SORT_STRING);
-
-        return $entries;
+        return array_keys((new ManagedSkillSourceResolver($this->rootPath))->resolve($paths));
     }
 
     /** @return list<string> */
