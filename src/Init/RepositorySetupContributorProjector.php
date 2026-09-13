@@ -52,12 +52,16 @@ final readonly class RepositorySetupContributorProjector
 
     /**
      * @param array<string, array{skills:int,subagents:int,instructions:int}> $counts
-     * @param 'skills'|'subagents'|'instructions' $kind
      */
     private function increment(array &$counts, string $owner, string $kind): void
     {
         $counts[$owner] ??= ['skills' => 0, 'subagents' => 0, 'instructions' => 0];
-        ++$counts[$owner][$kind];
+        match ($kind) {
+            'skills' => ++$counts[$owner]['skills'],
+            'subagents' => ++$counts[$owner]['subagents'],
+            'instructions' => ++$counts[$owner]['instructions'],
+            default => null,
+        };
     }
 
     /**
