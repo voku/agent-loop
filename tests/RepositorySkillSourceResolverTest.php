@@ -10,6 +10,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Init\AgentAssetSourcePaths;
+use voku\AgentLoop\Init\InitSyncManifest;
 use voku\AgentLoop\Init\RepositorySetupService;
 use voku\AgentLoop\Init\RepositorySkillSourceResolver;
 
@@ -45,6 +46,26 @@ final class RepositorySkillSourceResolverTest extends TestCase
         $sorted = array_keys($sources);
         sort($sorted, SORT_STRING);
         self::assertSame($sorted, array_keys($sources));
+    }
+
+    public function testInstallWritesTheResolvedSourceProvenanceToTheManifest(): void
+    {
+        $service = new RepositorySetupService($this->root);
+        $plan = $service->planInstall('codex', false, $this->paths());
+        $result = $service->install($plan, $plan->expectedState->value, $this->paths());
+
+        self::assertTrue($result->succeeded);
+        $manifest = InitSyncManifest::load($this->root . '/.codex/skills', 'skills', 'codex');
+
+        $projectEntry = $manifest->entry('project-skill');
+        self::assertNotNull($projectEntry);
+        self::assertSame('project', $projectEntry['semantic_owner']);
+        self::assertNull($projectEntry['source_reference']);
+
+        $recallEntry = $manifest->entry('agent-recall-consumer');
+        self::assertNotNull($recallEntry);
+        self::assertSame('voku/agent-recall-compiler', $recallEntry['semantic_owner']);
+        self::assertNotNull($recallEntry['source_reference']);
     }
 
     public function testResolveCanExcludeFirstPartyPackageSkillsWithoutChangingProjectSource(): void
