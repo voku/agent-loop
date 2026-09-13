@@ -32,14 +32,16 @@ final readonly class ManagedAssetSource
         );
     }
 
-    public static function fromFirstPartyExport(string $owner, string $sourcePath, string $assetId): self
+    public static function fromFirstPartyExport(string $owner, string $sourcePath, string $assetId, ?string $projectRoot = null): self
     {
         if (!FirstPartyPackageCatalog::isFirstPartyOwner($owner)) {
             throw new InvalidArgumentException('Managed first-party asset owner is not trusted: ' . $owner);
         }
 
         $sourcePath = self::normalize($sourcePath);
-        $ownerRoot = FirstPartyPackageCatalog::packageRootForOwner($owner);
+        $ownerRoot = $projectRoot === null
+            ? FirstPartyPackageCatalog::packageRootForOwner($owner)
+            : FirstPartyPackageCatalog::sourceRootForProject($owner, $projectRoot);
         if ($ownerRoot === null) {
             throw new InvalidArgumentException('Managed first-party asset owner is not installed: ' . $owner);
         }

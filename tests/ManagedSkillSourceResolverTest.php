@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Init\AgentAssetSourcePaths;
+use voku\AgentLoop\Init\FirstPartyPackageCatalog;
 use voku\AgentLoop\Init\ManagedAssetTargetCatalog;
 use voku\AgentLoop\Init\ManagedSkillSourceResolver;
 use voku\AgentLoop\Init\RepositorySetupService;
@@ -86,6 +87,28 @@ final class ManagedSkillSourceResolverTest extends TestCase
 
         self::assertDirectoryDoesNotExist($this->root . '/.codex/skills');
         self::assertFileDoesNotExist($this->root . '/AGENTS.md');
+    }
+
+    public function testOwnerRepositoryUsesItsLocalFirstPartySkillSource(): void
+    {
+        file_put_contents(
+            $this->root . '/composer.json',
+            json_encode(['name' => 'voku/agent-recall-compiler'], JSON_THROW_ON_ERROR),
+        );
+        $skillRoot = $this->root . '/resources/skills/agent-recall-consumer';
+        mkdir($skillRoot, 0o775, true);
+        file_put_contents($skillRoot . '/SKILL.md', "# Local Recall consumer skill\n");
+
+        self::assertSame($skillRoot, FirstPartyPackageCatalog::exportableSkills($this->root)['agent-recall-consumer']['path']);
+
+        $sources = (new ManagedSkillSourceResolver($this->root))->resolve(
+            AgentAssetSourcePaths::fromSources($this->root),
+        );
+
+        self::assertSame('voku/agent-recall-compiler', $sources['agent-recall-consumer']->owner);
+        self::assertSame($skillRoot, $sources['agent-recall-consumer']->path);
+        self::assertSame('resources/skills/agent-recall-consumer', $sources['agent-recall-consumer']->reference);
+        self::assertArrayNotHasKey('agent-recall-compiler-maintainer', $sources);
     }
 
     public function testConfiguredOnlyResolutionPreservesProjectOwnership(): void

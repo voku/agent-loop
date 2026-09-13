@@ -180,7 +180,7 @@ final readonly class FirstPartyPackageCatalog
                     }
                     $skillPath = $loopSkillsDir . '/' . $entry;
                     if (is_file($skillPath . '/SKILL.md')) {
-                        self::registerExportableSkill($skills, $entry, $skillPath, 'voku/agent-loop');
+                        self::registerExportableSkill($skills, $entry, $skillPath, 'voku/agent-loop', $projectRoot);
                     }
                 }
             }
@@ -190,13 +190,13 @@ final readonly class FirstPartyPackageCatalog
         $isLearningOwner = self::isOwnerRepository($projectRoot, 'voku/agent-learning');
         foreach (LearningResources::consumerSkills() as $id => $path) {
             if (is_file($path . '/SKILL.md')) {
-                self::registerExportableSkill($skills, $id, $path, 'voku/agent-learning');
+                self::registerExportableSkill($skills, $id, $path, 'voku/agent-learning', $projectRoot);
             }
         }
         if ($isLearningOwner) {
             foreach (LearningResources::maintainerSkills() as $id => $path) {
                 if (is_file($path . '/SKILL.md')) {
-                    self::registerExportableSkill($skills, $id, $path, 'voku/agent-learning');
+                    self::registerExportableSkill($skills, $id, $path, 'voku/agent-learning', $projectRoot);
                 }
             }
         }
@@ -205,13 +205,13 @@ final readonly class FirstPartyPackageCatalog
         $isRecallOwner = self::isOwnerRepository($projectRoot, 'voku/agent-recall-compiler');
         foreach (RecallResources::consumerSkills() as $id => $path) {
             if (is_file($path . '/SKILL.md')) {
-                self::registerExportableSkill($skills, $id, $path, 'voku/agent-recall-compiler');
+                self::registerExportableSkill($skills, $id, $path, 'voku/agent-recall-compiler', $projectRoot);
             }
         }
         if ($isRecallOwner) {
             foreach (RecallResources::maintainerSkills() as $id => $path) {
                 if (is_file($path . '/SKILL.md')) {
-                    self::registerExportableSkill($skills, $id, $path, 'voku/agent-recall-compiler');
+                    self::registerExportableSkill($skills, $id, $path, 'voku/agent-recall-compiler', $projectRoot);
                 }
             }
         }
@@ -220,13 +220,13 @@ final readonly class FirstPartyPackageCatalog
         $isSessionOwner = self::isOwnerRepository($projectRoot, 'voku/agent-session');
         foreach (SessionResources::consumerSkills() as $id => $path) {
             if (is_file($path . '/SKILL.md')) {
-                self::registerExportableSkill($skills, $id, $path, 'voku/agent-session');
+                self::registerExportableSkill($skills, $id, $path, 'voku/agent-session', $projectRoot);
             }
         }
         if ($isSessionOwner) {
             foreach (SessionResources::maintainerSkills() as $id => $path) {
                 if (is_file($path . '/SKILL.md')) {
-                    self::registerExportableSkill($skills, $id, $path, 'voku/agent-session');
+                    self::registerExportableSkill($skills, $id, $path, 'voku/agent-session', $projectRoot);
                 }
             }
         }
@@ -239,9 +239,12 @@ final readonly class FirstPartyPackageCatalog
     /**
      * @param array<string, array{id: string, path: string, owner: string}> $skills
      */
-    private static function registerExportableSkill(array &$skills, string $id, string $path, string $owner): void
+    private static function registerExportableSkill(array &$skills, string $id, string $path, string $owner, string $projectRoot): void
     {
-        $path = self::normalize($path);
+        $path = self::exportPathForProject($owner, $path, $projectRoot);
+        if ($path === null) {
+            return;
+        }
         $existing = $skills[$id] ?? null;
         if (is_array($existing) && ($existing['path'] !== $path || $existing['owner'] !== $owner)) {
             throw new RuntimeException('Multiple first-party packages export the same skill id: ' . $id);
@@ -252,6 +255,36 @@ final readonly class FirstPartyPackageCatalog
             'path' => $path,
             'owner' => $owner,
         ];
+    }
+
+    /**
+     * An owner repository's checked-out resource is the current source of truth;
+     * an installed copy is only the fallback used by ordinary consumers.
+     */
+    private static function exportPathForProject(string $owner, string $path, string $projectRoot): ?string
+    {
+        $path = self::normalize($path);
+        if (!self::isOwnerRepository($projectRoot, $owner)) {
+            return $path;
+        }
+
+        $packageRoot = self::packageRoot($owner);
+        if ($packageRoot === null || !self::inside($path, $packageRoot)) {
+            return $path;
+        }
+
+        $candidate = self::normalize($projectRoot) . '/' . ltrim(substr($path, strlen(rtrim($packageRoot, '/'))), '/');
+
+        return is_file($candidate . '/SKILL.md') ? self::normalize($candidate) : null;
+    }
+
+    public static function sourceRootForProject(string $owner, string $projectRoot): ?string
+    {
+        if (self::isOwnerRepository($projectRoot, $owner)) {
+            return self::normalize($projectRoot);
+        }
+
+        return self::packageRoot($owner);
     }
 
     /**
