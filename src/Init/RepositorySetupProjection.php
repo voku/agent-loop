@@ -6,6 +6,9 @@ namespace voku\AgentLoop\Init;
 
 final readonly class RepositorySetupProjection
 {
+    /**
+     * @param list<RepositorySetupContributor> $contributors
+     */
     public function __construct(
         public ?string $host,
         public RepositorySetupSelection $selection,
@@ -16,6 +19,7 @@ final readonly class RepositorySetupProjection
         public ?string $runtimeBoundary,
         public RepositorySetupNextActionKind $nextActionKind,
         public ?string $nextAction,
+        public array $contributors = [],
     ) {
     }
 
@@ -30,7 +34,8 @@ final readonly class RepositorySetupProjection
      *     policy_path: string|null,
      *     runtime_boundary: string|null,
      *     next_action_kind: string,
-     *     next_action: string|null
+     *     next_action: string|null,
+     *     contributors: list<array{owner: string, role: string, skills: int, subagents: int}>
      * }
      */
     public function toArray(): array
@@ -46,6 +51,10 @@ final readonly class RepositorySetupProjection
             'runtime_boundary' => $this->runtimeBoundary,
             'next_action_kind' => $this->nextActionKind->value,
             'next_action' => $this->nextAction,
+            'contributors' => array_map(
+                static fn (RepositorySetupContributor $contributor): array => $contributor->toArray(),
+                $this->contributors,
+            ),
         ];
     }
 }

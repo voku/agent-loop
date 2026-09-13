@@ -389,6 +389,8 @@ final readonly class RepositorySetupService
 
     public function overview(?string $requestedAgent = null): RepositorySetupProjection
     {
+        $sources = $this->configuredAssetSources();
+        $contributors = $this->contributors($sources);
         $probe = $this->runtimeProbe ?? new HostRuntimeProbe();
         $selection = $this->selectHost($requestedAgent, $probe);
         if ($selection['host'] === null) {
@@ -402,11 +404,11 @@ final readonly class RepositorySetupService
                 runtimeBoundary: null,
                 nextActionKind: RepositorySetupNextActionKind::DECISION_REQUIRED,
                 nextAction: $selection['decision'],
+                contributors: $contributors,
             );
         }
 
         $host = $selection['host'];
-        $sources = $this->configuredAssetSources();
         $runtime = $probe->probe($host);
         $policy = $this->policyStatus($host);
         $git = $this->gitIntegration();
@@ -449,6 +451,7 @@ final readonly class RepositorySetupService
             runtimeBoundary: $this->runtimeBoundary($host),
             nextActionKind: $next['kind'],
             nextAction: $next['action'],
+            contributors: $contributors,
         );
     }
 
@@ -679,5 +682,54 @@ final readonly class RepositorySetupService
     private function subagentsRoot(string $host): string
     {
         return (new ManagedAssetTargetCatalog($this->rootPath))->subagentsTargetRoot($host);
+    }
+
+    /**
+     * @param array{paths:AgentAssetSourcePaths,packageSkills:bool,packageSubagents:bool} $sources
+     * @return list<RepositorySetupContributor>
+     */
+    private function contributors(array $sources): array
+    {
+        $resolvedSkills = (new ManagedSkillSourceResolver($this->rootPath))->resolve(
+            $sources['paths'],
+            $sources['packageSkills'],
+        );
+        $resolvedSubagents = (new ManagedSubagentSourceResolver($this->rootPath))->resolve(
+            $sources['paths'],
+            $sources['packageSubagents'],
+        );
+
+        $counts = [];
+        foreach ($resolvedSkills as $skillSource) {
+            $owner = $skillSource->owner;
+            $counts[$owner] ??= ['skills' => 0, 'subagents' => 0];
+            $counts[$owner]['skills']++;
+        }
+
+        foreach ($resolvedSubagents as $subagentSource) {
+            $owner = $subagentSource->assetSource->owner;
+            $counts[$owner] ??= ['skills' => 0, 'subagents' => 0];
+            $counts[$owner]['subagents']++;
+        }
+
+        $contributors = [];
+        foreach ($counts as $owner => $data) {
+            $role = match (true) {
+                $owner === 'project' || $owner === 'local' => RepositorySetupContributorRole::PROJECT,
+                FirstPartyPackageCatalog::isOwnerRepository($this->rootPath, $owner) => RepositorySetupContributorRole::MAINTAINER,
+                default => RepositorySetupContributorRole::CONSUMER,
+            };
+
+            $contributors[$owner] = new RepositorySetupContributor(
+                owner: $owner,
+                role: $role,
+                skills: $data['skills'],
+                subagents: $data['subagents'],
+            );
+        }
+
+        ksort($contributors, SORT_STRING);
+
+        return array_values($contributors);
     }
 }
