@@ -11,6 +11,7 @@ use RecursiveIteratorIterator;
 use voku\AgentLoop\Init\AgentAssetSourcePaths;
 use voku\AgentLoop\Init\ManagedAssetTargetCatalog;
 use voku\AgentLoop\Init\ManagedSkillSourceResolver;
+use voku\AgentLoop\Init\RepositorySetupService;
 
 /** @internal */
 final class ManagedSkillSourceResolverTest extends TestCase
@@ -73,10 +74,18 @@ final class ManagedSkillSourceResolverTest extends TestCase
             ['skills_root' => 'custom-skills'],
         );
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Multiple skill sources own the same entry: agent-learning-consumer');
+        try {
+            (new RepositorySetupService($this->root))->planInstall('codex', false, $paths);
+            self::fail('Expected duplicate managed skill source to block setup planning.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame(
+                'Multiple skill sources own the same entry: agent-learning-consumer',
+                $exception->getMessage(),
+            );
+        }
 
-        (new ManagedSkillSourceResolver($this->root))->resolve($paths);
+        self::assertDirectoryDoesNotExist($this->root . '/.codex/skills');
+        self::assertFileDoesNotExist($this->root . '/AGENTS.md');
     }
 
     public function testConfiguredOnlyResolutionPreservesProjectOwnership(): void
