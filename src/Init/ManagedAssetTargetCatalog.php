@@ -164,15 +164,7 @@ final readonly class ManagedAssetTargetCatalog
      */
     public function skillEntries(AgentAssetSourcePaths $paths): array
     {
-        $entries = $this->skillSourceEntries($paths);
-        foreach (array_keys(FirstPartyPackageCatalog::exportableSkills($this->rootPath)) as $siblingEntry) {
-            if (!in_array($siblingEntry, $entries, true)) {
-                $entries[] = $siblingEntry;
-            }
-        }
-        sort($entries, SORT_STRING);
-
-        return $entries;
+        return array_keys((new RepositorySkillSourceResolver($this->rootPath))->resolve($paths));
     }
 
     /** @return list<string> */
