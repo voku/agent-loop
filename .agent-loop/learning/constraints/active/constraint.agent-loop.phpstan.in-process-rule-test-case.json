@@ -1,0 +1,18 @@
+{
+    "schema_version": "1.0",
+    "id": "constraint.agent-loop.phpstan.in-process-rule-test-case",
+    "engine": "phpstan",
+    "rule_identifier": "agent-loop.phpstan.in-process-rule-test-case",
+    "scope": [
+        "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "phpstan/project-rule-test.neon",
+        "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+        "tools/project-phpstan-rules.php"
+    ],
+    "validation_commands": [
+        "php tools/project-phpstan-rules.php",
+        "composer ci"
+    ],
+    "source_proposal": "proposal.2026-09-13.2acd04",
+    "status": "active"
+}

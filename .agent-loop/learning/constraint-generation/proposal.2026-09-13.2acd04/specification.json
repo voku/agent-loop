@@ -1,0 +1,35 @@
+{
+    "schema_version": "1.0",
+    "mode": "adopt_existing",
+    "proposal_id": "proposal.2026-09-13.2acd04",
+    "constraint": {
+        "rule_id": "agent-loop.phpstan.in-process-rule-test-case",
+        "engine": "phpstan",
+        "rule_class_name": "NoInProcessPhpstanRuleTestCaseRule",
+        "target_rule_path": "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "registration_files": [
+            "phpstan/project-rule-test.neon",
+            "composer.json"
+        ],
+        "scope": [
+            "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+            "phpstan/project-rule-test.neon",
+            "tests/PHPStan/data/in-process-phpstan-rule-test-case.php",
+            "tools/project-phpstan-rules.php"
+        ],
+        "violation": "A project PHPUnit test class directly extends PHPStan\\Testing\\RuleTestCase and can load a PHPStan container into the normal test process.",
+        "allowed_boundaries": [
+            "Isolated PHPStan subprocess fixtures are outside this rule.",
+            "Only direct RuleTestCase inheritance is detected."
+        ],
+        "detectability": "static",
+        "false_positive_risk": "low",
+        "validation_commands": [
+            "php tools/project-phpstan-rules.php",
+            "composer ci"
+        ],
+        "example_rule_paths": [
+            "phpstan/Rules/NoGitDirectoryShapeAssumptionRule.php"
+        ]
+    }
+}
