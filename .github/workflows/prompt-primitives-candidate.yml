@@ -120,6 +120,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prompt-primitives-candidate-${{ github.sha }}
+          if-no-files-found: warn
           path: |
             build/prompt-primitives-dogfood.json
             build/prompt-primitives-logs
