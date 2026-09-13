@@ -389,6 +389,8 @@ final readonly class RepositorySetupService
 
     public function overview(?string $requestedAgent = null): RepositorySetupProjection
     {
+        $sources = $this->configuredAssetSources();
+        $contributors = (new RepositorySetupContributorProjector($this->rootPath))->project($sources['paths']);
         $probe = $this->runtimeProbe ?? new HostRuntimeProbe();
         $selection = $this->selectHost($requestedAgent, $probe);
         if ($selection['host'] === null) {
@@ -402,11 +404,11 @@ final readonly class RepositorySetupService
                 runtimeBoundary: null,
                 nextActionKind: RepositorySetupNextActionKind::DECISION_REQUIRED,
                 nextAction: $selection['decision'],
+                contributors: $contributors,
             );
         }
 
         $host = $selection['host'];
-        $sources = $this->configuredAssetSources();
         $runtime = $probe->probe($host);
         $policy = $this->policyStatus($host);
         $git = $this->gitIntegration();
@@ -449,6 +451,7 @@ final readonly class RepositorySetupService
             runtimeBoundary: $this->runtimeBoundary($host),
             nextActionKind: $next['kind'],
             nextAction: $next['action'],
+            contributors: $contributors,
         );
     }
 

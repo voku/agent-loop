@@ -81,6 +81,12 @@ final readonly class InitHostStatusCommand
         if ($status->runtimeBoundary !== null) {
             echo 'Runtime boundary: ' . $status->runtimeBoundary . "\n";
         }
+        if ($status->contributors !== []) {
+            echo 'Contributors: ' . implode(', ', array_map(
+                static fn (RepositorySetupContributor $c): string => $c->owner . ' [' . $c->scope . '] (skills=' . $c->skillCount . ', subagents=' . $c->subagentCount . ', instructions=' . $c->instructionCount . ')',
+                $status->contributors,
+            )) . "\n";
+        }
         echo 'next_action_kind=' . $status->nextActionKind->value . "\n";
         echo 'next_action=' . ($status->nextAction ?? 'none') . "\n";
     }
