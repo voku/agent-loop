@@ -27,10 +27,14 @@ final readonly class FirstPartySkillRoots
      * @return list<string>
      * @throws RuntimeException when the installed Recall skill root is missing
      */
-    public static function resolve(string $packageRoot): array
+    public static function resolve(string $packageRoot, ?string $projectRoot = null): array
     {
-        $recallRoot = self::recallSkillRoot();
-        if (!is_dir($recallRoot)) {
+        $recallRoot = self::ownerSkillRoot(
+            'voku/agent-recall-compiler',
+            self::recallSkillRoot(),
+            $projectRoot,
+        );
+        if ($recallRoot === null || !is_dir($recallRoot)) {
             throw new RuntimeException('Unable to resolve the installed agent-recall-compiler skill root.');
         }
 
@@ -39,12 +43,20 @@ final readonly class FirstPartySkillRoots
             $recallRoot,
         ];
 
-        $learningRoot = self::learningSkillRoot();
+        $learningRoot = self::ownerSkillRoot(
+            'voku/agent-learning',
+            self::learningSkillRoot(),
+            $projectRoot,
+        );
         if ($learningRoot !== null) {
             $roots[] = $learningRoot;
         }
 
-        $sessionRoot = self::sessionSkillRoot();
+        $sessionRoot = self::ownerSkillRoot(
+            'voku/agent-session',
+            self::sessionSkillRoot(),
+            $projectRoot,
+        );
         if ($sessionRoot !== null) {
             $roots[] = $sessionRoot;
         }
@@ -130,5 +142,31 @@ final readonly class FirstPartySkillRoots
 
         return is_dir($root) ? $root : null;
     }
-}
 
+    /**
+     * An owner checkout's exported resources are current source truth. Falling
+     * back to an installed copy would mix package versions and duplicate its
+     * skill ids when the project also exposes its local resource tree.
+     */
+    private static function ownerSkillRoot(string $owner, ?string $installedRoot, ?string $projectRoot): ?string
+    {
+        if ($installedRoot === null || $projectRoot === null || !FirstPartyPackageCatalog::isOwnerRepository($projectRoot, $owner)) {
+            return $installedRoot;
+        }
+
+        $installedPackageRoot = FirstPartyPackageCatalog::packageRoot($owner);
+        $ownerRoot = FirstPartyPackageCatalog::sourceRootForProject($owner, $projectRoot);
+        if ($installedPackageRoot === null || $ownerRoot === null) {
+            return null;
+        }
+
+        $prefix = rtrim($installedPackageRoot, '/') . '/';
+        if (!str_starts_with($installedRoot, $prefix)) {
+            return null;
+        }
+
+        $localRoot = rtrim($ownerRoot, '/') . '/' . substr($installedRoot, strlen($prefix));
+
+        return is_dir($localRoot) ? $localRoot : null;
+    }
+}

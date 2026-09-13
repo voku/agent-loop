@@ -76,7 +76,7 @@ final readonly class InitInstallAssetsCommand
         $skillRoots = [];
         if ($includePackageSkills) {
             try {
-                $skillRoots = $this->firstPartySkillRoots($packageRoot);
+                $skillRoots = $this->firstPartySkillRoots($packageRoot, $this->rootPath);
             } catch (InvalidArgumentException $exception) {
                 fwrite(\STDERR, $exception->getMessage() . "\n");
 
@@ -214,7 +214,7 @@ final readonly class InitInstallAssetsCommand
             : '[INFO] install assets: executable host hooks were not registered; rerun with --with-hooks to opt in.' . "\n";
 
         $extraSources = [];
-        if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $this->firstPartySkillRoots($packageRoot), true)) {
+        if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $this->firstPartySkillRoots($packageRoot, $this->rootPath), true)) {
             $extraSources[] = 'configured repository guidance';
         }
         if ($extraSkillRoots !== []) {
@@ -261,10 +261,10 @@ final readonly class InitInstallAssetsCommand
     }
 
     /** @return list<string> */
-    private function firstPartySkillRoots(string $packageRoot): array
+    private function firstPartySkillRoots(string $packageRoot, string $projectRoot): array
     {
         try {
-            return FirstPartySkillRoots::resolve($packageRoot);
+            return FirstPartySkillRoots::resolve($packageRoot, $projectRoot);
         } catch (RuntimeException $exception) {
             throw new InvalidArgumentException($exception->getMessage(), 0, $exception);
         }

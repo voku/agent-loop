@@ -137,6 +137,28 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/agents/my-custom-subagent.toml');
     }
 
+    public function testOwnerRepositoryInstallsItsLocalRecallSkillWithoutTheInstalledCopy(): void
+    {
+        file_put_contents(
+            $this->root . '/composer.json',
+            json_encode(['name' => 'voku/agent-recall-compiler'], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n",
+        );
+        mkdir($this->root . '/resources/skills/agent-recall-consumer', 0o775, true);
+        file_put_contents(
+            $this->root . '/resources/skills/agent-recall-consumer/SKILL.md',
+            "---\nname: agent-recall-consumer\ndescription: Local Recall skill.\n---\n\n# Local Recall skill\n",
+        );
+
+        $result = $this->runCommand(['--agent=codex']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringNotContainsString('duplicate skill id agent-recall-consumer', $result['output']);
+        self::assertSame(
+            "---\nname: agent-recall-consumer\ndescription: Local Recall skill.\n---\n\n# Local Recall skill\n",
+            file_get_contents($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md'),
+        );
+    }
+
     public function testClaudePreservesExistingSettingsAndDoesNotRegisterExecutableHooks(): void
     {
         mkdir($this->root . '/.claude', 0o775, true);
