@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.10 - 2026-09-14
+
+### Fixed
+
+- Use the owner repository's checked-out first-party skill roots during `init install-assets` instead of falling back to installed vendor copies, so maintainer repositories install their current local resources without duplicate skill IDs or mixed package-version source truth.
+
 ## 0.20.9 - 2026-09-13
 
 ### Added
