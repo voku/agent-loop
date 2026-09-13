@@ -1,0 +1,56 @@
+{
+    "schema_version": "1.0",
+    "id": "learning-note.2026-09-12.457001",
+    "pattern_key": "workflow.closed_loop_requires_real_precedent_handoff",
+    "status": "active",
+    "scope": [
+        "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+        "tools/execution-contract-dogfood.php"
+    ],
+    "tags": [
+        "dogfood",
+        "learning",
+        "workflow"
+    ],
+    "source_findings": [
+        "finding.2026-09-12.457001"
+    ],
+    "source_proposals": [],
+    "validation_case": {
+        "given": "A consuming repository claims a closed learning loop and has separately green Finding/Recall and L2/L1 mechanics.",
+        "when": "Its real durable Learning root contains no owner-published LearningNote and no later real coding-agent run demonstrates precedent-driven behavior.",
+        "then": "The soft-learning product thesis remains unproven even though the component mechanics are green."
+    },
+    "repository_evidence": [
+        {
+            "source_ref": "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+            "sha256": "73dc3508c4cd9d80ea63e24f17d8e638a0135799d8ef89ddf9e6170fca5d14ed"
+        },
+        {
+            "source_ref": "tools/execution-contract-dogfood.php",
+            "sha256": "86d5f00e406e4e5e95ab7bc12e9ce85ef2985c6a5b8249eb227b9ee154888ce1"
+        }
+    ],
+    "content": {
+        "title": "Closed-loop proof requires a real durable precedent handoff",
+        "context": "A learning workflow may prove Finding creation, precedent selection, L2 contract gating, and L1 execution in separate fixtures while never proving that prior durable experience changes a later real coding-agent decision.",
+        "guidance": "Before treating the learning loop as proven, require one owner-published LearningNote in the consuming repository and trace it through a later independent task from Learning selection into Recall, L2 construction, the exact governed L1, the acting host, and an observable engineering decision. Prompt inclusion alone is evidence of exposure, not usefulness.",
+        "why_it_works": "The requirement joins the deterministic owner boundaries to the one probabilistic handoff that component tests cannot establish: whether a coding agent actually uses relevant precedent when constructing and executing project-specific work.",
+        "when_to_apply": "Use this when validating an agent workflow, memory/learning system, prompt compiler, or other architecture whose product claim spans multiple independently tested stages.",
+        "when_not_to_apply": "Do not require a real-host behavioral cohort merely to prove a local deterministic parser, schema, owner API, or storage invariant that does not claim changed agent behavior.",
+        "verification": "Check the consuming Learning root through LearningNoteService, identify the later task and selected precedent, preserve the Recall compilation identity and execution-contract SHA-256, verify the acting host received that exact L1, and record the concrete decision or avoided wrong work attributable to the precedent. If no real host ran, record UNKNOWN instead of success.",
+        "symptoms": null,
+        "failed_approaches": [
+            "Treating an ephemeral two-run fixture plus a separate hand-authored execution-contract dogfood as end-to-end behavioral proof."
+        ],
+        "root_cause": null,
+        "examples": [
+            "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+            "tools/execution-contract-dogfood.php",
+            "voku/agent-loop#457"
+        ]
+    },
+    "created_at": "2026-09-12T20:53:21+00:00",
+    "updated_at": "2026-09-12T20:53:21+00:00",
+    "retired_reason": null
+}
