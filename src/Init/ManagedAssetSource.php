@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use InvalidArgumentException;
 
 /** Stable semantic identity plus the current local source location for one projected asset. */
 final readonly class ManagedAssetSource
@@ -31,6 +32,30 @@ final readonly class ManagedAssetSource
         );
     }
 
+    public static function fromFirstPartyExport(string $owner, string $sourcePath, string $assetId): self
+    {
+        if (!FirstPartyPackageCatalog::isFirstPartyOwner($owner)) {
+            throw new InvalidArgumentException('Managed first-party asset owner is not trusted: ' . $owner);
+        }
+
+        $sourcePath = self::normalize($sourcePath);
+        $ownerRoot = FirstPartyPackageCatalog::packageRootForOwner($owner);
+        if ($ownerRoot === null) {
+            throw new InvalidArgumentException('Managed first-party asset owner is not installed: ' . $owner);
+        }
+        $ownerRoot = self::normalize($ownerRoot);
+        if (!self::inside($sourcePath, $ownerRoot)) {
+            throw new InvalidArgumentException('Managed first-party asset source is outside its owner root: ' . $owner);
+        }
+
+        return new self(
+            $owner . ':' . ltrim($assetId, ':'),
+            $owner,
+            $sourcePath,
+            self::relativeTo($sourcePath, $ownerRoot),
+        );
+    }
+
     /**
      * Resolves persisted provenance against the currently installed semantic owner.
      *
@@ -40,6 +65,11 @@ final readonly class ManagedAssetSource
     public static function resolvePersistedPath(string $owner, ?string $reference, ?string $sourcePath): ?string
     {
         return FirstPartyPackageCatalog::resolvePersistedPath($owner, $reference, $sourcePath);
+    }
+
+    private static function inside(string $path, string $root): bool
+    {
+        return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
     }
 
     private static function normalize(string $path): string
