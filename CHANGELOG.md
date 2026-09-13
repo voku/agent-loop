@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.7 - 2026-09-13
+
+### Added
+
+- Persist the first real Learning-owned closed-loop precedent in the repository's durable Learning root, keeping the behavioral handoff honest: selection into future Recall context is evidence of exposure, not proof that a later coding agent used the lesson.
+- Add `CurrentExecutionStageReader` / `CurrentExecutionStageProjection` as a narrow read boundary for the exact persisted current execution stage. The projection binds task, Run, Contract revision, execution-plan digest, stage, attempt and candidate revision before exposing stage kind and role, and fails closed on stale plan/state identity.
+- Recommend and probe `jq` alongside `rg` in the existing system-tool setup path without making either tool a package-managed dependency.
+
+### Changed
+
+- Materialize the current ready L1 through the Loop-owned execution-contract store and consume that owner result from both execution preparation and ordinary bounded workflow context, keeping L2 construction evidence separate from the exact executable L1.
+- Compile the repeated in-process PHPStan rule-test-case lesson into an active deterministic constraint, retain its Learning provenance, and retire the superseded soft guidance once enforcement is present.
+- Raise the released owner floor to `voku/agent-learning ^0.18.8` and `voku/agent-recall-compiler ^0.17.6`, and allow the released `voku/agent-map ^0.13.0` line beside the maintained compatibility lines.
+
+### Fixed
+
+- Advance the Recall-outcome gate before advertising the later Learning decision, so the canonical finish action addresses the actual unsatisfied blocker instead of skipping ahead.
+- Generalize blocked recovery convergence: when a blocked lifecycle would otherwise advertise read-only status/manifest inspection as the canonical next action, preserve the existing blocker evidence and project actionable host work instead.
+- Keep the PHPStan 2.2.14 test suite analyzable without suppressions by representing shared callback lock state as explicit mutable test state instead of by-reference scalar variables that the analyzer can constant-fold.
+
 ## 0.20.6 - 2026-09-12
 
 ### Added
