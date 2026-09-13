@@ -299,18 +299,16 @@ final readonly class RepositorySetupService
     /** @return list<string> */
     private function installStateFiles(string $agent, bool $withHooks, AgentAssetSourcePaths $paths): array
     {
-        $packageRoot = dirname(__DIR__, 2);
         $files = (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($agent);
         $files[] = PackageResources::projectInstructions();
         foreach (FirstPartyPackageCatalog::instructionFragments($this->rootPath) as $fragmentPath) {
             $files[] = $fragmentPath;
         }
 
-        $sourceRoots = [
-            $paths->absoluteSkillsRoot(),
-            ...FirstPartySkillRoots::resolve($packageRoot),
-            $paths->absoluteSubagentsRoot(),
-        ];
+        $sourceRoots = [$paths->absoluteSubagentsRoot()];
+        foreach ((new ManagedSkillSourceResolver($this->rootPath))->resolve($paths) as $source) {
+            $sourceRoots[] = $source->path;
+        }
         if ($withHooks && $agent === 'codex') {
             $sourceRoots[] = $paths->absoluteHooksRoot();
         }
@@ -550,42 +548,9 @@ final readonly class RepositorySetupService
     /** @return list<string> */
     private function expectedSkillEntries(AgentAssetSourcePaths $paths, bool $includePackageSkills): array
     {
-        $roots = $includePackageSkills
-            ? FirstPartySkillRoots::resolve(dirname(__DIR__, 2))
-            : [];
-        $configuredRoot = $paths->absoluteSkillsRoot();
-        if (is_dir($configuredRoot) && !in_array($configuredRoot, $roots, true)) {
-            $roots[] = $configuredRoot;
-        }
-
-        $entries = [];
-        foreach ($roots as $root) {
-            if (!is_dir($root)) {
-                throw new RuntimeException('Managed skills root is missing: ' . $root);
-            }
-            foreach (scandir($root) ?: [] as $entry) {
-                if ($entry === '.' || $entry === '..') {
-                    continue;
-                }
-                if (is_file($root . '/' . $entry . '/SKILL.md')) {
-                    if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $root . '/' . $entry, $this->rootPath)) {
-                        continue;
-                    }
-                    $entries[] = $entry;
-                }
-            }
-        }
-
-        if ($includePackageSkills) {
-            foreach (array_keys(FirstPartyPackageCatalog::exportableSkills($this->rootPath)) as $id) {
-                if (!in_array($id, $entries, true)) {
-                    $entries[] = $id;
-                }
-            }
-        }
-
-        $entries = array_values(array_unique($entries));
-        sort($entries, SORT_STRING);
+        $entries = array_keys(
+            (new ManagedSkillSourceResolver($this->rootPath))->resolve($paths, $includePackageSkills),
+        );
         if ($entries === []) {
             throw new RuntimeException('No managed skill entries are available for host inspection.');
         }
