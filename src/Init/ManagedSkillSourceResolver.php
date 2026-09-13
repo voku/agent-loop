@@ -22,7 +22,15 @@ final readonly class ManagedSkillSourceResolver
 
         if ($includeFirstParty) {
             foreach (FirstPartyPackageCatalog::exportableSkills($this->rootPath) as $entry => $metadata) {
-                $this->register($sources, $entry, $metadata['path']);
+                $this->register(
+                    $sources,
+                    $entry,
+                    ManagedAssetSource::fromFirstPartyExport(
+                        $metadata['owner'],
+                        $metadata['path'],
+                        'skill:' . $entry,
+                    ),
+                );
             }
         }
 
@@ -41,7 +49,11 @@ final readonly class ManagedSkillSourceResolver
                     continue;
                 }
 
-                $this->register($sources, $entry, $sourcePath);
+                $this->register(
+                    $sources,
+                    $entry,
+                    ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'skill:' . $entry),
+                );
             }
         }
 
@@ -53,9 +65,8 @@ final readonly class ManagedSkillSourceResolver
     /**
      * @param array<string, ManagedAssetSource> $sources
      */
-    private function register(array &$sources, string $entry, string $sourcePath): void
+    private function register(array &$sources, string $entry, ManagedAssetSource $source): void
     {
-        $source = ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'skill:' . $entry);
         $existing = $sources[$entry] ?? null;
         if ($existing instanceof ManagedAssetSource && $existing->path !== $source->path) {
             throw new InvalidArgumentException('Multiple skill sources own the same entry: ' . $entry);
