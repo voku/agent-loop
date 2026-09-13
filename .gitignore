@@ -28,6 +28,7 @@ composer.lock
 /.claude/
 /.codex/
 /.agents/
+/.gemini/
 /.github/skills/
 /.github/agents/
 /resources/githooks/.agent-loop-manifest.json
