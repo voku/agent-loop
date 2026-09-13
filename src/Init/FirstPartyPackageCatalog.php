@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use InvalidArgumentException;
 use ReflectionClass;
 use RuntimeException;
 use voku\AgentKanban\Cli\CliApplication as KanbanCli;
@@ -169,11 +170,7 @@ final readonly class FirstPartyPackageCatalog
                     }
                     $skillPath = $loopSkillsDir . '/' . $entry;
                     if (is_file($skillPath . '/SKILL.md')) {
-                        $skills[$entry] = [
-                            'id' => $entry,
-                            'path' => $skillPath,
-                            'owner' => 'voku/agent-loop',
-                        ];
+                        self::addExportedSkill($skills, $entry, $skillPath, 'voku/agent-loop');
                     }
                 }
             }
@@ -183,21 +180,13 @@ final readonly class FirstPartyPackageCatalog
         $isLearningOwner = self::isOwnerRepository($projectRoot, 'voku/agent-learning');
         foreach (LearningResources::consumerSkills() as $id => $path) {
             if (is_file($path . '/SKILL.md')) {
-                $skills[$id] = [
-                    'id' => $id,
-                    'path' => $path,
-                    'owner' => 'voku/agent-learning',
-                ];
+                self::addExportedSkill($skills, $id, $path, 'voku/agent-learning');
             }
         }
         if ($isLearningOwner) {
             foreach (LearningResources::maintainerSkills() as $id => $path) {
                 if (is_file($path . '/SKILL.md')) {
-                    $skills[$id] = [
-                        'id' => $id,
-                        'path' => $path,
-                        'owner' => 'voku/agent-learning',
-                    ];
+                    self::addExportedSkill($skills, $id, $path, 'voku/agent-learning');
                 }
             }
         }
@@ -206,21 +195,13 @@ final readonly class FirstPartyPackageCatalog
         $isRecallOwner = self::isOwnerRepository($projectRoot, 'voku/agent-recall-compiler');
         foreach (RecallResources::consumerSkills() as $id => $path) {
             if (is_file($path . '/SKILL.md')) {
-                $skills[$id] = [
-                    'id' => $id,
-                    'path' => $path,
-                    'owner' => 'voku/agent-recall-compiler',
-                ];
+                self::addExportedSkill($skills, $id, $path, 'voku/agent-recall-compiler');
             }
         }
         if ($isRecallOwner) {
             foreach (RecallResources::maintainerSkills() as $id => $path) {
                 if (is_file($path . '/SKILL.md')) {
-                    $skills[$id] = [
-                        'id' => $id,
-                        'path' => $path,
-                        'owner' => 'voku/agent-recall-compiler',
-                    ];
+                    self::addExportedSkill($skills, $id, $path, 'voku/agent-recall-compiler');
                 }
             }
         }
@@ -229,21 +210,13 @@ final readonly class FirstPartyPackageCatalog
         $isSessionOwner = self::isOwnerRepository($projectRoot, 'voku/agent-session');
         foreach (SessionResources::consumerSkills() as $id => $path) {
             if (is_file($path . '/SKILL.md')) {
-                $skills[$id] = [
-                    'id' => $id,
-                    'path' => $path,
-                    'owner' => 'voku/agent-session',
-                ];
+                self::addExportedSkill($skills, $id, $path, 'voku/agent-session');
             }
         }
         if ($isSessionOwner) {
             foreach (SessionResources::maintainerSkills() as $id => $path) {
                 if (is_file($path . '/SKILL.md')) {
-                    $skills[$id] = [
-                        'id' => $id,
-                        'path' => $path,
-                        'owner' => 'voku/agent-session',
-                    ];
+                    self::addExportedSkill($skills, $id, $path, 'voku/agent-session');
                 }
             }
         }
@@ -251,6 +224,27 @@ final readonly class FirstPartyPackageCatalog
         ksort($skills, SORT_STRING);
 
         return $skills;
+    }
+
+    /**
+     * @param array<string, array{id: string, path: string, owner: string}> $skills
+     */
+    private static function addExportedSkill(array &$skills, string $id, string $path, string $owner): void
+    {
+        $existing = $skills[$id] ?? null;
+        if (is_array($existing)) {
+            if ($existing['owner'] !== $owner || self::normalize($existing['path']) !== self::normalize($path)) {
+                throw new InvalidArgumentException('Multiple first-party packages export the same skill: ' . $id);
+            }
+
+            return;
+        }
+
+        $skills[$id] = [
+            'id' => $id,
+            'path' => $path,
+            'owner' => $owner,
+        ];
     }
 
     /**
