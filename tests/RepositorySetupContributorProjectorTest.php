@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -86,6 +88,31 @@ final class RepositorySetupContributorProjectorTest extends TestCase
         $learning = self::contributor($contributors, 'voku/agent-learning');
 
         self::assertSame(RepositorySetupContributor::SCOPE_OWNER_REPOSITORY, $learning->scope);
+    }
+
+    #[DataProvider('invalidContributorValues')]
+    public function testContributorRejectsInvalidRuntimeValues(
+        string $owner,
+        string $scope,
+        int $skillCount,
+        int $subagentCount,
+        int $instructionCount,
+    ): void {
+        $this->expectException(InvalidArgumentException::class);
+
+        new RepositorySetupContributor($owner, $scope, $skillCount, $subagentCount, $instructionCount);
+    }
+
+    /**
+     * @return iterable<string, array{string, string, int, int, int}>
+     */
+    public static function invalidContributorValues(): iterable
+    {
+        yield 'empty owner' => ['', RepositorySetupContributor::SCOPE_CONSUMER, 0, 0, 0];
+        yield 'unsupported scope' => ['project', 'invalid', 0, 0, 0];
+        yield 'negative skill count' => ['project', RepositorySetupContributor::SCOPE_PROJECT, -1, 0, 0];
+        yield 'negative subagent count' => ['project', RepositorySetupContributor::SCOPE_PROJECT, 0, -1, 0];
+        yield 'negative instruction count' => ['project', RepositorySetupContributor::SCOPE_PROJECT, 0, 0, -1];
     }
 
     /**

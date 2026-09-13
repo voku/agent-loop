@@ -17,19 +17,27 @@ final readonly class RepositorySetupContributor
 
     public const string SCOPE_LOCAL = 'local';
 
-    /**
-     * @param non-empty-string $owner
-     * @param self::SCOPE_CONSUMER|self::SCOPE_OWNER_REPOSITORY|self::SCOPE_PROJECT|self::SCOPE_LOCAL $scope
-     * @param int<0, max> $skillCount
-     * @param int<0, max> $subagentCount
-     * @param int<0, max> $instructionCount
-     */
+    /** @var non-empty-string */
+    public string $owner;
+
+    /** @var self::SCOPE_CONSUMER|self::SCOPE_OWNER_REPOSITORY|self::SCOPE_PROJECT|self::SCOPE_LOCAL */
+    public string $scope;
+
+    /** @var int<0, max> */
+    public int $skillCount;
+
+    /** @var int<0, max> */
+    public int $subagentCount;
+
+    /** @var int<0, max> */
+    public int $instructionCount;
+
     public function __construct(
-        public string $owner,
-        public string $scope,
-        public int $skillCount,
-        public int $subagentCount,
-        public int $instructionCount,
+        string $owner,
+        string $scope,
+        int $skillCount,
+        int $subagentCount,
+        int $instructionCount,
     ) {
         if ($owner === '') {
             throw new InvalidArgumentException('Repository setup contributor owner must not be empty.');
@@ -45,6 +53,12 @@ final readonly class RepositorySetupContributor
         if ($skillCount < 0 || $subagentCount < 0 || $instructionCount < 0) {
             throw new InvalidArgumentException('Repository setup contributor counts must not be negative.');
         }
+
+        $this->owner = $owner;
+        $this->scope = $scope;
+        $this->skillCount = $skillCount;
+        $this->subagentCount = $subagentCount;
+        $this->instructionCount = $instructionCount;
     }
 
     /**
