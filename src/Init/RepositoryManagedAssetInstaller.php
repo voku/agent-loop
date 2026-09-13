@@ -12,11 +12,8 @@ use RuntimeException;
 /** Applies a conflict-free typed install plan without routing through CLI adapters. */
 final readonly class RepositoryManagedAssetInstaller
 {
-    private string $packageRoot;
-
     public function __construct(private string $rootPath)
     {
-        $this->packageRoot = dirname(__DIR__, 2);
     }
 
     /**
@@ -71,49 +68,10 @@ final readonly class RepositoryManagedAssetInstaller
         ];
     }
 
-    /**
-     * @return array<string, string> target entry => source directory
-     */
+    /** @return array<string, ManagedAssetSource> target entry => semantic source */
     private function skillSources(AgentAssetSourcePaths $paths): array
     {
-        $roots = [$paths->absoluteSkillsRoot()];
-        foreach (FirstPartySkillRoots::resolve($this->packageRoot) as $root) {
-            $roots[] = $root;
-        }
-        $roots = array_values(array_unique(array_map(
-            static fn (string $root): string => rtrim(str_replace('\\', '/', $root), '/'),
-            $roots,
-        )));
-
-        $sources = [];
-        foreach ($roots as $root) {
-            if (!is_dir($root)) {
-                continue;
-            }
-            foreach (scandir($root) ?: [] as $entry) {
-                if ($entry === '.' || $entry === '..' || !is_file($root . '/' . $entry . '/SKILL.md')) {
-                    continue;
-                }
-                $source = $root . '/' . $entry;
-                if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $source, $this->rootPath)) {
-                    continue;
-                }
-                if (isset($sources[$entry]) && realpath($sources[$entry]) !== realpath($source)) {
-                    throw new InvalidArgumentException('Multiple skill sources own the same entry: ' . $entry);
-                }
-                $sources[$entry] = $source;
-            }
-        }
-
-        foreach (FirstPartyPackageCatalog::exportableSkills($this->rootPath) as $entry => $meta) {
-            if (!isset($sources[$entry])) {
-                $sources[$entry] = $meta['path'];
-            }
-        }
-
-        ksort($sources, SORT_STRING);
-
-        return $sources;
+        return (new RepositorySkillSourceResolver($this->rootPath))->resolve($paths);
     }
 
     /**
@@ -146,7 +104,7 @@ final readonly class RepositoryManagedAssetInstaller
 
     /**
      * @param list<ManagedAssetOperation> $operations
-     * @param array<string, string> $sources
+     * @param array<string, ManagedAssetSource> $sources
      * @return list<ManagedAssetOperation>
      */
     private function applySkills(array $operations, array $sources, string $agent, AgentAssetSourcePaths $paths): array
@@ -155,18 +113,18 @@ final readonly class RepositoryManagedAssetInstaller
         $projectionSources = [];
         foreach ($target->desiredEntries() ?? [] as $entry) {
             $source = $sources[$entry] ?? null;
-            if (!is_string($source)) {
+            if (!$source instanceof ManagedAssetSource) {
                 throw new RuntimeException('No skill source is available for planned entry: ' . $entry);
             }
-            $projectionSources[$entry] = ManagedAssetSource::fromPath($this->rootPath, $source, 'skill:' . $entry);
+            $projectionSources[$entry] = $source;
         }
 
         foreach ($operations as $operation) {
             $source = $sources[$operation->entry] ?? null;
-            if (!is_string($source)) {
+            if (!$source instanceof ManagedAssetSource) {
                 throw new RuntimeException('No skill source is available for planned entry: ' . $operation->entry);
             }
-            $this->copySkillDirectory($source, $operation->targetPath);
+            $this->copySkillDirectory($source->path, $operation->targetPath);
         }
 
         $this->manifest($target)->writeProjections($projectionSources, [HostCapability::SkillProjection]);
