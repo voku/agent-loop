@@ -12,9 +12,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Raise dependency floors to `voku/agent-learning ^0.18.9`, `voku/agent-recall-compiler ^0.17.7`, and `voku/agent-session ^0.7.1` to consume typed `PackageResources` skill and instruction definitions.
+- Raise dependency floors to `voku/agent-learning ^0.18.10`, `voku/agent-recall-compiler ^0.17.7`, and `voku/agent-session ^0.7.1` to consume typed `PackageResources` skill and instruction definitions and bounded shipped static-analysis precedents.
 - Delegate managed asset source root and provenance resolution from `ManagedAssetSource` and `ManagedAssetExpectationResolver` to `FirstPartyPackageCatalog`.
 - Filter skill targets in `RepositorySetupService`, `RepositoryManagedAssetInstaller`, `ManagedAssetTargetCatalog`, and `InitSyncSkillsCommand` with project-scoped authority.
+
+### Fixed
+
+- Select the native Composer binary for deterministic PHPStan fixture checks, and resolve packaged hook commands from the invoking linked worktree rather than the common checkout that stores hook files.
+- Keep every candidate and historical release-set Recall proof pinned to the declared `0.17.7` minimum, including the Map 0.10 compatibility consumer.
 
 ## 0.20.7 - 2026-09-13
 
