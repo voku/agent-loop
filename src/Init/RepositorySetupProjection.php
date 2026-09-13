@@ -17,9 +17,9 @@ final readonly class RepositorySetupProjection
         public ?string $policyDetail,
         public ?string $policyPath,
         public ?string $runtimeBoundary,
-        public array $contributors,
         public RepositorySetupNextActionKind $nextActionKind,
         public ?string $nextAction,
+        public array $contributors = [],
     ) {
     }
 
@@ -33,9 +33,9 @@ final readonly class RepositorySetupProjection
      *     policy_detail: string|null,
      *     policy_path: string|null,
      *     runtime_boundary: string|null,
-     *     contributors: list<array{owner: non-empty-string, scope: string, skill_count: int<0, max>, subagent_count: int<0, max>, instruction_count: int<0, max>}>,
      *     next_action_kind: string,
-     *     next_action: string|null
+     *     next_action: string|null,
+     *     contributors: list<array{owner: non-empty-string, scope: string, skill_count: int<0, max>, subagent_count: int<0, max>, instruction_count: int<0, max>}>
      * }
      */
     public function toArray(): array
@@ -49,12 +49,12 @@ final readonly class RepositorySetupProjection
             'policy_detail' => $this->policyDetail,
             'policy_path' => $this->policyPath,
             'runtime_boundary' => $this->runtimeBoundary,
+            'next_action_kind' => $this->nextActionKind->value,
+            'next_action' => $this->nextAction,
             'contributors' => array_map(
                 static fn (RepositorySetupContributor $contributor): array => $contributor->toArray(),
                 $this->contributors,
             ),
-            'next_action_kind' => $this->nextActionKind->value,
-            'next_action' => $this->nextAction,
         ];
     }
 }
