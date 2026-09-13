@@ -131,7 +131,7 @@ final readonly class ManagedAssetTargetCatalog
      *
      * Deliberately separate from {@see skillEntries()}: this counts what the
      * repository actually ships, while the projection expectation also
-     * includes the recall skills that are always part of the first-party set.
+     * includes the sibling-owner skills in the resolved first-party set.
      *
      * @return list<string>
      */
@@ -156,23 +156,10 @@ final readonly class ManagedAssetTargetCatalog
         return $entries;
     }
 
-    /**
-     * Skill entries the current sources project, including the sibling-owner
-     * skills that are always part of the first-party set.
-     *
-     * @return list<string>
-     */
+    /** @return list<string> */
     public function skillEntries(AgentAssetSourcePaths $paths): array
     {
-        $entries = $this->skillSourceEntries($paths);
-        foreach (array_keys(FirstPartyPackageCatalog::exportableSkills($this->rootPath)) as $siblingEntry) {
-            if (!in_array($siblingEntry, $entries, true)) {
-                $entries[] = $siblingEntry;
-            }
-        }
-        sort($entries, SORT_STRING);
-
-        return $entries;
+        return array_keys((new ManagedSkillSourceResolver($this->rootPath))->resolve($paths));
     }
 
     /** @return list<string> */
