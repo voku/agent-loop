@@ -10,7 +10,7 @@ namespace voku\AgentLoop\Dogfood;
  * The fixtures are deliberately broken code, so the expected result is exit 1
  * with a specific diagnostic per rule. A rule that silently stops firing looks
  * exactly like a rule with nothing to report, which is why the expected
- * messages are listed rather than counted.
+ * messages are counted rather than merely searched for.
  *
  * Runs out of process because `PHPStan\Testing\RuleTestCase` cannot share a
  * process with the Composer-based PHPStan discovery agent-map performs in the
@@ -18,19 +18,19 @@ namespace voku\AgentLoop\Dogfood;
  */
 final readonly class ProjectRuleFixtureCheck
 {
-    /** @var non-empty-list<non-empty-string> */
-    public const array EXPECTED_DIAGNOSTICS = [
-        'Workflow orchestration must not instantiate focused-package CLI voku\AgentSession\Cli.',
-        'Workflow commands must not accept --learning-root.',
+    /** @var non-empty-array<non-empty-string, positive-int> */
+    public const array EXPECTED_DIAGNOSTIC_COUNTS = [
+        'Workflow orchestration must not instantiate focused-package CLI voku\AgentSession\Cli.' => 1,
+        'Workflow commands must not accept --learning-root.' => 1,
         // Deliberately truncated before the retired path itself: spelling it here
         // would make this list trip the very rule it asserts.
-        'Production code must not name retired state root',
-        'proc_open must receive an argv array, not shell-shaped command text.',
-        'Child PHP commands must place -n immediately after PHP_BINARY',
-        'ProjectLayout::learningRoot() result is discarded.',
-        'PHPDoc contract tags must be on separate lines',
-        'Do not infer Git repository state from is_dir(.git)',
-        'do not extend PHPStan\Testing\RuleTestCase in the PHPUnit suite',
+        'Production code must not name retired state root' => 1,
+        'proc_open must receive an argv array, not shell-shaped command text.' => 1,
+        'Child PHP commands must place -n immediately after PHP_BINARY' => 1,
+        'ProjectLayout::learningRoot() result is discarded.' => 1,
+        'PHPDoc contract tags must be on separate lines' => 1,
+        'Do not infer Git repository state from is_dir(.git)' => 1,
+        'do not extend PHPStan\Testing\RuleTestCase in the PHPUnit suite' => 2,
     ];
 
     public function __construct(private ProcessRunner $runner)
@@ -63,9 +63,15 @@ final readonly class ProjectRuleFixtureCheck
         if ($exitCode !== 1) {
             $problems[] = sprintf('Expected the fixture analysis to fail with exit 1, got %d.', $exitCode);
         }
-        foreach (self::EXPECTED_DIAGNOSTICS as $expected) {
-            if (!str_contains($output, $expected)) {
-                $problems[] = 'Expected project PHPStan error was not reported: ' . $expected;
+        foreach (self::EXPECTED_DIAGNOSTIC_COUNTS as $expected => $expectedCount) {
+            $actualCount = substr_count($output, $expected);
+            if ($actualCount !== $expectedCount) {
+                $problems[] = sprintf(
+                    'Expected project PHPStan error %d time(s), got %d: %s',
+                    $expectedCount,
+                    $actualCount,
+                    $expected,
+                );
             }
         }
 
