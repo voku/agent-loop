@@ -16,52 +16,143 @@ session, and record learning evidence without automatically promoting anything
 into `MEMORY.md` or active guidance. Durable guidance remains a human-reviewed
 choice.
 
-## From findings to executable constraints
+## The canonical learning ladder: from real work to deterministic enforcement
 
-Durable guidance does not have to remain Markdown. When coding-session evidence
-shows a recurring project-specific problem and the requirement is mechanically
-checkable, the stronger outcome is often a repository-owned executable rule:
+A recurring architectural misconception is the sequence:
 
 ```text
-coding task
-  -> observed Finding
-  -> repeated / corroborated Learning evidence
-  -> human-reviewed durable decision
-  -> executable project rule
-  -> CI enforces the rule on later changes
+Finding -> Proposal -> LearningNote   (INCORRECT)
 ```
 
-For PHP repositories, that can mean:
+A `LearningNote` is **not** active guidance and does **not** require a `Proposal` to be created. It is precedent knowledge derived directly from a validated `Finding`.
 
-- a custom PHPStan rule for semantic, architectural, or type-aware constraints;
-- a custom php-cs-fixer fixer for deterministic code-shape or formatting rules;
-- a focused test for a behavioral invariant;
-- another deterministic linter or repository command when neither PHPStan nor a
-  fixer is the right enforcement layer.
+The canonical owner flow is:
 
-The point is not to translate every Finding into code. Some knowledge is
-contextual and belongs in reviewed guidance. But once a stable rule can be
-checked by a machine, leaving it only in `AGENTS.md`, `MEMORY.md`, a prompt, or a
-LearningNote makes every future agent spend context on a constraint CI could
-prove directly.
+```text
+real work
+  ↓
+Finding
+  ↓
+LearningNote
+  ↓
+Recall
+  ↓
+L2 -> concrete L1 -> coding agent
+  ↓
+observable decision
+  ↓
+new Finding
+  ↓
+repeated pattern
+  ↓
+Dream
+  ↓
+Proposal
+  ↓
+Human approval
+  ↓
+Memory / Skill / Constraint
+  ↓
+deterministic enforcement
+```
 
-This promotion is deliberately not automatic. Learning owns the Findings,
-evidence, proposals, LearningNotes, and decision history. A human decides
-whether the pattern is sufficiently stable and general to enforce. The host
-repository owns the PHPStan rule, fixer, test, linter, and CI configuration that
-implements that decision.
+### 1. Finding: "What actually happened"
 
-Once the executable rule exists, its result is the authoritative evidence for
-that invariant. Recall or guidance may still explain *why* the rule exists and
-when it matters, but agents should not be asked to remember a prose-only version
-of a constraint the repository can enforce deterministically. That reduces
-repeated review work and avoids spending prompt tokens restating machine-checkable
-policy.
+A Finding is **not yet a rule**. It records structured, validated evidence from a single task:
+- task identity and session
+- concrete observation
+- reproducible evidence (file diffs, command output, test results)
+- validated conclusion
+- stable `pattern_key` and classification (e.g. `ADD_LEARNING_NOTE`)
+- bounded scope and validation case (`given`, `when`, `then`)
 
-`agent-loop` itself dogfoods this separation: project-specific PHPStan fixture
-checks and architecture-rule validation are part of `composer ci`, while the
-Learning artifacts preserve the evidence and reasoning that justified durable
-constraints.
+A single incident does not create a project-wide policy or constraint.
+
+### 2. LearningNote: "Documented precedent knowledge"
+
+From a Finding classified `ADD_LEARNING_NOTE`, a `LearningNote` is published **directly**:
+
+```text
+Finding -> LearningNote
+```
+
+The `LearningNote`:
+- is **not** an active rule or constraint;
+- is **not** evaluated as active guidance during task execution;
+- is structured precedent knowledge indexed by `pattern_key`, tags, and scope;
+- states: *"When you encounter a similar situation in the future, review this precedent."*
+
+### 3. Recall & L2/L1: "Precedent informs new work"
+
+When Task B starts:
+1. Recall queries relevant precedents matching the task scope/tags (`facts.json`).
+2. Recall compiles the L2 system prompt incorporating the precedent.
+3. A concrete L1 execution contract is bound for the coding agent.
+4. The agent executes the task under that bounded context.
+
+### 4. Observable decision & new Finding: "Testing causal impact"
+
+During Task B, the agent's behavior is observed:
+- Did the agent alter its decision or avoid the past failure?
+- Was the precedent genuinely causal (`DEMONSTRATED_VALUE`), or did the prompt already mandate the behavior anyway (`WITHHELD`)?
+- A **new Finding** is captured for Task B, recording the observed outcome.
+
+### 5. Repeated pattern & Dream: "Systematization requires repeated evidence"
+
+Only when multiple independent Findings show:
+- the pattern recurs across distinct sessions/tasks;
+- the precedent has measurable positive impact;
+- the knowledge is stable enough to formalize into an active policy;
+
+does the synthesis stage begin:
+
+```text
+repeated Findings
+  ↓
+Dream / guidance-evaluate
+  ↓
+Proposal
+```
+
+Dream clusters evidence and drafts candidate Proposals:
+- `memory` (soft heuristics or working conventions);
+- `skill` (workflow procedures or tool instructions);
+- `constraint` (hard semantic invariants).
+
+### 6. Human approval gate
+
+Proposals are **never auto-promoted**. A human authority explicitly reviews the evidence, candidate diff, and validation case:
+- Accept, reject, or adjust.
+- Only upon explicit human approval does the candidate become active project guidance.
+
+### 7. Active Guidance (Memory, Skill, or Constraint)
+
+Approved proposals transition into active owner guidance:
+- A `constraint` records the semantic invariant, target engine, and validation commands.
+- Future Recall runs include it as active evaluated guidance with outcome tracking.
+
+### 8. Deterministic enforcement: "Code replaces prose"
+
+For hard invariants, soft prose guidance is only an interim bridge. Once a rule can be mechanically verified, it must be promoted to a repository-owned deterministic gate:
+
+```text
+Constraint (semantic invariant)
+  ↓
+Project-owned deterministic enforcement (PHPStan rule, PHPCS sniff, ArchTest, CI check)
+```
+
+Examples in real codebases:
+- Semantic / type-narrowing rules: custom PHPStan rule (e.g. `ItPortalInlineVarWrongDelimiterRule`);
+- Code style / formatting safety: custom PHP-CS-Fixer rule or PHPCS sniff (e.g. `noRedirectInUnitCest`);
+- Architectural boundaries: deptrac or PHPStan architecture rules.
+
+### 9. Guidance retirement: "Zero token overhead for machine-proven rules"
+
+Once deterministic enforcement is wired into CI:
+- CI fails mechanically if the rule is violated, providing immediate feedback before merge;
+- soft prompt instructions become redundant and can be retired or omitted from default Recall;
+- the Constraint remains in historical lineage as the semantic reference and justification;
+- agents spend zero prompt tokens remembering what CI proves automatically.
 
 ## Human MEMORY.md promotion review
 
