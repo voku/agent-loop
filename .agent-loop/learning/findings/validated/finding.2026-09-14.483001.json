@@ -1,0 +1,39 @@
+{
+    "id": "finding.2026-09-14.483001",
+    "task_id": "GH-483",
+    "session": "2026-09-14-gh-483-skill-semantic-drift",
+    "created_at": "2026-09-14T04:03:53+00:00",
+    "created_by": "github-actions-owner-boundary",
+    "scope": [
+        "voku/agent-recall-compiler/resources/skills/agent-recall-consumer/SKILL.md",
+        "voku/agent-learning/resources/skills/agent-learning-consumer/SKILL.md"
+    ],
+    "observation": "Recall changed its deterministic default Learning/output paths in commits 4a2cd7c6e193bea740fb549dfca96ac08a752313 and 4e19e1ab51100d566eadde6d4b793996041154c7 while the exported agent-recall-consumer skill still taught the historical infra/doc/agent-learning and .agent-recall-output choreography until e1717c3a0940c839fd5936372d6380a78cc9572d.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "voku/agent-recall-compiler@4a2cd7c6e193bea740fb549dfca96ac08a752313 changed discovery to prefer/default <cwd>/.agent-loop/learning; @4e19e1ab51100d566eadde6d4b793996041154c7 changed standalone CLI defaults to .agent-loop/learning and .agent-loop/recall/<task-id>."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "voku/agent-recall-compiler@e1717c3a0940c839fd5936372d6380a78cc9572d later removed the stale roots from agent-recall-consumer and added testConsumerSkillMatchesCurrentCliDefaultsAndCommands()."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Current agent-recall-consumer on main documents the .agent-loop defaults and no longer carries the historical infra/doc/agent-learning or .agent-recall-output command examples."
+        }
+    ],
+    "hypothesis": "Package provenance and byte identity cannot prevent semantic drift when an exported consumer skill duplicates deterministic public owner behavior and that behavior changes independently.",
+    "validated_conclusion": "A package-owned consumer skill that states deterministic public owner behavior can become operationally stale even with correct provenance. Keep such claims aligned in the owner change or protect them with a focused owner-side parity regression; do not infer semantic freshness from export provenance alone.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public",
+    "classification": "ADD_LEARNING_NOTE",
+    "pattern_key": "workflow.package_skill_semantics_follow_owner_contract",
+    "validation_case": {
+        "given": "A package-owned consumer skill states a deterministic public owner command, default, path, or state contract.",
+        "when": "The owning package changes that deterministic public behavior.",
+        "then": "The skill changes coherently in the owner change or a focused owner-side parity regression proves its existing claim remains current."
+    }
+}
