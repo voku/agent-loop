@@ -1,0 +1,39 @@
+{
+    "id": "finding.2026-09-14.481001",
+    "task_id": "GH-481",
+    "session": "2026-09-14-constraint-alias-falsification",
+    "created_at": "2026-09-14T03:59:49+00:00",
+    "created_by": "github-evidence",
+    "scope": [
+        "phpstan/Rules/NoInProcessPhpstanRuleTestCaseRule.php",
+        "tests/PHPStan/data/in-process-phpstan-rule-test-case-alias.php",
+        "tools/Dogfood/ProjectRuleFixtureCheck.php"
+    ],
+    "observation": "The active in-process RuleTestCase constraint caught direct inheritance but the detector compared the source spelling of extends, so importing PHPStan\\\\Testing\\\\RuleTestCase under an alias produced the same forbidden semantic inheritance without triggering the project rule.",
+    "evidence": [
+        {
+            "type": "issue_reference",
+            "issue": "voku/agent-loop#481"
+        },
+        {
+            "type": "commit",
+            "commit": "8fbea65aece9d8eb8178f934c4fce1a3a24e1476"
+        },
+        {
+            "type": "phpstan_result",
+            "command": "php tools/project-phpstan-rules.php",
+            "summary": "PR #482 exact-head evidence emitted the project diagnostic for both direct and aliased RuleTestCase fixtures; the project-rule dogfood passed."
+        },
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "PR #482 passed composer ci on PHP 8.3, 8.4 and 8.5, and post-merge main CI completed successfully."
+        }
+    ],
+    "hypothesis": "The deterministic detector overfit the original syntax because it compared an unresolved AST name instead of the semantic parent type.",
+    "validated_conclusion": "For the active in-process RuleTestCase constraint, raw extends spelling was insufficient; resolving the parent through PHPStan Scope catches both the original direct form and the aliased form.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
