@@ -1,0 +1,67 @@
+name: Issue 483 Learning finding
+
+on:
+  push:
+    branches:
+      - dogfood/483-skill-semantic-drift-finding
+
+permissions:
+  contents: write
+
+jobs:
+  finding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install released owner dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Publish validated Finding through agent-learning
+        run: |
+          set -euo pipefail
+          vendor/bin/agent-learning finding-create \
+            --root .agent-loop/learning \
+            --id finding.2026-09-14.483001 \
+            --task GH-483 \
+            --session 2026-09-14-gh-483-skill-semantic-drift \
+            --by github-actions-owner-boundary \
+            --scope voku/agent-recall-compiler/resources/skills/agent-recall-consumer/SKILL.md \
+            --scope voku/agent-learning/resources/skills/agent-learning-consumer/SKILL.md \
+            --observation 'Recall changed its deterministic default Learning/output paths in commits 4a2cd7c6e193bea740fb549dfca96ac08a752313 and 4e19e1ab51100d566eadde6d4b793996041154c7 while the exported agent-recall-consumer skill still taught the historical infra/doc/agent-learning and .agent-recall-output choreography until e1717c3a0940c839fd5936372d6380a78cc9572d.' \
+            --hypothesis 'Package provenance and byte identity cannot prevent semantic drift when an exported consumer skill duplicates deterministic public owner behavior and that behavior changes independently.' \
+            --conclusion 'A package-owned consumer skill that states deterministic public owner behavior can become operationally stale even with correct provenance. Keep such claims aligned in the owner change or protect them with a focused owner-side parity regression; do not infer semantic freshness from export provenance alone.' \
+            --confidence high \
+            --sensitivity public \
+            --evidence-json '{"type":"manual_verification","summary":"voku/agent-recall-compiler@4a2cd7c6e193bea740fb549dfca96ac08a752313 changed discovery to prefer/default <cwd>/.agent-loop/learning; @4e19e1ab51100d566eadde6d4b793996041154c7 changed standalone CLI defaults to .agent-loop/learning and .agent-loop/recall/<task-id>."}' \
+            --evidence-json '{"type":"manual_verification","summary":"voku/agent-recall-compiler@e1717c3a0940c839fd5936372d6380a78cc9572d later removed the stale roots from agent-recall-consumer and added testConsumerSkillMatchesCurrentCliDefaultsAndCommands()."}' \
+            --evidence-json '{"type":"manual_verification","summary":"Current agent-recall-consumer on main documents the .agent-loop defaults and no longer carries the historical infra/doc/agent-learning or .agent-recall-output command examples."}'
+
+          vendor/bin/agent-learning finding-classify \
+            --root .agent-loop/learning \
+            finding.2026-09-14.483001 ADD_LEARNING_NOTE \
+            --pattern-key workflow.package_skill_semantics_follow_owner_contract \
+            --given 'A package-owned consumer skill states a deterministic public owner command, default, path, or state contract.' \
+            --when 'The owning package changes that deterministic public behavior.' \
+            --then 'The skill changes coherently in the owner change or a focused owner-side parity regression proves its existing claim remains current.'
+
+          vendor/bin/agent-learning validate --root .agent-loop/learning
+
+      - name: Commit owner-produced Finding
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .agent-loop/learning/findings/validated/finding.2026-09-14.483001.json
+          git diff --cached --exit-code && { echo 'Expected owner-produced Finding was not created.' >&2; exit 1; } || true
+          git commit -m 'learning: preserve #483 skill semantic drift finding'
+          git push origin HEAD:${GITHUB_REF_NAME}
