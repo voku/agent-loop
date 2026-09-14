@@ -185,6 +185,44 @@ final class WorkflowContextCommandTest extends TestCase
         self::assertNotContains('agent-map: index missing (.agent-loop/map/php-symbols.json)', $context['skipped']);
     }
 
+    public function testContextProjectsMethodsFromCompiledRecallNavigationFacts(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', json_encode([
+            'schema_version' => '1.0',
+            'bundle_sha256' => hash('sha256', 'bundle-test'),
+            'facts' => [[
+                'id' => 'map.file.src/Foo.php',
+                'type' => 'navigation',
+                'authority' => 'derived_navigation',
+                'source_ref' => '.agent-loop/map/php-symbols.json',
+                'scope' => ['src/Foo.php'],
+                'payload' => [
+                    'path' => 'src/Foo.php',
+                    'symbols' => [[
+                        'name' => 'BundleFoo',
+                        'fqn' => 'Demo\\BundleFoo',
+                        'kind' => 'class',
+                        'line_start' => 7,
+                        'line_end' => 20,
+                        'methods' => [[
+                            'name' => 'doWork',
+                            'line_start' => 12,
+                            'line_end' => 18,
+                        ]],
+                    ]],
+                ],
+                'conflict_key' => null,
+            ]],
+        ], JSON_THROW_ON_ERROR));
+        unlink($this->root . '/.agent-loop/map/php-symbols.json');
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $lines = implode("\n", $context['lines']);
+
+        self::assertStringContainsString('Demo\\BundleFoo — src/Foo.php:7', $lines);
+        self::assertStringContainsString('BundleFoo::doWork() — src/Foo.php:12', $lines);
+    }
+
     public function testContextRendersSmallKanbanFactWithoutReadingBoardAgain(): void
     {
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', json_encode([

@@ -459,6 +459,15 @@ final readonly class WorkflowContextCommand
                 }
                 $line = is_int($symbol['line_start'] ?? null) ? $symbol['line_start'] : 0;
                 $budget->add('symbol', '  ' . $symbol['fqn'] . ' — ' . $file . ':' . $line);
+                $name = is_string($symbol['name'] ?? null) && $symbol['name'] !== '' ? $symbol['name'] : $symbol['fqn'];
+                $methods = is_array($symbol['methods'] ?? null) ? $symbol['methods'] : [];
+                foreach ($methods as $method) {
+                    if (!is_array($method) || !is_string($method['name'] ?? null)) {
+                        continue;
+                    }
+                    $methodLine = is_int($method['line_start'] ?? null) ? $method['line_start'] : 0;
+                    $budget->add('symbol', '    ' . $name . '::' . $method['name'] . '() — ' . $file . ':' . $methodLine);
+                }
             }
         }
 
