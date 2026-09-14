@@ -1,0 +1,52 @@
+{
+    "id": "finding.2026-09-14.483001",
+    "task_id": "GH-483",
+    "session": "2026-09-14-package-skill-semantic-drift-census",
+    "created_at": "2026-09-14T04:06:25+00:00",
+    "created_by": "github-evidence",
+    "scope": [
+        "voku/agent-learning:resources/skills/agent-learning-consumer/SKILL.md",
+        "voku/agent-recall-compiler:resources/skills/agent-recall-consumer/SKILL.md"
+    ],
+    "observation": "Across agent-learning and agent-recall-compiler, deterministic public owner contracts changed before package-owned consumer skills were updated: Recall CLI defaults moved to .agent-loop before the canonical skill repair, and typed Finding/LearningNote owner boundaries were reflected in consumer guidance in later commits. The audited current skill heads are repaired, so the recurring failure is semantic timing drift rather than current stale prose.",
+    "evidence": [
+        {
+            "type": "issue_reference",
+            "issue": "voku/agent-loop#483"
+        },
+        {
+            "type": "review_comment",
+            "reference": "https://github.com/voku/agent-loop/issues/483#issuecomment-5658790428"
+        },
+        {
+            "type": "commit",
+            "commit": "voku/agent-recall-compiler@4e19e1ab51100d566eadde6d4b793996041154c7"
+        },
+        {
+            "type": "commit",
+            "commit": "voku/agent-recall-compiler@e1717c3a0940c839fd5936372d6380a78cc9572d"
+        },
+        {
+            "type": "commit",
+            "commit": "voku/agent-learning@1af7daa87595ed48c0d4d00b0ded2b388c40e3ee"
+        },
+        {
+            "type": "commit",
+            "commit": "voku/agent-learning@43eb7eca381c0974bc707ab0b9cd8c5085ceefdc"
+        },
+        {
+            "type": "commit",
+            "commit": "voku/agent-learning@2293365778d4fcfa2cdc8419e44b059303976bed"
+        },
+        {
+            "type": "commit",
+            "commit": "voku/agent-learning@9c64a066abb56bf235ebf21eb3846a127edf90bb"
+        }
+    ],
+    "hypothesis": "Correct package provenance and hashes do not prevent semantic skill drift because consumer guidance is not mechanically coupled to deterministic public owner-contract changes. Commands, defaults, state vocabulary, and typed owner boundaries need same-change alignment or a focused owner-side parity regression.",
+    "validated_conclusion": "Independent Learning and Recall histories confirm that a package-owned consumer skill can remain valid and correctly exported while becoming operationally stale after a deterministic public owner contract changes. Same-change skill updates or focused parity regressions prevent the observed lag; no current stale claim was found in the two audited skill heads.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
