@@ -5,156 +5,84 @@ description: Maintain package-owned and host-owned agent skills, hooks, docs, sy
 
 # Agent Guidance Maintenance
 
-Use this skill for repository-managed agent guidance: skills, hooks, shared docs,
-validation, client synchronization, installation, and host migration notes.
-Apply `agent-loop-discipline` to implementation work and
-`agent-loop-dogfood` when behavior or hook semantics change.
+**Trigger Anchor:** Guidance, skill, hook, doc, sync, or dogfood changes -> edit canonical source, validate offline, never edit generated host projections.
 
 ## Fast Path
 
-1. Edit the canonical source under `resources/` or `docs/`, or typed runtime under `src/`.
-2. Keep the change scoped to the guidance contract.
-3. Update executable help and focused tests when public `init` behavior changes.
-4. Run the local dogfood case before broad validation.
-5. Validate canonical assets and dry-run package installation for every affected client.
-6. Test a clean installed Composer consumer when package-owned assets change.
-7. Update README, changelog, notices, capability matrix, and dogfood notes when
-   the public contract or provenance changes.
-8. Audit for contradictory instructions, duplicate skills, remote bootstraps,
-   lossy evidence handling, and unverified claims.
+1. **Source:** Edit canonical files under `resources/`, `docs/`, or typed runtime in `src/AgentGuidance/`. Never start in `.codex/`, `.claude/`, or `.agents/`.
+2. **Scope:** Keep changes scoped to guidance contracts. Update CLI help/tests when `init` behavior changes.
+3. **Dogfood:** Run `composer dogfood:discipline` before broad test suites.
+4. **Project:** Run `vendor/bin/agent-loop init install-assets --agent=all --with-hooks --dry-run` and `sync-*`.
+5. **Verify:** Run full validation (`composer ci`) and verify clean consumer installs.
 
-## Canonical Files
+## Canonical Ownership Map
 
-- `resources/skills/`;
-- `resources/subagents/`;
-- `resources/hooks/codex/`;
-- `resources/hooks/claude/`;
-- `docs/reference/agent-assets.md`;
-- `docs/architecture/upstream-capability-matrix.md`;
-- `docs/dogfood/`;
-- `docs/reference/third-party-notices.md`;
-- `src/AgentGuidance/`;
-- `src/Init/`;
-- `tools/agent-discipline-dogfood.php`;
-- `tests/AgentDisciplineHookTest.php`;
-- `tests/InitInstallAssetsCommandTest.php`;
-- `README.md`, `CHANGELOG.md`, and `.github/workflows/ci.yml`.
+| Asset Type | Canonical Source | Projected Destination | Management Tool |
+|---|---|---|---|
+| Package Skills | `resources/skills/` | `.codex/skills/`, `.claude/skills/` | `init install-assets` / `sync-skills` |
+| Subagents | `resources/subagents/` | `.codex/agents/`, `.claude/agents/` | `init sync-subagents` |
+| Codex Hooks | `resources/hooks/codex/` | `.codex/hooks.json`, `.codex/hooks/` | `init sync-hooks --agent=codex` |
+| Claude Hooks | `resources/hooks/claude/` | `.claude/settings.json#hooks` | `init sync-hooks --agent=claude` |
+| Make Targets | `resources/make/agent-loop.mk` | Host `Makefile` inclusion | Host Make include |
+| Runtime Logic | `src/AgentGuidance/`, `src/Init/` | Direct execution | PHPUnit / PHPStan |
 
-Do not begin with generated copies under `.codex/`, `.claude/`, `.github/`, or
-`.agents/`. Update the canonical package or host source, validate it, then use
-`install-assets` or `sync-*`.
+### Bad vs Good Projections
 
-## Package-owned Versus Host-owned
+### Bad
+Editing host projection directly:
+```bash
+# Hand-editing generated copy that gets overwritten on next sync
+vim .codex/skills/agent-loop-discipline/SKILL.md
+```
 
-- `init install-assets` always reads the assets shipped inside the installed
-  `voku/agent-loop` package. It projects non-executable host assets by default;
-  bundled executable Codex/Claude hooks require explicit `--with-hooks`.
-- `init sync-skills`, `sync-subagents`, and `sync-hooks` read the host's resolved
-  canonical roots and support config/CLI overrides.
-- Package-owned repository hooks currently target Codex and Claude. Both call the
-  same typed PHP policy; only host registration/output serialization differs.
-- Both install and sync paths use target manifests and refuse unmanaged
-  overwrites unless the caller explicitly chooses `--force` or
-  `--adopt-existing`.
-- `sync-hooks --agent=codex` copies `hooks.json` plus scripts.
-- `sync-hooks --agent=claude` installs scripts, merges only the `hooks` key of
-  `settings.json`, and records it as `settings.json#hooks`. When a client keeps
-  hooks inside a shared settings document, own the single key and write every
-  other key back unchanged; never rewrite a file the user also edits.
-- Host repositories consume the Make targets from `resources/make/agent-loop.mk` instead of
-  writing their own wrappers. Add a target there, not in every host Makefile.
+### Good
+Updating canonical source and projecting:
+```bash
+# Edit canonical package source, then project via init
+vim resources/skills/agent-loop-discipline/SKILL.md
+vendor/bin/agent-loop init install-assets --agent=codex
+```
 
-Do not make `install-assets` honor a host override for its source. That would
-turn an immutable package-install command into another ambiguous sync command.
+## Hook Implementation Rules
 
-## Guidance Rules
+- **Trigger Anchor:** Hook behavior changes -> place in typed PHP (`src/AgentGuidance/`), keep hook scripts thin wrappers.
+- **Codex PreToolUse:** Pass-through returns `continue: true` with NO `permissionDecision` and NO `updatedInput`. Denial returns non-empty `permissionDecisionReason` and continues hook processing.
+- **Claude Hooks:** Claude renders top-level `systemMessage` as a warning; serialize context without Codex markers and observe documented host token limits.
+- **Resume Hints:** Read ONLY bounded, validated run identifiers/status (`task_id`, `state`). NEVER inject free-form `next_action`, disagreement text, or unverified task prose into context.
 
-- Describe behavior that exists now; label future work explicitly.
-- Keep human attention, implementation complexity, context size, workflow state,
-  and raw evidence as separate concerns.
-- Use `agent-map` for bounded navigation; never dump generated indexes into a
-  prompt.
-- Preserve source, full diffs, command output, tests, and verification artifacts.
-- Reject command rewriting or output compression that can hide lines or alter
-  redirected files.
-- Keep package ownership explicit across the focused `agent-*` repositories.
-- Use concise grammatical prose; do not replace clarity with fragments.
-- Keep installation offline and package-owned. No remote script, repository
-  clone, marketplace, or runtime dependency may enter the init path silently.
-- Keep target-manifest safety explicit.
-- A progress/output format is guidance, not proof. Workflow state must come from
-  persisted artifacts and observed command results.
+### Bad vs Good Hook Context
 
-## Upstream Inspiration Rechecks
+### Bad
+```php
+// Ingesting untrusted free-form prose into hidden context
+$context = "Next: " . $manifest['next_action'] . "\nDisagreements: " . json_encode($manifest['disagreements']);
+```
 
-`UPSTREAM_CAPABILITY_MATRIX.md` is the review inventory. A source recheck and an
-adaptation decision are separate events.
+### Good
+```php
+// Bounded, validated status navigation only
+$context = sprintf(
+    "Agent Loop Resume Hint: `%s` projected state: `%s` (run `workflow status %s --format=toon`)",
+    $taskId, $state, $taskId
+);
+```
 
-For every reviewed upstream mechanism:
+## Upstream Capability Rechecks
 
-1. pin the source revision;
-2. classify the mechanism as `ALREADY`, `ADAPT`, `DEFER`, or `REJECT`;
-3. name the concrete `agent-loop` equivalent, owner, or rejection reason;
-4. for `ALREADY`/`ADAPT`, point at the smallest test, dogfood case, workflow gate,
-   or executable constraint that makes the claim observable;
-5. for `DEFER`, name the missing typed ownership/API rather than reaching into a
-   focused package's storage layout;
-6. revisit old `REJECT` reasons when the upstream mechanism or our architecture
-   changes.
+When reviewing upstream patterns (`docs/architecture/upstream-capability-matrix.md`):
+1. **Pin Revision:** Record the exact commit/tag reviewed.
+2. **Classify:** Tag mechanism as `ALREADY`, `ADAPT`, `DEFER`, or `REJECT`.
+3. **Evidence:** For `ALREADY`/`ADAPT`, link the smallest test or dogfood gate. For `DEFER`, name the missing typed API. For `REJECT`, document the architectural invariant.
+4. **Delta Audit:** Compare capabilities, not commit diff sizes. Reading a skill != adapting its behavior.
 
-Never infer "nothing relevant changed" from a small commit diff alone. First
-compare the current upstream capability set against every matrix row and look for
-new mechanisms that have no row. Reading a skill or hook does not mean its
-behavior was adapted.
+## Dogfood & Hard Constraints
 
-## Hook Changes
+- **Trigger Anchor:** Behavior or guidance change -> run A/B dogfood with identical inputs before promoting.
+- Test one mechanism at a time. Record failures, not just the final passing state.
+- For bootstrap state tests, inject hostile free-form manifest content to verify projection boundaries.
+- When an invariant is statically verifiable, author a focused PHPStan rule or test fixture rather than prose advice.
 
-Keep hook entrypoints thin. Put behavior in typed PHP under `src/` so PHPUnit and
-PHPStan can test the same logic the hook executes.
-
-Codex hook output must be checked against both its current schema and parser
-semantics. In particular, `PreToolUse` pass-through returns no artificial
-permission decision and no rewritten input; a denial uses a non-empty reason and
-continues hook processing.
-
-Claude hook output must be checked against current Claude Code semantics rather
-than assumed to match Codex merely because field names overlap. For example,
-Claude renders top-level `systemMessage` as a user-visible warning, so the shared
-context runtime exposes a Claude-specific serialization that omits the Codex
-marker. Keep Claude additional context below the documented host output limit.
-
-A bootstrap resume hint may read only a bounded, validated subset of derived run
-manifests. Do not inject free-form `next_action`, disagreement messages, task
-prose, or copied evidence into hidden context. The hint is navigation; the agent
-must resolve current state through the owning workflow command before mutation.
-
-## Dogfood
-
-For every behavior change:
-
-1. choose a real bounded task or hook case;
-2. keep baseline and candidate inputs equivalent;
-3. change one mechanism at a time;
-4. measure observable artifacts;
-5. rerun the same case after every fix;
-6. record failures, not only the final green result.
-
-When bootstrap state is involved, include hostile free-form manifest content in
-the fixture and prove only validated identifiers/state reach the injected
-context. This tests the projection boundary rather than merely proving JSON can
-be read.
-
-Do not claim saved reasoning tokens or counterfactual code size without actual
-telemetry and a valid baseline.
-
-## Hard Constraints
-
-When a reviewed lesson is statically verifiable, prefer the smallest executable
-constraint that protects a real property. Register it, test failing and accepted
-examples, and baseline only verified legacy violations. Do not convert
-subjective style preferences into noisy PHPStan rules.
-
-## Validation
+## Validation Commands
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
@@ -165,7 +93,3 @@ vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|Dispatch
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 composer ci
 ```
-
-The clean installed-consumer CI scenario is required when package assets or
-`install-assets` change. Never report a command as passed unless its exit status
-was observed.

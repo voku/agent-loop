@@ -5,112 +5,59 @@ description: Capture reusable lessons about agent-loop workflow, validation, mig
 
 # Agent Learning
 
-Use this skill after implementation or migration work exposes a reusable lesson
-for `agent-loop` or another `agent-*` package. Keep the lesson evidence-backed,
-bounded, and placed in the surface that owns it.
+**Trigger Anchor:** Reusable lesson or recurring defect discovered -> check existing guidance first, sweep entire backlog, promote to the lowest viable mechanism in the value ladder.
 
 ## Fast Path
 
-1. Check whether the lesson already exists in README, changelog,
-   `docs/`, or `resources/skills/`.
-2. Search history only when prior decisions or failed attempts materially affect
-   the conclusion.
-3. Sweep the complete validated backlog, not only the current session.
-4. Cluster findings by owning package or workflow boundary.
-5. Promote each lesson to the lowest mechanism that solves the verified problem:
-   existing doc, existing skill, focused new skill, typed runtime, test, dogfood
-   case, or executable constraint.
-6. Validate the behavior and name every deliberate residual item.
+1. **Check Existing First:** Inspect README, changelog, `docs/`, and `resources/skills/` before inventing new guidance. Refine the existing home when possible.
+2. **Sweep Full Backlog:** Process all validated, unconsolidated backlog items. Handling only recent findings introduces recency bias.
+3. **Cluster by Owner:** Group findings by owning package (`agent-loop`, `agent-map`, `agent-learning`, etc.) or workflow boundary.
+4. **Promote Down Ladder:** Choose the lowest mechanism that solves the problem (runtime check > static rule > dogfood test > documentation).
+5. **Validate & Record:** Verify exit status of tests/dogfood; record explicit reasons for any deferred items.
 
-## Whole-backlog Discipline
-
-Use the learning registry and backlog gate to enumerate every validated,
-unconsolidated item. Completion means zero residual or an explicit reason for
-each deferred item. Handling only recent findings is recency bias, not a
-maintenance pass.
-
-## Value Ladder
+## Promotion Value Ladder
 
 ```text
-raw finding
-  -> reviewed guidance or durable memory
-  -> typed runtime or dogfood case when behavior must execute
-  -> static constraint when the property is reliably analyzable
+Raw Finding (observed, evidence-backed defect/discovery)
+  -> Reviewed Guidance / Memory (documented convention or skill rule)
+  -> Typed Runtime / Dogfood Case (automated behavioral enforcement)
+  -> Static Constraint (PHPStan / CI rule for statically verifiable invariants)
 ```
 
-Do not stop at a memory sentence when a small test, hook runtime, or PHPStan rule
-can prevent recurrence. Do not create executable noise for subjective advice.
+| Mechanism | Target Location | When to Use |
+|---|---|---|
+| Static Rule | PHPStan custom rules / coding standards | Statically verifiable property; avoids noisy style preferences |
+| Typed Runtime | `src/AgentGuidance/`, `src/Init/` | Behavior must execute deterministically during operation |
+| Dogfood Gate | `tools/agent-discipline-dogfood.php`, `docs/dogfood/` | Skill/hook/prompt regression prevention |
+| Targeted Skill | `resources/skills/<skill-name>/SKILL.md` | Domain heuristic or workflow decision boundaries (e.g. `agent-loop-discipline` for adaptive PHP navigation) |
+| Durable Memory | `.agent-loop/learning/` or `MEMORY.md` | General reviewable precedent needing human validation |
 
-## Evidence Integrity
+### Bad vs Good Promotion
 
-Source, full diffs, command output, tests, static-analysis output, and generated
-verification artifacts remain unchanged during evaluation. Concise human-facing
-summaries may point to evidence; they never replace it.
+### Bad
+Promoting a vague memory rule for a statically checkable bug:
+```text
+# Memory note: Remember to check if method arguments match in all calls.
+```
 
-When a harness redirects output, read the stored file and record size, line
-count, or hash when completeness matters. Do not infer a pass from silence or an
-agent explanation.
+### Good
+Promoting to executable PHPStan rule or typed runtime check:
+```php
+// Custom PHPStan rule: enforce exact parameter count or fail at static analysis
+if (count($methodCall->getArgs()) < $requiredCount) {
+    return [RuleErrorBuilder::message('Parameter count mismatch')->build()];
+}
+```
 
-## Guidance Dogfood
-
-Use `agent-loop-dogfood` when changing skills, hooks, recall, edit orchestration,
-or map navigation behavior:
-
-- baseline and candidate use the same task and repository revision;
-- compare observable artifacts and review quality;
-- change one mechanism at a time;
-- rerun the same case after a failure;
-- record failed iterations in `docs/dogfood/`;
-- add the stable case to `composer dogfood:discipline` or the installed-consumer
-  gate when it protects a package contract.
-
-Do not publish token or code savings without provider telemetry and a valid
-baseline. The unbuilt alternative is not measurable evidence.
-
-## Existing Guidance First
-
-Inspect:
-
-- `docs/reference/agent-assets.md`;
-- `agent-loop-discipline`;
-- `agent-loop-simplify-review`;
-- `agent-loop-dogfood`;
-- the relevant workflow skill;
-- `docs/dogfood/` and `THIRD_PARTY_NOTICES.md`;
-- `docs/workflow/learning-boundary.md`;
-- README and changelog.
-
-Refine the existing home instead of creating duplicate rules with different
-names.
-
-## Historical Context
+## Historical Context (`ctx`)
 
 ```bash
 ctx search "<task / migration / failure / command>"
 ctx show event <ctx-event-id> --window 5
 ```
+History explains provenance; it does NOT prove current behavior. Persist only bounded event IDs and verified summaries. Never copy raw transcripts or secrets into findings.
 
-History explains what happened; it does not prove current behavior. Persist only
-bounded IDs, query, retrieval time, reviewed summary, and verification status.
-Never promote raw transcripts or secrets.
-
-## Promotion Targets
-
-- `agent-loop-discipline` for adaptive PHP navigation, minimal PHP changes,
-  concise communication, package ownership, and evidence integrity;
-- `agent-loop-simplify-review` for complexity-only review;
-- `agent-loop-dogfood` and `docs/dogfood/` for repeatable behavioral
-  evaluation;
-- typed classes under `src/AgentGuidance/` when behavior must execute;
-- focused PHPUnit and installed-consumer scenarios for runtime/package contracts;
-- shared docs and workflow docs for operational boundaries;
-- PHPStan or coding-standard rules for precise static constraints;
-- changelog for released or unreleased behavior.
-
-Keep lessons specific. Good guidance names a command, file, consumer, failure
-boundary, and verification. Generic slogans are decoration.
-
-## Validation
+## Validation Commands
 
 ```bash
 vendor/bin/agent-loop init doctor
@@ -121,6 +68,3 @@ vendor/bin/phpunit --filter 'AgentDisciplineHook|InitInstallAssets|Init|Dispatch
 vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
 composer ci
 ```
-
-The installed-consumer gate is required when package-owned assets change. Claim
-only validation whose exit status was observed.

@@ -5,136 +5,64 @@ description: Locate PHP definitions, callers, tests, change sites, and evidence-
 
 # Agent Loop Investigate
 
-Use this for "where is X", "what calls Y", "which tests cover Z", or before a shared PHP change when the owning path is not already known.
+**Trigger Anchor:** Locating symbols, callers, tests, or impact sites -> query `agent-map` first, verify selected ranges in real source, report exact `path:line` evidence, and stop without editing.
 
-## Job
+## Navigation Decision Table
 
-Locate. Verify in real source. Report. Stop.
+| Question / Target | Primary Tool Command | Follow-up Verification |
+|---|---|---|
+| Named class/method/function | `vendor/bin/agent-loop map scope '<symbol>' --format=toon` | Read exact source range reported |
+| Method edit preparation | `vendor/bin/agent-loop map context '<symbol>' --format=toon` | Inspect callers, callees, tests |
+| Exact callers / callees | `vendor/bin/agent-loop map callers '<symbol>' --format=toon`<br>`vendor/bin/agent-loop map callees '<symbol>' --format=toon` | Verify call sites in calling files |
+| File-scoped symbols | `vendor/bin/agent-loop map file <path> --format=toon` | Inspect classes/methods in file |
+| Approximate keyword search | `vendor/bin/agent-loop map query <term> --format=toon`<br>`vendor/bin/agent-loop map related <term> --format=toon` | Switch to `map scope` once identity resolved |
+| Diff symbol changes | `vendor/bin/agent-loop map changed --base=<ref> --format=toon` | Inspect modified public symbols |
+| Unfamiliar repository | `vendor/bin/agent-loop map discover --limit=10`<br>`vendor/bin/agent-loop map discover --region=<region-id>` | Narrow to region, then symbol `scope` |
+| Deep change impact | `vendor/bin/agent-loop map impact '<symbol>' --depth=2` | Inspect uncertain propagation paths |
+| Temporal co-change | `vendor/bin/agent-loop map history coupling --commits=100 --top=20`<br>`vendor/bin/agent-loop map history claims --commits=100` | Verify claims in current source |
+| Literal/config/template | `rg '<pattern>'` or `rg --files` | Only when Map cannot model the entity |
 
-Do not edit code and do not turn a locator task into architecture advice.
+Never dump generated `.agent-loop/map` databases. Map output is navigation coordinates; verify against real source.
+Do not use text search to rediscover a PHP identity that `scope` already resolves.
+`map history claims` is a heuristic lead, never source truth. Do not run `history observe` during investigation; record history only at a clean Git checkpoint.
+Read-only: locate and report without editing.
 
-## Navigation
+### Bad vs Good Navigation
 
-When the task already names a concrete PHP class, method, or function, resolve that identity directly instead of rediscovering it through fuzzy/text search:
-
+### Bad
 ```bash
-vendor/bin/agent-loop map scope '<symbol>' --format=toon
+# Grepping repository repeatedly to find class declaration and callers
+grep -rn "class UserService" src/
+grep -rn "->save(" src/
 ```
 
-`scope` is the cheapest exact structural view: it reports the resolved source range and bounded calls inside that range. If the short symbol is ambiguous, retry with the fully qualified identity rather than choosing a ranked match.
-
-When the investigation is preparation for an intended method edit, use bounded edit context before broadening:
-
+### Good
 ```bash
-vendor/bin/agent-loop map context '<symbol>' --format=toon
+# Exact structural resolution via map scope and context
+vendor/bin/agent-loop map scope 'App\Service\UserService::save' --format=toon
+vendor/bin/agent-loop map context 'App\Service\UserService::save' --format=toon
 ```
-
-The result may already contain the primary method, contracts/overrides, direct callers that may need adaptation, direct callees, referenced signature types, relevant tests, blind spots, omissions, and bounded source slices. Do not repeat those facts with repository-wide search merely because another tool can.
-
-Ask exact relation questions only when the relation itself is the task or remains unresolved after context:
-
-```bash
-vendor/bin/agent-loop map callers '<symbol>' --format=toon
-vendor/bin/agent-loop map callees '<symbol>' --format=toon
-```
-
-When the task names a path rather than a symbol, inspect the indexed file directly:
-
-```bash
-vendor/bin/agent-loop map file <path> --format=toon
-```
-
-When the PHP target is not known yet, narrow with existing Map navigation before guessing source files:
-
-```bash
-vendor/bin/agent-loop map query <term> --format=toon
-vendor/bin/agent-loop map related <term> --format=toon
-vendor/bin/agent-loop map changed --base=<ref> --format=toon
-```
-
-When the PHP repository is unfamiliar and the task does **not** identify a useful symbol/path yet, orient once before guessing search terms:
-
-```bash
-vendor/bin/agent-loop map discover --limit=10
-```
-
-Treat the inferred architecture as a navigation coordinate, not a subsystem oracle. Choose the smallest plausible region from the reported hierarchy and inspect it before switching to symbol queries:
-
-```bash
-vendor/bin/agent-loop map discover --region=<label-or-id> --limit=10
-```
-
-The region drill-down is the bridge between repository-level orientation and concrete source navigation. It exposes the selected root-to-region path, bounded files, interface files, and boundary evidence. Namespace-less PHP remains first-class because directory and file structure are independent architecture signals.
-
-After the region is narrowed, switch to `scope` as soon as one exact symbol is known. Use `query`, `related`, `callers`, `callees`, or bounded source reads only for the remaining question. Do not repeat repository-wide discovery once a plausible region or concrete target is known.
-
-For a proposed shared-method change, use architecture-aware impact only when propagation beyond exact callers/context is the actual question:
-
-```bash
-vendor/bin/agent-loop map impact 'App\\Service\\Thing::run' --depth=2
-```
-
-Impact keeps exact node evidence and uncertainty while grouping propagation by inferred architecture region. Dynamic or multiple-target paths remain uncertain.
-
-## Temporal Evidence
-
-Use temporal evidence only when the question is about change risk, recurring co-change, a suspected hidden relationship, or how an entity evolved. Do not pay for history on every locator task.
-
-Start with bounded Git co-change and explicit heuristic claims:
-
-```bash
-vendor/bin/agent-loop map history coupling --commits=100 --top=20
-vendor/bin/agent-loop map history claims --commits=100 --top=20 --min-ratio=0.6
-```
-
-`history coupling` is evidence. `history claims` is a heuristic navigation lead, never source truth or a refactoring instruction. Keep its supporting commit revisions and verify the current relationship through the map and real source before reporting a conclusion.
-
-When the configured map history database exists and the evolution of a known entity matters, inspect it through the wrapper rather than opening the database directly:
-
-```bash
-vendor/bin/agent-loop map history show 'method:App\\Service\\Thing::run'
-```
-
-If explicit before/after map snapshots already exist, `map history diff --before=... --after=...` can expose structural lifecycle facts without guessing from Git text diffs.
-
-Do not run `history observe` during investigation or while tracked files are dirty. Recording history belongs at a clean Git checkpoint, post-merge/CI boundary, or another explicit reproducible state. Investigation reads temporal evidence; it does not manufacture a new observation just to answer the current question.
-
-When a physical map path is needed, ask the project layout:
-
-```bash
-vendor/bin/agent-loop init paths --format=json
-```
-
-Never dump the generated symbol index, search database, or history database. Map and temporal output are navigation/evidence, not a substitute for source verification. Read only the selected real source ranges before reporting a hit.
-
-Use `rg`/`rg --files` only when the question is literal/string/config/template/filename-shaped or Map cannot model the required evidence. Do not use text search to rediscover a PHP identity that `scope` already resolves.
 
 ## Terminal Result Contract
 
-Verified hits:
-
+Verified matches:
 ```text
 STATUS: located
 <path>:<line> — `<symbol>` — <short factual role>
 ```
+*(Group 3+ results under Defs, Callers, Tests, Refs, or Sites)*
 
-Group 3+ results under `Defs`, `Callers`, `Tests`, `Refs`, or `Sites`. End with counts when useful.
-
-No verified hit:
-
+No match found:
 ```text
 STATUS: no_match
 ```
 
-Required source/context cannot be read or verified:
-
+Missing context or unreadable source:
 ```text
 STATUS: blocked
-UNKNOWN: <exact missing source/context>.
+UNKNOWN: <exact missing source file or context>
 ```
-
-Keep exact paths, line numbers, symbols, literals, relevant caller relationships, and temporal revision evidence when used. No exploration diary. Never turn `no_match` into a guessed location.
 
 ## Escalation
 
-If the request changes from locating to editing, return the verified target set and stop. Use `agent-loop-surgical-edit` for a bounded 1-2 file change or the normal governed workflow for broader work.
+Read-only locator role. If work changes from finding to editing, return the verified target set and escalate to `agent-loop-surgical-edit` (1–2 files) or the main governed workflow (3+ files or architectural change).
