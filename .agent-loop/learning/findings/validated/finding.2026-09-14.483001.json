@@ -48,5 +48,12 @@
     "confidence": "high",
     "validation_status": "validated",
     "status": "validated",
-    "sensitivity": "public"
+    "sensitivity": "public",
+    "classification": "NO_DURABLE_LEARNING",
+    "pattern_key": "skills.semantic_drift_after_contract_change",
+    "validation_case": {
+        "given": "A package-owned consumer skill is valid and correctly exported after public owner contracts change.",
+        "when": "Deterministic owner contracts change before consumer guidance or parity regressions are updated.",
+        "then": "Timing drift is addressed by same-change skill alignment and structural parity tests rather than durable soft guidance."
+    }
 }
