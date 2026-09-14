@@ -36,7 +36,7 @@ final class NoInProcessPhpstanRuleTestCaseRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if ($node->extends === null || ltrim($node->extends->toString(), '\\') !== self::RULE_TEST_CASE) {
+        if ($node->extends === null || $scope->resolveName($node->extends) !== self::RULE_TEST_CASE) {
             return [];
         }
 
