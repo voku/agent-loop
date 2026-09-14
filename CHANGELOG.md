@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Project method details from compiled Recall navigation facts in `WorkflowContextCommand`: renders method names and line numbers (`BundleFoo::doWork() — src/Foo.php:12`) directly from recall facts, removing archaeological grep calls for method locations.
+- Formalize canonical closed-loop learning ladder and GH-457 proof in documentation: deconstructs the fast Evidence Loop (`Finding -> LearningNote -> Recall -> Decision`) from the durable Promotion Loop (`Dream -> Proposal -> Human Approval -> Constraint/Skill -> Mechanical Enforcement -> Guidance Retirement`).
+- Record validated findings `finding.2026-09-14.481001` (constraint alias falsification) and `finding.2026-09-14.483001` (package skill semantic drift).
+
+### Changed
+
+- Bump `voku/agent-learning` to `^0.18.15` to consume typed `CorpusAnalyticsService`, strict retirement categorization (`CAPTURED_IN_TARGET_HOME`, `COMPILED_DOWN_TO_ACTIVE_CONSTRAINT`), and stale applied guidance proof diagnostics.
+- Set Composer `process-timeout` to 900 seconds in `composer.json` so full test suites pass without ambient environment variable workarounds.
+
+### Fixed
+
+- Enforce in-process PHPStan `RuleTestCase` constraint through resolved names: `NoInProcessPhpstanRuleTestCaseRule` resolves AST class names through PHPStan Scope so aliased imports (`use PHPStan\Testing\RuleTestCase as BaseRuleTestCase;`) are caught deterministically (#481, #482).
+
 ## 0.20.10 - 2026-09-14
 
 ### Fixed

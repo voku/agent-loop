@@ -65,6 +65,7 @@
   },
   "config": {
     "allow-plugins": false,
+    "process-timeout": 900,
     "sort-packages": true
   },
   "suggest": {
