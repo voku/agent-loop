@@ -1,0 +1,62 @@
+name: GH-483 owner Finding evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-owner-finding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Create validated Finding through released Learning owner CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          finding_id='finding.2026-09-14.483001'
+          finding_path=".agent-loop/learning/findings/validated/${finding_id}.json"
+          test ! -e "${finding_path}"
+
+          php vendor/bin/agent-learning finding-create \
+            --root .agent-loop/learning \
+            --id "${finding_id}" \
+            --task GH-483 \
+            --session 2026-09-14-package-skill-semantic-drift-census \
+            --by github-evidence \
+            --scope 'voku/agent-learning:resources/skills/agent-learning-consumer/SKILL.md' \
+            --scope 'voku/agent-recall-compiler:resources/skills/agent-recall-consumer/SKILL.md' \
+            --observation 'Across agent-learning and agent-recall-compiler, deterministic public owner contracts changed before package-owned consumer skills were updated: Recall CLI defaults moved to .agent-loop before the canonical skill repair, and typed Finding/LearningNote owner boundaries were reflected in consumer guidance in later commits. The audited current skill heads are repaired, so the recurring failure is semantic timing drift rather than current stale prose.' \
+            --hypothesis 'Correct package provenance and hashes do not prevent semantic skill drift because consumer guidance is not mechanically coupled to deterministic public owner-contract changes. Commands, defaults, state vocabulary, and typed owner boundaries need same-change alignment or a focused owner-side parity regression.' \
+            --conclusion 'Independent Learning and Recall histories confirm that a package-owned consumer skill can remain valid and correctly exported while becoming operationally stale after a deterministic public owner contract changes. Same-change skill updates or focused parity regressions prevent the observed lag; no current stale claim was found in the two audited skill heads.' \
+            --confidence high \
+            --sensitivity public \
+            --evidence-json '{"type":"issue_reference","issue":"voku/agent-loop#483"}' \
+            --evidence-json '{"type":"review_comment","reference":"https://github.com/voku/agent-loop/issues/483#issuecomment-5658790428"}' \
+            --evidence-json '{"type":"commit","commit":"voku/agent-recall-compiler@4e19e1ab51100d566eadde6d4b793996041154c7"}' \
+            --evidence-json '{"type":"commit","commit":"voku/agent-recall-compiler@e1717c3a0940c839fd5936372d6380a78cc9572d"}' \
+            --evidence-json '{"type":"commit","commit":"voku/agent-learning@1af7daa87595ed48c0d4d00b0ded2b388c40e3ee"}' \
+            --evidence-json '{"type":"commit","commit":"voku/agent-learning@43eb7eca381c0974bc707ab0b9cd8c5085ceefdc"}' \
+            --evidence-json '{"type":"commit","commit":"voku/agent-learning@2293365778d4fcfa2cdc8419e44b059303976bed"}' \
+            --evidence-json '{"type":"commit","commit":"voku/agent-learning@9c64a066abb56bf235ebf21eb3846a127edf90bb"}'
+
+          php vendor/bin/agent-learning validate --root .agent-loop/learning
+          test -s "${finding_path}"
+          mkdir -p build/gh-483-finding
+          cp "${finding_path}" build/gh-483-finding/
+          cat "${finding_path}"
+      - name: Upload owner-generated Finding
+        uses: actions/upload-artifact@v4
+        with:
+          name: gh-483-owner-finding
+          if-no-files-found: error
+          path: build/gh-483-finding/finding.2026-09-14.483001.json
