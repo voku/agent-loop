@@ -58,32 +58,34 @@ already use.
            v
                   agent-loop finish <task-id>
                            |
-                 current next_action
+                           v
+                  current next_action
                            |
-             +-------------+-------------+
-             |                           |
-             | more work                 | complete
-             |                           v
-             +--------------------> +---------+
-                                    |  CLOSE  |
-                                    +----+----+
-                                         |
-                                         v
-                               useful Finding / outcome
-                                         |
-                                         v
-                                  +-------------+
-                                  |  LEARNING   |
-                                  +------+------+ 
-                                         |
-                           repeated + reviewed?
-                                         |
-                                         v
-                         test / PHPStan / typed API /
-                         other deterministic structure
-                                         |
-                                         v
-                              delete obsolete prose
+                 +---------+---------+
+                 |                   |
+            more work              none
+                 |                   |
+                 v                   v
+         execute current action   +-------+
+                 |                | CLOSE |
+                 +----> finish    +---+---+
+                                      |
+                                      v
+                            useful Finding / outcome
+                                      |
+                                      v
+                               +-------------+
+                               |  LEARNING   |
+                               +------+------+ 
+                                      |
+                        repeated + reviewed?
+                                      |
+                                      v
+                      test / PHPStan / typed API /
+                      other deterministic structure
+                                      |
+                                      v
+                           delete obsolete prose
 ```
 
 The important bit is deliberately boring:
