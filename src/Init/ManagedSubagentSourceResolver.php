@@ -15,9 +15,10 @@ final readonly class ManagedSubagentSourceResolver
     }
 
     /**
+     * @param list<string> $extraRoots absolute roots merged into the desired set, as `install-assets --extra-subagents-root` requests
      * @return array<string, ManagedSubagentSource> subagent-name => source
      */
-    public function resolve(AgentAssetSourcePaths $paths, ?bool $includePackageSubagents = null): array
+    public function resolve(AgentAssetSourcePaths $paths, ?bool $includePackageSubagents = null, array $extraRoots = []): array
     {
         $includePackageSubagents ??= $paths->packageSubagents();
         $sources = [];
@@ -36,6 +37,12 @@ final readonly class ManagedSubagentSourceResolver
 
             if (!$isPackageRoot || $includePackageSubagents) {
                 $this->scanDirectory($sources, $configuredRoot, false);
+            }
+        }
+
+        foreach ($extraRoots as $extraRoot) {
+            if (is_dir($extraRoot)) {
+                $this->scanDirectory($sources, $extraRoot, false);
             }
         }
 

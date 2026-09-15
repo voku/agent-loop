@@ -169,16 +169,29 @@ final class InitSyncManifest
     }
 
     /**
+     * Records fresh projections for `$sources`.
+     *
+     * `$retainedEntries` names entries that stay desired although this write did
+     * not materialize them. Their current records are kept verbatim: a scoped
+     * sync copies only part of the desired set, and rebuilding the manifest from
+     * that part alone would strip the ownership evidence of the rest - a package
+     * copy `install-assets` projected would turn unmanaged, and a deleted one
+     * would stop being reported. Retained records are never re-derived from
+     * current sources, so nothing is re-blessed here.
+     *
      * @param array<string, ManagedAssetSource> $sources target entry => semantic source
      * @param list<HostCapability> $requiredCapabilities
      * @param list<string> $adoptedEntries
+     * @param list<string> $retainedEntries
      */
-    public function writeProjections(array $sources, array $requiredCapabilities, array $adoptedEntries = []): void
-    {
-        ksort($sources, SORT_STRING);
+    public function writeProjections(
+        array $sources,
+        array $requiredCapabilities,
+        array $adoptedEntries = [],
+        array $retainedEntries = [],
+    ): void {
         $adopted = array_fill_keys($adoptedEntries, true);
         $targetRoot = dirname($this->path);
-        $records = [];
         $entries = [];
 
         foreach ($sources as $target => $source) {
@@ -201,6 +214,20 @@ final class InitSyncManifest
                 'adopted' => isset($adopted[$target]),
             ];
             $entries[$target] = $entry;
+        }
+
+        if ($this->hasDriftEvidence()) {
+            foreach ($retainedEntries as $target) {
+                $existing = $this->entries[$target] ?? null;
+                if ($existing !== null && !isset($entries[$target])) {
+                    $entries[$target] = $existing;
+                }
+            }
+        }
+
+        ksort($entries, SORT_STRING);
+        $records = [];
+        foreach ($entries as $target => $entry) {
             $records[] = self::projectionRecord($target, $entry, self::PORTABLE_PROVENANCE_VERSION);
         }
 

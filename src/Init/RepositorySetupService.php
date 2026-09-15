@@ -375,13 +375,7 @@ final readonly class RepositorySetupService
         );
 
         return [
-            'paths' => AgentAssetSourcePaths::fromSources(
-                $this->rootPath,
-                $config['paths'],
-                [],
-                $config['package_skills'],
-                $config['package_subagents'],
-            ),
+            'paths' => AgentAssetSourcePaths::fromConfig($this->rootPath, $config),
             'packageSkills' => $config['package_skills'],
             'packageSubagents' => $config['package_subagents'],
         ];

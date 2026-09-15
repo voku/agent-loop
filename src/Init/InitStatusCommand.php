@@ -44,7 +44,7 @@ final readonly class InitStatusCommand
             echo $warning . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config, $this->readPathOverrides($tokens));
 
         echo "agent-loop init status\n\n";
 
@@ -239,7 +239,6 @@ final readonly class InitStatusCommand
             return ['[WARN] ' . $label . ': ' . $exception->getMessage(), null, []];
         }
 
-        $desiredEntries = ManagedAssetExpectationResolver::resolve($manifest, $desiredEntries);
         $managedEntryCount = count($manifest->managedEntries());
         $manifestLine = '[OK] ' . $label . ': manifest found (' . $managedEntryCount . ' managed entrie(s))';
 

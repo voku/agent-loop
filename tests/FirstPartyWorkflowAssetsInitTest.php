@@ -59,11 +59,15 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertArrayHasKey('agent-learning-ctx-evidence', $skills);
         self::assertArrayHasKey('agent-recall-consumer', $skills);
         self::assertArrayHasKey('agent-loop-discipline', $skills);
+        self::assertArrayHasKey('agent-loop-workflow', $skills);
 
         // Maintainer skills MUST NOT be present
         self::assertArrayNotHasKey('agent-learning-maintainer', $skills);
         self::assertArrayNotHasKey('agent-recall-compiler-maintainer', $skills);
         self::assertArrayNotHasKey('agent-session-maintainer', $skills);
+        foreach (['agent-guidance-maintenance', 'agent-learning', 'agent-loop-dogfood'] as $loopMaintainerSkill) {
+            self::assertArrayNotHasKey($loopMaintainerSkill, $skills);
+        }
     }
 
     public function testOwnerRepositoryReceivesItsMaintainerSkills(): void
@@ -106,6 +110,24 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertArrayHasKey('agent-session-maintainer', $sessionSkills);
         self::assertArrayNotHasKey('agent-learning-maintainer', $sessionSkills);
         self::assertArrayNotHasKey('agent-recall-compiler-maintainer', $sessionSkills);
+
+        // 4. Test voku/agent-loop owner: its checked-out maintainer skills are exported
+        $loopRoot = $this->root . '/loop-owner';
+        mkdir($loopRoot, 0o775, true);
+        file_put_contents($loopRoot . '/composer.json', json_encode(['name' => 'voku/agent-loop'], JSON_PRETTY_PRINT));
+        foreach (['agent-guidance-maintenance', 'agent-learning', 'agent-loop-dogfood'] as $loopMaintainerSkill) {
+            mkdir($loopRoot . '/resources/skills/' . $loopMaintainerSkill, 0o775, true);
+            file_put_contents($loopRoot . '/resources/skills/' . $loopMaintainerSkill . '/SKILL.md', "# Loop maintainer\n");
+        }
+
+        $loopSkills = FirstPartyPackageCatalog::exportableSkills($loopRoot);
+        foreach (['agent-guidance-maintenance', 'agent-learning', 'agent-loop-dogfood'] as $loopMaintainerSkill) {
+            self::assertArrayHasKey($loopMaintainerSkill, $loopSkills);
+            self::assertSame(
+                realpath($loopRoot . '/resources/skills/' . $loopMaintainerSkill),
+                $loopSkills[$loopMaintainerSkill]['path'],
+            );
+        }
     }
 
     public function testComposedInstructionsIncludesFragmentsForConsumer(): void

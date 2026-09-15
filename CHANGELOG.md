@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Classify `agent-guidance-maintenance`, `agent-learning`, and `agent-loop-dogfood` as agent-loop maintainer-only skills in `PackageResources`; the first-party export catalog and `init install-assets` no longer project them into consuming repositories.
+- Compute one desired managed asset set per resolved init config: `AgentAssetSourcePaths::fromConfig()` carries `package_skills` / `package_subagents`, and `install-assets`, `sync-skills`, `sync-subagents`, `status`, `doctor`, and `host-status` resolve it through the managed skill/subagent source resolvers.
+
+### Fixed
+
+- Stop `init sync-skills` / `init sync-subagents` without explicit roots from pruning package copies that `install-assets` projected for the same config. Default mode still copies only the configured project root, keeps retained entries' manifest records verbatim, and prunes only entries outside the desired set, so disabling package assets removes their copies. Explicit roots stay root-exact.
+- Stop `init status` and `init doctor` from treating `package_skills: false` / `package_subagents: false` as enabled, and from re-adding first-party manifest entries outside the desired set (`ManagedAssetExpectationResolver` removed).
+
 ## 0.20.11 - 2026-09-14
 
 ### Added

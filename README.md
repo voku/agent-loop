@@ -154,7 +154,12 @@ The first-party set adapts concrete mechanisms reviewed in Caveman and Ponytail:
 | `agent-loop-code-review` | Concise correctness review of the complete raw diff |
 | `agent-loop-simplify-review` | Diff-only review for deletion/reuse/stdlib/native/YAGNI opportunities |
 | `agent-loop-simplify-audit` | Repo-wide simplify audit, prioritized through map/navigation evidence |
-| `agent-loop-dogfood` | Compare observable baseline/candidate artifacts without invented savings |
+| `agent-loop-dogfood` | Compare observable baseline/candidate artifacts without invented savings (maintainer-only) |
+
+`agent-guidance-maintenance`, `agent-learning`, and `agent-loop-dogfood` guide
+work on this package itself and name its own gates, so `init install-assets`
+projects them only into the agent-loop repository, never into a consuming
+project.
 
 The package also installs three dedicated roles where the client exposes a
 repository-local agent-role format:

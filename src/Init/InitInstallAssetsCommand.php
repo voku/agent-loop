@@ -84,15 +84,22 @@ final readonly class InitInstallAssetsCommand
             }
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
+        // The resolved config, narrowed only by explicit --no-package-* flags,
+        // yields the same desired set status, doctor and host-status compute;
+        // install-assets materializes all of it plus explicit extra roots.
+        $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config)
+            ->withPackageSkills($includePackageSkills)
+            ->withPackageSubagents($includePackageSubagents);
         $configuredSkillsRoot = $paths->absoluteSkillsRoot();
         if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $skillRoots, true)) {
             $skillRoots[] = $configuredSkillsRoot;
         }
         $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
+        $absoluteExtraSkillRoots = [];
         foreach ($extraSkillRoots as $extraSkillRoot) {
-            $skillRoots[] = PathResolver::join($this->rootPath, $extraSkillRoot);
+            $absoluteExtraSkillRoots[] = PathResolver::join($this->rootPath, $extraSkillRoot);
         }
+        array_push($skillRoots, ...$absoluteExtraSkillRoots);
 
         $subagentRoots = [];
         if ($includePackageSubagents) {
@@ -106,9 +113,11 @@ final readonly class InitInstallAssetsCommand
             $subagentRoots[] = $configuredSubagentsRoot;
         }
         $extraSubagentRoots = OptionTokens::values($tokens, 'extra-subagents-root');
+        $absoluteExtraSubagentRoots = [];
         foreach ($extraSubagentRoots as $extraSubagentRoot) {
-            $subagentRoots[] = PathResolver::join($this->rootPath, $extraSubagentRoot);
+            $absoluteExtraSubagentRoots[] = PathResolver::join($this->rootPath, $extraSubagentRoot);
         }
+        array_push($subagentRoots, ...$absoluteExtraSubagentRoots);
 
         $installsSubagents = $agent->isAll()
             || in_array($agent->canonicalName(), InitAgent::canonicalNames(), true);
@@ -142,41 +151,44 @@ final readonly class InitInstallAssetsCommand
             }
         }
 
-        $dryRun = in_array('--dry-run', $tokens, true);
-        $forwarded = $this->forwardedTokens($tokens);
-        $skillArguments = [
-            '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
-        ];
-        if ($configPath !== null) {
-            $skillArguments[] = '--config=' . $configPath;
-        }
-        foreach ($skillRoots as $skillRoot) {
-            $skillArguments[] = '--skills-root=' . $skillRoot;
+        try {
+            $skillSources = (new ManagedSkillSourceResolver($this->rootPath))->resolve($paths, null, $absoluteExtraSkillRoots);
+            $subagentSources = $installsSubagents
+                ? (new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths, null, $absoluteExtraSubagentRoots)
+                : [];
+        } catch (InvalidArgumentException $exception) {
+            echo '[FAIL] install assets: ' . $exception->getMessage() . "\n";
+
+            return 1;
         }
 
-        $skillsExit = (new InitSyncSkillsCommand($this->rootPath))->run(array_merge(
-            $skillArguments,
-            $forwarded,
-        ));
+        $dryRun = in_array('--dry-run', $tokens, true);
+        $forwarded = $this->forwardedTokens($tokens);
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
+        $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
+
+        $skillsExit = (new InitSyncSkillsCommand($this->rootPath))->syncResolved(
+            $agents,
+            $skillSources,
+            $skillRoots,
+            $dryRun,
+            $force,
+            $adoptExisting,
+        );
         if ($skillsExit !== 0) {
             return $skillsExit;
         }
 
         if ($installsSubagents) {
-            $subagentArguments = [
-                '--agent=' . ($agent->isAll() ? 'all' : $agent->canonicalName()),
-            ];
-            if ($configPath !== null) {
-                $subagentArguments[] = '--config=' . $configPath;
-            }
-            foreach ($subagentRoots as $subagentRoot) {
-                $subagentArguments[] = '--subagents-root=' . $subagentRoot;
-            }
-
-            $subagentsExit = (new InitSyncSubagentsCommand($this->rootPath))->run(array_merge(
-                $subagentArguments,
-                $forwarded,
-            ));
+            $subagentsExit = (new InitSyncSubagentsCommand($this->rootPath))->syncResolved(
+                $agents,
+                $subagentSources,
+                $subagentRoots,
+                $dryRun,
+                $force,
+                $adoptExisting,
+            );
             if ($subagentsExit !== 0) {
                 return $subagentsExit;
             }

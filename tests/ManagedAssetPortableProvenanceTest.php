@@ -11,7 +11,6 @@ use SplFileInfo;
 use voku\AgentLoop\Init\HostCapability;
 use voku\AgentLoop\Init\InitSyncManifest;
 use voku\AgentLoop\Init\ManagedAssetDriftInspector;
-use voku\AgentLoop\Init\ManagedAssetExpectationResolver;
 use voku\AgentLoop\Init\ManagedAssetSource;
 
 /**
@@ -57,7 +56,12 @@ final class ManagedAssetPortableProvenanceTest extends TestCase
         self::assertStringNotContainsString(dirname(__DIR__), json_encode($payload['entries'][0], JSON_THROW_ON_ERROR));
 
         $reloaded = InitSyncManifest::load($targetRoot, 'skills', 'claude');
-        self::assertSame([$target], ManagedAssetExpectationResolver::resolve($reloaded, []));
+        $record = $reloaded->entry($target);
+        self::assertNotNull($record);
+        self::assertSame(
+            realpath($sourcePath),
+            ManagedAssetSource::resolvePersistedPath((string) $record['semantic_owner'], $record['source_reference'], $record['source_path']),
+        );
 
         $states = ManagedAssetDriftInspector::inspect($reloaded, $targetRoot, 'claude', [$target]);
         self::assertSame([$target], $states['current']);
