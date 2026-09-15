@@ -8,110 +8,105 @@
 [![PHP Version Require](https://poser.pugx.org/voku/agent-loop/require/php)](https://packagist.org/packages/voku/agent-loop)
 [![GitHub Stars](https://img.shields.io/github/stars/voku/agent-loop?style=flat-square)](https://github.com/voku/agent-loop/stargazers)
 
-**Make coding-agent work resumable, auditable, and governed.**
+**Keep coding-agent work moving without losing the task, guessing what comes next, or calling something done without evidence.**
 
-Coding agents are already good at changing code. The harder problem is keeping
-scope, context, evidence, decisions, and lessons coherent across a real task.
+Coding agents are already good at changing code. The harder problem is everything
+around that change: remembering what was agreed, keeping the work inside the right
+scope, giving the agent the context it actually needs, proving the result, and
+carrying useful lessons into the next task.
 
-`voku/agent-loop` adds a durable local workflow around the coding agent you
-already use.
+`voku/agent-loop` adds that workflow around the coding agent you already use.
 
-## Workflow at a glance
-
-```text
-                              HUMAN
-                    intent / approval / risk
-                                |
-                                v
-                    +-----------------------+
-                    |     TASK CONTRACT     |
-                    | goal · scope · proof  |
-                    +-----------+-----------+
-                                |
-                                v
-                   agent-loop enter <task-id>
-                                |
-                    current next_action
-                                |
-                                v
-          +---------------------+---------------------+
-          |                                           |
-          v                                           v
-+---------------------+                    +---------------------+
-|   BOUNDED CONTEXT   |                    |   HUMAN DECISION    |
-| Map · Recall · repo |                    | only when required  |
-+----------+----------+                    +----------+----------+
-           |                                              |
-           v                                              |
-+---------------------+                                   |
-|    CODING AGENT     |<----------------------------------+
-| understand · change |
-+----------+----------+
-           |
-           v
-+---------------------+
-|      EVIDENCE       |
-| tests · PHPStan     |
-| diff · review · CI  |
-+----------+----------+
-           |
-           v
-                  agent-loop finish <task-id>
-                           |
-                           v
-                  current next_action
-                           |
-                 +---------+---------+
-                 |                   |
-            more work              none
-                 |                   |
-                 v                   v
-         execute current action   +-------+
-                 |                | CLOSE |
-                 +----> finish    +---+---+
-                                      |
-                                      v
-                            useful Finding / outcome
-                                      |
-                                      v
-                               +-------------+
-                               |  LEARNING   |
-                               +------+------+ 
-                                      |
-                        repeated + reviewed?
-                                      |
-                                      v
-                      test / PHPStan / typed API /
-                      other deterministic structure
-                                      |
-                                      v
-                           delete obsolete prose
-```
-
-The important bit is deliberately boring:
+## How it feels to use
 
 ```text
-enter -> do the current next action -> finish -> repeat until complete
+ You have work to do
+        |
+        v
++------------------+
+| Describe the task|
++--------+---------+
+         |
+         v
++---------------------------+
+| Agent Loop keeps track of |
+| what matters              |
+|                           |
+| - what you want           |
+| - what is allowed         |
+| - what we already know    |
+| - how success is proven   |
++-------------+-------------+
+              |
+              v
+       +--------------+
+       | Coding agent |
+       | does the work|
+       +------+-------+
+              |
+              v
++-----------------------------+
+| Did reality prove it works? |
+|                             |
+| tests · analysis · review   |
++-------------+---------------+
+              |
+       +------+------+
+       |             |
+      no            yes
+       |             |
+       v             v
+   improve it     finish it
+       |             |
+       +-------------+
+                     |
+                     v
+          +---------------------+
+          | Keep what was useful|
+          | for the next task   |
+          +----------+----------+
+                     |
+                     v
+          Next task starts smarter
 ```
 
-The coding agent does not reconstruct an internal phase machine from a prompt.
-`agent-loop` keeps the durable task truth and tells the host what is currently
-allowed or required.
+That is the product idea. The chat can disappear; the task should not.
 
-## Why Agent Loop?
+The long-term loop is just as important:
 
-| Problem | Agent Loop |
-| --- | --- |
-| The chat forgets what was agreed | Persists task intent, scope, validation, and run state |
-| An agent guesses what to do next | Exposes one canonical `next_action_kind` / `next_action` |
-| Large repositories overflow prompt context | Uses Map and Recall to select bounded, current context |
-| “Looks good” becomes fake evidence | Keeps validation, review, and verification explicit and auditable |
-| Useful lessons disappear after the task | Records findings and promotes only reviewed, reusable learning |
-| Guidance grows forever | Prefers owner APIs, typed projections, tests, static rules, and deletion of obsolete prose |
-| One agent vendor becomes the architecture | Keeps the workflow local and provider-independent |
+```text
+do real work
+     |
+     v
+see what helped
+     |
+     v
+remember useful lessons
+     |
+     v
+use them on later work
+     |
+     v
+turn repeated lessons into tools and checks
+     |
+     v
+need fewer instructions next time
+```
 
 The goal is not maximum automation. The goal is **reliable agent work with less
 reconstruction, less hidden state, and better evidence**.
+
+## Why Agent Loop?
+
+| Without it | With Agent Loop |
+| --- | --- |
+| A new chat means reconstructing the task | Approved task intent and progress survive the conversation |
+| The agent decides what to do next from prose and memory | The workflow exposes the current next step |
+| Large repositories become giant prompts | Only relevant repository context is selected |
+| “Looks good” can quietly become “done” | Tests, analysis and review remain explicit evidence |
+| Useful lessons disappear after one task | Proven lessons can inform later work |
+| Instructions keep growing forever | Repeated objective lessons can become tests, static rules or other deterministic checks |
+| Your workflow becomes tied to one model vendor | The workflow stays local and provider-independent |
 
 ## Install
 
@@ -156,6 +151,12 @@ CLI, and Antigravity. Host-specific capabilities and limitations remain explicit
 
 ## The two lifecycle commands
 
+For everyday use, the workflow stays deliberately small:
+
+```text
+enter -> do the current next action -> finish -> repeat until complete
+```
+
 Start or resume a durable task:
 
 ```bash
@@ -174,36 +175,38 @@ vendor/bin/agent-loop finish ABC-123 --format=json
 `finish` reconciles current evidence and returns the next authoritative step.
 Repeat until the lifecycle reports completion.
 
-See the [lifecycle contract](docs/workflow/lifecycle.md) for the exact ownership
-model.
+You do not need to memorize the internal package order or rebuild a phase machine
+inside the prompt. See the [lifecycle contract](docs/workflow/lifecycle.md) when
+you want the exact ownership model.
 
 ## What makes it different?
 
-### Durable task truth
+### The task survives the chat
 
-Approved task intent and workflow state live outside the chat. A later agent can
-resume from current repository evidence instead of trusting a conversational
-summary.
+Approved task intent and workflow state live outside the conversation. A later
+agent can resume from current repository evidence instead of trusting a summary
+of what somebody remembers happening.
 
-### Bounded context instead of bigger prompts
+### The agent gets less context, but better context
 
-`agent-map` locates PHP symbols, callers, dependencies, and change scope.
-`agent-recall-compiler` compiles task-relevant operational context. The agent reads
-the source it actually needs instead of swallowing the repository.
+`agent-map` can locate the relevant PHP structure and `agent-recall-compiler`
+can assemble task-specific context and prior knowledge. The agent reads what it
+actually needs instead of swallowing the repository because context windows are
+large and apparently we enjoy paying for entropy.
 
-### Evidence before confidence
+### Evidence beats confidence
 
-Tests, static analysis, review artifacts, exact diffs, and owner state remain the
-evidence. Agent confidence is not a gate.
+Tests, static analysis, review artifacts, exact diffs, and recorded owner state
+remain the evidence. An agent sounding certain is not a validation strategy.
 
-### Learning that can disappear again
+### Useful experience can improve later work
 
-`agent-learning` records observations, findings, and reviewed precedent. Repeated
-objective lessons can become tests, PHPStan rules, fixers, typed APIs, or other
-deterministic constraints.
+`agent-learning` records evidence-backed observations and precedent. A useful
+lesson can inform a future task; repeated objective lessons can eventually become
+tests, PHPStan rules, fixers, typed APIs, or other deterministic constraints.
 
-Once structure owns the rule, obsolete prompt knowledge should be deleted rather
-than accumulated forever.
+Once code or tooling owns the rule, obsolete prompt instructions can disappear
+again instead of accumulating forever.
 
 ### Engineering judgment stays engineering judgment
 
@@ -212,27 +215,26 @@ engineering task into “make the smallest diff”. A surgical fix can stay surg
 a broader feature or ownership correction can use the coherent solution the task
 actually requires.
 
-## Ecosystem
+## Under the hood
 
-The packages are focused so each concern has one semantic owner:
+You do not need to understand every package to use Agent Loop. They exist so each
+kind of information has one clear owner instead of one giant agent framework
+quietly owning everything.
 
-| Package | Owns |
+| Concern | Package |
 | --- | --- |
-| [`agent-loop`](https://github.com/voku/agent-loop) | Governed lifecycle, orchestration, verification, setup |
-| [`agent-kanban`](https://github.com/voku/agent-kanban) | Git-native work items |
-| [`agent-session`](https://github.com/voku/agent-session) | Task-local working state and validation evidence |
-| [`agent-map`](https://github.com/voku/agent-map) | PHP code intelligence and bounded navigation |
-| [`agent-recall-compiler`](https://github.com/voku/agent-recall-compiler) | Task context, Recall artifacts, L2 prompt contracts |
-| [`agent-learning`](https://github.com/voku/agent-learning) | Findings, precedent, proposals, durable learning |
-| [`agent-skills`](https://github.com/voku/agent-skills) | Reusable engineering and review skills |
+| Workflow and task authority | [`agent-loop`](https://github.com/voku/agent-loop) |
+| Git-native work items | [`agent-kanban`](https://github.com/voku/agent-kanban) |
+| Temporary working memory and validation evidence | [`agent-session`](https://github.com/voku/agent-session) |
+| Repository structure and code navigation | [`agent-map`](https://github.com/voku/agent-map) |
+| Bounded task context and prompt construction material | [`agent-recall-compiler`](https://github.com/voku/agent-recall-compiler) |
+| Findings, precedent and durable learning | [`agent-learning`](https://github.com/voku/agent-learning) |
+| Reusable engineering and review skills | [`agent-skills`](https://github.com/voku/agent-skills) |
 
 Optional surfaces:
 
 - [`agent-ui`](https://github.com/voku/agent-ui) provides a local human control plane.
 - [`agent-loop-runner`](https://github.com/voku/agent-loop-runner) provides an optional execution plane for isolated coding-host runs.
-
-You do not need to understand every package before using `agent-loop`. The public
-lifecycle exists specifically so hosts do not reconstruct those internals.
 
 ## Boundaries
 
