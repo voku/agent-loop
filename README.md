@@ -17,81 +17,58 @@ carrying useful lessons into the next task.
 
 `voku/agent-loop` adds that workflow around the coding agent you already use.
 
-## How it feels to use
+## How it works
 
 ```text
- You have work to do
+You have work to do
         |
         v
 +------------------+
-| Describe the task|
+|    Agent Loop    |
+|                  |
+| keeps the task,  |
+| context and      |
+| evidence coherent|
 +--------+---------+
          |
          v
-+---------------------------+
-| Agent Loop keeps track of |
-| what matters              |
-|                           |
-| - what you want           |
-| - what is allowed         |
-| - what we already know    |
-| - how success is proven   |
-+-------------+-------------+
++------------------+
+|   Coding agent   |
+|                  |
+| understands,     |
+| changes, tests   |
++--------+---------+
+         |
+         v
++------------------+
+|  Prove the work  |
+|                  |
+| tests · analysis |
+| review · evidence|
++--------+---------+
+         |
+    +----+----+
+    |         |
+ not done    done
+    |         |
+    +-- retry |
+              v
+       keep useful lessons
               |
               v
-       +--------------+
-       | Coding agent |
-       | does the work|
-       +------+-------+
-              |
-              v
-+-----------------------------+
-| Did reality prove it works? |
-|                             |
-| tests · analysis · review   |
-+-------------+---------------+
-              |
-       +------+------+
-       |             |
-      no            yes
-       |             |
-       v             v
-   improve it     finish it
-       |             |
-       +-------------+
-                     |
-                     v
-          +---------------------+
-          | Keep what was useful|
-          | for the next task   |
-          +----------+----------+
-                     |
-                     v
-          Next task starts smarter
+       better future work
 ```
 
-That is the product idea. The chat can disappear; the task should not.
+Agent Loop does not replace the coding agent or your normal engineering tools. It
+keeps the work around them durable: what was requested, what is allowed, what
+context matters, what has been tried, and what evidence is needed before the task
+is done.
 
-The long-term loop is just as important:
+The chat can disappear; the task should not.
 
-```text
-do real work
-     |
-     v
-see what helped
-     |
-     v
-remember useful lessons
-     |
-     v
-use them on later work
-     |
-     v
-turn repeated lessons into tools and checks
-     |
-     v
-need fewer instructions next time
-```
+Useful experience can feed later tasks. When a lesson becomes stable and
+mechanically checkable, it can become a test, static-analysis rule, or another
+deterministic check instead of another prompt instruction.
 
 The goal is not maximum automation. The goal is **reliable agent work with less
 reconstruction, less hidden state, and better evidence**.
@@ -146,6 +123,10 @@ vendor/bin/agent-loop init install-assets --agent=all
 vendor/bin/agent-loop init host-status --format=json
 ```
 
+`install-assets --dry-run` shows the exact managed asset changes the current
+project would receive without writing them. Detailed composition and host behavior
+live in [Agent assets and host integration](docs/reference/agent-assets.md).
+
 Portable assets are available for Codex, Claude Code, OpenCode, Copilot, Gemini
 CLI, and Antigravity. Host-specific capabilities and limitations remain explicit.
 
@@ -154,7 +135,7 @@ CLI, and Antigravity. Host-specific capabilities and limitations remain explicit
 For everyday use, the workflow stays deliberately small:
 
 ```text
-enter -> do the current next action -> finish -> repeat until complete
+enter -> do the current work -> finish -> repeat until complete
 ```
 
 Start or resume a durable task:
@@ -191,8 +172,7 @@ of what somebody remembers happening.
 
 `agent-map` can locate the relevant PHP structure and `agent-recall-compiler`
 can assemble task-specific context and prior knowledge. The agent reads what it
-actually needs instead of swallowing the repository because context windows are
-large and apparently we enjoy paying for entropy.
+actually needs instead of swallowing the repository.
 
 ### Evidence beats confidence
 
