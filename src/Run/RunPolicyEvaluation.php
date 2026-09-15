@@ -18,10 +18,7 @@ final readonly class RunPolicyEvaluation
     public const string KIND_DECISION_REQUIRED = 'decision_required';
     public const string KIND_NONE = 'none';
 
-    /**
-     * @param list<array{code: string, owner: string, message: string}> $blockers
-     * @param list<RunProgressStep> $progress
-     */
+    /** @param list<array{code: string, owner: string, message: string}> $blockers */
     public function __construct(
         public string $state,
         public bool $mutationAllowed,
@@ -42,7 +39,6 @@ final readonly class RunPolicyEvaluation
          * none              - nothing further is required
          */
         public string $nextActionKind = self::KIND_COMMAND,
-        public array $progress = [],
     ) {
     }
 }
