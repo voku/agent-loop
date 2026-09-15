@@ -30,7 +30,8 @@ final readonly class ProjectRuleFixtureCheck
         'ProjectLayout::learningRoot() result is discarded.' => 1,
         'PHPDoc contract tags must be on separate lines' => 1,
         'Do not infer Git repository state from is_dir(.git)' => 1,
-        'do not extend PHPStan\Testing\RuleTestCase in the PHPUnit suite' => 2,
+        // Direct, aliased, sibling (TypeInferenceTestCase), intermediate base and indirect child.
+        'do not extend PHPStan\Testing\PHPStanTestCase (RuleTestCase, TypeInferenceTestCase) in the PHPUnit suite' => 5,
     ];
 
     public function __construct(private ProcessRunner $runner)

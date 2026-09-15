@@ -50,21 +50,91 @@ final readonly class InitSyncSubagentsCommand
             echo $message . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
-        $requestedSubagentRoots = OptionTokens::values($tokens, 'subagents-root');
-        $subagentRoots = $requestedSubagentRoots === []
-            ? [$paths->absoluteSubagentsRoot()]
-            : array_values(array_unique(array_map(
-                fn (string $path): string => PathResolver::join($this->rootPath, $path),
-                $requestedSubagentRoots,
-            )));
+        $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config);
         $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
         $force = OptionTokens::hasFlag($tokens, 'force');
         $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
-
         $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
-        foreach ($agents as $canonicalAgent) {
-            $exit = $this->syncAgent($canonicalAgent, $subagentRoots, $paths, $dryRun, $force, $adoptExisting);
+
+        $requestedSubagentRoots = OptionTokens::values($tokens, 'subagents-root');
+        if ($requestedSubagentRoots !== []) {
+            $subagentRoots = array_values(array_unique(array_map(
+                fn (string $path): string => PathResolver::join($this->rootPath, $path),
+                $requestedSubagentRoots,
+            )));
+            $collected = $this->findSubagentFiles($subagentRoots);
+            if ($collected['errors'] !== []) {
+                foreach ($collected['errors'] as $error) {
+                    echo $error . "\n";
+                }
+
+                return 1;
+            }
+
+            // Explicit roots are root-exact: they are both what this command
+            // copies and everything it keeps.
+            $sources = [];
+            foreach ($collected['files'] as $sourceFile) {
+                $name = basename($sourceFile, '.md');
+                $sources[$name] = new ManagedSubagentSource(
+                    $name,
+                    $sourceFile,
+                    ManagedAssetSource::fromPath($this->rootPath, $sourceFile, 'subagent:' . $name),
+                );
+            }
+
+            return $this->syncAgents($agents, $sources, array_keys($sources), $subagentRoots, $dryRun, $force, $adoptExisting);
+        }
+
+        // Default mode: the owner resolver computes the desired set for this
+        // config. Only the configured project root is materialized here; the
+        // rest of the desired set is retained, never pruned and never restored.
+        try {
+            $desired = (new ManagedSubagentSourceResolver($this->rootPath))->resolve($paths);
+        } catch (InvalidArgumentException $exception) {
+            echo '[FAIL] sync subagents: ' . $exception->getMessage() . "\n";
+
+            return 1;
+        }
+
+        $materialized = array_filter(
+            $desired,
+            static fn (ManagedSubagentSource $source): bool => $paths->containsSubagentSource($source->path),
+        );
+
+        return $this->syncAgents(
+            $agents,
+            $materialized,
+            array_keys($desired),
+            [$paths->absoluteSubagentsRoot()],
+            $dryRun,
+            $force,
+            $adoptExisting,
+        );
+    }
+
+    /**
+     * Projects an owner-resolved subagent selection in full, as `install-assets` does.
+     *
+     * @param list<string> $agents canonical agent names
+     * @param array<string, ManagedSubagentSource> $sources subagent-name => source
+     * @param list<string> $sourceRoots roots reported when nothing is found
+     */
+    public function syncResolved(array $agents, array $sources, array $sourceRoots, bool $dryRun, bool $force, bool $adoptExisting): int
+    {
+        return $this->syncAgents($agents, $sources, array_keys($sources), $sourceRoots, $dryRun, $force, $adoptExisting);
+    }
+
+    /**
+     * @param list<string> $agents
+     * @param array<string, ManagedSubagentSource> $sources entries this command materializes
+     * @param list<string> $retainedNames the desired set; managed entries outside it are pruned
+     * @param list<string> $sourceRoots
+     */
+    private function syncAgents(array $agents, array $sources, array $retainedNames, array $sourceRoots, bool $dryRun, bool $force, bool $adoptExisting): int
+    {
+        foreach ($agents as $agent) {
+            $exit = $this->syncAgent($agent, $sources, $retainedNames, $sourceRoots, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
                 return $exit;
             }
@@ -74,38 +144,30 @@ final readonly class InitSyncSubagentsCommand
     }
 
     /**
-     * @param non-empty-list<string> $subagentRoots
+     * @param array<string, ManagedSubagentSource> $sources
+     * @param list<string> $retainedNames
+     * @param list<string> $sourceRoots
      */
-    private function syncAgent(string $agent, array $subagentRoots, AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
+    private function syncAgent(string $agent, array $sources, array $retainedNames, array $sourceRoots, bool $dryRun, bool $force, bool $adoptExisting): int
     {
-        $collected = $this->findSubagentFiles($subagentRoots);
-        if ($collected['errors'] !== []) {
-            foreach ($collected['errors'] as $error) {
-                echo $error . "\n";
-            }
-
-            return 1;
-        }
-
-        $sourceFiles = array_values($collected['files']);
-        if ($sourceFiles === []) {
-            echo '[WARN] sync subagents: no subagents found under ' . implode(', ', array_map($this->displayPath(...), $subagentRoots)) . "\n";
+        if ($sources === []) {
+            echo '[WARN] sync subagents: no subagents found under ' . implode(', ', array_map($this->displayPath(...), $sourceRoots)) . "\n";
 
             return 0;
         }
 
         $definitions = [];
-        foreach ($sourceFiles as $sourceFile) {
-            $errors = SubagentDefinition::validationErrors($sourceFile);
+        foreach ($sources as $name => $source) {
+            $errors = SubagentDefinition::validationErrors($source->path);
             if ($errors !== []) {
                 foreach ($errors as $error) {
-                    echo '[FAIL] sync subagents: ' . basename($sourceFile) . ': ' . $error . "\n";
+                    echo '[FAIL] sync subagents: ' . basename($source->path) . ': ' . $error . "\n";
                 }
 
                 return 1;
             }
 
-            $definitions[$sourceFile] = SubagentDefinition::fromCanonicalFile($sourceFile);
+            $definitions[$name] = SubagentDefinition::fromCanonicalFile($source->path);
         }
 
         $targetRoot = $this->resolveTargetRoot($agent);
@@ -124,17 +186,18 @@ final readonly class InitSyncSubagentsCommand
         };
         $desiredEntries = [];
         $projectionSources = [];
-        foreach (array_keys($definitions) as $sourceFile) {
-            $name = basename($sourceFile, '.md');
+        foreach ($sources as $name => $source) {
             $entry = $name . $targetSuffix;
             $desiredEntries[] = $entry;
-            $projectionSources[$entry] = ManagedAssetSource::fromPath(
-                $this->rootPath,
-                $sourceFile,
-                'subagent:' . $name,
-            );
+            $projectionSources[$entry] = $source->assetSource;
         }
         sort($desiredEntries);
+        $retainedEntries = $desiredEntries;
+        foreach ($retainedNames as $retainedName) {
+            $retainedEntries[] = $retainedName . $targetSuffix;
+        }
+        $retainedEntries = array_values(array_unique($retainedEntries));
+        sort($retainedEntries);
 
         $adopted = [];
         foreach ($desiredEntries as $entry) {
@@ -152,7 +215,7 @@ final readonly class InitSyncSubagentsCommand
             }
         }
 
-        foreach ($manifest->staleEntries($desiredEntries) as $staleEntry) {
+        foreach ($manifest->staleEntries($retainedEntries) as $staleEntry) {
             $targetPath = $targetRoot . '/' . $staleEntry;
             if ($dryRun) {
                 echo '[DRY-RUN] sync subagents: remove stale ' . $targetPath . "\n";
@@ -165,8 +228,8 @@ final readonly class InitSyncSubagentsCommand
         }
 
         $cliPath = (new RepositoryActivation($this->rootPath))->cliPath();
-        foreach ($definitions as $sourceFile => $definition) {
-            $entry = basename($sourceFile, '.md') . $targetSuffix;
+        foreach ($definitions as $name => $definition) {
+            $entry = $name . $targetSuffix;
             $targetFile = $targetRoot . '/' . $entry;
 
             if (isset($adopted[$entry])) {
@@ -197,6 +260,7 @@ final readonly class InitSyncSubagentsCommand
                 $projectionSources,
                 [HostCapability::SubagentProjection],
                 array_keys($adopted),
+                $retainedEntries,
             );
         }
 

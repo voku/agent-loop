@@ -40,6 +40,25 @@ final class PackageResources
     /** Host hook bundles this package ships, keyed by canonical agent name. */
     private const array HOOK_AGENTS = ['codex', 'claude'];
 
+    /**
+     * Skills that guide work on this package itself, not work in a repository
+     * that consumes it. They name this repository's own gates and paths
+     * (`composer ci`, `src/AgentGuidance/`, `docs/dogfood/`), so a consumer
+     * projection must not receive them; the owner repository still does.
+     *
+     * @var list<string>
+     */
+    public const array MAINTAINER_SKILLS = [
+        'agent-guidance-maintenance',
+        'agent-learning',
+        'agent-loop-dogfood',
+    ];
+
+    public static function isMaintainerSkill(string $skillId): bool
+    {
+        return in_array($skillId, self::MAINTAINER_SKILLS, true);
+    }
+
     public static function subagentsRoot(): string
     {
         return self::path(self::SUBAGENTS);

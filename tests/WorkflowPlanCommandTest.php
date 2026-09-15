@@ -206,7 +206,9 @@ final class WorkflowPlanCommandTest extends TestCase
             'documents' => [],
         ], JSON_THROW_ON_ERROR));
         file_put_contents($root . '/.agent-loop/todo/kanban.config.json', json_encode(['projectPrefix' => 'ABC'], JSON_THROW_ON_ERROR));
-        file_put_contents($root . '/.agent-loop/todo/cards/ABC-123.md', <<<'CARD'
+        file_put_contents(
+            $root . '/.agent-loop/todo/cards/ABC-123.md',
+            <<<'CARD'
 # ABC-123: Keep the view reviewable
 
 - **Ticket:** ABC-123
@@ -219,8 +221,8 @@ final class WorkflowPlanCommandTest extends TestCase
 
 ## Handoff / Context
 Use the existing view factory seam.
-CARD
-);
+CARD,
+        );
         $this->writeReadyMapAndSearch($root, 'sha256:current');
 
         $contracts = new TaskContractStore($root);

@@ -160,6 +160,18 @@ vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
 
 `doctor`, `status`, and `host-status` are read-only. Mutation lives behind explicit `install-assets` / `sync-*` commands.
 
+## Desired set, materialization, and retention
+
+For one resolved `.agent-loop/init.json`, the managed skill and subagent source resolvers compute one **desired set**: the configured project roots plus the enabled first-party package exports (`package_skills` / `package_subagents`). Maintainer-only package skills belong to it only in their owner repository. `install-assets`, `status`, `doctor`, and `host-status` all read that set. The commands differ only in what they materialize:
+
+| Command | Materializes | Prunes managed entries outside |
+| --- | --- | --- |
+| `install-assets` | the whole desired set plus `--extra-*-root` sources | the desired set plus extra roots |
+| `sync-skills` / `sync-subagents` without roots | desired entries under the configured project root | the desired set |
+| `sync-skills --skills-root=...` / `sync-subagents --subagents-root=...` | exactly those roots | exactly those roots |
+
+A default-mode sync never restores a missing package copy and never drops its manifest record, so `status` and `doctor` keep reporting it as locally modified and `host-status` keeps `install-assets` as the next action. Disabling a package flag makes its previously projected copies stale, and the next default-mode sync removes them.
+
 ## Map boundary
 
 Generated map files are navigation state, not source evidence:

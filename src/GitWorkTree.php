@@ -36,6 +36,21 @@ final readonly class GitWorkTree
         return self::ask($rootPath, ['git', 'check-ignore', '--quiet', '--', $relativePath]) !== null;
     }
 
+    /**
+     * Whether a commit contains a repository-relative path, file or directory.
+     *
+     * A deleted path can no longer be asked about in the working tree; only the
+     * commit it was planned from can prove it was there.
+     */
+    public static function tracksPathAt(string $rootPath, string $commit, string $relativePath): bool
+    {
+        if (preg_match('/^[0-9a-f]{7,64}$/', $commit) !== 1 || $relativePath === '' || str_starts_with($relativePath, '/')) {
+            return false;
+        }
+
+        return self::ask($rootPath, ['git', 'cat-file', '-e', $commit . ':' . $relativePath]) !== null;
+    }
+
     /** Repository-local/effective Git config value, or null when unset/unavailable. */
     public static function configValue(string $rootPath, string $key): ?string
     {

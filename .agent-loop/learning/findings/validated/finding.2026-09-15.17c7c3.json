@@ -1,0 +1,24 @@
+{
+    "id": "finding.2026-09-15.17c7c3",
+    "task_id": "deterministic-enforcement-20260915",
+    "session": "2026-09-15-deterministic-enforcement-20260915-r2-ab67ccc3",
+    "created_at": "2026-09-15T07:19:48+00:00",
+    "created_by": "claude",
+    "scope": [
+        "resources/githooks/pre-commit",
+        "resources/githooks/lib/agent-loop-hooks.sh"
+    ],
+    "observation": "In a git worktree the relative core.hooksPath resources/githooks resolves inside the worktree, where the gitignored generated agent-loop-hooks.env is absent, so the pre-commit hook ran vendor/bin/agent-loop and failed. init sync-githooks --dry-run would rewrite the shared core.hooksPath to .githooks for every worktree.",
+    "evidence": [
+        {
+            "type": "runtime_observation",
+            "summary": "git commit in a fresh worktree failed with vendor/bin/agent-loop: No such file or directory; the same commit with AGENT_LOOP_BIN=bin/agent-loop passed the hooks."
+        }
+    ],
+    "hypothesis": "Generated hook environment is per-checkout state while core.hooksPath is shared repository config.",
+    "validated_conclusion": "Git hooks in a worktree need the hook environment without mutating shared core.hooksPath; AGENT_LOOP_BIN=bin/agent-loop runs the unmodified hooks correctly.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

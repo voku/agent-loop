@@ -99,14 +99,40 @@ final class MethodRenameEditRunnerTest extends TestCase
     /** @return iterable<string, array{callable(array<string, mixed>): array<string, mixed>, string}> */
     public static function unsafePlans(): iterable
     {
-        yield 'unsupported contract' => [static function (array $plan): array { $plan['contract_version'] = '2.0'; return $plan; }, 'Unsupported'];
-        yield 'semantic blocker' => [static function (array $plan): array { $plan['status'] = 'blocked'; $plan['blockers'] = ['ambiguous target']; return $plan; }, 'semantic blockers'];
-        yield 'review required' => [static function (array $plan): array { $plan['status'] = 'review_required'; return $plan; }, 'explicit review'];
-        yield 'already stale' => [static function (array $plan): array { $plan['status'] = 'blocked'; $plan['stale_evidence'] = [['path' => 'src/Caller.php', 'reason' => 'hash']]; return $plan; }, 'stale evidence'];
-        yield 'contradictory provenance' => [static function (array $plan): array { $plan['provenance']['map_digest'] = 'sha256:wrong'; return $plan; }, 'current map identity'];
-        yield 'malformed source hash' => [static function (array $plan): array { $plan['edits'][0]['source_sha256'] = 'sha256:wrong'; return $plan; }, 'invalid source SHA-256'];
-        yield 'expected token mismatch' => [static function (array $plan): array { $plan['edits'][0]['expected'] = 'other'; return $plan; }, 'changed before apply'];
-        yield 'exact range mismatch' => [static function (array $plan): array { ++$plan['edits'][0]['start_file_pos']; return $plan; }, 'changed before apply'];
+        yield 'unsupported contract' => [static function (array $plan): array {
+            $plan['contract_version'] = '2.0';
+            return $plan;
+        }, 'Unsupported'];
+        yield 'semantic blocker' => [static function (array $plan): array {
+            $plan['status'] = 'blocked';
+            $plan['blockers'] = ['ambiguous target'];
+            return $plan;
+        }, 'semantic blockers'];
+        yield 'review required' => [static function (array $plan): array {
+            $plan['status'] = 'review_required';
+            return $plan;
+        }, 'explicit review'];
+        yield 'already stale' => [static function (array $plan): array {
+            $plan['status'] = 'blocked';
+            $plan['stale_evidence'] = [['path' => 'src/Caller.php', 'reason' => 'hash']];
+            return $plan;
+        }, 'stale evidence'];
+        yield 'contradictory provenance' => [static function (array $plan): array {
+            $plan['provenance']['map_digest'] = 'sha256:wrong';
+            return $plan;
+        }, 'current map identity'];
+        yield 'malformed source hash' => [static function (array $plan): array {
+            $plan['edits'][0]['source_sha256'] = 'sha256:wrong';
+            return $plan;
+        }, 'invalid source SHA-256'];
+        yield 'expected token mismatch' => [static function (array $plan): array {
+            $plan['edits'][0]['expected'] = 'other';
+            return $plan;
+        }, 'changed before apply'];
+        yield 'exact range mismatch' => [static function (array $plan): array {
+            ++$plan['edits'][0]['start_file_pos'];
+            return $plan;
+        }, 'changed before apply'];
     }
 
     public function testSecondPublicationFailureRestoresEverySource(): void

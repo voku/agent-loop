@@ -50,15 +50,16 @@ final readonly class ManagedAssetDriftProjector
             );
         }
 
-        $desiredEntries = ManagedAssetExpectationResolver::resolve($manifest, $target->desiredEntries());
-
+        // The target expectation is the owner-computed desired set. Manifest
+        // provenance never widens it: an entry the resolved config no longer
+        // wants is stale here exactly as it is for sync.
         return ManagedAssetDriftProjection::fromStates(
             $target,
             ManagedAssetDriftInspector::inspect(
                 $manifest,
                 $target->targetRoot,
                 $target->host,
-                $desiredEntries,
+                $target->desiredEntries(),
             ),
         );
     }

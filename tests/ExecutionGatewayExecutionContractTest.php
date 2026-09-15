@@ -260,7 +260,8 @@ MD;
 
     private function largeL1Contract(): string
     {
-        return sprintf(<<<'MD'
+        return sprintf(
+            <<<'MD'
 ## Goal
 Execute the currently approved bounded task.
 

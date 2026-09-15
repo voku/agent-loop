@@ -22,16 +22,16 @@ final readonly class ControlPlanePresentationProjector
     /** @param null|callable(non-empty-list<string>): CommandProcessResult $runner */
     public function __construct(private string $rootPath, ?callable $runner = null)
     {
-        $this->runner = $runner === null
-            ? function (array $command): CommandProcessResult {
+        $this->runner = $runner !== null
+            ? Closure::fromCallable($runner)
+            : function (array $command): CommandProcessResult {
                 /** @var non-empty-list<string> $command */
                 return (new CommandProcessRunner())->run(
                     $command,
                     $this->rootPath,
                     3,
                 );
-            }
-            : Closure::fromCallable($runner);
+            };
     }
 
     /**
