@@ -120,6 +120,29 @@ final class RunProgressProjectorTest extends TestCase
         self::assertSame(RunProgressStep::STATUS_PENDING, $this->step($progress->steps, 'learning')->status);
     }
 
+    public function testRecallOutcomeBoundaryUsesLearningAsSemanticOwner(): void
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'blocked',
+            review: 'ok',
+            learning: 'missing',
+        );
+        $references['verification']['gate'] = 'recall_outcomes';
+        $references['verification']['reason'] = 'missing explicit recall outcome';
+
+        $progress = (new RunProgressProjector())->project('ABC-123', 'governed', $references, []);
+        $recallOutcomes = $this->step($progress->steps, 'recall_outcomes');
+
+        self::assertSame(RunProgressStep::STATUS_CURRENT, $recallOutcomes->status);
+        self::assertSame('agent-learning', $recallOutcomes->owner);
+        self::assertSame('missing explicit recall outcome', $recallOutcomes->reason);
+    }
+
     public function testCompletedRunHasNoFabricatedCurrentStepOrNextAction(): void
     {
         $progress = (new RunProgressProjector())->project(
