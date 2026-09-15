@@ -36,6 +36,7 @@ final readonly class WorkflowCli
             'attention' => (new WorkflowAttentionCommand($this->rootPath))->run($rest),
             'contract' => (new WorkflowContractCommand($this->rootPath))->run($rest),
             'status' => (new WorkflowStatusCommand($this->rootPath))->run($rest),
+            'progress' => (new WorkflowProgressCommand($this->rootPath))->run($rest),
             'manifest' => (new WorkflowManifestCommand($this->rootPath))->run($rest),
             'context' => (new WorkflowContextCommand($this->rootPath))->run($rest),
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
@@ -61,6 +62,7 @@ Usage:
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
   agent-loop workflow status <task-id> [--format text|json|toon] [--expect blocked|experiment|incomplete|ready_to_close|complete]
+  agent-loop workflow progress <task-id> [--format=text|json|toon]
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
   agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
@@ -78,6 +80,7 @@ Commands:
   attention          Resolve pending human-owned execution Attention through an explicit actor-owned workflow transition; runner-facing APIs cannot manufacture this authority.
   contract           Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
   status             Show the read-only cross-package Run projection and one next action; --expect makes an exact state CI-assertable.
+  progress           Show Loop-owned ordered workflow progress without asking the consumer to infer lifecycle gate order.
   manifest           Inspect or atomically persist the cross-package Run projection.
   context            Render bounded read-only context from the durable Contract and current owner artifacts.
   report             Show an auditable task/Run completion report.
