@@ -141,7 +141,7 @@ final class MemoryPromotionAnalyzer
                 $promotedTo = strtolower(trim($row['Promoted to'] ?? ''));
 
                 return $promotedTo === 'pending review' || $promotedTo === 'this file';
-            }
+            },
         ));
 
         echo "# MEMORY promotion review\n\n";

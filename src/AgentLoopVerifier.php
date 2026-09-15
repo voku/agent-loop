@@ -183,7 +183,8 @@ final class AgentLoopVerifier
         try {
             $resolution = (new BoardContextResolver())->resolveOptionalWithProvenance($boardRoot);
         } catch (AgentKanbanException $exception) {
-            $resolution = null; $resolutionFailure = $exception;
+            $resolution = null;
+            $resolutionFailure = $exception;
         }
         if ($resolution === null) {
             echo $resolutionFailure === null

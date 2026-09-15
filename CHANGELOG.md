@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Gate code style in `composer ci` through PHP-CS-Fixer (`composer cs`, repaired by `composer cs:fix`) with a checked-in PER-CS 2.0 config that encodes the repository's existing `fn (` and multi-line empty-body conventions, so style drift fails CI instead of relying on agent guidance.
+- Run the slop-scan lint (`composer review:slop`) inside `composer ci`, installing its isolated tool project first.
+
 ### Fixed
+
+- Enforce the in-process PHPStan container constraint on the resolved ancestor chain: `NoInProcessPhpstanRuleTestCaseRule` now reports every `PHPStan\Testing\PHPStanTestCase` descendant, so `TypeInferenceTestCase`, an intermediate base class and its children no longer pass analysis where only a direct `RuleTestCase` parent was caught.
 
 - Repoint approved guidance `proposal.2026-08-14.011` (Learning evidence detection) from the removed `bash tools/self-shape-dogfood.sh` to `php tools/self-shape-dogfood.php`. Recall refused to compile any governed task that selected it, so `agent-loop enter` could not prepare a Run on `main`.
 
