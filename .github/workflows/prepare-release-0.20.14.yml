@@ -1,0 +1,54 @@
+name: Prepare 0.20.14 changelog
+
+on:
+  push:
+    branches:
+      - chatgpt/release-0.20.14-clean
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/release-0.20.14-clean
+          fetch-depth: 0
+      - name: Prepend release notes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('CHANGELOG.md')
+          text = path.read_text()
+          heading = '## 0.20.14 - 2026-09-15'
+          if heading in text:
+              print('0.20.14 section already present; nothing to do.')
+              raise SystemExit(0)
+
+          anchor = 'All notable changes to this project will be documented in this file.\n\n'
+          if anchor not in text:
+              raise SystemExit('Changelog intro anchor is missing.')
+
+          section = '''## 0.20.14 - 2026-09-15
+
+          ### Added
+
+          - Expose a typed, read-only per-task workflow progress projection for presentation consumers. `RunProgressProjector` derives an ordered view of Contract, preparation, execution context, implementation, validation, review, Recall outcomes, Learning and closeout from the same current owner facts used by `RunPolicyEvaluator`; each step preserves `done`, `current`, `pending`, `blocked` or `not_applicable`, semantic owner and bounded reason, while the projection carries the canonical lifecycle state and next action without acquiring mutation or human-decision authority. (#490, #493)
+
+          '''
+          section = '\n'.join(line.removeprefix('          ') for line in section.splitlines()) + '\n'
+          path.write_text(text.replace(anchor, anchor + section, 1))
+      - name: Commit prepared changelog
+        shell: bash
+        run: |
+          if git diff --quiet -- CHANGELOG.md; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md
+          git commit -m 'release: prepare voku/agent-loop 0.20.14'
+          git push origin HEAD:chatgpt/release-0.20.14-clean
