@@ -155,6 +155,7 @@ final readonly class FirstPartyPackageCatalog
     private static function isMaintainerSkillOfOwner(string $skillId, string $owner): bool
     {
         return match ($owner) {
+            'voku/agent-loop' => LoopResources::isMaintainerSkill($skillId),
             'voku/agent-learning' => array_key_exists($skillId, LearningResources::maintainerSkills()),
             'voku/agent-recall-compiler' => array_key_exists($skillId, RecallResources::maintainerSkills()),
             'voku/agent-session' => array_key_exists($skillId, SessionResources::maintainerSkills()),
@@ -179,7 +180,7 @@ final readonly class FirstPartyPackageCatalog
                         continue;
                     }
                     $skillPath = $loopSkillsDir . '/' . $entry;
-                    if (is_file($skillPath . '/SKILL.md')) {
+                    if (is_file($skillPath . '/SKILL.md') && self::isSkillAllowedForProject($entry, $skillPath, $projectRoot)) {
                         self::registerExportableSkill($skills, $entry, $skillPath, 'voku/agent-loop', $projectRoot);
                     }
                 }

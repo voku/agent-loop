@@ -73,6 +73,28 @@ final readonly class AgentAssetSourcePaths
         );
     }
 
+    /**
+     * The one place a loaded init config becomes source paths.
+     *
+     * The package asset policy travels with the paths. Callers that built paths
+     * from `$config['paths']` alone silently fell back to the package default,
+     * which is how `init status` and the sync commands came to compute a
+     * different desired set than `install-assets` for the same config.
+     *
+     * @param array{paths: array<string, string>, package_skills: bool, package_subagents: bool} $config
+     * @param array<string, string> $cliOverrides
+     */
+    public static function fromConfig(string $rootPath, array $config, array $cliOverrides = []): self
+    {
+        return self::fromSources(
+            $rootPath,
+            $config['paths'],
+            $cliOverrides,
+            $config['package_skills'],
+            $config['package_subagents'],
+        );
+    }
+
     public function packageSkills(): bool
     {
         return $this->packageSkills;
@@ -149,6 +171,36 @@ final readonly class AgentAssetSourcePaths
     public function absoluteSubagentsRoot(): string
     {
         return $this->resolvePath($this->subagentsRoot);
+    }
+
+    /**
+     * Whether a resolved source lives under the configured project skills root.
+     *
+     * Default-mode sync materializes exactly this part of the desired set; the
+     * rest of it is only retained.
+     */
+    public function containsSkillSource(string $sourcePath): bool
+    {
+        return self::contains($this->absoluteSkillsRoot(), $sourcePath);
+    }
+
+    /** Whether a resolved source lives under the configured project subagents root. */
+    public function containsSubagentSource(string $sourcePath): bool
+    {
+        return self::contains($this->absoluteSubagentsRoot(), $sourcePath);
+    }
+
+    private static function contains(string $root, string $path): bool
+    {
+        $realRoot = realpath($root);
+        if ($realRoot === false) {
+            return false;
+        }
+
+        $realPath = realpath($path);
+        $candidate = $realPath === false ? $path : $realPath;
+
+        return $candidate === $realRoot || str_starts_with($candidate, rtrim($realRoot, '/') . '/');
     }
 
     public function absoluteHooksRoot(): string

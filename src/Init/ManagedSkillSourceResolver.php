@@ -15,9 +15,10 @@ final readonly class ManagedSkillSourceResolver
     }
 
     /**
+     * @param list<string> $extraRoots absolute roots merged into the desired set, as `install-assets --extra-skills-root` requests
      * @return array<string, ManagedAssetSource> skill-id => source
      */
-    public function resolve(AgentAssetSourcePaths $paths, ?bool $includeFirstParty = null): array
+    public function resolve(AgentAssetSourcePaths $paths, ?bool $includeFirstParty = null, array $extraRoots = []): array
     {
         $includeFirstParty ??= $paths->packageSkills();
         $sources = [];
@@ -44,31 +45,45 @@ final readonly class ManagedSkillSourceResolver
             $isPackageRoot = $packageSkillsDir !== null && realpath($configuredRoot) === realpath($packageSkillsDir);
 
             if (!$isPackageRoot || $includeFirstParty) {
-                foreach (scandir($configuredRoot) ?: [] as $entry) {
-                    if ($entry === '.' || $entry === '..') {
-                        continue;
-                    }
+                $this->registerRoot($sources, $configuredRoot);
+            }
+        }
 
-                    $sourcePath = $configuredRoot . '/' . $entry;
-                    if (!is_file($sourcePath . '/SKILL.md')) {
-                        continue;
-                    }
-                    if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $sourcePath, $this->rootPath)) {
-                        continue;
-                    }
-
-                    $this->register(
-                        $sources,
-                        $entry,
-                        ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'skill:' . $entry),
-                    );
-                }
+        foreach ($extraRoots as $extraRoot) {
+            if (is_dir($extraRoot)) {
+                $this->registerRoot($sources, $extraRoot);
             }
         }
 
         ksort($sources, SORT_STRING);
 
         return $sources;
+    }
+
+    /**
+     * @param array<string, ManagedAssetSource> $sources
+     */
+    private function registerRoot(array &$sources, string $root): void
+    {
+        foreach (scandir($root) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $sourcePath = $root . '/' . $entry;
+            if (!is_file($sourcePath . '/SKILL.md')) {
+                continue;
+            }
+            if (!FirstPartyPackageCatalog::isSkillAllowedForProject($entry, $sourcePath, $this->rootPath)) {
+                continue;
+            }
+
+            $this->register(
+                $sources,
+                $entry,
+                ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'skill:' . $entry),
+            );
+        }
     }
 
     /**

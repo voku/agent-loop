@@ -91,7 +91,9 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-code-review/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-review/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-simplify-audit/SKILL.md');
-        self::assertFileExists($this->root . '/.codex/skills/agent-loop-dogfood/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-dogfood/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-guidance-maintenance/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-learning/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/operating-prompts.json');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');

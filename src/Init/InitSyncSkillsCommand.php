@@ -52,16 +52,18 @@ final readonly class InitSyncSkillsCommand
             echo $message . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths']);
+        $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config);
+        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
+        $force = OptionTokens::hasFlag($tokens, 'force');
+        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
+        $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
+
         $requestedSkillRoots = OptionTokens::values($tokens, 'skills-root');
-        $skillRoots = $requestedSkillRoots === []
-            ? [$paths->absoluteSkillsRoot()]
-            : array_values(array_unique(array_map(
+        if ($requestedSkillRoots !== []) {
+            $skillRoots = array_values(array_unique(array_map(
                 fn (string $path): string => PathResolver::join($this->rootPath, $path),
                 $requestedSkillRoots,
             )));
-
-        if ($requestedSkillRoots !== []) {
             foreach ($skillRoots as $skillRoot) {
                 if (!is_dir($skillRoot)) {
                     echo '[FAIL] sync skills: source root does not exist: ' . $this->displayPath($skillRoot) . "\n";
@@ -69,15 +71,80 @@ final readonly class InitSyncSkillsCommand
                     return 1;
                 }
             }
+
+            $collected = $this->collectSkillFiles($skillRoots);
+            if ($collected['errors'] !== []) {
+                foreach ($collected['errors'] as $error) {
+                    echo $error . "\n";
+                }
+
+                return 1;
+            }
+
+            // Explicit roots are root-exact: they are both what this command
+            // copies and everything it keeps.
+            $sources = [];
+            foreach ($collected['files'] as $entry => $skillFile) {
+                $sources[$entry] = ManagedAssetSource::fromPath($this->rootPath, dirname($skillFile), 'skill:' . $entry);
+            }
+
+            return $this->syncAgents($agents, $sources, array_keys($sources), $skillRoots, $dryRun, $force, $adoptExisting);
         }
 
-        $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
-        $force = OptionTokens::hasFlag($tokens, 'force');
-        $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
+        // Default mode: the owner resolver computes the desired set for this
+        // config. Only the configured project root is materialized here; the
+        // rest of the desired set - package copies install-assets projected - is
+        // retained, never pruned and never restored.
+        try {
+            $desired = (new ManagedSkillSourceResolver($this->rootPath))->resolve($paths);
+        } catch (InvalidArgumentException $exception) {
+            echo '[FAIL] sync skills: ' . $exception->getMessage() . "\n";
 
-        $agents = $agent->isAll() ? InitAgent::canonicalNames() : [$agent->canonicalName()];
-        foreach ($agents as $canonicalAgent) {
-            $exit = $this->syncAgent($canonicalAgent, $skillRoots, $dryRun, $force, $adoptExisting);
+            return 1;
+        }
+
+        $materialized = array_filter(
+            $desired,
+            static fn (ManagedAssetSource $source): bool => $paths->containsSkillSource($source->path),
+        );
+
+        return $this->syncAgents(
+            $agents,
+            $materialized,
+            array_keys($desired),
+            [$paths->absoluteSkillsRoot()],
+            $dryRun,
+            $force,
+            $adoptExisting,
+        );
+    }
+
+    /**
+     * Projects an owner-resolved skill selection in full.
+     *
+     * `install-assets` hands over the resolved desired set instead of source
+     * roots, so what it installs is exactly what status, doctor and host-status
+     * expect for the same config.
+     *
+     * @param list<string> $agents canonical agent names
+     * @param array<string, ManagedAssetSource> $sources skill-id => source
+     * @param list<string> $sourceRoots roots reported in the summary line
+     */
+    public function syncResolved(array $agents, array $sources, array $sourceRoots, bool $dryRun, bool $force, bool $adoptExisting): int
+    {
+        return $this->syncAgents($agents, $sources, array_keys($sources), $sourceRoots, $dryRun, $force, $adoptExisting);
+    }
+
+    /**
+     * @param list<string> $agents
+     * @param array<string, ManagedAssetSource> $sources entries this command materializes
+     * @param list<string> $retainedEntries the desired set; managed entries outside it are pruned
+     * @param list<string> $sourceRoots
+     */
+    private function syncAgents(array $agents, array $sources, array $retainedEntries, array $sourceRoots, bool $dryRun, bool $force, bool $adoptExisting): int
+    {
+        foreach ($agents as $agent) {
+            $exit = $this->syncAgent($agent, $sources, $retainedEntries, $sourceRoots, $dryRun, $force, $adoptExisting);
             if ($exit !== 0) {
                 return $exit;
             }
@@ -87,28 +154,21 @@ final readonly class InitSyncSkillsCommand
     }
 
     /**
-     * @param non-empty-list<string> $skillRoots
+     * @param array<string, ManagedAssetSource> $sources
+     * @param list<string> $retainedEntries
+     * @param list<string> $sourceRoots
      */
-    private function syncAgent(string $agent, array $skillRoots, bool $dryRun, bool $force, bool $adoptExisting): int
+    private function syncAgent(string $agent, array $sources, array $retainedEntries, array $sourceRoots, bool $dryRun, bool $force, bool $adoptExisting): int
     {
-        $collected = $this->collectSkillFiles($skillRoots);
-        if ($collected['errors'] !== []) {
-            foreach ($collected['errors'] as $error) {
-                echo $error . "\n";
-            }
-
-            return 1;
-        }
-
-        $skillFiles = $collected['files'];
-        if ($skillFiles === []) {
-            echo '[WARN] sync skills: no skills found under ' . implode(', ', array_map($this->displayPath(...), $skillRoots)) . "\n";
+        if ($sources === []) {
+            echo '[WARN] sync skills: no skills found under ' . implode(', ', array_map($this->displayPath(...), $sourceRoots)) . "\n";
 
             return 0;
         }
 
         $errors = [];
-        foreach ($skillFiles as $directoryName => $skillFile) {
+        foreach ($sources as $directoryName => $source) {
+            $skillFile = $source->path . '/SKILL.md';
             if (preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $directoryName) !== 1 || $directoryName === '.' || $directoryName === '..' || str_starts_with($directoryName, '.')) {
                 $errors[] = '[FAIL] sync skills: invalid skill directory name ' . $directoryName;
 
@@ -144,16 +204,10 @@ final readonly class InitSyncSkillsCommand
             return 1;
         }
 
-        $desiredEntries = array_keys($skillFiles);
+        $desiredEntries = array_keys($sources);
         sort($desiredEntries);
-        $projectionSources = [];
-        foreach ($skillFiles as $entry => $skillFile) {
-            $projectionSources[$entry] = ManagedAssetSource::fromPath(
-                $this->rootPath,
-                dirname($skillFile),
-                'skill:' . $entry,
-            );
-        }
+        $retainedEntries = array_values(array_unique(array_merge($retainedEntries, $desiredEntries)));
+        sort($retainedEntries);
 
         $adopted = [];
         foreach ($desiredEntries as $entry) {
@@ -171,7 +225,7 @@ final readonly class InitSyncSkillsCommand
             }
         }
 
-        foreach ($manifest->staleEntries($desiredEntries) as $staleEntry) {
+        foreach ($manifest->staleEntries($retainedEntries) as $staleEntry) {
             $targetPath = $targetRoot . '/' . $staleEntry;
             if ($dryRun) {
                 echo '[DRY-RUN] sync skills: remove stale ' . $targetPath . "\n";
@@ -183,8 +237,8 @@ final readonly class InitSyncSkillsCommand
             echo '[OK] sync skills: removed stale ' . $targetPath . "\n";
         }
 
-        foreach ($skillFiles as $entry => $skillFile) {
-            $sourceDir = dirname($skillFile);
+        foreach ($sources as $entry => $source) {
+            $sourceDir = $source->path;
             $targetDir = $targetRoot . '/' . $entry;
 
             if (isset($adopted[$entry])) {
@@ -211,13 +265,14 @@ final readonly class InitSyncSkillsCommand
             }
 
             $manifest->writeProjections(
-                $projectionSources,
+                $sources,
                 [HostCapability::SkillProjection],
                 array_keys($adopted),
+                $retainedEntries,
             );
         }
 
-        echo '[OK] sync skills: synced ' . count($skillFiles) . ' skill file(s) for ' . $agent . ' into ' . $targetRoot . ' from ' . count($skillRoots) . ' source root(s)' . "\n";
+        echo '[OK] sync skills: synced ' . count($sources) . ' skill file(s) for ' . $agent . ' into ' . $targetRoot . ' from ' . count($sourceRoots) . ' source root(s)' . "\n";
         $reloadHint = $this->reloadHint($agent);
         if ($reloadHint !== null) {
             echo $reloadHint . "\n";

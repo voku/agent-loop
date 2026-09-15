@@ -44,7 +44,7 @@ final readonly class InitDoctorCommand
             echo $warning . "\n";
         }
 
-        $paths = AgentAssetSourcePaths::fromSources($this->rootPath, $config['paths'], $this->readPathOverrides($tokens));
+        $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config, $this->readPathOverrides($tokens));
 
         echo "agent-loop init doctor\n\n";
         foreach ($this->diagnostics($paths)->diagnostics as $diagnostic) {

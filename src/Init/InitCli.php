@@ -79,8 +79,8 @@ final readonly class InitCli
           install-plan      Print an offline setup plan for package-owned assets. Does not execute it.
           uninstall-assets  Remove the managed assets this repository projected for one host. Manifest-scoped and fail-closed: unchanged managed entries are removed, locally modified or unverifiable entries are reported and kept, project-owned paths are never touched, and executable host hooks need --with-hooks. Prints the exact plan and removes nothing without --yes.
           install-assets    Install first-party workflow skills from agent-loop and its Recall dependency, bundled roles, the host's always-on project instruction entrypoint, and - when the repository declares a hook policy - the local Git hook/commit-template activation. Add --with-hooks to explicitly register bundled executable Codex/Claude host hooks.
-          sync-skills       Prevalidate and merge one or more canonical skill roots into one managed client projection; duplicate skill IDs fail.
-          sync-subagents    Sync repo-managed subagents into a client target directory.
+          sync-skills       Project skills into one managed client target. With --skills-root, merge exactly those roots (duplicate skill IDs fail). Without it, copy the configured project skills root and prune only entries outside the config's desired set, so package copies install-assets projected are kept.
+          sync-subagents    Project subagents into one managed client target. With --subagents-root, sync exactly those roots. Without it, copy the configured project subagents root and prune only entries outside the config's desired set.
           sync-hooks        Explicitly sync repo-managed executable hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key). Use --dry-run to inspect exact targets before mutation.
           sync-policy       Merge only agent-loop-owned repository authority rules into Codex, Claude Code, or OpenCode host policy; host/user trust and Auto Mode remain explicit boundaries.
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.

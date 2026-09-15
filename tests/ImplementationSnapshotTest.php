@@ -215,6 +215,61 @@ final class ImplementationSnapshotTest extends TestCase
         ImplementationSnapshot::capture($this->root, $this->contract('SNAP-CUSTOM-LEARNING-DIR', ['infra/doc/agent-learning/history']));
     }
 
+    public function testScopedFileDeletedSinceBaseCommitIsRecordedAsExplicitDeletion(): void
+    {
+        file_put_contents($this->root . '/src/Gone.php', "<?php\nreturn 'gone';\n");
+        $contract = $this->contractAt('SNAP-DELETE-1', ['src/A.php', 'src/Gone.php'], $this->commitAll());
+        $before = ImplementationSnapshot::capture($this->root, $contract);
+
+        unlink($this->root . '/src/Gone.php');
+        $afterDeletion = ImplementationSnapshot::capture($this->root, $contract);
+
+        self::assertSame(['src/A.php'], array_column($afterDeletion->files, 'path'));
+        self::assertSame(['src/Gone.php'], $afterDeletion->deleted);
+        self::assertSame(['src/Gone.php'], $afterDeletion->toArray()['deleted'] ?? null);
+        self::assertNotSame($before->digest, $afterDeletion->digest);
+
+        file_put_contents($this->root . '/src/Gone.php', "<?php\nreturn 'gone';\n");
+        self::assertSame($before->digest, ImplementationSnapshot::capture($this->root, $contract)->digest);
+    }
+
+    public function testScopedDirectoryDeletedSinceBaseCommitIsRecordedEvenWhenNothingElseRemains(): void
+    {
+        mkdir($this->root . '/legacy/skill', 0o775, true);
+        file_put_contents($this->root . '/legacy/skill/SKILL.md', "# Legacy\n");
+        $contract = $this->contractAt('SNAP-DELETE-DIR-1', ['legacy/skill'], $this->commitAll());
+
+        $this->removeDirectory($this->root . '/legacy');
+        $snapshot = ImplementationSnapshot::capture($this->root, $contract);
+
+        self::assertSame([], $snapshot->files);
+        self::assertSame(['legacy/skill'], $snapshot->deleted);
+    }
+
+    public function testMissingScopedPathNeverTrackedAtBaseCommitStaysUnavailable(): void
+    {
+        $contract = $this->contractAt('SNAP-DELETE-NEVER-1', ['src/Never.php'], $this->commitAll());
+
+        $this->expectException(ImplementationSnapshotUnavailable::class);
+        $this->expectExceptionMessage('scoped path does not exist yet: src/Never.php');
+
+        ImplementationSnapshot::capture($this->root, $contract);
+    }
+
+    public function testSnapshotWithoutDeletionsKeepsItsPersistedDigestPayload(): void
+    {
+        $snapshot = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-PAYLOAD-1', ['src/A.php']));
+
+        $expected = 'sha256:' . hash('sha256', \voku\AgentLoop\Run\CanonicalJson::pretty([
+            'schema_version' => '1.0',
+            'contract_revision' => 1,
+            'files' => [['path' => 'src/A.php', 'sha256' => 'sha256:' . hash_file('sha256', $this->root . '/src/A.php')]],
+        ]));
+        self::assertSame($expected, $snapshot->digest);
+        self::assertSame([], $snapshot->deleted);
+        self::assertArrayNotHasKey('deleted', $snapshot->toArray());
+    }
+
     /** @param list<string> $scope */
     private function contract(string $taskId, array $scope): \voku\AgentLoop\Workflow\TaskContract
     {
@@ -222,6 +277,39 @@ final class ImplementationSnapshotTest extends TestCase
         $store->create($taskId, 'Snapshot fixture.', $scope, [], ['composer test'], 'fixture');
 
         return $store->approve($taskId, 'fixture');
+    }
+
+    /** @param list<string> $scope */
+    private function contractAt(string $taskId, array $scope, string $baseCommit): \voku\AgentLoop\Workflow\TaskContract
+    {
+        $store = new TaskContractStore($this->root);
+        $store->create($taskId, 'Snapshot fixture.', $scope, [], ['composer test'], 'fixture', $baseCommit);
+
+        return $store->approve($taskId, 'fixture');
+    }
+
+    private function commitAll(): string
+    {
+        foreach ([
+            ['git', 'init', '-q'],
+            ['git', 'config', 'user.email', 'snapshot@example.invalid'],
+            ['git', 'config', 'user.name', 'Snapshot Fixture'],
+            ['git', 'config', 'commit.gpgsign', 'false'],
+            ['git', 'add', '-A'],
+            ['git', 'commit', '-q', '--no-verify', '-m', 'base'],
+        ] as $command) {
+            $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->root);
+            self::assertIsResource($process);
+            $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            self::assertSame(0, proc_close($process), implode(' ', $command) . "\n" . $output);
+        }
+
+        $head = \voku\AgentLoop\GitWorkTree::headCommit($this->root);
+        self::assertNotNull($head);
+
+        return $head;
     }
 
     private function removeDirectory(string $directory): void
