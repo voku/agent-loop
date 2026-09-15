@@ -1,0 +1,23 @@
+{
+    "id": "finding.2026-09-15.dd4221",
+    "task_id": "deterministic-enforcement-20260915",
+    "session": "2026-09-15-deterministic-enforcement-20260915-r2-ab67ccc3",
+    "created_at": "2026-09-15T07:19:48+00:00",
+    "created_by": "claude",
+    "scope": [
+        "src/Run/RunManifestProjector.php"
+    ],
+    "observation": "After workflow plan --supersede created an unapproved Contract revision 2 while a Run bound to revision 1 existed, agent-loop enter returned next_action_kind host_work to repair run.contract_revision_mismatch instead of decision_required approval of revision 2.",
+    "evidence": [
+        {
+            "type": "runtime_observation",
+            "summary": "enter after supersede: host_work run.contract_revision_mismatch; workflow approve revision 2 followed by enter prepared the Run, matching tests/Dogfood/AutonomousReplanDogfoodTest.php."
+        }
+    ],
+    "hypothesis": "The Run disagreement outranks the missing approval when enter selects the next action.",
+    "validated_conclusion": "An unapproved superseding Contract revision should route to its human approval decision; the revision mismatch resolves once that revision is approved and enter re-prepares the Run.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

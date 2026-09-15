@@ -61,7 +61,7 @@ final class AuthService
         return hash_equals($knownToken, $userToken);
     }
 }
-PHP
+PHP,
         );
 
         file_put_contents(
@@ -73,7 +73,7 @@ PHP
                         'App\\' => 'src/',
                     ],
                 ],
-            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+            ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
         );
     }
 

@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [Unreleased]
+
+### Added
+
+- Gate code style in `composer ci` through PHP-CS-Fixer (`composer cs`, repaired by `composer cs:fix`) with a checked-in PER-CS 2.0 config that encodes the repository's existing `fn (` and multi-line empty-body conventions, so style drift fails CI instead of relying on agent guidance.
+- Run the slop-scan lint (`composer review:slop`) inside `composer ci`, installing its isolated tool project first.
 
 ### Changed
 
@@ -11,6 +16,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Enforce the in-process PHPStan container constraint on the resolved ancestor chain: `NoInProcessPhpstanRuleTestCaseRule` now reports every `PHPStan\Testing\PHPStanTestCase` descendant, so `TypeInferenceTestCase`, an intermediate base class and its children no longer pass analysis where only a direct `RuleTestCase` parent was caught.
+
+- Repoint approved guidance `proposal.2026-08-14.011` (Learning evidence detection) from the removed `bash tools/self-shape-dogfood.sh` to `php tools/self-shape-dogfood.php`. Recall refused to compile any governed task that selected it, so `agent-loop enter` could not prepare a Run on `main`.
 - Let governed contracts whose approved work deletes a scoped path close: `ImplementationSnapshot` records a scoped path that is gone from the working tree but tracked at the Contract `base_commit` (`GitWorkTree::tracksPathAt()`) as an explicit `deleted` entry. The entry is hashed only when non-empty, so persisted digests stay valid; a missing path without that proof still fails closed.
 - Stop `init sync-skills` / `init sync-subagents` without explicit roots from pruning package copies that `install-assets` projected for the same config. Default mode still copies only the configured project root, keeps retained entries' manifest records verbatim, and prunes only entries outside the desired set, so disabling package assets removes their copies. Explicit roots stay root-exact.
 - Stop `init status` and `init doctor` from treating `package_skills: false` / `package_subagents: false` as enabled, and from re-adding first-party manifest entries outside the desired set (`ManagedAssetExpectationResolver` removed).

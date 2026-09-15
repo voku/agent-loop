@@ -61,7 +61,7 @@ final class Calculator
         return $a + $b;
     }
 }
-PHP
+PHP,
         );
     }
 
@@ -124,7 +124,7 @@ final class Calculator
         return UndefinedBigMathHelper::factorial($n);
     }
 }
-PHP
+PHP,
         );
 
         // Verify that the initial implementation assumption is observed as flawed
@@ -164,7 +164,7 @@ final class Calculator
         return $result;
     }
 }
-PHP
+PHP,
         );
 
         // 5. Validation succeeds
