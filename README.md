@@ -97,7 +97,7 @@ Requirements: PHP 8.3+ and Composer.
 vendor/bin/agent-loop
 ```
 
-## Quick start
+## Start a repository
 
 Create the repository-local workflow scaffold:
 
@@ -246,6 +246,26 @@ vendor/bin/agent-loop verify --task-id=ABC-123
 The CLI is the executable reference. Detailed specialist commands remain
 available when the current task needs them; their existence does not make them
 mandatory workflow phases.
+
+## CLI namespaces
+
+The stable command families are kept intentionally concise here; use
+`vendor/bin/agent-loop help` or `<namespace> help` for the executable details.
+
+```text
+edit          governed edit preparation and execution
+board         Git-native work items
+session       temporary working memory and validation evidence
+map           repository structure and code navigation
+recall        bounded task context and outcome logging
+learn         findings, proposals, constraints and learning history
+verify        cross-package consistency checks
+workflow      durable governed workflow orchestration
+board:verify  board-only consistency checks
+memory        MEMORY.md validation and review
+review        deterministic review helpers
+init          repository setup and managed agent assets
+```
 
 ## Documentation
 
