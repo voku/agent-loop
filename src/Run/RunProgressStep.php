@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
+use InvalidArgumentException;
+
 /**
  * One presentation-oriented step in the Loop-owned governed workflow.
  *
@@ -18,9 +20,6 @@ final readonly class RunProgressStep
     public const string STATUS_BLOCKED = 'blocked';
     public const string STATUS_NOT_APPLICABLE = 'not_applicable';
 
-    /**
-     * @param self::STATUS_DONE|self::STATUS_CURRENT|self::STATUS_PENDING|self::STATUS_BLOCKED|self::STATUS_NOT_APPLICABLE $status
-     */
     public function __construct(
         public string $id,
         public string $label,
@@ -28,6 +27,15 @@ final readonly class RunProgressStep
         public string $owner,
         public ?string $reason = null,
     ) {
+        if (!in_array($status, [
+            self::STATUS_DONE,
+            self::STATUS_CURRENT,
+            self::STATUS_PENDING,
+            self::STATUS_BLOCKED,
+            self::STATUS_NOT_APPLICABLE,
+        ], true)) {
+            throw new InvalidArgumentException('Unsupported workflow progress status: ' . $status);
+        }
     }
 
     /** @return array{id: string, label: string, status: string, owner: string, reason: ?string} */
