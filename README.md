@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/voku/agent-loop/actions/workflows/ci.yml/badge.svg)](https://github.com/voku/agent-loop/actions)
 [![Latest Stable Version](https://poser.pugx.org/voku/agent-loop/v/stable)](https://packagist.org/packages/voku/agent-loop)
 [![Total Downloads](https://poser.pugx.org/voku/agent-loop/downloads)](https://packagist.org/packages/voku/agent-loop)
-[![Monthly Downloads](https://poser.pugx.org/voku/agent-loop/downloads)](https://packagist.org/packages/voku/agent-loop)
+[![Monthly Downloads](https://poser.pugx.org/voku/agent-loop/d/monthly)](https://packagist.org/packages/voku/agent-loop)
 [![License](https://poser.pugx.org/voku/agent-loop/license)](https://packagist.org/packages/voku/agent-loop)
 [![PHP Version Require](https://poser.pugx.org/voku/agent-loop/require/php)](https://packagist.org/packages/voku/agent-loop)
 [![GitHub Stars](https://img.shields.io/github/stars/voku/agent-loop?style=flat-square)](https://github.com/voku/agent-loop/stargazers)
@@ -61,7 +61,7 @@ The CLI is available as:
 vendor/bin/agent-loop
 ```
 
-## Start in 60 seconds
+## Quick start
 
 Create the repository-local workflow scaffold:
 
@@ -88,8 +88,7 @@ vendor/bin/agent-loop init host-status --format=json
 ```
 
 Portable assets are available for Codex, Claude Code, OpenCode, Copilot, Gemini
-CLI, and Antigravity. Host-specific capabilities remain explicit instead of being
-pretended into existence.
+CLI, and Antigravity. Host-specific capabilities and limitations remain explicit.
 
 ## The workflow
 
@@ -247,7 +246,7 @@ composer ci
 ```
 
 Never report a command as passed unless it actually ran and its exit code was
-observed. Revolutionary concept, apparently.
+observed.
 
 ## License
 
