@@ -16,6 +16,8 @@ vendor/bin/agent-loop enter <task-id> --format=json
 
 Obey `next_action_kind` / `next_action` from that result. `AGENTS.md` already defines how to treat each kind, so this skill does not restate it: a third copy of a rule the router and the result both carry is a second source of truth that can drift from its authority.
 
+A task router may choose a specialist skill, never a lifecycle phase. Only the current result routes task start/progress, Recall or repair, Learning, review, and close.
+
 When host-native mutation is complete, reconcile deterministic close-out through:
 ```bash
 vendor/bin/agent-loop finish <task-id> --format=json
