@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.14 - 2026-09-15
+
+### Added
+
+- Expose a typed, read-only per-task workflow progress projection for presentation consumers. `RunProgressProjector` derives an ordered view of Contract, preparation, execution context, implementation, validation, review, Recall outcomes, Learning and closeout from the same current owner facts used by `RunPolicyEvaluator`; each step preserves `done`, `current`, `pending`, `blocked` or `not_applicable`, semantic owner and bounded reason, while the projection carries the canonical lifecycle state and next action without acquiring mutation or human-decision authority. (#490, #493)
+
 ## 0.20.13 - 2026-09-15
 
 ### Fixed
