@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Stop governed Run preparation from replacing a shared agent-map index: when the Contract scope is not indexed, `WorkflowRunPreparer` patches it into the existing index with a builder of the same backend (structural-only or semantic), and leaves an index whose backend it cannot reproduce untouched with a repair message. One scoped file outside the indexed paths previously overwrote a full semantic index with a scope-sized structural build, so later map queries, planners and Recall evidence saw only that Contract's files.
+
 ## 0.20.13 - 2026-09-15
 
 ### Fixed

@@ -95,7 +95,12 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         self::assertSame($first, (string) file_get_contents($this->mapIndex()), 'repeated enter must stay idempotent');
     }
 
-    public function testStaleDifferentBackendMapIsReplacedWithoutCarryingUnrelatedEntries(): void
+    /**
+     * A semantic index used to be replaced by a scope-sized structural build here,
+     * which dropped every unrelated entry of a real repository map. The owner's
+     * same-backend builder patches the changed scope and keeps the rest.
+     */
+    public function testStaleSemanticMapIsPatchedWithTheSameBackendInsteadOfReplaced(): void
     {
         file_put_contents($this->root . '/src/Unrelated.php', "<?php\n\nfinal class Unrelated {}\n");
         $this->approvedPhpContract('MAP-STALE');
@@ -115,8 +120,8 @@ final class EnterReconcilesDiscoveryTest extends TestCase
 
         $map = (new IndexReader())->read($this->mapIndex());
         self::assertNotNull($map->file('src/Greeter.php'));
-        self::assertNull($map->file('src/Unrelated.php'));
-        self::assertSame('simple-php-code-parser+structural-only', $map->backend);
+        self::assertNotNull($map->file('src/Unrelated.php'), 'a semantic map must be patched, not replaced by a scope-sized build');
+        self::assertSame('simple-php-code-parser+phpstan', $map->backend);
     }
 
     public function testDocumentationOnlyWorkBuildsNoMapAtAll(): void

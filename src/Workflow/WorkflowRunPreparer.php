@@ -92,9 +92,6 @@ final readonly class WorkflowRunPreparer
      * carries unrelated entries forward from a stale snapshot. Explicit Map
      * commands remain the front door for intentionally broader discovery.
      */
-    /** The backend automatic preparation produces; only a matching snapshot may be carried forward. */
-    private const string STRUCTURAL_BACKEND = 'simple-php-code-parser+structural-only';
-
     private function rebuildMap(TaskContract $contract): void
     {
         $scope = $this->existingPhpScope($contract);
@@ -106,37 +103,62 @@ final readonly class WorkflowRunPreparer
             $this->rootPath,
             (new ProjectLayout($this->rootPath))->mapRoot(),
         );
-        $builder = new AgentMapBuilder(
-            semanticAnalyzer: new StructuralOnlySemanticAnalyzer(),
-            artifacts: $artifacts,
-        );
-
-        // Patch the Contract scope into an index of the same backend instead of
-        // replacing it. Writing a scope-sized build over the shared index made
-        // every later map consumer - queries, planners, Recall evidence - see only
-        // the handful of files this one Contract happened to touch.
-        //
-        // A different backend is still replaced rather than merged: carrying
-        // semantic entries into a structural-only build would claim analysis the
-        // result does not have.
-        $previous = null;
         $indexPath = $artifacts->indexJson();
+
+        $existing = null;
         if (is_file($indexPath)) {
             try {
                 $existing = (new IndexReader())->read($indexPath);
-                if ($existing->backend === self::STRUCTURAL_BACKEND) {
-                    $previous = $existing;
-                }
             } catch (Throwable) {
                 // An unreadable snapshot is not authority to keep; rebuild the scope alone.
-                $previous = null;
+                $existing = null;
             }
         }
 
+        if ($existing === null) {
+            $builder = new AgentMapBuilder(semanticAnalyzer: new StructuralOnlySemanticAnalyzer(), artifacts: $artifacts);
+            (new IndexWriter())->write($builder->build($this->rootPath, $scope, []), $indexPath);
+
+            return;
+        }
+
+        // Patch the Contract scope into the shared index with a builder of the
+        // same backend, never replace it. A scope-sized build written over the
+        // shared index made every later map consumer - queries, planners, Recall
+        // evidence - see only the handful of files this one Contract touched, and
+        // one scoped file outside the indexed paths was enough to trigger it on a
+        // full semantic index. When no automatic builder reproduces the recorded
+        // backend, the index is left untouched and the owner's explicit build is
+        // the repair.
+        $builder = $this->builderForBackend($existing->backend, $artifacts);
+        if ($builder === null) {
+            throw new RuntimeException(sprintf(
+                'Contract scope %s is not indexed in %s, and its backend "%s" cannot be patched automatically; the index was left untouched. Rebuild it with agent-map build covering that scope.',
+                implode(', ', $scope),
+                $indexPath,
+                $existing->backend,
+            ));
+        }
+
         (new IndexWriter())->write(
-            $builder->build($this->rootPath, $scope, [], null, null, $previous),
+            $builder->build($this->rootPath, $scope, [], null, null, $existing),
             $indexPath,
         );
+    }
+
+    /** The automatic builder whose backend matches a recorded index, or null when none does. */
+    private function builderForBackend(string $backend, MapArtifactPaths $artifacts): ?AgentMapBuilder
+    {
+        foreach ([
+            new AgentMapBuilder(semanticAnalyzer: new StructuralOnlySemanticAnalyzer(), artifacts: $artifacts),
+            new AgentMapBuilder(artifacts: $artifacts),
+        ] as $candidate) {
+            if ($candidate->backend() === $backend) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /** @param callable(list<string>): int $recallRunner */
