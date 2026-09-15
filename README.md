@@ -126,6 +126,41 @@ vendor/bin/agent-loop init host-status --format=json
 vendor/bin/agent-loop init doctor
 ```
 
+### What `install-assets` actually installs
+
+Think of setup as composition, not as one hard-coded bundle:
+
+```text
+trusted first-party packages
+  -> export the consumer-facing skills for this repository
+
+project
+  -> keeps its own project-specific skills
+
+explicit extra roots
+  -> may contribute additional local skills
+
+all resolved sources
+  -> one desired managed skill set
+  -> projected into the selected host
+```
+
+For an ordinary consumer repository, maintainer-only skills from the `agent-*`
+packages are left out. The exact first-party list may change as package owners
+add or remove consumer exports, so a fixed skill count is not part of the setup
+contract.
+
+To see what the current project would receive right now, use the dry run:
+
+```bash
+vendor/bin/agent-loop init install-assets --agent=codex --dry-run
+```
+
+The dry run prints the resolved asset changes without writing them. Package-owned
+skills can be disabled with `.agent-loop/init.json` (`package_skills: false`) or
+`--no-package-skills`; configured project skills and explicit
+`--extra-skills-root` inputs remain separate sources.
+
 `host-status` auto-detects a single visible Codex, Claude Code, OpenCode, Copilot,
 or Gemini CLI runtime. Pass `--agent=<host>` when multiple runtimes are visible
 or when using Antigravity, whose runtime is not auto-probed. It checks current
@@ -431,7 +466,7 @@ the semantic map, compile bounded recall, and prepare an auditable execution
 bundle:
 
 ```bash
-vendor/bin/agent-loop edit 'App\Service\UserService::save' -- \
+vendor/bin/agent-loop edit 'App\\Service\\UserService::save' -- \
   'Reject inactive users before persistence and adapt affected callers.'
 ```
 
@@ -445,7 +480,7 @@ Artifacts are stored under:
 For a deterministic one-for-one replacement inside one resolved PHP method:
 
 ```bash
-vendor/bin/agent-loop edit 'Legacy\ResourceService::save' \
+vendor/bin/agent-loop edit 'Legacy\\ResourceService::save' \
   --runner=auto \
   --replace-old='$legacyUser->regionId' \
   --replace-new='$legacyUser->getCurrentRegionId()' -- \
@@ -633,15 +668,22 @@ See [Learning boundary](docs/workflow/learning-boundary.md) and
 
 ## Repository-managed assets
 
-Use `install-assets` for the immutable defaults shipped with this package:
+Use `install-assets` to materialize the resolved desired asset set for a host:
 
 ```bash
 vendor/bin/agent-loop init install-assets --agent=all
 ```
 
-`install-assets` is intentionally configuration-free: host configuration cannot
-replace its package-owned skills, roles, or hooks. Use `sync-*` when a host
-repository owns customized canonical assets:
+`install-assets` reads `.agent-loop/init.json` when present and composes the
+consumer-facing first-party exports with configured project roots. Package skills
+and subagents can be disabled through `package_skills` / `package_subagents` or
+the corresponding `--no-package-*` flags; explicit extra roots can extend an
+individual install.
+
+Use `sync-*` when synchronizing project-owned canonical roots. Its default
+materialization scope stays narrower than `install-assets`: it updates the
+configured project root without silently expanding package-owned sources, while
+managed package entries that remain desired are retained.
 
 ```bash
 vendor/bin/agent-loop init validate --kind=all
@@ -691,7 +733,7 @@ composer validate --strict
 phpunit
 phpstan
 php tools/project-phpstan-rules.php
-itp-context-validate 'voku\AgentLoop\Context\ArchitectureRules'
+itp-context-validate 'voku\\AgentLoop\\Context\\ArchitectureRules'
 php tools/agent-discipline-dogfood.php
 ```
 
