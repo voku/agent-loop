@@ -13,21 +13,88 @@
 Coding agents are already good at changing code. The harder problem is keeping
 scope, context, evidence, decisions, and lessons coherent across a real task.
 
-`voku/agent-loop` adds a local workflow around the coding agent you already use:
+`voku/agent-loop` adds a durable local workflow around the coding agent you
+already use.
+
+## Workflow at a glance
 
 ```text
-human intent
-  -> explicit task contract
-  -> current bounded context
-  -> implementation with normal repository tools
-  -> validation and review evidence
-  -> useful learning
-  -> governed close
+                              HUMAN
+                    intent / approval / risk
+                                |
+                                v
+                    +-----------------------+
+                    |     TASK CONTRACT     |
+                    | goal · scope · proof  |
+                    +-----------+-----------+
+                                |
+                                v
+                   agent-loop enter <task-id>
+                                |
+                    current next_action
+                                |
+                                v
+          +---------------------+---------------------+
+          |                                           |
+          v                                           v
++---------------------+                    +---------------------+
+|   BOUNDED CONTEXT   |                    |   HUMAN DECISION    |
+| Map · Recall · repo |                    | only when required  |
++----------+----------+                    +----------+----------+
+           |                                              |
+           v                                              |
++---------------------+                                   |
+|    CODING AGENT     |<----------------------------------+
+| understand · change |
++----------+----------+
+           |
+           v
++---------------------+
+|      EVIDENCE       |
+| tests · PHPStan     |
+| diff · review · CI  |
++----------+----------+
+           |
+           v
+                  agent-loop finish <task-id>
+                           |
+                 current next_action
+                           |
+             +-------------+-------------+
+             |                           |
+             | more work                 | complete
+             |                           v
+             +--------------------> +---------+
+                                    |  CLOSE  |
+                                    +----+----+
+                                         |
+                                         v
+                               useful Finding / outcome
+                                         |
+                                         v
+                                  +-------------+
+                                  |  LEARNING   |
+                                  +------+------+ 
+                                         |
+                           repeated + reviewed?
+                                         |
+                                         v
+                         test / PHPStan / typed API /
+                         other deterministic structure
+                                         |
+                                         v
+                              delete obsolete prose
 ```
 
-It does not replace your coding agent, Git, tests, PHPStan, or code review. It
-connects them into one durable workflow so a task can survive a new chat, a new
-agent, or a later continuation without reconstructing the truth from memory.
+The important bit is deliberately boring:
+
+```text
+enter -> do the current next action -> finish -> repeat until complete
+```
+
+The coding agent does not reconstruct an internal phase machine from a prompt.
+`agent-loop` keeps the durable task truth and tells the host what is currently
+allowed or required.
 
 ## Why Agent Loop?
 
@@ -50,12 +117,7 @@ reconstruction, less hidden state, and better evidence**.
 composer require --dev voku/agent-loop
 ```
 
-Requirements:
-
-- PHP 8.3+
-- Composer
-
-The CLI is available as:
+Requirements: PHP 8.3+ and Composer.
 
 ```bash
 vendor/bin/agent-loop
@@ -90,35 +152,16 @@ vendor/bin/agent-loop init host-status --format=json
 Portable assets are available for Codex, Claude Code, OpenCode, Copilot, Gemini
 CLI, and Antigravity. Host-specific capabilities and limitations remain explicit.
 
-## The workflow
+## The two lifecycle commands
 
-For normal durable work, the host-facing lifecycle is intentionally small:
-
-```text
-plan + approve task intent
-        ↓
-agent-loop enter <task-id>
-        ↓
-obey current next_action
-        ↓
-implement the approved outcome coherently
-        ↓
-agent-loop finish <task-id>
-        ↓
-obey current next_action
-        ↓
-complete
-```
-
-The coding agent does not need to memorize internal package ordering. It consumes
-the current lifecycle result instead.
+Start or resume a durable task:
 
 ```bash
 vendor/bin/agent-loop enter ABC-123 --format=json
 ```
 
-The result tells the host whether the next step is a command, model-owned work, a
-real human decision, or completion.
+The result tells the host whether the current step is a command, model-owned
+work, a genuine human decision, or completion.
 
 After implementation or another requested action:
 
@@ -126,8 +169,8 @@ After implementation or another requested action:
 vendor/bin/agent-loop finish ABC-123 --format=json
 ```
 
-`finish` reconciles the current task evidence and returns the next authoritative
-step. No parallel checklist is required in the host prompt.
+`finish` reconciles current evidence and returns the next authoritative step.
+Repeat until the lifecycle reports completion.
 
 See the [lifecycle contract](docs/workflow/lifecycle.md) for the exact ownership
 model.
@@ -154,8 +197,8 @@ evidence. Agent confidence is not a gate.
 ### Learning that can disappear again
 
 `agent-learning` records observations, findings, and reviewed precedent. Repeated
-objective lessons can later become tests, PHPStan rules, fixers, typed APIs, or
-other deterministic constraints.
+objective lessons can become tests, PHPStan rules, fixers, typed APIs, or other
+deterministic constraints.
 
 Once structure owns the rule, obsolete prompt knowledge should be deleted rather
 than accumulated forever.
