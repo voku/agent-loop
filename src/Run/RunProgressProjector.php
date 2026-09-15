@@ -5,22 +5,16 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Run;
 
 /**
- * Projects a presentation-safe workflow timeline from current owner facts.
+ * Read-only workflow progress derived from the same current facts as Loop policy.
  *
- * Lifecycle legality and routing remain owned by RunPolicyEvaluator. This class
- * deliberately consumes that policy result instead of creating a second next
- * action or mutation-authority decision.
+ * This class never authorizes work and never invents a next action. It carries
+ * the canonical RunPolicyEvaluator result beside an ordered presentation model.
  */
 final readonly class RunProgressProjector
 {
     public function projectManifest(RunManifest $manifest): RunProgressProjection
     {
-        return $this->project(
-            $manifest->taskId,
-            $manifest->mode,
-            $manifest->references,
-            $manifest->disagreements,
-        );
+        return $this->project($manifest->taskId, $manifest->mode, $manifest->references, $manifest->disagreements);
     }
 
     /**
@@ -31,165 +25,66 @@ final readonly class RunProgressProjector
     {
         $policy = (new RunPolicyEvaluator())->evaluate($taskId, $mode, $references, $disagreements);
         if ($mode === 'ephemeral') {
-            return new RunProgressProjection(
-                $taskId,
-                $policy->state,
-                $policy->nextAction,
-                $policy->nextActionKind,
-                [],
-            );
+            return new RunProgressProjection($taskId, $policy->state, $policy->nextAction, $policy->nextActionKind, []);
         }
 
-        $contractDone = $this->referenceState($references, 'contract') === 'approved'
-            && $this->referenceState($references, 'approval') === 'current';
+        $complete = $policy->state === 'complete';
+        $contractDone = $this->state($references, 'contract') === 'approved'
+            && $this->state($references, 'approval') === 'current';
         $prepared = $contractDone
             && $mode === 'governed'
             && $this->runMatchesCurrentContract($references)
-            && $this->referenceState($references, 'session') === 'active'
-            && $this->referenceState($references, 'recall') === 'compiled';
+            && $this->state($references, 'session') === 'active'
+            && $this->state($references, 'recall') === 'compiled';
 
-        $executionState = $this->referenceState($references, 'execution_contract');
+        $executionState = $this->state($references, 'execution_contract');
         $executionApplicable = $executionState !== 'not_required';
         $executionDone = !$executionApplicable || $executionState === 'ready';
         $executionBlocked = in_array($executionState, ['blocked', 'rejected', 'invalid', 'stale'], true);
 
-        $verificationState = $this->referenceState($references, 'verification');
+        $verificationState = $this->state($references, 'verification');
         $verificationGate = $references['verification']['gate'] ?? null;
         $validationObserved = $verificationGate === 'validation';
-        $validationBlocked = $validationObserved
-            && in_array($verificationState, ['failed', 'blocked', 'invalid'], true);
+        $validationBlocked = $validationObserved && in_array($verificationState, ['failed', 'blocked', 'invalid'], true);
 
-        $reviewState = $this->referenceState($references, 'review');
+        $reviewState = $this->state($references, 'review');
         $reviewStarted = in_array($reviewState, ['invalid', 'stale', 'unacknowledged', 'ok', 'warn', 'fail'], true);
         $reviewDone = in_array($reviewState, ['ok', 'warn'], true);
-        $reviewBlocked = $reviewState === 'fail';
-
-        $implementationDone = $prepared
-            && $executionDone
+        $implementationDone = $prepared && $executionDone
             && ($validationObserved || $reviewStarted || in_array($policy->state, ['ready_to_close', 'complete'], true));
         $validationDone = $implementationDone
             && ($reviewStarted || in_array($policy->state, ['ready_to_close', 'complete'], true));
-
-        $recallOutcomesCurrent = $verificationGate === 'recall_outcomes';
-        $learningDone = $this->referenceState($references, 'learning') === 'decided';
-        $complete = $policy->state === 'complete';
+        $recallOutcomesCurrent = $verificationGate === 'recall_outcomes' && !$complete;
+        $learningDone = $this->state($references, 'learning') === 'decided';
 
         $steps = [
-            new RunProgressStep(
-                'contract',
-                'Contract',
-                $complete || $contractDone ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT,
-                'agent-loop',
-                $this->referenceReason($references, 'approval') ?? $this->referenceReason($references, 'contract'),
-            ),
-            new RunProgressStep(
-                'preparation',
-                'Run preparation',
-                !$contractDone
-                    ? RunProgressStep::STATUS_PENDING
-                    : ($complete || $prepared ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT),
-                'agent-loop',
-                $this->referenceReason($references, 'session') ?? $this->referenceReason($references, 'recall'),
-            ),
-            new RunProgressStep(
-                'execution_context',
-                'Execution context',
-                !$executionApplicable
-                    ? RunProgressStep::STATUS_NOT_APPLICABLE
-                    : (!$prepared
-                        ? RunProgressStep::STATUS_PENDING
-                        : ($complete || $executionDone
-                            ? RunProgressStep::STATUS_DONE
-                            : ($executionBlocked ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT))),
-                $this->referenceOwner($references, 'execution_contract', 'agent-loop'),
-                $this->referenceReason($references, 'execution_contract'),
-            ),
-            new RunProgressStep(
-                'implementation',
-                'Implementation',
-                !$prepared || !$executionDone
-                    ? RunProgressStep::STATUS_PENDING
-                    : ($complete || $implementationDone ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT),
-                'host',
-            ),
-            new RunProgressStep(
-                'validation',
-                'Validation',
-                !$implementationDone
-                    ? RunProgressStep::STATUS_PENDING
-                    : ($complete || $validationDone
-                        ? RunProgressStep::STATUS_DONE
-                        : ($validationBlocked ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT)),
-                $this->referenceOwner($references, 'verification', 'agent-loop'),
-                $validationObserved ? $this->referenceReason($references, 'verification') : null,
-            ),
-            new RunProgressStep(
-                'review',
-                'Review',
-                !$validationDone
-                    ? RunProgressStep::STATUS_PENDING
-                    : ($complete || $reviewDone
-                        ? RunProgressStep::STATUS_DONE
-                        : ($reviewBlocked ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT)),
-                $this->referenceOwner($references, 'review', 'agent-recall-compiler'),
-                $this->referenceReason($references, 'review'),
-            ),
-            new RunProgressStep(
-                'recall_outcomes',
-                'Recall outcomes',
-                $recallOutcomesCurrent ? RunProgressStep::STATUS_CURRENT : RunProgressStep::STATUS_NOT_APPLICABLE,
-                'agent-recall-compiler',
-                $recallOutcomesCurrent ? $this->referenceReason($references, 'verification') : null,
-            ),
-            new RunProgressStep(
-                'learning',
-                'Learning',
-                !$reviewDone || $recallOutcomesCurrent
-                    ? RunProgressStep::STATUS_PENDING
-                    : ($complete || $learningDone ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT),
-                $this->referenceOwner($references, 'learning', 'agent-learning'),
-                $this->referenceReason($references, 'learning'),
-            ),
-            new RunProgressStep(
-                'closeout',
-                'Closeout',
-                !$learningDone
-                    ? RunProgressStep::STATUS_PENDING
-                    : ($complete
-                        ? RunProgressStep::STATUS_DONE
-                        : (in_array($verificationState, ['failed', 'blocked', 'invalid'], true)
-                            ? RunProgressStep::STATUS_BLOCKED
-                            : RunProgressStep::STATUS_CURRENT)),
-                'agent-loop',
-                $learningDone ? $this->referenceReason($references, 'verification') : null,
-            ),
+            $this->step('contract', 'Contract', $complete || $contractDone ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT, 'agent-loop', $this->reason($references, 'approval') ?? $this->reason($references, 'contract')),
+            $this->step('preparation', 'Run preparation', $complete ? RunProgressStep::STATUS_DONE : (!$contractDone ? RunProgressStep::STATUS_PENDING : ($prepared ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT)), 'agent-loop', $this->reason($references, 'session') ?? $this->reason($references, 'recall')),
+            $this->step('execution_context', 'Execution context', !$executionApplicable ? RunProgressStep::STATUS_NOT_APPLICABLE : ($complete ? RunProgressStep::STATUS_DONE : (!$prepared ? RunProgressStep::STATUS_PENDING : ($executionDone ? RunProgressStep::STATUS_DONE : ($executionBlocked ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT)))), $this->owner($references, 'execution_contract', 'agent-loop'), $this->reason($references, 'execution_contract')),
+            $this->step('implementation', 'Implementation', $complete ? RunProgressStep::STATUS_DONE : (!$prepared || !$executionDone ? RunProgressStep::STATUS_PENDING : ($implementationDone ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT)), 'host'),
+            $this->step('validation', 'Validation', $complete ? RunProgressStep::STATUS_DONE : (!$implementationDone ? RunProgressStep::STATUS_PENDING : ($validationDone ? RunProgressStep::STATUS_DONE : ($validationBlocked ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT))), $this->owner($references, 'verification', 'agent-loop'), $validationObserved ? $this->reason($references, 'verification') : null),
+            $this->step('review', 'Review', $complete ? RunProgressStep::STATUS_DONE : (!$validationDone ? RunProgressStep::STATUS_PENDING : ($reviewDone ? RunProgressStep::STATUS_DONE : ($reviewState === 'fail' ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT))), $this->owner($references, 'review', 'agent-recall-compiler'), $this->reason($references, 'review')),
+            $this->step('recall_outcomes', 'Recall outcomes', $recallOutcomesCurrent ? RunProgressStep::STATUS_CURRENT : RunProgressStep::STATUS_NOT_APPLICABLE, 'agent-recall-compiler', $recallOutcomesCurrent ? $this->reason($references, 'verification') : null),
+            $this->step('learning', 'Learning', $complete ? RunProgressStep::STATUS_DONE : (!$reviewDone || $recallOutcomesCurrent ? RunProgressStep::STATUS_PENDING : ($learningDone ? RunProgressStep::STATUS_DONE : RunProgressStep::STATUS_CURRENT)), $this->owner($references, 'learning', 'agent-learning'), $this->reason($references, 'learning')),
+            $this->step('closeout', 'Closeout', $complete ? RunProgressStep::STATUS_DONE : (!$learningDone ? RunProgressStep::STATUS_PENDING : (in_array($verificationState, ['failed', 'blocked', 'invalid'], true) ? RunProgressStep::STATUS_BLOCKED : RunProgressStep::STATUS_CURRENT)), 'agent-loop', $learningDone ? $this->reason($references, 'verification') : null),
         ];
 
         if ($disagreements !== []) {
             $first = $disagreements[0];
             foreach ($steps as $index => $step) {
-                if ($step->status !== RunProgressStep::STATUS_CURRENT) {
-                    continue;
+                if ($step->status === RunProgressStep::STATUS_CURRENT) {
+                    $steps[$index] = $this->step($step->id, $step->label, RunProgressStep::STATUS_BLOCKED, $first['owner'], $first['message']);
+                    break;
                 }
-
-                $steps[$index] = new RunProgressStep(
-                    $step->id,
-                    $step->label,
-                    RunProgressStep::STATUS_BLOCKED,
-                    $first['owner'],
-                    $first['message'],
-                );
-                break;
             }
         }
 
-        return new RunProgressProjection(
-            $taskId,
-            $policy->state,
-            $policy->nextAction,
-            $policy->nextActionKind,
-            $steps,
-        );
+        return new RunProgressProjection($taskId, $policy->state, $policy->nextAction, $policy->nextActionKind, $steps);
+    }
+
+    private function step(string $id, string $label, string $status, string $owner, ?string $reason = null): RunProgressStep
+    {
+        return new RunProgressStep($id, $label, $status, $owner, $reason);
     }
 
     /** @param array<string, array<string, mixed>> $references */
@@ -205,7 +100,7 @@ final readonly class RunProgressProjector
     }
 
     /** @param array<string, array<string, mixed>> $references */
-    private function referenceState(array $references, string $name): ?string
+    private function state(array $references, string $name): ?string
     {
         $state = $references[$name]['state'] ?? null;
 
@@ -213,7 +108,7 @@ final readonly class RunProgressProjector
     }
 
     /** @param array<string, array<string, mixed>> $references */
-    private function referenceReason(array $references, string $name): ?string
+    private function reason(array $references, string $name): ?string
     {
         $reason = $references[$name]['reason'] ?? null;
 
@@ -221,7 +116,7 @@ final readonly class RunProgressProjector
     }
 
     /** @param array<string, array<string, mixed>> $references */
-    private function referenceOwner(array $references, string $name, string $fallback): string
+    private function owner(array $references, string $name, string $fallback): string
     {
         $owner = $references[$name]['owner'] ?? null;
 
