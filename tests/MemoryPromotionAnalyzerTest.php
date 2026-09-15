@@ -84,6 +84,42 @@ final class MemoryPromotionAnalyzerTest extends TestCase
         MD);
     }
 
+    public function testHeaderAndSeparatorPaddedByAnEditorStillParse(): void
+    {
+        $file = tempnam(sys_get_temp_dir(), 'agent-loop-memory-');
+        self::assertIsString($file);
+        file_put_contents($file, <<<'MD'
+        # MEMORY
+
+        ## Durable repository rules
+
+        | Subject   | Durable rule          | Canonical home |
+        | --------- |-----------------------|----------------|
+        | Testing   | Test it.              | tests          |
+        MD);
+
+        try {
+            $review = $this->runAnalyzer($file, 'review');
+            self::assertSame(0, $review['exit'], $review['output']);
+            self::assertStringContainsString('Durable repository rules: 1', $review['output']);
+        } finally {
+            unlink($file);
+        }
+    }
+
+    public function testReorderedHeaderColumnsStillFail(): void
+    {
+        $this->assertInvalidMemory(<<<'MD'
+        # MEMORY
+
+        ## Durable repository rules
+
+        | Durable rule | Subject | Canonical home |
+        | --- | --- | --- |
+        | Test it. | Testing | tests |
+        MD);
+    }
+
     public function testMalformedArchiveRowFails(): void
     {
         $this->assertInvalidMemory(<<<'MD'

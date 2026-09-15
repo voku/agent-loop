@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Let `memory validate` / `memory review` accept a MEMORY.md table whose header cells an editor padded to align columns: `MemoryPromotionAnalyzer` now compares the parsed, trimmed header cells with the supported columns, as the separator check already did. Wrong, missing, extra or reordered columns still fail.
 - Enforce the in-process PHPStan container constraint on the resolved ancestor chain: `NoInProcessPhpstanRuleTestCaseRule` now reports every `PHPStan\Testing\PHPStanTestCase` descendant, so `TypeInferenceTestCase`, an intermediate base class and its children no longer pass analysis where only a direct `RuleTestCase` parent was caught.
 
 - Repoint approved guidance `proposal.2026-08-14.011` (Learning evidence detection) from the removed `bash tools/self-shape-dogfood.sh` to `php tools/self-shape-dogfood.php`. Recall refused to compile any governed task that selected it, so `agent-loop enter` could not prepare a Run on `main`.

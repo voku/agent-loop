@@ -206,7 +206,6 @@ final class MemoryPromotionAnalyzer
      */
     private function parseTableInSection(array $lines, int $headingIndex, array $headers, string $label): array
     {
-        $headerLine = '| ' . implode(' | ', $headers) . ' |';
         $headerIndex = null;
 
         for ($i = $headingIndex + 1; $i < count($lines); ++$i) {
@@ -214,13 +213,17 @@ final class MemoryPromotionAnalyzer
             if (str_starts_with($line, '## ')) {
                 break;
             }
-            if ($line === $headerLine) {
+            if ($line === '' || !str_starts_with($line, '|')) {
+                continue;
+            }
+            // Compared cell by cell, like the separator: an editor that aligns
+            // Markdown columns pads the header cells without changing the table.
+            if ($this->parseMarkdownTableRow($line) === $headers) {
                 $headerIndex = $i;
                 break;
             }
-            if ($line !== '' && str_starts_with($line, '|')) {
-                throw new RuntimeException("{$label} table header does not match the supported columns");
-            }
+
+            throw new RuntimeException("{$label} table header does not match the supported columns");
         }
 
         if ($headerIndex === null) {
