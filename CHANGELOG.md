@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Let governed contracts whose approved work deletes a scoped path close: `ImplementationSnapshot` records a scoped path that is gone from the working tree but tracked at the Contract `base_commit` (`GitWorkTree::tracksPathAt()`) as an explicit `deleted` entry. The entry is hashed only when non-empty, so persisted digests stay valid; a missing path without that proof still fails closed.
 - Stop `init sync-skills` / `init sync-subagents` without explicit roots from pruning package copies that `install-assets` projected for the same config. Default mode still copies only the configured project root, keeps retained entries' manifest records verbatim, and prunes only entries outside the desired set, so disabling package assets removes their copies. Explicit roots stay root-exact.
 - Stop `init status` and `init doctor` from treating `package_skills: false` / `package_subagents: false` as enabled, and from re-adding first-party manifest entries outside the desired set (`ManagedAssetExpectationResolver` removed).
 

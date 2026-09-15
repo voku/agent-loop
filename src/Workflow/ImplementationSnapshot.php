@@ -8,6 +8,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
+use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
 
@@ -16,12 +17,16 @@ final readonly class ImplementationSnapshot
 {
     private const string VERSION = '1.0';
 
-    /** @param list<array{path: string, sha256: string}> $files */
+    /**
+     * @param list<array{path: string, sha256: string}> $files
+     * @param list<string> $deleted scoped paths the approved work removed since the Contract base commit
+     */
     private function __construct(
         public string $taskId,
         public int $contractRevision,
         public array $files,
         public string $digest,
+        public array $deleted = [],
     ) {
     }
 
@@ -43,6 +48,8 @@ final readonly class ImplementationSnapshot
 
         /** @var array<string, string> $files */
         $files = [];
+        /** @var list<string> $deleted */
+        $deleted = [];
         foreach ($contract->scope as $scopePath) {
             $relative = self::normalizeRelative($scopePath);
             $absolute = $root . '/' . $relative;
@@ -60,7 +67,18 @@ final readonly class ImplementationSnapshot
                 if (self::excludedExplicitScopePath($relative, $stateRelative, $learningRelative, $projectStateFiles)) {
                     throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
                 }
-                throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped path does not exist yet: ' . $relative);
+                // Deleting a scoped path is approved work too, but it is only
+                // provable against the commit the Contract was planned from: a
+                // path Git tracked there and that is gone now is recorded as a
+                // deletion, never silently skipped.
+                if ($contract->baseCommit !== null && GitWorkTree::tracksPathAt($root, $contract->baseCommit, $relative)) {
+                    $deleted[] = $relative;
+                    continue;
+                }
+                throw new ImplementationSnapshotUnavailable(
+                    'Implementation snapshot scoped path does not exist yet: ' . $relative
+                    . ' (a deleted path needs a Contract base_commit that tracks it)',
+                );
             }
             if (self::excludedScopeDirectory($relative, $stateRelative, $learningRelative)) {
                 throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
@@ -91,7 +109,7 @@ final readonly class ImplementationSnapshot
                 throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped directory contains no implementation files yet: ' . $relative);
             }
         }
-        if ($files === []) {
+        if ($files === [] && $deleted === []) {
             throw new ImplementationSnapshotUnavailable('Implementation snapshot has no scoped implementation files yet.');
         }
 
@@ -107,20 +125,31 @@ final readonly class ImplementationSnapshot
             'contract_revision' => $contract->revision,
             'files' => $entries,
         ];
+        if ($deleted !== []) {
+            sort($deleted, SORT_STRING);
+            // Present only when something was deleted, for the same reason:
+            // digests persisted before deletions were representable stay valid.
+            $payload['deleted'] = $deleted;
+        }
         $digest = 'sha256:' . hash('sha256', CanonicalJson::pretty($payload));
 
-        return new self($contract->taskId, $contract->revision, $entries, $digest);
+        return new self($contract->taskId, $contract->revision, $entries, $digest, $deleted);
     }
 
-    /** @return array{schema_version:string,contract_revision:int,files:list<array{path:string,sha256:string}>,digest:string} */
+    /** @return array{schema_version:string,contract_revision:int,files:list<array{path:string,sha256:string}>,deleted?:list<string>,digest:string} */
     public function toArray(): array
     {
-        return [
+        $array = [
             'schema_version' => self::VERSION,
             'contract_revision' => $this->contractRevision,
             'files' => $this->files,
-            'digest' => $this->digest,
         ];
+        if ($this->deleted !== []) {
+            $array['deleted'] = $this->deleted;
+        }
+        $array['digest'] = $this->digest;
+
+        return $array;
     }
 
     private static function normalizeRelative(string $path): string
