@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.14 - 2026-09-15
+
+### Added
+
+- Expose typed owner-backed workflow progress through `RunProgressProjector`, `RunProgressProjection`, and `RunProgressStep`, so presentation consumers can render ordered done/current/pending/blocked/not-applicable work from the current `RunManifest` while Loop keeps lifecycle legality and the canonical next action. (#493)
+
+### Fixed
+
+- Attribute the `recall_outcomes` progress step to `agent-learning`, which owns the persisted recall selection/outcome evidence consumed by Loop's close gate, instead of presenting `agent-recall-compiler` as that evidence owner. (#496)
+
 ## 0.20.13 - 2026-09-15
 
 ### Fixed
@@ -1249,8 +1259,8 @@ release.
 - Added package-owned historical replay coverage for a public one-line PHP fix.
   It compares `edit --runner=auto` against the committed result and a guarded
   Linux file-wide replacement baseline without invoking a coding agent.
-- `init tools` now inventories optional RTK availability so agents can use it
-  at the outer shell boundary for compact command output.
+- `init tools` now inventories optional RTK availability so agents can use it at
+  the outer shell boundary for compact command output.
 
 ## 0.6.6 - 2026-08-03
 
@@ -1414,8 +1424,8 @@ release.
   defaults to `<root>/infra/doc/agent-learning/recall-output` when that
   directory exists, else `<root>/recall`. Wired into `Dispatcher`,
   `AgentLoopVerifier`, and all four `Workflow*Command` classes so `workflow
-  plan/context/status/report/close` and `agent-loop verify` always resolve
-  the same path.
+  plan/context/status/report/close` and `agent-loop verify` always resolve the
+  same path.
 - Fixed `AgentLoopVerifier::checkRecallCoverage()` and
   `checkRecallStaleness()` resolving two different recall roots in the same
   `verify` run (the documented `--recall-root` flag was silently ignored by
@@ -1528,35 +1538,17 @@ release.
   change, since the card directory is entirely owned and resolved by
   `voku/agent-kanban`.
 - `verify` is now a cross-package consistency check (`AgentLoopVerifier`):
-  tasks, board, session/recall linkage with hash-based staleness
-  detection, and the learning root, each skipping itself when its inputs
-  are absent. The previous board-only check remains available as
-  `board:verify`.
-- Reworked the README around the package map, the exact verified
-  commands, and an explicit "what agent-loop does not do" section.
-- Added `tests/fixtures/basic-loop` and `SmokeLoopTest`, an end-to-end
-  proof of session -> recall -> learn -> verify.
-- Fixed `bin/agent-loop` missing its executable bit in git, which broke
-  running it directly from a checkout (`./bin/agent-loop`); installs via
-  Composer as a dependency were unaffected, since Composer force-sets
-  `+x` on `vendor/bin/` proxies regardless of the source file's mode.
-- Added `examples/basic-loop`, a runnable walkthrough of the full loop
-  against a tiny fake task, with real captured output.
-- `Dispatcher` now resolves request-time defaults instead of requiring
-  the caller to already know upstream conventions, fixing three things
-  the README previously only documented as gotchas:
-  - `session record`/`checkpoint`/`close`/`claim`/`show` accept the task
-    id you started the session with, not just the generated session id
-    (e.g. `2025-01-15-abc-123`) — `agent-loop` looks up the matching
-    session before delegating. The session id still works directly.
-  - `recall compile --task <id>` without `--output-dir` now defaults to
-    `<root>/recall/<id>` (matching what `agent-loop verify`'s
-    recall-coverage check expects), instead of the dependency's own
-    default of the current directory.
+  tasks, board, session/recall linkage with hash-based staleness detection,
+  and the learning root, each skipping itself when its inputs are absent. The previous board-only check remains available as `board:verify`.
+- Reworked the README around the package map, the exact verified commands, and an explicit "what agent-loop does not do" section.
+- Added `tests/fixtures/basic-loop` and `SmokeLoopTest`, an end-to-end proof of session -> recall -> learn -> verify.
+- Fixed `bin/agent-loop` missing its executable bit in git, which broke running it directly from a checkout (`./bin/agent-loop`); installs via Composer as a dependency were unaffected, since Composer force-sets `+x` on `vendor/bin/` proxies regardless of the source file's mode.
+- Added `examples/basic-loop`, a runnable walkthrough of the full loop against a tiny fake task, with real captured output.
+- `Dispatcher` now resolves request-time defaults instead of requiring the caller to already know upstream conventions, fixing three things the README previously only documented as gotchas:
+  - `session record`/`checkpoint`/`close`/`claim`/`show` accept the task id you started the session with, not just the generated session id (e.g. `2025-01-15-abc-123`) — `agent-loop` looks up the matching session before delegating. The session id still works directly.
+  - `recall compile --task <id>` without `--output-dir` now defaults to `<root>/recall/<id>` (matching what `agent-loop verify`'s recall-coverage check expects), instead of the dependency's own default of the current directory.
   - `agent-loop board` no longer triggers a `PHP Warning:
-    file_get_contents(.../todo/board.md)` when that file doesn't exist
-    yet, and `agent-loop board --help`/`board help` now exit 0 with
-    usage on stdout instead of being treated as an unknown subcommand.
+    file_get_contents(.../todo/board.md)` when that file doesn't exist yet, and `agent-loop board --help`/`board help` now exit 0 with usage on stdout instead of being treated as an unknown subcommand.
 
 ## 0.0.3 - 2026-06-20
 
