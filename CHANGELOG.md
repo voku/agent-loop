@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.14 - 2026-09-15
+
+### Added
+
+- Expose a typed, read-only per-task workflow progress projection for presentation consumers. `RunProgressProjector` derives an ordered view of Contract, preparation, execution context, implementation, validation, review, Recall outcomes, Learning and closeout from the same current owner facts used by `RunPolicyEvaluator`; each step preserves `done`, `current`, `pending`, `blocked` or `not_applicable`, semantic owner and bounded reason, while the projection carries the canonical lifecycle state and next action without acquiring mutation or human-decision authority. (#490, #493)
+
 ## 0.20.13 - 2026-09-15
 
 ### Fixed
@@ -22,7 +28,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Enforce the in-process PHPStan container constraint on the resolved ancestor chain: `NoInProcessPhpstanRuleTestCaseRule` now reports every `PHPStan\Testing\PHPStanTestCase` descendant, so `TypeInferenceTestCase`, an intermediate base class and its children no longer pass analysis where only a direct `RuleTestCase` parent was caught.
+- Enforce the in-process PHPStan container constraint on the resolved ancestor chain: `NoInProcessPhpstanRuleTestCaseRuleTest` now reports every `PHPStan\Testing\PHPStanTestCase` descendant, so `TypeInferenceTestCase`, an intermediate base class and its children no longer pass analysis where only a direct `RuleTestCase` parent was caught.
 
 - Repoint approved guidance `proposal.2026-08-14.011` (Learning evidence detection) from the removed `bash tools/self-shape-dogfood.sh` to `php tools/self-shape-dogfood.php`. Recall refused to compile any governed task that selected it, so `agent-loop enter` could not prepare a Run on `main`.
 - Let governed contracts whose approved work deletes a scoped path close: `ImplementationSnapshot` records a scoped path that is gone from the working tree but tracked at the Contract `base_commit` (`GitWorkTree::tracksPathAt()`) as an explicit `deleted` entry. The entry is hashed only when non-empty, so persisted digests stay valid; a missing path without that proof still fails closed.
@@ -290,40 +296,6 @@ All notable changes to this project will be documented in this file.
 
 - `agent-loop enter` text output now renders the exact candidate Contract revision and complete goal before its human approval command, matching the structured decision projection.
 - Require `voku/agent-learning ^0.14.2` so governed Runs with multi-segment ad-hoc task IDs can record Findings bound to their exact task and Session lineage without weakening those checks.
-
-## 0.18.5 - 2026-09-01
-
-### Added
-
-- `agent-loop workflow plan`: Display the task goal and file scope in CLI output upon planning or revising a candidate contract so human review has immediate goal context before approving.
-- `agent-loop finish`: Added `--recall-outcome-draft` support to optionally delegate Recall outcome logging directly during the finish command.
-- `make/agent-loop.mk`: Added `agent_init_tools` target to probe and cache CLI tool availability.
-- `agent-loop init install-assets`: Added `--config` and `--extra-subagents-root` support. Configured repository skills (`paths.skills_root`) and subagents (`paths.subagents_root`) from `.agent-loop/init.json` are now automatically detected and merged with first-party package guidance instead of being marked as stale and removed.
-- `agent-loop init install-assets`: Added `package_skills` and `package_subagents` configuration options in `init.json` (as well as `--no-package-skills` and `--no-package-subagents` CLI flags) to allow repositories with their own adapted skill suites to disable first-party package skills and avoid context budget warnings.
-- `agent-loop init sync-subagents`: Added support for multiple `--subagents-root` directories.
-
-## 0.18.4 - 2026-09-01
-
-### Added
-
-- Extend the immutable `WorkflowPromptEnvelope` re-entry projection with the current approved Contract goal and a bounded `continuity_anchor` containing only the newest durable checkpoint from the exact Session identity selected by the current Run manifest.
-- Consume the released `agent-map 0.9` plan surface as a governed host, including `parameter_rename_plan@1.0` and `class_move_plan@1.0`, with shared hash-bound transactional application, rollback, current-Map verification, and clean installed-consumer lifecycle proof.
-
-### Changed
-
-- `WorkflowPromptService::continueTask()` renders the approved goal and latest durable checkpoint before current state and canonical next action, while the host-facing envelope schema remains explicit at `1.1` and existing positional construction stays compatible.
-- PHP navigation is adaptive rather than universally Map-first or CLI-first: use focused CLI reads for already-localized/literal facts, use `agent-map` for structural and relational questions, prefer an already-fresh Map, and do not pay a cold build merely to satisfy policy.
-- Tighten owner boundaries by consuming Session state through its typed handoff projection, routing Recall document manifests only through `ProjectLayout`, and keeping `itp-context` architecture metadata and dogfood helpers in the development graph rather than production autoload.
-- Move the supported consumer floor to released `voku/agent-map ^0.9.0` and `voku/agent-recall-compiler ^0.13.16`; installed refactor dogfood exercises the released package set rather than sibling or `dev-main` implementations.
-- Review guidance now treats Loop/Recall `review code` / `review first-draft` as the guaranteed default correctness-review capability. Installed `code-review-*` engineering lenses may deepen one dominant concern but their absence does not block an otherwise executable review. Governed close-out remains owned by `finish`; the ungoverned path reaches `review first-draft` before any task-bound status call.
-
-### Fixed
-
-- Make first-party managed-asset provenance portable across checkout/vendor relocation. Manifest v3 persists package-relative `source_reference` values for Loop/Recall-owned assets, resolves them against the currently installed owner root, keeps v1/v2 readable until resync, preserves SHA-256 drift detection, rejects unsafe references fail-closed, and represents the package root itself explicitly as `.`.
-- Surface the default Kanban false-green where a linked task is in `DOING` but Loop has neither a Contract nor a governed Run. Custom board topologies remain uninterpreted rather than acquiring a second hidden lifecycle mapping.
-- Keep the Learning follow-up command template executable by advertising the conditional `--follow-up-ref` input required by `follow_up_required` close-out.
-- Scaffolded workflow state ignores per-Run execution lock files; the locks remain synchronization residue and are not deleted in a way that could break inode-based exclusion.
-- Class-move publication may create only the required destination directories inside the Map root and restores them on rollback; post-apply verification binds the exact plan digest and current rebuilt Map instead of comparing pre-mutation provenance to post-mutation identity.
 
 ### Validation
 
@@ -654,8 +626,8 @@ All notable changes to this project will be documented in this file.
 - Dogfooding the technique found the missing Loop prompt-primitives
   documentation surface and the raw-versus-governed future-work ambiguity
   before release.
-- PHP 8.3/8.4/8.5, PHPStan and project rules, acceptance/prompt candidate
-  dogfoods, installed release-set, execution-contract, self-shape,
+- PHP 8.3/8.4/8.5, PHPStan and project rules, acceptance/prompt-primitives clean-consumer dogfood,
+  governed execution-contract dogfood, installed release-set dogfood,
   deterministic slop review, AccessLint and CodeRabbit were green on the
   exact feature candidate before merge.
 
@@ -674,7 +646,7 @@ All notable changes to this project will be documented in this file.
 
 ### Validation
 
-- PHP 8.3/8.4/8.5, diagnostics and project PHPStan rules, acceptance/prompt-primitives clean-consumer dogfood, installed release-set dogfood, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint and CodeRabbit were green on the exact current-base candidate before merge; the exact merge commit also passed main-branch CI.
+- PHP 8.3/8.4/8.5, diagnostics and project PHPStan rules, acceptance/prompt-primitives clean-consumer dogfood, installed release-set dogfood, governed execution-contract dogfood, deterministic slop review, self-shape, AccessLint and CodeRabbit were green on the current combined tree before merge; the exact merge commit also passed main-branch CI.
 
 
 ## 0.16.1 - 2026-08-14
@@ -952,7 +924,7 @@ at.
 See `UPGRADING.md`. Run artifacts written before this release are rejected by
 name; re-run `workflow approve` to re-prepare the Run against the same approved
 Contract revision. Durable Contracts, verification receipts and Learning
-decisions are untouched.
+  decisions are untouched.
 
 Note: 0.14.0 was prepared but never released; its content is superseded by this
 release.
@@ -1249,8 +1221,8 @@ release.
 - Added package-owned historical replay coverage for a public one-line PHP fix.
   It compares `edit --runner=auto` against the committed result and a guarded
   Linux file-wide replacement baseline without invoking a coding agent.
-- `init tools` now inventories optional RTK availability so agents can use it
-  at the outer shell boundary for compact command output.
+- `init tools` now inventories optional RTK availability so agents can use it at
+  the outer shell boundary for compact command output.
 
 ## 0.6.6 - 2026-08-03
 
@@ -1414,8 +1386,8 @@ release.
   defaults to `<root>/infra/doc/agent-learning/recall-output` when that
   directory exists, else `<root>/recall`. Wired into `Dispatcher`,
   `AgentLoopVerifier`, and all four `Workflow*Command` classes so `workflow
-  plan/context/status/report/close` and `agent-loop verify` always resolve
-  the same path.
+  plan/context/status/report/close` and `agent-loop verify` always resolve the
+  same path.
 - Fixed `AgentLoopVerifier::checkRecallCoverage()` and
   `checkRecallStaleness()` resolving two different recall roots in the same
   `verify` run (the documented `--recall-root` flag was silently ignored by
@@ -1529,8 +1501,8 @@ release.
   `voku/agent-kanban`.
 - `verify` is now a cross-package consistency check (`AgentLoopVerifier`):
   tasks, board, session/recall linkage with hash-based staleness
-  detection, and the learning root, each skipping itself when its inputs
-  are absent. The previous board-only check remains available as
+  detection, and the learning root, each skipping itself when its inputs are
+  absent. The previous board-only check remains available as
   `board:verify`.
 - Reworked the README around the package map, the exact verified
   commands, and an explicit "what agent-loop does not do" section.
