@@ -1,0 +1,23 @@
+{
+    "id": "finding.2026-09-15.2d7d55",
+    "task_id": "agent-guidance-sync-20260915",
+    "session": "2026-09-15-agent-guidance-sync-20260915-r2-63bd57d8",
+    "created_at": "2026-09-15T06:26:21+00:00",
+    "created_by": "codex",
+    "scope": [
+        "resources/skills/agent-guidance-maintenance/SKILL.md"
+    ],
+    "observation": "The real IT-Portal consumer declares package_skills=false and reports 39 project skills with zero package skills.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "IT-Portal host-status and sync-skills dry-run observed on 2026-09-15."
+        }
+    ],
+    "hypothesis": "Installing package assets into that configured root would create competing guidance owners.",
+    "validated_conclusion": "A project-owned skill root must use its configured sync flow instead of installing an overlapping package copy.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

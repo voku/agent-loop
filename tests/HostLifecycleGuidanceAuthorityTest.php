@@ -56,6 +56,20 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         }
     }
 
+    public function testRouterChoosesASpecialistButNotAGovernedPhase(): void
+    {
+        $root = dirname(__DIR__);
+        $router = file_get_contents($root . '/AGENTS.md');
+        $workflow = file_get_contents($root . '/resources/skills/agent-loop-workflow/SKILL.md');
+
+        self::assertIsString($router);
+        self::assertIsString($workflow);
+        self::assertStringContainsString('a router may select a specialist but never a lifecycle phase', $router);
+        self::assertStringContainsString('Only the current result routes task start/progress, Recall/L2, repair, Learning, review, or close.', $router);
+        self::assertStringContainsString('A task router may choose a specialist skill, never a lifecycle phase.', $workflow);
+        self::assertStringContainsString('Only the current result routes task start/progress, Recall or repair, Learning, review, and close.', $workflow);
+    }
+
     public function testOrdinaryHostGuidanceRoutesToCanonicalLifecycleResults(): void
     {
         $root = dirname(__DIR__);

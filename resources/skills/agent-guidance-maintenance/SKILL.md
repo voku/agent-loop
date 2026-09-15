@@ -12,7 +12,7 @@ description: Maintain package-owned and host-owned agent skills, hooks, docs, sy
 1. **Source:** Edit canonical files under `resources/`, `docs/`, or typed runtime in `src/AgentGuidance/`. Never start in `.codex/`, `.claude/`, or `.agents/`.
 2. **Scope:** Keep changes scoped to guidance contracts. Update CLI help/tests when `init` behavior changes.
 3. **Dogfood:** Run `composer dogfood:discipline` before broad test suites.
-4. **Project:** Run `vendor/bin/agent-loop init install-assets --agent=all --with-hooks --dry-run` and `sync-*`.
+4. **Projection:** Read `.agent-loop/init.json` and `host-status` before choosing a command. `init install-assets` projects first-party package assets; a project with `package_skills=false` and its own `paths.skills_root` owns projection through `sync-*`. Never create overlapping copies of the same rule.
 5. **Verify:** Run full validation (`composer ci`) and verify clean consumer installs.
 
 ## Canonical Ownership Map
@@ -20,6 +20,7 @@ description: Maintain package-owned and host-owned agent skills, hooks, docs, sy
 | Asset Type | Canonical Source | Projected Destination | Management Tool |
 |---|---|---|---|
 | Package Skills | `resources/skills/` | `.codex/skills/`, `.claude/skills/` | `init install-assets` / `sync-skills` |
+| Project Skills | Configured `paths.skills_root` when `package_skills=false` | Host skill directories | `init sync-skills --config=.agent-loop/init.json` |
 | Subagents | `resources/subagents/` | `.codex/agents/`, `.claude/agents/` | `init sync-subagents` |
 | Codex Hooks | `resources/hooks/codex/` | `.codex/hooks.json`, `.codex/hooks/` | `init sync-hooks --agent=codex` |
 | Claude Hooks | `resources/hooks/claude/` | `.claude/settings.json#hooks` | `init sync-hooks --agent=claude` |
@@ -41,6 +42,12 @@ Updating canonical source and projecting:
 # Edit canonical package source, then project via init
 vim resources/skills/agent-loop-discipline/SKILL.md
 vendor/bin/agent-loop init install-assets --agent=codex
+```
+
+For a project-owned skill root, keep the package out of that projection:
+```bash
+# Its config declares package_skills=false and the canonical paths.skills_root.
+vendor/bin/agent-loop init sync-skills --agent=codex --config=.agent-loop/init.json
 ```
 
 ## Hook Implementation Rules
