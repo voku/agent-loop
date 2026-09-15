@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Repoint approved guidance `proposal.2026-08-14.011` (Learning evidence detection) from the removed `bash tools/self-shape-dogfood.sh` to `php tools/self-shape-dogfood.php`. Recall refused to compile any governed task that selected it, so `agent-loop enter` could not prepare a Run on `main`.
+
 ## 0.20.11 - 2026-09-14
 
 ### Added
