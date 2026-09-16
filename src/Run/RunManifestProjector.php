@@ -878,7 +878,12 @@ final readonly class RunManifestProjector
             $readiness->mapFailure,
         );
         if ($readiness->staleEntries !== []) {
-            $reference['stale_entries'] = $readiness->staleEntries;
+            $totalStale = count($readiness->staleEntries);
+            $reference['stale_entries_count'] = $totalStale;
+            $reference['stale_entries'] = array_slice($readiness->staleEntries, 0, 10);
+            if ($totalStale > 10) {
+                $reference['stale_entries_omitted'] = $totalStale - 10;
+            }
         }
 
         return $reference;

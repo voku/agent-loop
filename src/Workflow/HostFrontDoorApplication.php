@@ -83,6 +83,15 @@ final readonly class HostFrontDoorApplication
         $nextAction = $payload['next_action'] ?? null;
         $nextActionKind = $payload['next_action_kind'] ?? null;
         $blockers = $this->blockers($payload['blockers'] ?? null);
+
+        if (($payload['status'] ?? null) === 'error') {
+            echo json_encode(
+                $payload,
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ) . "\n";
+
+            return $exitCode;
+        }
         if ($command === 'finish') {
             $finishFailure = $this->finishFailure($blockers);
             if ($finishFailure !== null) {
@@ -186,7 +195,7 @@ final readonly class HostFrontDoorApplication
     private function jsonRequested(array $args): bool
     {
         foreach ($args as $index => $argument) {
-            if ($argument === '--format=json') {
+            if ($argument === '--format=json' || $argument === '--json') {
                 return true;
             }
             if ($argument === '--format' && ($args[$index + 1] ?? null) === 'json') {

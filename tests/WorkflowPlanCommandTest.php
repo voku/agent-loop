@@ -414,6 +414,36 @@ CARD,
         $statement->execute(['key' => 'map_snapshot', 'value' => $snapshot]);
     }
 
+    public function testPlanWithJsonFlagOutputsStructuredJson(): void
+    {
+        $root = $this->root('plan-json');
+
+        try {
+            ob_start();
+            $exit = (new WorkflowPlanCommand($root))->run([
+                'ABC-JSON',
+                '--by', 'lars',
+                '--file', 'src/Foo.php',
+                '--goal', 'Structured plan test.',
+                '--validation', 'vendor/bin/phpunit',
+                '--json',
+            ]);
+            $output = (string) ob_get_clean();
+
+            self::assertSame(0, $exit);
+            $decoded = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('1.0', $decoded['schema_version']);
+            self::assertSame('workflow plan', $decoded['command']);
+            self::assertSame('ABC-JSON', $decoded['task_id']);
+            self::assertSame('created', $decoded['action']);
+            self::assertSame('Structured plan test.', $decoded['goal']);
+            self::assertSame('decision_required', $decoded['next_action_kind']);
+            self::assertStringContainsString('agent-loop workflow approve ABC-JSON --by lars', $decoded['next_action']);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     private function root(string $suffix): string
     {
         return sys_get_temp_dir() . '/agent-loop-' . $suffix . '-' . bin2hex(random_bytes(6));

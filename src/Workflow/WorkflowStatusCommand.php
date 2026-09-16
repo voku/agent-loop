@@ -66,6 +66,20 @@ final readonly class WorkflowStatusCommand
 
             return $manifest->state === 'blocked' ? 2 : 0;
         } catch (Throwable $exception) {
+            if ($this->isJsonRequested($args)) {
+                $candidate = $args[0] ?? null;
+                $taskIdVal = is_string($candidate) && !str_starts_with($candidate, '-') ? $candidate : null;
+                echo json_encode([
+                    'schema_version' => '1.0',
+                    'command' => 'workflow status',
+                    'task_id' => $taskIdVal,
+                    'status' => 'error',
+                    'error' => $exception->getMessage(),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+                return 1;
+            }
+
             fwrite(\STDERR, '[FAIL] workflow status: ' . $exception->getMessage() . "\n");
 
             return 1;
@@ -381,6 +395,14 @@ final readonly class WorkflowStatusCommand
         $expect = null;
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
+            if ($token === '--json') {
+                $format = 'json';
+                continue;
+            }
+            if ($token === '--toon') {
+                $format = 'toon';
+                continue;
+            }
             if (str_starts_with($token, '--format=')) {
                 $format = $this->format(substr($token, strlen('--format=')));
                 continue;
@@ -404,6 +426,21 @@ final readonly class WorkflowStatusCommand
         }
 
         return ['format' => $format, 'expect' => $expect];
+    }
+
+    /** @param list<string> $args */
+    private function isJsonRequested(array $args): bool
+    {
+        foreach ($args as $index => $arg) {
+            if ($arg === '--format=json' || $arg === '--json') {
+                return true;
+            }
+            if ($arg === '--format' && ($args[$index + 1] ?? null) === 'json') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return 'text'|'json'|'toon' */

@@ -282,6 +282,7 @@ final class WorkflowCloseCommandTest extends TestCase
         $this->writeRecallMeta();
         $this->writeReviewReport(['status' => 'ok']);
         mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/execution.json', '{}');
 
         self::assertSame(1, $this->runClose()['exit']);
         self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
@@ -301,6 +302,24 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
         self::assertSame(SessionStatus::ACTIVE, $this->sessionStatus());
         self::assertStringContainsString('Use agent-loop session close directly', $result['output']);
+    }
+
+    public function testCloseWithJsonFlagOutputsStructuredJson(): void
+    {
+        $this->writeRecallMeta();
+        $this->writeReviewReport(['status' => 'ok']);
+
+        $result = $this->runClose(['ABC-123', '--status', 'done', '--json']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertSame(SessionStatus::DONE, $this->sessionStatus());
+        $decoded = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('1.0', $decoded['schema_version']);
+        self::assertSame('workflow close', $decoded['command']);
+        self::assertSame('ABC-123', $decoded['task_id']);
+        self::assertSame('closed', $decoded['status']);
+        self::assertSame('none', $decoded['next_action_kind']);
+        self::assertSame('none', $decoded['next_action']);
     }
 
     /**

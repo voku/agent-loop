@@ -60,14 +60,74 @@ final readonly class HostFrontDoorCommand
                 'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($args),
                 default => throw new InvalidArgumentException('Unknown host front-door command: ' . $command),
             };
-        } catch (InvalidArgumentException $exception) {
-            fwrite(STDERR, '[FAIL] ' . $command . ': ' . $exception->getMessage() . "\n");
-
-            return 1;
         } catch (Throwable $exception) {
+            if ($this->isJsonFormatRequested($args)) {
+                $taskId = $this->extractTaskIdQuietly($args);
+                $error = [
+                    'code' => $command . '.failed',
+                    'owner' => 'agent-loop',
+                    'message' => $exception->getMessage(),
+                ];
+                $payload = [
+                    'schema_version' => '1.0',
+                    'command' => $command,
+                    'task_id' => $taskId,
+                    'status' => 'error',
+                    'mutation_status' => 'refused',
+                    'error' => $error,
+                    'blockers' => [$error],
+                    'next_action' => $exception->getMessage(),
+                    'next_action_kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+                ];
+                if ($taskId !== null) {
+                    try {
+                        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
+                        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+                        $payload['next_action'] = $policy->nextAction;
+                        $payload['next_action_kind'] = $policy->nextActionKind;
+                        $payload['manifest'] = $manifest->toArray();
+                    } catch (Throwable) {
+                        // Projecting manifest failed, keep minimal payload
+                    }
+                }
+                echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+                return 1;
+            }
+
             fwrite(STDERR, '[FAIL] ' . $command . ': ' . $exception->getMessage() . "\n");
 
             return 1;
+        }
+    }
+
+    /** @param list<string> $args */
+    private function isJsonFormatRequested(array $args): bool
+    {
+        foreach ($args as $index => $arg) {
+            if ($arg === '--format=json' || $arg === '--json') {
+                return true;
+            }
+            if ($arg === '--format' && ($args[$index + 1] ?? null) === 'json') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<string> $args */
+    private function extractTaskIdQuietly(array $args): ?string
+    {
+        $candidate = $args[0] ?? null;
+        if (!is_string($candidate) || $candidate === '' || str_starts_with($candidate, '-')) {
+            return null;
+        }
+
+        try {
+            return (new WorkflowTaskId($candidate))->value;
+        } catch (Throwable) {
+            return null;
         }
     }
 
@@ -921,6 +981,9 @@ final readonly class HostFrontDoorCommand
     /** @param list<string> $tokens */
     private function format(array $tokens): string
     {
+        if (OptionTokens::hasFlag($tokens, 'json')) {
+            return 'json';
+        }
         $format = OptionTokens::value($tokens, 'format') ?? 'text';
         if (!in_array($format, ['text', 'json'], true)) {
             throw new InvalidArgumentException('--format must be text or json.');
@@ -952,7 +1015,7 @@ final readonly class HostFrontDoorCommand
     /** @param list<string> $tokens */
     private function validateEnterTokens(array $tokens): void
     {
-        $this->validateTokens($tokens, ['format', 'max-lines', 'max-bytes']);
+        $this->validateTokens($tokens, ['format', 'max-lines', 'max-bytes'], ['json']);
     }
 
     /** @param list<string> $tokens */
@@ -964,6 +1027,7 @@ final readonly class HostFrontDoorCommand
             'by',
             'learning',
             'learning-reason',
+            'finding',
             'finding-observation',
             'finding-hypothesis',
             'finding-conclusion',
@@ -972,14 +1036,15 @@ final readonly class HostFrontDoorCommand
             'follow-up-ref',
             'recall-outcome-draft',
             'commit',
-        ]);
+        ], ['json']);
     }
 
     /**
      * @param list<string> $tokens
      * @param list<string> $valueOptions
+     * @param list<string> $flagOptions
      */
-    private function validateTokens(array $tokens, array $valueOptions): void
+    private function validateTokens(array $tokens, array $valueOptions, array $flagOptions = []): void
     {
         $count = count($tokens);
         for ($index = 0; $index < $count; ++$index) {
@@ -989,8 +1054,12 @@ final readonly class HostFrontDoorCommand
             }
 
             $name = strtok(substr($token, 2), '=');
-            if (!is_string($name) || !in_array($name, $valueOptions, true)) {
+            if (!is_string($name) || (!in_array($name, $valueOptions, true) && !in_array($name, $flagOptions, true))) {
                 throw new InvalidArgumentException('Unknown option: --' . (is_string($name) ? $name : ''));
+            }
+
+            if (in_array($name, $flagOptions, true)) {
+                continue;
             }
 
             if (str_contains($token, '=')) {

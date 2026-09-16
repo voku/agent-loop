@@ -84,6 +84,16 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertSame($status['manifest']['state'] ?? null, $status['policy']['state'] ?? null);
     }
 
+    public function testStatusWithJsonFlag(): void
+    {
+        [$exit, $output] = $this->statusOf('ABC-123', ['--json']);
+        $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $exit);
+        self::assertSame('incomplete', $status['policy']['state'] ?? null);
+        self::assertSame('ABC-123', $status['manifest']['task_id'] ?? null);
+    }
+
     public function testExpectedStateMakesIncompleteHostDogfoodFailExecutable(): void
     {
         [$failedExit, $failedOutput] = $this->statusOf(

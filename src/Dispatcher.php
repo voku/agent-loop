@@ -11,7 +11,7 @@ use voku\AgentMap\Cli\CliApplication as AgentMapCli;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
-use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -48,11 +48,11 @@ final class Dispatcher
         $recallRunner = fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest));
 
         return match ($namespace) {
-            'enter' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('enter', $rest),
-            'finish' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('finish', $rest),
-            'quick' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('quick', $rest),
-            'repair' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('repair', $rest),
-            'pipeline' => (new HostFrontDoorCommand($this->rootPath, $recallRunner))->run('pipeline', $rest),
+            'enter' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('enter', $rest),
+            'finish' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('finish', $rest),
+            'quick' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('quick', $rest),
+            'repair' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('repair', $rest),
+            'pipeline' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('pipeline', $rest),
             'edit' => (new EditCommand($this->rootPath))->run($rest),
             'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),

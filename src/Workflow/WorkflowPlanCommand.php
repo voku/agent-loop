@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
@@ -93,9 +94,42 @@ final readonly class WorkflowPlanCommand
                 $action = $options['supersede'] ? 'superseded' : 'revised';
             }
         } catch (Throwable $exception) {
+            if ($this->isJsonRequested($args)) {
+                $candidate = $args[0] ?? null;
+                $taskIdVal = is_string($candidate) && !str_starts_with($candidate, '-') ? $candidate : null;
+                echo json_encode([
+                    'schema_version' => '1.0',
+                    'command' => 'workflow plan',
+                    'task_id' => $taskIdVal,
+                    'status' => 'error',
+                    'error' => $exception->getMessage(),
+                    'next_action_kind' => 'host_work',
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+                return 1;
+            }
+
             fwrite(STDERR, '[FAIL] workflow plan: ' . $exception->getMessage() . "\n");
 
             return 1;
+        }
+
+        if ($options['format'] === 'json') {
+            echo json_encode([
+                'schema_version' => '1.0',
+                'command' => 'workflow plan',
+                'task_id' => $taskId->value,
+                'action' => $action,
+                'revision' => $contract->revision,
+                'path' => PathResolver::relativeTo($this->rootPath, $contract->path),
+                'goal' => $contract->goal,
+                'scope' => $contract->scope,
+                'validation' => $contract->validation,
+                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --by ' . $options['by'],
+                'next_action_kind' => 'decision_required',
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+            return 0;
         }
 
         echo "[OK] workflow plan: candidate Contract {$action} for {$taskId->value} revision {$contract->revision}\n";
@@ -106,6 +140,21 @@ final readonly class WorkflowPlanCommand
         echo '  agent-loop workflow approve ' . $taskId->value . ' --by ' . self::shellArgument($options['by']) . "\n";
 
         return 0;
+    }
+
+    /** @param list<string> $args */
+    private function isJsonRequested(array $args): bool
+    {
+        foreach ($args as $index => $arg) {
+            if ($arg === '--format=json' || $arg === '--json') {
+                return true;
+            }
+            if ($arg === '--format' && ($args[$index + 1] ?? null) === 'json') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function activeSession(string $taskId): ?Session
@@ -139,7 +188,7 @@ final readonly class WorkflowPlanCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, acceptanceObservations: list<array{acceptance: string, validations: list<string>}>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool}
+     * @return array{by: string, files: list<string>, goal: string, scope: list<string>, nonGoals: list<string>, validation: list<string>, acceptanceCriteria: list<string>, acceptanceObservations: list<array{acceptance: string, validations: list<string>}>, tags: list<string>, behaviorAnchors: list<string>, operatingPromptManifest: string|null, operatingPrompts: list<array{id: string, arguments: array<string, bool|int|string>}>, baseCommit: string|null, supersede: bool, format: string}
      */
     private function parse(array $tokens): array
     {
@@ -158,6 +207,7 @@ final readonly class WorkflowPlanCommand
         $operatingPromptIds = [];
         $baseCommit = null;
         $supersede = false;
+        $format = 'text';
 
         for ($i = 0, $count = count($tokens); $i < $count; ++$i) {
             $token = $tokens[$i];
@@ -166,6 +216,25 @@ final readonly class WorkflowPlanCommand
                     throw new InvalidArgumentException('--supersede may be provided only once.');
                 }
                 $supersede = true;
+                continue;
+            }
+            if ($token === '--json') {
+                $format = 'json';
+                continue;
+            }
+            if ($token === '--format=json' || $token === '--format=text') {
+                $format = substr($token, 9);
+                continue;
+            }
+            if ($token === '--format') {
+                if (!isset($tokens[$i + 1]) || str_starts_with($tokens[$i + 1], '--')) {
+                    throw new InvalidArgumentException('--format requires a value.');
+                }
+                $formatVal = trim($tokens[++$i]);
+                if (!in_array($formatVal, ['text', 'json'], true)) {
+                    throw new InvalidArgumentException('--format must be "text" or "json".');
+                }
+                $format = $formatVal;
                 continue;
             }
             if (!in_array($token, ['--by', '--file', '--goal', '--scope', '--non-goal', '--validation', '--acceptance', '--acceptance-observation', '--tag', '--behavior-anchor', '--operating-prompt-manifest', '--operating-prompt', '--base-commit'], true)) {
@@ -265,6 +334,7 @@ final readonly class WorkflowPlanCommand
             'operatingPrompts' => $operatingPrompts,
             'baseCommit' => $baseCommit,
             'supersede' => $supersede,
+            'format' => $format,
         ];
     }
 

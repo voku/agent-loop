@@ -4,9 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Add structured JSON output support (`--format=json` and `--json`) across workflow commands (`workflow plan`, `workflow approve`, `workflow status`, `workflow close`) for deterministic coding-agent interactions.
+- Provide structured JSON error payloads when `--format=json` or `--json` is requested instead of writing raw text to STDERR and returning empty STDOUT.
+- Accept `--json` and `--toon` flags directly in `workflow status` and `--json` in `workflow approve`, `workflow plan`, and `workflow close`.
+- Direct `enter`, `finish`, `quick`, `repair`, and `pipeline` to `HostFrontDoorApplication` in `Dispatcher` to ensure programmatic front-door invocations inherit human-decision projection, review HTML generation, and finding adaptation.
+
 ### Fixed
 
 - Verify all matching non-empty edit bundles for a task and ignore empty directories in close-readiness gate (`finding.2026-09-16.5c4992`).
+- Cap `stale_entries` in `RunManifestProjector::mapReference` to 10 entries max (with count and omitted metadata) to eliminate manifest token explosion for coding agents.
 
 ## 0.20.14 - 2026-09-16
 
