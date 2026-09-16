@@ -101,6 +101,30 @@ final class CanonicalActionKindTest extends TestCase
         self::assertStringContainsString('--by <actor>', $policy->nextAction);
     }
 
+    public function testBlockedValidationPrecedesLearningDisposition(): void
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'blocked',
+            review: 'ok',
+            learning: 'missing',
+        );
+        $references['verification']['gate'] = 'validation';
+        $references['verification']['action'] = 'composer ci';
+        $references['verification']['reason'] = 'validation evidence missing or not passed for current implementation: composer ci';
+        $references['verification']['validation_failed'] = false;
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+
+        self::assertSame('blocked', $policy->state);
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND, $policy->nextActionKind);
+        self::assertSame('composer ci', $policy->nextAction);
+        self::assertStringNotContainsString('--learning', $policy->nextAction);
+    }
     public function testLearningDispositionIsDelegatedAfterContractApproval(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(

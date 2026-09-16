@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Expose `WorkflowHumanDecisionProjector::projectManifest()` so presentation consumers can derive the current human-decision subject from owner-evaluated manifest policy without reconstructing blockers. (#498)
+
+### Fixed
+
+- Route blocked validation evidence before Learning disposition so `next_action` never advertises a Learning command that `finish` must deterministically refuse. (#500)
 ## 0.20.15 - 2026-09-16
 
 ### Added

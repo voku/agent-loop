@@ -73,13 +73,12 @@ final readonly class RunPolicyEvaluator
         if (in_array($reviewState, ['missing', 'invalid', 'stale', 'unacknowledged'], true)) {
             return 'incomplete';
         }
-        if ($this->referenceState($references, 'learning') !== 'decided') {
-            return 'incomplete';
-        }
-
         $verificationState = $this->referenceState($references, 'verification');
         if (in_array($verificationState, ['failed', 'blocked', 'invalid'], true)) {
             return 'blocked';
+        }
+        if ($this->referenceState($references, 'learning') !== 'decided') {
+            return 'incomplete';
         }
         if (in_array($verificationState, ['passed', 'accepted_risk'], true)) {
             return $this->sessionClosedOrMissing($references) ? 'complete' : 'ready_to_close';
@@ -300,14 +299,14 @@ final readonly class RunPolicyEvaluator
             return $this->referenceAction($references, 'verification')
                 ?? 'agent-loop finish ' . $taskId;
         }
+        if ($this->referenceState($references, 'verification') === 'blocked') {
+            return $this->referenceAction($references, 'verification')
+                ?? 'agent-loop workflow status ' . $taskId . ' --format=json';
+        }
         if ($this->referenceState($references, 'learning') !== 'decided') {
             return 'agent-loop finish ' . $taskId
                 . ' --learning <no_durable_learning|findings_recorded|follow_up_required> --learning-reason <learning-reason> --by <actor>'
                 . ' [--finding <finding-id> ...] [--follow-up-ref <follow-up-ref>]';
-        }
-        if ($this->referenceState($references, 'verification') === 'blocked') {
-            return $this->referenceAction($references, 'verification')
-                ?? 'agent-loop workflow status ' . $taskId . ' --format=json';
         }
         if ($this->referenceState($references, 'verification') === 'ready') {
             return 'agent-loop finish ' . $taskId;
