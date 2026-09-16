@@ -40,7 +40,8 @@
         {
             "ruleId": "php.catch-default-fallbacks",
             "paths": [
-                "src/Init/InitStatusCommand.php"
+                "src/Init/InitStatusCommand.php",
+                "src/Workflow/HostFrontDoorCommand.php"
             ]
         },
         {
