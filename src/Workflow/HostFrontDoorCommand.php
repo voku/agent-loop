@@ -294,7 +294,7 @@ final readonly class HostFrontDoorCommand
 
         if ($policy->state !== 'complete') {
             try {
-                if ($policy->mutationAllowed) {
+                if ($policy->mutationAllowed || $this->needsValidationReconciliation($manifest)) {
                     [$contract, $run, $session] = $this->currentRunContext($taskId->value);
                     (new WorkflowValidationRunner($this->rootPath))->run($contract, $run, $session);
                     $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
@@ -510,6 +510,19 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->state === 'blocked' ? 2 : 1;
+    }
+
+    private function needsValidationReconciliation(RunManifest $manifest): bool
+    {
+        if (!$this->hasCurrentFinishBoundary($manifest)) {
+            return false;
+        }
+
+        $verification = $manifest->references['verification'] ?? [];
+
+        return ($verification['state'] ?? null) === 'blocked'
+            && ($verification['gate'] ?? null) === 'validation'
+            && ($verification['validation_failed'] ?? false) !== true;
     }
 
     private function needsPreparation(RunManifest $manifest): bool
