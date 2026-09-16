@@ -85,25 +85,6 @@ final class ProjectLayoutOwnershipTest extends TestCase
         );
     }
 
-    public function testEditBundlesDiscoversMatchingNonEmptyBundlesAndIgnoresEmptyDirectories(): void
-    {
-        $layout = new ProjectLayout($this->root);
-        $editRoot = $layout->editRoot();
-        mkdir($editRoot . '/ABC-123', 0o775, true); // empty directory
-        mkdir($editRoot . '/ABC-123-part1', 0o775, true);
-        file_put_contents($editRoot . '/ABC-123-part1/execution.json', '{}');
-        mkdir($editRoot . '/ABC-123-part2', 0o775, true);
-        file_put_contents($editRoot . '/ABC-123-part2/verification-result.json', '{}');
-        mkdir($editRoot . '/OTHER-456', 0o775, true);
-        file_put_contents($editRoot . '/OTHER-456/execution.json', '{}');
-
-        $bundles = $layout->editBundles('ABC-123');
-        self::assertSame([
-            $editRoot . '/ABC-123-part1',
-            $editRoot . '/ABC-123-part2',
-        ], $bundles);
-    }
-
     public function testIndividualBranchesCanBeOverriddenWithoutMovingTheRest(): void
     {
         $this->writeConfig(['learning_root' => 'infra/doc/agent-learning']);
@@ -252,5 +233,24 @@ final class ProjectLayoutOwnershipTest extends TestCase
             $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
         }
         rmdir($path);
+    }
+
+    public function testEditBundlesDiscoversMatchingNonEmptyBundlesAndIgnoresEmptyDirectories(): void
+    {
+        $layout = new ProjectLayout($this->root);
+        $editRoot = $layout->editRoot();
+        mkdir($editRoot . '/ABC-123', 0o775, true); // empty directory
+        mkdir($editRoot . '/ABC-123-part1', 0o775, true);
+        file_put_contents($editRoot . '/ABC-123-part1/execution.json', '{}');
+        mkdir($editRoot . '/ABC-123-part2', 0o775, true);
+        file_put_contents($editRoot . '/ABC-123-part2/verification-result.json', '{}');
+        mkdir($editRoot . '/OTHER-456', 0o775, true);
+        file_put_contents($editRoot . '/OTHER-456/execution.json', '{}');
+
+        $bundles = $layout->editBundles('ABC-123');
+        self::assertSame([
+            $editRoot . '/ABC-123-part1',
+            $editRoot . '/ABC-123-part2',
+        ], $bundles);
     }
 }

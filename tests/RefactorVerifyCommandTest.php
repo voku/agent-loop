@@ -68,7 +68,7 @@ PHP);
 
     public function testVerifiesWhenAnUnrelatedEditAboveTheTokenShiftedItsOffset(): void
     {
-        // The real case this missed: a governed rename is applied, then a resolved TODO docblock
+        // The real case this missed: a governed rename is applied, then a resolved docblock
         // above the renamed token is deleted by hand. Every plan offset below that deletion shifts,
         // although the rename itself is exactly what the plan published.
         $bundle = $this->prepareAppliedClassRename();
