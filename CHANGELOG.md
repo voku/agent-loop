@@ -2,11 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## 0.20.14 - 2026-09-16
+
+### Added
+
+- Expose owner-backed workflow progress (`RunProgressProjector`, `RunProgressProjection`, `RunProgressStep`) for presentation consumers (`voku/agent-loop#490`, PR #493).
 
 ### Fixed
 
+- Verify refactor renames by token cursor rather than shifted byte offsets: `RefactorVerifyCommand` now searches for each replacement from a monotonic cursor and asserts the rewritten source still holds at least as many occurrences as the plan applied.
 - Stop governed Run preparation from replacing a shared agent-map index: when the Contract scope is not indexed, `WorkflowRunPreparer` patches it into the existing index with a builder of the same backend (structural-only or semantic), and leaves an index whose backend it cannot reproduce untouched with a repair message. One scoped file outside the indexed paths previously overwrote a full semantic index with a scope-sized structural build, so later map queries, planners and Recall evidence saw only that Contract's files.
+- Attribute Recall outcomes to Learning owner in run evaluation.
 
 ## 0.20.13 - 2026-09-15
 
