@@ -6,7 +6,9 @@ namespace voku\AgentLoop\Workflow;
 
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 
 /**
  * Non-authoritative host projection of the exact subject behind a human gate.
@@ -19,6 +21,19 @@ final readonly class WorkflowHumanDecisionProjector
 {
     public function __construct(private string $rootPath)
     {
+    }
+
+    /** @return array<string, mixed>|null */
+    public function projectManifest(RunManifest $manifest): ?array
+    {
+        $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+
+        return $this->project(
+            $manifest->taskId,
+            $policy->nextAction,
+            $policy->nextActionKind,
+            $policy->blockers,
+        );
     }
 
     /**
