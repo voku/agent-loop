@@ -23,8 +23,8 @@ jobs:
           php-version: '8.4'
           coverage: none
       - name: Apply bounded finish reconciliation patch
-        shell: python
         run: |
+          python3 <<'PY'
           from pathlib import Path
 
           path = Path('src/Workflow/HostFrontDoorCommand.php')
@@ -62,17 +62,17 @@ jobs:
               raise SystemExit(f'expected one needsPreparation marker, found {text.count(marker)}')
           text = text.replace(marker, helper + marker)
           path.write_text(text)
+          PY
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
       - name: Prove focused convergence regression
         run: vendor/bin/phpunit tests/WorkflowFinishValidationConvergenceTest.php tests/WorkflowFinishValidationTest.php
       - name: Remove temporary workflow and commit verified patch
-        shell: bash
         run: |
           set -euo pipefail
           rm .github/workflows/chatgpt-500-apply.yml
           git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.email '41898242+github-actions[bot]@users.noreply.github.com'
           git add src/Workflow/HostFrontDoorCommand.php .github/workflows/chatgpt-500-apply.yml
           git commit -m 'fix(workflow): reconcile validation before review handoff'
           git push origin HEAD:chatgpt/500-finish-validation-convergence
