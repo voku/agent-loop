@@ -66,6 +66,54 @@ PHP);
         self::assertSame(['src/RenamedService.php', 'src/Service.php'], $result['changed_files'] ?? null);
     }
 
+    public function testVerifiesWhenAnUnrelatedEditAboveTheTokenShiftedItsOffset(): void
+    {
+        // The real case this missed: a governed rename is applied, then a resolved TODO docblock
+        // above the renamed token is deleted by hand. Every plan offset below that deletion shifts,
+        // although the rename itself is exactly what the plan published.
+        $bundle = $this->prepareAppliedClassRename();
+        $path = $this->root . '/src/RenamedService.php';
+        $source = (string) file_get_contents($path);
+        file_put_contents($path, str_replace("declare(strict_types=1);\n\n", '', $source));
+        $this->rebuildMap();
+
+        $exit = (new RefactorVerifyCommand($this->root))->run([
+            '--bundle=.agent-loop/edit/RENAME-1',
+            '--map-index=.agent-loop/map/php-symbols.json',
+            '--map-root=.',
+        ]);
+
+        self::assertSame(0, $exit);
+        self::assertSame('passed', $this->json($bundle . '/verification-result.json')['status'] ?? null);
+    }
+
+    public function testRejectsAReplacementThatIsGoneAfterApply(): void
+    {
+        // Shifting an offset stays verifiable; losing the renamed token does not.
+        $bundle = $this->prepareAppliedClassRename();
+        $path = $this->root . '/src/RenamedService.php';
+        $source = (string) file_get_contents($path);
+        file_put_contents($path, str_replace('RenamedService', 'SomethingElse', $source));
+        $this->rebuildMap();
+
+        $exit = (new RefactorVerifyCommand($this->root))->run([
+            '--bundle=.agent-loop/edit/RENAME-1',
+            '--map-index=.agent-loop/map/php-symbols.json',
+            '--map-root=.',
+        ]);
+
+        self::assertSame(2, $exit);
+        self::assertFileDoesNotExist($bundle . '/verification-result.json');
+    }
+
+    private function rebuildMap(): void
+    {
+        (new IndexWriter())->write(
+            (new AgentMapBuilder())->build($this->root, ['src'], []),
+            $this->root . '/.agent-loop/map/php-symbols.json',
+        );
+    }
+
     public function testRejectsSourceChangedAfterApply(): void
     {
         $bundle = $this->prepareAppliedClassRename();

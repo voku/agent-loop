@@ -165,17 +165,39 @@ final readonly class RefactorVerifyCommand
                 throw new RuntimeException('Unable to read rewritten source during verification: ' . $finalPath);
             }
             usort($edits, static fn (RenamePlanEditEvidence $left, RenamePlanEditEvidence $right): int => $left->startFilePos <=> $right->startFilePos);
+            // Plan offsets are pre-apply positions, and the delta below only accounts for this
+            // plan's own replacements. Any other edit to the file -- a docblock removed above the
+            // token, a second plan applied first -- shifts every later position without touching
+            // the tokens this plan owns. Anchoring on the exact byte would then report a correct
+            // rename as a failed one. The replacement is searched for from the expected position
+            // instead, and the rewritten source must still contain exactly as many occurrences as
+            // the plan rewrote, so a token that genuinely vanished is still caught.
             $offsetDelta = 0;
+            $searchCursor = 0;
+            $expectedOccurrences = [];
             foreach ($edits as $edit) {
-                $finalStart = $edit->startFilePos + $offsetDelta;
-                if (substr($content, $finalStart, strlen($edit->replacement)) !== $edit->replacement) {
+                $expectedOccurrences[$edit->replacement] = ($expectedOccurrences[$edit->replacement] ?? 0) + 1;
+                $finalStart = max($searchCursor, $edit->startFilePos + $offsetDelta);
+                $found = strpos($content, $edit->replacement, $searchCursor);
+                if ($found === false) {
                     throw new RuntimeException(sprintf(
-                        'Rewritten token no longer matches refactor evidence at %s byte %d.',
+                        'Rewritten token is missing from refactor evidence in %s (expected %s near byte %d).',
                         $finalPath,
+                        $edit->replacement,
                         $finalStart,
                     ));
                 }
+                $searchCursor = $found + strlen($edit->replacement);
                 $offsetDelta += strlen($edit->replacement) - ($edit->endFilePos - $edit->startFilePos + 1);
+            }
+            foreach ($expectedOccurrences as $replacement => $count) {
+                if (substr_count($content, (string) $replacement) < $count) {
+                    throw new RuntimeException(sprintf(
+                        'Rewritten source contains fewer %s occurrences than the refactor plan applied in %s.',
+                        (string) $replacement,
+                        $finalPath,
+                    ));
+                }
             }
         }
 
