@@ -125,6 +125,7 @@ final class CanonicalActionKindTest extends TestCase
         self::assertSame('composer ci', $policy->nextAction);
         self::assertStringNotContainsString('--learning', $policy->nextAction);
     }
+
     public function testLearningDispositionIsDelegatedAfterContractApproval(): void
     {
         $policy = (new RunPolicyEvaluator())->evaluate(
