@@ -1,0 +1,57 @@
+{
+    "id": "finding.2026-09-16.a253ef",
+    "task_id": "AGENT-LOOP-VERIFY-OFFSET",
+    "session": "2026-09-16-agent-loop-verify-offset",
+    "created_at": "2026-09-16T05:04:04+00:00",
+    "created_by": "claude-opus-5",
+    "scope": [],
+    "observation": "agent-loop edit refactor verify rejected three correctly applied rename bundles with a rewritten-token mismatch, although every renamed token was present and exactly as the plan published it.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": "src/Edit/Refactor/RefactorVerifyCommand.php",
+            "line": 167,
+            "summary": "Pre-fix: sort by startFilePos then substr at startFilePos plus a delta accumulated only from this plan own replacements."
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Edit/Refactor/EditMovePlanApplier.php",
+            "line": 115,
+            "summary": "The applier rewrites each file back-to-front against the pre-apply sha256, so it never depends on post-apply offsets."
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "IT-Portal reproduction: RegionConst.php expected byte 1329 but the token sat at 1221, a shift of -108 from the deleted TODO docblock; AccountingConstants.php expected 3062 and 3185 but the tokens sat at 2967 and 3090, a shift of -95. All three bundles exited 2."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter RefactorVerifyCommandTest",
+            "summary": "OK 4 tests 21 assertions. Adds a shifted-offset case and a missing-token case; the pre-existing regression only appended text below an edit, which is why the defect went unnoticed."
+        },
+        {
+            "type": "test_result",
+            "command": "composer test",
+            "summary": "OK 1276 tests, 8499 assertions, exit 0."
+        },
+        {
+            "type": "phpstan_result",
+            "command": "composer phpstan",
+            "summary": "No errors across 549 files."
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "End-to-end: the patched verifier re-run against the three real consumer bundles returned exit 0 each and wrote verification-result.json, unblocking the acceptance criterion the bug had blocked."
+        },
+        {
+            "type": "commit",
+            "commit": "84df929",
+            "summary": "agent-loop fix commit with the two new regressions."
+        }
+    ],
+    "hypothesis": "The verifier anchored each replacement at a byte position computed from the plan pre-apply offsets plus a delta built only from its own replacements, so any edit outside the plan that changed the file length above a token shifted it out from under that arithmetic.",
+    "validated_conclusion": "Confirmed and fixed. Deleting resolved TODO docblocks above the renamed tokens shifted them by -108 and -95 bytes. EditMovePlanApplier never had this bug because it rewrites back-to-front and validates against the pre-apply content hash, while RefactorVerifyCommand walked forward over the current file. The verifier now searches for each replacement from a monotonic cursor and asserts the occurrence count, so a genuinely missing token still fails closed. No sibling verify command shares the arithmetic.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

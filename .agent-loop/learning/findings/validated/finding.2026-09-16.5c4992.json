@@ -1,0 +1,37 @@
+{
+    "id": "finding.2026-09-16.5c4992",
+    "task_id": "AGENT-LOOP-VERIFY-OFFSET",
+    "session": "2026-09-16-agent-loop-verify-offset",
+    "created_at": "2026-09-16T05:07:47+00:00",
+    "created_by": "claude-opus-5",
+    "scope": [],
+    "observation": "A governed task that applied three agent-map rename plans could not satisfy the close-readiness edit-verification gate, even though all three edit bundles held a passing verification-result.json. The gate reported: missing verification-result.json for edit bundle ITP-RENAME-TODOS.",
+    "evidence": [
+        {
+            "type": "file_reference",
+            "path": "src/Workflow/WorkflowCloseReadinessInspector.php",
+            "line": 336,
+            "summary": "checkEditVerificationGate resolves a single bundle via ProjectLayout editBundle(taskId) and inspects only that path."
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Workflow/WorkflowCloseReadinessInspector.php",
+            "line": 338,
+            "summary": "An absent bundle directory returns OK no edit bundle, while an existing empty one falls through to the missing verification-result.json failure."
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "Consumer reproduction: three plans applied through three bundles named ITP-RENAME-TODOS-region-const, -acc-throw and -acc-names, each holding status=passed rename_plan_verification. The gate ignored all three and failed on the empty default directory; removing that directory was the only way to close."
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "edit refactor takes exactly one plan per invocation, so multiple bundles per task is the normal shape for a multi-symbol refactor rather than a misuse."
+        }
+    ],
+    "hypothesis": "The gate resolves exactly one bundle directory per task id, so a task whose work legitimately spans several plans has several bundles that the gate never inspects.",
+    "validated_conclusion": "Confirmed. WorkflowCloseReadinessInspector checkEditVerificationGate calls ProjectLayout editBundle with the bare task id and inspects only that single directory. One task can legitimately produce one bundle per applied plan, because edit refactor takes one plan per invocation and each needs its own output-dir. Those sibling bundles are invisible to the gate. The gate also treats an existing but empty bundle directory as a failure while an absent directory passes with no edit bundle, so a directory created by an earlier default-path invocation blocks close until it is removed. A multi-plan task therefore satisfies this gate only by accident of directory naming.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}
