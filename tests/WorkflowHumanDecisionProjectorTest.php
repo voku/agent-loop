@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowHumanDecisionProjector;
@@ -81,6 +82,52 @@ final class WorkflowHumanDecisionProjectorTest extends TestCase
         self::assertSame(1, $decision['subject']['current_contract_revision'] ?? null);
         self::assertSame(['src/Workflow'], $decision['subject']['scope'] ?? null);
         self::assertSame($blockers, $decision['subject']['blockers'] ?? null);
+    }
+
+    public function testManifestProjectionReevaluatesPolicyAndCarriesItsExactBlockers(): void
+    {
+        $manifest = new RunManifest(
+            taskId: 'DECISION-3',
+            runId: 'run-decision-3',
+            mode: 'governed',
+            state: 'complete',
+            references: [
+                'contract' => [
+                    'state' => 'approved',
+                    'revision' => 1,
+                    'run_revision' => 1,
+                ],
+                'approval' => ['state' => 'current'],
+                'session' => ['state' => 'active'],
+                'recall' => ['state' => 'compiled'],
+                'execution_contract' => [
+                    'state' => 'blocked',
+                    'owner' => 'agent-loop',
+                    'reason' => 'The approved scope cannot satisfy the execution contract.',
+                    'minimum_contract_change' => 'Add src/Execution.php.',
+                ],
+                'review' => ['state' => 'missing'],
+                'learning' => ['state' => 'missing'],
+                'verification' => ['state' => 'pending_close'],
+            ],
+            disagreements: [],
+            nextAction: 'none',
+            nextActionKind: RunPolicyEvaluation::KIND_NONE,
+        );
+
+        $decision = (new WorkflowHumanDecisionProjector($this->root))->projectManifest($manifest);
+
+        self::assertNotNull($decision);
+        self::assertSame('contract_supersession', $decision['type']);
+        self::assertStringContainsString('workflow plan --supersede', (string) ($decision['action'] ?? ''));
+        self::assertSame(
+            [[
+                'code' => 'execution_contract.blocked',
+                'owner' => 'agent-loop',
+                'message' => 'The approved scope cannot satisfy the execution contract.',
+            ]],
+            $decision['subject']['blockers'] ?? null,
+        );
     }
 
     public function testNonHumanActionHasNoHumanDecisionProjection(): void
