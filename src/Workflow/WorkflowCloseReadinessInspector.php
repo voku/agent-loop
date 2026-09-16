@@ -334,27 +334,37 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkEditVerificationGate(string $taskId): array
     {
-        $bundle = (new ProjectLayout($this->rootPath))->editBundle($taskId);
-        if (!is_dir($bundle)) {
+        $bundles = (new ProjectLayout($this->rootPath))->editBundles($taskId);
+        if ($bundles === []) {
             return ['detail' => null, 'message' => '[OK] edit verification: no edit bundle for ' . $taskId];
         }
-        $resultFile = $bundle . '/verification-result.json';
-        if (!is_file($resultFile)) {
-            return ['detail' => 'missing verification-result.json for edit bundle ' . $taskId, 'message' => null];
-        }
-        try {
-            $result = json_decode((string) file_get_contents($resultFile), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            return ['detail' => 'unreadable verification-result.json for edit bundle ' . $taskId, 'message' => null];
-        }
-        if (!is_array($result) || !is_string($result['status'] ?? null)) {
-            return ['detail' => 'verification-result.json without a status for edit bundle ' . $taskId, 'message' => null];
-        }
-        if ($result['status'] !== 'passed') {
-            return ['detail' => 'edit verification status ' . $result['status'], 'message' => null];
+
+        $passedNames = [];
+        foreach ($bundles as $bundle) {
+            $bundleName = basename($bundle);
+            $resultFile = $bundle . '/verification-result.json';
+            if (!is_file($resultFile)) {
+                return ['detail' => 'missing verification-result.json for edit bundle ' . $bundleName, 'message' => null];
+            }
+            try {
+                $result = json_decode((string) file_get_contents($resultFile), true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                return ['detail' => 'unreadable verification-result.json for edit bundle ' . $bundleName, 'message' => null];
+            }
+            if (!is_array($result) || !is_string($result['status'] ?? null)) {
+                return ['detail' => 'verification-result.json without a status for edit bundle ' . $bundleName, 'message' => null];
+            }
+            if ($result['status'] !== 'passed') {
+                return ['detail' => 'edit verification status ' . $result['status'] . ' for edit bundle ' . $bundleName, 'message' => null];
+            }
+            $passedNames[] = $bundleName;
         }
 
-        return ['detail' => null, 'message' => '[OK] edit verification: passed for .agent-loop/edit/' . $taskId];
+        $label = count($passedNames) === 1 && $passedNames[0] === $taskId
+            ? '.agent-loop/edit/' . $taskId
+            : count($passedNames) . ' bundle(s) (' . implode(', ', $passedNames) . ')';
+
+        return ['detail' => null, 'message' => '[OK] edit verification: passed for ' . $label];
     }
 
     /** @return array{detail: string|null, message: string|null} */

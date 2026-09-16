@@ -89,6 +89,64 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame('none', $complete['manifest']['next_action'] ?? null);
     }
 
+    public function testEmptyEditBundleDirectoryDoesNotBlockClose(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+
+        [$readyExit, $readyOutput] = $this->runStatus(['--format=json']);
+        $ready = json_decode($readyOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $readyExit);
+        self::assertSame('ready_to_close', $ready['manifest']['state'] ?? null);
+
+        [$closeExit, $closeOutput] = $this->runClose();
+        self::assertSame(0, $closeExit, $closeOutput);
+    }
+
+    public function testMultiPlanEditBundlesAllVerifiedPassCloseGate(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123-plan1', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan1/execution.json', '{}');
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan1/verification-result.json', json_encode(['status' => 'passed']));
+
+        mkdir($this->root . '/.agent-loop/edit/ABC-123-plan2', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan2/execution.json', '{}');
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan2/verification-result.json', json_encode(['status' => 'passed']));
+
+        [$readyExit, $readyOutput] = $this->runStatus(['--format=json']);
+        $ready = json_decode($readyOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(0, $readyExit);
+        self::assertSame('ready_to_close', $ready['manifest']['state'] ?? null);
+
+        [$closeExit, $closeOutput] = $this->runClose();
+        self::assertSame(0, $closeExit, $closeOutput);
+    }
+
+    public function testMultiPlanEditBundlesWithOneFailingBlocksClose(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123-plan1', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan1/execution.json', '{}');
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan1/verification-result.json', json_encode(['status' => 'passed']));
+
+        mkdir($this->root . '/.agent-loop/edit/ABC-123-plan2', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123-plan2/execution.json', '{}');
+        // missing verification-result.json
+
+        [$readyExit, $readyOutput] = $this->runStatus(['--format=json']);
+        $ready = json_decode($readyOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $readyExit);
+        self::assertSame('blocked', $ready['manifest']['state'] ?? null);
+
+        [$closeExit, $closeOutput] = $this->runClose();
+        self::assertSame(1, $closeExit);
+        self::assertStringContainsString('missing verification-result.json for edit bundle ABC-123-plan2', $closeOutput);
+    }
+
     public function testWhitespaceCompilationIdIsNotAcceptedAsIdentifyingACompilation(): void
     {
         $this->prepareGovernedRun(ValidationStatus::PASSED, 0);

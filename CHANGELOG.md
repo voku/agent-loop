@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Verify all matching non-empty edit bundles for a task and ignore empty directories in close-readiness gate (`finding.2026-09-16.5c4992`).
+
 ## 0.20.14 - 2026-09-16
+
 
 ### Added
 

@@ -132,6 +132,65 @@ final readonly class ProjectLayout
         return $this->editRoot() . '/' . $taskId;
     }
 
+    /**
+     * Resolves all non-empty edit bundles for a task id.
+     *
+     * A task may have a single default bundle (e.g. `.agent-loop/edit/<task-id>`),
+     * or multiple plan-specific bundles (e.g. `.agent-loop/edit/<task-id>-<suffix>`).
+     * Empty directories without edit artifacts are ignored.
+     *
+     * @return list<string>
+     */
+    public function editBundles(string $taskId): array
+    {
+        $editRoot = $this->editRoot();
+        if (!is_dir($editRoot)) {
+            return [];
+        }
+
+        $entries = scandir($editRoot);
+        if ($entries === false) {
+            return [];
+        }
+
+        $bundles = [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            if ($entry !== $taskId && !str_starts_with($entry, $taskId . '-') && !str_starts_with($entry, $taskId . '_')) {
+                continue;
+            }
+
+            $path = $editRoot . '/' . $entry;
+            if (!is_dir($path)) {
+                continue;
+            }
+
+            if (!$this->hasEditBundleArtifacts($path)) {
+                continue;
+            }
+
+            $bundles[] = $path;
+        }
+
+        sort($bundles);
+
+        return $bundles;
+    }
+
+    private function hasEditBundleArtifacts(string $directory): bool
+    {
+        foreach (['verification-result.json', 'execution.json', 'request.json', 'agent-result.json', 'prompt.md'] as $file) {
+            if (is_file($directory . '/' . $file)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function risksRoot(): string
     {
         return $this->stateRoot() . '/risks';
