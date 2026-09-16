@@ -70,7 +70,36 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
         self::assertSame('none', $learned['payload']['next_action'] ?? null);
     }
 
-    private function prepareRun(string $taskId): Session
+    public function testReviewDoesNotTurnFailedValidationIntoAnAutomaticRetry(): void
+    {
+        $session = $this->prepareRun('FINISH-REVIEW-FAILED', 'php -r "exit(7);"');
+
+        $failed = $this->finish('FINISH-REVIEW-FAILED', []);
+
+        self::assertSame(1, $failed['exit']);
+        $evidence = (new ValidationEvidenceStore())->all($session);
+        self::assertCount(1, $evidence);
+        self::assertSame(ValidationStatus::FAILED, $evidence[0]->status);
+        self::assertSame(7, $evidence[0]->exitCode);
+
+        $contract = (new TaskContractStore($this->root))->load('FINISH-REVIEW-FAILED');
+        $review = (new WorkflowReviewPreparer($this->root))->prepare($contract);
+        self::assertNotNull($review['sha256']);
+
+        $acknowledged = $this->finish('FINISH-REVIEW-FAILED', [
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+        ]);
+
+        self::assertSame(1, $acknowledged['exit']);
+        self::assertSame('host_work', $acknowledged['payload']['next_action_kind'] ?? null);
+        $after = (new ValidationEvidenceStore())->all($session);
+        self::assertCount(1, $after, 'Current failed validation must remain host work, not be auto-retried by finish.');
+        self::assertSame(ValidationStatus::FAILED, $after[0]->status);
+        self::assertSame(7, $after[0]->exitCode);
+    }
+
+    private function prepareRun(string $taskId, string $validation = 'php -r "exit(0);"'): Session
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
@@ -78,7 +107,7 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
             'Keep finish validation reconciliation independent of review ordering.',
             ['src/Foo.php'],
             [],
-            ['php -r "exit(0);"'],
+            [$validation],
             'fixture-planner',
         );
         $contract = $contracts->approve($taskId, 'fixture-approver');
