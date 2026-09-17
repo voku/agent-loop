@@ -229,7 +229,9 @@ MD
     public function testCompletedRunWithCardInVerifyLaneConvergesToNone(): void
     {
         $this->writeActiveBoardCard(['projectPrefix' => 'ABC']);
-        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<'MD'
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/cards/ABC-123.md',
+            <<<'MD'
 # ABC-123: Verified task
 
 - **Ticket:** ABC-123
@@ -238,7 +240,7 @@ MD
 
 ## Agent Task Brief
 Testing non-active lane convergence.
-MD
+MD,
         );
         [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
         $sessions->setStatus($session, SessionStatus::DONE);
