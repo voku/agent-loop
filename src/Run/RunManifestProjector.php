@@ -86,7 +86,6 @@ final readonly class RunManifestProjector
             false,
         );
         $references = [
-            'board' => $this->boardReference($taskId, $contract, $run, $disagreements),
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract, $run),
             'approval' => $this->approvalReference($contract),
@@ -106,16 +105,29 @@ final readonly class RunManifestProjector
             ],
         ];
 
-        usort(
-            $disagreements,
-            static fn (array $left, array $right): int => strcmp($left['code'], $right['code']),
-        );
-
         $ephemeral = $session !== null && $session->ephemeral;
         $mode = $ephemeral ? 'ephemeral' : ($run !== null ? 'governed' : ($contract !== null ? 'planned' : 'legacy_inferred'));
         $runId = $ephemeral
             ? 'session:' . $session->id
             : ($run !== null ? $run->runId : ($contract !== null ? 'task:' . $taskId . ':planned' : 'task:' . $taskId . ':legacy'));
+
+        // The board reference is projected last on purpose. Whether this Run is
+        // finished is lifecycle state, not a board fact, so it is read from the
+        // canonical policy over the owner references already observed instead of a
+        // second completion rule invented next to the card read. The evaluator does
+        // not consult the board reference, so this pass is well defined without it.
+        $runComplete = (new RunPolicyEvaluator())
+            ->evaluate($taskId, $mode, $references, $disagreements)
+            ->state === 'complete';
+        $references = [
+            'board' => $this->boardReference($taskId, $contract, $run, $runComplete, $disagreements),
+        ] + $references;
+
+        usort(
+            $disagreements,
+            static fn (array $left, array $right): int => strcmp($left['code'], $right['code']),
+        );
+
         $policy = (new RunPolicyEvaluator())->evaluate($taskId, $mode, $references, $disagreements);
 
         return new RunManifest(
@@ -198,6 +210,8 @@ final readonly class RunManifestProjector
     }
 
     /**
+     * @param bool $runComplete whether the governed Run for this task already reports the canonical
+     *                          complete lifecycle state; agent-loop's own signal, never derived from the board
      * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
      * @return array<string, mixed>
      */
@@ -205,6 +219,7 @@ final readonly class RunManifestProjector
         string $taskId,
         ?TaskContract $contract,
         ?GovernedRun $run,
+        bool $runComplete,
         array &$disagreements,
     ): array {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
@@ -259,6 +274,24 @@ final readonly class RunManifestProjector
                         'Default Kanban card %s is in DOING while agent-loop has no Contract or governed Run. '
                         . 'Create and approve a Contract and enter a governed Run before keeping the card in DOING, '
                         . 'or move the card to a non-active lane.',
+                        $taskId,
+                    ),
+                ];
+            }
+            if (
+                $runComplete
+                && $this->usesDefaultBoardTopology($context->config)
+                && $card->lane->toString() === 'DOING'
+            ) {
+                $disagreements[] = [
+                    'code' => 'board.active_after_governed_completion',
+                    'owner' => 'agent-loop',
+                    'message' => sprintf(
+                        'The governed Run for %s is complete while its linked default Kanban card is still in DOING. '
+                        . 'Run completion evidence stays authoritative and unchanged; what is missing is cross-owner '
+                        . 'task reconciliation. agent-loop never mutates cards, so the repository task/board owner is '
+                        . 'the mutation authority that must move the card out of DOING or record the work that keeps '
+                        . 'it active.',
                         $taskId,
                     ),
                 ];

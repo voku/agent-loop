@@ -183,6 +183,71 @@ MD
         self::assertSame([], $manifest->disagreements);
     }
 
+    public function testCompletedRunWithActiveDefaultCardRequiresCrossOwnerReconciliation(): void
+    {
+        $this->writeActiveBoardCard(['projectPrefix' => 'ABC']);
+        [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame($runId, $manifest->runId);
+        self::assertSame('governed', $manifest->mode);
+        self::assertSame('blocked', $manifest->state);
+        self::assertSame('linked', $manifest->references['board']['state']);
+        self::assertSame('DOING', $manifest->references['board']['lane']);
+
+        // Run completion evidence stays intact; only the cross-owner disagreement is added.
+        self::assertSame('passed', $manifest->references['verification']['state']);
+        self::assertSame($runId, $manifest->references['verification']['run_id']);
+        self::assertSame('decided', $manifest->references['learning']['state']);
+
+        self::assertCount(1, $manifest->disagreements);
+        self::assertSame('board.active_after_governed_completion', $manifest->disagreements[0]['code']);
+        self::assertSame('agent-loop', $manifest->disagreements[0]['owner']);
+        self::assertStringContainsString('DOING', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('cross-owner task reconciliation', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('repository task/board owner', $manifest->disagreements[0]['message']);
+        self::assertNotSame('none', $manifest->nextAction);
+        self::assertStringContainsString('board.active_after_governed_completion', $manifest->nextAction);
+        self::assertSame('host_work', $manifest->nextActionKind);
+    }
+
+    public function testCompletedRunWithNonActiveDefaultCardNeedsNoReconciliation(): void
+    {
+        $this->writeActiveBoardCard(['projectPrefix' => 'ABC'], lane: 'VERIFY', status: 'In Review');
+        [$sessions, $session] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('complete', $manifest->state);
+        self::assertSame('VERIFY', $manifest->references['board']['lane']);
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('none', $manifest->nextAction);
+    }
+
+    public function testCompletedRunWithCustomBoardTopologyIsNotReconciledByLoop(): void
+    {
+        $this->writeActiveBoardCard([
+            'projectPrefix' => 'ABC',
+            'lanes' => ['BACKLOG', 'DOING'],
+            'transitions' => [
+                'BACKLOG' => ['DOING'],
+                'DOING' => ['BACKLOG'],
+            ],
+        ]);
+        [$sessions, $session] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('complete', $manifest->state);
+        self::assertSame('DOING', $manifest->references['board']['lane']);
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('none', $manifest->nextAction);
+    }
+
     public function testCompletedRunIsTraceableThroughDurableOwningArtifacts(): void
     {
         [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
@@ -242,24 +307,24 @@ MD
     }
 
     /** @param array<string, mixed> $config */
-    private function writeActiveBoardCard(array $config): void
+    private function writeActiveBoardCard(array $config, string $lane = 'DOING', string $status = 'In Progress'): void
     {
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
         file_put_contents(
             $this->root . '/.agent-loop/todo/kanban.config.json',
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
-        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<'MD'
-# ABC-123: Active without governance
+        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<MD
+            # ABC-123: Active without governance
 
-- **Ticket:** ABC-123
-- **Lane:** DOING
-- **Status:** In Progress
+            - **Ticket:** ABC-123
+            - **Lane:** {$lane}
+            - **Status:** {$status}
 
-## Agent Task Brief
+            ## Agent Task Brief
 
-Prove that cross-owner lifecycle disagreement is explicit without inventing Kanban authority.
-MD
+            Prove that cross-owner lifecycle disagreement is explicit without inventing Kanban authority.
+            MD
             . "\n");
     }
 
