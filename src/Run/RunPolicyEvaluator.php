@@ -47,7 +47,11 @@ final readonly class RunPolicyEvaluator
      */
     private function state(string $mode, array $references, array $disagreements): string
     {
-        if ($disagreements !== []) {
+        $blockingDisagreements = array_values(array_filter(
+            $disagreements,
+            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+        ));
+        if ($blockingDisagreements !== []) {
             return 'blocked';
         }
         if ($mode === 'ephemeral') {
@@ -97,7 +101,11 @@ final readonly class RunPolicyEvaluator
      */
     private function mutationAllowed(string $state, string $mode, array $references, array $disagreements): bool
     {
-        if ($state !== 'incomplete' || $mode !== 'governed' || $disagreements !== []) {
+        $blockingDisagreements = array_values(array_filter(
+            $disagreements,
+            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+        ));
+        if ($state !== 'incomplete' || $mode !== 'governed' || $blockingDisagreements !== []) {
             return false;
         }
 
@@ -131,15 +139,19 @@ final readonly class RunPolicyEvaluator
         // produced the disagreement. Prefer the owner's own repair; when no
         // owner supplies one, say the artifact needs host work rather than
         // naming a command that cannot change anything.
-        if ($disagreements !== []) {
-            foreach ($disagreements as $disagreement) {
+        $blockingDisagreements = array_values(array_filter(
+            $disagreements,
+            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+        ));
+        if ($blockingDisagreements !== []) {
+            foreach ($blockingDisagreements as $disagreement) {
                 $repair = $disagreement['repair_action'] ?? null;
                 if (is_string($repair) && $repair !== '') {
                     return $this->command($repair);
                 }
             }
 
-            $first = $disagreements[0];
+            $first = $blockingDisagreements[0];
 
             return [
                 'action' => 'repair the ' . $first['owner'] . ' artifact this task depends on ('
@@ -195,6 +207,9 @@ final readonly class RunPolicyEvaluator
         }
         if ($action === 'none') {
             return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_NONE];
+        }
+        if (str_starts_with($action, 'reconcile ')) {
+            return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_HOST_WORK];
         }
         if ($this->isHumanDecisionAction($action)) {
             return ['action' => $action, 'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED];
@@ -313,9 +328,18 @@ final readonly class RunPolicyEvaluator
             return 'agent-loop finish ' . $taskId;
         }
         if (in_array($this->referenceState($references, 'verification'), ['passed', 'accepted_risk'], true)) {
-            return $this->sessionClosedOrMissing($references)
-                ? 'none'
-                : 'agent-loop finish ' . $taskId;
+            if (!$this->sessionClosedOrMissing($references)) {
+                return 'agent-loop finish ' . $taskId;
+            }
+
+            foreach ($disagreements as $disagreement) {
+                if ($disagreement['code'] === 'board.active_after_run_complete') {
+                    return 'reconcile the ' . $disagreement['owner'] . ' task card this completed Run depends on ('
+                        . $disagreement['code'] . '): ' . $disagreement['message'];
+                }
+            }
+
+            return 'none';
         }
 
         return 'agent-loop workflow status ' . $taskId . ' --format=json';
@@ -340,8 +364,12 @@ final readonly class RunPolicyEvaluator
      */
     private function blockers(string $state, array $references, array $disagreements): array
     {
-        if ($disagreements !== []) {
-            return $disagreements;
+        $blockingDisagreements = array_values(array_filter(
+            $disagreements,
+            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+        ));
+        if ($blockingDisagreements !== []) {
+            return $blockingDisagreements;
         }
         if ($state !== 'blocked') {
             return [];

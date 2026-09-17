@@ -203,6 +203,79 @@ MD
         self::assertSame([], $manifest->disagreements);
     }
 
+    public function testCompletedRunLeavesActiveDefaultCardSurfacedForReconciliationWithoutWeakeningRunCompletion(): void
+    {
+        $this->writeActiveBoardCard(['projectPrefix' => 'ABC']);
+        [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame($runId, $manifest->runId);
+        self::assertSame('governed', $manifest->mode);
+        self::assertSame('complete', $manifest->state, 'Completed Run must remain complete.');
+        self::assertSame('linked', $manifest->references['board']['state']);
+        self::assertSame('DOING', $manifest->references['board']['lane']);
+        self::assertCount(1, $manifest->disagreements);
+        self::assertSame('board.active_after_run_complete', $manifest->disagreements[0]['code']);
+        self::assertSame('agent-kanban', $manifest->disagreements[0]['owner']);
+        self::assertStringContainsString('DOING', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('governed Run is complete', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('board.active_after_run_complete', $manifest->nextAction);
+        self::assertStringContainsString('agent-kanban', $manifest->nextAction);
+        self::assertSame('host_work', $manifest->nextActionKind);
+    }
+
+    public function testCompletedRunWithCardInVerifyLaneConvergesToNone(): void
+    {
+        $this->writeActiveBoardCard(['projectPrefix' => 'ABC']);
+        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<'MD'
+# ABC-123: Verified task
+
+- **Ticket:** ABC-123
+- **Lane:** VERIFY
+- **Status:** In Review
+
+## Agent Task Brief
+Testing non-active lane convergence.
+MD
+        );
+        [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame($runId, $manifest->runId);
+        self::assertSame('complete', $manifest->state);
+        self::assertSame('VERIFY', $manifest->references['board']['lane']);
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('none', $manifest->nextAction);
+        self::assertSame('none', $manifest->nextActionKind);
+    }
+
+    public function testCompletedRunWithCustomDoingLaneDoesNotEmitDefaultReconciliationDisagreement(): void
+    {
+        $this->writeActiveBoardCard([
+            'projectPrefix' => 'ABC',
+            'lanes' => ['BACKLOG', 'DOING'],
+            'transitions' => [
+                'BACKLOG' => ['DOING'],
+                'DOING' => ['BACKLOG'],
+            ],
+        ]);
+        [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame($runId, $manifest->runId);
+        self::assertSame('complete', $manifest->state);
+        self::assertSame('DOING', $manifest->references['board']['lane']);
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('none', $manifest->nextAction);
+        self::assertSame('none', $manifest->nextActionKind);
+    }
+
     public function testFailedReviewCannotProduceCompletedRunOrCloseAction(): void
     {
         [, , $runId] = $this->preparedRun('fail', withReceipt: true);

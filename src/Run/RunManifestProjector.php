@@ -86,7 +86,7 @@ final readonly class RunManifestProjector
             false,
         );
         $references = [
-            'board' => $this->boardReference($taskId, $contract, $run, $disagreements),
+            'board' => $this->boardReference($taskId, $contract, $run, $session, $disagreements),
             'session' => $this->sessionReference($session, $run),
             'contract' => $this->contractReference($contract, $run),
             'approval' => $this->approvalReference($contract),
@@ -205,6 +205,7 @@ final readonly class RunManifestProjector
         string $taskId,
         ?TaskContract $contract,
         ?GovernedRun $run,
+        ?Session $session,
         array &$disagreements,
     ): array {
         $boardRoot = (new ProjectLayout($this->rootPath))->boardRoot();
@@ -246,10 +247,11 @@ final readonly class RunManifestProjector
                 ];
             }
             $card = $context->repository->load($cardId);
+            $usesDefaultTopology = $this->usesDefaultBoardTopology($context->config);
             if (
                 $contract === null
                 && $run === null
-                && $this->usesDefaultBoardTopology($context->config)
+                && $usesDefaultTopology
                 && $card->lane->toString() === 'DOING'
             ) {
                 $disagreements[] = [
@@ -259,6 +261,20 @@ final readonly class RunManifestProjector
                         'Default Kanban card %s is in DOING while agent-loop has no Contract or governed Run. '
                         . 'Create and approve a Contract and enter a governed Run before keeping the card in DOING, '
                         . 'or move the card to a non-active lane.',
+                        $taskId,
+                    ),
+                ];
+            } elseif (
+                $usesDefaultTopology
+                && $card->lane->toString() === 'DOING'
+                && $this->isRunComplete($taskId, $contract, $run, $session)
+            ) {
+                $disagreements[] = [
+                    'code' => 'board.active_after_run_complete',
+                    'owner' => 'agent-kanban',
+                    'message' => sprintf(
+                        'Default Kanban card %s is still in DOING while governed Run is complete. '
+                        . 'Reconcile cross-owner task state through agent-kanban by moving or archiving the card.',
                         $taskId,
                     ),
                 ];
@@ -308,6 +324,28 @@ final readonly class RunManifestProjector
     {
         return $config->lanes === BoardConfig::DEFAULT_LANES
             && $config->transitions === BoardConfig::DEFAULT_TRANSITIONS;
+    }
+
+    private function isRunComplete(string $taskId, ?TaskContract $contract, ?GovernedRun $run, ?Session $session): bool
+    {
+        if ($run === null) {
+            return false;
+        }
+
+        if ($contract !== null && $this->approvedContractSupersedesRun($run, $contract)) {
+            return false;
+        }
+
+        if ($session !== null && !$session->status->isClosed()) {
+            return false;
+        }
+
+        $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId);
+        if ($receipt === null || $receipt->runId !== $run->runId) {
+            return false;
+        }
+
+        return in_array($receipt->verdict, ['satisfied', 'accepted_risk'], true);
     }
 
     /** @return array<string, mixed> */
