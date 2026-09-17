@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add `WorkflowHookRunner` to execute repo-defined lifecycle hooks (`enter`, `finish`, `approve`) from `.agent-loop/workflow-hooks.json` or `.agent-loop/githooks.json`.
 - Add structured JSON output support (`--format=json` and `--json`) across workflow commands (`workflow plan`, `workflow approve`, `workflow status`, `workflow close`) for deterministic coding-agent interactions.
 - Provide structured JSON error payloads when `--format=json` or `--json` is requested instead of writing raw text to STDERR and returning empty STDOUT.
 - Accept `--json` and `--toon` flags directly in `workflow status` and `--json` in `workflow approve`, `workflow plan`, and `workflow close`.
@@ -13,6 +14,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Automatically reconcile discovery and repair stale entries in `WorkflowRunPreparer` during `enter` and `finish`, preventing `agent-loop map refresh` interruptions for coding agents.
+- Support map preservation and search database refresh in `WorkflowRunPreparer`.
+- Ignore `.superseded-<hash>` suffix in `AgentLoopVerifier` when verifying recall directory task ids.
 - Verify all matching non-empty edit bundles for a task and ignore empty directories in close-readiness gate (`finding.2026-09-16.5c4992`).
 - Cap `stale_entries` in `RunManifestProjector::mapReference` to 10 entries max (with count and omitted metadata) to eliminate manifest token explosion for coding agents.
 

@@ -182,6 +182,20 @@ final readonly class HostFrontDoorCommand
             'message' => $preparationWarning,
         ]];
 
+        $hookResults = [];
+        if ($preparationFailure === null && $policy->mutationAllowed) {
+            try {
+                $hookResults = (new WorkflowHookRunner($this->rootPath))->run('enter', $taskId->value);
+            } catch (Throwable $exception) {
+                if ($format !== 'json') {
+                    throw $exception;
+                }
+                $preparationFailure = $exception;
+                $manifest = $this->withPreparationDisagreement($manifest, $preparationFailure);
+                $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+            }
+        }
+
         $payload = [
             'schema_version' => '1.0',
             'command' => 'enter',
@@ -193,6 +207,9 @@ final readonly class HostFrontDoorCommand
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
+        if ($hookResults !== []) {
+            $payload['hooks'] = $hookResults;
+        }
         if ($preparationFailure !== null) {
             $payload['blockers'] = [[
                 'code' => 'enter.preparation_failed',
@@ -214,6 +231,9 @@ final readonly class HostFrontDoorCommand
                 . $policy->nextAction . "\n";
             foreach ($warnings as $warning) {
                 echo '[WARN] ' . $warning['message'] . "\n";
+            }
+            foreach ($hookResults as $hookResult) {
+                echo '[HOOK] ' . $hookResult['hook'] . ': exit ' . $hookResult['exit_code'] . "\n";
             }
             if ($manifest->disagreements !== []) {
                 echo 'Disagreements: ' . count($manifest->disagreements) . "\n";
@@ -426,6 +446,26 @@ final readonly class HostFrontDoorCommand
         }
 
         $complete = $closeoutFailure === null && $policy->state === 'complete';
+        $hookResults = [];
+        if ($complete) {
+            try {
+                $contract = (new TaskContractStore($this->rootPath))->load($taskId->value);
+                (new WorkflowRunPreparer($this->rootPath))->reconcileDiscovery($contract);
+            } catch (Throwable) {
+                // Discovery reconciliation on finish is best-effort
+            }
+
+            try {
+                $hookResults = (new WorkflowHookRunner($this->rootPath))->run('finish', $taskId->value);
+            } catch (Throwable $exception) {
+                if ($format !== 'json') {
+                    throw $exception;
+                }
+                $closeoutFailure = $exception;
+                $complete = false;
+            }
+        }
+
         $payload = [
             'schema_version' => '1.0',
             'command' => 'finish',
@@ -435,6 +475,9 @@ final readonly class HostFrontDoorCommand
             'next_action_kind' => $policy->nextActionKind,
             'manifest' => $manifest->toArray(),
         ];
+        if ($hookResults !== []) {
+            $payload['hooks'] = $hookResults;
+        }
         if ($closeoutFailure !== null) {
             $payload['blockers'] = [[
                 'code' => 'finish.closeout_failed',
@@ -454,6 +497,9 @@ final readonly class HostFrontDoorCommand
             echo 'Complete: ' . ($complete ? 'yes' : 'no') . "\n";
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
+            foreach ($hookResults as $hookResult) {
+                echo '[HOOK] ' . $hookResult['hook'] . ': exit ' . $hookResult['exit_code'] . "\n";
+            }
         }
 
         if ($closeoutFailure !== null) {

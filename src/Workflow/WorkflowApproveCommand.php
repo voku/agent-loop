@@ -32,6 +32,7 @@ final readonly class WorkflowApproveCommand
                 // deterministic preparation, so `enter` reconciles it rather
                 // than the host being told to run agent-map first.
                 $contract = $contracts->approve($taskId->value, $options['by']);
+                (new WorkflowHookRunner($this->rootPath))->run('approve', $taskId->value);
                 $msg = "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
             } else {
                 $status = 'already_approved';
