@@ -1,0 +1,37 @@
+{
+    "id": "finding.2026-09-17.0a3231",
+    "task_id": "GH-503",
+    "session": "2026-09-17-gh-503-r1-3ca394e3",
+    "created_at": "2026-09-17T05:52:49+00:00",
+    "created_by": "claude-code-agent",
+    "scope": [
+        "src/Workflow/ExecutionContractStore.php",
+        "src/Workflow/HostFrontDoorCommand.php",
+        "src/Workflow/WorkflowContextCommand.php"
+    ],
+    "observation": "workflow contract GH-503 --status ready --from accepted and digest-bound a 168-line / 8267-byte execution-contract.md (sha256:30bd1bda722caaf62f6f7e6f8783583283e24f95ec5c6db6c1375620ab47ddd2). bin/agent-loop enter GH-503 --format=json then returned status=error, code=enter.failed: 'Governed execution contract exceeds the current context budget. Increase --max-lines/--max-bytes; refusing to present a partial L1.' HostFrontDoorCommand.php:148 defaults --max-lines to 120; the refusal is raised in WorkflowContextCommand.php:240. Reproduced twice: once by an independent cold executor mid-run, once after the Run closed.",
+    "evidence": [
+        {
+            "type": "runtime_observation",
+            "summary": "bin/agent-loop enter GH-503 --format=json -> status=error, enter.failed, \"Governed execution contract exceeds the current context budget. Increase --max-lines/--max-bytes; refusing to present a partial L1.\" against bound L1 of 168 lines / 8267 bytes at agent-loop 6a092e5ce5db019f5ae46e6d31404669b220f8db"
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Workflow/HostFrontDoorCommand.php",
+            "line": 148,
+            "summary": "$maxLines = $this->positiveOption($tokens, 4max-lines4, 120); - the default presentation budget that the bind step does not consult"
+        },
+        {
+            "type": "file_reference",
+            "path": "src/Workflow/WorkflowContextCommand.php",
+            "line": 240,
+            "summary": "the whole-artifact refusal: refusing to present a partial L1"
+        }
+    ],
+    "hypothesis": "Binding and presentation answer the same question - is this L1 usable by an executor - at two different moments with two different rules. ExecutionContractDocument validates structure and computes a digest but knows nothing about the presentation budget, so a valid bound L1 can be undeliverable through the canonical enter path with no warning at bind time.",
+    "validated_conclusion": "An execution contract that the owner accepts and digest-binds must also be presentable through the canonical enter path at its default budget, or the bind must fail closed with the exact numbers. The usability question belongs to one owner at one moment. This matters structurally because a self-contained L1 carrying lineage, base SHA, exact surfaces, invariants, verbatim validation commands, stop conditions, out-of-scope and resume state routinely exceeds 120 lines: making an L1 more self-executing currently makes it less presentable, and the system does not surface that conflict where it is created.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

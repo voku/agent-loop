@@ -1,0 +1,33 @@
+{
+    "id": "finding.2026-09-17.c2c68c",
+    "task_id": "GH-503",
+    "session": "2026-09-17-gh-503-r1-3ca394e3",
+    "created_at": "2026-09-17T05:53:13+00:00",
+    "created_by": "claude-code-agent",
+    "scope": [
+        ".agent-loop/learning/notes/active/learning-note.2026-09-12.457001.json"
+    ],
+    "observation": "Compiling Recall for a real governed task (GH-503) evaluated the only active LearningNote and rejected it: selected=false, state=unknown, use=machine_fact_only, why=Deterministic LearningNote relevance: tag_match review_needed, why_not=review_needed. Cause verified directly against the note repository_evidence: tests/Dogfood/LearningNoteTwoRunDogfoodTest.php recorded sha256 73dc3508c4cd9d80ea63e24f17d8e638a0135799d8ef89ddf9e6170fca5d14ed but currently hashes 345c31469f87e4ff40b369b55edcc6d77750b0b2b57108fddda879661ed5a59a; the second evidence file still matches. The note id appears 0 times in the 52782-byte runtime briefing; the Relevant Learning Precedents section contains only an omission block.",
+    "evidence": [
+        {
+            "type": "runtime_observation",
+            "summary": "selection-report.json for compilation.GH-503.2026-09-17-052445.3513c27a: id=learning-precedent:learning-note.2026-09-12.457001, kind=learning_precedent, selected=false, state=unknown, use=machine_fact_only, why_not=review_needed"
+        },
+        {
+            "type": "runtime_observation",
+            "summary": "hash_file check: tests/Dogfood/LearningNoteTwoRunDogfoodTest.php recorded 73dc3508... current 345c3146... DRIFTED; tools/execution-contract-dogfood.php 86d5f00e... matches"
+        },
+        {
+            "type": "file_reference",
+            "path": ".agent-loop/learning/notes/active/learning-note.2026-09-12.457001.json",
+            "line": 1,
+            "summary": "the only active LearningNote; pattern_key workflow.closed_loop_requires_real_precedent_handoff; both repository_evidence entries listed here"
+        }
+    ],
+    "hypothesis": "One drifted repository_evidence entry marks an entire LearningNote review_needed, which downgrades it to machine_fact_only so it contributes no precedent text to any briefing. This is the same semantic class as the already-known applied-Proposal target drift captured in finding.2026-08-14.3b74fd, for which agent-learning already shipped the proposal-reanchor recovery; the LearningNote path has the equivalent drift problem without an equivalent surfaced recovery.",
+    "validated_conclusion": "On current agent-loop main the only active LearningNote is unselectable as precedent, so no task can demonstrate precedent-driven behavior until its repository evidence is re-anchored. Any closed-loop Stage-B behavioral experiment run in this repository right now must be classified WITHHELD for this mechanical reason, independently of the previously recorded confound where the initiating prompt prescribed the same behavior. The runtime projection does mark the omission as a count with reason review_needed, so this is not silent degradation; what is missing is the note identity and the supported recovery command at the point of omission.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}
