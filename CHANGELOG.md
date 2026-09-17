@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.17 - 2026-09-17
+
+### Fixed
+
+- Reconcile validation before review handoff in `WorkflowFinishValidationConvergence`, ensuring failed validation blocks review and is not prematurely swept into reconciliation (#500, #502).
+- Surface completed-Run / active-card reconciliation (`board.active_after_run_complete`, `next_action_kind: host_work`, authority: `agent-kanban`) instead of false `none` when linked default-topology card remains in DOING (#503).
+
 ## 0.20.16 - 2026-09-17
 
 ### Added
