@@ -99,6 +99,40 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
         self::assertSame(7, $after[0]->exitCode);
     }
 
+    public function testFinishWithActiveCardLeavesRunCompleteWhileRequiringBoardReconciliation(): void
+    {
+        mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/kanban.config.json',
+            json_encode(['projectPrefix' => 'FINISH'], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/cards/FINISH-1.md',
+            "# FINISH-1: Active work\n\n- **Ticket:** FINISH-1\n- **Lane:** DOING\n- **Status:** In Progress\n\n## Brief\nActive.\n",
+        );
+
+        $session = $this->prepareRun('FINISH-1');
+        $contract = (new TaskContractStore($this->root))->load('FINISH-1');
+        $review = (new WorkflowReviewPreparer($this->root))->prepare($contract);
+
+        $this->finish('FINISH-1', [
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+        ]);
+
+        $learned = $this->finish('FINISH-1', [
+            '--learning', 'no_durable_learning',
+            '--learning-reason', 'No durable learning.',
+            '--by', 'fixture-reviewer',
+        ]);
+
+        self::assertSame(0, $learned['exit'], json_encode($learned['payload'], JSON_THROW_ON_ERROR));
+        self::assertTrue($learned['payload']['complete'] ?? false, 'Run must be complete.');
+        self::assertSame('host_work', $learned['payload']['next_action_kind'] ?? null);
+        self::assertStringContainsString('board.active_after_run_complete', (string) ($learned['payload']['next_action'] ?? ''));
+        self::assertStringContainsString('agent-kanban', (string) ($learned['payload']['next_action'] ?? ''));
+    }
+
     private function prepareRun(string $taskId, string $validation = 'php -r "exit(0);"'): Session
     {
         $contracts = new TaskContractStore($this->root);
