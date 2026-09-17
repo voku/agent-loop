@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Add typed Command Catalog (`CommandId`, `CommandGroup`, `CommandOwner`, `CommandDescriptor`, `CommandCatalog`) as single authoritative source of Dispatcher-level command identities and metadata (#504).
+- Add `agent-loop commands [--format=text|json|toon]` for machine-readable and grouped human discovery of available commands (#504).
+- Add deterministic drift-prevention test `CommandCatalogTest` enforcing that all `CommandId` cases are registered and advertised in usage (#504).
+
+### Fixed
+
+- Prevent Dispatcher/help drift by rendering `printUsage()` dynamically from `CommandCatalog`, directly restoring the missing `githooks` command in help (#504).
+- Remove hardcoded, drifting subcommand lists for delegated external packages (`learn`, `session`, `map`, `board`, etc.) from top-level usage (#504).
+
 ## 0.20.17 - 2026-09-17
 
 ### Fixed

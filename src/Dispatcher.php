@@ -8,6 +8,9 @@ use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\FindingExporter;
 use voku\AgentMap\Cli\CliApplication as AgentMapCli;
+use voku\AgentLoop\Cli\CommandCatalog;
+use voku\AgentLoop\Cli\CommandId;
+use voku\AgentLoop\Cli\CommandsCommand;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\Init\InitCli;
@@ -43,32 +46,42 @@ final class Dispatcher
         }
 
         $scriptName = $argv[0] ?? 'agent-loop';
-        $namespace = $argv[1] ?? 'help';
+        $rawNamespace = $argv[1] ?? 'help';
         $rest = array_slice($argv, 2);
         $recallRunner = fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest));
 
-        return match ($namespace) {
-            'enter' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('enter', $rest),
-            'finish' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('finish', $rest),
-            'quick' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('quick', $rest),
-            'repair' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('repair', $rest),
-            'pipeline' => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('pipeline', $rest),
-            'edit' => (new EditCommand($this->rootPath))->run($rest),
-            'board' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
-            'verify' => (new AgentLoopVerifier($this->rootPath))->run($rest),
-            'board:verify' => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
-            'learn' => $this->dispatchLearn($scriptName, $rest),
-            'recall' => $this->dispatchRecall($scriptName, $rest),
-            'prompt' => $this->dispatchRecall($scriptName, ['prompt', ...$rest]),
-            'session' => $this->dispatchSession($scriptName, $rest),
-            'workflow' => $this->dispatchWorkflow($scriptName, $rest),
-            'map' => $this->dispatchMap($scriptName, $rest),
-            'memory' => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
-            'review' => $this->dispatchReview($scriptName, $rest),
-            'init' => (new InitCli($this->rootPath))->run($rest),
-            'githooks' => (new GitHooksCli($this->rootPath))->run($rest),
-            'help', '--help', '-h', '' => $this->printUsage(0),
-            default => $this->printUsage(1, $namespace),
+        $namespace = match ($rawNamespace) {
+            '--help', '-h', '' => 'help',
+            default => $rawNamespace,
+        };
+
+        $commandId = CommandId::tryFrom($namespace);
+        if ($commandId === null) {
+            return $this->printUsage(1, $rawNamespace);
+        }
+
+        return match ($commandId) {
+            CommandId::Enter => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('enter', $rest),
+            CommandId::Finish => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('finish', $rest),
+            CommandId::Quick => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('quick', $rest),
+            CommandId::Repair => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('repair', $rest),
+            CommandId::Pipeline => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('pipeline', $rest),
+            CommandId::Edit => (new EditCommand($this->rootPath))->run($rest),
+            CommandId::Board => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
+            CommandId::Verify => (new AgentLoopVerifier($this->rootPath))->run($rest),
+            CommandId::BoardVerify => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, ['verify'])),
+            CommandId::Learn => $this->dispatchLearn($scriptName, $rest),
+            CommandId::Recall => $this->dispatchRecall($scriptName, $rest),
+            CommandId::Prompt => $this->dispatchRecall($scriptName, ['prompt', ...$rest]),
+            CommandId::Session => $this->dispatchSession($scriptName, $rest),
+            CommandId::Workflow => $this->dispatchWorkflow($scriptName, $rest),
+            CommandId::Map => $this->dispatchMap($scriptName, $rest),
+            CommandId::Memory => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
+            CommandId::Review => $this->dispatchReview($scriptName, $rest),
+            CommandId::Init => (new InitCli($this->rootPath))->run($rest),
+            CommandId::Githooks => (new GitHooksCli($this->rootPath))->run($rest),
+            CommandId::Commands => (new CommandsCommand())->run($rest),
+            CommandId::Help => $this->printUsage(0),
         };
     }
 
@@ -437,71 +450,7 @@ final class Dispatcher
             fwrite(STDERR, "Unknown command: {$unknownNamespace}\n\n");
         }
 
-        $usage = <<<TXT
-        agent-loop - unified CLI for the governed agentic-coding loop.
-
-        Usage:
-          agent-loop quick [TASK-ID] "<goal>" --file=<path> [--verify="<cmd>"]
-          agent-loop enter <task-id> [options]
-          agent-loop finish <task-id> [options]
-          agent-loop edit CLASS::METHOD [options] -- INSTRUCTION
-          agent-loop <namespace> <command> [options]
-
-        Namespaces:
-          quick   [TASK-ID] "<goal>" --file=<path> [--verify="<cmd>"]
-                  Fast-path micro-task flow: initiate, approve, and enter a bounded
-                  surgical task within up to 2 target files in one command.
-          enter   <task-id>
-                  Prepare deterministic post-approval workflow state and project
-                  bounded context before host mutation.
-          finish  <task-id>
-                  Reconcile deterministic validation/review evidence, bind judgments,
-                  and close when canonical policy permits.
-          repair  <task-id> [--max-attempts=2]
-                  Inspect the latest validation failure and project a bounded auto-repair instruction.
-          pipeline <status|stage|run|submit> <task-id> [options]
-                  Turnkey multi-stage execution runner for governed task profiles.
-          edit    CLASS::METHOD [options] -- INSTRUCTION
-                  Build or refresh the semantic map, compile target-aware recall,
-                  and prepare or run one auditable edit execution bundle.
-          board   <summary|render|lane|next-pull|card|external-sync>
-                  TODO Kanban board (voku/agent-kanban). Use `board:verify` for
-                  the narrower kanban-board-only consistency check.
-          verify  Cross-package consistency check for Contract, Run, Session,
-                  Recall, board and Learning owner boundaries.
-          board:verify
-                  Verify only the kanban board projection.
-          learn   <validate|prepare|proposal-*|constraint-*|guidance-evaluate|finding-export|finding-transition>
-                  Durable findings, proposals, guidance and history (voku/agent-learning).
-          recall  <compile|log-outcome>
-                  Deterministic context/replay compilation (voku/agent-recall-compiler).
-          prompt  <future-work|guidance-gaps>
-                  Explicit Recall-owned prompt helpers; `guidance-gaps` is opt-in and never a default workflow stage.
-          session <start|claim|checkpoint|record|close|list|show|validation|prune>
-                  Pruneable per-Run working memory and raw validation observations (voku/agent-session).
-          map     <build|refresh|search-index|search|discover|rank|impact|history|query|file|stale|
-                  summary|changed|related|stats|scope|callers|callees|context>
-                  Deterministic PHP repository map, architecture discovery, and
-                  temporal evidence (voku/agent-map).
-          memory  <validate|review>
-                  MEMORY.md structure validation and promotion review (voku/agent-loop).
-          workflow
-                  Durable governed workflow orchestration commands.
-          review  <blindspots|code>
-                  Deterministic review helpers from voku/agent-recall-compiler.
-          init    Setup, diagnostics, install plans, and repo-managed agent asset validation.
-          help    Show this help.
-
-        Repository layout:
-          Workflow state lives below `.agent-loop/`; the project/source root remains unchanged.
-
-        Run a namespace with `help` for its own command list, e.g.:
-          agent-loop edit help
-          agent-loop learn help
-          agent-loop recall help
-          agent-loop prompt guidance-gaps
-
-        TXT;
+        $usage = CommandCatalog::renderUsage();
 
         if ($unknownNamespace === '') {
             echo $usage;
