@@ -447,7 +447,8 @@ final class AgentLoopVerifier
             }
 
             $directoryTaskId = basename($taskDir);
-            if ($directoryTaskId !== 'current' && !$output->describesTask($directoryTaskId)) {
+            $normalizedDirectoryTaskId = (string) preg_replace('/\.superseded-[a-f0-9]+$/', '', $directoryTaskId);
+            if ($normalizedDirectoryTaskId !== 'current' && !$output->describesTask($normalizedDirectoryTaskId)) {
                 echo '[INFO] recall: ' . $output->identityPath() . " does not describe directory name '{$directoryTaskId}'\n";
             }
 

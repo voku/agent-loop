@@ -68,7 +68,7 @@ final readonly class WorkflowRunPreparer
         }
 
         try {
-            $this->rebuildMap($contract);
+            $this->rebuildMap($contract, $readiness);
         } catch (Throwable $exception) {
             throw new RuntimeException(
                 'agent-map could not prepare discovery for this Contract: ' . $exception->getMessage(),
@@ -88,14 +88,17 @@ final readonly class WorkflowRunPreparer
      * Rebuild through the Map owner's own API.
      *
      * Automatic preparation proves only the already-approved, existing PHP
-     * Contract scope. It never performs a second repository-wide discovery or
-     * carries unrelated entries forward from a stale snapshot. Explicit Map
-     * commands remain the front door for intentionally broader discovery.
+     * Contract scope plus any stale map entries that need refreshing. It never
+     * performs an unbounded repository-wide discovery or carries unrelated entries
+     * forward from an unreadable snapshot. Explicit Map commands remain the front
+     * door for intentionally broader discovery.
      */
-    private function rebuildMap(TaskContract $contract): void
+    private function rebuildMap(TaskContract $contract, MapReadiness $readiness): void
     {
         $scope = $this->existingPhpScope($contract);
-        if ($scope === []) {
+        $stale = array_column($readiness->staleEntries, 'path');
+        $rebuildPaths = array_values(array_unique([...$scope, ...$stale]));
+        if ($rebuildPaths === []) {
             return;
         }
 
@@ -117,7 +120,7 @@ final readonly class WorkflowRunPreparer
 
         if ($existing === null) {
             $builder = new AgentMapBuilder(semanticAnalyzer: new StructuralOnlySemanticAnalyzer(), artifacts: $artifacts);
-            (new IndexWriter())->write($builder->build($this->rootPath, $scope, []), $indexPath);
+            (new IndexWriter())->write($builder->build($this->rootPath, $rebuildPaths, []), $indexPath);
 
             return;
         }
@@ -134,16 +137,31 @@ final readonly class WorkflowRunPreparer
         if ($builder === null) {
             throw new RuntimeException(sprintf(
                 'Contract scope %s is not indexed in %s, and its backend "%s" cannot be patched automatically; the index was left untouched. Rebuild it with agent-map build covering that scope.',
-                implode(', ', $scope),
+                implode(', ', $rebuildPaths),
                 $indexPath,
                 $existing->backend,
             ));
         }
 
+        $rebuiltIndex = $builder->build($this->rootPath, $rebuildPaths, [], null, null, $existing);
         (new IndexWriter())->write(
-            $builder->build($this->rootPath, $scope, [], null, null, $existing),
+            $rebuiltIndex,
             $indexPath,
         );
+
+        $searchDb = $artifacts->searchDatabase();
+        if (is_file($searchDb) && \voku\AgentMap\Search\SearchIndexStore::supportsFts5()) {
+            try {
+                $store = new \voku\AgentMap\Search\SearchIndexStore($searchDb);
+                $extractor = new \voku\AgentMap\Search\ChunkExtractor();
+                $chunks = $extractor->extract($rebuiltIndex, $rebuildPaths);
+                $store->replaceChunks($chunks, $rebuildPaths);
+                $store->setMeta('map_snapshot', $rebuiltIndex->fingerprint === null ? 'sha256:none' : $rebuiltIndex->fingerprint->sourceDigest);
+                $store->setMeta('chunk_policy_version', (string)\voku\AgentMap\Search\ChunkPolicy::VERSION);
+            } catch (Throwable) {
+                // Search index refresh is best-effort and never blocks discovery.
+            }
+        }
     }
 
     /** The automatic builder whose backend matches a recorded index, or null when none does. */

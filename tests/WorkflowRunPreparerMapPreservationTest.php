@@ -52,6 +52,24 @@ final class WorkflowRunPreparerMapPreservationTest extends TestCase
         self::assertSame('simple-php-code-parser+structural-only', $map->backend);
     }
 
+    public function testReconcileDiscoveryAutomaticallyRepairsStaleEntries(): void
+    {
+        $this->buildStructuralIndexOfSrc();
+
+        // Mutate src/Indexed.php so the index becomes stale
+        file_put_contents($this->root . '/src/Indexed.php', "<?php\n\nfinal class Indexed { public function added(): void {} }\n");
+
+        $readiness = (new WorkflowRunPreparer($this->root))->reconcileDiscovery($this->contract());
+
+        self::assertSame('ready', $readiness->mapState);
+        $map = (new IndexReader())->read($this->governedIndex());
+        $file = $map->file('src/Indexed.php');
+        self::assertNotNull($file);
+        self::assertNotEmpty($file->symbols);
+        self::assertSame('Indexed', $file->symbols[0]->name);
+        self::assertNotNull($map->file('scripts/Scoped.php'));
+    }
+
     public function testAnIndexOfABackendNoAutomaticBuilderProducesIsRefusedAndLeftByteIdentical(): void
     {
         $this->buildStructuralIndexOfSrc();

@@ -142,6 +142,40 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertStringContainsString('[OK] sessions: 1 session(s) parsed, 1 active and consistent', $result['output']);
     }
 
+    public function testSupersededRecallDirectoryDoesNotEmitMismatchInfo(): void
+    {
+        mkdir($this->root . '/.agent-loop/tasks', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/tasks/TASK-1.md', "# TASK-1\n");
+        $this->writeSession('2026-06-23-task-1', 'TASK-1', ephemeral: false);
+
+        mkdir($this->root . '/.agent-loop/recall/TASK-1', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/TASK-1/meta.json',
+            json_encode([
+                'task_id' => 'TASK-1',
+                'compilation_id' => 'compilation.TASK-1.123456',
+                'output_hashes' => ['system.md' => hash('sha256', '# System Guidance')],
+            ], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents($this->root . '/.agent-loop/recall/TASK-1/system.md', '# System Guidance');
+
+        mkdir($this->root . '/.agent-loop/recall/TASK-1.superseded-c852467d', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/recall/TASK-1.superseded-c852467d/meta.json',
+            json_encode([
+                'task_id' => 'TASK-1',
+                'compilation_id' => 'compilation.TASK-1.000000',
+                'output_hashes' => ['system.md' => hash('sha256', '# System Guidance Old')],
+            ], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents($this->root . '/.agent-loop/recall/TASK-1.superseded-c852467d/system.md', '# System Guidance Old');
+
+        $result = $this->verify(['--strict']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringNotContainsString('does not describe directory name', $result['output']);
+    }
+
     public function testVerifyRecognizesTypedBoardMetadata(): void
     {
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);

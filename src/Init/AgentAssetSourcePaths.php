@@ -160,7 +160,12 @@ final readonly class AgentAssetSourcePaths
 
     public function absoluteClaudeHooksRoot(): string
     {
-        return $this->resolvePath($this->claudeHooksRoot);
+        $resolved = $this->resolvePath($this->claudeHooksRoot);
+        if (!is_file($resolved . '/hooks.json') && is_file(PackageResources::hooksRoot('claude') . '/hooks.json')) {
+            return PackageResources::hooksRoot('claude');
+        }
+
+        return $resolved;
     }
 
     public function absoluteSkillsRoot(): string
@@ -205,7 +210,12 @@ final readonly class AgentAssetSourcePaths
 
     public function absoluteHooksRoot(): string
     {
-        return $this->resolvePath($this->hooksRoot);
+        $resolved = $this->resolvePath($this->hooksRoot);
+        if (!is_file($resolved . '/hooks.json') && is_file(PackageResources::hooksRoot('codex') . '/hooks.json')) {
+            return PackageResources::hooksRoot('codex');
+        }
+
+        return $resolved;
     }
 
     public function absoluteToolsRoot(): string
