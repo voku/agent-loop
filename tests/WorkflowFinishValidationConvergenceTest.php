@@ -45,7 +45,7 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
         $review = (new WorkflowReviewPreparer($this->root))->prepare($contract);
 
         self::assertNotNull($review['sha256']);
-        self::assertSame([], (new ValidationEvidenceStore())->all($session));
+        self::assertCount(0, (new ValidationEvidenceStore())->all($session));
 
         $acknowledged = $this->finish('FINISH-REVIEW-FIRST', [
             '--reviewed-report-sha256', (string) $review['sha256'],
