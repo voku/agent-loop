@@ -157,7 +157,7 @@ final readonly class WorkflowRunPreparer
                 $chunks = $extractor->extract($rebuiltIndex, $rebuildPaths);
                 $store->replaceChunks($chunks, $rebuildPaths);
                 $store->setMeta('map_snapshot', $rebuiltIndex->fingerprint === null ? 'sha256:none' : $rebuiltIndex->fingerprint->sourceDigest);
-                $store->setMeta('chunk_policy_version', (string)\voku\AgentMap\Search\ChunkPolicy::VERSION);
+                $store->setMeta('chunk_policy_version', (string) \voku\AgentMap\Search\ChunkPolicy::VERSION);
             } catch (Throwable) {
                 // Search index refresh is best-effort and never blocks discovery.
             }
