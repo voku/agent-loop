@@ -6,7 +6,7 @@
             "name": "slop-scan-php",
             "version": "0.1.0"
         },
-        "configHash": "684774543928fbbbef486031f67b2e87b28b16aad8a0af0afc8251152c736af4",
+        "configHash": "9cf885b3f20fd5d8ab354c887acdd8e57b4eb31fbd7fa404b066c07e24c8d1cd",
         "findingFingerprintVersion": 1
     },
     "summary": {
@@ -350,6 +350,11 @@
                     "column": 1
                 },
                 {
+                    "path": "tests/LearningCaptureDispatcherTest.php",
+                    "line": 140,
+                    "column": 1
+                },
+                {
                     "path": "tests/ProjectLayoutOwnershipTest.php",
                     "line": 224,
                     "column": 1
@@ -497,6 +502,12 @@
                         "fingerprint": "ba9d755500db2d257c789e209400c5eff35ea7a4465bdfb0ef2c92bc73619b70",
                         "path": "tests/InitScaffoldArchiveTest.php",
                         "line": 138,
+                        "column": 1
+                    },
+                    {
+                        "fingerprint": "c35701aa5a52cb88e5deaee1a9e4d42a26c4501f3a9d413da7b003e85d02f3ca",
+                        "path": "tests/LearningCaptureDispatcherTest.php",
+                        "line": 140,
                         "column": 1
                     },
                     {

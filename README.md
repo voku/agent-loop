@@ -254,6 +254,35 @@ The CLI is the executable reference. Detailed specialist commands remain
 available when the current task needs them; their existence does not make them
 mandatory workflow phases.
 
+## Capture a human Finding
+
+Developers, product owners, and testers can record a plain evidence-backed
+observation without creating a Session or shaping Learning storage JSON:
+
+```bash
+vendor/bin/agent-loop learn capture \
+  --task TEAM-123 \
+  --by product-owner \
+  --observation 'The expected approval step is not visible to a new contributor.' \
+  --hypothesis 'Making that step explicit will prevent incomplete requests.' \
+  --evidence 'Observed during a representative acceptance walkthrough.'
+```
+
+The command returns an owner-created `candidate` Finding with
+`validation_status=unverified`. It is not active guidance and cannot be
+promoted directly. A named reviewer must first record a conclusion through the
+Learning owner:
+
+```bash
+vendor/bin/agent-loop learn finding-transition finding.2026-09-19.abc123 validated \
+  --by reviewer \
+  --conclusion 'The observation is reproducible and ready for Learning triage.'
+```
+
+Only that explicit validation makes the Finding eligible for the existing
+classification, Dream, and proposal review paths; none of those paths promote
+guidance automatically.
+
 ## CLI namespaces
 
 The stable command families are kept intentionally concise here; use

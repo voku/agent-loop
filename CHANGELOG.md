@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.19 - 2026-09-19
+
+### Added
+
+- Add `agent-loop learn capture`, a simple role-neutral front door to the released `agent-learning` candidate Finding API. It accepts plain evidence and creates only an unverified candidate; a named reviewer must supply an explicit conclusion before the existing Learning classification, Dream, or promotion paths can consider it validated.
+
+### Changed
+
+- Require `voku/agent-learning ^0.18.20` for the released owner capture and reviewer-validation API.
+
 ## 0.20.18 - 2026-09-17
 
 ### Added
