@@ -38,7 +38,7 @@ final class InstalledMap09RefactorDogfood
         $releaseSet = $this->resolvedPackages();
         $this->assertPathPackage($releaseSet, 'voku/agent-loop', 'dev-main');
         $this->assertReleasedPackage($releaseSet, 'voku/agent-map', '0.15.0', true);
-        $this->assertReleasedPackage($releaseSet, 'voku/agent-recall-compiler', '0.18.0', false);
+        $this->assertReleasedPackage($releaseSet, 'voku/agent-recall-compiler', '0.19.0', false);
         if (!isset($releaseSet['phpstan/phpstan'])) {
             throw new InstalledMap09DogfoodFailure('Installed consumer is missing PHPStan.');
         }
