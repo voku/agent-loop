@@ -47,13 +47,35 @@ final class ReleaseTagWorkflowTest extends TestCase
         self::assertSame(0, $result['exit'], $result['stderr']);
         self::assertStringContainsString('show ' . self::TARGET_SHA . ':CHANGELOG.md', $result['git_log']);
         self::assertStringContainsString('tag -a ' . self::VERSION . ' ' . self::TARGET_SHA, $result['git_log']);
-        self::assertStringContainsString('push origin refs/tags/' . self::VERSION, $result['git_log']);
+        self::assertStringContainsString('push --dry-run origin refs/tags/' . self::VERSION, $result['git_log']);
+        self::assertStringContainsString('push --atomic origin refs/tags/' . self::VERSION, $result['git_log']);
+    }
+
+    public function testRejectedRemotePreflightDoesNotPublishAnyTag(): void
+    {
+        $result = $this->runReleaseScript(
+            'absent',
+            '## ' . self::VERSION . ' - 2026-09-19',
+            'rejected',
+        );
+
+        self::assertNotSame(0, $result['exit']);
+        self::assertStringContainsString('push --dry-run origin refs/tags/' . self::VERSION, $result['git_log']);
+        self::assertStringNotContainsString('push --atomic', $result['git_log']);
+    }
+
+    public function testCheckoutCanUsePurposeScopedReleaseCredential(): void
+    {
+        $workflow = file_get_contents(__DIR__ . '/../.github/workflows/release-tag.yml');
+
+        self::assertIsString($workflow);
+        self::assertStringContainsString('token: ${{ secrets.RELEASE_TAG_TOKEN || github.token }}', $workflow);
     }
 
     /**
      * @return array{exit: int, stderr: string, git_log: string}
      */
-    private function runReleaseScript(string $tagState, string $targetChangelog): array
+    private function runReleaseScript(string $tagState, string $targetChangelog, string $pushState = 'allowed'): array
     {
         $root = sys_get_temp_dir() . '/agent-loop-release-tag-' . bin2hex(random_bytes(8));
         $bin = $root . '/bin';
@@ -81,6 +103,7 @@ final class ReleaseTagWorkflowTest extends TestCase
             $result = $this->runProcess(['bash', $scriptPath], $root, [
                 'FAKE_GIT_LOG' => $gitLog,
                 'FAKE_TAG_STATE' => $tagState,
+                'FAKE_PUSH_STATE' => $pushState,
                 'FAKE_TARGET_CHANGELOG' => $targetChangelog,
                 'FAKE_TARGET_SHA' => self::TARGET_SHA,
                 'FAKE_VERSION' => self::VERSION,
@@ -137,7 +160,14 @@ case "$1" in
       exit 0
     fi
     ;;
-  cat-file|merge-base|config|tag|push)
+  cat-file|merge-base|config|tag)
+    exit 0
+    ;;
+  push)
+    if [[ "$2" == '--dry-run' && "$FAKE_PUSH_STATE" == 'rejected' ]]; then
+      printf 'Remote preflight rejected tag publication.\n' >&2
+      exit 1
+    fi
     exit 0
     ;;
   rev-list)

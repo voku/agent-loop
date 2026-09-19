@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.23 - 2026-09-19
+
+### Fixed
+
+- Preflight the complete pending release-tag set and publish it atomically, so an unavailable credential cannot leave a partial batch of immutable tags behind.
+
 ## 0.20.22 - 2026-09-19
 
 ### Fixed
