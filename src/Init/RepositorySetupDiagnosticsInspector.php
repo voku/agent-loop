@@ -224,7 +224,8 @@ final readonly class RepositorySetupDiagnosticsInspector
         if ($packageIncludeFiles !== []) {
             $packageTargets = $this->packageMakeTargetNames();
             $redeclaredTargets = [];
-            foreach ($makefileContents as $content) {
+            foreach ($packageIncludeFiles as $makefileName) {
+                $content = $makefileContents[$makefileName] ?? '';
                 foreach ($this->makeTargetNames($content) as $target) {
                     if (isset($packageTargets[$target])) {
                         $redeclaredTargets[$target] = $target;
