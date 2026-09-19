@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Init;
 
 use voku\AgentLoop\GitWorkTree;
+use voku\AgentLoop\PackageResources;
 
 /**
  * Mutation-free producer of the typed repository-setup diagnostics.
@@ -170,6 +171,7 @@ final readonly class RepositorySetupDiagnosticsInspector
             ];
         }
 
+        $makefileContents = $this->readMakefileContents($foundMakefiles);
         $makefile = array_key_first($foundMakefiles);
         $diagnostics = [
             new RepositorySetupDiagnostic(
@@ -180,13 +182,10 @@ final readonly class RepositorySetupDiagnosticsInspector
             ),
         ];
 
+        $packageIncludeFiles = $this->packageMakeIncludeFiles($makefileContents);
         $foundTargets = [];
         foreach (self::MIGRATION_TARGETS as $target) {
-            foreach ($foundMakefiles as $makefilePath) {
-                $content = file_get_contents($makefilePath);
-                if (!is_string($content)) {
-                    continue;
-                }
+            foreach ($makefileContents as $content) {
                 if (preg_match('/^' . preg_quote($target, '/') . '\s*:/m', $content) === 1) {
                     $foundTargets[] = $target;
 
@@ -195,25 +194,132 @@ final readonly class RepositorySetupDiagnosticsInspector
             }
         }
 
-        if ($foundTargets === []) {
+        if ($packageIncludeFiles !== []) {
+            $diagnostics[] = new RepositorySetupDiagnostic(
+                RepositorySetupDiagnosticKind::MAKE,
+                RepositorySetupDiagnosticLevel::OK,
+                'Make agent assets: package include found in ' . implode(', ', $packageIncludeFiles)
+                . '; canonical targets are provided by agent-loop',
+                facts: [
+                    'makefiles' => implode(',', $packageIncludeFiles),
+                    'source' => PackageResources::MAKE_INCLUDE,
+                ],
+            );
+        } elseif ($foundTargets === []) {
             $diagnostics[] = new RepositorySetupDiagnostic(
                 RepositorySetupDiagnosticKind::MAKE,
                 RepositorySetupDiagnosticLevel::WARN,
                 'Make agent assets: no migration-compatible agent asset targets found',
                 facts: ['targets' => ''],
             );
-
-            return $diagnostics;
+        } else {
+            $diagnostics[] = new RepositorySetupDiagnostic(
+                RepositorySetupDiagnosticKind::MAKE,
+                RepositorySetupDiagnosticLevel::OK,
+                'Make agent assets: found ' . implode(', ', $foundTargets),
+                facts: ['targets' => implode(',', $foundTargets)],
+            );
         }
 
-        $diagnostics[] = new RepositorySetupDiagnostic(
-            RepositorySetupDiagnosticKind::MAKE,
-            RepositorySetupDiagnosticLevel::OK,
-            'Make agent assets: found ' . implode(', ', $foundTargets),
-            facts: ['targets' => implode(',', $foundTargets)],
-        );
+        if ($packageIncludeFiles !== []) {
+            $packageTargets = $this->packageMakeTargetNames();
+            $redeclaredTargets = [];
+            foreach ($packageIncludeFiles as $makefileName) {
+                $content = $makefileContents[$makefileName] ?? '';
+                foreach ($this->makeTargetNames($content) as $target) {
+                    if (isset($packageTargets[$target])) {
+                        $redeclaredTargets[$target] = $target;
+                    }
+                }
+            }
+
+            if ($redeclaredTargets !== []) {
+                ksort($redeclaredTargets, SORT_STRING);
+                $targets = array_values($redeclaredTargets);
+                $diagnostics[] = new RepositorySetupDiagnostic(
+                    RepositorySetupDiagnosticKind::INTEGRATION_CONFLICT,
+                    RepositorySetupDiagnosticLevel::WARN,
+                    'Make integration conflict: package include is active, but the host also defines package-owned target(s): '
+                    . implode(', ', $targets)
+                    . '. Remove duplicate recipes; use AGENT_LOOP_RUN or supported variables for host runtime customization.',
+                    facts: [
+                        'makefiles' => implode(',', $packageIncludeFiles),
+                        'targets' => implode(',', $targets),
+                    ],
+                );
+            }
+        }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, string> $foundMakefiles
+     *
+     * @return array<string, string>
+     */
+    private function readMakefileContents(array $foundMakefiles): array
+    {
+        $contents = [];
+        foreach ($foundMakefiles as $name => $path) {
+            $content = file_get_contents($path);
+            if (is_string($content)) {
+                $contents[$name] = $content;
+            }
+        }
+
+        return $contents;
+    }
+
+    /**
+     * @param array<string, string> $makefileContents
+     *
+     * @return list<string>
+     */
+    private function packageMakeIncludeFiles(array $makefileContents): array
+    {
+        $files = [];
+        $pattern = '~^[ \t]*-?include[ \t]+[^\r\n#]*'
+            . preg_quote(PackageResources::MAKE_INCLUDE, '~')
+            . '(?:[ \t]*(?:#.*)?)?$~m';
+
+        foreach ($makefileContents as $name => $content) {
+            if (preg_match($pattern, $content) === 1) {
+                $files[] = $name;
+            }
+        }
+
+        sort($files, SORT_STRING);
+
+        return $files;
+    }
+
+    /** @return array<string, true> */
+    private function packageMakeTargetNames(): array
+    {
+        $content = file_get_contents(PackageResources::makeInclude());
+        if (!is_string($content)) {
+            return [];
+        }
+
+        $targets = [];
+        foreach ($this->makeTargetNames($content) as $target) {
+            $targets[$target] = true;
+        }
+
+        return $targets;
+    }
+
+    /** @return list<string> */
+    private function makeTargetNames(string $content): array
+    {
+        preg_match_all('~^([A-Za-z0-9_.-]+)[ \t]*:(?!=)~m', $content, $matches);
+
+        /** @var list<string> $targets */
+        $targets = array_values(array_unique($matches[1]));
+        sort($targets, SORT_STRING);
+
+        return $targets;
     }
 
     /** @return list<RepositorySetupDiagnostic> */

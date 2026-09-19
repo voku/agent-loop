@@ -77,6 +77,59 @@ final class InitDoctorCommandTest extends TestCase
         self::assertStringContainsString('[OK] Make agent assets: found validate_agent_skills, install_agent_skills', $result['output']);
     }
 
+    public function testDoctorTreatsPackageMakeIncludeAsCanonicalMakeSurface(): void
+    {
+        file_put_contents(
+            $this->root . '/Makefile',
+            "-include vendor/voku/agent-loop/resources/make/agent-loop.mk\n",
+        );
+
+        $result = $this->runDoctor([]);
+
+        self::assertStringContainsString(
+            '[OK] Make agent assets: package include found in Makefile; canonical targets are provided by agent-loop',
+            $result['output'],
+        );
+        self::assertStringNotContainsString(
+            '[WARN] Make agent assets: no migration-compatible agent asset targets found',
+            $result['output'],
+        );
+    }
+
+    public function testDoctorWarnsWhenHostRedeclaresPackageOwnedMakeTarget(): void
+    {
+        file_put_contents(
+            $this->root . '/Makefile',
+            "agent_workflow_enter:\n\t@echo local-wrapper\n\n"
+            . "-include vendor/voku/agent-loop/resources/make/agent-loop.mk\n",
+        );
+
+        $result = $this->runDoctor([]);
+
+        self::assertStringContainsString(
+            '[WARN] Make integration conflict: package include is active, but the host also defines package-owned target(s): agent_workflow_enter.',
+            $result['output'],
+        );
+        self::assertStringContainsString(
+            'Remove duplicate recipes; use AGENT_LOOP_RUN or supported variables for host runtime customization.',
+            $result['output'],
+        );
+    }
+
+    public function testDoctorAllowsHostRuntimeCustomizationWithoutPackageTargetRedeclaration(): void
+    {
+        file_put_contents(
+            $this->root . '/Makefile',
+            "define AGENT_LOOP_RUN\n\t@echo container: $(1)\nendef\n\n"
+            . "agent-enter:\n\t@echo project-alias\n\n"
+            . "-include vendor/voku/agent-loop/resources/make/agent-loop.mk\n",
+        );
+
+        $result = $this->runDoctor([]);
+
+        self::assertStringNotContainsString('Make integration conflict:', $result['output']);
+    }
+
     public function testDoctorReportsDefaultResolvedSourcePathsAndMissingSkills(): void
     {
         $result = $this->runDoctor([]);
