@@ -196,7 +196,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
             reviewEvidenceSha256: $reviewSha256,
         );
 
-        $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
+        $cli = new WorkflowCli($this->root);
         ob_start();
         $exit = $cli->run(['close', 'ABC-123', '--status', 'done']);
         $output = (string) ob_get_clean();
