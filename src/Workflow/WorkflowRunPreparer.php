@@ -210,10 +210,15 @@ final readonly class WorkflowRunPreparer
         $preparedManifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($contract->taskId);
 
         $operatingPromptManifest = $this->operatingPromptManifest($contract);
+        /** @var list<non-empty-string> $operatingPromptManifests */
         $operatingPromptManifests = $operatingPromptManifest === null ? [] : [$operatingPromptManifest];
 
         $layout = new ProjectLayout($this->rootPath);
-        $documentManifests = $layout->recallDocumentManifests();
+        /** @var list<non-empty-string> $documentManifests */
+        $documentManifests = array_values(array_filter(
+            $layout->recallDocumentManifests(),
+            static fn (string $manifest): bool => $manifest !== '',
+        ));
         $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($contract->taskId);
 
         $mapIndex = null;
