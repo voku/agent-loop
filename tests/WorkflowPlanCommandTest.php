@@ -17,6 +17,8 @@ use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowPlanCommandTest extends TestCase
@@ -148,7 +150,7 @@ final class WorkflowPlanCommandTest extends TestCase
         $root = $this->root('enter');
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'planner');
-        /** @var list<list<string>> $recallCalls */
+        /** @var list<CompileRequest> $recallCalls */
         $recallCalls = [];
 
         try {
@@ -157,11 +159,10 @@ final class WorkflowPlanCommandTest extends TestCase
 
             $exit = $this->enter(
                 $root,
-                function (array $argv) use (&$recallCalls, $root): int {
-                    $recallCalls[] = $argv;
-                    $this->writeRecallMeta($root);
+                function (CompileRequest $request) use (&$recallCalls, $root): CompileResult {
+                    $recallCalls[] = $request;
 
-                    return 0;
+                    return $this->compileRecallFixture($root, $request);
                 },
             );
 
@@ -181,9 +182,10 @@ final class WorkflowPlanCommandTest extends TestCase
             self::assertSame(1, $run->contractRevision);
             $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
             self::assertFileExists($recallInput);
-            self::assertSame([
-                ['compile', '--root', $root . '/.agent-loop/learning', '--task', 'ABC-123', '--task-brief', $recallInput],
-            ], $recallCalls);
+            self::assertCount(1, $recallCalls);
+            self::assertSame($root . '/.agent-loop/learning', $recallCalls[0]->learningRoot);
+            self::assertSame($recallInput, $recallCalls[0]->taskBrief);
+            self::assertSame(RecallOutputRoot::resolve($root) . '/ABC-123', $recallCalls[0]->outputDirectory);
         } finally {
             $this->removeDirectory($root);
         }
@@ -227,18 +229,17 @@ CARD,
 
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Keep scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        /** @var list<list<string>> $recallCalls */
+        /** @var list<CompileRequest> $recallCalls */
         $recallCalls = [];
 
         try {
             self::assertSame(0, $this->approve($root));
             self::assertSame(0, $this->enter(
                 $root,
-                function (array $argv) use (&$recallCalls, $root): int {
-                    $recallCalls[] = $argv;
-                    $this->writeRecallMeta($root);
+                function (CompileRequest $request) use (&$recallCalls, $root): CompileResult {
+                    $recallCalls[] = $request;
 
-                    return 0;
+                    return $this->compileRecallFixture($root, $request);
                 },
             ));
 
@@ -248,26 +249,21 @@ CARD,
             $recallInput = $root . '/.agent-loop/runs/ABC-123/recall-input.json';
             self::assertFileExists($recallInput);
             self::assertCount(1, $recallCalls);
-            $kanbanContextIndex = array_search('--kanban-context', $recallCalls[0], true);
-            self::assertIsInt($kanbanContextIndex);
-            $kanbanContextJson = $recallCalls[0][$kanbanContextIndex + 1] ?? null;
-            self::assertIsString($kanbanContextJson);
-            $kanbanContext = json_decode($kanbanContextJson, true, 512, JSON_THROW_ON_ERROR);
+            $request = $recallCalls[0];
+            $kanbanContext = $request->kanbanContextProjection?->toArray();
             self::assertIsArray($kanbanContext);
-            self::assertSame('ABC-123', $kanbanContext['task_id'] ?? null);
-            self::assertSame('todo/cards/ABC-123.md', $kanbanContext['source']['path'] ?? null);
+            self::assertSame('ABC-123', $kanbanContext['task_id']);
+            self::assertSame('todo/cards/ABC-123.md', $kanbanContext['source']['path']);
             self::assertSame(
                 ['title', 'lane', 'status', 'priority', 'next_action'],
-                array_keys($kanbanContext['card'] ?? []),
+                array_keys($kanbanContext['card']),
             );
-            self::assertSame([[
-                'compile', '--root', $learningRoot,
-                '--task', 'ABC-123', '--task-brief', $recallInput,
-                '--document-manifest', $root . '/docs/recall-documents.json',
-                '--kanban-context', $kanbanContextJson,
-                '--map-index', $root . '/.agent-loop/map/php-symbols.json', '--map-root', $root,
-                '--map-search-index', $root . '/.agent-loop/map/search.sqlite',
-            ]], $recallCalls);
+            self::assertSame($learningRoot, $request->learningRoot);
+            self::assertSame($recallInput, $request->taskBrief);
+            self::assertSame([$root . '/docs/recall-documents.json'], $request->documentManifests);
+            self::assertSame($root . '/.agent-loop/map/php-symbols.json', $request->mapIndex);
+            self::assertSame($root, $request->mapRoot);
+            self::assertSame($root . '/.agent-loop/map/search.sqlite', $request->mapSearchIndex);
         } finally {
             $this->removeDirectory($root);
         }
@@ -281,7 +277,10 @@ CARD,
 
         try {
             self::assertSame(0, $this->approve($root));
-            self::assertSame(1, $this->enter($root, static fn (array $argv): int => 7));
+            self::assertSame(1, $this->enter(
+                $root,
+                static fn (CompileRequest $request): CompileResult => throw new RuntimeException('Recall compilation refused by fixture.'),
+            ));
             self::assertSame(TaskContract::APPROVED, $contracts->load('ABC-123')->status);
             $sessions = (new SessionStore())->all($root . '/.agent-loop/sessions');
             self::assertCount(1, $sessions);
@@ -290,11 +289,7 @@ CARD,
 
             self::assertSame(0, $this->enter(
                 $root,
-                function (array $argv) use ($root): int {
-                    $this->writeRecallMeta($root);
-
-                    return 0;
-                },
+                fn (CompileRequest $request): CompileResult => $this->compileRecallFixture($root, $request),
             ));
 
             self::assertSame($firstRun->runId, (new GovernedRunStore($root))->find('ABC-123')?->runId);
@@ -326,10 +321,10 @@ CARD,
             self::assertSame(0, $this->approve($root));
             self::assertSame(1, $this->enter(
                 $root,
-                static function (array $argv) use (&$recallCalled): int {
+                static function (CompileRequest $request) use (&$recallCalled): CompileResult {
                     $recallCalled = true;
 
-                    return 0;
+                    throw new RuntimeException('Typed Recall compilation must not run when document policy is invalid.');
                 },
             ));
             self::assertFalse($recallCalled);
@@ -354,15 +349,27 @@ CARD,
         }
     }
 
-    /** @param callable(list<string>): int $runner */
-    private function enter(string $root, callable $runner): int
+    /** @param callable(CompileRequest): CompileResult $compiler */
+    private function enter(string $root, callable $compiler): int
     {
         ob_start();
         try {
-            return (new HostFrontDoorCommand($root, $runner))->run('enter', ['ABC-123', '--format=json']);
+            return (new HostFrontDoorCommand($root, recallCompiler: $compiler))
+                ->run('enter', ['ABC-123', '--format=json']);
         } finally {
             ob_end_clean();
         }
+    }
+
+    private function compileRecallFixture(string $root, CompileRequest $request): CompileResult
+    {
+        $this->writeRecallMeta($root);
+
+        return new CompileResult(
+            $request->outputDirectory,
+            'ABC-123-001',
+            str_repeat('a', 64),
+        );
     }
 
     private function writeRecallMeta(string $root): void

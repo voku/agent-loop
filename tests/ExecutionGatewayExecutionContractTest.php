@@ -15,6 +15,8 @@ use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
 use voku\AgentLoop\Workflow\WorkflowExecutionProfileCommand;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 
 final class ExecutionGatewayExecutionContractTest extends TestCase
 {
@@ -176,7 +178,7 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         ob_start();
         $exit = (new HostFrontDoorCommand(
             $this->root,
-            function (array $argv) use ($l2): int {
+            recallCompiler: function (CompileRequest $request) use ($l2): CompileResult {
                 $directory = $this->root . '/.agent-loop/recall/' . self::TASK;
                 if (!is_dir($directory)) {
                     mkdir($directory, 0o775, true);
@@ -216,7 +218,11 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
                     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
                 }
 
-                return 0;
+                return new CompileResult(
+                    $request->outputDirectory,
+                    self::TASK . '-execution-contract-test',
+                    str_repeat('a', 64),
+                );
             },
         ))->run('enter', [self::TASK, '--format=json']);
         ob_end_clean();
