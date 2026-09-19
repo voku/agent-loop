@@ -4,19 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use Closure;
-
 final readonly class WorkflowCli
 {
-    private string $rootPath;
-
-    private Closure $recallRunner;
-
-    /** @param callable(list<string>): int $recallRunner */
-    public function __construct(string $rootPath, callable $recallRunner)
+    public function __construct(private string $rootPath)
     {
-        $this->rootPath = $rootPath;
-        $this->recallRunner = Closure::fromCallable($recallRunner);
     }
 
     /** @param list<string> $args */
@@ -42,7 +33,7 @@ final readonly class WorkflowCli
             'transparency' => (new WorkflowTransparencyCommand($this->rootPath))->run($rest),
             'review' => (new WorkflowHumanReviewCommand($this->rootPath))->run($rest),
             'reflect' => (new WorkflowReflectCommand($this->rootPath))->run($rest),
-            'handoff' => (new WorkflowHandoffCommand($this->rootPath, $this->recallRunner))->run($rest),
+            'handoff' => (new WorkflowHandoffCommand($this->rootPath))->run($rest),
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
             default => $this->unknown($command),
