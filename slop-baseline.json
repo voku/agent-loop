@@ -301,7 +301,7 @@
             "locations": [
                 {
                     "path": "tests/Dogfood/AutonomousReplanDogfoodTest.php",
-                    "line": 324,
+                    "line": 311,
                     "column": 1
                 },
                 {
@@ -311,7 +311,7 @@
                 },
                 {
                     "path": "tests/GovernedExecutionProtocolTest.php",
-                    "line": 506,
+                    "line": 489,
                     "column": 1
                 },
                 {
@@ -321,7 +321,7 @@
                 },
                 {
                     "path": "tests/GovernedRunPortabilityTest.php",
-                    "line": 266,
+                    "line": 243,
                     "column": 1
                 },
                 {
@@ -376,7 +376,7 @@
                 },
                 {
                     "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
-                    "line": 471,
+                    "line": 476,
                     "column": 1
                 },
                 {
@@ -391,7 +391,7 @@
                 },
                 {
                     "path": "tests/WorkflowPipelineCommandTest.php",
-                    "line": 271,
+                    "line": 254,
                     "column": 1
                 },
                 {
@@ -406,12 +406,12 @@
                 },
                 {
                     "path": "tests/WorkflowPrunedSessionDurabilityTest.php",
-                    "line": 299,
+                    "line": 270,
                     "column": 1
                 },
                 {
                     "path": "tests/WorkflowRepeatRunTest.php",
-                    "line": 211,
+                    "line": 184,
                     "column": 1
                 },
                 {
@@ -426,7 +426,7 @@
                 },
                 {
                     "path": "tests/WorkflowSupersessionRecoveryTest.php",
-                    "line": 381,
+                    "line": 345,
                     "column": 1
                 },
                 {
@@ -445,9 +445,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "0d604bb620e09301e8d19766bd23f2d38ad9bc61a46cf07e9523d3f9ca6b7eeb",
+                        "fingerprint": "1d077a67aa1328058e75e11137b16b955ed0e499e5120b9a5e6988af9869ea12",
                         "path": "tests/Dogfood/AutonomousReplanDogfoodTest.php",
-                        "line": 324,
+                        "line": 311,
                         "column": 1
                     },
                     {
@@ -457,9 +457,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "0192483c4662be144f3ae2f7d6377cc726c354d8ea81fea65bff0de1b918c16e",
+                        "fingerprint": "d18a5e5af0bc2c93d8626029ce5f31d480c567ace42c6dd4579ccdf898c1195e",
                         "path": "tests/GovernedExecutionProtocolTest.php",
-                        "line": 506,
+                        "line": 489,
                         "column": 1
                     },
                     {
@@ -469,9 +469,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "651f57d44ade1813effc4471c148de67e9798183d0995a33519e84b2716d2e73",
+                        "fingerprint": "928b6c284482bac005c35d416e0ad4a4d30bfb640ed5ad33c6ec2e7bf39cf4a4",
                         "path": "tests/GovernedRunPortabilityTest.php",
-                        "line": 266,
+                        "line": 243,
                         "column": 1
                     },
                     {
@@ -535,9 +535,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "ee18db4a9c53178c00d0050076c75fc09be38b16c0e4f354581e71a0096ba764",
+                        "fingerprint": "4431d1d4c0951299690452b9b1340c98f8475ac2fab921ff3aa9a2087d83174c",
                         "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
-                        "line": 471,
+                        "line": 476,
                         "column": 1
                     },
                     {
@@ -553,9 +553,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "0525301168518b6b2f18eec99ab815426a52d34b5009b4a9e27323837243e54e",
+                        "fingerprint": "cacdefd3a65bca0d21e471d7593e81a8b380cacf4d4d1b0dee689fbba5f8048f",
                         "path": "tests/WorkflowPipelineCommandTest.php",
-                        "line": 271,
+                        "line": 254,
                         "column": 1
                     },
                     {
@@ -571,15 +571,15 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "746d60cad696281ef3100cf817641d59472f5ccbec82e36c6268fa04e608c3e5",
+                        "fingerprint": "92a61544d3fc9d146193bdc6010636361011b036cd6f4e3085be8f2171898972",
                         "path": "tests/WorkflowPrunedSessionDurabilityTest.php",
-                        "line": 299,
+                        "line": 270,
                         "column": 1
                     },
                     {
-                        "fingerprint": "2d44d941aac5f0c55f2315e3c9ad92aff03ce9c4b6d52487a9395a37049baa0d",
+                        "fingerprint": "8efe2459e65ae3b387195a7fc7bfcaeb5a9e47d2a177c7276259336e1453e65c",
                         "path": "tests/WorkflowRepeatRunTest.php",
-                        "line": 211,
+                        "line": 184,
                         "column": 1
                     },
                     {
@@ -595,9 +595,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "0825bb3acc4ad4ade10a7fafa7d89246c9713ea5c34e1c26f66e73aa40c05805",
+                        "fingerprint": "a5bc78f35c9d4c91126f1709f22d747e56e059d8b9589db504e0ec08580c2ac2",
                         "path": "tests/WorkflowSupersessionRecoveryTest.php",
-                        "line": 381,
+                        "line": 345,
                         "column": 1
                     },
                     {

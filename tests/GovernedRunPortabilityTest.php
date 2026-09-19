@@ -131,14 +131,10 @@ final class GovernedRunPortabilityTest extends TestCase
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
         ob_start();
-        self::assertSame(0, (new HostFrontDoorCommand(
-            $this->root,
-            function (array $argv): int {
-                $this->writeRecallMeta();
-
-                return 0;
-            },
-        ))->run('enter', ['ABC-123', '--format=json']));
+        self::assertSame(
+            0,
+            (new HostFrontDoorCommand($this->root))->run('enter', ['ABC-123', '--format=json']),
+        );
         ob_end_clean();
 
         mkdir($this->root . '/src', 0o775, true);
@@ -226,25 +222,6 @@ final class GovernedRunPortabilityTest extends TestCase
         file_put_contents(
             $root . '/.agent-loop/init.json',
             json_encode(['version' => 1, 'paths' => $paths], JSON_THROW_ON_ERROR),
-        );
-    }
-
-    private function writeRecallMeta(): void
-    {
-        $directory = $this->root . '/.agent-loop/recall/ABC-123';
-        if (!is_dir($directory)) {
-            mkdir($directory, 0o775, true);
-        }
-        file_put_contents(
-            $directory . '/meta.json',
-            json_encode([
-                'schema_version' => '1.0',
-                'task_id' => 'ABC-123',
-                'compilation_id' => 'ABC-123-relocation',
-                'selected_guidance' => [],
-                'selected_constraints' => [],
-                'output_hashes' => [],
-            ], JSON_THROW_ON_ERROR),
         );
     }
 

@@ -129,7 +129,7 @@ final class EnterPreparationFailureRoutingTest extends TestCase
         };
 
         ob_start();
-        (new HostFrontDoorCommand($this->root, $runner))->run('enter', ['PREP-001', '--format=json']);
+        (new HostFrontDoorCommand($this->root))->run('enter', ['PREP-001', '--format=json']);
         $output = (string) ob_get_clean();
 
         $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);

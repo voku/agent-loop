@@ -86,15 +86,7 @@ final class CompactLayoutIntegrationTest extends TestCase
         try {
             $frontDoor = $argv[1] ?? null;
             if (in_array($frontDoor, ['enter', 'finish'], true)) {
-                $scriptName = $argv[0] ?? 'agent-loop';
-                $exit = (new HostFrontDoorCommand(
-                    $this->root,
-                    static fn (array $recallRest): int => $dispatcher->run([
-                        $scriptName,
-                        'recall',
-                        ...$recallRest,
-                    ]),
-                ))->run($frontDoor, array_slice($argv, 2));
+                $exit = (new HostFrontDoorCommand($this->root))->run($frontDoor, array_slice($argv, 2));
             } else {
                 $exit = $dispatcher->run($argv);
             }
