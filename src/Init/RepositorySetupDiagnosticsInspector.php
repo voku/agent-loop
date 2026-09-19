@@ -186,7 +186,7 @@ final readonly class RepositorySetupDiagnosticsInspector
         $foundTargets = [];
         foreach (self::MIGRATION_TARGETS as $target) {
             foreach ($makefileContents as $content) {
-                if (preg_match('/^' . preg_quote($target, '/') . '\\s*:/m', $content) === 1) {
+                if (preg_match('/^' . preg_quote($target, '/') . '\s*:/m', $content) === 1) {
                     $foundTargets[] = $target;
 
                     break;
@@ -278,9 +278,9 @@ final readonly class RepositorySetupDiagnosticsInspector
     private function packageMakeIncludeFiles(array $makefileContents): array
     {
         $files = [];
-        $pattern = '~^[ \\t]*-?include[ \\t]+[^\\r\\n#]*'
+        $pattern = '~^[ \t]*-?include[ \t]+[^\r\n#]*'
             . preg_quote(PackageResources::MAKE_INCLUDE, '~')
-            . '(?:[ \\t]*(?:#.*)?)?$~m';
+            . '(?:[ \t]*(?:#.*)?)?$~m';
 
         foreach ($makefileContents as $name => $content) {
             if (preg_match($pattern, $content) === 1) {
@@ -312,7 +312,7 @@ final readonly class RepositorySetupDiagnosticsInspector
     /** @return list<string> */
     private function makeTargetNames(string $content): array
     {
-        preg_match_all('~^([A-Za-z0-9_.-]+)[ \\t]*:(?!=)~m', $content, $matches);
+        preg_match_all('~^([A-Za-z0-9_.-]+)[ \t]*:(?!=)~m', $content, $matches);
 
         /** @var list<string> $targets */
         $targets = array_values(array_unique($matches[1] ?? []));
