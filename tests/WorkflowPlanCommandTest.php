@@ -252,11 +252,11 @@ CARD,
             $request = $recallCalls[0];
             $kanbanContext = $request->kanbanContextProjection?->toArray();
             self::assertIsArray($kanbanContext);
-            self::assertSame('ABC-123', $kanbanContext['task_id'] ?? null);
-            self::assertSame('todo/cards/ABC-123.md', $kanbanContext['source']['path'] ?? null);
+            self::assertSame('ABC-123', $kanbanContext['task_id']);
+            self::assertSame('todo/cards/ABC-123.md', $kanbanContext['source']['path']);
             self::assertSame(
                 ['title', 'lane', 'status', 'priority', 'next_action'],
-                array_keys($kanbanContext['card'] ?? []),
+                array_keys($kanbanContext['card']),
             );
             self::assertSame($learningRoot, $request->learningRoot);
             self::assertSame($recallInput, $request->taskBrief);
