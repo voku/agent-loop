@@ -4,21 +4,27 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use InvalidArgumentException;
 use Throwable;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentRecallCompiler\Reflection\FutureWorkPromptBuilder;
+use voku\AgentRecallCompiler\Reflection\FutureWorkScope;
 
 final readonly class WorkflowReflectCommand
 {
-    /**
-     * @param callable(list<string>): int $recallRunner
-     * @param null|callable(string): string $stateResolver
-     */
+    private ?Closure $stateResolver;
+
+    private FutureWorkPromptBuilder $promptBuilder;
+
+    /** @param null|callable(string): string $stateResolver */
     public function __construct(
         private string $rootPath,
-        private mixed $recallRunner,
-        private mixed $stateResolver = null,
+        ?callable $stateResolver = null,
+        ?FutureWorkPromptBuilder $promptBuilder = null,
     ) {
+        $this->stateResolver = $stateResolver === null ? null : Closure::fromCallable($stateResolver);
+        $this->promptBuilder = $promptBuilder ?? new FutureWorkPromptBuilder();
     }
 
     /** @param list<string> $args */
@@ -37,7 +43,9 @@ final readonly class WorkflowReflectCommand
                 );
             }
 
-            return ($this->recallRunner)(['prompt', 'future-work', '--scope', $scope]);
+            echo $this->promptBuilder->build($scope) . "\n";
+
+            return 0;
         } catch (Throwable $exception) {
             fwrite(STDERR, '[FAIL] workflow reflect: ' . $exception->getMessage() . "\n");
 
@@ -46,16 +54,17 @@ final readonly class WorkflowReflectCommand
     }
 
     /** @param list<string> $tokens */
-    private function scope(array $tokens): string
+    private function scope(array $tokens): FutureWorkScope
     {
         if ($tokens === []) {
-            return 'project';
+            return FutureWorkScope::PROJECT;
         }
         if (count($tokens) !== 2 || $tokens[0] !== '--scope') {
             throw new InvalidArgumentException('Usage: workflow reflect <task-id> [--scope project|task].');
         }
-        $scope = trim($tokens[1]);
-        if (!in_array($scope, ['project', 'task'], true)) {
+
+        $scope = FutureWorkScope::tryFrom(trim($tokens[1]));
+        if (!$scope instanceof FutureWorkScope) {
             throw new InvalidArgumentException('--scope must be project or task.');
         }
 
