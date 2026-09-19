@@ -31,18 +31,12 @@ if (!class_exists(Dispatcher::class)) {
     exit(1);
 }
 
-$dispatcher = new Dispatcher(getcwd());
 $frontDoor = $argv[1] ?? null;
 if (in_array($frontDoor, ['enter', 'finish', 'quick', 'repair', 'pipeline'], true)) {
-    $scriptName = $argv[0] ?? 'agent-loop';
-    $recallRunner = static fn (array $recallRest): int => $dispatcher->run([
-        $scriptName,
-        'recall',
-        ...$recallRest,
-    ]);
-
-    exit((new HostFrontDoorApplication(getcwd(), $recallRunner))->run($frontDoor, array_slice($argv, 2)));
+    exit((new HostFrontDoorApplication(getcwd()))->run($frontDoor, array_slice($argv, 2)));
 }
+
+$dispatcher = new Dispatcher(getcwd());
 
 $verifyArgv = array_slice($argv, 2);
 if (($argv[1] ?? null) === 'verify' && GitCandidateEvidenceCommand::requested($verifyArgv)) {
