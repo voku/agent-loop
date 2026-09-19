@@ -8,7 +8,8 @@ use JsonException;
 use RuntimeException;
 use UnexpectedValueException;
 use Throwable;
-use voku\AgentLearning\FindingRepository;
+use voku\AgentLearning\FindingStatus;
+use voku\AgentLearning\LearningCatalog;
 use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\ProjectLayout;
 
@@ -237,14 +238,22 @@ final readonly class AgentDisciplineHook
      */
     private function learningBacklogHint(): string
     {
-        if (!class_exists(FindingRepository::class)) {
+        if (!class_exists(LearningCatalog::class)) {
             return '';
         }
 
         $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
 
         try {
-            $unconsolidated = (new FindingRepository())->loadValidated($root);
+            $catalog = new LearningCatalog($root);
+            $unconsolidated = [];
+            foreach ($catalog->overview()->findingAttentionIds as $findingId) {
+                $finding = $catalog->finding($findingId);
+                if ($finding === null || $finding->status !== FindingStatus::VALIDATED->value) {
+                    continue;
+                }
+                $unconsolidated[] = $finding;
+            }
         } catch (Throwable $exception) {
             // The owner refused to read its own repository. Reporting that is
             // the point of this hint; silently omitting it would hide exactly
@@ -261,7 +270,7 @@ final readonly class AgentDisciplineHook
 
         return $this->learningObservation([
             sprintf(
-                '- observed: %d validated finding(s) recorded but not yet consolidated.',
+                '- observed: %d validated finding(s) need downstream Learning handling.',
                 count($unconsolidated),
             ),
             '- `vendor/bin/agent-loop learn backlog` lists them; consolidation stays an explicit decision.',
