@@ -221,7 +221,7 @@ final class StaleVerificationConvergenceTest extends TestCase
         };
 
         ob_start();
-        $exit = (new HostFrontDoorCommand($this->root, $runner))->run($command, [self::TASK, ...$rest]);
+        $exit = (new HostFrontDoorCommand($this->root))->run($command, [self::TASK, ...$rest]);
         ob_end_clean();
 
         return $exit;

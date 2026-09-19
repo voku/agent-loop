@@ -481,23 +481,6 @@ final class GovernedExecutionProtocolTest extends TestCase
         ob_start();
         $exit = (new HostFrontDoorCommand(
             $this->root,
-            function (array $argv): int {
-                $directory = $this->root . '/.agent-loop/recall/ABC-123';
-                if (!is_dir($directory)) {
-                    mkdir($directory, 0o775, true);
-                }
-                file_put_contents($directory . '/meta.json', json_encode([
-                    'schema_version' => '1.0',
-                    'task_id' => 'ABC-123',
-                    'compilation_id' => 'ABC-123-execution-test',
-                    'selected_guidance' => [],
-                    'selected_constraints' => [],
-                    'output_hashes' => [],
-                ], JSON_THROW_ON_ERROR));
-                file_put_contents($directory . '/system.md', "# Governed recall\nStay inside the approved Contract.\n");
-
-                return 0;
-            },
         ))->run('enter', ['ABC-123', '--format=json']);
         ob_end_clean();
         self::assertSame(0, $exit);

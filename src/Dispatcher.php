@@ -48,8 +48,6 @@ final class Dispatcher
         $scriptName = $argv[0] ?? 'agent-loop';
         $rawNamespace = $argv[1] ?? 'help';
         $rest = array_slice($argv, 2);
-        $recallRunner = fn (array $recallRest): int => $this->dispatchRecall($scriptName, array_values($recallRest));
-
         $namespace = match ($rawNamespace) {
             '--help', '-h', '' => 'help',
             default => $rawNamespace,
@@ -61,11 +59,11 @@ final class Dispatcher
         }
 
         return match ($commandId) {
-            CommandId::Enter => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('enter', $rest),
-            CommandId::Finish => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('finish', $rest),
-            CommandId::Quick => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('quick', $rest),
-            CommandId::Repair => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('repair', $rest),
-            CommandId::Pipeline => (new HostFrontDoorApplication($this->rootPath, $recallRunner))->run('pipeline', $rest),
+            CommandId::Enter => (new HostFrontDoorApplication($this->rootPath))->run('enter', $rest),
+            CommandId::Finish => (new HostFrontDoorApplication($this->rootPath))->run('finish', $rest),
+            CommandId::Quick => (new HostFrontDoorApplication($this->rootPath))->run('quick', $rest),
+            CommandId::Repair => (new HostFrontDoorApplication($this->rootPath))->run('repair', $rest),
+            CommandId::Pipeline => (new HostFrontDoorApplication($this->rootPath))->run('pipeline', $rest),
             CommandId::Edit => (new EditCommand($this->rootPath))->run($rest),
             CommandId::Board => (new CliApplication($this->layout()->boardRoot()))->run($this->subArgv($scriptName, $rest)),
             CommandId::Verify => (new AgentLoopVerifier($this->rootPath))->run($rest),

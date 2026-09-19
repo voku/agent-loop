@@ -175,37 +175,10 @@ final class WorkflowRepeatRunTest extends TestCase
     {
         ob_start();
         try {
-            return (new HostFrontDoorCommand(
-                $this->root,
-                function (array $argv): int {
-                    $this->writeRecallMeta();
-
-                    return 0;
-                },
-            ))->run('enter', ['SELF-SHAPE', '--format=json']);
+            return (new HostFrontDoorCommand($this->root))->run('enter', ['SELF-SHAPE', '--format=json']);
         } finally {
             ob_end_clean();
         }
-    }
-
-    private function writeRecallMeta(): void
-    {
-        $directory = RecallOutputRoot::resolve($this->root) . '/SELF-SHAPE';
-        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
-            throw new RuntimeException('Unable to create Recall fixture directory.');
-        }
-        file_put_contents(
-            $directory . '/meta.json',
-            json_encode([
-                'schema_version' => '1.0',
-                'task_id' => 'SELF-SHAPE',
-                'compilation_id' => 'SELF-SHAPE-' . bin2hex(random_bytes(4)),
-                'bundle_sha256' => str_repeat('a', 64),
-                'selected_guidance' => [],
-                'selected_constraints' => [],
-                'output_hashes' => [],
-            ], JSON_THROW_ON_ERROR),
-        );
     }
 
     private function removeDirectory(string $path): void
