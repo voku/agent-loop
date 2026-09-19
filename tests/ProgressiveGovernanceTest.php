@@ -13,6 +13,8 @@ use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 
 /** @internal */
 final class ProgressiveGovernanceTest extends TestCase
@@ -58,11 +60,10 @@ final class ProgressiveGovernanceTest extends TestCase
         $recallCalls = 0;
         [$exit, $payload] = $this->enter(
             'SIMPLE-1',
-            function (array $argv) use (&$recallCalls): int {
+            function (CompileRequest $request) use (&$recallCalls): CompileResult {
                 ++$recallCalls;
-                $this->writeRecallMeta('SIMPLE-1');
 
-                return 0;
+                return $this->compileRecallFixture($request, 'SIMPLE-1');
             },
         );
 
@@ -97,14 +98,13 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
 
         $recallCalls = 0;
-        $recallRunner = function (array $argv) use (&$recallCalls): int {
+        $recallCompiler = function (CompileRequest $request) use (&$recallCalls): CompileResult {
             ++$recallCalls;
-            $this->writeRecallMeta('ENTER-1');
 
-            return 0;
+            return $this->compileRecallFixture($request, 'ENTER-1');
         };
 
-        [$firstExit, $firstPayload] = $this->enter('ENTER-1', $recallRunner);
+        [$firstExit, $firstPayload] = $this->enter('ENTER-1', $recallCompiler);
 
         self::assertSame(0, $firstExit);
         self::assertSame(1, $recallCalls);
@@ -115,7 +115,7 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertDirectoryExists($this->root . '/.agent-loop/runs/ENTER-1');
         self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
 
-        [$secondExit, $secondPayload] = $this->enter('ENTER-1', $recallRunner);
+        [$secondExit, $secondPayload] = $this->enter('ENTER-1', $recallCompiler);
 
         self::assertSame(0, $secondExit);
         self::assertSame(1, $recallCalls, 'Repeated enter must not recompile already-current Recall.');
@@ -142,12 +142,15 @@ final class ProgressiveGovernanceTest extends TestCase
         );
         $contracts->approve('FAIL-1', 'approver');
 
-        [$exit, $payload] = $this->enter('FAIL-1', static fn (array $argv): int => 7);
+        [$exit, $payload] = $this->enter(
+            'FAIL-1',
+            static fn (CompileRequest $request): CompileResult => throw new RuntimeException('Recall compilation refused by fixture.'),
+        );
 
         self::assertSame(1, $exit);
         self::assertFalse($payload['mutation_ready']);
         self::assertSame('enter.preparation_failed', $payload['blockers'][0]['code'] ?? null);
-        self::assertStringContainsString('Recall compilation failed with exit code 7', $payload['blockers'][0]['message'] ?? '');
+        self::assertStringContainsString('Recall compilation refused by fixture.', $payload['blockers'][0]['message'] ?? '');
         self::assertSame('governed', $payload['manifest']['mode']);
         self::assertSame('active', $payload['manifest']['references']['session']['state']);
         self::assertSame('missing', $payload['manifest']['references']['recall']['state']);
@@ -156,36 +159,6 @@ final class ProgressiveGovernanceTest extends TestCase
         self::assertNotSame('agent-loop enter FAIL-1', $payload['next_action']);
         self::assertSame('host_work', $payload['next_action_kind']);
         self::assertStringContainsString('enter.preparation_failed', $payload['next_action']);
-    }
-
-    public function testEnterJsonPreservesCallerBufferWhenRecallRunnerClosesItsOwnBuffer(): void
-    {
-        file_put_contents($this->root . '/docs/note.txt', "current\n");
-
-        $contracts = new TaskContractStore($this->root);
-        $contracts->create(
-            'BUFFER-1',
-            'Keep the host JSON document intact across Recall output handling.',
-            ['docs/note.txt'],
-            [],
-            ['php -r "exit(0);"'],
-            'planner',
-        );
-        $contracts->approve('BUFFER-1', 'approver');
-
-        $runner = function (array $argv): int {
-            echo "discarded recall output\n";
-            ob_end_flush();
-            $this->writeRecallMeta('BUFFER-1');
-
-            return 0;
-        };
-
-        [$exit, $payload] = $this->enter('BUFFER-1', $runner);
-
-        self::assertSame(0, $exit);
-        self::assertTrue($payload['mutation_ready']);
-        self::assertSame('compiled', $payload['manifest']['references']['recall']['state']);
     }
 
     public function testExistingPhpTaskApprovesOnAuthorityAloneWithoutHostRunDiscovery(): void
@@ -227,14 +200,15 @@ final class ProgressiveGovernanceTest extends TestCase
     }
 
     /**
-     * @param null|callable(list<string>): int $recallRunner
+     * @param null|callable(CompileRequest): CompileResult $recallCompiler
      * @return array{0: int, 1: array<string, mixed>}
      */
-    private function enter(string $taskId, ?callable $recallRunner = null): array
+    private function enter(string $taskId, ?callable $recallCompiler = null): array
     {
         ob_start();
         try {
-            $exit = (new HostFrontDoorCommand($this->root, $recallRunner))->run('enter', [$taskId, '--format=json']);
+            $exit = (new HostFrontDoorCommand($this->root, recallCompiler: $recallCompiler))
+                ->run('enter', [$taskId, '--format=json']);
             $output = ob_get_contents();
         } finally {
             ob_end_clean();
@@ -248,6 +222,18 @@ final class ProgressiveGovernanceTest extends TestCase
         }
 
         return [$exit, $payload];
+    }
+
+    private function compileRecallFixture(CompileRequest $request, string $taskId): CompileResult
+    {
+        self::assertSame(RecallOutputRoot::resolve($this->root) . '/' . $taskId, $request->outputDirectory);
+        $this->writeRecallMeta($taskId);
+
+        return new CompileResult(
+            $request->outputDirectory,
+            $taskId . '-001',
+            str_repeat('a', 64),
+        );
     }
 
     private function writeRecallMeta(string $taskId): void
