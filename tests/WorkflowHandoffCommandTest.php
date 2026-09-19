@@ -9,7 +9,8 @@ use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowHandoffCommand;
-use voku\AgentRecallCompiler\Cli as RecallCli;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowHandoffCommandTest extends TestCase
@@ -37,10 +38,10 @@ final class WorkflowHandoffCommandTest extends TestCase
         $received = null;
         $command = new WorkflowHandoffCommand(
             $root,
-            static function (array $args) use (&$received): int {
-                $received = $args;
+            static function (CompileRequest $request) use (&$received): CompileResult {
+                $received = $request;
 
-                return 0;
+                return new CompileResult($request->outputDirectory, 'test-compilation', str_repeat('a', 64));
             },
             $sessionStore,
             '/installed/agent-recall-compiler/operating-prompts.json',
@@ -48,16 +49,14 @@ final class WorkflowHandoffCommandTest extends TestCase
 
         $context = 'Verified: PR #230 is green. Next: verify merged-main ancestry, then run the installed-consumer falsification.';
         self::assertSame(0, $command->run(['TASK-1', '--context', $context]));
-        self::assertIsArray($received);
-        self::assertSame('compile', $received[0]);
-        self::assertSame('TASK-1', $received[2]);
-        self::assertContains('{"id":"todo-card-handoff","arguments":{}}', $received);
-        self::assertContains('/installed/agent-recall-compiler/operating-prompts.json', $received);
-        self::assertContains($layout->recallRoot() . '/TASK-1/handoff', $received);
+        self::assertInstanceOf(CompileRequest::class, $received);
+        self::assertSame('TASK-1', $received->inlineTask?->taskId);
+        self::assertSame([], $received->inlineTask?->targets);
+        self::assertSame('todo-card-handoff', $received->operatingPrompts[0]->id ?? null);
+        self::assertSame(['/installed/agent-recall-compiler/operating-prompts.json'], $received->operatingPromptManifests);
+        self::assertSame($layout->recallRoot() . '/TASK-1/handoff', $received->outputDirectory);
 
-        $descriptionIndex = array_search('--description', $received, true);
-        self::assertIsInt($descriptionIndex);
-        $description = $received[$descriptionIndex + 1];
+        $description = $received->inlineTask?->description ?? '';
         self::assertStringContainsString($context, $description);
         self::assertStringContainsString('candidate context, not durable authority', $description);
         self::assertStringContainsString('Finish the recovery slice.', $description);
@@ -78,12 +77,7 @@ final class WorkflowHandoffCommandTest extends TestCase
 
         $command = new WorkflowHandoffCommand(
             $root,
-            static fn (array $args): int => (new RecallCli())->run([
-                'agent-recall-compiler',
-                ...$args,
-                '--root', $layout->learningRoot(),
-            ]),
-            $sessionStore,
+            sessionStore: $sessionStore,
         );
 
         self::assertSame(0, $command->run([
@@ -129,10 +123,11 @@ final class WorkflowHandoffCommandTest extends TestCase
         );
 
         self::assertSame(0, $command->run(['TASK-2', '--context-file', $contextFile]));
-        self::assertIsArray($received);
-        $descriptionIndex = array_search('--description', $received, true);
-        self::assertIsInt($descriptionIndex);
-        self::assertStringContainsString('Remaining blocker: external review.', $received[$descriptionIndex + 1]);
+        self::assertInstanceOf(CompileRequest::class, $received);
+        self::assertStringContainsString(
+            'Remaining blocker: external review.',
+            $received->inlineTask?->description ?? '',
+        );
     }
 
     public function testFailsClosedWithoutGovernedRun(): void
@@ -140,10 +135,10 @@ final class WorkflowHandoffCommandTest extends TestCase
         $called = false;
         $command = new WorkflowHandoffCommand(
             $this->temporaryRoot(),
-            static function (array $args) use (&$called): int {
+            static function (CompileRequest $request) use (&$called): CompileResult {
                 $called = true;
 
-                return 0;
+                return new CompileResult($request->outputDirectory, 'unexpected', str_repeat('b', 64));
             },
             operatingPromptManifest: '/installed/agent-recall-compiler/operating-prompts.json',
         );
