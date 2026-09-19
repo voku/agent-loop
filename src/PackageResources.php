@@ -59,6 +59,11 @@ final class PackageResources
         return in_array($skillId, self::MAINTAINER_SKILLS, true);
     }
 
+    public static function makeInclude(): string
+    {
+        return self::path(self::MAKE_INCLUDE);
+    }
+
     public static function subagentsRoot(): string
     {
         return self::path(self::SUBAGENTS);
