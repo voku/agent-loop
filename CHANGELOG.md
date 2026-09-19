@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.20 - 2026-09-19
+
+### Added
+
+- Ship generic `agent_workflow_*` Make targets in the package include, including an explicit `AGENT_LOOP_RUN(command, target, user)` host hook. Consumers can retain their own runtime boundary while reusing the canonical lifecycle argv surface instead of copying wrappers.
+
 ## 0.20.19 - 2026-09-19
 
 ### Added
