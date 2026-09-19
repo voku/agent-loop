@@ -1,0 +1,30 @@
+{
+    "id": "finding.2026-09-19.95209d",
+    "task_id": "release-tag-changelog-pipefail",
+    "session": "2026-09-19-release-tag-changelog-pipefail-r1-de316841",
+    "created_at": "2026-09-19T17:07:55+00:00",
+    "created_by": "moellekenl",
+    "scope": [
+        ".github/workflows/release-tag.yml",
+        "tests/ReleaseTagWorkflowTest.php",
+        "CHANGELOG.md"
+    ],
+    "observation": "The tag workflow rejected a release target that contained its required changelog heading because git show piped into grep quiet mode returned SIGPIPE status 141 under Bash pipefail.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Observed passed with exit code 0 for implementation sha256:2edcb29c90954fbb9690f264d2e1b2b99ba469ac1d03fa8a45be384c640f469e."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:d9887c1de97b758c7887b1ed96a5509e6b456b81b8478446d42241502eb14611."
+        }
+    ],
+    "hypothesis": "A predicate consumer that exits after an early match can close a producer pipe before the producer has emitted the remaining changelog, so pipefail treats the pipeline as failed.",
+    "validated_conclusion": "For a potentially large producer under Bash pipefail, do not use an early-exiting predicate pipeline as the validation result; capture the source once and inspect it without a producer-consumer pipe, while retaining the same exact-content check.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}
