@@ -70,7 +70,7 @@ final class WorkflowExecutionContractCloseTest extends TestCase
                 ]],
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
-            $exit = (new WorkflowCli($root, static fn (array $args): int => 0))->run([
+            $exit = (new WorkflowCli($root))->run([
                 'close',
                 'CLOSE-L2',
                 '--status',
