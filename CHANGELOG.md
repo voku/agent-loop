@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.21 - 2026-09-19
+
+### Fixed
+
+- Make marker-driven release tagging idempotent for historical tags already pinned to their declared target, while retaining strict validation before any new tag is created.
+
 ## 0.20.20 - 2026-09-19
 
 ### Added
