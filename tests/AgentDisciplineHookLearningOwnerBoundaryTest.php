@@ -16,6 +16,9 @@ final class AgentDisciplineHookLearningOwnerBoundaryTest extends TestCase
 
         self::assertIsString($source);
         self::assertStringContainsString('new LearningCatalog($root)', $source);
+        self::assertStringContainsString('FindingStatus::CANDIDATE->value', $source);
+        self::assertStringContainsString('Learning owner projected missing Finding:', $source);
+        self::assertStringContainsString('Learning owner projected unsupported attention status', $source);
         self::assertStringNotContainsString('FindingRepository', $source);
         self::assertStringNotContainsString("'/findings/validated'", $source);
     }
