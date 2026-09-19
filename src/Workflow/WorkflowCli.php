@@ -27,7 +27,7 @@ final readonly class WorkflowCli
 
         return match ($command) {
             'help', '--help', '-h', '' => $this->printHelp(),
-            'quick' => (new HostFrontDoorCommand($this->rootPath, $this->recallRunner))->run('quick', $rest),
+            'quick' => (new HostFrontDoorCommand($this->rootPath))->run('quick', $rest),
             'repair' => (new WorkflowRepairCommand($this->rootPath))->run($rest),
             'pipeline' => (new WorkflowPipelineCommand($this->rootPath))->run($rest),
             'plan' => self::isHelpRequest($rest) ? $this->printHelp() : (new WorkflowPlanCommand($this->rootPath))->run($rest),
