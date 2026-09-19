@@ -65,7 +65,7 @@ final class CommandCatalogTest extends TestCase
             self::assertStringContainsString(
                 $case->value,
                 $usage,
-                "Command '{$case->value}' must appear in the top-level help text to prevent Dispatcher/Catalog drift."
+                "Command '{$case->value}' must appear in the top-level help text to prevent Dispatcher/Catalog drift.",
             );
         }
     }

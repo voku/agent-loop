@@ -21,7 +21,8 @@
                 "src/Init/InitPathsCommand.php",
                 "src/Workflow/WorkflowManifestCommand.php",
                 "src/Workflow/WorkflowStatusCommand.php",
-                "phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php"
+                "phpstan/Rules/NoFocusedPackageCliInWorkflowRule.php",
+                "src/Workflow/WorkflowHookRunner.php"
             ]
         },
         {
