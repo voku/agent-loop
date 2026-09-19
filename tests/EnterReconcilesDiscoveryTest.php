@@ -98,7 +98,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
     /**
      * A semantic index used to be replaced by a scope-sized structural build here,
      * which dropped every unrelated entry of a real repository map. The owner's
-     * same-backend builder patches the changed scope and keeps the rest.
+     * preparation reuses the recorded backend and its stored semantic scope, keeping the rest.
      */
     public function testStaleSemanticMapIsPatchedWithTheSameBackendInsteadOfReplaced(): void
     {
