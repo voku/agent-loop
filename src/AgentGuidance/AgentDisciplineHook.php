@@ -228,14 +228,10 @@ final readonly class AgentDisciplineHook
     }
 
     /**
-     * Surface validated Learning attention without reconstructing owner semantics.
+     * Surface Learning-owned Finding attention without reconstructing lifecycle semantics.
      *
-     * The Learning owner decides which Findings deserve attention and exposes
-     * that projection; agent-loop only narrows it to this historical validated
-     * backlog hint. The
-     * backlog is otherwise reachable only through a command nothing runs, which
-     * is how it grew from zero to seventeen across two days of work without a
-     * single signal. See Phase G1.
+     * Learning decides which Findings deserve attention and projects their status.
+     * Loop only renders that owner truth as a non-blocking observation.
      */
     private function learningBacklogHint(): string
     {
@@ -247,6 +243,7 @@ final readonly class AgentDisciplineHook
 
         try {
             $catalog = new LearningCatalog($root);
+            $candidates = [];
             $unconsolidated = [];
             foreach ($catalog->overview()->findingAttentionIds as $findingId) {
                 $finding = $catalog->finding($findingId);
@@ -254,6 +251,8 @@ final readonly class AgentDisciplineHook
                     throw new RuntimeException('Learning owner projected missing Finding: ' . $findingId);
                 }
                 if ($finding->status === FindingStatus::CANDIDATE->value) {
+                    $candidates[] = $finding;
+
                     continue;
                 }
                 if ($finding->status !== FindingStatus::VALIDATED->value) {
@@ -275,17 +274,26 @@ final readonly class AgentDisciplineHook
                 '- `vendor/bin/agent-loop learn validate` reports this authoritatively.',
             ]);
         }
-        if ($unconsolidated === []) {
+        if ($candidates === [] && $unconsolidated === []) {
             return '';
         }
 
-        return $this->learningObservation([
-            sprintf(
+        $lines = [];
+        if ($candidates !== []) {
+            $lines[] = sprintf(
+                '- observed: %d candidate finding(s) require human/reviewer attention.',
+                count($candidates),
+            );
+        }
+        if ($unconsolidated !== []) {
+            $lines[] = sprintf(
                 '- observed: %d validated finding(s) need downstream Learning handling.',
                 count($unconsolidated),
-            ),
-            '- `vendor/bin/agent-loop learn backlog` lists them; consolidation stays an explicit decision.',
-        ]);
+            );
+            $lines[] = '- `vendor/bin/agent-loop learn backlog` lists validated downstream work; consolidation stays an explicit decision.';
+        }
+
+        return $this->learningObservation($lines);
     }
 
     /** @param list<string> $lines */

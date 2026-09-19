@@ -9,6 +9,8 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use UnexpectedValueException;
+use voku\AgentLearning\FindingCreator;
+use voku\AgentLearning\LearningCatalog;
 use voku\AgentLearning\LearningNoteContent;
 use voku\AgentLearning\LearningNoteDraft;
 use voku\AgentLearning\LearningNoteService;
@@ -109,6 +111,58 @@ final class AgentDisciplineHookTest extends TestCase
             self::assertStringNotContainsString('MALICIOUS THING', $context);
             self::assertStringNotContainsString('DONE-1', $context);
             self::assertStringContainsString('Engineering Skill Routing', $context);
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
+    public function testSessionStartSurfacesCandidateFindingReviewAttentionFromLearningOwner(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-candidate-attention-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.codex/skills/agent-loop-discipline';
+        $learningRoot = $root . '/.agent-loop/learning';
+
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $skillDirectory . '/SKILL.md',
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
+        ));
+
+        $findingId = 'finding.2026-09-19.513001';
+        (new FindingCreator())->createCandidate(
+            root: $learningRoot,
+            taskId: 'GH-513',
+            session: 'manual:' . $findingId,
+            createdBy: 'tester',
+            scope: ['src/Example.php'],
+            observation: 'A human-captured candidate requires reviewer attention.',
+            evidence: [['type' => 'human_report', 'summary' => 'Captured through the released Learning owner API.']],
+            hypothesis: 'SessionStart should render Learning-owned candidate attention.',
+            confidence: 'high',
+            sensitivity: 'public',
+            id: $findingId,
+        );
+
+        try {
+            self::assertContains(
+                $findingId,
+                (new LearningCatalog($learningRoot))->overview()->findingAttentionIds,
+            );
+
+            $output = (new AgentDisciplineHook($root))->contextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+            ]));
+            $context = $output['hookSpecificOutput']['additionalContext'];
+
+            self::assertStringContainsString('Agent Loop Learning Backlog', $context);
+            self::assertStringContainsString(
+                '1 candidate finding(s) require human/reviewer attention',
+                $context,
+            );
+            self::assertStringContainsString('not a blocker', $context);
+            self::assertStringContainsString('not a next command', $context);
+            self::assertStringNotContainsString('review_validate', $context);
+            self::assertStringNotContainsString('finding-transition', $context);
         } finally {
             $this->removeTree($root);
         }
