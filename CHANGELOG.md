@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.26 - 2026-09-20
+
+### Changed
+
+- Require `voku/agent-recall-compiler ^0.19.0` and compile durable workflow handoffs through the typed `InlineCompileTask + OperatingPromptRequest + CompileRequest -> RecallCompiler::compile()` owner API instead of reconstructing Recall CLI tokens.
+- Remove the final shared Recall CLI callback from `WorkflowCli` and its dispatcher wiring; direct specialist `agent-loop recall ...` routing remains unchanged.
+
 ## 0.20.25 - 2026-09-19
 
 ### Changed
