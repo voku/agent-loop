@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TAG_TOKEN || github.token }}
 
       - name: Create requested release tags
         shell: bash
@@ -29,6 +30,7 @@ jobs:
           fi
 
           frozen_main="$(git rev-parse HEAD)"
+          refs=()
           for marker in "${markers[@]}"; do
             version="$(jq -er '.version' "$marker")"
             target="$(jq -er '.target_sha' "$marker")"
@@ -63,5 +65,10 @@ jobs:
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git tag -a "$version" "$target" -m "agent-loop $version"
-            git push origin "refs/tags/$version"
+            refs+=("refs/tags/$version")
           done
+
+          if [ "${#refs[@]}" -gt 0 ]; then
+            git push --dry-run origin "${refs[@]}"
+            git push --atomic origin "${refs[@]}"
+          fi
