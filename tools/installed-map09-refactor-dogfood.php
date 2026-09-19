@@ -37,17 +37,17 @@ final class InstalledMap09RefactorDogfood
         $this->runCommand(['composer', 'update', '--no-interaction', '--prefer-dist', '--no-progress', '--no-ansi']);
         $releaseSet = $this->resolvedPackages();
         $this->assertPathPackage($releaseSet, 'voku/agent-loop', 'dev-main');
-        $this->assertReleasedPackage($releaseSet, 'voku/agent-map', '0.10.0', true);
-        $this->assertReleasedPackage($releaseSet, 'voku/agent-recall-compiler', '0.13.16', false);
+        $this->assertReleasedPackage($releaseSet, 'voku/agent-map', '0.15.0', true);
+        $this->assertReleasedPackage($releaseSet, 'voku/agent-recall-compiler', '0.18.0', false);
         if (!isset($releaseSet['phpstan/phpstan'])) {
             throw new InstalledMap09DogfoodFailure('Installed consumer is missing PHPStan.');
         }
 
         $this->runCommand(['git', 'init', '--initial-branch=main']);
-        $this->runCommand(['git', 'config', 'user.name', 'Installed Map 0.9 Dogfood']);
+        $this->runCommand(['git', 'config', 'user.name', 'Installed Map 0.15 Dogfood']);
         $this->runCommand(['git', 'config', 'user.email', 'map09-dogfood@example.invalid']);
         $this->runCommand(['git', 'add', 'composer.json', 'composer.lock', '.gitignore', 'src', 'tests']);
-        $this->runCommand(['git', 'commit', '-m', 'fixture: initial Map 0.9 consumer']);
+        $this->runCommand(['git', 'commit', '-m', 'fixture: initial Map 0.15 consumer']);
 
         $this->runCommand(['vendor/bin/agent-loop', 'init', 'scaffold', '--demo', '--agent=codex']);
         $this->runCommand([
@@ -132,7 +132,7 @@ final class InstalledMap09RefactorDogfood
         $this->runCommand(['vendor/bin/agent-loop', 'review', 'blindspots', 'DEMO-1'], [0, 1]);
         $this->runCommand([
             'vendor/bin/agent-loop', 'session', 'checkpoint', 'DEMO-1',
-            '--title', 'Installed Map 0.9 consumer review',
+            '--title', 'Installed Map 0.15 consumer review',
             '--body', 'Reviewed released owner plan, governed mutation, rebuilt Map verification, and validation evidence.',
         ]);
         $this->runCommand(['vendor/bin/agent-loop', 'review', 'blindspots', 'DEMO-1']);
@@ -170,7 +170,7 @@ final class InstalledMap09RefactorDogfood
             'commands' => $this->commands,
         ]);
 
-        echo 'Installed Map 0.9 refactor dogfood (' . $this->scenario . "): PASSED\n";
+        echo 'Installed Map 0.15 refactor dogfood (' . $this->scenario . "): PASSED\n";
         echo 'Report: ' . $this->reportPath . "\n";
 
         return 0;
@@ -236,7 +236,7 @@ final class InstalledMap09RefactorDogfood
             'property_rename_plan' => '1.0',
         ];
         if ($types !== $expected) {
-            throw new InstalledMap09DogfoodFailure('Released Map 0.9 plan registry does not match the supported consumer contract.');
+            throw new InstalledMap09DogfoodFailure('Released Map 0.15 plan registry does not match the supported consumer contract.');
         }
 
         return $rows;
@@ -286,9 +286,9 @@ final class InstalledMap09RefactorDogfood
     private function goal(): string
     {
         return match ($this->scenario) {
-            'method' => 'Rename Fixture\\Greeter::oldName to renamedMethod through released agent-map 0.9.',
-            'parameter' => 'Rename Fixture\\Greeter::format parameter $name to $person through released agent-map 0.9.',
-            'class-move' => 'Move Fixture\\Legacy\\Greeter to Fixture\\Modern\\Greeter through released agent-map 0.9.',
+            'method' => 'Rename Fixture\\Greeter::oldName to renamedMethod through released agent-map 0.15.',
+            'parameter' => 'Rename Fixture\\Greeter::format parameter $name to $person through released agent-map 0.15.',
+            'class-move' => 'Move Fixture\\Legacy\\Greeter to Fixture\\Modern\\Greeter through released agent-map 0.15.',
         };
     }
 
@@ -770,6 +770,6 @@ $report = map09Option($argv, 'report', $root . '/build/installed-map09-' . $scen
 try {
     exit((new InstalledMap09RefactorDogfood($root, $scenario, $workspace, $report))->run());
 } catch (Throwable $exception) {
-    fwrite(STDERR, 'Installed Map 0.9 refactor dogfood failed: ' . $exception->getMessage() . "\n");
+    fwrite(STDERR, 'Installed Map 0.15 refactor dogfood failed: ' . $exception->getMessage() . "\n");
     exit(1);
 }
