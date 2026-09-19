@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-map
-          ref: 0.10.0
+          ref: 0.15.0
           path: build/released-agent-map
           persist-credentials: false
 
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse HEAD)" = "f34142b18d6a5f53871ffd6f7f8e1f040a20a723"
+          test "$(git -C build/released-agent-map rev-parse HEAD)" = "b9aeaf9d3380cd3065cce0e299abf2503debf890"
 
       - name: Run released property-removal plan through governed installed consumer
         shell: bash
@@ -71,7 +71,7 @@ jobs:
                 "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-map": "0.10.0"}
+                  "versions": {"voku/agent-map": "0.15.0"}
                 }
               }
             ],
@@ -128,7 +128,7 @@ jobs:
           cd "$root"
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           composer show voku/agent-map --format=json > resolved-agent-map.json
-          jq -e '.versions | index("0.10.0") != null' resolved-agent-map.json >/dev/null
+          jq -e '.versions | index("0.15.0") != null' resolved-agent-map.json >/dev/null
 
           git init --initial-branch=main
           git config user.name 'Installed Property Removal Dogfood'
