@@ -224,7 +224,8 @@ final readonly class RepositorySetupDiagnosticsInspector
         if ($packageIncludeFiles !== []) {
             $packageTargets = $this->packageMakeTargetNames();
             $redeclaredTargets = [];
-            foreach ($makefileContents as $content) {
+            foreach ($packageIncludeFiles as $makefileName) {
+                $content = $makefileContents[$makefileName] ?? '';
                 foreach ($this->makeTargetNames($content) as $target) {
                     if (isset($packageTargets[$target])) {
                         $redeclaredTargets[$target] = $target;
@@ -315,7 +316,7 @@ final readonly class RepositorySetupDiagnosticsInspector
         preg_match_all('~^([A-Za-z0-9_.-]+)[ \t]*:(?!=)~m', $content, $matches);
 
         /** @var list<string> $targets */
-        $targets = array_values(array_unique($matches[1] ?? []));
+        $targets = array_values(array_unique($matches[1]));
         sort($targets, SORT_STRING);
 
         return $targets;
