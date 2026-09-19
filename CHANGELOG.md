@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Require the released agent-map `^0.15.0` preparation-owner baseline and agent-recall-compiler `^0.18.0` consumer baseline.
 
+### Fixed
+
+- Treat the package-owned Make include as the canonical agent workflow/asset surface in `init doctor`, and report deterministic integration conflicts when a host redeclares package-owned targets instead of using `AGENT_LOOP_RUN` or supported configuration variables.
+
 ## 0.20.24 - 2026-09-19
 
 ### Fixed
