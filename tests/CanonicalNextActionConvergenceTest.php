@@ -124,7 +124,7 @@ final class CanonicalNextActionConvergenceTest extends TestCase
         };
 
         ob_start();
-        $exit = (new HostFrontDoorCommand($this->root, $runner))->run($command, ['CONV-001']);
+        $exit = (new HostFrontDoorCommand($this->root))->run($command, ['CONV-001']);
         ob_end_clean();
 
         return $exit;
