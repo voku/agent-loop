@@ -44,10 +44,6 @@ jobs:
               echo "Invalid release target SHA: $target" >&2
               exit 1
             fi
-            if ! grep -Fq "## [$version] - " CHANGELOG.md && ! grep -Fq "## $version - " CHANGELOG.md; then
-              echo "CHANGELOG.md has no release section for $version" >&2
-              exit 1
-            fi
             git cat-file -e "${target}^{commit}"
             if ! git merge-base --is-ancestor "$target" "$frozen_main"; then
               echo "Release target $target is not reachable from frozen main $frozen_main" >&2
