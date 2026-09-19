@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.25 - 2026-09-19
+
+### Changed
+
+- Require the released agent-map `^0.15.0` preparation-owner baseline and agent-recall-compiler `^0.18.0` consumer baseline.
+
 ## 0.20.24 - 2026-09-19
 
 ### Fixed
