@@ -128,7 +128,7 @@ jobs:
           cd "$root"
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           composer show voku/agent-map --format=json > resolved-agent-map.json
-          jq -e '.versions | index("0.10.0") != null' resolved-agent-map.json >/dev/null
+          jq -e '.versions | index("0.16.0") != null' resolved-agent-map.json >/dev/null
 
           git init --initial-branch=main
           git config user.name 'Installed Property Removal Dogfood'
