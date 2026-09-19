@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
-use voku\AgentLearning\FindingRepository;
+use voku\AgentLearning\LearningCatalog;
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 
 final class AgentDisciplineHookLearningOwnerBoundaryTest extends TestCase
@@ -15,13 +15,17 @@ final class AgentDisciplineHookLearningOwnerBoundaryTest extends TestCase
         $source = file_get_contents(dirname(__DIR__) . '/src/AgentGuidance/AgentDisciplineHook.php');
 
         self::assertIsString($source);
-        self::assertStringContainsString('(new FindingRepository())->loadValidated($root)', $source);
+        self::assertStringContainsString('new LearningCatalog($root)', $source);
+        self::assertStringContainsString('FindingStatus::CANDIDATE->value', $source);
+        self::assertStringContainsString('Learning owner projected missing Finding:', $source);
+        self::assertStringContainsString('Learning owner projected unsupported attention status', $source);
+        self::assertStringNotContainsString('FindingRepository', $source);
         self::assertStringNotContainsString("'/findings/validated'", $source);
     }
 
-    public function testMissingLearningTreeStaysSilentThroughOwnerRepository(): void
+    public function testMissingLearningTreeStaysSilentThroughOwnerCatalog(): void
     {
-        self::assertTrue(class_exists(FindingRepository::class));
+        self::assertTrue(class_exists(LearningCatalog::class));
 
         $root = sys_get_temp_dir() . '/agent-loop-learning-owner-boundary-' . bin2hex(random_bytes(6));
         $skillsDirectory = $root . '/.codex/skills';

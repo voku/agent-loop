@@ -9,6 +9,9 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use UnexpectedValueException;
+use voku\AgentLearning\LearningNoteContent;
+use voku\AgentLearning\LearningNoteDraft;
+use voku\AgentLearning\LearningNoteService;
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 
 /** @internal */
@@ -135,11 +138,101 @@ final class AgentDisciplineHookTest extends TestCase
             $context = $output['hookSpecificOutput']['additionalContext'];
 
             self::assertStringContainsString('Agent Loop Learning Backlog', $context);
-            self::assertStringContainsString('1 validated finding(s)', $context);
+            self::assertStringContainsString('1 validated finding(s) need downstream Learning handling', $context);
             // An observation, never a directive: Slice E7 removed lifecycle
             // policy from always-on host assets and it must not come back here.
             self::assertStringContainsString('not a blocker', $context);
             self::assertStringNotContainsString('before any governed mutation', $context);
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
+    public function testSessionStartStaysSilentForValidatedFindingCapturedAsCurrentPrecedent(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-precedent-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.codex/skills/agent-loop-discipline';
+        $validated = $root . '/.agent-loop/learning/findings/validated';
+
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertTrue(mkdir($validated, 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $skillDirectory . '/SKILL.md',
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
+        ));
+        $finding = $this->finding('finding.2026-09-19.124001');
+        $finding['classification'] = 'ADD_LEARNING_NOTE';
+        $finding['pattern_key'] = 'workflow.current-precedent';
+        $finding['validation_case'] = [
+            'given' => 'A later related task.',
+            'when' => 'The precedent applies.',
+            'then' => 'Reuse it without treating it as active guidance.',
+        ];
+        self::assertNotFalse(file_put_contents(
+            $validated . '/finding.2026-09-19.124001.json',
+            $this->json($finding),
+        ));
+
+        try {
+            (new LearningNoteService())->publish(
+                $root . '/.agent-loop/learning',
+                new LearningNoteDraft(
+                    sourceFindings: ['finding.2026-09-19.124001'],
+                    sourceProposals: [],
+                    tags: ['workflow'],
+                    repositoryEvidence: [],
+                    content: new LearningNoteContent(
+                        title: 'Current precedent',
+                        context: 'A solved case exists.',
+                        guidance: 'Reuse the solved case when relevant.',
+                        whyItWorks: 'It preserves bounded prior evidence.',
+                        whenToApply: 'On related work.',
+                        whenNotToApply: 'When current evidence conflicts.',
+                        verification: 'Inspect source lineage and current evidence.',
+                    ),
+                ),
+                $root,
+            );
+
+            $output = (new AgentDisciplineHook($root))->contextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+            ]));
+
+            self::assertStringNotContainsString(
+                'Agent Loop Learning Backlog',
+                $output['hookSpecificOutput']['additionalContext'],
+            );
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
+    public function testSessionStartReportsMalformedLearningStateAsObservation(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-malformed-learning-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.codex/skills/agent-loop-discipline';
+        $validated = $root . '/.agent-loop/learning/findings/validated';
+
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertTrue(mkdir($validated, 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $skillDirectory . '/SKILL.md',
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
+        ));
+        self::assertNotFalse(file_put_contents(
+            $validated . '/finding.broken.json',
+            "{not-json\n",
+        ));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->contextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+            ]));
+            $context = $output['hookSpecificOutput']['additionalContext'];
+
+            self::assertStringContainsString('Agent Loop Learning Backlog', $context);
+            self::assertStringContainsString('Learning owner could not project its attention state', $context);
+            self::assertStringContainsString('not a blocker', $context);
         } finally {
             $this->removeTree($root);
         }

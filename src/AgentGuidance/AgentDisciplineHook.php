@@ -8,7 +8,8 @@ use JsonException;
 use RuntimeException;
 use UnexpectedValueException;
 use Throwable;
-use voku\AgentLearning\FindingRepository;
+use voku\AgentLearning\FindingStatus;
+use voku\AgentLearning\LearningCatalog;
 use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\ProjectLayout;
 
@@ -227,31 +228,50 @@ final readonly class AgentDisciplineHook
     }
 
     /**
-     * Surface how much recorded learning is still unabsorbed.
+     * Surface validated Learning attention without reconstructing owner semantics.
      *
-     * The Learning owner already decides what counts as unconsolidated and
-     * exposes it; agent-loop asks rather than recounting findings itself. The
+     * The Learning owner decides which Findings deserve attention and exposes
+     * that projection; agent-loop only narrows it to this historical validated
+     * backlog hint. The
      * backlog is otherwise reachable only through a command nothing runs, which
      * is how it grew from zero to seventeen across two days of work without a
      * single signal. See Phase G1.
      */
     private function learningBacklogHint(): string
     {
-        if (!class_exists(FindingRepository::class)) {
+        if (!class_exists(LearningCatalog::class)) {
             return '';
         }
 
         $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
 
         try {
-            $unconsolidated = (new FindingRepository())->loadValidated($root);
+            $catalog = new LearningCatalog($root);
+            $unconsolidated = [];
+            foreach ($catalog->overview()->findingAttentionIds as $findingId) {
+                $finding = $catalog->finding($findingId);
+                if ($finding === null) {
+                    throw new RuntimeException('Learning owner projected missing Finding: ' . $findingId);
+                }
+                if ($finding->status === FindingStatus::CANDIDATE->value) {
+                    continue;
+                }
+                if ($finding->status !== FindingStatus::VALIDATED->value) {
+                    throw new RuntimeException(sprintf(
+                        'Learning owner projected unsupported attention status %s for %s.',
+                        $finding->status,
+                        $findingId,
+                    ));
+                }
+                $unconsolidated[] = $finding;
+            }
         } catch (Throwable $exception) {
-            // The owner refused to read its own repository. Reporting that is
-            // the point of this hint; silently omitting it would hide exactly
-            // the kind of state this observation exists to surface. Bootstrap
-            // context still must not fail, so it is reported, not thrown.
+            // The owner could not produce a consistent attention projection.
+            // Reporting that is the point of this hint; silently omitting it
+            // would hide exactly the kind of state this observation exists to
+            // surface. Bootstrap context still must not fail, so it is reported.
             return $this->learningObservation([
-                '- the Learning owner could not read its repository: ' . $exception->getMessage(),
+                '- the Learning owner could not project its attention state: ' . $exception->getMessage(),
                 '- `vendor/bin/agent-loop learn validate` reports this authoritatively.',
             ]);
         }
@@ -261,7 +281,7 @@ final readonly class AgentDisciplineHook
 
         return $this->learningObservation([
             sprintf(
-                '- observed: %d validated finding(s) recorded but not yet consolidated.',
+                '- observed: %d validated finding(s) need downstream Learning handling.',
                 count($unconsolidated),
             ),
             '- `vendor/bin/agent-loop learn backlog` lists them; consolidation stays an explicit decision.',
