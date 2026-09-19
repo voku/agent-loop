@@ -16,6 +16,8 @@ use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 
 /**
  * Ranked Search is derived Map evidence. Enter owns surfacing its degradation
@@ -79,7 +81,7 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
             'map search-index build',
             (string) ($result['payload']['warnings'][0]['message'] ?? ''),
         );
-        self::assertNotContains('--map-search-index', $result['recallArgs']);
+        self::assertNull($result['recallRequest']->mapSearchIndex);
     }
 
     public function testEnterStaysQuietWhenRankedMapEvidenceIsAvailable(): void
@@ -90,7 +92,7 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
 
         self::assertSame(0, $result['exit']);
         self::assertSame([], $result['payload']['warnings'] ?? null);
-        self::assertContains('--map-search-index', $result['recallArgs']);
+        self::assertSame($this->root . '/.agent-loop/map/search.sqlite', $result['recallRequest']->mapSearchIndex);
     }
 
     public function testEnterReturnsBoundedContextWithoutClaimingConsumption(): void
@@ -113,22 +115,24 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         }
     }
 
-    /** @return array{exit: int, payload: array<string, mixed>, recallArgs: list<string>} */
+    /** @return array{exit: int, payload: array<string, mixed>, recallRequest: CompileRequest} */
     private function enter(): array
     {
-        /** @var list<string> $recallArgs */
-        $recallArgs = [];
-        $runner = function (array $argv) use (&$recallArgs): int {
-            /** @var list<string> $argv */
-            $recallArgs = $argv;
+        $recallRequest = null;
+        $compiler = function (CompileRequest $request) use (&$recallRequest): CompileResult {
+            $recallRequest = $request;
             $this->writeRecallMeta();
 
-            return 0;
+            return new CompileResult(
+                $request->outputDirectory,
+                'ABC-123-001',
+                str_repeat('a', 64),
+            );
         };
 
         ob_start();
         try {
-            $exit = (new HostFrontDoorCommand($this->root, $runner))->run(
+            $exit = (new HostFrontDoorCommand($this->root, recallCompiler: $compiler))->run(
                 'enter',
                 ['ABC-123', '--format=json'],
             );
@@ -141,9 +145,12 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
         if (!is_array($payload)) {
             throw new RuntimeException('Enter did not return a JSON object.');
         }
+        if (!$recallRequest instanceof CompileRequest) {
+            throw new RuntimeException('Enter did not invoke typed Recall compilation.');
+        }
         /** @var array<string, mixed> $payload */
 
-        return ['exit' => $exit, 'payload' => $payload, 'recallArgs' => $recallArgs];
+        return ['exit' => $exit, 'payload' => $payload, 'recallRequest' => $recallRequest];
     }
 
     private function writeRecallMeta(): void
