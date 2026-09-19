@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
@@ -25,8 +26,7 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowHandoffCommand
 {
-    /** @var callable(CompileRequest): CompileResult */
-    private $recallCompiler;
+    private Closure $recallCompiler;
 
     private SessionStore $sessionStore;
 
@@ -37,7 +37,9 @@ final readonly class WorkflowHandoffCommand
         ?SessionStore $sessionStore = null,
         private ?string $operatingPromptManifest = null,
     ) {
-        $this->recallCompiler = $recallCompiler ?? (new RecallCompiler())->compile(...);
+        $this->recallCompiler = $recallCompiler === null
+            ? (new RecallCompiler())->compile(...)
+            : Closure::fromCallable($recallCompiler);
         $this->sessionStore = $sessionStore ?? new SessionStore();
     }
 
