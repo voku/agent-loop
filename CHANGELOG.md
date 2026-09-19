@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Require `voku/agent-map ^0.16.0` and delegate bounded missing/stale Map preparation to `MapPreparationService::prepare()`, removing Loop-owned builder, reader/writer, and backend-reproduction choreography while keeping optional Search maintenance separate.
+
 ## 0.20.25 - 2026-09-19
 
 ### Changed
