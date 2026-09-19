@@ -7,7 +7,6 @@ namespace voku\AgentLoop\Workflow;
 use RuntimeException;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentSession\Session;
-use voku\AgentSession\ValidationEvidence;
 use voku\AgentSession\ValidationEvidenceStore;
 use voku\AgentSession\ValidationStatus;
 
@@ -30,12 +29,25 @@ final readonly class WorkflowValidationRunner
         $this->assertBinding($contract, $run, $session);
         $snapshot = ImplementationSnapshot::capture($this->rootPath, $contract);
         $store = new ValidationEvidenceStore();
-        $existing = $store->all($session);
+        $selection = $store->select(
+            $session,
+            $contract->revision,
+            $snapshot->digest,
+            $contract->validation,
+        );
+
+        /** @var array<string, true> $currentPasses */
+        $currentPasses = [];
+        foreach ($contract->validation as $command) {
+            if ($selection->currentFor($command)?->status === ValidationStatus::PASSED) {
+                $currentPasses[$command] = true;
+            }
+        }
 
         $diagStore = new ValidationDiagnosticStore($this->rootPath);
 
         foreach ($contract->validation as $command) {
-            if ($this->hasCurrentPass($existing, $contract->revision, $command, $snapshot->digest)) {
+            if ($currentPasses[$command] ?? false) {
                 continue;
             }
 
@@ -53,7 +65,7 @@ final readonly class WorkflowValidationRunner
                 ));
             }
 
-            $evidence = $store->record(
+            $store->record(
                 $session,
                 $contract->revision,
                 $command,
@@ -63,7 +75,6 @@ final readonly class WorkflowValidationRunner
                 self::RECORDED_BY,
                 implementationSnapshot: $snapshot->digest,
             );
-            $existing[] = $evidence;
 
             if ($exitCode !== 0) {
                 $diag = ValidationDiagnostic::fromExecution(
@@ -77,29 +88,11 @@ final readonly class WorkflowValidationRunner
 
                 return;
             }
+
+            $currentPasses[$command] = true;
         }
 
         $diagStore->clear($contract->taskId);
-    }
-
-    /** @param list<ValidationEvidence> $evidence */
-    private function hasCurrentPass(
-        array $evidence,
-        int $contractRevision,
-        string $command,
-        string $implementationSnapshot,
-    ): bool {
-        foreach (array_reverse($evidence) as $item) {
-            if (
-                $item->contractRevision === $contractRevision
-                && $item->command === $command
-                && $item->implementationSnapshot === $implementationSnapshot
-            ) {
-                return $item->status === ValidationStatus::PASSED;
-            }
-        }
-
-        return false;
     }
 
     /** @return array{exitCode: int, output: string} */
