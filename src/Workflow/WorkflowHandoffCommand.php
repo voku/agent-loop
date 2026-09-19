@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use Closure;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentRecallCompiler\BundledOperatingPromptManifest;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
+use voku\AgentRecallCompiler\InlineCompileTask;
+use voku\AgentRecallCompiler\OperatingPromptRequest;
+use voku\AgentRecallCompiler\RecallCompiler;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -21,17 +25,19 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowHandoffCommand
 {
-    private Closure $recallRunner;
+    /** @var callable(CompileRequest): CompileResult */
+    private $recallCompiler;
+
     private SessionStore $sessionStore;
 
-    /** @param callable(list<string>): int $recallRunner */
+    /** @param null|callable(CompileRequest): CompileResult $recallCompiler */
     public function __construct(
         private string $rootPath,
-        callable $recallRunner,
+        ?callable $recallCompiler = null,
         ?SessionStore $sessionStore = null,
         private ?string $operatingPromptManifest = null,
     ) {
-        $this->recallRunner = Closure::fromCallable($recallRunner);
+        $this->recallCompiler = $recallCompiler ?? (new RecallCompiler())->compile(...);
         $this->sessionStore = $sessionStore ?? new SessionStore();
     }
 
@@ -76,30 +82,22 @@ final readonly class WorkflowHandoffCommand
             }
 
             $outputDirectory = $layout->recallRoot() . '/' . $taskId->value . '/handoff';
-            $recallArgs = [
-                'compile',
-                '--task', $taskId->value,
-                '--description', implode("\n\n", $descriptionParts),
-                '--operating-prompt-manifest', $this->manifestPath(),
-                '--operating-prompt', '{"id":"todo-card-handoff","arguments":{}}',
-                '--output-dir', $outputDirectory,
-            ];
-
             $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($taskId->value);
-            if ($kanbanContext !== null) {
-                $recallArgs[] = '--kanban-context';
-                $recallArgs[] = json_encode(
-                    $kanbanContext->toArray(),
-                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-                );
-            }
+            $result = ($this->recallCompiler)(new CompileRequest(
+                learningRoot: $layout->learningRoot(),
+                taskBrief: null,
+                outputDirectory: $outputDirectory,
+                operatingPromptManifests: [$this->manifestPath()],
+                kanbanContextProjection: $kanbanContext,
+                inlineTask: new InlineCompileTask(
+                    taskId: $taskId->value,
+                    description: implode("\n\n", $descriptionParts),
+                    targets: [],
+                ),
+                operatingPrompts: [new OperatingPromptRequest('todo-card-handoff')],
+            ));
 
-            $exit = ($this->recallRunner)($recallArgs);
-            if ($exit !== 0) {
-                return $exit;
-            }
-
-            echo "\n[HANDOFF] Compiled self-contained task handoff prompt: " . $layout->display($outputDirectory . '/system.md') . "\n";
+            echo "\n[HANDOFF] Compiled self-contained task handoff prompt: " . $layout->display($result->systemPath()) . "\n";
             echo "[NEXT] Give that prompt to the acting agent and update the existing durable task/card through its owner; do not copy the whole chat or create a duplicate task.\n";
 
             return 0;
