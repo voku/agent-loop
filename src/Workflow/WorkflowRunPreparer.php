@@ -21,7 +21,10 @@ use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputSuperseder;
+use voku\AgentRecallCompiler\RecallCompiler;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -34,8 +37,14 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowRunPreparer
 {
-    public function __construct(private string $rootPath)
+    private Closure $recallCompiler;
+
+    /** @param null|callable(CompileRequest): CompileResult $recallCompiler */
+    public function __construct(private string $rootPath, ?callable $recallCompiler = null)
     {
+        $this->recallCompiler = $recallCompiler === null
+            ? (new RecallCompiler())->compile(...)
+            : Closure::fromCallable($recallCompiler);
     }
 
     public function discoveryReadiness(TaskContract $contract): MapReadiness
@@ -179,68 +188,44 @@ final readonly class WorkflowRunPreparer
         return null;
     }
 
-    /** @param callable(list<string>): int $recallRunner */
     public function prepare(
         TaskContract $contract,
         MapReadiness $mapReadiness,
-        callable $recallRunner,
     ): WorkflowRunPreparationResult {
         if ($contract->status !== TaskContract::APPROVED) {
             throw new RuntimeException('Governed Run preparation requires an approved Contract.');
         }
 
-        $runner = Closure::fromCallable($recallRunner);
         $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
         $session = $this->prepareSession($contract);
         $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
+        $recallOutputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId;
 
         // Recall is derived state. Supersede any previous/partial task-local
         // output only after the exact governed Run/Session can be established,
         // and before projecting or compiling the new governed context.
-        (new CompiledRecallOutputSuperseder())->archiveIfPresent(
-            RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId,
-        );
+        (new CompiledRecallOutputSuperseder())->archiveIfPresent($recallOutputDirectory);
 
         $recallInput = $this->writeGovernedRecallInput($run, $contract);
         $preparedManifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($contract->taskId);
 
-        $recallArgs = [
-            'compile', '--root', $learningRoot,
-            '--task', $contract->taskId,
-            '--task-brief', $recallInput,
-        ];
         $operatingPromptManifest = $this->operatingPromptManifest($contract);
-        if ($operatingPromptManifest !== null) {
-            $recallArgs[] = '--operating-prompt-manifest';
-            $recallArgs[] = $operatingPromptManifest;
-        }
+        $operatingPromptManifests = $operatingPromptManifest === null ? [] : [$operatingPromptManifest];
 
         $layout = new ProjectLayout($this->rootPath);
         $documentManifests = $layout->recallDocumentManifests();
-        foreach ($documentManifests as $documentManifest) {
-            $recallArgs[] = '--document-manifest';
-            $recallArgs[] = $documentManifest;
-        }
-
         $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($contract->taskId);
-        if ($kanbanContext !== null) {
-            $recallArgs[] = '--kanban-context';
-            $recallArgs[] = json_encode(
-                $kanbanContext->toArray(),
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-            );
-        }
 
+        $mapIndex = null;
+        $mapRoot = null;
+        $mapSearchIndex = null;
         $searchWarning = null;
         if ($mapReadiness->mapState === 'ready') {
-            $recallArgs[] = '--map-index';
-            $recallArgs[] = $mapReadiness->mapPath;
-            $recallArgs[] = '--map-root';
-            $recallArgs[] = $this->rootPath;
+            $mapIndex = $mapReadiness->mapPath;
+            $mapRoot = $this->rootPath;
 
             if ($mapReadiness->rankedSearchReady()) {
-                $recallArgs[] = '--map-search-index';
-                $recallArgs[] = $mapReadiness->searchPath;
+                $mapSearchIndex = $mapReadiness->searchPath;
             } else {
                 $searchWarning = 'agent-map Search is ' . $mapReadiness->searchState
                     . ' at ' . $layout->display($mapReadiness->searchPath)
@@ -248,18 +233,17 @@ final readonly class WorkflowRunPreparer
             }
         }
 
-        $exit = $runner($recallArgs);
-        if ($exit !== 0) {
-            return new WorkflowRunPreparationResult(
-                $run,
-                $session,
-                $learningRoot,
-                $preparedManifestPath,
-                null,
-                $exit,
-                $searchWarning,
-            );
-        }
+        ($this->recallCompiler)(new CompileRequest(
+            learningRoot: $learningRoot,
+            taskBrief: $recallInput,
+            outputDirectory: $recallOutputDirectory,
+            operatingPromptManifests: $operatingPromptManifests,
+            documentManifests: $documentManifests,
+            kanbanContextProjection: $kanbanContext,
+            mapIndex: $mapIndex,
+            mapRoot: $mapRoot,
+            mapSearchIndex: $mapSearchIndex,
+        ));
 
         $compiledManifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($contract->taskId);
 
@@ -269,7 +253,6 @@ final readonly class WorkflowRunPreparer
             $learningRoot,
             $preparedManifestPath,
             $compiledManifestPath,
-            0,
             $searchWarning,
         );
     }
