@@ -8,7 +8,6 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
-use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
@@ -86,13 +85,7 @@ PHP,
         );
         $contracts->approve($taskId, 'lars');
 
-        $dispatcher = new Dispatcher($this->root);
-        $recallRunner = static fn (array $recallRest): int => $dispatcher->run(array_values([
-            'agent-loop',
-            'recall',
-            ...$recallRest,
-        ]));
-        $app = new HostFrontDoorApplication($this->root, $recallRunner);
+        $app = new HostFrontDoorApplication($this->root);
 
         // 2. Agent enters cleanly
         $enter = $this->runApp($app, 'enter', [$taskId, '--format=json']);
@@ -237,13 +230,7 @@ PHP,
         );
         $contracts->approve($taskId, 'lars');
 
-        $dispatcher = new Dispatcher($this->root);
-        $recallRunner = static fn (array $recallRest): int => $dispatcher->run(array_values([
-            'agent-loop',
-            'recall',
-            ...$recallRest,
-        ]));
-        $app = new HostFrontDoorApplication($this->root, $recallRunner);
+        $app = new HostFrontDoorApplication($this->root);
 
         $enter1 = $this->runApp($app, 'enter', [$taskId, '--format=json']);
         self::assertSame(0, $enter1['exit']);
