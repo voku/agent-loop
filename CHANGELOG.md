@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.24 - 2026-09-19
+
+### Fixed
+
+- Surface Learning-owned candidate Finding review attention in SessionStart instead of silently dropping it; the hint remains an observation, never a blocker or inferred next command (#513, #527).
+
+### Changed
+
+- Require `voku/agent-learning ^0.18.21` for the released self-describing human Finding intake and fail-closed classification boundary (#131, #132, #513, #527).
+
 ## 0.20.23 - 2026-09-19
 
 ### Fixed
