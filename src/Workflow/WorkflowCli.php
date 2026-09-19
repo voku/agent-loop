@@ -41,7 +41,7 @@ final readonly class WorkflowCli
             'report' => (new WorkflowReportCommand($this->rootPath))->run($rest),
             'transparency' => (new WorkflowTransparencyCommand($this->rootPath))->run($rest),
             'review' => (new WorkflowHumanReviewCommand($this->rootPath))->run($rest),
-            'reflect' => (new WorkflowReflectCommand($this->rootPath, $this->recallRunner))->run($rest),
+            'reflect' => (new WorkflowReflectCommand($this->rootPath))->run($rest),
             'handoff' => (new WorkflowHandoffCommand($this->rootPath, $this->recallRunner))->run($rest),
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
