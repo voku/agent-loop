@@ -207,6 +207,37 @@ final class AgentDisciplineHookTest extends TestCase
         }
     }
 
+    public function testSessionStartReportsMalformedLearningStateAsObservation(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-malformed-learning-' . bin2hex(random_bytes(6));
+        $skillDirectory = $root . '/.codex/skills/agent-loop-discipline';
+        $validated = $root . '/.agent-loop/learning/findings/validated';
+
+        self::assertTrue(mkdir($skillDirectory, 0o775, true));
+        self::assertTrue(mkdir($validated, 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $skillDirectory . '/SKILL.md',
+            "---\nname: agent-loop-discipline\n---\nEngineering Skill Routing\n",
+        ));
+        self::assertNotFalse(file_put_contents(
+            $validated . '/finding.broken.json',
+            "{not-json\n",
+        ));
+
+        try {
+            $output = (new AgentDisciplineHook($root))->contextOutput('SessionStart', $this->json([
+                'hook_event_name' => 'SessionStart',
+            ]));
+            $context = $output['hookSpecificOutput']['additionalContext'];
+
+            self::assertStringContainsString('Agent Loop Learning Backlog', $context);
+            self::assertStringContainsString('Learning owner could not project its attention state', $context);
+            self::assertStringContainsString('not a blocker', $context);
+        } finally {
+            $this->removeTree($root);
+        }
+    }
+
     public function testSessionStartStaysSilentWhenNoLearningIsUnabsorbed(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-discipline-clear-' . bin2hex(random_bytes(6));
