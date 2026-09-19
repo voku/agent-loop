@@ -120,7 +120,7 @@ final class InitDoctorCommandTest extends TestCase
     {
         file_put_contents(
             $this->root . '/Makefile',
-            "define AGENT_LOOP_RUN\n\t@echo container: \\$(1)\nendef\n\n"
+            "define AGENT_LOOP_RUN\n\t@echo container: $(1)\nendef\n\n"
             . "agent-enter:\n\t@echo project-alias\n\n"
             . "-include vendor/voku/agent-loop/resources/make/agent-loop.mk\n",
         );
