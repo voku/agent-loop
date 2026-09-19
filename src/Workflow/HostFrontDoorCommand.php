@@ -20,6 +20,8 @@ use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationStatus;
@@ -41,11 +43,20 @@ final readonly class HostFrontDoorCommand
 
     private ?Closure $recallRunner;
 
-    /** @param null|callable(list<string>): int $recallRunner */
-    public function __construct(string $rootPath, ?callable $recallRunner = null)
-    {
+    private ?Closure $recallCompiler;
+
+    /**
+     * @param null|callable(list<string>): int $recallRunner
+     * @param null|callable(CompileRequest): CompileResult $recallCompiler
+     */
+    public function __construct(
+        string $rootPath,
+        ?callable $recallRunner = null,
+        ?callable $recallCompiler = null,
+    ) {
         $this->rootPath = $rootPath;
         $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
+        $this->recallCompiler = $recallCompiler === null ? null : Closure::fromCallable($recallCompiler);
     }
 
     /** @param list<string> $args */
@@ -551,24 +562,14 @@ final readonly class HostFrontDoorCommand
 
     private function prepareApprovedRun(string $taskId): ?string
     {
-        if ($this->recallRunner === null) {
-            throw new RuntimeException('agent-loop enter requires a Recall runner for deterministic governed preparation.');
-        }
-
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
         if ($contract->status !== TaskContract::APPROVED) {
             throw new RuntimeException('agent-loop enter cannot prepare a Contract that is not approved.');
         }
 
-        $preparer = new WorkflowRunPreparer($this->rootPath);
+        $preparer = new WorkflowRunPreparer($this->rootPath, $this->recallCompiler);
         $mapReadiness = $preparer->reconcileDiscovery($contract);
-        $result = $preparer->prepare($contract, $mapReadiness, $this->runRecallQuietly(...));
-        if (!$result->recallCompiled()) {
-            throw new RuntimeException(
-                'Governed Run preparation persisted resumable state, but Recall compilation failed with exit code '
-                . $result->recallExitCode . '.' . $this->ownerFailureDetail(),
-            );
-        }
+        $result = $preparer->prepare($contract, $mapReadiness);
 
         $this->captureFastPathScopeBaseline($contract);
 
@@ -986,7 +987,7 @@ final readonly class HostFrontDoorCommand
     private function runRecallQuietly(array $args): int
     {
         if ($this->recallRunner === null) {
-            throw new RuntimeException('The agent-loop front door requires a Recall runner to delegate to the Recall compiler.');
+            throw new RuntimeException('The agent-loop front door requires a Recall runner to delegate this Recall owner operation.');
         }
 
         if (!in_array(self::STDOUT_DISCARD_FILTER, stream_get_filters(), true)) {
