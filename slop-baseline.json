@@ -200,7 +200,7 @@
             "locations": [
                 {
                     "path": "src/AgentLoopVerifier.php",
-                    "line": 486,
+                    "line": 487,
                     "column": 1
                 }
             ],
@@ -209,9 +209,9 @@
                 "fingerprintVersion": 1,
                 "occurrences": [
                     {
-                        "fingerprint": "80f30b5bf63f9fe3e2e6b1a7c535eba2ddb210de4003ef6d6bf2c56af478fbff",
+                        "fingerprint": "9dc99c9aed57a47b1104d2a44f7a782e6d6252ff186ee9b28c09b53008faa709",
                         "path": "src/AgentLoopVerifier.php",
-                        "line": 486,
+                        "line": 487,
                         "column": 1
                     }
                 ]
@@ -375,6 +375,11 @@
                     "column": 1
                 },
                 {
+                    "path": "tests/WorkflowFinishValidationConvergenceTest.php",
+                    "line": 199,
+                    "column": 1
+                },
+                {
                     "path": "tests/WorkflowFinishValidationTest.php",
                     "line": 168,
                     "column": 1
@@ -522,6 +527,12 @@
                         "fingerprint": "ee18db4a9c53178c00d0050076c75fc09be38b16c0e4f354581e71a0096ba764",
                         "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
                         "line": 471,
+                        "column": 1
+                    },
+                    {
+                        "fingerprint": "e8fc79d6d78b8e4374a61821d34bf4a38526b7ff4211ece1f18e56361611d213",
+                        "path": "tests/WorkflowFinishValidationConvergenceTest.php",
+                        "line": 199,
                         "column": 1
                     },
                     {
