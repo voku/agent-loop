@@ -7,11 +7,14 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\SessionStore;
 
 final class WorkflowRecallOutputOwnershipTest extends TestCase
@@ -66,7 +69,10 @@ final class WorkflowRecallOutputOwnershipTest extends TestCase
         self::assertNull((new GovernedRunStore($this->root))->find('ABC-123'));
 
         ob_start();
-        $enterExit = (new HostFrontDoorCommand($this->root, static fn (array $argv): int => 7))->run(
+        $enterExit = (new HostFrontDoorCommand(
+            $this->root,
+            recallCompiler: static fn (CompileRequest $request): CompileResult => throw new RuntimeException('fixture compile refusal'),
+        ))->run(
             'enter',
             ['ABC-123', '--format=json'],
         );
