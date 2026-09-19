@@ -14,13 +14,12 @@ use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use Throwable;
-use voku\AgentMap\Build\StructuralOnlySemanticAnalyzer;
-use voku\AgentMap\Index\AgentMapBuilder;
-use voku\AgentMap\Index\IndexReader;
-use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Inspect\MapReadiness;
 use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
+use voku\AgentMap\Prepare\MapPreparationException;
+use voku\AgentMap\Prepare\MapPreparationRequest;
+use voku\AgentMap\Prepare\MapPreparationService;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputSuperseder;
@@ -115,77 +114,51 @@ final readonly class WorkflowRunPreparer
             $this->rootPath,
             (new ProjectLayout($this->rootPath))->mapRoot(),
         );
-        $indexPath = $artifacts->indexJson();
 
-        $existing = null;
-        if (is_file($indexPath)) {
-            try {
-                $existing = (new IndexReader())->read($indexPath);
-            } catch (Throwable) {
-                // An unreadable snapshot is not authority to keep; rebuild the scope alone.
-                $existing = null;
-            }
-        }
-
-        if ($existing === null) {
-            $builder = new AgentMapBuilder(semanticAnalyzer: new StructuralOnlySemanticAnalyzer(), artifacts: $artifacts);
-            (new IndexWriter())->write($builder->build($this->rootPath, $rebuildPaths, []), $indexPath);
-
-            return;
-        }
-
-        // Patch the Contract scope into the shared index with a builder of the
-        // same backend, never replace it. A scope-sized build written over the
-        // shared index made every later map consumer - queries, planners, Recall
-        // evidence - see only the handful of files this one Contract touched, and
-        // one scoped file outside the indexed paths was enough to trigger it on a
-        // full semantic index. When no automatic builder reproduces the recorded
-        // backend, the index is left untouched and the owner's explicit build is
-        // the repair.
-        $builder = $this->builderForBackend($existing->backend, $artifacts);
-        if ($builder === null) {
-            throw new RuntimeException(sprintf(
-                'Contract scope %s is not indexed in %s, and its backend "%s" cannot be patched automatically; the index was left untouched. Rebuild it with agent-map build covering that scope.',
-                implode(', ', $rebuildPaths),
-                $indexPath,
-                $existing->backend,
+        try {
+            $prepared = (new MapPreparationService())->prepare(new MapPreparationRequest(
+                root: $this->rootPath,
+                indexPath: $artifacts->indexJson(),
+                outputPath: $artifacts->indexJson(),
+                format: 'json',
+                paths: $rebuildPaths,
+                pathsProvided: true,
+                scanPaths: [],
+                scanPathsProvided: false,
+                excludes: [],
+                excludesProvided: false,
+                backend: 'auto',
+                phpStanConfig: null,
+                phpStanMemoryLimit: null,
+                artifacts: $artifacts,
             ));
+        } catch (MapPreparationException $exception) {
+            throw new RuntimeException(
+                'agent-map refused bounded discovery preparation: ' . $exception->getMessage()
+                . ' Existing map was left untouched. Recovery: ' . $exception->recoveryCommand,
+                0,
+                $exception,
+            );
         }
-
-        $rebuiltIndex = $builder->build($this->rootPath, $rebuildPaths, [], null, null, $existing);
-        (new IndexWriter())->write(
-            $rebuiltIndex,
-            $indexPath,
-        );
 
         $searchDb = $artifacts->searchDatabase();
         if (is_file($searchDb) && \voku\AgentMap\Search\SearchIndexStore::supportsFts5()) {
             try {
                 $store = new \voku\AgentMap\Search\SearchIndexStore($searchDb);
                 $extractor = new \voku\AgentMap\Search\ChunkExtractor();
-                $chunks = $extractor->extract($rebuiltIndex, $rebuildPaths);
+                $chunks = $extractor->extract($prepared->index, $rebuildPaths);
                 $store->replaceChunks($chunks, $rebuildPaths);
-                $store->setMeta('map_snapshot', $rebuiltIndex->fingerprint === null ? 'sha256:none' : $rebuiltIndex->fingerprint->sourceDigest);
+                $store->setMeta(
+                    'map_snapshot',
+                    $prepared->index->fingerprint === null
+                        ? 'sha256:none'
+                        : $prepared->index->fingerprint->sourceDigest,
+                );
                 $store->setMeta('chunk_policy_version', (string) \voku\AgentMap\Search\ChunkPolicy::VERSION);
             } catch (Throwable) {
                 // Search index refresh is best-effort and never blocks discovery.
             }
         }
-    }
-
-    /** The automatic builder whose backend matches a recorded index, or null when none does. */
-    private function builderForBackend(string $backend, MapArtifactPaths $artifacts): ?AgentMapBuilder
-    {
-        foreach ([
-            new AgentMapBuilder(semanticAnalyzer: new StructuralOnlySemanticAnalyzer(), artifacts: $artifacts),
-            new AgentMapBuilder(artifacts: $artifacts),
-        ] as $candidate) {
-            if ($candidate->backend() === $backend) {
-                return $candidate;
-            }
-        }
-
-        return null;
     }
 
     public function prepare(
