@@ -92,6 +92,9 @@ final class Dispatcher
         if ($command === 'finding-export') {
             return $this->dispatchFindingExport(array_slice($rest, 1));
         }
+        if ($command === 'capture') {
+            $rest[0] = 'finding-capture';
+        }
 
         if (!in_array($command, ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
             $rest[] = '--root';
@@ -101,6 +104,7 @@ final class Dispatcher
         $exit = (new LearningCli())->run($this->subArgv($scriptName, $rest));
         if ($exit === 0 && in_array($command, ['help', '--help', '-h', ''], true)) {
             echo "\nagent-loop extension:\n";
+            echo "  capture --task TASK --by ACTOR --observation TEXT --hypothesis TEXT --evidence TEXT [--scope PATH]\n";
             echo "  finding-export --target-package PACKAGE --source-repository OWNER/REPO [--root PATH]\n";
         }
 
