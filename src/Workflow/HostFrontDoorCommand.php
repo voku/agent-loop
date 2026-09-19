@@ -22,6 +22,9 @@ use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
+use voku\AgentRecallCompiler\OutcomeCloseOutService;
+use voku\AgentRecallCompiler\OutcomeLoggingConfig;
+use voku\AgentRecallCompiler\RecallRootResolver;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationStatus;
@@ -45,18 +48,25 @@ final readonly class HostFrontDoorCommand
 
     private ?Closure $recallCompiler;
 
+    private Closure $recallOutcomeCloser;
+
     /**
      * @param null|callable(list<string>): int $recallRunner
      * @param null|callable(CompileRequest): CompileResult $recallCompiler
+     * @param null|callable(OutcomeLoggingConfig): string $recallOutcomeCloser
      */
     public function __construct(
         string $rootPath,
         ?callable $recallRunner = null,
         ?callable $recallCompiler = null,
+        ?callable $recallOutcomeCloser = null,
     ) {
         $this->rootPath = $rootPath;
         $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
         $this->recallCompiler = $recallCompiler === null ? null : Closure::fromCallable($recallCompiler);
+        $this->recallOutcomeCloser = $recallOutcomeCloser === null
+            ? (new OutcomeCloseOutService())->close(...)
+            : Closure::fromCallable($recallOutcomeCloser);
     }
 
     /** @param list<string> $args */
@@ -854,13 +864,12 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('--recall-outcome-draft must name an existing Recall outcome draft: ' . $draft);
         }
 
-        $exitCode = $this->runRecallQuietly(['log-outcome', '--draft', $draft, '--by', $by, '--commit', $commit]);
-        if ($exitCode !== 0) {
-            throw new RuntimeException(
-                'Recall refused the supplied outcome draft with exit code ' . $exitCode . '.'
-                . $this->ownerFailureDetail(),
-            );
-        }
+        ($this->recallOutcomeCloser)(new OutcomeLoggingConfig(
+            rootConfig: (new RecallRootResolver())->resolve((new ProjectLayout($this->rootPath))->learningRoot()),
+            draftPath: $draft,
+            actor: $by,
+            commit: $commit,
+        ));
     }
 
     private function closeOrdinaryRun(string $taskId): void
