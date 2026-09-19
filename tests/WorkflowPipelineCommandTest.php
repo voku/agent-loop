@@ -247,23 +247,6 @@ final class WorkflowPipelineCommandTest extends TestCase
         ob_start();
         (new HostFrontDoorCommand(
             $this->root,
-            function (array $argv) use ($taskId): int {
-                $dir = $this->root . "/.agent-loop/recall/" . $taskId;
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0o775, true);
-                }
-                file_put_contents($dir . "/meta.json", json_encode([
-                    "schema_version" => "1.0",
-                    "task_id" => $taskId,
-                    "compilation_id" => $taskId . "-compile",
-                    "selected_guidance" => [],
-                    "selected_constraints" => [],
-                    "output_hashes" => [],
-                ], JSON_THROW_ON_ERROR));
-                file_put_contents($dir . "/system.md", "# Governed recall\nStay inside scope.\n");
-
-                return 0;
-            },
         ))->run("enter", [$taskId, "--format=json"]);
         ob_end_clean();
     }

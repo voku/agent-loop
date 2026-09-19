@@ -326,11 +326,6 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         try {
             $exit = (new HostFrontDoorCommand(
                 $this->root,
-                function (array $argv): int {
-                    $this->writeRecallOutput();
-
-                    return 0;
-                },
             ))->run('enter', [self::TASK_ID, '--format=json']);
             $stdout = ob_get_contents();
         } finally {
@@ -345,37 +340,6 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
         }
 
         return ['exit' => $exit, 'payload' => $payload];
-    }
-
-    private function writeRecallOutput(): void
-    {
-        $contract = (new TaskContractStore($this->root))->load(self::TASK_ID);
-        $directory = RecallOutputRoot::resolve($this->root) . '/' . self::TASK_ID;
-        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
-            throw new RuntimeException('Unable to create Recall fixture directory.');
-        }
-
-        $bundle = json_encode([
-            'schema_version' => '1.0',
-            'task' => [
-                'id' => self::TASK_ID,
-                'revision' => $contract->revision,
-            ],
-        ], JSON_THROW_ON_ERROR);
-        file_put_contents(
-            $directory . '/meta.json',
-            json_encode([
-                'schema_version' => '1.0',
-                'task_id' => self::TASK_ID,
-                'compilation_id' => self::TASK_ID . '-' . bin2hex(random_bytes(4)),
-                'bundle_sha256' => hash('sha256', $bundle),
-                'snapshot_sha256' => str_repeat('c', 64),
-                'selected_guidance' => [],
-                'selected_constraints' => [],
-                'output_hashes' => [],
-            ], JSON_THROW_ON_ERROR),
-        );
-        file_put_contents($directory . '/recall.bundle.json', $bundle);
     }
 
     private function removeDirectory(string $path): void

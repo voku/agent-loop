@@ -137,37 +137,10 @@ final class GovernedRecallInputArchiveTest extends TestCase
     {
         ob_start();
         try {
-            return (new HostFrontDoorCommand(
-                $this->root,
-                function (array $arguments) use ($taskId): int {
-                    $this->writeRecallMeta($taskId);
-
-                    return 0;
-                },
-            ))->run('enter', [$taskId, '--format=json']);
+            return (new HostFrontDoorCommand($this->root))->run('enter', [$taskId, '--format=json']);
         } finally {
             ob_end_clean();
         }
-    }
-
-    private function writeRecallMeta(string $taskId): void
-    {
-        $directory = RecallOutputRoot::resolve($this->root) . '/' . $taskId;
-        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
-            throw new RuntimeException('Unable to create Recall fixture directory.');
-        }
-        file_put_contents(
-            $directory . '/meta.json',
-            json_encode([
-                'schema_version' => '1.0',
-                'task_id' => $taskId,
-                'compilation_id' => $taskId . '-' . bin2hex(random_bytes(4)),
-                'bundle_sha256' => str_repeat('a', 64),
-                'selected_guidance' => [],
-                'selected_constraints' => [],
-                'output_hashes' => [],
-            ], JSON_THROW_ON_ERROR),
-        );
     }
 
     /** @return array<string, mixed> */

@@ -220,14 +220,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         ob_start();
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
-        self::assertSame(0, (new HostFrontDoorCommand(
-            $this->root,
-            function (array $argv): int {
-                $this->writeRecallMeta();
-
-                return 0;
-            },
-        ))->run('enter', ['ABC-123', '--format=json']));
+        self::assertSame(
+            0,
+            (new HostFrontDoorCommand($this->root))->run('enter', ['ABC-123', '--format=json']),
+        );
         ob_end_clean();
 
         $sessions = (new SessionStore())->all($this->root . '/.agent-loop/sessions');

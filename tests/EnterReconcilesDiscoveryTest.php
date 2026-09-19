@@ -217,7 +217,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
 
         ob_start();
         try {
-            $exit = (new HostFrontDoorCommand($this->root, $runner))->run('enter', [$taskId, '--format=json']);
+            $exit = (new HostFrontDoorCommand($this->root))->run('enter', [$taskId, '--format=json']);
             $output = (string) ob_get_contents();
         } finally {
             ob_end_clean();

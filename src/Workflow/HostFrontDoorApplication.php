@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use Closure;
 use InvalidArgumentException;
 use JsonException;
 use Throwable;
@@ -28,13 +27,9 @@ final readonly class HostFrontDoorApplication
 
     private ControlPlanePresentationProjector $controlPlane;
 
-    private ?Closure $recallRunner;
-
-    /** @param null|callable(list<string>): int $recallRunner */
-    public function __construct(private string $rootPath, ?callable $recallRunner = null)
+    public function __construct(private string $rootPath)
     {
-        $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
-        $this->command = new HostFrontDoorCommand($rootPath, $this->recallRunner);
+        $this->command = new HostFrontDoorCommand($rootPath);
         $this->findingIdAdapter = new HostFinishFindingIdAdapter($rootPath);
         $this->learningNoteFollowUps = new HostLearningNoteFollowUpProjector($rootPath);
         $this->controlPlane = new ControlPlanePresentationProjector($rootPath);
