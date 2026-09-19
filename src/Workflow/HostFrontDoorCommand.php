@@ -22,6 +22,9 @@ use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
+use voku\AgentRecallCompiler\OutcomeCloseOutService;
+use voku\AgentRecallCompiler\OutcomeLoggingConfig;
+use voku\AgentRecallCompiler\RecallRootResolver;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationStatus;
@@ -35,28 +38,26 @@ use voku\AgentSession\ValidationStatus;
  */
 final readonly class HostFrontDoorCommand
 {
-    private const string STDOUT_DISCARD_FILTER = 'agent-loop.stdout-discard';
-
-    private const string STDERR_CAPTURE_FILTER = 'agent-loop.stderr-capture';
-
     private string $rootPath;
-
-    private ?Closure $recallRunner;
 
     private ?Closure $recallCompiler;
 
+    private Closure $recallOutcomeCloser;
+
     /**
-     * @param null|callable(list<string>): int $recallRunner
      * @param null|callable(CompileRequest): CompileResult $recallCompiler
+     * @param null|callable(OutcomeLoggingConfig): string $recallOutcomeCloser
      */
     public function __construct(
         string $rootPath,
-        ?callable $recallRunner = null,
         ?callable $recallCompiler = null,
+        ?callable $recallOutcomeCloser = null,
     ) {
         $this->rootPath = $rootPath;
-        $this->recallRunner = $recallRunner === null ? null : Closure::fromCallable($recallRunner);
         $this->recallCompiler = $recallCompiler === null ? null : Closure::fromCallable($recallCompiler);
+        $this->recallOutcomeCloser = $recallOutcomeCloser === null
+            ? (new OutcomeCloseOutService())->close(...)
+            : Closure::fromCallable($recallOutcomeCloser);
     }
 
     /** @param list<string> $args */
@@ -750,28 +751,6 @@ final readonly class HostFrontDoorCommand
         );
     }
 
-    /**
-     * Relay what the owning package said about its own refusal. agent-loop does
-     * not interpret or re-derive the cause; it only stops discarding it.
-     */
-    private function ownerFailureDetail(): string
-    {
-        $captured = trim(NestedStderrCaptureFilter::captured());
-        if ($captured === '') {
-            return '';
-        }
-
-        $lines = [];
-        foreach (explode("\n", $captured) as $line) {
-            $line = trim($line);
-            if ($line !== '') {
-                $lines[] = $line;
-            }
-        }
-
-        return $lines === [] ? '' : ' Owner reported: ' . implode(' ', $lines);
-    }
-
     /** @return array{0: TaskContract, 1: GovernedRun, 2: Session} */
     private function currentRunContext(string $taskId): array
     {
@@ -854,13 +833,12 @@ final readonly class HostFrontDoorCommand
             throw new RuntimeException('--recall-outcome-draft must name an existing Recall outcome draft: ' . $draft);
         }
 
-        $exitCode = $this->runRecallQuietly(['log-outcome', '--draft', $draft, '--by', $by, '--commit', $commit]);
-        if ($exitCode !== 0) {
-            throw new RuntimeException(
-                'Recall refused the supplied outcome draft with exit code ' . $exitCode . '.'
-                . $this->ownerFailureDetail(),
-            );
-        }
+        ($this->recallOutcomeCloser)(new OutcomeLoggingConfig(
+            rootConfig: (new RecallRootResolver())->resolve((new ProjectLayout($this->rootPath))->learningRoot()),
+            draftPath: $draft,
+            actor: $by,
+            commit: $commit,
+        ));
     }
 
     private function closeOrdinaryRun(string $taskId): void
@@ -981,61 +959,6 @@ final readonly class HostFrontDoorCommand
         }
 
         return $values;
-    }
-
-    /** @param list<string> $args */
-    private function runRecallQuietly(array $args): int
-    {
-        if ($this->recallRunner === null) {
-            throw new RuntimeException('The agent-loop front door requires a Recall runner to delegate this Recall owner operation.');
-        }
-
-        if (!in_array(self::STDOUT_DISCARD_FILTER, stream_get_filters(), true)) {
-            if (!class_exists(StdoutDiscardFilter::class)) {
-                throw new RuntimeException('Unable to load the front-door STDOUT discard filter.');
-            }
-            if (!stream_filter_register(self::STDOUT_DISCARD_FILTER, StdoutDiscardFilter::class)) {
-                throw new RuntimeException('Unable to register the front-door STDOUT discard filter.');
-            }
-        }
-        if (!in_array(self::STDERR_CAPTURE_FILTER, stream_get_filters(), true)) {
-            if (!class_exists(NestedStderrCaptureFilter::class)) {
-                throw new RuntimeException('Unable to load the front-door STDERR capture filter.');
-            }
-            if (!stream_filter_register(self::STDERR_CAPTURE_FILTER, NestedStderrCaptureFilter::class)) {
-                throw new RuntimeException('Unable to register the front-door STDERR capture filter.');
-            }
-        }
-
-        $filter = stream_filter_append(STDOUT, self::STDOUT_DISCARD_FILTER, STREAM_FILTER_WRITE);
-        if ($filter === false) {
-            throw new RuntimeException('Unable to silence nested Recall STDOUT for the front-door response.');
-        }
-
-        // The owning package reports why compilation refused on STDERR. Capture
-        // it so a failure can relay the owner's own words instead of discarding
-        // the one fact that says what to repair.
-        NestedStderrCaptureFilter::reset();
-        $errorFilter = stream_filter_append(STDERR, self::STDERR_CAPTURE_FILTER, STREAM_FILTER_WRITE);
-        if ($errorFilter === false) {
-            throw new RuntimeException('Unable to capture nested Recall STDERR for the front-door response.');
-        }
-
-        $level = ob_get_level();
-        ob_start(static fn (string $buffer): string => '');
-        try {
-            return ($this->recallRunner)($args);
-        } finally {
-            while (ob_get_level() > $level) {
-                ob_end_clean();
-            }
-            if (!stream_filter_remove($errorFilter)) {
-                throw new RuntimeException('Unable to restore STDERR after nested Recall compilation.');
-            }
-            if (!stream_filter_remove($filter)) {
-                throw new RuntimeException('Unable to restore STDOUT after nested Recall compilation.');
-            }
-        }
     }
 
     /** @param list<string> $tokens */

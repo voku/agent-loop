@@ -243,11 +243,6 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         ob_start();
         $exit = (new HostFrontDoorCommand(
             $this->root,
-            function (array $argv): int {
-                $this->writeRecallMeta();
-
-                return 0;
-            },
         ))->run('enter', ['ABC-123', '--format=json']);
         ob_end_clean();
         self::assertSame(1, $exit);
@@ -266,34 +261,10 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         try {
             return (new HostFrontDoorCommand(
                 $this->root,
-                function (array $argv): int {
-                    $this->writeRecallMeta();
-
-                    return 0;
-                },
             ))->run('enter', ['ABC-123', '--format=json']);
         } finally {
             ob_end_clean();
         }
-    }
-
-    private function writeRecallMeta(): void
-    {
-        $directory = $this->root . '/.agent-loop/recall/ABC-123';
-        if (!is_dir($directory)) {
-            mkdir($directory, 0o775, true);
-        }
-        file_put_contents(
-            $directory . '/meta.json',
-            json_encode([
-                'schema_version' => '1.0',
-                'task_id' => 'ABC-123',
-                'compilation_id' => 'ABC-123-prune-proof',
-                'selected_guidance' => [],
-                'selected_constraints' => [],
-                'output_hashes' => [],
-            ], JSON_THROW_ON_ERROR),
-        );
     }
 
     private function removeDirectory(string $path): void

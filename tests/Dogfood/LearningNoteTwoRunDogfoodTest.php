@@ -15,7 +15,6 @@ use voku\AgentLearning\LearningNoteDraft;
 use voku\AgentLearning\LearningNoteRepositoryEvidence;
 use voku\AgentLearning\LearningNoteService;
 use voku\AgentLearning\ValidationCase;
-use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
@@ -120,13 +119,7 @@ PHP,
         );
         $contracts->approve($taskA, 'security-approver');
 
-        $dispatcher1 = new Dispatcher($this->root);
-        $recallRunner1 = static fn (array $recallRest): int => $dispatcher1->run(array_values([
-            'agent-loop',
-            'recall',
-            ...$recallRest,
-        ]));
-        $app1 = new HostFrontDoorApplication($this->root, $recallRunner1);
+        $app1 = new HostFrontDoorApplication($this->root);
 
         $enter1 = $this->runApp($app1, 'enter', [$taskA, '--format=json']);
         self::assertSame(0, $enter1['exit'], json_encode($enter1['payload'], JSON_THROW_ON_ERROR));
@@ -210,8 +203,6 @@ PHP,
 
         unset(
             $contracts,
-            $dispatcher1,
-            $recallRunner1,
             $app1,
             $enter1,
             $finishPrep,
@@ -266,13 +257,7 @@ PHP,
         );
         $contracts2->approve($taskB, 'security-approver');
 
-        $dispatcher2 = new Dispatcher($this->root);
-        $recallRunner2 = static fn (array $recallRest): int => $dispatcher2->run(array_values([
-            'agent-loop',
-            'recall',
-            ...$recallRest,
-        ]));
-        $app2 = new HostFrontDoorApplication($this->root, $recallRunner2);
+        $app2 = new HostFrontDoorApplication($this->root);
 
         // Standard enter invocation without any manual precedent/Learning preparation.
         $enter2 = $this->runApp($app2, 'enter', [$taskB, '--format=json']);
