@@ -54,8 +54,9 @@ jobs:
               [[ "$existing" == "$target" ]] || { echo "Tag $version exists at $existing, expected $target" >&2; exit 1; }
               continue
             fi
-            if ! git show "${target}:CHANGELOG.md" | grep -Fq "## [$version] - " \
-              && ! git show "${target}:CHANGELOG.md" | grep -Fq "## $version - "; then
+            target_changelog="$(git show "${target}:CHANGELOG.md")"
+            if [[ "$target_changelog" != *"## [$version] - "* \
+              && "$target_changelog" != *"## $version - "* ]]; then
               echo "Release target $target does not contain the $version changelog section" >&2
               exit 1
             fi

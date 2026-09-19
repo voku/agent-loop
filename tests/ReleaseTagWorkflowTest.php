@@ -37,9 +37,12 @@ final class ReleaseTagWorkflowTest extends TestCase
         self::assertStringNotContainsString('tag -a', $result['git_log']);
     }
 
-    public function testNewTagUsesItsTargetChangelogBeforeCreatingTheTag(): void
+    public function testNewTagAcceptsLargeTargetChangelogBeforeCreatingTheTag(): void
     {
-        $result = $this->runReleaseScript('absent', '## ' . self::VERSION . ' - 2026-09-19');
+        $result = $this->runReleaseScript(
+            'absent',
+            '## ' . self::VERSION . ' - 2026-09-19' . "\n" . str_repeat("- historical entry\n", 5000),
+        );
 
         self::assertSame(0, $result['exit'], $result['stderr']);
         self::assertStringContainsString('show ' . self::TARGET_SHA . ':CHANGELOG.md', $result['git_log']);

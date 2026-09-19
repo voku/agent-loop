@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.22 - 2026-09-19
+
+### Fixed
+
+- Keep marker-target changelog validation reliable under Bash `pipefail` when the required heading appears before the rest of a large changelog.
+
 ## 0.20.21 - 2026-09-19
 
 ### Fixed
