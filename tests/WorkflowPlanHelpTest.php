@@ -11,7 +11,7 @@ final class WorkflowPlanHelpTest extends TestCase
 {
     public function testPlanHelpUsesWorkflowUsageInsteadOfParsingHelpAsTaskId(): void
     {
-        $cli = new WorkflowCli(sys_get_temp_dir(), static fn (array $argv): int => 0);
+        $cli = new WorkflowCli(sys_get_temp_dir());
 
         ob_start();
         $exit = $cli->run(['plan', '--help']);
