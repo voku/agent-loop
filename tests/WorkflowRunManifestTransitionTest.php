@@ -20,6 +20,8 @@ use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStore;
 use voku\AgentSession\ValidationEvidenceStore;
@@ -69,11 +71,10 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         $command = new HostFrontDoorCommand(
             $this->root,
-            function (array $argv) use (&$recallCalls): int {
+            recallCompiler: function (CompileRequest $request) use (&$recallCalls): CompileResult {
                 ++$recallCalls;
-                $this->writeRecallMeta();
 
-                return 0;
+                return $this->compileRecallFixture($request);
             },
         );
 
@@ -111,7 +112,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         ob_start();
         $firstExit = (new HostFrontDoorCommand(
             $this->root,
-            static fn (array $argv): int => 7,
+            recallCompiler: static fn (CompileRequest $request): CompileResult => throw new \RuntimeException('Recall compilation refused by fixture.'),
         ))->run('enter', ['ABC-123', '--format=json']);
         ob_end_clean();
 
@@ -123,11 +124,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         $second = new HostFrontDoorCommand(
             $this->root,
-            function (array $argv): int {
-                $this->writeRecallMeta();
-
-                return 0;
-            },
+            recallCompiler: fn (CompileRequest $request): CompileResult => $this->compileRecallFixture($request),
         );
         ob_start();
         $secondExit = $second->run('enter', ['ABC-123', '--format=json']);
@@ -237,6 +234,17 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertCount(1, $sessions);
 
         return $sessions[0];
+    }
+
+    private function compileRecallFixture(CompileRequest $request): CompileResult
+    {
+        $this->writeRecallMeta();
+
+        return new CompileResult(
+            $request->outputDirectory,
+            'ABC-123-001',
+            str_repeat('a', 64),
+        );
     }
 
     private function writeRecallMeta(): void
