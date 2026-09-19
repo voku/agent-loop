@@ -17,6 +17,7 @@ use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
+use voku\AgentRecallCompiler\OutcomeLoggingConfig;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 
@@ -202,6 +203,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-RECALL-CLOSE');
         self::assertNotNull($review['sha256']);
 
+        /** @var list<OutcomeLoggingConfig> $calls */
         $calls = [];
         $second = $this->finish(
             'FINISH-RECALL-CLOSE',
@@ -214,11 +216,11 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
                 '--recall-outcome-draft', $draft,
                 '--commit', 'working-tree',
             ],
-            function (array $args) use (&$calls): int {
-                $calls[] = $args;
+            function (OutcomeLoggingConfig $config) use (&$calls): string {
+                $calls[] = $config;
                 $this->recordRecallOutcome('FINISH-RECALL-CLOSE', 'guidance.finish-recall-close');
 
-                return 0;
+                return 'finish-recall-close-fixture';
             },
         );
 
@@ -230,12 +232,13 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
             (new SessionStore())->load($this->root . '/.agent-loop/sessions', $sessionId)->status,
         );
 
-        // The draft is handed to Recall unchanged: agent-loop delegates, it does
-        // not decide or rewrite the judgment.
-        self::assertSame(
-            [['log-outcome', '--draft', $draft, '--by', 'fixture-reviewer', '--commit', 'working-tree']],
-            $calls,
-        );
+        // The draft is handed to Recall unchanged through its typed owner API:
+        // agent-loop delegates, it does not decide or rewrite the judgment.
+        self::assertCount(1, $calls);
+        self::assertSame($this->root . '/.agent-loop/learning', $calls[0]->rootConfig->root);
+        self::assertSame($draft, $calls[0]->draftPath);
+        self::assertSame('fixture-reviewer', $calls[0]->actor);
+        self::assertSame('working-tree', $calls[0]->commit);
     }
 
     public function testAcknowledgedReviewWithPendingRecallOutcomeEmitsOutcomeTemplateAndAdvancesGate(): void
@@ -266,6 +269,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertStringContainsString('--by <actor> --commit <commit>', $nextAction);
         self::assertStringNotContainsString('--learning', $nextAction);
 
+        /** @var list<OutcomeLoggingConfig> $calls */
         $calls = [];
         $recorded = $this->finish(
             'FINISH-RECALL-GATE',
@@ -275,11 +279,11 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
                 '--by', 'fixture-reviewer',
                 '--commit', 'working-tree',
             ],
-            function (array $args) use (&$calls): int {
-                $calls[] = $args;
+            function (OutcomeLoggingConfig $config) use (&$calls): string {
+                $calls[] = $config;
                 $this->recordRecallOutcome('FINISH-RECALL-GATE', 'guidance.finish-recall-gate');
 
-                return 0;
+                return 'finish-recall-gate-fixture';
             },
         );
 
@@ -289,10 +293,11 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         $advancedAction = (string) ($recorded['payload']['next_action'] ?? '');
         self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --learning', $advancedAction);
         self::assertStringNotContainsString('--recall-outcome-draft', $advancedAction);
-        self::assertSame(
-            [['log-outcome', '--draft', $draft, '--by', 'fixture-reviewer', '--commit', 'working-tree']],
-            $calls,
-        );
+        self::assertCount(1, $calls);
+        self::assertSame($this->root . '/.agent-loop/learning', $calls[0]->rootConfig->root);
+        self::assertSame($draft, $calls[0]->draftPath);
+        self::assertSame('fixture-reviewer', $calls[0]->actor);
+        self::assertSame('working-tree', $calls[0]->commit);
     }
 
     public function testRefusedRecallOutcomeLogLeavesTheRunOpenWithTheOwnersReason(): void
@@ -318,18 +323,15 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
                 '--recall-outcome-draft', $draft,
                 '--commit', 'working-tree',
             ],
-            static function (array $args): int {
-                fwrite(STDERR, "[FAIL] recall log-outcome: placeholder outcome rows are not a judgment.\n");
-
-                return 1;
-            },
+            static fn (OutcomeLoggingConfig $config): string => throw new RuntimeException(
+                'placeholder outcome rows are not a judgment.',
+            ),
         );
 
         self::assertSame(1, $second['exit']);
         self::assertFalse($second['payload']['complete'] ?? true);
         self::assertSame('finish.closeout_failed', $second['payload']['blockers'][0]['code'] ?? null);
         $message = (string) ($second['payload']['blockers'][0]['message'] ?? '');
-        self::assertStringContainsString('Recall refused the supplied outcome draft', $message);
         self::assertStringContainsString('placeholder outcome rows are not a judgment.', $message);
         self::assertSame(
             SessionStatus::ACTIVE,
@@ -346,7 +348,9 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         $result = $this->finish(
             'FINISH-RECALL-INPUTS',
             ['--format=json', '--recall-outcome-draft', $draft, '--by', 'fixture-reviewer'],
-            static fn (array $args): int => throw new RuntimeException('Recall must not be called without a commit.'),
+            static fn (OutcomeLoggingConfig $config): string => throw new RuntimeException(
+                'Recall must not be called without a commit.',
+            ),
         );
 
         self::assertSame(1, $result['exit']);
@@ -445,14 +449,15 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
 
     /**
      * @param list<string> $options
-     * @param null|callable(list<string>): int $recallRunner
+     * @param null|callable(OutcomeLoggingConfig): string $recallOutcomeCloser
      * @return array{exit: int, payload: array<string, mixed>}
      */
-    private function finish(string $taskId, array $options, ?callable $recallRunner = null): array
+    private function finish(string $taskId, array $options, ?callable $recallOutcomeCloser = null): array
     {
         ob_start();
         try {
-            $exit = (new HostFrontDoorCommand($this->root, $recallRunner))->run('finish', [$taskId, ...$options]);
+            $exit = (new HostFrontDoorCommand($this->root, recallOutcomeCloser: $recallOutcomeCloser))
+                ->run('finish', [$taskId, ...$options]);
             $stdout = ob_get_contents();
         } finally {
             ob_end_clean();
