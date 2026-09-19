@@ -14,14 +14,8 @@ final readonly class WorkflowRunPreparationResult
         public Session $session,
         public string $learningRoot,
         public string $preparedManifestPath,
-        public ?string $compiledManifestPath,
-        public int $recallExitCode,
+        public string $compiledManifestPath,
         public ?string $searchWarning,
     ) {
-    }
-
-    public function recallCompiled(): bool
-    {
-        return $this->recallExitCode === 0 && $this->compiledManifestPath !== null;
     }
 }
