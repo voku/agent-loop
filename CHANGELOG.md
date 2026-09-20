@@ -2,12 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.20.26 - 2026-09-20
+## Unreleased
 
 ### Changed
 
-- Require `voku/agent-recall-compiler ^0.19.0` and compile durable workflow handoffs through the typed `InlineCompileTask + OperatingPromptRequest + CompileRequest -> RecallCompiler::compile()` owner API instead of reconstructing Recall CLI tokens.
-- Remove the final shared Recall CLI callback from `WorkflowCli` and its dispatcher wiring; direct specialist `agent-loop recall ...` routing remains unchanged.
+- Require `voku/agent-map ^0.16.1` and delegate bounded missing/stale Map preparation to `MapPreparationService::prepare()`, removing Loop-owned builder, reader/writer, and backend-reproduction choreography while keeping optional Search maintenance separate.
+- Require `voku/agent-recall-compiler ^0.20.0`, the released Recall line aligned with Map `^0.16.1`, and move candidate Recall fixtures to that floor so the pre-1.0 hard cut remains installable without compatibility unions or VCS fallbacks.
 
 ## 0.20.25 - 2026-09-19
 

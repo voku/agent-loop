@@ -14,7 +14,11 @@ use voku\AgentMap\Build\StructuralOnlySemanticAnalyzer;
 use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexReader;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\Inspect\MapReadinessInspector;
 use voku\AgentMap\MapArtifactPaths;
+use voku\AgentMap\Search\ChunkExtractor;
+use voku\AgentMap\Search\ChunkPolicy;
+use voku\AgentMap\Search\SearchIndexStore;
 
 /**
  * Deterministic Map preparation belongs behind `enter`, not in host prose.
@@ -98,7 +102,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
     /**
      * A semantic index used to be replaced by a scope-sized structural build here,
      * which dropped every unrelated entry of a real repository map. The owner's
-     * same-backend builder patches the changed scope and keeps the rest.
+     * preparation reuses the recorded backend and its stored semantic scope, keeping the rest.
      */
     public function testStaleSemanticMapIsPatchedWithTheSameBackendInsteadOfReplaced(): void
     {
@@ -122,6 +126,57 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         self::assertNotNull($map->file('src/Greeter.php'));
         self::assertNotNull($map->file('src/Unrelated.php'), 'a semantic map must be patched, not replaced by a scope-sized build');
         self::assertSame('simple-php-code-parser+phpstan', $map->backend);
+    }
+
+    public function testSemanticPreparationDoesNotMarkPartialSearchRefreshReady(): void
+    {
+        if (!SearchIndexStore::supportsFts5()) {
+            self::markTestSkipped('SQLite FTS5 is required for Search readiness regression coverage.');
+        }
+
+        $this->approvedPhpContract('MAP-SEARCH-STALE');
+        $this->buildStructuralMap(['src']);
+
+        $mapJson = (string) file_get_contents($this->mapIndex());
+        file_put_contents(
+            $this->mapIndex(),
+            str_replace(
+                'simple-php-code-parser+structural-only',
+                'simple-php-code-parser+phpstan',
+                $mapJson,
+            ),
+        );
+
+        $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
+        $before = (new IndexReader())->read($this->mapIndex());
+        $search = new SearchIndexStore($artifacts->searchDatabase());
+        $search->replaceChunks((new ChunkExtractor())->extract($before));
+        $search->setMeta(
+            'map_snapshot',
+            $before->fingerprint === null ? 'sha256:none' : $before->fingerprint->sourceDigest,
+        );
+        $search->setMeta('chunk_policy_version', (string) ChunkPolicy::VERSION);
+
+        $initial = (new MapReadinessInspector())->inspect($artifacts, false);
+        self::assertSame('ready', $initial->searchState);
+
+        file_put_contents($this->root . '/src/NewFile.php', "<?php\n\nfinal class NewFile {}\n");
+        file_put_contents($this->root . '/src/Greeter.php', "<?php\n\nfinal class Greeter {}\n");
+
+        $this->enter('MAP-SEARCH-STALE');
+
+        $after = (new IndexReader())->read($this->mapIndex());
+        self::assertNotNull(
+            $after->file('src/NewFile.php'),
+            'PHPStan preparation must still discover new files from the stored semantic scope',
+        );
+
+        $readiness = (new MapReadinessInspector())->inspect($artifacts, false);
+        self::assertSame(
+            'stale',
+            $readiness->searchState,
+            'Loop must not claim Search matches a semantic Map refresh whose full affected scope it does not own',
+        );
     }
 
     public function testDocumentationOnlyWorkBuildsNoMapAtAll(): void
