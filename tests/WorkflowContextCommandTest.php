@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
@@ -127,6 +130,140 @@ final class WorkflowContextCommandTest extends TestCase
             'Future work: invest; after the current task completes, permit bounded future-work reflection and preparation of up to 2 separate follow-up candidate slice(s). Never widen the current Contract; follow-up execution requires separate Contract authority.',
             $rendered,
         );
+    }
+
+    public function testContextProjectsCanonicalLifecycleAuthority(): void
+    {
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertStringContainsString('Lifecycle authority (agent-loop):', $rendered);
+        self::assertStringContainsString('State: incomplete', $rendered);
+        self::assertStringContainsString('Next kind: command', $rendered);
+        self::assertStringContainsString('Next: agent-loop enter ABC-123', $rendered);
+    }
+
+    public function testContextBudgetPreservesLifecycleAuthorityUnderPressure(): void
+    {
+        $budget = new WorkflowContextBudget(4, 1000);
+        $budget->add('authority', 'State: incomplete');
+        $budget->add('authority', 'Next kind: command');
+        $budget->add('authority', 'Next: agent-loop enter ABC-123');
+        $budget->add('candidate_context', 'expanded candidate');
+        $budget->add('candidate_navigation', 'ranked navigation lead');
+        $budget->finish();
+
+        self::assertContains('State: incomplete', $budget->lines());
+        self::assertContains('Next kind: command', $budget->lines());
+        self::assertContains('Next: agent-loop enter ABC-123', $budget->lines());
+        self::assertNotContains('expanded candidate', $budget->lines());
+        self::assertNotContains('ranked navigation lead', $budget->lines());
+    }
+
+    public function testContextReprojectsFreshLifecycleAuthorityAfterRunPreparation(): void
+    {
+        $before = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $beforeManifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        $contracts = new TaskContractStore($this->root);
+        $contract = $contracts->find('ABC-123');
+        self::assertNotNull($contract);
+        $sessions = new SessionStore();
+        $session = $sessions->load($this->root . '/.agent-loop/sessions', $this->sessionId());
+
+        (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
+
+        $after = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $afterManifest = (new RunManifestProjector($this->root))->project('ABC-123');
+        $afterRendered = implode("\n", $after['lines']);
+
+        self::assertNotSame($beforeManifest->runId, $afterManifest->runId);
+        self::assertNotSame($beforeManifest->nextAction, $afterManifest->nextAction);
+        self::assertStringContainsString('State: ' . $afterManifest->state, $afterRendered);
+        self::assertStringContainsString('Next kind: ' . $afterManifest->nextActionKind, $afterRendered);
+        self::assertStringContainsString('Next: ' . $afterManifest->nextAction, $afterRendered);
+        self::assertStringNotContainsString('Next: ' . $beforeManifest->nextAction, $afterRendered);
+    }
+
+    public function testContextBudgetHasClosedAuthorityByteBoundaries(): void
+    {
+        $authority = [
+            'State: incomplete',
+            'Next kind: command',
+            'Next: agent-loop enter ABC-123',
+        ];
+        $authorityBytes = array_sum(array_map(static fn (string $line): int => strlen($line) + 1, $authority));
+
+        $under = new WorkflowContextBudget(3, $authorityBytes - 1);
+        $under->add('authority', $authority[0]);
+        $under->add('authority', $authority[1]);
+        $this->expectException(RuntimeException::class);
+        $under->add('authority', $authority[2]);
+    }
+
+    public function testContextBudgetPreservesExactAuthorityAndFitsCandidateAtExactRemainder(): void
+    {
+        $authority = [
+            'State: incomplete',
+            'Next kind: command',
+            'Next: agent-loop enter ABC-123',
+        ];
+        $authorityBytes = array_sum(array_map(static fn (string $line): int => strlen($line) + 1, $authority));
+        $candidate = 'candidate context';
+        $candidateBytes = strlen($candidate) + 1;
+
+        $exact = new WorkflowContextBudget(3, $authorityBytes);
+        foreach ($authority as $line) {
+            $exact->add('authority', $line);
+        }
+        $exact->finish();
+        self::assertSame($authority, $exact->lines());
+
+        $withCandidate = new WorkflowContextBudget(4, $authorityBytes + $candidateBytes);
+        foreach ($authority as $line) {
+            $withCandidate->add('authority', $line);
+        }
+        $withCandidate->add('candidate_context', $candidate);
+        $withCandidate->finish();
+
+        self::assertSame([...$authority, $candidate], $withCandidate->lines());
+    }
+
+    public function testCandidatePruningDoesNotChangeProjectedAuthority(): void
+    {
+        $authority = [
+            'State: incomplete',
+            'Next kind: command',
+            'Next: agent-loop enter ABC-123',
+        ];
+        $authorityBytes = array_sum(array_map(static fn (string $line): int => strlen($line) + 1, $authority));
+        $omission = 'Omitted: 1 additional candidate_context';
+        $budgetBytes = $authorityBytes + strlen($omission) + 1;
+
+        $withoutCandidate = new WorkflowContextBudget(4, $budgetBytes);
+        foreach ($authority as $line) {
+            $withoutCandidate->add('authority', $line);
+        }
+        $withoutCandidate->finish();
+
+        $withCandidate = new WorkflowContextBudget(4, $budgetBytes);
+        foreach ($authority as $line) {
+            $withCandidate->add('authority', $line);
+        }
+        $withCandidate->add('candidate_context', str_repeat('unverified candidate ', 20));
+        $withCandidate->finish();
+
+        self::assertSame(
+            $authority,
+            array_values(array_filter($withoutCandidate->lines(), static fn (string $line): bool => in_array($line, $authority, true))),
+        );
+        self::assertSame(
+            $authority,
+            array_values(array_filter($withCandidate->lines(), static fn (string $line): bool => in_array($line, $authority, true))),
+        );
+        self::assertSame(1, $withCandidate->omitted()['candidate_context'] ?? 0);
+        foreach ($withCandidate->lines() as $line) {
+            self::assertStringNotContainsString('unverified candidate', $line);
+        }
     }
 
     public function testContextReportsOmissionsAndMissingMap(): void

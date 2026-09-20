@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.27 - 2026-09-20
+
+### Changed
+
+- Keep the canonical lifecycle authority (`state`, `next_action`, and `next_action_kind`) in bounded workflow context under budget pressure; unverified candidate context is pruned first and impossible authority budgets fail closed.
+- Remove the remaining external workflow add-on paths from the package-owned setup and diagnostics surface.
+
 ## 0.20.26 - 2026-09-20
 
 ### Changed

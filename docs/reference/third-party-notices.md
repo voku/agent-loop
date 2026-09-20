@@ -111,6 +111,11 @@ source review, not evidence that `agent-loop` already contains its essence.
 These notices document provenance only. They are not installation instructions
 and are never read or executed by `agent-loop init install-assets`.
 
+The runtime and setup path has no dependency on these projects. Their useful
+workflow ideas are implemented by package-owned `agent-loop` assets and the
+portable `agent-skills` catalog; host-local add-on installers, plugins, hooks,
+and skill directories are not required or invoked.
+
 The upstream projects remain copyright their respective authors and are
 available under their own MIT license files:
 

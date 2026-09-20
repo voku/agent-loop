@@ -13,6 +13,7 @@ use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\Transparency\ContextCoverage;
 use voku\AgentLoop\Workflow\Transparency\ContextFutureWorkPolicy;
 use voku\AgentLoop\Workflow\Transparency\ContextInteractionPolicy;
@@ -183,6 +184,8 @@ final readonly class WorkflowContextCommand
         );
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
 
+        $this->addLifecycleAuthority($budget, $taskId);
+
         $contract = $report['contract'];
         if ($contract['status'] === 'missing') {
             $budget->add('contract', 'Contract: missing');
@@ -299,6 +302,16 @@ final readonly class WorkflowContextCommand
 
         return 'Future work: ' . $mode->value . '; ' . $behavior
             . '. Never widen the current Contract; follow-up execution requires separate Contract authority.';
+    }
+
+    private function addLifecycleAuthority(WorkflowContextBudget $budget, string $taskId): void
+    {
+        $manifest = (new RunManifestProjector($this->rootPath))->project($taskId);
+
+        $budget->section('Lifecycle authority (agent-loop)');
+        $budget->add('authority', '  State: ' . $manifest->state);
+        $budget->add('authority', '  Next kind: ' . $manifest->nextActionKind);
+        $budget->add('authority', '  Next: ' . $manifest->nextAction);
     }
 
     private function session(string $taskId, mixed $id): ?Session
