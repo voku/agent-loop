@@ -72,7 +72,7 @@ final class Dispatcher
             CommandId::Recall => $this->dispatchRecall($scriptName, $rest),
             CommandId::Prompt => $this->dispatchRecall($scriptName, ['prompt', ...$rest]),
             CommandId::Session => $this->dispatchSession($scriptName, $rest),
-            CommandId::Workflow => $this->dispatchWorkflow($scriptName, $rest),
+            CommandId::Workflow => $this->dispatchWorkflow($rest),
             CommandId::Map => $this->dispatchMap($scriptName, $rest),
             CommandId::Memory => (new MemoryPromotionAnalyzer($this->rootPath))->run($rest),
             CommandId::Review => $this->dispatchReview($scriptName, $rest),
@@ -157,12 +157,9 @@ final class Dispatcher
     }
 
     /** @param list<string> $rest */
-    private function dispatchWorkflow(string $scriptName, array $rest): int
+    private function dispatchWorkflow(array $rest): int
     {
-        return (new WorkflowCli(
-            $this->rootPath,
-            fn (array $recallRest): int => $this->dispatchRecall($scriptName, $recallRest),
-        ))->run($rest);
+        return (new WorkflowCli($this->rootPath))->run($rest);
     }
 
     /** @param list<string> $rest */

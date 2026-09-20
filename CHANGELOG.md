@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.28 - 2026-09-20
+
+### Changed
+
+- Compile durable workflow handoffs through Recall's typed `InlineCompileTask + OperatingPromptRequest + CompileRequest -> RecallCompiler::compile()` owner API instead of reconstructing Recall CLI tokens.
+- Remove the final shared Recall CLI callback from `WorkflowCli` and dispatcher wiring; require the released Map `^0.18.0` and Recall `^0.22.0` floors.
+
 ## 0.20.27 - 2026-09-20
 
 ### Changed

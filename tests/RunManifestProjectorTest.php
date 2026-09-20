@@ -21,6 +21,7 @@ use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
 use voku\AgentMap\Index\FileEntry;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\Search\ChunkPolicy;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -94,6 +95,8 @@ final class RunManifestProjectorTest extends TestCase
         );
         $pdo->exec('CREATE TABLE search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         $pdo->exec("INSERT INTO search_meta (key, value) VALUES ('map_snapshot', 'sha256:older')");
+        $pdo->exec("INSERT INTO search_meta (key, value) VALUES ('chunk_policy_version', '" . ChunkPolicy::VERSION . "')");
+        $pdo->exec('CREATE TABLE code_chunks (chunk_id TEXT PRIMARY KEY)');
         unset($pdo);
 
         $manifest = (new RunManifestProjector($this->root))->project('ABC-123');

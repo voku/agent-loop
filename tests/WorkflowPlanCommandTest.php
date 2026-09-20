@@ -17,6 +17,7 @@ use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\AnalysisFingerprint;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\Search\ChunkPolicy;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentSession\SessionStore;
@@ -419,6 +420,8 @@ CARD,
         $pdo->exec('CREATE TABLE search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
         $statement = $pdo->prepare('INSERT INTO search_meta (key, value) VALUES (:key, :value)');
         $statement->execute(['key' => 'map_snapshot', 'value' => $snapshot]);
+        $statement->execute(['key' => 'chunk_policy_version', 'value' => (string) ChunkPolicy::VERSION]);
+        $pdo->exec('CREATE TABLE code_chunks (chunk_id TEXT PRIMARY KEY)');
     }
 
     public function testPlanWithJsonFlagOutputsStructuredJson(): void

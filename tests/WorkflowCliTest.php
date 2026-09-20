@@ -84,7 +84,7 @@ final class WorkflowCliTest extends TestCase
         self::assertSame('ABC-123', json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR)['task_id']);
     }
 
-    public function testHandoffIsRoutedThroughWorkflowCliWithSharedRecallRunner(): void
+    public function testHandoffIsRoutedThroughWorkflowCliUsingTypedRecallCompile(): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-workflow-cli-handoff-' . bin2hex(random_bytes(8));
         self::assertTrue(mkdir($root, 0777, true));
@@ -97,25 +97,14 @@ final class WorkflowCliTest extends TestCase
         self::assertTrue(is_dir($layout->learningRoot()) || mkdir($layout->learningRoot(), 0777, true));
         (new GovernedRunStore($root))->prepare($contract, $session, $layout->learningRoot());
 
-        $received = null;
-        $cli = new WorkflowCli(
-            $root,
-            static function (array $argv) use (&$received): int {
-                $received = $argv;
-
-                return 0;
-            },
-        );
+        $cli = new WorkflowCli($root);
 
         ob_start();
         $exit = $cli->run(['handoff', 'HANDOFF-1', '--context', 'Verified current state; next agent should continue the existing card.']);
         ob_end_clean();
 
         self::assertSame(0, $exit);
-        self::assertIsArray($received);
-        self::assertSame('compile', $received[0]);
-        self::assertSame('HANDOFF-1', $received[2]);
-        self::assertContains('{"id":"todo-card-handoff","arguments":{}}', $received);
+        self::assertFileExists($layout->recallRoot() . '/HANDOFF-1/handoff/system.md');
     }
 
     public function testInvalidTaskIdExitsOne(): void
@@ -129,7 +118,7 @@ final class WorkflowCliTest extends TestCase
      */
     private function runCli(array $args): array
     {
-        $cli = new WorkflowCli(sys_get_temp_dir(), static fn (array $argv): int => 0);
+        $cli = new WorkflowCli(sys_get_temp_dir());
 
         ob_start();
         $exit = $cli->run($args);
