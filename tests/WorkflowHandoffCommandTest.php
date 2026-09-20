@@ -50,13 +50,14 @@ final class WorkflowHandoffCommandTest extends TestCase
         $context = 'Verified: PR #230 is green. Next: verify merged-main ancestry, then run the installed-consumer falsification.';
         self::assertSame(0, $command->run(['TASK-1', '--context', $context]));
         self::assertInstanceOf(CompileRequest::class, $received);
-        self::assertSame('TASK-1', $received->inlineTask?->taskId);
-        self::assertSame([], $received->inlineTask?->targets);
-        self::assertSame('todo-card-handoff', $received->operatingPrompts[0]->id ?? null);
+        self::assertNotNull($received->inlineTask);
+        self::assertSame('TASK-1', $received->inlineTask->taskId);
+        self::assertSame([], $received->inlineTask->targets);
+        self::assertSame('todo-card-handoff', $received->operatingPrompts[0]->id);
         self::assertSame(['/installed/agent-recall-compiler/operating-prompts.json'], $received->operatingPromptManifests);
         self::assertSame($layout->recallRoot() . '/TASK-1/handoff', $received->outputDirectory);
 
-        $description = $received->inlineTask?->description ?? '';
+        $description = $received->inlineTask->description;
         self::assertStringContainsString($context, $description);
         self::assertStringContainsString('candidate context, not durable authority', $description);
         self::assertStringContainsString('Finish the recovery slice.', $description);
@@ -124,9 +125,10 @@ final class WorkflowHandoffCommandTest extends TestCase
 
         self::assertSame(0, $command->run(['TASK-2', '--context-file', $contextFile]));
         self::assertInstanceOf(CompileRequest::class, $received);
+        self::assertNotNull($received->inlineTask);
         self::assertStringContainsString(
             'Remaining blocker: external review.',
-            $received->inlineTask?->description ?? '',
+            $received->inlineTask->description,
         );
     }
 
