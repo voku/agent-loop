@@ -2,7 +2,7 @@
 
 Status: current clean-consumer compatibility evidence  
 Recorded: 2026-08-06  
-Updated: 2026-09-19 (`dev-main` adopts the current pre-1.0 owner release set)
+Updated: 2026-09-20 (`dev-main` adopts agent-map 0.17 Search maintenance ownership)
 
 ## Purpose
 
@@ -21,7 +21,7 @@ run; this page is its human projection.
 {
   "voku/agent-kanban": "^0.4.4",
   "voku/agent-learning": "^0.18.21",
-  "voku/agent-map": "^0.16.1",
+  "voku/agent-map": "^0.17.0",
   "voku/agent-recall-compiler": "^0.20.0",
   "voku/agent-session": "^0.7.1"
 }
