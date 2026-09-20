@@ -151,6 +151,14 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertTrue($readyPayload['complete']);
         self::assertSame('complete', $readyPayload['manifest']['state']);
         self::assertSame('none', $readyPayload['next_action']);
+        self::assertSame('none', $readyPayload['next_action_kind']);
+        self::assertSame(
+            [
+                'question' => 'Did you notice anything the bounded workflow or agent missed, got wrong despite green validation, found useful, or made unnecessarily difficult? If yes, capture it as a candidate Finding; otherwise no action is needed.',
+                'command' => 'agent-loop learn capture --task ABC-123 --by <actor> --observation TEXT --hypothesis TEXT --evidence TEXT [--scope PATH]',
+            ],
+            $readyPayload['human_finding_capture'],
+        );
         self::assertSame(
             SessionStatus::DONE,
             (new SessionStore())->load($this->root . '/.agent-loop/sessions', $session->id)->status,
@@ -165,6 +173,8 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertTrue($completePayload['complete']);
         self::assertSame('complete', $completePayload['manifest']['state']);
         self::assertSame('none', $completePayload['next_action']);
+        self::assertSame('none', $completePayload['next_action_kind']);
+        self::assertSame($readyPayload['human_finding_capture'], $completePayload['human_finding_capture']);
         self::assertSame($afterClose, $this->snapshotFiles(), 'finish must be read-only after completion.');
     }
 
@@ -306,6 +316,7 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame(1, $finishResult['exit']);
         $finishPayload = $this->json($finishResult['stdout']);
         self::assertFalse($finishPayload['complete']);
+        self::assertArrayNotHasKey('human_finding_capture', $finishPayload);
         self::assertStringContainsString('Fast-path scope violated: modified undeclared file(s): src/Undeclared.php', $finishResult['stdout']);
     }
 
