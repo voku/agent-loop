@@ -113,10 +113,10 @@ final class WorkflowHandoffCommandTest extends TestCase
         $received = null;
         $command = new WorkflowHandoffCommand(
             $root,
-            static function (array $args) use (&$received): int {
-                $received = $args;
+            static function (CompileRequest $request) use (&$received): CompileResult {
+                $received = $request;
 
-                return 0;
+                return new CompileResult($request->outputDirectory, 'test-compilation', str_repeat('a', 64));
             },
             $sessionStore,
             '/installed/agent-recall-compiler/operating-prompts.json',
