@@ -2,7 +2,7 @@
 
 Status: current clean-consumer compatibility evidence  
 Recorded: 2026-08-06  
-Updated: 2026-09-07 (`dev-main` raises the Recall floor to 0.16.0)
+Updated: 2026-09-19 (`dev-main` adopts the current pre-1.0 owner release set)
 
 ## Purpose
 
@@ -20,10 +20,10 @@ run; this page is its human projection.
 ```json
 {
   "voku/agent-kanban": "^0.4.4",
-  "voku/agent-learning": "^0.16.1",
-  "voku/agent-map": "^0.10.0",
-  "voku/agent-recall-compiler": "^0.17.0",
-  "voku/agent-session": "^0.7.0"
+  "voku/agent-learning": "^0.18.21",
+  "voku/agent-map": "^0.16.1",
+  "voku/agent-recall-compiler": "^0.20.0",
+  "voku/agent-session": "^0.7.1"
 }
 ```
 
