@@ -128,7 +128,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         self::assertSame('simple-php-code-parser+phpstan', $map->backend);
     }
 
-    public function testSemanticPreparationDoesNotMarkPartialSearchRefreshReady(): void
+    public function testSemanticPreparationRefreshesExistingSearchThroughOwner(): void
     {
         if (!SearchIndexStore::supportsFts5()) {
             self::markTestSkipped('SQLite FTS5 is required for Search readiness regression coverage.');
@@ -173,9 +173,16 @@ final class EnterReconcilesDiscoveryTest extends TestCase
 
         $readiness = (new MapReadinessInspector())->inspect($artifacts, false);
         self::assertSame(
-            'stale',
+            'ready',
             $readiness->searchState,
-            'Loop must not claim Search matches a semantic Map refresh whose full affected scope it does not own',
+            'agent-map must reconcile the existing Search projection against the complete prepared semantic Map',
+        );
+        self::assertContains(
+            'src/NewFile.php',
+            array_column(
+                (new SearchIndexStore($artifacts->searchDatabase()))->searchLexical('NewFile', 10),
+                'file_path',
+            ),
         );
     }
 
