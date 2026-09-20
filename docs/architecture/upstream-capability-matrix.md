@@ -37,7 +37,7 @@ objective constraints where they can be enforced.
 | Compress main-context narration | `ALREADY` | `agent-map`, recall compilation, bounded context, receipts, and narrow subagent output reduce context without rewriting source evidence. |
 | Overwrite memory files with model-compressed prose | `REJECT` | Durable evidence and memory are never lossy-compressed in place. Raw evidence stays unchanged; compact projections reference it. |
 | Session token/savings statistics | `REJECT` | No savings number is emitted without owned telemetry and a real baseline. Dogfood records observable artifact/runtime metrics instead. |
-| Compact commit-message helper | `REJECT` | Commit-writing convenience is not part of workflow governance. Repository conventions or a host-specific writing skill own it. |
+| Compact commit-message helper | `ADAPT` | `voku/agent-skills/git-workflow` owns portable Conventional Commit guidance, including a short subject preference, rationale-only bodies, and no staging or commit side effects. |
 | Persistent user-selectable caveman intensity modes | `REJECT` | Workflow invariants are not a persona mode. No hidden flag decides whether correctness/evidence rules apply. |
 | Model overrides per subagent | `REJECT` | Model/provider selection remains a host concern. Package-owned roles define behavior, not model routing. |
 | Remote installer, marketplace, status line | `REJECT` | `init install-assets` installs reviewed local Composer-package assets only. |

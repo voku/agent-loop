@@ -109,9 +109,7 @@ final class InitInstallPlanCommandTest extends TestCase
             'npm ',
             'node -v',
             'plugin install',
-            'caveman',
-            'ponytail',
-            'rtk',
+            'third-party-addon',
             'apt install',
             'winget install',
         ] as $forbidden) {
