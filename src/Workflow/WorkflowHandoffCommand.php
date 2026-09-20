@@ -138,15 +138,17 @@ final readonly class WorkflowHandoffCommand
         return trim($context);
     }
 
+    /** @return non-empty-string */
     private function manifestPath(): string
     {
-        if ($this->operatingPromptManifest !== null) {
-            return $this->operatingPromptManifest;
+        $manifest = $this->operatingPromptManifest ?? BundledOperatingPromptManifest::consumer();
+        if ($manifest === '') {
+            throw new RuntimeException('Recall operating-prompt manifest path must not be empty.');
         }
 
         // Recall owns where it ships this manifest; deriving it from a reflected
         // source location silently broke when the package moved `skills/` to
         // `resources/skills/`.
-        return BundledOperatingPromptManifest::consumer();
+        return $manifest;
     }
 }
