@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.29 - 2026-09-20
+
+### Added
+
+- Surface an optional human observation affordance after a completed governed Run, pointing to `agent-loop learn capture` without changing lifecycle authority.
+
 ## 0.20.28 - 2026-09-20
 
 ### Changed

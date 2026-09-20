@@ -490,6 +490,9 @@ final readonly class HostFrontDoorCommand
         if ($hookResults !== []) {
             $payload['hooks'] = $hookResults;
         }
+        if ($complete) {
+            $payload['human_finding_capture'] = $this->humanFindingCaptureAffordance($taskId->value);
+        }
         if ($closeoutFailure !== null) {
             $payload['blockers'] = [[
                 'code' => 'finish.closeout_failed',
@@ -512,6 +515,10 @@ final readonly class HostFrontDoorCommand
             foreach ($hookResults as $hookResult) {
                 echo '[HOOK] ' . $hookResult['hook'] . ': exit ' . $hookResult['exit_code'] . "\n";
             }
+            if ($complete) {
+                $capture = $this->humanFindingCaptureAffordance($taskId->value);
+                echo "\nOptional human observation:\n" . $capture['question'] . "\nIf applicable, use:\n  " . $capture['command'] . "\n";
+            }
         }
 
         if ($closeoutFailure !== null) {
@@ -522,6 +529,17 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->state === 'blocked' ? 2 : 1;
+    }
+
+    /**
+     * @return array{question: string, command: string}
+     */
+    private function humanFindingCaptureAffordance(string $taskId): array
+    {
+        return [
+            'question' => 'Did you notice anything the bounded workflow or agent missed, got wrong despite green validation, found useful, or made unnecessarily difficult? If yes, capture it as a candidate Finding; otherwise no action is needed.',
+            'command' => 'agent-loop learn capture --task ' . $taskId . ' --by <actor> --observation TEXT --hypothesis TEXT --evidence TEXT [--scope PATH]',
+        ];
     }
 
     private function needsValidationReconciliation(RunManifest $manifest): bool
