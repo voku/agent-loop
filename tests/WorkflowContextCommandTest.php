@@ -260,7 +260,10 @@ final class WorkflowContextCommandTest extends TestCase
             $authority,
             array_values(array_filter($withCandidate->lines(), static fn (string $line): bool => in_array($line, $authority, true))),
         );
-        self::assertNotContains('unverified candidate ', $withCandidate->lines());
+        self::assertSame(1, $withCandidate->omitted()['candidate_context'] ?? 0);
+        foreach ($withCandidate->lines() as $line) {
+            self::assertStringNotContainsString('unverified candidate', $line);
+        }
     }
 
     public function testContextReportsOmissionsAndMissingMap(): void
