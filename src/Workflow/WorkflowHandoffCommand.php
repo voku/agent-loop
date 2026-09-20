@@ -10,6 +10,11 @@ use Throwable;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentRecallCompiler\BundledOperatingPromptManifest;
+use voku\AgentRecallCompiler\CompileRequest;
+use voku\AgentRecallCompiler\CompileResult;
+use voku\AgentRecallCompiler\InlineCompileTask;
+use voku\AgentRecallCompiler\OperatingPromptRequest;
+use voku\AgentRecallCompiler\RecallCompiler;
 use voku\AgentSession\SessionStore;
 
 /**
@@ -21,17 +26,19 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowHandoffCommand
 {
-    private Closure $recallRunner;
+    private Closure $recallCompiler;
     private SessionStore $sessionStore;
 
-    /** @param callable(list<string>): int $recallRunner */
+    /** @param null|callable(CompileRequest): CompileResult $recallCompiler */
     public function __construct(
         private string $rootPath,
-        callable $recallRunner,
+        ?callable $recallCompiler = null,
         ?SessionStore $sessionStore = null,
         private ?string $operatingPromptManifest = null,
     ) {
-        $this->recallRunner = Closure::fromCallable($recallRunner);
+        $this->recallCompiler = $recallCompiler === null
+            ? (new RecallCompiler())->compile(...)
+            : Closure::fromCallable($recallCompiler);
         $this->sessionStore = $sessionStore ?? new SessionStore();
     }
 
@@ -76,30 +83,22 @@ final readonly class WorkflowHandoffCommand
             }
 
             $outputDirectory = $layout->recallRoot() . '/' . $taskId->value . '/handoff';
-            $recallArgs = [
-                'compile',
-                '--task', $taskId->value,
-                '--description', implode("\n\n", $descriptionParts),
-                '--operating-prompt-manifest', $this->manifestPath(),
-                '--operating-prompt', '{"id":"todo-card-handoff","arguments":{}}',
-                '--output-dir', $outputDirectory,
-            ];
-
             $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($taskId->value);
-            if ($kanbanContext !== null) {
-                $recallArgs[] = '--kanban-context';
-                $recallArgs[] = json_encode(
-                    $kanbanContext->toArray(),
-                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-                );
-            }
+            $result = ($this->recallCompiler)(new CompileRequest(
+                learningRoot: $layout->learningRoot(),
+                taskBrief: null,
+                outputDirectory: $outputDirectory,
+                operatingPromptManifests: [$this->manifestPath()],
+                kanbanContextProjection: $kanbanContext,
+                inlineTask: new InlineCompileTask(
+                    taskId: $taskId->value,
+                    description: implode("\n\n", $descriptionParts),
+                    targets: [],
+                ),
+                operatingPrompts: [new OperatingPromptRequest('todo-card-handoff')],
+            ));
 
-            $exit = ($this->recallRunner)($recallArgs);
-            if ($exit !== 0) {
-                return $exit;
-            }
-
-            echo "\n[HANDOFF] Compiled self-contained task handoff prompt: " . $layout->display($outputDirectory . '/system.md') . "\n";
+            echo "\n[HANDOFF] Compiled self-contained task handoff prompt: " . $layout->display($result->systemPath()) . "\n";
             echo "[NEXT] Give that prompt to the acting agent and update the existing durable task/card through its owner; do not copy the whole chat or create a duplicate task.\n";
 
             return 0;
@@ -138,15 +137,17 @@ final readonly class WorkflowHandoffCommand
         return trim($context);
     }
 
+    /** @return non-empty-string */
     private function manifestPath(): string
     {
-        if ($this->operatingPromptManifest !== null) {
-            return $this->operatingPromptManifest;
+        $manifest = $this->operatingPromptManifest ?? BundledOperatingPromptManifest::consumer();
+        if ($manifest === '') {
+            throw new RuntimeException('Recall operating-prompt manifest path must not be empty.');
         }
 
         // Recall owns where it ships this manifest; deriving it from a reflected
         // source location silently broke when the package moved `skills/` to
         // `resources/skills/`.
-        return BundledOperatingPromptManifest::consumer();
+        return $manifest;
     }
 }

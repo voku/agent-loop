@@ -120,7 +120,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             reviewEvidenceSha256: $reviewSha256,
         );
 
-        $cli = new WorkflowCli($this->root, static fn (array $argv): int => 0);
+        $cli = new WorkflowCli($this->root);
         ob_start();
         self::assertSame(0, $cli->run(['close', 'ABC-123', '--status', 'done']));
         ob_end_clean();
