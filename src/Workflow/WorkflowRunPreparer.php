@@ -146,11 +146,11 @@ final readonly class WorkflowRunPreparer
         if (
             !$semanticPreparation
             && is_file($searchDb)
-            && \\voku\\AgentMap\\Search\\SearchIndexStore::supportsFts5()
+            && \voku\AgentMap\Search\SearchIndexStore::supportsFts5()
         ) {
             try {
-                $store = new \\voku\\AgentMap\\Search\\SearchIndexStore($searchDb);
-                $extractor = new \\voku\\AgentMap\\Search\\ChunkExtractor();
+                $store = new \voku\AgentMap\Search\SearchIndexStore($searchDb);
+                $extractor = new \voku\AgentMap\Search\ChunkExtractor();
                 $chunks = $extractor->extract($prepared->index, $rebuildPaths);
                 $store->replaceChunks($chunks, $rebuildPaths);
                 $store->setMeta(
@@ -159,7 +159,7 @@ final readonly class WorkflowRunPreparer
                         ? 'sha256:none'
                         : $prepared->index->fingerprint->sourceDigest,
                 );
-                $store->setMeta('chunk_policy_version', (string) \\voku\\AgentMap\\Search\\ChunkPolicy::VERSION);
+                $store->setMeta('chunk_policy_version', (string) \voku\AgentMap\Search\ChunkPolicy::VERSION);
             } catch (Throwable) {
                 // Search index refresh is best-effort and never blocks discovery.
             }
