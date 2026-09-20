@@ -20,6 +20,8 @@ use voku\AgentMap\MapArtifactPaths;
 use voku\AgentMap\Prepare\MapPreparationException;
 use voku\AgentMap\Prepare\MapPreparationRequest;
 use voku\AgentMap\Prepare\MapPreparationService;
+use voku\AgentMap\Search\SearchMaintenanceRequest;
+use voku\AgentMap\Search\SearchMaintenanceService;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputSuperseder;
@@ -66,7 +68,9 @@ final readonly class WorkflowRunPreparer
      *
      * The ranked Search index is deliberately not built here. It is optional
      * capability, and making it a silent precondition would turn an optional
-     * owner feature into a mandatory preparation gate.
+     * owner feature into a mandatory preparation gate. When an existing Search
+     * projection is present, agent-map owns its reconciliation against the
+     * prepared Map snapshot.
      */
     public function reconcileDiscovery(TaskContract $contract): MapReadiness
     {
@@ -141,29 +145,11 @@ final readonly class WorkflowRunPreparer
             );
         }
 
-        $searchDb = $artifacts->searchDatabase();
-        $semanticPreparation = str_ends_with($prepared->index->backend, '+phpstan');
-        if (
-            !$semanticPreparation
-            && is_file($searchDb)
-            && \voku\AgentMap\Search\SearchIndexStore::supportsFts5()
-        ) {
-            try {
-                $store = new \voku\AgentMap\Search\SearchIndexStore($searchDb);
-                $extractor = new \voku\AgentMap\Search\ChunkExtractor();
-                $chunks = $extractor->extract($prepared->index, $rebuildPaths);
-                $store->replaceChunks($chunks, $rebuildPaths);
-                $store->setMeta(
-                    'map_snapshot',
-                    $prepared->index->fingerprint === null
-                        ? 'sha256:none'
-                        : $prepared->index->fingerprint->sourceDigest,
-                );
-                $store->setMeta('chunk_policy_version', (string) \voku\AgentMap\Search\ChunkPolicy::VERSION);
-            } catch (Throwable) {
-                // Search index refresh is best-effort and never blocks discovery.
-            }
-        }
+        (new SearchMaintenanceService())->refreshIfPresent(new SearchMaintenanceRequest(
+            index: $prepared->index,
+            artifacts: $artifacts,
+        ));
+
     }
 
     public function prepare(
