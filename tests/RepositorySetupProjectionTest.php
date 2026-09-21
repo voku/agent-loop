@@ -58,7 +58,7 @@ final class RepositorySetupProjectionTest extends TestCase
 
         self::assertArrayHasKey('voku/agent-learning', $byOwner);
         self::assertSame(RepositorySetupContributor::SCOPE_CONSUMER, $byOwner['voku/agent-learning']->scope);
-        self::assertSame(4, $byOwner['voku/agent-learning']->skillCount);
+        self::assertSame(5, $byOwner['voku/agent-learning']->skillCount);
         self::assertSame(0, $byOwner['voku/agent-learning']->subagentCount);
         self::assertSame(1, $byOwner['voku/agent-learning']->instructionCount);
 
