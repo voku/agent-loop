@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.31 - 2026-09-21
+
+### Added
+
+- Add command-specific help for every `agent-loop init` subcommand, including
+  `help`, `--help`, and `-h`, with side-effect-free usage and ownership context.
+
 ## 0.20.30 - 2026-09-21
 
 ### Added
