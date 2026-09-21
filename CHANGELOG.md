@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.30 - 2026-09-21
+
+### Added
+
+- Dogfood the released Learning-owned `agent-skill-promotion` through normal
+  consumer setup, validated Finding classification, bounded consolidation, and
+  human-reviewable Proposal import.
+
+### Fixed
+
+- Keep the Learning consumer projection count aligned with the released
+  `agent-skill-promotion` skill.
+- Allow the full Composer gate enough time for the repository's PHPStan-backed
+  PHPUnit fixtures to complete.
+
 ## 0.20.29 - 2026-09-20
 
 ### Added
