@@ -129,6 +129,34 @@ final class WorkflowContextCommandTest extends TestCase
         );
     }
 
+    public function testContextProjectsCanonicalLifecycleAuthority(): void
+    {
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertStringContainsString('Lifecycle authority (agent-loop):', $rendered);
+        self::assertStringContainsString('State: incomplete', $rendered);
+        self::assertStringContainsString('Next kind: command', $rendered);
+        self::assertStringContainsString('Next: agent-loop enter ABC-123', $rendered);
+    }
+
+    public function testContextBudgetPreservesLifecycleAuthorityUnderPressure(): void
+    {
+        $budget = new WorkflowContextBudget(4, 1000);
+        $budget->add('authority', 'State: incomplete');
+        $budget->add('authority', 'Next kind: command');
+        $budget->add('authority', 'Next: agent-loop enter ABC-123');
+        $budget->add('candidate_context', 'expanded candidate');
+        $budget->add('candidate_navigation', 'ranked navigation lead');
+        $budget->finish();
+
+        self::assertContains('State: incomplete', $budget->lines());
+        self::assertContains('Next kind: command', $budget->lines());
+        self::assertContains('Next: agent-loop enter ABC-123', $budget->lines());
+        self::assertNotContains('expanded candidate', $budget->lines());
+        self::assertNotContains('ranked navigation lead', $budget->lines());
+    }
+
     public function testContextReportsOmissionsAndMissingMap(): void
     {
         unlink($this->root . '/.agent-loop/map/php-symbols.json');

@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use RuntimeException;
+
 final class WorkflowContextBudget
 {
+    /** @var array<string, bool> */
+    private const array PROTECTED_CATEGORIES = [
+        'authority' => true,
+    ];
+
     /** @var array<string, true> */
     private const array UNVERIFIED_CATEGORIES = [
         'candidate_navigation' => true,
@@ -35,6 +42,11 @@ final class WorkflowContextBudget
     {
         $lineBytes = strlen($line) + 1;
         if (!$this->fits($lineBytes) && !$this->reclaimUnverifiedFor($category, $lineBytes)) {
+            if (isset(self::PROTECTED_CATEGORIES[$category])) {
+                throw new RuntimeException(
+                    'Context budget cannot preserve the ' . $category . ' projection; increase --max-lines/--max-bytes.',
+                );
+            }
             $this->omitted[$category] = ($this->omitted[$category] ?? 0) + 1;
 
             return;
@@ -58,7 +70,13 @@ final class WorkflowContextBudget
             $requiredBytes = array_sum(array_map(static fn (string $line): int => strlen($line) + 1, $required));
             $removedAny = false;
             while ($this->lines !== [] && (count($this->lines) + count($required) > $this->maxLines || $this->bytes + $requiredBytes > $this->maxBytes)) {
-                $this->dropLine($this->leastAuthoritativeLineIndex());
+                $index = $this->leastAuthoritativeLineIndex();
+                if ($index < 0) {
+                    throw new RuntimeException(
+                        'Context budget cannot preserve protected projections; increase --max-lines/--max-bytes.',
+                    );
+                }
+                $this->dropLine($index);
                 $removedAny = true;
             }
         } while ($removedAny);
@@ -94,6 +112,15 @@ final class WorkflowContextBudget
 
     private function reclaimUnverifiedFor(string $category, int $lineBytes): bool
     {
+        if (isset(self::PROTECTED_CATEGORIES[$category])) {
+            for ($index = count($this->lines) - 1; $index >= 0 && !$this->fits($lineBytes); --$index) {
+                if (!isset(self::PROTECTED_CATEGORIES[$this->lineCategories[$index]])) {
+                    $this->dropLine($index);
+                }
+            }
+
+            return $this->fits($lineBytes);
+        }
         if (isset(self::UNVERIFIED_CATEGORIES[$category])) {
             return false;
         }
@@ -109,12 +136,23 @@ final class WorkflowContextBudget
     private function leastAuthoritativeLineIndex(): int
     {
         for ($index = count($this->lines) - 1; $index >= 0; --$index) {
-            if (isset(self::UNVERIFIED_CATEGORIES[$this->lineCategories[$index]])) {
+            if (isset(self::UNVERIFIED_CATEGORIES[$this->lineCategories[$index]]) && !$this->isProtectedCategory($this->lineCategories[$index])) {
                 return $index;
             }
         }
 
-        return count($this->lines) - 1;
+        for ($index = count($this->lines) - 1; $index >= 0; --$index) {
+            if (!$this->isProtectedCategory($this->lineCategories[$index])) {
+                return $index;
+            }
+        }
+
+        return -1;
+    }
+
+    private function isProtectedCategory(string $category): bool
+    {
+        return in_array($category, array_keys(self::PROTECTED_CATEGORIES), true);
     }
 
     private function dropLine(int $index): void
