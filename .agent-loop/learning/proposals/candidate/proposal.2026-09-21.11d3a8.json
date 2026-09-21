@@ -1,0 +1,38 @@
+{
+    "id": "proposal.2026-09-21.11d3a8",
+    "created_at": "2026-09-21T06:24:21+00:00",
+    "action": "REPLACE",
+    "source_findings": [
+        "finding.2026-09-21.ed98de"
+    ],
+    "reason": "Update the existing agent-loop-discipline owner so its entry point keeps only universal lifecycle authority and routes conditional navigation, L2, engineering, role, evidence, hook, and close detail through directly discoverable flat references. This preserves Loop ownership while making the context boundary testable.",
+    "remaining_uncertainty": [
+        "The host does not expose runtime skill-selection telemetry in this run.",
+        "A later independent governed task must measure whether the routed references change loaded context or decisions."
+    ],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "skill",
+    "target": "agent-loop-discipline",
+    "scope": [
+        "resources/skills/agent-loop-discipline/SKILL.md"
+    ],
+    "old": "The current always-loaded entry point combines lifecycle authority, agent I/O, prompt controls, navigation, L2 contract construction, engineering routing, role routing, evidence/output, hook boundaries, and validation/close.",
+    "new": "Keep persisted-state authority, lifecycle result handling, human-gate boundaries, and universal output rules in SKILL.md; route conditional navigation, L2 contract, engineering/role routing, evidence/output, hook-boundary, and validation/close detail through flat references linked directly from the entry point.",
+    "boundary": "Only agent-loop-discipline resources are in scope. The change must preserve lifecycle authority, must not add Loop-owned skill-promotion policy, and must not claim runtime context reduction without host-observable evidence.",
+    "validation": [
+        "composer ci",
+        "composer dogfood:discipline",
+        "php bin/agent-loop init install-assets --agent=codex --dry-run"
+    ],
+    "scope_justification": "Update the existing agent-loop-discipline owner so its entry point keeps only universal lifecycle authority and routes conditional navigation, L2, engineering, role, evidence, hook, and close detail through directly discoverable flat references. This preserves Loop ownership while making the context boundary testable.",
+    "learning_decision": "UPDATE_SKILL",
+    "pattern_key": "skill.context_boundary.progressive_disclosure",
+    "validation_case": {
+        "given": "An existing package-owned workflow skill combines universally required authority with branch-specific routing and validation detail.",
+        "when": "Review the entry point against actual invocation triggers and preserve only the rules required for every invocation.",
+        "then": "Keep universal authority in SKILL.md and route conditional detail through directly discoverable references without changing lifecycle ownership."
+    }
+}

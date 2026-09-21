@@ -1,0 +1,32 @@
+{
+    "id": "finding.2026-09-21.ed98de",
+    "task_id": "AGENT-LOOP-550-SKILL-PROMOTION-DOGFOOD-001",
+    "session": "2026-09-21-agent-loop-550-skill-promotion-dogfood-001-r1-e150c1dd",
+    "created_at": "2026-09-21T06:23:04+00:00",
+    "created_by": "codex",
+    "scope": [
+        "resources/skills/agent-loop-discipline/SKILL.md"
+    ],
+    "observation": "The package-owned agent-loop-discipline SKILL.md combines lifecycle authority, agent I/O, prompt controls, navigation, L2 contract construction, engineering routing, role routing, evidence/output, hook boundaries, and validation/close in one always-loaded entry point.",
+    "evidence": [
+        {
+            "type": "human_report",
+            "summary": "Direct source inspection of resources/skills/agent-loop-discipline/SKILL.md at the approved Contract base commit, plus the user-supplied comparison against skill-scope, context-and-disclosure, and reference-routing practices. Runtime selection/use remains unobserved."
+        }
+    ],
+    "hypothesis": "The entry point may load unrelated conditional guidance for ordinary governed tasks; a bounded progressive-disclosure split into directly routed references may preserve authority while reducing irrelevant context.",
+    "validated_conclusion": "The current entry point has ten distinct sections with different conditional triggers. The source confirms a bounded progressive-disclosure refactor is a plausible UPDATE_SKILL candidate, but no runtime token or skill-selection effect is yet proven.",
+    "confidence": "medium",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public",
+    "validated_by": "codex",
+    "validated_at": "2026-09-21T06:23:13+00:00",
+    "classification": "UPDATE_SKILL",
+    "pattern_key": "skill.context_boundary.progressive_disclosure",
+    "validation_case": {
+        "given": "An existing package-owned workflow skill combines universally required authority with branch-specific routing and validation detail.",
+        "when": "Review the entry point against actual invocation triggers and preserve only the rules required for every invocation.",
+        "then": "Keep universal authority in SKILL.md and route conditional detail through directly discoverable references without changing lifecycle ownership."
+    }
+}

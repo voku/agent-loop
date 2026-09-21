@@ -72,7 +72,7 @@
   },
   "config": {
     "allow-plugins": false,
-    "process-timeout": 900,
+    "process-timeout": 1800,
     "sort-packages": true
   },
   "suggest": {
