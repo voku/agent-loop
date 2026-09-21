@@ -38,6 +38,7 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('init scaffold [--agent=<agent|all>] [--prefix=<PROJECT>|--demo]', $help['output']);
         self::assertStringContainsString('init status', $help['output']);
         self::assertStringNotContainsString('rtk', strtolower($help['output']));
+        self::assertStringContainsString('Every init subcommand accepts help, --help, and -h.', $help['output']);
 
         $doctor = $this->dispatch(['agent-loop', 'init', 'doctor']);
         self::assertSame(0, $doctor['exit']);
@@ -46,6 +47,61 @@ final class InitCliTest extends TestCase
         $status = $this->dispatch(['agent-loop', 'init', 'status']);
         self::assertSame(0, $status['exit']);
         self::assertStringContainsString('agent-loop init status', $status['output']);
+    }
+
+    public function testEveryInitSubcommandHasSideEffectFreeHelpAliases(): void
+    {
+        $commands = [
+            'doctor',
+            'status',
+            'host-status',
+            'paths',
+            'tools',
+            'validate',
+            'install-plan',
+            'install-assets',
+            'uninstall-assets',
+            'sync-skills',
+            'sync-subagents',
+            'sync-hooks',
+            'sync-policy',
+            'sync-githooks',
+            'sync-instructions',
+            'sync-tools',
+            'scaffold',
+        ];
+
+        foreach ($commands as $command) {
+            foreach (['help', '--help', '-h'] as $alias) {
+                $result = $this->dispatch(['agent-loop', 'init', $command, $alias]);
+
+                self::assertSame(0, $result['exit'], $command . ' ' . $alias . ' should succeed');
+                self::assertStringContainsString('agent-loop init ' . $command, $result['output']);
+                self::assertStringContainsString('Aliases: help, --help, -h', $result['output']);
+            }
+        }
+
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop');
+        self::assertFileDoesNotExist($this->root . '/AGENTS.md');
+        self::assertFileDoesNotExist($this->root . '/.git/config');
+    }
+
+    public function testSyncInstructionsHelpExplainsManagedBoundary(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'sync-instructions', '--help']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('--agent=<agent|all>', $result['output']);
+        self::assertStringContainsString('managed marker blocks', $result['output']);
+        self::assertStringContainsString('project-owned text outside them is preserved', $result['output']);
+    }
+
+    public function testHelpWordUsedAsAnOptionValueIsNotTreatedAsAHelpRequest(): void
+    {
+        $result = $this->dispatch(['agent-loop', 'init', 'sync-instructions', '--agent', 'help']);
+
+        self::assertSame(1, $result['exit']);
+        self::assertStringNotContainsString('Aliases: help, --help, -h', $result['output']);
     }
 
     public function testInitValidationCoversSkillsSubagentsAndHooks(): void
