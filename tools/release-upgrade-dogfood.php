@@ -31,12 +31,15 @@ final class ReleaseUpgradeDogfood
     /** @var list<array{command: list<string>, cwd: string, exit_code: int, stdout_sha256: non-empty-string, stderr_sha256: non-empty-string}> */
     private array $commands = [];
 
+    private ?string $candidateArchivePath = null;
+
     public function __construct(
         private readonly string $workspace,
         private readonly string $fromVersion,
         private readonly string $toRef,
         private readonly string $toBranch,
         private readonly string $repositoryUrl,
+        private readonly string $candidateRepositoryRoot,
         private readonly string $reportPath,
         private readonly bool $keep,
     ) {
@@ -48,6 +51,7 @@ final class ReleaseUpgradeDogfood
         $this->makeDirectory($this->workspace);
 
         try {
+            $this->prepareCandidateArchive();
             $this->scenarios[] = $this->legalResume();
             $this->scenarios[] = $this->prunedSessionResume();
             $this->scenarios[] = $this->staleAuthorityAndSupersession();
@@ -257,7 +261,7 @@ final class ReleaseUpgradeDogfood
 
     private function installCandidate(UpgradeScenario $scenario): void
     {
-        $this->writeComposer($scenario, 'dev-' . $this->toBranch . '#' . $this->toRef, true);
+        $this->writeComposer($scenario, 'dev-candidate', true);
         $this->execute([
             'composer', 'update', 'voku/agent-loop', '--with-all-dependencies',
             '--working-dir=' . $scenario->composerRoot,
@@ -282,7 +286,10 @@ final class ReleaseUpgradeDogfood
             'prefer-stable' => true,
         ];
         if ($candidate) {
-            $config['repositories'] = [['type' => 'vcs', 'url' => $this->repositoryUrl]];
+            $config['repositories'] = [[
+                'type' => 'package',
+                'package' => $this->candidatePackage(),
+            ]];
             $config['minimum-stability'] = 'dev';
         }
         $this->writeJson($scenario->composerRoot . '/composer.json', $config);
@@ -313,8 +320,11 @@ final class ReleaseUpgradeDogfood
             throw new RuntimeException('Composer lock does not contain voku/agent-loop.');
         }
         if ($candidate) {
-            $source = $loop['source'] ?? null;
-            $reference = is_array($source) ? ($source['reference'] ?? null) : null;
+            if (($loop['version'] ?? null) !== 'dev-candidate') {
+                throw new RuntimeException('Candidate lock did not resolve the local candidate package.');
+            }
+            $dist = $loop['dist'] ?? null;
+            $reference = is_array($dist) ? ($dist['reference'] ?? null) : null;
             if ($reference !== $this->toRef) {
                 throw new RuntimeException('Candidate lock is not bound to exact head ' . $this->toRef . '.');
             }
@@ -342,10 +352,74 @@ final class ReleaseUpgradeDogfood
             throw new RuntimeException('Composer repositories must be an array.');
         }
         foreach ($repositories as $repository) {
-            if (is_array($repository) && ($repository['type'] ?? null) === 'path') {
+            if (!is_array($repository)) {
+                continue;
+            }
+            $type = $repository['type'] ?? null;
+            if ($type === 'path') {
                 throw new RuntimeException('Path repository detected in upgrade consumer.');
             }
+            if ($type === 'vcs') {
+                throw new RuntimeException('VCS repository detected in upgrade consumer; candidate bytes must come from the exact local archive.');
+            }
         }
+    }
+
+    private function prepareCandidateArchive(): void
+    {
+        $archive = $this->workspace . '/agent-loop-candidate-' . $this->toRef . '.zip';
+        $this->execute(
+            ['git', '-C', $this->candidateRepositoryRoot, 'cat-file', '-e', $this->toRef . '^{commit}'],
+            $this->candidateRepositoryRoot,
+        );
+        $this->execute(
+            ['git', '-C', $this->candidateRepositoryRoot, 'archive', '--format=zip', '--output=' . $archive, $this->toRef],
+            $this->candidateRepositoryRoot,
+        );
+        if (!is_file($archive)) {
+            throw new RuntimeException('Candidate archive was not created: ' . $archive);
+        }
+        $this->candidateArchivePath = $archive;
+    }
+
+    /** @return array<string, mixed> */
+    private function candidatePackage(): array
+    {
+        $composer = $this->execute(
+            ['git', '-C', $this->candidateRepositoryRoot, 'show', $this->toRef . ':composer.json'],
+            $this->candidateRepositoryRoot,
+        );
+        $package = json_decode($composer->stdout, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($package) || ($package['name'] ?? null) !== 'voku/agent-loop') {
+            throw new RuntimeException('Candidate composer.json does not describe voku/agent-loop.');
+        }
+
+        unset(
+            $package['require-dev'],
+            $package['scripts'],
+            $package['config'],
+            $package['repositories'],
+            $package['minimum-stability'],
+            $package['prefer-stable'],
+        );
+        $package['version'] = 'dev-candidate';
+        $package['dist'] = [
+            'type' => 'zip',
+            'url' => 'file://' . $this->candidateArchive(),
+            'reference' => $this->toRef,
+            'shasum' => sha1_file($this->candidateArchive()) ?: '',
+        ];
+
+        return $package;
+    }
+
+    private function candidateArchive(): string
+    {
+        if ($this->candidateArchivePath === null || !is_file($this->candidateArchivePath)) {
+            throw new RuntimeException('Candidate archive is not prepared.');
+        }
+
+        return $this->candidateArchivePath;
     }
 
     /** @return array{run_id: non-empty-string, session_id: non-empty-string, contract_revision: int} */
@@ -622,7 +696,7 @@ function parseUpgradeOptions(array $argv): array
             throw new InvalidArgumentException('Unknown argument: ' . $token);
         }
         [$key, $value] = explode('=', substr($token, 2), 2);
-        if (!in_array($key, ['workspace', 'from-version', 'to-ref', 'to-branch', 'repository-url', 'report'], true)) {
+        if (!in_array($key, ['workspace', 'from-version', 'to-ref', 'to-branch', 'repository-url', 'candidate-root', 'report'], true)) {
             throw new InvalidArgumentException('Unknown option: --' . $key);
         }
         if ($value === '') {
@@ -653,6 +727,7 @@ try {
         requiredUpgradeOption($options, 'to-ref'),
         requiredUpgradeOption($options, 'to-branch'),
         requiredUpgradeOption($options, 'repository-url'),
+        requiredUpgradeOption($options, 'candidate-root'),
         requiredUpgradeOption($options, 'report'),
         ($options['keep'] ?? false) === true,
     ))->run());
