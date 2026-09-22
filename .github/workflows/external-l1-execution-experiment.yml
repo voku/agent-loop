@@ -256,6 +256,55 @@ jobs:
               result: "passed"
             }' > "${EXECUTION_DIR}/proof.json"
 
+      - name: Reconcile owner validation and stop at review boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          set +e
+          php bin/agent-loop finish "${TASK_ID}" --format=json \
+            > "${EXECUTION_DIR}/finish.json"
+          finish_exit=$?
+          set -e
+
+          test "${finish_exit}" = "1"
+
+          jq -e \
+            --arg task_id "${TASK_ID}" '
+              (.schema_version == "1.0")
+              and (.command == "finish")
+              and (.task_id == $task_id)
+              and (.complete == false)
+              and (.manifest.references.verification.state == "blocked")
+              and (.manifest.references.verification.gate == "review")
+              and (.manifest.references.review.state == "unacknowledged")
+              and (.next_action_kind == "command_template")
+              and (.next_action | startswith("agent-loop finish " + $task_id + " --reviewed-report-sha256 sha256:"))
+              and (.next_action | contains("--by <actor>"))
+            ' "${EXECUTION_DIR}/finish.json" >/dev/null
+
+          jq \
+            --argjson finish_exit "${finish_exit}" \
+            --arg verification_state "$(jq -r '.manifest.references.verification.state' "${EXECUTION_DIR}/finish.json")" \
+            --arg verification_gate "$(jq -r '.manifest.references.verification.gate' "${EXECUTION_DIR}/finish.json")" \
+            --arg review_state "$(jq -r '.manifest.references.review.state' "${EXECUTION_DIR}/finish.json")" \
+            --arg next_action_kind "$(jq -r '.next_action_kind' "${EXECUTION_DIR}/finish.json")" \
+            --arg next_action "$(jq -r '.next_action' "${EXECUTION_DIR}/finish.json")" '
+              . + {
+                owner_finish: {
+                  exit_code: $finish_exit,
+                  complete: false,
+                  verification_state: $verification_state,
+                  verification_gate: $verification_gate,
+                  review_state: $review_state,
+                  next_action_kind: $next_action_kind,
+                  next_action: $next_action
+                }
+              }
+            ' "${EXECUTION_DIR}/proof.json" \
+            > "${EXECUTION_DIR}/proof.json.tmp"
+          mv "${EXECUTION_DIR}/proof.json.tmp" "${EXECUTION_DIR}/proof.json"
+
       - name: Upload execution proof
         uses: actions/upload-artifact@v4
         with:
@@ -270,6 +319,7 @@ jobs:
             ${{ env.EXECUTION_DIR }}/handoff/handoff.json
             ${{ env.EXECUTION_DIR }}/status-before-execution.json
             ${{ env.EXECUTION_DIR }}/status-after-execution.json
+            ${{ env.EXECUTION_DIR }}/finish.json
             ${{ env.EXECUTION_DIR }}/implementation.diff
             ${{ env.EXECUTION_DIR }}/source-after.php
             ${{ env.EXECUTION_DIR }}/proof.json
