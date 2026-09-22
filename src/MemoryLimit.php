@@ -51,4 +51,11 @@ final class MemoryLimit
 
         return $currentBytes !== null && $minimumBytes !== null && $currentBytes < $minimumBytes;
     }
+
+    public static function raiseIfNeeded(): void
+    {
+        if (self::shouldRaise((string) ini_get('memory_limit'))) {
+            ini_set('memory_limit', self::MINIMUM);
+        }
+    }
 }

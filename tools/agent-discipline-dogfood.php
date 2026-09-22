@@ -147,20 +147,18 @@ function configuredHookCommands(array $hooks, string $workspace): array
         if (!is_string($command) || $command === '') {
             throw new RuntimeException('hooks.json misses the configured command for ' . $event . '.');
         }
-        $matches = [];
-        foreach ([
-            '~\Aphp\s+(\.codex/hooks/[A-Za-z0-9_.-]+\.php)(?:\s+(--event=(?:SessionStart|SubagentStart)))?\z~',
-            '~\Aphp\s+"\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[A-Za-z0-9_.-]+\.php)"(?:\s+(--event=(?:SessionStart|SubagentStart)))?\z~',
-        ] as $pattern) {
-            if (preg_match($pattern, trim($command), $candidateMatches) === 1) {
-                $matches = $candidateMatches;
-                break;
-            }
-        }
-        if ($matches === []) {
+        if (
+            preg_match(
+                '~\Aphp\s+(?:["\']?\$\(git rev-parse --show-toplevel\)/)?(\.codex/hooks/[A-Za-z0-9_.-]+\.php)["\']?(?:\s+(--event=(?:SessionStart|SubagentStart)))?\z~',
+                trim($command),
+                $matches,
+            ) !== 1
+        ) {
             throw new RuntimeException('Unsupported configured hook command for ' . $event . ': ' . $command);
         }
 
+        // The dogfood runner intentionally uses argv arrays instead of a shell. Resolve the
+        // validated relative hook path against the staged fixture root before execution.
         $arguments = [PHP_BINARY, $workspace . '/' . $matches[1]];
         if (($matches[2] ?? '') !== '') {
             $arguments[] = $matches[2];
