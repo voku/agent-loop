@@ -1,0 +1,46 @@
+{
+    "id": "finding.2026-09-20.031709",
+    "task_id": "AGENT-LOOP-LEARNING-C2A001-20260920",
+    "session": "2026-09-20-agent-loop-learning-c2a001-20260920-r3-5acc8ad4",
+    "created_at": "2026-09-20T11:28:52+00:00",
+    "created_by": "codex",
+    "scope": [
+        ".agent-loop/learning/proposals/approved/proposal.2026-08-20.c2a001.json",
+        "tools/release-set-dogfood.php",
+        "tools/Dogfood/ComposerPathRepository.php",
+        "tests/ReleaseSetDogfoodFixtureTest.php"
+    ],
+    "observation": "The release-set proof failed first because generated Composer path repositories were relative to the consumer, then because recovery consumers reused the installed vendor tree through relative symlinks and cleanup treated those links as directories.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "bin/agent-loop learn proposal-validate .agent-loop/learning/proposals/approved/proposal.2026-08-20.c2a001.json",
+            "summary": "Observed passed with exit code 0 for implementation sha256:2646b748eb940d1b39849fffab62bc4872cce8abf7813769c0162f0f4cec4c15."
+        },
+        {
+            "type": "test_result",
+            "command": "vendor/bin/phpunit --filter ReleaseSetDogfoodFixtureTest",
+            "summary": "Observed passed with exit code 0 for implementation sha256:2646b748eb940d1b39849fffab62bc4872cce8abf7813769c0162f0f4cec4c15."
+        },
+        {
+            "type": "test_result",
+            "command": "composer phpstan",
+            "summary": "Observed passed with exit code 0 for implementation sha256:2646b748eb940d1b39849fffab62bc4872cce8abf7813769c0162f0f4cec4c15."
+        },
+        {
+            "type": "test_result",
+            "command": "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep",
+            "summary": "Observed passed with exit code 0 for implementation sha256:2646b748eb940d1b39849fffab62bc4872cce8abf7813769c0162f0f4cec4c15."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:b2d44787407aedf021b65607cd10c92fdabefacd53fc21f92ac7097fa5ba6cd5."
+        }
+    ],
+    "hypothesis": "Release-set and nested recovery consumers resolve relative filesystem paths against their own working roots, so path-bearing fixture setup must resolve absolute paths and cleanup must unlink symlinks before directory traversal.",
+    "validated_conclusion": "Absolute path resolution for Composer repositories and recovery vendor links, plus symlink-aware cleanup, restored repeatable release-set execution; proposal enforcement and all recovery-convergence scenarios passed.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

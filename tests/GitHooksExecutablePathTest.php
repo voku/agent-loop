@@ -56,14 +56,18 @@ final class GitHooksExecutablePathTest extends TestCase
     /** @param array<string, string> $environment */
     private function resolvedBin(array $environment = []): string
     {
-        $helper = dirname(__DIR__) . '/resources/githooks/lib/agent-loop-hooks.sh';
+        $helper = $this->root . '/agent-loop-hooks.sh';
+        self::assertTrue(copy(dirname(__DIR__) . '/resources/githooks/lib/agent-loop-hooks.sh', $helper));
         $script = 'source ' . escapeshellarg($helper) . '; printf "%s" "${AGENT_LOOP_BIN:-}"';
+        $processEnvironment = getenv();
+        unset($processEnvironment['AGENT_LOOP_BIN']);
+        $processEnvironment = array_merge($processEnvironment, $environment);
         $process = proc_open(
             ['bash', '-lc', $script],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             $this->root,
-            $environment === [] ? null : array_merge(['PATH' => (string) getenv('PATH')], $environment),
+            $processEnvironment,
         );
         self::assertIsResource($process);
 

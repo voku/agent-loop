@@ -68,9 +68,9 @@ The canonical owner flow cleanly decouples the **Evidence Loop** from the **Prom
 
 ---
 
-## Real Production Proof: The `IT-Portal` Trace
+## Real Production Proof: A Downstream Consumer Trace
 
-To prove this ladder is not theoretical prose, we trace the full lineage of an actual production pattern from the `IT-Portal` codebase (`infra/doc/agent-learning/`):
+To prove this ladder is not theoretical prose, we trace the full lineage of an actual production pattern from a private downstream consumer's learning records:
 
 ### 1. Real Work & Initial Finding (`finding.2026-07-06.002`)
 - **Task**: `TODO@agent-learning/phpstan-bump-cleanup` in `lib/framework/system/helper/TypeHelper.php`.

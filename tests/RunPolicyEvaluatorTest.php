@@ -34,7 +34,19 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertStringContainsString('workflow plan ABC-123', $policy->nextAction);
         self::assertSame([
             'executable' => 'agent-loop',
-            'arguments' => ['workflow', 'plan', 'ABC-123', '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'],
+            'arguments' => [
+                'workflow',
+                'plan',
+                'ABC-123',
+                '--by',
+                '<actor>',
+                '--file',
+                '<path>',
+                '--goal',
+                '<goal>',
+                '--validation',
+                '<validation>',
+            ],
             'template' => true,
         ], $policy->nextActionInvocation?->toArray());
     }

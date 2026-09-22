@@ -8,7 +8,7 @@
         "src/Init/InitSyncInstructionsCommand.php",
         "src/Init/RepositoryInstructionSynchronizer.php"
     ],
-    "observation": "agent-loop init sync-instructions projiziert AGENTS.md und zusaetzlich Import-Dateien wie CLAUDE.md/GEMINI.md. In IT-Portal ist CLAUDE.md ein Symlink auf AGENTS.md, daher schrieb die Import-Projektion durch den Link und ersetzte den kompletten Router-Block in AGENTS.md durch @AGENTS.md.",
+    "observation": "agent-loop init sync-instructions projiziert AGENTS.md und zusaetzlich Import-Dateien wie CLAUDE.md/GEMINI.md. In einem privaten Downstream-Projekt ist CLAUDE.md ein Symlink auf AGENTS.md, daher schrieb die Import-Projektion durch den Link und ersetzte den kompletten Router-Block in AGENTS.md durch @AGENTS.md.",
     "evidence": [
         {
             "type": "file_reference",
@@ -18,7 +18,7 @@
         },
         {
             "type": "runtime_observation",
-            "summary": "Reproduced on the real 40KB IT-Portal AGENTS.md: before the fix the router block was replaced by @AGENTS.md; after the fix the md5 is unchanged and the skip is reported."
+            "summary": "Reproduced on the real 40KB downstream-project AGENTS.md: before the fix the router block was replaced by @AGENTS.md; after the fix the md5 is unchanged and the skip is reported."
         }
     ],
     "hypothesis": "Der vorhandene Schutz greift nur, wenn die Datei keinen Managed-Marker hat und bereits AGENTS.md importiert. Ueber einen Symlink liest der Befehl den Inhalt des Ziels, der einen Managed-Marker enthaelt, wodurch genau die Schutzbedingung ausgehebelt wird.",

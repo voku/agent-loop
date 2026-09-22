@@ -1,0 +1,36 @@
+{
+    "id": "proposal.2026-09-20.0ecd79",
+    "created_at": "2026-09-20T17:35:15+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-09-15.17c7c3"
+    ],
+    "reason": "A linked worktree reused shared core.hooksPath while its generated hook environment was checkout-local, causing a valid commit to invoke the fallback vendor/bin/agent-loop path and fail. The hook environment now pins the repository-local CLI path and resolves the current Git root, making this a repeatable worktree-safe precedent.",
+    "remaining_uncertainty": [],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Worktree-safe Git hook environment",
+    "scope": [
+        "resources/githooks/pre-commit",
+        "resources/githooks/lib/agent-loop-hooks.sh"
+    ],
+    "old": null,
+    "new": "Git hook configuration may be shared across linked worktrees while generated hook environment is checkout-local; resolve the current Git root first and pin the executable CLI path in the generated environment instead of relying on a relative fallback.",
+    "boundary": "Applies to package-owned Git hooks used from linked worktrees. It does not change Git's shared configuration semantics or make hooks a correctness/security boundary.",
+    "validation": [
+        "vendor/bin/phpunit --filter InitSyncGitHooksCommandTest",
+        "vendor/bin/phpunit --filter GitWorkTreeDetectionTest",
+        "bash -n resources/githooks/pre-commit resources/githooks/lib/agent-loop-hooks.sh"
+    ],
+    "scope_justification": "A linked worktree reused shared core.hooksPath while its generated hook environment was checkout-local, causing a valid commit to invoke the fallback vendor/bin/agent-loop path and fail. The hook environment now pins the repository-local CLI path and resolves the current Git root, making this a repeatable worktree-safe precedent.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "git.hooks.worktree.environment.is.local",
+    "validation_case": {
+        "given": "a linked worktree sharing core.hooksPath with its main checkout while generated hook environment is ignored per checkout",
+        "when": "the hook resolves its tool through a relative vendor/bin fallback or changes directory to the hook file's common checkout",
+        "then": "the hook can run the wrong root or fail to find the executable, so it resolves the current Git root and uses a pinned repository-local CLI path"
+    }
+}

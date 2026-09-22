@@ -14,12 +14,14 @@ declare(strict_types=1);
  */
 
 use voku\AgentLoop\Dogfood\MinimumReleasePin;
+use voku\AgentLoop\Dogfood\ComposerPathRepository;
 use voku\AgentLoop\Dogfood\ReleaseSetCandidateSelection;
 
 // Loaded directly rather than through the autoloader, for the same reason as
 // the other candidate runner: these gates run against a checkout whose own
 // dependencies may not be installed.
 require dirname(__DIR__) . '/tools/Dogfood/MinimumReleasePin.php';
+require dirname(__DIR__) . '/tools/Dogfood/ComposerPathRepository.php';
 require dirname(__DIR__) . '/tools/Dogfood/ReleaseSetCandidateSelection.php';
 
 final class ReleaseSetFailure extends RuntimeException
@@ -656,7 +658,8 @@ final class ReleaseSetDogfood
         // The installed release set is reused rather than reinstalled: this
         // gate must exercise the packages the ordinary path resolved, and a
         // second `composer update` could resolve something else entirely.
-        if (!symlink($this->consumerRoot . '/vendor', $root . '/vendor')) {
+        $installedVendor = realpath($this->consumerRoot . '/vendor');
+        if (!is_string($installedVendor) || !symlink($installedVendor, $root . '/vendor')) {
             throw new ReleaseSetFailure('Unable to reuse the installed release set for recovery consumer ' . $name . '.');
         }
 
@@ -866,7 +869,7 @@ final class ReleaseSetDogfood
 
         $repositories = [[
             'type' => 'path',
-            'url' => str_replace('\\', '/', $this->candidateRoot),
+            'url' => ComposerPathRepository::url($this->candidateRoot),
             'options' => ['symlink' => false, 'versions' => ['voku/agent-loop' => 'dev-main']],
         ]];
         foreach ($this->candidateSelection->paths() as $package => $relative) {
@@ -883,7 +886,7 @@ final class ReleaseSetDogfood
             );
             $repositories[] = [
                 'type' => 'path',
-                'url' => str_replace('\\', '/', $path),
+                'url' => ComposerPathRepository::url($path),
                 'options' => ['symlink' => false, 'versions' => [$package => $version]],
             ];
         }
@@ -1174,6 +1177,10 @@ final class ReleaseSetDogfood
 
     private function removeTree(string $path): void
     {
+        if (is_link($path)) {
+            unlink($path);
+            return;
+        }
         if (!is_dir($path)) {
             return;
         }
@@ -1181,7 +1188,12 @@ final class ReleaseSetDogfood
             new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
             RecursiveIteratorIterator::CHILD_FIRST,
         ) as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+            $itemPath = $item->getPathname();
+            if (is_link($itemPath)) {
+                unlink($itemPath);
+                continue;
+            }
+            $item->isDir() ? rmdir($itemPath) : unlink($itemPath);
         }
         rmdir($path);
     }

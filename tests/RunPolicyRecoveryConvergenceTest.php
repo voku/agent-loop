@@ -40,12 +40,17 @@ final class RunPolicyRecoveryConvergenceTest extends TestCase
 
     public function testUnstructuredRepairActionFailsClosed(): void
     {
-        $policy = (new RunPolicyEvaluator())->evaluate('RECOVERY-464', 'governed', [], [[
-            'code' => 'verification.readiness_unreadable',
-            'owner' => 'agent-loop',
-            'message' => 'Validation evidence is unreadable.',
-            'repair_action' => 'agent-loop repair RECOVERY-464',
-        ]]);
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'RECOVERY-464',
+            'governed',
+            [],
+            [[
+                'code' => 'verification.readiness_unreadable',
+                'owner' => 'agent-loop',
+                'message' => 'Validation evidence is unreadable.',
+                'repair_action' => 'agent-loop repair RECOVERY-464',
+            ]],
+        );
 
         self::assertSame('agent-loop repair RECOVERY-464', $policy->nextAction);
         self::assertNull($policy->nextActionInvocation);
@@ -53,13 +58,22 @@ final class RunPolicyRecoveryConvergenceTest extends TestCase
 
     public function testOwnerStructuredRepairActionGetsTypedInvocation(): void
     {
-        $policy = (new RunPolicyEvaluator())->evaluate('RECOVERY-464', 'governed', [], [[
-            'code' => 'verification.readiness_unreadable',
-            'owner' => 'agent-loop',
-            'message' => 'Validation evidence is unreadable.',
-            'repair_action' => 'agent-loop repair RECOVERY-464',
-            'repair_invocation' => ['executable' => 'agent-loop', 'arguments' => ['repair', 'RECOVERY-464'], 'template' => false],
-        ]]);
+        $policy = (new RunPolicyEvaluator())->evaluate(
+            'RECOVERY-464',
+            'governed',
+            [],
+            [[
+                'code' => 'verification.readiness_unreadable',
+                'owner' => 'agent-loop',
+                'message' => 'Validation evidence is unreadable.',
+                'repair_action' => 'agent-loop repair RECOVERY-464',
+                'repair_invocation' => [
+                    'executable' => 'agent-loop',
+                    'arguments' => ['repair', 'RECOVERY-464'],
+                    'template' => false,
+                ],
+            ]],
+        );
 
         self::assertSame('agent-loop repair RECOVERY-464', $policy->nextAction);
         self::assertNotNull($policy->nextActionInvocation);
@@ -75,7 +89,12 @@ final class RunPolicyRecoveryConvergenceTest extends TestCase
             'approval' => ['owner' => 'agent-loop', 'state' => 'current'],
             'recall' => ['owner' => 'agent-recall-compiler', 'state' => 'compiled'],
             'execution_contract' => ['owner' => 'agent-loop', 'state' => 'not_required'],
-            'verification' => ['owner' => 'agent-loop', 'state' => 'blocked', 'gate' => 'recall_outcomes', 'action' => 'docker compose run --rm project-check "quoted value"'],
+            'verification' => [
+                'owner' => 'agent-loop',
+                'state' => 'blocked',
+                'gate' => 'recall_outcomes',
+                'action' => 'docker compose run --rm project-check "quoted value"',
+            ],
             'review' => ['owner' => 'agent-recall-compiler', 'state' => 'ok'],
             'learning' => ['owner' => 'agent-learning', 'state' => 'decided'],
         ];
@@ -96,8 +115,15 @@ final class RunPolicyRecoveryConvergenceTest extends TestCase
             'recall' => ['owner' => 'agent-recall-compiler', 'state' => 'compiled'],
             'execution_contract' => ['owner' => 'agent-loop', 'state' => 'not_required'],
             'verification' => [
-                'owner' => 'agent-loop', 'state' => 'blocked', 'gate' => 'recall_outcomes', 'action' => 'agent-loop repair RECOVERY-464',
-                'action_invocation' => ['executable' => 'agent-loop', 'arguments' => ['repair', 'RECOVERY-464'], 'template' => false],
+                'owner' => 'agent-loop',
+                'state' => 'blocked',
+                'gate' => 'recall_outcomes',
+                'action' => 'agent-loop repair RECOVERY-464',
+                'action_invocation' => [
+                    'executable' => 'agent-loop',
+                    'arguments' => ['repair', 'RECOVERY-464'],
+                    'template' => false,
+                ],
             ],
             'review' => ['owner' => 'agent-recall-compiler', 'state' => 'ok'],
             'learning' => ['owner' => 'agent-learning', 'state' => 'decided'],
