@@ -1,0 +1,36 @@
+{
+    "id": "proposal.2026-09-20.cbcf82",
+    "created_at": "2026-09-20T17:33:40+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-09-19.95209d"
+    ],
+    "reason": "A release gate failed on a valid large changelog because an early-exiting predicate closed git show under Bash pipefail. The fix is present and regression-tested, and the lesson generalizes to shell validation pipelines that consume potentially large producer output.",
+    "remaining_uncertainty": [],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Shell validation under pipefail",
+    "scope": [
+        ".github/workflows/release-tag.yml",
+        "tests/ReleaseTagWorkflowTest.php",
+        "CHANGELOG.md"
+    ],
+    "old": null,
+    "new": "Under Bash pipefail, validate potentially large producer output by capturing it before matching, not by piping it into an early-exiting predicate; retain the exact-content check.",
+    "boundary": "Applies to shell validation where a producer may emit more data after a match. It does not prohibit bounded pipelines whose producer cannot receive SIGPIPE or ordinary streaming transformations that intentionally consume all input.",
+    "validation": [
+        "vendor/bin/phpunit --filter ReleaseTagWorkflowTest",
+        "composer ci"
+    ],
+    "scope_justification": "A release gate failed on a valid large changelog because an early-exiting predicate closed git show under Bash pipefail. The fix is present and regression-tested, and the lesson generalizes to shell validation pipelines that consume potentially large producer output.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "shell.pipefail.capture.before.predicate",
+    "validation_case": {
+        "given": "a Bash script running with pipefail that checks content emitted by a potentially large command",
+        "when": "the check pipes the producer into a predicate that exits immediately after a match",
+        "then": "the check can fail on producer SIGPIPE even though the required content exists, so the producer output is captured and inspected without that early-exit pipeline"
+    }
+}

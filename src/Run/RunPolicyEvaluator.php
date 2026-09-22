@@ -211,6 +211,7 @@ final readonly class RunPolicyEvaluator
                 ];
             }
         }
+
         return $step;
     }
 
@@ -241,7 +242,9 @@ final readonly class RunPolicyEvaluator
         if ($typedInvocation !== null) {
             return [
                 'action' => $action,
-                'kind' => $typedInvocation->template ? RunPolicyEvaluation::KIND_COMMAND_TEMPLATE : RunPolicyEvaluation::KIND_COMMAND,
+                'kind' => $typedInvocation->template
+                    ? RunPolicyEvaluation::KIND_COMMAND_TEMPLATE
+                    : RunPolicyEvaluation::KIND_COMMAND,
                 'invocation' => $typedInvocation,
             ];
         }
@@ -266,6 +269,7 @@ final readonly class RunPolicyEvaluator
         if (!is_array($value)) {
             return null;
         }
+
         $executable = $value['executable'] ?? null;
         $arguments = $value['arguments'] ?? null;
         $template = $value['template'] ?? null;
@@ -317,7 +321,11 @@ final readonly class RunPolicyEvaluator
                 : $this->command('agent-loop', ['workflow', 'status', $taskId, '--format=json']);
         }
         if ($this->referenceState($references, 'contract') === 'missing') {
-            return $this->command('agent-loop', ['workflow', 'plan', $taskId, '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'], true);
+            return $this->command(
+                'agent-loop',
+                ['workflow', 'plan', $taskId, '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'],
+                true,
+            );
         }
         if ($this->referenceState($references, 'contract') !== 'approved') {
             $repair = $references['approval']['repair_action'] ?? null;
@@ -325,7 +333,12 @@ final readonly class RunPolicyEvaluator
                 return $this->classifyAction($repair, $references['approval']['repair_invocation'] ?? null);
             }
 
-            return $this->command('agent-loop', ['workflow', 'approve', $taskId, '--by', '<named-actor>'], true, RunPolicyEvaluation::KIND_DECISION_REQUIRED);
+            return $this->command(
+                'agent-loop',
+                ['workflow', 'approve', $taskId, '--by', '<named-actor>'],
+                true,
+                RunPolicyEvaluation::KIND_DECISION_REQUIRED,
+            );
         }
         if ($this->referenceState($references, 'approval') !== 'current') {
             return $this->command('agent-loop', ['workflow', 'status', $taskId, '--format=json']);
@@ -342,13 +355,25 @@ final readonly class RunPolicyEvaluator
             return $this->command('agent-loop', ['enter', $taskId]);
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['missing', 'pending_recall'], true)) {
-            return $this->command('agent-loop', ['workflow', 'contract', $taskId, '--status', 'ready', '--from', '<l1.md>', '--by', '<actor>'], true);
+            return $this->command(
+                'agent-loop',
+                ['workflow', 'contract', $taskId, '--status', 'ready', '--from', '<l1.md>', '--by', '<actor>'],
+                true,
+            );
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['invalid', 'stale'], true)) {
-            return $this->command('agent-loop', ['workflow', 'contract', $taskId, '--status', 'ready', '--from', '<l1.md>', '--by', '<actor>'], true);
+            return $this->command(
+                'agent-loop',
+                ['workflow', 'contract', $taskId, '--status', 'ready', '--from', '<l1.md>', '--by', '<actor>'],
+                true,
+            );
         }
         if (in_array($this->referenceState($references, 'execution_contract'), ['blocked', 'rejected'], true)) {
-            return ['action' => $this->stoppedExecutionContractDecision($taskId, $references), 'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED, 'invocation' => null];
+            return [
+                'action' => $this->stoppedExecutionContractDecision($taskId, $references),
+                'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED,
+                'invocation' => null,
+            ];
         }
 
         $reviewState = $this->referenceState($references, 'review');
@@ -360,7 +385,11 @@ final readonly class RunPolicyEvaluator
 
             return $digest === null
                 ? $this->command('agent-loop', ['workflow', 'manifest', $taskId, '--format=json'])
-                : $this->command('agent-loop', ['finish', $taskId, '--reviewed-report-sha256', $digest, '--by', '<actor>'], true);
+                : $this->command(
+                    'agent-loop',
+                    ['finish', $taskId, '--reviewed-report-sha256', $digest, '--by', '<actor>'],
+                    true,
+                );
         }
         if ($reviewState === 'fail') {
             return $this->command('agent-loop', ['review', 'blindspots', $taskId]);
@@ -371,7 +400,11 @@ final readonly class RunPolicyEvaluator
         ) {
             $draft = $references['verification']['recall_outcome_draft'] ?? null;
             if (is_string($draft) && $draft !== '') {
-                return $this->command('agent-loop', ['finish', $taskId, '--recall-outcome-draft', $draft, '--by', '<actor>', '--commit', '<commit>'], true);
+                return $this->command(
+                    'agent-loop',
+                    ['finish', $taskId, '--recall-outcome-draft', $draft, '--by', '<actor>', '--commit', '<commit>'],
+                    true,
+                );
             }
             $action = $this->referenceAction($references, 'verification');
 
@@ -380,7 +413,25 @@ final readonly class RunPolicyEvaluator
                 : $this->classifyAction($action, $references['verification']['action_invocation'] ?? null);
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
-            return $this->command('agent-loop', ['finish', $taskId, '--learning', '<no_durable_learning|findings_recorded|follow_up_required>', '--learning-reason', '<learning-reason>', '--by', '<actor>', '[--finding', '<finding-id>', '...]', '[--follow-up-ref', '<follow-up-ref>]'], true);
+            return $this->command(
+                'agent-loop',
+                [
+                    'finish',
+                    $taskId,
+                    '--learning',
+                    '<no_durable_learning|findings_recorded|follow_up_required>',
+                    '--learning-reason',
+                    '<learning-reason>',
+                    '--by',
+                    '<actor>',
+                    '[--finding',
+                    '<finding-id>',
+                    '...]',
+                    '[--follow-up-ref',
+                    '<follow-up-ref>]',
+                ],
+                true,
+            );
         }
         if ($this->referenceState($references, 'verification') === 'blocked') {
             $action = $this->referenceAction($references, 'verification');
@@ -399,8 +450,12 @@ final readonly class RunPolicyEvaluator
 
             foreach ($disagreements as $disagreement) {
                 if ($disagreement['code'] === 'board.active_after_run_complete') {
-                    return ['action' => 'reconcile the ' . $disagreement['owner'] . ' task card this completed Run depends on ('
-                        . $disagreement['code'] . '): ' . $disagreement['message'], 'kind' => RunPolicyEvaluation::KIND_HOST_WORK, 'invocation' => null];
+                    return [
+                        'action' => 'reconcile the ' . $disagreement['owner'] . ' task card this completed Run depends on ('
+                            . $disagreement['code'] . '): ' . $disagreement['message'],
+                        'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+                        'invocation' => null,
+                    ];
                 }
             }
 

@@ -21,7 +21,7 @@
         },
         {
             "type": "runtime_observation",
-            "summary": "IT-Portal reproduction: RegionConst.php expected byte 1329 but the token sat at 1221, a shift of -108 from the deleted TODO docblock; AccountingConstants.php expected 3062 and 3185 but the tokens sat at 2967 and 3090, a shift of -95. All three bundles exited 2."
+            "summary": "Downstream consumer reproduction: RegionConst.php expected byte 1329 but the token sat at 1221, a shift of -108 from the deleted TODO docblock; AccountingConstants.php expected 3062 and 3185 but the tokens sat at 2967 and 3090, a shift of -95. All three bundles exited 2."
         },
         {
             "type": "test_result",

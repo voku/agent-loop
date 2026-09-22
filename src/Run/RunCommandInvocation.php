@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Run;
 
-/** Owner-produced executable identity and argv projection for a Loop action. */
+use InvalidArgumentException;
+
 final readonly class RunCommandInvocation
 {
     /**
@@ -17,11 +18,17 @@ final readonly class RunCommandInvocation
         public bool $template = false,
     ) {
         if (trim($executable) === '') {
-            throw new \InvalidArgumentException('Run command executable must not be empty.');
+            throw new InvalidArgumentException('Run command invocation requires a non-empty executable.');
         }
     }
 
-    /** @return array{executable: non-empty-string, arguments: list<string>, template: bool} */
+    /**
+     * @return array{
+     *     executable: non-empty-string,
+     *     arguments: list<string>,
+     *     template: bool
+     * }
+     */
     public function toArray(): array
     {
         return [

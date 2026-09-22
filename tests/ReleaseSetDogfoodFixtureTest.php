@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Dogfood\ComposerPathRepository;
 use voku\AgentLoop\Init\InitConfigLoader;
 
 final class ReleaseSetDogfoodFixtureTest extends TestCase
@@ -31,6 +33,7 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         $files = [
             $repositoryRoot . '/tools/agent-discipline-dogfood.php',
             $repositoryRoot . '/tools/release-set-dogfood.php',
+            $repositoryRoot . '/tools/Dogfood/ComposerPathRepository.php',
         ];
         foreach (new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(
@@ -88,6 +91,26 @@ final class ReleaseSetDogfoodFixtureTest extends TestCase
         );
         self::assertSame(1, $secondExit);
         self::assertStringContainsString('exactly once', $secondStderr);
+    }
+
+    public function testComposerPathRepositoryResolvesRelativePathsAgainstTheCurrentRepository(): void
+    {
+        $relativePath = 'tests/fixtures/release-set-consumer';
+        $expected = realpath($relativePath);
+
+        self::assertIsString($expected);
+        self::assertSame(
+            str_replace('\\', '/', $expected),
+            ComposerPathRepository::url($relativePath),
+        );
+    }
+
+    public function testComposerPathRepositoryRejectsMissingPaths(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Composer path repository does not exist');
+
+        ComposerPathRepository::url($this->temporaryRoot . '/missing');
     }
 
     /**

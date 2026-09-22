@@ -1,0 +1,37 @@
+{
+    "id": "proposal.2026-09-20.02e8eb",
+    "created_at": "2026-09-20T17:34:34+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-09-13.df7c73"
+    ],
+    "reason": "The deterministic PHPStan gate failed on Linux because ProcessRunner chose the Windows Composer .bat wrapper before the executable binary. The owner-side fix is validated, and this is a repeatable host-boundary lesson that belongs in a LearningNote rather than a new active constraint.",
+    "remaining_uncertainty": [
+        "The source Finding also mentions linked-worktree hook behavior; that is a separate filesystem/configuration boundary and is intentionally not folded into this proposal."
+    ],
+    "status": "candidate",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Host-appropriate executable selection",
+    "scope": [
+        "tools/Dogfood/ProcessRunner.php",
+        "tests/ProcessRunnerTest.php"
+    ],
+    "old": null,
+    "new": "When invoking a Composer-provided executable through proc_open, select the host-appropriate extensionless wrapper before Windows .bat files; a file that exists is not necessarily executable on the current host.",
+    "boundary": "Applies to host-side process selection for Composer binaries. It does not change provider-specific command discovery or validate arbitrary third-party executables beyond the selected host wrapper.",
+    "validation": [
+        "vendor/bin/phpunit --filter ProcessRunnerTest",
+        "composer ci"
+    ],
+    "scope_justification": "The deterministic PHPStan gate failed on Linux because ProcessRunner chose the Windows Composer .bat wrapper before the executable binary. The owner-side fix is validated, and this is a repeatable host-boundary lesson that belongs in a LearningNote rather than a new active constraint.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "process.runner.selects.host.wrapper",
+    "validation_case": {
+        "given": "a Composer bin directory containing both an extensionless executable and a Windows .bat wrapper",
+        "when": "a Linux process runner selects the first existing candidate without checking host compatibility",
+        "then": "proc_open can fail with Exec format error, so the runner selects the host-appropriate executable before invoking it"
+    }
+}

@@ -175,6 +175,8 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
 
         self::assertContains('agent-learning-consumer', $plannedEntries);
         self::assertContains('agent-recall-consumer', $plannedEntries);
+        self::assertContains('agent-loop-workflow', $plannedEntries);
+        self::assertContains('agent-loop-discipline', $plannedEntries);
         self::assertContains('AGENTS.md', $plannedEntries);
         self::assertNotContains('agent-learning-maintainer', $plannedEntries);
         self::assertNotContains('agent-session-maintainer', $plannedEntries);
@@ -186,6 +188,8 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         // Verify installed files on disk
         self::assertFileExists($this->root . '/.codex/skills/agent-learning-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-workflow/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-learning-maintainer/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-session-maintainer/SKILL.md');
 
@@ -212,6 +216,8 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
 
         self::assertContains('agent-learning-consumer', $uninstalledEntries);
         self::assertContains('agent-recall-consumer', $uninstalledEntries);
+        self::assertContains('agent-loop-workflow', $uninstalledEntries);
+        self::assertContains('agent-loop-discipline', $uninstalledEntries);
         self::assertContains('AGENTS.md', $uninstalledEntries);
 
         // 4. Apply Uninstall
@@ -221,6 +227,8 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         // Verify skills removed
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-learning-consumer/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-workflow/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
 
         // Verify AGENTS.md retained project-owned content and removed managed block
         $agentsAfterUninstall = (string) file_get_contents($this->root . '/AGENTS.md');

@@ -7,11 +7,11 @@
     "scope": [
         "resources/skills/agent-guidance-maintenance/SKILL.md"
     ],
-    "observation": "The real IT-Portal consumer declares package_skills=false and reports 39 project skills with zero package skills.",
+    "observation": "The real downstream consumer declares package_skills=false and reports 39 project skills with zero package skills.",
     "evidence": [
         {
             "type": "manual_verification",
-            "summary": "IT-Portal host-status and sync-skills dry-run observed on 2026-09-15."
+            "summary": "Downstream consumer host-status and sync-skills dry-run observed on 2026-09-15."
         }
     ],
     "hypothesis": "Installing package assets into that configured root would create competing guidance owners.",

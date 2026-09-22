@@ -1,0 +1,44 @@
+{
+  "generated_files": [
+    "src/Run/RunPolicyEvaluator.php",
+    "src/Run/RunManifestProjector.php",
+    "tools/release-set-dogfood.php",
+    "tools/Dogfood/ComposerPathRepository.php",
+    "tests/ReleaseSetDogfoodFixtureTest.php",
+    ".github/workflows/f-gate-recovery-evidence.yml"
+  ],
+  "registration_file": ".github/workflows/f-gate-recovery-evidence.yml",
+  "commit": "working-tree",
+  "tests": [
+    {
+      "command": "bin/agent-loop learn proposal-validate .agent-loop/learning/proposals/approved/proposal.2026-08-20.c2a001.json",
+      "result": "passed"
+    },
+    {
+      "command": "vendor/bin/phpunit --filter ReleaseSetDogfoodFixtureTest",
+      "result": "passed",
+      "tests": 5,
+      "assertions": 21
+    },
+    {
+      "command": "composer phpstan",
+      "result": "passed"
+    },
+    {
+      "command": "php tools/release-set-dogfood.php --workspace=build/constraint-recovery --report=build/constraint-recovery/report.json --keep",
+      "result": "passed"
+    }
+  ],
+  "validation_result": {
+    "result": "passed",
+    "summary": "Recovery-convergence enforcement and its release-set proof passed after absolute path resolution and symlink-aware recovery cleanup were added."
+  },
+  "content_hashes": {
+    "src/Run/RunPolicyEvaluator.php": "sha256:1319b0e8d6f1f66934f4b61a77306d457e80bc193c7e7bead61b99868febc716",
+    "src/Run/RunManifestProjector.php": "sha256:62812c7c40b6d451df9fc9007e3e38ad12967ebf07203911bffc5469def7ec67",
+    "tools/release-set-dogfood.php": "sha256:f1e22de32b45f845b771eb94eb1275e79f7aab621ee7d8920d6fbb608b15edf5",
+    "tools/Dogfood/ComposerPathRepository.php": "sha256:2e17d19e311f41134214ac0702c980498763e088dfae6ef426e5557face4b0e0",
+    "tests/ReleaseSetDogfoodFixtureTest.php": "sha256:5cbc1b31b4f17690ea9f64b14bbe502d729398d51565c2b77a8093885bbc583e",
+    ".github/workflows/f-gate-recovery-evidence.yml": "sha256:539187cb38c3c6754ba29a6fed38f25d119524d8d32052dad890931a451a6d34"
+  }
+}
