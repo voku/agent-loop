@@ -42,4 +42,18 @@ final class MemoryLimitTest extends TestCase
         self::assertFalse(MemoryLimit::shouldRaise('-1'), 'unlimited must stay unlimited');
         self::assertFalse(MemoryLimit::shouldRaise('nonsense'), 'an unparseable value is not evidence that a change is safe');
     }
+
+    public function testRaiseIfNeededRaisesTheCurrentProcessBeforeFrontDoorWork(): void
+    {
+        $original = (string) ini_get('memory_limit');
+
+        try {
+            ini_set('memory_limit', '128M');
+            MemoryLimit::raiseIfNeeded();
+
+            self::assertSame('512M', ini_get('memory_limit'));
+        } finally {
+            ini_set('memory_limit', $original);
+        }
+    }
 }

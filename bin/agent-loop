@@ -31,6 +31,8 @@ if (!class_exists(Dispatcher::class)) {
     exit(1);
 }
 
+\voku\AgentLoop\MemoryLimit::raiseIfNeeded();
+
 $frontDoor = $argv[1] ?? null;
 if (in_array($frontDoor, ['enter', 'finish', 'quick', 'repair', 'pipeline'], true)) {
     exit((new HostFrontDoorApplication(getcwd()))->run($frontDoor, array_slice($argv, 2)));
