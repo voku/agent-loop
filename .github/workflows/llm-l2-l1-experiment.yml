@@ -42,15 +42,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -r '
-            require "vendor/autoload.php";
-            $version = Composer\InstalledVersions::getPrettyVersion("voku/agent-recall-compiler");
-            if ($version !== "0.23.0") {
-                fwrite(STDERR, "Expected released voku/agent-recall-compiler 0.23.0; got " . var_export($version, true) . PHP_EOL);
-                exit(1);
-            }
-            echo "voku/agent-recall-compiler=", $version, PHP_EOL;
-          '
+          installed="$(composer show voku/agent-recall-compiler --format=json | php -r '$data=json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $data["versions"][0] ?? "";')"
+          echo "installed_recall=${installed}"
+          if [ "${installed}" != "0.23.0" ]; then
+            echo 'Composer solver explanation for rejected 0.23.0:' >&2
+            composer why-not voku/agent-recall-compiler 0.23.0 || true
+            echo 'Available Recall versions:' >&2
+            composer show voku/agent-recall-compiler --all --format=json               | php -r '$data=json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); fwrite(STDERR, implode(",", array_slice($data["versions"] ?? [], 0, 20)) . PHP_EOL);'
+            echo "Expected released voku/agent-recall-compiler 0.23.0; got ${installed}" >&2
+            exit 1
+          fi
 
       - name: Lint experiment runner
         run: php -l tools/llm-l1-experiment.php
