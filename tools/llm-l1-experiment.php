@@ -70,7 +70,7 @@ final readonly class ExternalL1HandoffExperiment
             'bin/agent-loop',
             'map',
             'build',
-            '--paths=src',
+            '--paths=src,tests',
         ], $this->worktree);
 
         $this->runCommand([
