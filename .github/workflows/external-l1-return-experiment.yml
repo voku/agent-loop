@@ -1,0 +1,172 @@
+name: External L1 return experiment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bind-returned-l1:
+    if: >-
+      github.event.issue.pull_request
+      && github.event.comment.user.login == github.repository_owner
+      && startsWith(github.event.comment.body, 'AGENT_LOOP_EXTERNAL_L1_RETURN ')
+    name: Restore handoff and bind returned L1
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RETURN_DIR: /tmp/agent-loop-external-l1-return-${{ github.run_id }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Parse owner-returned L1
+        run: >-
+          php tools/external-l1-return-experiment.php parse-comment
+          --event="${GITHUB_EVENT_PATH}"
+          --output-dir="${RETURN_DIR}"
+
+      - name: Read handoff identity
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(jq -r '.run_id' "${RETURN_DIR}/return.json")"
+          run_attempt="$(jq -r '.run_attempt' "${RETURN_DIR}/return.json")"
+          artifact_name="$(jq -r '.artifact_name' "${RETURN_DIR}/return.json")"
+
+          printf 'run_id=%s\n' "${run_id}" >> "${GITHUB_OUTPUT}"
+          printf 'run_attempt=%s\n' "${run_attempt}" >> "${GITHUB_OUTPUT}"
+          printf 'artifact_name=%s\n' "${artifact_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download exact prepared handoff
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RETURN_DIR}/handoff"
+          gh run download "${{ steps.handoff.outputs.run_id }}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "${{ steps.handoff.outputs.artifact_name }}" \
+            --dir "${RETURN_DIR}/handoff"
+
+      - name: Verify handoff identity and restore exact base
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="${RETURN_DIR}/handoff/handoff.json"
+          prepared="${RETURN_DIR}/handoff/prepared-state.tar.gz"
+          run_id="${{ steps.handoff.outputs.run_id }}"
+          run_attempt="${{ steps.handoff.outputs.run_attempt }}"
+          artifact_name="${{ steps.handoff.outputs.artifact_name }}"
+
+          jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg run_id "${run_id}" \
+            --arg run_attempt "${run_attempt}" \
+            --arg artifact_name "${artifact_name}" '
+              (.schema_version == "1.0")
+              and (.kind == "external_l1_construction_handoff")
+              and (.repository == $repository)
+              and (.github.run_id == $run_id)
+              and (.github.run_attempt == $run_attempt)
+              and (.github.artifact_name == $artifact_name)
+              and (.state.next_action_kind == "command_template")
+              and (.state.execution_contract_state == "missing")
+              and (.state.mutation_allowed == false)
+              and (.output_contract.artifact_name == "l1.md")
+              and (.output_contract.reasoning_host_must_not_implement == true)
+              and (.resume.requires_prepared_state == true)
+            ' "${handoff}" >/dev/null
+
+          expected_prepared_sha="$(jq -r '.resume.prepared_state_sha256' "${handoff}")"
+          actual_prepared_sha="sha256:$(sha256sum "${prepared}" | awk '{print $1}')"
+          test "${actual_prepared_sha}" = "${expected_prepared_sha}"
+
+          base_commit="$(jq -r '.base_commit' "${handoff}")"
+          [[ "${base_commit}" =~ ^[a-f0-9]{40}$ ]]
+
+          git cat-file -e "${base_commit}^{commit}" 2>/dev/null || git fetch --no-tags origin "${base_commit}"
+          git checkout --detach "${base_commit}"
+          test "$(git rev-parse HEAD)" = "${base_commit}"
+
+          rm -rf .agent-loop
+          tar -xzf "${prepared}" -C .
+          test -d .agent-loop
+
+          printf '%s\n' "${base_commit}" > "${RETURN_DIR}/base-commit.txt"
+
+      - name: Install dependencies at the bound base
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Bind returned L1 through the owner contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="${RETURN_DIR}/handoff/handoff.json"
+          task_id="$(jq -r '.task_id' "${handoff}")"
+
+          php bin/agent-loop workflow contract "${task_id}" \
+            --status ready \
+            --from "${RETURN_DIR}/l1.md" \
+            --by external-l1-constructor
+
+          php bin/agent-loop workflow status "${task_id}" --format=json \
+            > "${RETURN_DIR}/status-after-l1.json"
+
+          jq -e '
+            (.manifest.references.execution_contract.state == "ready")
+            and (.policy.mutation_allowed == true)
+          ' "${RETURN_DIR}/status-after-l1.json" >/dev/null
+
+          l1_sha="sha256:$(sha256sum "${RETURN_DIR}/l1.md" | awk '{print $1}')"
+          expected_l1_sha="$(jq -r '.l1_sha256' "${RETURN_DIR}/return.json")"
+          test "${l1_sha}" = "${expected_l1_sha}"
+
+          jq -n \
+            --arg task_id "${task_id}" \
+            --arg handoff_run_id "${{ steps.handoff.outputs.run_id }}" \
+            --arg handoff_run_attempt "${{ steps.handoff.outputs.run_attempt }}" \
+            --arg base_commit "$(cat "${RETURN_DIR}/base-commit.txt")" \
+            --arg l1_sha256 "${l1_sha}" \
+            --argjson comment_id "$(jq '.comment_id' "${RETURN_DIR}/return.json")" '{
+              schema_version: "1.0",
+              kind: "external_l1_return_proof",
+              task_id: $task_id,
+              handoff_run_id: $handoff_run_id,
+              handoff_run_attempt: $handoff_run_attempt,
+              source_comment_id: $comment_id,
+              base_commit: $base_commit,
+              l1_sha256: $l1_sha256,
+              execution_contract_state: "ready",
+              mutation_allowed: true,
+              result: "passed"
+            }' > "${RETURN_DIR}/proof.json"
+
+      - name: Upload return proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-l1-return-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ env.RETURN_DIR }}/return.json
+            ${{ env.RETURN_DIR }}/l1.md
+            ${{ env.RETURN_DIR }}/handoff/handoff.json
+            ${{ env.RETURN_DIR }}/handoff/prepared-state.sha256
+            ${{ env.RETURN_DIR }}/status-after-l1.json
+            ${{ env.RETURN_DIR }}/proof.json
