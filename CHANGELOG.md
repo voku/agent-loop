@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.34 - 2026-09-22
+
+### Fixed
+
+- Resolve shipped Claude and Codex hook commands from the repository root so
+  hooks continue to work when the host invokes them outside that root.
+- Keep the discipline dogfood aligned with both supported shipped hook command
+  forms.
+
 ## 0.20.33 - 2026-09-22
 
 ### Added
