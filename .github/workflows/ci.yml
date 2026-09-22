@@ -192,6 +192,7 @@ jobs:
         run: |
           jq -e '
             .recovery_convergence as $recovery
+            | ($recovery | map(select(.scenario == "recovery.recall-meta-invalid"))) as $recall_meta
             | ($recovery | length == 6)
               and (($recovery | map(.scenario)) == [
                     "recovery.absent-discovery",
@@ -209,6 +210,11 @@ jobs:
                     "command", "decision_required", "host_work"
                   ])
               and ($recovery | all(.action | length > 0))
+              and ($recall_meta | length == 1)
+              and ($recall_meta[0].kind == "host_work")
+              and ($recall_meta[0].action | contains("agent-recall-compiler"))
+              and ($recall_meta[0].action | contains(".agent-loop/recall/REC-3/meta.json"))
+              and (($recall_meta[0].action | contains("workflow manifest")) | not)
           ' build/release-set-report.json >/dev/null
       - name: Verify emitted release-set root authority
         shell: bash
