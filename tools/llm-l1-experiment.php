@@ -237,6 +237,7 @@ final readonly class ExternalL1HandoffExperiment
     ): string {
         $repository = getenv('GITHUB_REPOSITORY') ?: 'voku/agent-loop';
         $runId = getenv('GITHUB_RUN_ID') ?: 'unknown';
+        $task = self::TASK;
 
         return <<<MD
 # External L1 construction handoff
@@ -246,7 +247,7 @@ You are the external reasoning host at the intentional L2 -> L1 boundary of a go
 Repository: {$repository}
 Base commit: {$baseCommit}
 GitHub Actions run: {$runId}
-Task: {$this::TASK}
+Task: {$task}
 
 The deterministic workflow has already planned, approved, entered, and compiled Recall. Mutation is intentionally blocked because the L2 task still requires a concrete L1 execution contract.
 
