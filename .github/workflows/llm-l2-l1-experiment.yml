@@ -1,0 +1,161 @@
+name: LLM L2 to L1 experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      constructor_model:
+        description: Model that turns Recall L2 into the concrete L1 execution contract
+        required: true
+        default: gpt-5.4
+        type: string
+      executor_model:
+        description: Fresh model that executes only the persisted L1
+        required: true
+        default: gpt-5.4
+        type: string
+
+permissions:
+  contents: read
+  copilot-requests: write
+
+jobs:
+  l2-l1-experiment:
+    name: Real LLM L2 -> L1 -> execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPERIMENT_WORKTREE: ${{ runner.temp }}/agent-loop-llm-l1-experiment
+      EXPERIMENT_EVIDENCE: build/llm-l1-experiment
+      OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
+      LLM_CONSTRUCTOR_MODEL: ${{ inputs.constructor_model }}
+      LLM_EXECUTOR_MODEL: ${{ inputs.executor_model }}
+      COPILOT_AUTO_UPDATE: "false"
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install repository dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Install Copilot CLI
+        run: npm install --global @github/copilot
+
+      - name: Record Copilot CLI version
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${EXPERIMENT_EVIDENCE}"
+          copilot --version | tee "${EXPERIMENT_EVIDENCE}/copilot-version.txt"
+          {
+            echo "COPILOT_VERSION<<EOF"
+            copilot --version
+            echo "EOF"
+          } >> "${GITHUB_ENV}"
+
+      - name: Prepare a real governed L2 task
+        run: >-
+          php tools/llm-l1-experiment.php prepare
+          --worktree="${EXPERIMENT_WORKTREE}"
+          --evidence-dir="${EXPERIMENT_EVIDENCE}"
+          --manifest="${OPERATING_PROMPT_MANIFEST}"
+
+      - name: Let a real model construct L1 from the compiled L2
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          constructor_dir="${RUNNER_TEMP}/l1-constructor"
+          rm -rf "${constructor_dir}"
+          mkdir -p "${constructor_dir}"
+          cd "${constructor_dir}"
+
+          copilot \
+            -p "$(cat "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/constructor-prompt.md")" \
+            -s \
+            --no-ask-user \
+            --model "${LLM_CONSTRUCTOR_MODEL}" \
+            > "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/l1.md"
+
+          test -s "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/l1.md"
+
+      - name: Bind the model-produced L1 through the real execution-contract owner
+        run: >-
+          php tools/llm-l1-experiment.php bind
+          --worktree="${EXPERIMENT_WORKTREE}"
+          --evidence-dir="${EXPERIMENT_EVIDENCE}"
+          --manifest="${OPERATING_PROMPT_MANIFEST}"
+
+      - name: Let a fresh model execute only the persisted L1
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd "${EXPERIMENT_WORKTREE}"
+
+          copilot \
+            -p "$(cat "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/executor-prompt.md")" \
+            -s \
+            --no-ask-user \
+            --model "${LLM_EXECUTOR_MODEL}" \
+            --available-tools='read,write' \
+            --allow-tool=read \
+            --allow-tool='write(tests/fixtures/self-shape/SelfEditProbe.php)' \
+            > "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/executor-response.txt"
+
+      - name: Deterministically verify the model execution
+        run: >-
+          php tools/llm-l1-experiment.php verify
+          --worktree="${EXPERIMENT_WORKTREE}"
+          --evidence-dir="${EXPERIMENT_EVIDENCE}"
+          --manifest="${OPERATING_PROMPT_MANIFEST}"
+
+      - name: Publish experiment summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## LLM L2 -> L1 experiment"
+            echo
+            echo "Constructor model: ${LLM_CONSTRUCTOR_MODEL}"
+            echo "Executor model: ${LLM_EXECUTOR_MODEL}"
+            if [ -f "${EXPERIMENT_EVIDENCE}/report.json" ]; then
+              echo "Result: $(jq -r '.result' "${EXPERIMENT_EVIDENCE}/report.json")"
+              echo "Changed paths: $(jq -r '.changed_paths | join(", ")' "${EXPERIMENT_EVIDENCE}/report.json")"
+              echo "L1 SHA-256: $(jq -r '.l1_sha256' "${EXPERIMENT_EVIDENCE}/report.json")"
+            else
+              echo "Result: incomplete_or_failed"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload experimental evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-l2-l1-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: build/llm-l1-experiment
+
+      - name: Remove experiment worktree
+        if: always()
+        run: >-
+          php tools/llm-l1-experiment.php cleanup
+          --worktree="${EXPERIMENT_WORKTREE}"
+          --evidence-dir="${EXPERIMENT_EVIDENCE}"
+          --manifest="${OPERATING_PROMPT_MANIFEST}"
