@@ -43,8 +43,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -C "${EXPERIMENT_WORKTREE}"             -czf "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/prepared-state.tar.gz"             .agent-loop
-          sha256sum "${EXPERIMENT_EVIDENCE}/prepared-state.tar.gz"             > "${EXPERIMENT_EVIDENCE}/prepared-state.sha256"
+          tar -C "${EXPERIMENT_WORKTREE}" \
+            -czf "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/prepared-state.tar.gz" \
+            .agent-loop
+
+          archive_sha="$(sha256sum "${EXPERIMENT_EVIDENCE}/prepared-state.tar.gz" | awk '{print $1}')"
+          printf 'sha256:%s  prepared-state.tar.gz\n' "${archive_sha}" \
+            > "${EXPERIMENT_EVIDENCE}/prepared-state.sha256"
+
+          jq --arg sha "sha256:${archive_sha}" \
+            '.resume.prepared_state_sha256 = $sha' \
+            "${EXPERIMENT_EVIDENCE}/handoff.json" \
+            > "${EXPERIMENT_EVIDENCE}/handoff.json.tmp"
+          mv "${EXPERIMENT_EVIDENCE}/handoff.json.tmp" "${EXPERIMENT_EVIDENCE}/handoff.json"
 
       - name: Publish the handoff prompt
         shell: bash
