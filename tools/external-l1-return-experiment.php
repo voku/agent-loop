@@ -152,7 +152,7 @@ final readonly class ExternalL1ReturnExperiment
 }
 
 /** @return non-empty-string */
-function requiredOption(array $argv, string $name): string
+function externalL1ReturnRequiredOption(array $argv, string $name): string
 {
     $prefix = '--' . $name . '=';
     foreach ($argv as $token) {
@@ -175,8 +175,8 @@ try {
         );
     }
 
-    $event = requiredOption($argv, 'event');
-    $outputDirectory = requiredOption($argv, 'output-dir');
+    $event = externalL1ReturnRequiredOption($argv, 'event');
+    $outputDirectory = externalL1ReturnRequiredOption($argv, 'output-dir');
 
     exit((new ExternalL1ReturnExperiment())->parseComment($event, $outputDirectory));
 } catch (Throwable $throwable) {

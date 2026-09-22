@@ -123,7 +123,7 @@ final readonly class ExternalL1ExecutionExperiment
 }
 
 /** @return non-empty-string */
-function requiredOption(array $argv, string $name): string
+function externalL1ExecutionRequiredOption(array $argv, string $name): string
 {
     $prefix = '--' . $name . '=';
     foreach ($argv as $token) {
@@ -146,8 +146,8 @@ try {
         );
     }
 
-    $event = requiredOption($argv, 'event');
-    $outputDirectory = requiredOption($argv, 'output-dir');
+    $event = externalL1ExecutionRequiredOption($argv, 'event');
+    $outputDirectory = externalL1ExecutionRequiredOption($argv, 'output-dir');
 
     exit((new ExternalL1ExecutionExperiment())->parseComment($event, $outputDirectory));
 } catch (Throwable $throwable) {
