@@ -17,12 +17,14 @@ jobs:
     timeout-minutes: 30
     env:
       EXPERIMENT_WORKTREE: /tmp/agent-loop-external-l1-handoff-${{ github.run_id }}
+      EXPERIMENT_BASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       EXPERIMENT_EVIDENCE: build/external-l1-handoff
       OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
 
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPERIMENT_BASE_COMMIT }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -73,11 +75,14 @@ jobs:
           artifact_name="external-l1-handoff-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           jq -e \
+            --arg expected_base_commit "${EXPERIMENT_BASE_COMMIT}" \
             --arg prepared_state_sha "${prepared_state_sha}" \
             --arg run_url "${run_url}" \
             --arg artifact_name "${artifact_name}" '
               (.schema_version == "1.0")
               and (.kind == "external_l1_construction_handoff")
+              and (.base_commit == $expected_base_commit)
+              and (.github.sha == $expected_base_commit)
               and (.github.run_url == $run_url)
               and (.github.artifact_name == $artifact_name)
               and (.state.next_action_kind == "command_template")
