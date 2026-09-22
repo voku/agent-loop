@@ -50,7 +50,7 @@ jobs:
             "${NOTE_ID}" > "${EVIDENCE_DIR}/review-before.json"
 
           jq -e '
-            .id == env.NOTE_ID
+            .note_id == env.NOTE_ID
             and ([.repository_evidence[].state] | length == 2)
             and ([.repository_evidence[].state] | all(. == "current" or . == "review_needed"))
             and ([.repository_evidence[].state] | any(. == "review_needed"))
