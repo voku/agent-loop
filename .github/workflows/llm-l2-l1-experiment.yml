@@ -54,8 +54,8 @@ jobs:
           cp -a .candidate/agent-recall-compiler vendor/voku/agent-recall-compiler
           php -r '
             require "vendor/autoload.php";
-            $file = (new ReflectionClass(voku\\AgentRecallCompiler\\Context\\ContextExplainProjector::class))->getFileName();
-            if (!is_string($file) || !str_contains(str_replace("\\\\", "/", $file), "/vendor/voku/agent-recall-compiler/src/Context/ContextExplainProjector.php")) {
+            $file = (new ReflectionClass(voku\AgentRecallCompiler\Context\ContextExplainProjector::class))->getFileName();
+            if (!is_string($file) || !str_contains(str_replace(DIRECTORY_SEPARATOR, "/", $file), "/vendor/voku/agent-recall-compiler/src/Context/ContextExplainProjector.php")) {
                 fwrite(STDERR, "Unexpected Recall candidate source: " . var_export($file, true) . PHP_EOL);
                 exit(1);
             }
