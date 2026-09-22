@@ -28,6 +28,7 @@ final readonly class RunManifest
         public array $disagreements,
         public string $nextAction,
         public string $nextActionKind = RunPolicyEvaluation::KIND_COMMAND,
+        public ?RunCommandInvocation $nextActionInvocation = null,
     ) {
     }
 
@@ -44,6 +45,7 @@ final readonly class RunManifest
             'disagreements' => $this->disagreements,
             'next_action' => $this->nextAction,
             'next_action_kind' => $this->nextActionKind,
+            'next_action_invocation' => $this->nextActionInvocation?->toArray(),
         ];
     }
 

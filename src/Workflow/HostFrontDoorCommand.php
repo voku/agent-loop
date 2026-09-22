@@ -90,6 +90,7 @@ final readonly class HostFrontDoorCommand
                     'blockers' => [$error],
                     'next_action' => $exception->getMessage(),
                     'next_action_kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+                    'next_action_invocation' => null,
                 ];
                 if ($taskId !== null) {
                     try {
@@ -97,6 +98,7 @@ final readonly class HostFrontDoorCommand
                         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
                         $payload['next_action'] = $policy->nextAction;
                         $payload['next_action_kind'] = $policy->nextActionKind;
+                        $payload['next_action_invocation'] = $policy->nextActionInvocation?->toArray();
                         $payload['manifest'] = $manifest->toArray();
                     } catch (Throwable) {
                         // Projecting manifest failed, keep minimal payload
@@ -215,6 +217,7 @@ final readonly class HostFrontDoorCommand
             'mutation_ready' => $preparationFailure === null && $policy->mutationAllowed,
             'next_action' => $policy->nextAction,
             'next_action_kind' => $policy->nextActionKind,
+            'next_action_invocation' => $policy->nextActionInvocation?->toArray(),
             'warnings' => $warnings,
             'manifest' => $manifest->toArray(),
             'context' => $context,
@@ -485,6 +488,7 @@ final readonly class HostFrontDoorCommand
             'complete' => $complete,
             'next_action' => $policy->nextAction,
             'next_action_kind' => $policy->nextActionKind,
+            'next_action_invocation' => $policy->nextActionInvocation?->toArray(),
             'manifest' => $manifest->toArray(),
         ];
         if ($hookResults !== []) {
@@ -766,6 +770,7 @@ final readonly class HostFrontDoorCommand
             $disagreements,
             $policy->nextAction,
             $policy->nextActionKind,
+            $policy->nextActionInvocation,
         );
     }
 
@@ -1195,6 +1200,7 @@ final readonly class HostFrontDoorCommand
             'mutation_ready' => $policy->mutationAllowed,
             'next_action' => $nextAction,
             'next_action_kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+            'next_action_invocation' => null,
             'warnings' => $warnings,
             'manifest' => $manifest->toArray(),
             'context' => $context,

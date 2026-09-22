@@ -51,7 +51,27 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertFalse($payload['mutation_ready']);
         self::assertSame('legacy_inferred', $payload['manifest']['mode']);
         self::assertStringContainsString('workflow plan ABC-123', $payload['next_action']);
+        self::assertSame([
+            'executable' => 'agent-loop',
+            'arguments' => ['workflow', 'plan', 'ABC-123', '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'],
+            'template' => true,
+        ], $payload['next_action_invocation']);
+        self::assertSame($payload['manifest']['next_action_invocation'], $payload['next_action_invocation']);
         self::assertSame($before, $this->snapshotFiles(), 'enter must not create or modify workflow state.');
+    }
+
+    public function testWorkflowStatusProjectsTypedNextActionInvocationAlongsideLegacyAction(): void
+    {
+        $result = $this->runBinary(['workflow', 'status', 'ABC-123', '--format=json']);
+
+        self::assertSame(0, $result['exit'], $result['stderr']);
+        $payload = $this->json($result['stdout']);
+        self::assertSame([
+            'arguments' => ['workflow', 'plan', 'ABC-123', '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'],
+            'executable' => 'agent-loop',
+            'template' => true,
+        ], $payload['policy']['next_action_invocation']);
+        self::assertSame($payload['policy']['next_action_invocation'], $payload['manifest']['next_action_invocation']);
     }
 
     public function testEnterTextShowsTheFullCandidateGoalBeforeApprovalAction(): void
