@@ -20,12 +20,20 @@ jobs:
       EXPERIMENT_BASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       EXPERIMENT_EVIDENCE: build/external-l1-handoff
       OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
+      RECALL_CANDIDATE_COMMIT: 92a882e75254207f495002d42caf6e39524f27d1
 
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.EXPERIMENT_BASE_COMMIT }}
           fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/checkout@v6
+        with:
+          repository: voku/agent-recall-compiler
+          ref: ${{ env.RECALL_CANDIDATE_COMMIT }}
+          path: .candidate/agent-recall-compiler
           persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
@@ -38,7 +46,23 @@ jobs:
       - name: Install repository dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Verify released Recall package
+      - name: Activate exact Recall candidate source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor/voku/agent-recall-compiler
+          cp -a .candidate/agent-recall-compiler vendor/voku/agent-recall-compiler
+          php -r '
+            require "vendor/autoload.php";
+            $file = (new ReflectionClass(voku\AgentRecallCompiler\RecallPromptBuilder::class))->getFileName();
+            if (!is_string($file) || !str_contains(str_replace(DIRECTORY_SEPARATOR, "/", $file), "/vendor/voku/agent-recall-compiler/src/RecallPromptBuilder.php")) {
+                fwrite(STDERR, "Unexpected Recall candidate source: " . var_export($file, true) . PHP_EOL);
+                exit(1);
+            }
+            echo $file, PHP_EOL;
+          '
+
+      - name: Verify released Recall dependency baseline
         shell: bash
         run: |
           set -euo pipefail
