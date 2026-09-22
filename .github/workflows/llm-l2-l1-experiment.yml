@@ -1,0 +1,91 @@
+name: External L1 handoff experiment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-handoff:
+    name: Prepare deterministic L2 -> external L1 handoff
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPERIMENT_WORKTREE: ${{ runner.temp }}/agent-loop-external-l1-handoff
+      EXPERIMENT_EVIDENCE: build/external-l1-handoff
+      OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Install repository dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Prepare governed task and export the external-reasoning handoff
+        run: >-
+          php tools/llm-l1-experiment.php prepare
+          --worktree="${EXPERIMENT_WORKTREE}"
+          --evidence-dir="${EXPERIMENT_EVIDENCE}"
+          --manifest="${OPERATING_PROMPT_MANIFEST}"
+
+      - name: Archive resumable governed state
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C "${EXPERIMENT_WORKTREE}" \
+            -czf "${GITHUB_WORKSPACE}/${EXPERIMENT_EVIDENCE}/prepared-state.tar.gz" \
+            .agent-loop
+
+          archive_sha="$(sha256sum "${EXPERIMENT_EVIDENCE}/prepared-state.tar.gz" | awk '{print $1}')"
+          printf 'sha256:%s  prepared-state.tar.gz\n' "${archive_sha}" \
+            > "${EXPERIMENT_EVIDENCE}/prepared-state.sha256"
+
+          jq --arg sha "sha256:${archive_sha}" \
+            '.resume.prepared_state_sha256 = $sha' \
+            "${EXPERIMENT_EVIDENCE}/handoff.json" \
+            > "${EXPERIMENT_EVIDENCE}/handoff.json.tmp"
+          mv "${EXPERIMENT_EVIDENCE}/handoff.json.tmp" "${EXPERIMENT_EVIDENCE}/handoff.json"
+
+      - name: Publish the handoff prompt
+        shell: bash
+        run: |
+          {
+            echo "# External L1 construction handoff"
+            echo
+            echo "This run intentionally stops at the L2 -> L1 reasoning boundary."
+            echo
+            echo "Bring this run back to an external reasoning host, for example:"
+            echo
+            echo '> @GitHub pick up the latest External L1 handoff from this run and construct L1.'
+            echo
+            echo "The full self-contained prompt follows."
+            echo
+            cat "${EXPERIMENT_EVIDENCE}/handoff.md"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload handoff evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-l1-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 14
+          path: build/external-l1-handoff
+
+      - name: Remove experiment worktree
+        if: always()
+        run: >-
+          php tools/llm-l1-experiment.php cleanup
+          --worktree="${EXPERIMENT_WORKTREE}"
+          --evidence-dir="${EXPERIMENT_EVIDENCE}"
+          --manifest="${OPERATING_PROMPT_MANIFEST}"
