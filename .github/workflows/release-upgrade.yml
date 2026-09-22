@@ -40,6 +40,7 @@ jobs:
           --to-ref="${TO_REF}"
           --to-branch="${TO_BRANCH}"
           --repository-url="https://github.com/voku/agent-loop"
+          --candidate-root="${GITHUB_WORKSPACE}"
           --report="${GITHUB_WORKSPACE}/build/release-upgrade-report.json"
           --keep
       - name: Verify bounded durability matrix
