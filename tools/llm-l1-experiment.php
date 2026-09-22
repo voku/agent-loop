@@ -182,18 +182,31 @@ final readonly class ExternalL1HandoffExperiment
         );
         $this->writeEvidence('handoff.md', $handoff);
 
+        $repository = getenv('GITHUB_REPOSITORY') ?: 'voku/agent-loop';
+        $runId = getenv('GITHUB_RUN_ID') ?: null;
+        $runAttempt = getenv('GITHUB_RUN_ATTEMPT') ?: null;
+        $runUrl = is_string($runId) && ctype_digit($runId)
+            ? 'https://github.com/' . $repository . '/actions/runs/' . $runId
+            : null;
+        $artifactName = is_string($runId) && ctype_digit($runId) && is_string($runAttempt) && ctype_digit($runAttempt)
+            ? 'external-l1-handoff-' . $runId . '-' . $runAttempt
+            : null;
+
         $metadata = [
             'schema_version' => '1.0',
             'kind' => 'external_l1_construction_handoff',
-            'repository' => getenv('GITHUB_REPOSITORY') ?: 'voku/agent-loop',
+            'repository' => $repository,
             'task_id' => self::TASK,
             'base_commit' => $baseCommit,
             'github' => [
-                'run_id' => getenv('GITHUB_RUN_ID') ?: null,
-                'run_attempt' => getenv('GITHUB_RUN_ATTEMPT') ?: null,
+                'run_id' => $runId,
+                'run_attempt' => $runAttempt,
+                'run_url' => $runUrl,
+                'artifact_name' => $artifactName,
                 'workflow' => getenv('GITHUB_WORKFLOW') ?: null,
                 'ref' => getenv('GITHUB_REF') ?: null,
-                'sha' => getenv('GITHUB_SHA') ?: null,
+                'sha' => $baseCommit,
+                'event_sha' => getenv('GITHUB_SHA') ?: null,
             ],
             'state' => [
                 'next_action' => $nextAction,

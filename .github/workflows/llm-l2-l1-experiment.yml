@@ -16,13 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      EXPERIMENT_WORKTREE: ${{ runner.temp }}/agent-loop-external-l1-handoff
+      EXPERIMENT_WORKTREE: /tmp/agent-loop-external-l1-handoff-${{ github.run_id }}
+      EXPERIMENT_BASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       EXPERIMENT_EVIDENCE: build/external-l1-handoff
       OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
 
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.EXPERIMENT_BASE_COMMIT }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -63,6 +65,40 @@ jobs:
             "${EXPERIMENT_EVIDENCE}/handoff.json" \
             > "${EXPERIMENT_EVIDENCE}/handoff.json.tmp"
           mv "${EXPERIMENT_EVIDENCE}/handoff.json.tmp" "${EXPERIMENT_EVIDENCE}/handoff.json"
+
+      - name: Verify handoff packet contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          prepared_state_sha="$(awk '{print $1}' "${EXPERIMENT_EVIDENCE}/prepared-state.sha256")"
+          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          artifact_name="external-l1-handoff-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          jq -e \
+            --arg expected_base_commit "${EXPERIMENT_BASE_COMMIT}" \
+            --arg prepared_state_sha "${prepared_state_sha}" \
+            --arg run_url "${run_url}" \
+            --arg artifact_name "${artifact_name}" '
+              (.schema_version == "1.0")
+              and (.kind == "external_l1_construction_handoff")
+              and (.base_commit == $expected_base_commit)
+              and (.github.sha == $expected_base_commit)
+              and (.github.run_url == $run_url)
+              and (.github.artifact_name == $artifact_name)
+              and (.state.next_action_kind == "command_template")
+              and (.state.execution_contract_state == "missing")
+              and (.state.mutation_allowed == false)
+              and (.output_contract.format == "markdown")
+              and (.output_contract.required_sections == [
+                "Goal", "Context", "Constraints", "Verification", "Done When"
+              ])
+              and (.output_contract.reasoning_host_must_not_implement == true)
+              and (.resume.requires_prepared_state == true)
+              and (.resume.prepared_state_sha256 == $prepared_state_sha)
+            ' "${EXPERIMENT_EVIDENCE}/handoff.json" >/dev/null
+
+          grep -Fq '## L2 Operational Prompt Construction' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'Task: EXTERNAL-L1-HANDOFF' "${EXPERIMENT_EVIDENCE}/handoff.md"
 
       - name: Publish the handoff prompt
         shell: bash
