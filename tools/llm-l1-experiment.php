@@ -205,7 +205,8 @@ final readonly class ExternalL1HandoffExperiment
                 'artifact_name' => $artifactName,
                 'workflow' => getenv('GITHUB_WORKFLOW') ?: null,
                 'ref' => getenv('GITHUB_REF') ?: null,
-                'sha' => getenv('GITHUB_SHA') ?: null,
+                'sha' => $baseCommit,
+                'event_sha' => getenv('GITHUB_SHA') ?: null,
             ],
             'state' => [
                 'next_action' => $nextAction,
