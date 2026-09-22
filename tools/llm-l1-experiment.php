@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-final class LlmL1ExperimentFailure extends RuntimeException
+final class ExternalL1HandoffFailure extends RuntimeException
 {
 }
 
-final readonly class LlmL1Experiment
+final readonly class ExternalL1HandoffExperiment
 {
-    private const string TASK = 'LLM-L1-EXPERIMENT';
+    private const string TASK = 'EXTERNAL-L1-HANDOFF';
     private const string SOURCE = 'tests/fixtures/self-shape/SelfEditProbe.php';
     private const string POLICY = 'docs/policies/pre-1.0-compatibility.md';
 
@@ -25,18 +25,16 @@ final readonly class LlmL1Experiment
         try {
             match ($phase) {
                 'prepare' => $this->prepare(),
-                'bind' => $this->bind(),
-                'verify' => $this->verify(),
                 'cleanup' => $this->cleanup(),
-                default => throw new LlmL1ExperimentFailure('Unknown phase: ' . $phase),
+                default => throw new ExternalL1HandoffFailure('Unknown phase: ' . $phase),
             };
 
-            fwrite(STDOUT, sprintf("LLM L2->L1 experiment %s: OK\n", $phase));
+            fwrite(STDOUT, sprintf("External L1 handoff %s: OK\n", $phase));
 
             return 0;
         } catch (Throwable $throwable) {
             fwrite(STDERR, sprintf(
-                "LLM L2->L1 experiment %s: FAILED - %s\n",
+                "External L1 handoff %s: FAILED - %s\n",
                 $phase,
                 $throwable->getMessage(),
             ));
@@ -56,7 +54,7 @@ final readonly class LlmL1Experiment
         );
 
         if (!symlink($this->repositoryRoot . '/vendor', $this->worktree . '/vendor')) {
-            throw new LlmL1ExperimentFailure('Unable to expose the candidate Composer vendor tree in the experiment worktree.');
+            throw new ExternalL1HandoffFailure('Unable to expose the candidate Composer vendor tree in the experiment worktree.');
         }
 
         $this->runCommand([
@@ -82,7 +80,7 @@ final readonly class LlmL1Experiment
             'plan',
             self::TASK,
             '--by',
-            'llm-experiment-planner',
+            'handoff-experiment-planner',
             '--file',
             self::SOURCE,
             '--goal',
@@ -106,7 +104,7 @@ final readonly class LlmL1Experiment
             'approve',
             self::TASK,
             '--by',
-            'llm-experiment-approver',
+            'handoff-experiment-approver',
         ], $this->worktree);
 
         $enter = $this->runCommand([
@@ -117,7 +115,7 @@ final readonly class LlmL1Experiment
             '--format=json',
         ], $this->worktree, false);
         if ($enter['exit_code'] !== 1) {
-            throw new LlmL1ExperimentFailure(
+            throw new ExternalL1HandoffFailure(
                 'The prepared L2 task must remain blocked until an L1 execution contract exists; got enter exit '
                 . $enter['exit_code'] . '.',
             );
@@ -125,7 +123,12 @@ final readonly class LlmL1Experiment
 
         $enterPayload = $this->decodeJson($enter['stdout'], 'enter output');
         if (($enterPayload['next_action_kind'] ?? null) !== 'command_template') {
-            throw new LlmL1ExperimentFailure('Prepared task did not request the L1 contract as a command_template.');
+            throw new ExternalL1HandoffFailure('Prepared task did not request the L1 contract as a command_template.');
+        }
+
+        $nextAction = $enterPayload['next_action'] ?? null;
+        if (!is_string($nextAction) || !str_contains($nextAction, 'workflow contract ' . self::TASK)) {
+            throw new ExternalL1HandoffFailure('Prepared task did not expose the expected execution-contract continuation.');
         }
 
         $recallRoot = $this->worktree . '/.agent-loop/recall/' . self::TASK;
@@ -141,7 +144,7 @@ final readonly class LlmL1Experiment
             'task id' => self::TASK,
         ] as $label => $needle) {
             if (!str_contains($system . "\n" . $validationPlan, $needle)) {
-                throw new LlmL1ExperimentFailure(sprintf(
+                throw new ExternalL1HandoffFailure(sprintf(
                     'Compiled L2 evidence is missing %s (%s).',
                     $label,
                     $needle,
@@ -151,203 +154,142 @@ final readonly class LlmL1Experiment
 
         $status = $this->status();
         if (($status['manifest']['references']['execution_contract']['state'] ?? null) !== 'missing') {
-            throw new LlmL1ExperimentFailure('Execution contract must be missing before the model constructs L1.');
+            throw new ExternalL1HandoffFailure('Execution contract must be missing at the external-reasoning handoff.');
         }
         if ($this->changedPaths() !== []) {
-            throw new LlmL1ExperimentFailure('Experiment worktree changed before L1 construction.');
+            throw new ExternalL1HandoffFailure('Experiment worktree changed before the external-reasoning handoff.');
+        }
+
+        $baseCommit = trim($this->runCommand(['git', 'rev-parse', 'HEAD'], $this->worktree)['stdout']);
+        if (preg_match('/^[a-f0-9]{40}$/', $baseCommit) !== 1) {
+            throw new ExternalL1HandoffFailure('Unable to establish immutable base commit.');
         }
 
         $this->writeEvidence('l2-system.md', $system);
         $this->writeEvidence('validation-plan.md', $validationPlan);
         $this->writeEvidence('project-policy.md', $policy);
         $this->writeEvidence('source-before.php', $source);
-        $this->writeEvidence('enter-before-l1.json', $this->prettyJson($enterPayload));
-        $this->writeEvidence('status-before-l1.json', $this->prettyJson($status));
+        $this->writeEvidence('enter.json', $this->prettyJson($enterPayload));
+        $this->writeEvidence('status.json', $this->prettyJson($status));
 
-        $constructorPrompt = <<<'PROMPT'
-You are the L1 constructor in a controlled workflow experiment.
+        $handoff = $this->handoffPrompt(
+            baseCommit: $baseCommit,
+            nextAction: $nextAction,
+            system: $system,
+            validationPlan: $validationPlan,
+            policy: $policy,
+            source: $source,
+        );
+        $this->writeEvidence('handoff.md', $handoff);
 
-The approved task and its L2 construction briefing are supplied below. Produce the concrete project-specific L1 execution contract that an implementation agent should receive.
-
-Rules:
-- Output Markdown only. No preface, explanation, commentary, or fenced code block.
-- Use exactly these top-level sections, in this order:
-  ## Goal
-  ## Context
-  ## Constraints
-  ## Verification
-  ## Done When
-- Preserve the approved scope and non-goals exactly.
-- Ground every instruction in the supplied L2/project evidence. Do not invent files, commands, compatibility promises, or additional work.
-- The requested private fixture change is not a public compatibility obligation. Apply the supplied pre-1.0 policy rather than inventing a compatibility layer.
-- Verification must include the exact declared validation commands and a changed-file scope check.
-- This is construction of L1 only. Do not implement the code change.
-
-PROMPT;
-
-        $constructorPrompt .= "\n\n# L2 system.md\n\n" . $system;
-        $constructorPrompt .= "\n\n# validation-plan.md\n\n" . $validationPlan;
-        $constructorPrompt .= "\n\n# Project policy\n\n" . $policy;
-        $constructorPrompt .= "\n\n# Current approved source\n\n```php\n" . $source . "\n```\n";
-
-        $this->writeEvidence('constructor-prompt.md', $constructorPrompt);
-        $this->writeState([
+        $metadata = [
             'schema_version' => '1.0',
+            'kind' => 'external_l1_construction_handoff',
+            'repository' => getenv('GITHUB_REPOSITORY') ?: 'voku/agent-loop',
             'task_id' => self::TASK,
-            'phase' => 'prepared',
-            'base_commit' => trim($this->runCommand(['git', 'rev-parse', 'HEAD'], $this->worktree)['stdout']),
-            'source_before_sha256' => 'sha256:' . hash('sha256', $source),
-            'l2_system_sha256' => 'sha256:' . hash('sha256', $system),
-            'validation_plan_sha256' => 'sha256:' . hash('sha256', $validationPlan),
-        ]);
-    }
-
-    private function bind(): void
-    {
-        $l1Path = $this->evidenceDirectory . '/l1.md';
-        $l1 = $this->read($l1Path);
-
-        if (str_contains($l1, '```')) {
-            throw new LlmL1ExperimentFailure('Constructor returned a fenced response instead of raw L1 Markdown.');
-        }
-
-        foreach (['Goal', 'Context', 'Constraints', 'Verification', 'Done When'] as $section) {
-            if (substr_count($l1, '## ' . $section) !== 1) {
-                throw new LlmL1ExperimentFailure('Generated L1 must contain exactly one ## ' . $section . ' section.');
-            }
-        }
-
-        foreach ([
-            'approved source' => self::SOURCE,
-            'requested old behavior' => '100 + input',
-            'requested new behavior' => '101 + input',
-            'lint validation' => 'php -l ' . self::SOURCE,
-            'PHPUnit validation' => 'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
-        ] as $label => $needle) {
-            if (!str_contains($l1, $needle)) {
-                throw new LlmL1ExperimentFailure(sprintf('Generated L1 lost %s (%s).', $label, $needle));
-            }
-        }
-
-        $this->runCommand([
-            PHP_BINARY,
-            'bin/agent-loop',
-            'workflow',
-            'contract',
-            self::TASK,
-            '--status',
-            'ready',
-            '--from',
-            $l1Path,
-            '--by',
-            'copilot-l1-constructor',
-        ], $this->worktree);
-
-        $status = $this->status();
-        if (($status['manifest']['references']['execution_contract']['state'] ?? null) !== 'ready') {
-            throw new LlmL1ExperimentFailure('Generated L1 was not accepted as the current ready execution contract.');
-        }
-        if (($status['policy']['mutation_allowed'] ?? false) !== true) {
-            throw new LlmL1ExperimentFailure('Lifecycle did not authorize host-native mutation after binding generated L1.');
-        }
-
-        $persisted = $this->read($this->worktree . '/.agent-loop/recall/' . self::TASK . '/execution-contract.md');
-        if (!hash_equals(hash('sha256', $l1), hash('sha256', $persisted))) {
-            throw new LlmL1ExperimentFailure('Persisted execution contract does not match the model-produced L1 bytes.');
-        }
-
-        $source = $this->read($this->worktree . '/' . self::SOURCE);
-        $executorPrompt = <<<'PROMPT'
-Execute the exact governed L1 contract below.
-
-Rules:
-- The L1 is authoritative for this task.
-- Make only the requested implementation change.
-- Modify no file except tests/fixtures/self-shape/SelfEditProbe.php.
-- Do not create compatibility aliases, adapters, fallbacks, documentation, tests, or unrelated refactors.
-- Do not rewrite or reinterpret the task.
-- You have no shell permission in this experiment. Apply the source edit only; deterministic validation runs after you exit.
-- When the file edit is complete, return a short factual summary only.
-
-# Governed L1
-
-PROMPT;
-        $executorPrompt .= "\n" . $persisted;
-        $executorPrompt .= "\n\n# Current source\n\n```php\n" . $source . "\n```\n";
-
-        $this->writeEvidence('persisted-l1.md', $persisted);
-        $this->writeEvidence('status-after-l1.json', $this->prettyJson($status));
-        $this->writeEvidence('executor-prompt.md', $executorPrompt);
-
-        $state = $this->readState();
-        $state['phase'] = 'l1_ready';
-        $state['l1_sha256'] = 'sha256:' . hash('sha256', $l1);
-        $state['persisted_l1_sha256'] = 'sha256:' . hash('sha256', $persisted);
-        $this->writeState($state);
-    }
-
-    private function verify(): void
-    {
-        $sourceAfter = $this->read($this->worktree . '/' . self::SOURCE);
-        if (str_contains($sourceAfter, 'return 100 + $input;')) {
-            throw new LlmL1ExperimentFailure('Executor left the old implementation in place.');
-        }
-        if (substr_count($sourceAfter, 'return 101 + $input;') !== 1) {
-            throw new LlmL1ExperimentFailure('Executor did not produce exactly one requested 101 + input implementation.');
-        }
-
-        $changedPaths = $this->changedPaths();
-        if ($changedPaths !== [self::SOURCE]) {
-            throw new LlmL1ExperimentFailure(
-                'Executor escaped approved scope: ' . ($changedPaths === [] ? '<no changes>' : implode(', ', $changedPaths)),
-            );
-        }
-
-        $lint = $this->runCommand([PHP_BINARY, '-l', self::SOURCE], $this->worktree);
-        $phpunit = $this->runCommand([
-            PHP_BINARY,
-            'vendor/bin/phpunit',
-            'tests/ExecutionContractStoreTest.php',
-        ], $this->worktree);
-
-        $diff = $this->runCommand(['git', 'diff', '--', self::SOURCE], $this->worktree)['stdout'];
-        $status = $this->status();
-        if (($status['manifest']['references']['execution_contract']['state'] ?? null) !== 'ready') {
-            throw new LlmL1ExperimentFailure('Execution contract stopped being current after implementation.');
-        }
-
-        $l1 = $this->read($this->evidenceDirectory . '/persisted-l1.md');
-        $state = $this->readState();
-        $report = [
-            'schema_version' => '1.0',
-            'experiment' => 'real_llm_l2_to_l1_to_execution',
-            'task_id' => self::TASK,
-            'base_commit' => $state['base_commit'] ?? null,
-            'constructor_model' => getenv('LLM_CONSTRUCTOR_MODEL') ?: null,
-            'executor_model' => getenv('LLM_EXECUTOR_MODEL') ?: null,
-            'copilot_version' => getenv('COPILOT_VERSION') ?: null,
-            'l2_system_sha256' => $state['l2_system_sha256'] ?? null,
-            'validation_plan_sha256' => $state['validation_plan_sha256'] ?? null,
-            'l1_sha256' => 'sha256:' . hash('sha256', $l1),
-            'source_before_sha256' => $state['source_before_sha256'] ?? null,
-            'source_after_sha256' => 'sha256:' . hash('sha256', $sourceAfter),
-            'changed_paths' => $changedPaths,
-            'checks' => [
-                'l1_bound_ready' => true,
-                'mutation_authorized_before_execution' => true,
-                'executor_scope_exact' => true,
-                'requested_change_present' => true,
-                'php_lint_exit' => $lint['exit_code'],
-                'phpunit_exit' => $phpunit['exit_code'],
-                'execution_contract_still_current' => true,
+            'base_commit' => $baseCommit,
+            'github' => [
+                'run_id' => getenv('GITHUB_RUN_ID') ?: null,
+                'run_attempt' => getenv('GITHUB_RUN_ATTEMPT') ?: null,
+                'workflow' => getenv('GITHUB_WORKFLOW') ?: null,
+                'ref' => getenv('GITHUB_REF') ?: null,
+                'sha' => getenv('GITHUB_SHA') ?: null,
             ],
-            'result' => 'passed',
+            'state' => [
+                'next_action' => $nextAction,
+                'next_action_kind' => $enterPayload['next_action_kind'] ?? null,
+                'execution_contract_state' => $status['manifest']['references']['execution_contract']['state'] ?? null,
+                'mutation_allowed' => $status['policy']['mutation_allowed'] ?? null,
+            ],
+            'evidence' => [
+                'handoff' => $this->identity($this->evidenceDirectory . '/handoff.md'),
+                'l2_system' => $this->identity($this->evidenceDirectory . '/l2-system.md'),
+                'validation_plan' => $this->identity($this->evidenceDirectory . '/validation-plan.md'),
+                'project_policy' => $this->identity($this->evidenceDirectory . '/project-policy.md'),
+                'source_before' => $this->identity($this->evidenceDirectory . '/source-before.php'),
+                'enter' => $this->identity($this->evidenceDirectory . '/enter.json'),
+                'status' => $this->identity($this->evidenceDirectory . '/status.json'),
+            ],
+            'output_contract' => [
+                'format' => 'markdown',
+                'required_sections' => ['Goal', 'Context', 'Constraints', 'Verification', 'Done When'],
+                'artifact_name' => 'l1.md',
+                'reasoning_host_must_not_implement' => true,
+            ],
+            'resume' => [
+                'requires_prepared_state' => true,
+                'prepared_state_archive' => 'prepared-state.tar.gz',
+                'bind_command_template' => 'php bin/agent-loop workflow contract ' . self::TASK
+                    . ' --status ready --from <l1.md> --by external-l1-constructor',
+                'note' => 'Restore the archived prepared state on this exact base commit before binding the returned L1.',
+            ],
         ];
+        $this->writeEvidence('handoff.json', $this->prettyJson($metadata));
+    }
 
-        $this->writeEvidence('source-after.php', $sourceAfter);
-        $this->writeEvidence('executor.diff', $diff);
-        $this->writeEvidence('status-after-execution.json', $this->prettyJson($status));
-        $this->writeEvidence('report.json', $this->prettyJson($report));
+    private function handoffPrompt(
+        string $baseCommit,
+        string $nextAction,
+        string $system,
+        string $validationPlan,
+        string $policy,
+        string $source,
+    ): string {
+        $repository = getenv('GITHUB_REPOSITORY') ?: 'voku/agent-loop';
+        $runId = getenv('GITHUB_RUN_ID') ?: 'unknown';
+
+        return <<<MD
+# External L1 construction handoff
+
+You are the external reasoning host at the intentional L2 -> L1 boundary of a governed agent-loop task.
+
+Repository: {$repository}
+Base commit: {$baseCommit}
+GitHub Actions run: {$runId}
+Task: {$this::TASK}
+
+The deterministic workflow has already planned, approved, entered, and compiled Recall. Mutation is intentionally blocked because the L2 task still requires a concrete L1 execution contract.
+
+Current owner continuation:
+
+{$nextAction}
+
+## Your job
+
+Construct the concrete project-specific L1 execution contract from the bounded evidence below.
+
+Return **only** the L1 Markdown. Do not implement the code change, modify repository state, approve anything, claim verification, or invent additional context.
+
+The returned Markdown must contain exactly these top-level sections, in this order:
+
+## Goal
+## Context
+## Constraints
+## Verification
+## Done When
+
+Preserve the approved scope and non-goals. Ground instructions only in supplied evidence. Keep the exact validation commands. Require a changed-file scope check. The private fixture change does not create a public compatibility obligation; apply the supplied pre-1.0 policy rather than inventing an alias, adapter, fallback, migration layer, or unrelated refactor.
+
+If the supplied evidence is insufficient to construct a safe L1, do not guess. Return a blocked L1 using the same five sections and state the missing evidence concretely in Context and Done When.
+
+# Compiled Recall L2: system.md
+
+{$system}
+
+# Recall validation plan
+
+{$validationPlan}
+
+# Project compatibility policy
+
+{$policy}
+
+# Current approved source
+
+```php
+{$source}
+```
+MD;
     }
 
     private function cleanup(): void
@@ -385,7 +327,22 @@ PROMPT;
         return array_values(array_filter($paths, static fn (string $path): bool => $path !== ''));
     }
 
-    /** @param list<string> $command
+    /** @return array{path:string, sha256:string} */
+    private function identity(string $path): array
+    {
+        $sha = hash_file('sha256', $path);
+        if ($sha === false) {
+            throw new ExternalL1HandoffFailure('Unable to hash experiment artifact: ' . $path);
+        }
+
+        return [
+            'path' => basename($path),
+            'sha256' => 'sha256:' . $sha,
+        ];
+    }
+
+    /**
+     * @param list<string> $command
      * @return array{exit_code:int, stdout:string, stderr:string}
      */
     private function runCommand(array $command, string $workingDirectory, bool $throwOnFailure = true): array
@@ -401,7 +358,7 @@ PROMPT;
             $workingDirectory,
         );
         if (!is_resource($process)) {
-            throw new LlmL1ExperimentFailure('Unable to start command: ' . implode(' ', $command));
+            throw new ExternalL1HandoffFailure('Unable to start command: ' . implode(' ', $command));
         }
 
         fclose($pipes[0]);
@@ -422,7 +379,7 @@ PROMPT;
         }
 
         if ($throwOnFailure && $exitCode !== 0) {
-            throw new LlmL1ExperimentFailure(sprintf(
+            throw new ExternalL1HandoffFailure(sprintf(
                 'Command failed with exit %d: %s',
                 $exitCode,
                 implode(' ', $command),
@@ -438,11 +395,11 @@ PROMPT;
         try {
             $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new LlmL1ExperimentFailure($label . ' is not valid JSON: ' . $exception->getMessage(), 0, $exception);
+            throw new ExternalL1HandoffFailure($label . ' is not valid JSON: ' . $exception->getMessage(), 0, $exception);
         }
 
         if (!is_array($decoded)) {
-            throw new LlmL1ExperimentFailure($label . ' must decode to an object.');
+            throw new ExternalL1HandoffFailure($label . ' must decode to an object.');
         }
 
         return $decoded;
@@ -461,7 +418,7 @@ PROMPT;
     {
         $content = file_get_contents($path);
         if (!is_string($content) || trim($content) === '') {
-            throw new LlmL1ExperimentFailure('Unable to read non-empty experiment artifact: ' . $path);
+            throw new ExternalL1HandoffFailure('Unable to read non-empty experiment artifact: ' . $path);
         }
 
         return $content;
@@ -471,26 +428,14 @@ PROMPT;
     {
         $this->makeDirectory($this->evidenceDirectory);
         if (file_put_contents($this->evidenceDirectory . '/' . $name, $content) === false) {
-            throw new LlmL1ExperimentFailure('Unable to write experiment evidence: ' . $name);
+            throw new ExternalL1HandoffFailure('Unable to write experiment evidence: ' . $name);
         }
-    }
-
-    /** @param array<string, mixed> $state */
-    private function writeState(array $state): void
-    {
-        $this->writeEvidence('state.json', $this->prettyJson($state));
-    }
-
-    /** @return array<string, mixed> */
-    private function readState(): array
-    {
-        return $this->decodeJson($this->read($this->evidenceDirectory . '/state.json'), 'experiment state');
     }
 
     private function makeDirectory(string $path): void
     {
         if (!is_dir($path) && !mkdir($path, 0o775, true) && !is_dir($path)) {
-            throw new LlmL1ExperimentFailure('Unable to create directory: ' . $path);
+            throw new ExternalL1HandoffFailure('Unable to create directory: ' . $path);
         }
     }
 }
@@ -508,7 +453,7 @@ function requiredOption(array $argv, string $name): string
         }
     }
 
-    throw new LlmL1ExperimentFailure('Missing required option --' . $name . '=...');
+    throw new ExternalL1HandoffFailure('Missing required option --' . $name . '=...');
 }
 
 $repositoryRoot = realpath(dirname(__DIR__));
@@ -520,8 +465,8 @@ if (!is_string($repositoryRoot)) {
 try {
     $phase = $argv[1] ?? '';
     if (!is_string($phase) || $phase === '') {
-        throw new LlmL1ExperimentFailure(
-            'Usage: php tools/llm-l1-experiment.php <prepare|bind|verify|cleanup> --worktree=... --evidence-dir=... --manifest=...',
+        throw new ExternalL1HandoffFailure(
+            'Usage: php tools/llm-l1-experiment.php <prepare|cleanup> --worktree=... --evidence-dir=... --manifest=...',
         );
     }
 
@@ -536,13 +481,13 @@ try {
         $manifest = $repositoryRoot . '/' . ltrim($manifest, '/');
     }
 
-    exit((new LlmL1Experiment(
+    exit((new ExternalL1HandoffExperiment(
         repositoryRoot: $repositoryRoot,
         worktree: $worktree,
         evidenceDirectory: $evidenceDirectory,
         operatingPromptManifest: $manifest,
     ))->run($phase));
 } catch (Throwable $throwable) {
-    fwrite(STDERR, 'LLM L2->L1 experiment bootstrap: FAILED - ' . $throwable->getMessage() . "\n");
+    fwrite(STDERR, 'External L1 handoff bootstrap: FAILED - ' . $throwable->getMessage() . "\n");
     exit(2);
 }
