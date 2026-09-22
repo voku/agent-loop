@@ -71,20 +71,55 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Classify Self-Shape applicability
+        id: self-shape-scope
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          base="$(git merge-base HEAD "origin/${BASE_REF}")"
+          mapfile -t changed_files < <(git diff --name-only --diff-filter=ACDMRTUXB "${base}" HEAD --)
+          applicable=false
+          for file in "${changed_files[@]}"; do
+            case "${file}" in
+              .release/*.json|CHANGELOG.md|README.md|docs/*) ;;
+              *) applicable=true; break ;;
+            esac
+          done
+          mkdir -p build
+          {
+            printf 'base=%s\n' "${base}"
+            printf 'changed_files=%s\n' "${#changed_files[@]}"
+            printf 'applicable=%s\n' "${applicable}"
+            printf '%s\n' "${changed_files[@]}"
+          } > build/self-shape-scope.txt
+          {
+            printf 'applicable=%s\n' "${applicable}"
+            printf 'base=%s\n' "${base}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Report Self-Shape not applicable
+        if: steps.self-shape-scope.outputs.applicable != 'true'
+        run: echo 'Self-Shape not applicable; only release-marker or documentation changes were detected.'
       - uses: shivammathur/setup-php@v2
+        if: steps.self-shape-scope.outputs.applicable == 'true'
         with:
           php-version: '8.3'
           coverage: none
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist
+        if: steps.self-shape-scope.outputs.applicable == 'true'
       - name: Lint self-shape tools
+        if: steps.self-shape-scope.outputs.applicable == 'true'
         run: |
           php -l tools/self-shape-dogfood.php
           php -l tools/self-edit-dogfood.php
       - name: Let agent-loop edit itself in an isolated worktree
+        if: steps.self-shape-scope.outputs.applicable == 'true'
         run: php tools/self-edit-dogfood.php
       - name: Govern this change with agent-loop itself
+        if: steps.self-shape-scope.outputs.applicable == 'true'
         run: php tools/self-shape-dogfood.php --base-ref="${{ github.base_ref }}"
       - name: Upload self-shaping evidence
         if: always()
@@ -95,6 +130,7 @@ jobs:
           path: |
             build/self-shape-*.json
             build/self-shape-raw.diff
+            build/self-shape-scope.txt
             .agent-loop/recall/SELF-SHAPE
             .agent-loop/runs/SELF-SHAPE
             .agent-loop/sessions
