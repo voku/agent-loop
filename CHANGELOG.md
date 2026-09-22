@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.32 - 2026-09-22
+
+### Changed
+
+- Require the released `voku/agent-recall-compiler ^0.23.0` consumer baseline and keep the candidate Recall proofs on that same owner release.
+
+### Fixed
+
+- Give standalone external-L1/LLM experiment option parsers unique helper names so the repository-wide deterministic slop gate no longer reports duplicate global function signatures.
+
 ## 0.20.31 - 2026-09-21
 
 ### Added
