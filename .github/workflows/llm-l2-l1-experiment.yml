@@ -19,13 +19,20 @@ jobs:
       EXPERIMENT_WORKTREE: /tmp/agent-loop-external-l1-handoff-${{ github.run_id }}
       EXPERIMENT_BASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       EXPERIMENT_EVIDENCE: build/external-l1-handoff
-      OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
+      OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/.candidate/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json\n      RECALL_CANDIDATE_COMMIT: f51fc43f2023496bc3e031c7673eb37d2f97ec5c
 
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.EXPERIMENT_BASE_COMMIT }}
           fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/checkout@v6
+        with:
+          repository: voku/agent-recall-compiler
+          ref: ${{ env.RECALL_CANDIDATE_COMMIT }}
+          path: .candidate/agent-recall-compiler
           persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
@@ -99,6 +106,8 @@ jobs:
 
           grep -Fq '## L2 Operational Prompt Construction' "${EXPERIMENT_EVIDENCE}/handoff.md"
           grep -Fq 'Task: ISSUE-533-TYPED-INVOCATION' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'missing-implementation-authority' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'missing-verification-scope' "${EXPERIMENT_EVIDENCE}/handoff.md"
 
       - name: Publish the handoff prompt
         shell: bash
