@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      EXPERIMENT_WORKTREE: ${{ runner.temp }}/agent-loop-external-l1-handoff
+      EXPERIMENT_WORKTREE: /tmp/agent-loop-external-l1-handoff-${{ github.run_id }}
       EXPERIMENT_EVIDENCE: build/external-l1-handoff
       OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/vendor/voku/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
 
