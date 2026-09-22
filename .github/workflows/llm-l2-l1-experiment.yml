@@ -19,7 +19,8 @@ jobs:
       EXPERIMENT_WORKTREE: /tmp/agent-loop-external-l1-handoff-${{ github.run_id }}
       EXPERIMENT_BASE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
       EXPERIMENT_EVIDENCE: build/external-l1-handoff
-      OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/.candidate/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json\n      RECALL_CANDIDATE_COMMIT: f51fc43f2023496bc3e031c7673eb37d2f97ec5c
+      OPERATING_PROMPT_MANIFEST: ${{ github.workspace }}/.candidate/agent-recall-compiler/resources/skills/agent-recall-consumer/operating-prompts.json
+      RECALL_CANDIDATE_COMMIT: f51fc43f2023496bc3e031c7673eb37d2f97ec5c
 
     steps:
       - uses: actions/checkout@v6
