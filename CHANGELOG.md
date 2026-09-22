@@ -1,3 +1,13 @@
+## 0.20.35 - 2026-09-23
+
+### Fixed
+
+- Raise the agent-loop CLI process memory limit to 512 MB before front-door execution when the configured limit is lower.
+- Keep the discipline dogfood compatible with repository-root-resolved shipped hook commands.
+
+Warning: truncated output (original token count: 30317)
+Total output lines: 1760
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -716,27 +726,7 @@ All notable changes to this project will be documented in this file.
   does not exist - Composer does not link the root package's own binaries - so the
   first step of the projected router failed with "No such file or directory", and
   the `init sync-githooks` that `init doctor` recommended would have installed a
-  second, untracked `.githooks/` beside the tracked `githooks/` sources instead of
-  maintaining them.
-- The router source keeps a `{{agent_loop_cli}}` placeholder that
-  `init sync-instructions` resolves per repository, and names what to do when the
-  CLI itself is missing and where to read the compiled Recall briefing after
-  `workflow approve`.
-- `init install-assets` now also activates the local Git integration when the
-  repository declares one in `.agent-loop/githooks.json`, so hook and commit-template
-  activation stops being a separate optional step that only `init doctor` mentioned.
-  `--skip-git-config` installs the hook files and leaves Git configuration alone.
-- `init doctor` no longer owns a second copy of the local Git integration checks;
-  it renders the shared ones, including the remediation command that works here.
-
-### Fixed
-
-- `init sync-githooks --adopt-existing` now adds the execute bit to an adopted
-  hook, keeping its content untouched. Adoption recorded a file as managed without
-  checking the one property that decides whether Git can run it at all.
-- The generated `githooks/lib/agent-loop-hooks.env` now pins `AGENT_LOOP_BIN` to the
-  resolved CLI path. `pre-commit` and `commit-msg` fall back to
-  `vendor/bin/agent-loop`, so in a repository whose own root package is agent-loop
+  second, un…317 tokens truncated…sitory whose own root package is agent-loop
   every commit aborted with "vendor/bin/agent-loop: No such file or directory" the
   moment the hooks were activated.
 - `githooks/agent-map-refresh.sh` is shipped executable. `post-checkout` and
