@@ -98,7 +98,7 @@ jobs:
             ' "${EXPERIMENT_EVIDENCE}/handoff.json" >/dev/null
 
           grep -Fq '## L2 Operational Prompt Construction' "${EXPERIMENT_EVIDENCE}/handoff.md"
-          grep -Fq 'Task: EXTERNAL-L1-HANDOFF' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'Task: ISSUE-533-TYPED-INVOCATION' "${EXPERIMENT_EVIDENCE}/handoff.md"
 
       - name: Publish the handoff prompt
         shell: bash
