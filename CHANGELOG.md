@@ -1,3 +1,11 @@
+## 0.20.38 - 2026-09-23
+
+### Changed
+
+- Run CI diagnostics only on explicit dispatch instead of duplicating the normal pull-request validation matrix.
+- Skip the expensive Self-Shape lifecycle chain for release-marker and documentation-only pull requests while retaining a successful applicability check.
+- Remove an accidental output marker from the changelog.
+
 ## 0.20.37 - 2026-09-23
 
 ### Fixed
@@ -18,7 +26,6 @@
 - Raise the agent-loop CLI process memory limit to 512 MB before front-door execution when the configured limit is lower.
 - Keep the discipline dogfood compatible with repository-root-resolved shipped hook commands.
 
-Total output lines: 1760
 
 # Changelog
 
@@ -397,7 +404,6 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Expose the governed lifecycle policy through workflow status so hosts can present the current authority boundary without reconstructing it.
-
 ### Changed
 
 - Tighten cross-package ownership by routing Kanban context/provenance/bootstrap, Learning history/backlog reads, and Recall resources/review/inline compilation through their released owner APIs instead of Loop-private reconstruction.
@@ -797,8 +803,7 @@ All notable changes to this project will be documented in this file.
 - `memory validate` accepts Markdown rows whose first or last cell is empty, and
   treats an escaped `\|` as cell content. The row splitter trimmed *runs* of
   pipes, so such a row lost a column and the whole MEMORY file was rejected as
-  malformed.
-- Checklist evidence must now resolve to a file inside the bundle or the project.
+  malformed.- Checklist evidence must now resolve to a file inside the bundle or the project.
   A trailing `is_file($reference)` accepted any readable path on the machine, so
   `/etc/hostname` counted as evidence and a required `human_review` item passed
   on an artifact belonging to no task.
@@ -1197,8 +1202,7 @@ release.
   `commit-msg` in the same directory, are never read, rewritten, or removed: only
   the installed entries enter the target manifest.
 - The container lookup those hooks need (inside the container, through compose,
-  through a matching image, or plain host execution) now lives once in
-  `githooks/lib/agent-loop-hooks.sh`, together with a path mapper so a hook can
+  through a matching image, or plain host execution) now lives once in  `githooks/lib/agent-loop-hooks.sh`, together with a path mapper so a hook can
   forward Git's temporary index for `git commit --only`.
 - Shipped `make/agent-loop.mk`. A host repository includes it instead of
   maintaining one Make wrapper per client, and overrides `AGENT_LOOP_BIN`,
@@ -1597,7 +1601,6 @@ release.
   `--dev`, matching how the package is actually consumed.
 
 ## 0.3.0 - 2026-07-14
-
 - Added `RecallOutputRoot::resolve()`, a single config-driven source of truth
   for where a task's compiled recall briefing lives, replacing the hardcoded
   `<root>/recall/<taskId>` default and the ad hoc fallback added in 0.2.11.
