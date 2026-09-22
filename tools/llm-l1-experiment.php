@@ -8,9 +8,19 @@ final class ExternalL1HandoffFailure extends RuntimeException
 
 final readonly class ExternalL1HandoffExperiment
 {
-    private const string TASK = 'EXTERNAL-L1-HANDOFF';
-    private const string SOURCE = 'tests/fixtures/self-shape/SelfEditProbe.php';
-    private const string POLICY = 'docs/policies/pre-1.0-compatibility.md';
+    private const string TASK = 'EXTERNAL-L1-ISSUE-533';
+
+    /** @var non-empty-list<non-empty-string> */
+    private const array SCOPE = [
+        'src/Run/RunPolicyEvaluation.php',
+        'src/Workflow/WorkflowStatusCommand.php',
+        'src/Workflow/HostFrontDoorCommand.php',
+        'resources/make/agent-loop.mk',
+        'tests/CanonicalActionKindTest.php',
+        'tests/InitDoctorCommandTest.php',
+    ];
+
+    private const string GUIDANCE = 'docs/workflow/lifecycle.md';
 
     public function __construct(
         private string $repositoryRoot,
@@ -70,7 +80,7 @@ final readonly class ExternalL1HandoffExperiment
             'bin/agent-loop',
             'map',
             'build',
-            '--paths=tests/fixtures/self-shape',
+            '--paths=src,resources/make,tests',
         ], $this->worktree);
 
         $this->runCommand([
@@ -82,19 +92,43 @@ final readonly class ExternalL1HandoffExperiment
             '--by',
             'handoff-experiment-planner',
             '--file',
-            self::SOURCE,
+            self::SCOPE[0],
+            '--file',
+            self::SCOPE[1],
+            '--file',
+            self::SCOPE[2],
+            '--file',
+            self::SCOPE[3],
+            '--file',
+            self::SCOPE[4],
+            '--file',
+            self::SCOPE[5],
             '--goal',
-            'Change the self-edit probe from 100 + input to 101 + input without widening scope.',
+            'Resolve issue #533 by proving or implementing the smallest boundary that lets a runtime-bound consumer execute every owner-produced command or command_template continuation without parsing next_action or moving project runtime policy into lifecycle semantics.',
             '--non-goal',
-            'Do not modify any file except the self-edit probe.',
+            'Do not move Docker or project-specific runtime semantics into RunPolicyEvaluator or other lifecycle ownership.',
+            '--non-goal',
+            'Do not introduce an arbitrary shell-prefix hook, command DSL, WorkflowManager, UniversalWorkflowAdapter, or Docker orchestration framework.',
+            '--non-goal',
+            'Do not broaden the already-separate Make setup convergence work from PR #531.',
+            '--acceptance',
+            'A representative runtime-bound consumer can enter, obey command and command_template continuations, perform host work, finish, obey closeout continuations, and complete without parsing next_action or maintaining one wrapper per lifecycle action.',
+            '--acceptance',
+            'Direct-CLI consumers remain unchanged, and if current APIs already satisfy the boundary the result should prove that path without unnecessary product code.',
             '--validation',
-            'php -l ' . self::SOURCE,
+            'vendor/bin/phpunit tests/CanonicalActionKindTest.php tests/InitDoctorCommandTest.php',
             '--validation',
-            'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
+            'composer ci',
+            '--tag',
+            'workflow',
+            '--tag',
+            'runtime',
+            '--tag',
+            'consumer',
             '--operating-prompt-manifest',
             $this->operatingPromptManifest,
             '--operating-prompt',
-            '{"id":"breaking-change-review","arguments":{}}',
+            '{"id":"execution-dispatch","arguments":{}}',
         ], $this->worktree);
 
         $this->runCommand([
@@ -134,13 +168,13 @@ final readonly class ExternalL1HandoffExperiment
         $recallRoot = $this->worktree . '/.agent-loop/recall/' . self::TASK;
         $system = $this->read($recallRoot . '/system.md');
         $validationPlan = $this->read($recallRoot . '/validation-plan.md');
-        $policy = $this->read($this->worktree . '/' . self::POLICY);
-        $source = $this->read($this->worktree . '/' . self::SOURCE);
+        $guidance = $this->read($this->worktree . '/' . self::GUIDANCE);
+        $approvedScope = $this->approvedScopeSnapshot();
 
         foreach ([
             'L2 marker' => '## L2 Operational Prompt Construction',
-            'recipe id' => 'breaking-change-review',
-            'approved source' => self::SOURCE,
+            'recipe id' => 'execution-dispatch',
+            'approved source' => self::SCOPE[0],
             'task id' => self::TASK,
         ] as $label => $needle) {
             if (!str_contains($system . "\n" . $validationPlan, $needle)) {
@@ -167,8 +201,8 @@ final readonly class ExternalL1HandoffExperiment
 
         $this->writeEvidence('l2-system.md', $system);
         $this->writeEvidence('validation-plan.md', $validationPlan);
-        $this->writeEvidence('project-policy.md', $policy);
-        $this->writeEvidence('source-before.php', $source);
+        $this->writeEvidence('project-guidance.md', $guidance);
+        $this->writeEvidence('approved-scope.md', $approvedScope);
         $this->writeEvidence('enter.json', $this->prettyJson($enterPayload));
         $this->writeEvidence('status.json', $this->prettyJson($status));
 
@@ -177,8 +211,8 @@ final readonly class ExternalL1HandoffExperiment
             nextAction: $nextAction,
             system: $system,
             validationPlan: $validationPlan,
-            policy: $policy,
-            source: $source,
+            guidance: $guidance,
+            approvedScope: $approvedScope,
         );
         $this->writeEvidence('handoff.md', $handoff);
 
@@ -218,8 +252,8 @@ final readonly class ExternalL1HandoffExperiment
                 'handoff' => $this->identity($this->evidenceDirectory . '/handoff.md'),
                 'l2_system' => $this->identity($this->evidenceDirectory . '/l2-system.md'),
                 'validation_plan' => $this->identity($this->evidenceDirectory . '/validation-plan.md'),
-                'project_policy' => $this->identity($this->evidenceDirectory . '/project-policy.md'),
-                'source_before' => $this->identity($this->evidenceDirectory . '/source-before.php'),
+                'project_guidance' => $this->identity($this->evidenceDirectory . '/project-guidance.md'),
+                'approved_scope' => $this->identity($this->evidenceDirectory . '/approved-scope.md'),
                 'enter' => $this->identity($this->evidenceDirectory . '/enter.json'),
                 'status' => $this->identity($this->evidenceDirectory . '/status.json'),
             ],
@@ -245,8 +279,8 @@ final readonly class ExternalL1HandoffExperiment
         string $nextAction,
         string $system,
         string $validationPlan,
-        string $policy,
-        string $source,
+        string $guidance,
+        string $approvedScope,
     ): string {
         $repository = getenv('GITHUB_REPOSITORY') ?: 'voku/agent-loop';
         $runId = getenv('GITHUB_RUN_ID') ?: 'unknown';
@@ -282,7 +316,7 @@ The returned Markdown must contain exactly these top-level sections, in this ord
 ## Verification
 ## Done When
 
-Preserve the approved scope and non-goals. Ground instructions only in supplied evidence. Keep the exact validation commands. Require a changed-file scope check. The private fixture change does not create a public compatibility obligation; apply the supplied pre-1.0 policy rather than inventing an alias, adapter, fallback, migration layer, or unrelated refactor.
+Preserve the approved scope, acceptance criteria, and non-goals. Ground instructions only in supplied evidence. Keep the exact validation commands. Require a changed-file scope check. Preserve the ownership split: lifecycle owns which canonical action is next, project/runtime integration owns how the agent-loop process is entered, and the host must not reconstruct lifecycle ordering. Prefer proof over product code if the current package surfaces already satisfy the acceptance case.
 
 If the supplied evidence is insufficient to construct a safe L1, do not guess. Return a blocked L1 using the same five sections and state the missing evidence concretely in Context and Done When.
 
@@ -294,16 +328,24 @@ If the supplied evidence is insufficient to construct a safe L1, do not guess. R
 
 {$validationPlan}
 
-# Project compatibility policy
+# Project lifecycle guidance
 
-{$policy}
+{$guidance}
 
-# Current approved source
+# Approved scope snapshots
 
-```php
-{$source}
-```
+{$approvedScope}
 MD;
+    }
+
+    private function approvedScopeSnapshot(): string
+    {
+        $sections = [];
+        foreach (self::SCOPE as $path) {
+            $sections[] = '# ' . $path . "\n\n" . $this->read($this->worktree . '/' . $path);
+        }
+
+        return implode("\n\n", $sections) . "\n";
     }
 
     private function cleanup(): void
