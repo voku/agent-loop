@@ -1,3 +1,10 @@
+## 0.20.37 - 2026-09-23
+
+### Fixed
+
+- Complete the typed lifecycle continuation and recovery-convergence projections while preserving opaque project commands.
+- Keep release-set and shipped-hook dogfood aligned with repository-root execution and fresh-worktree executable resolution.
+
 ## 0.20.36 - 2026-09-23
 
 ### Fixed
@@ -11,7 +18,6 @@
 - Raise the agent-loop CLI process memory limit to 512 MB before front-door execution when the configured limit is lower.
 - Keep the discipline dogfood compatible with repository-root-resolved shipped hook commands.
 
-Warning: truncated output (original token count: 30317)
 Total output lines: 1760
 
 # Changelog
