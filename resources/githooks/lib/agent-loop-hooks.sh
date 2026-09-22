@@ -122,3 +122,24 @@ agent_loop_hooks_map_path() {
 
     printf '%s' "$host_path"
 }
+
+# A freshly created package worktree may not have a generated
+# agent-loop-hooks.env yet. Prefer the installed Composer wrapper when it
+# exists, then fall back to the package's own executable so the hook remains
+# usable before dependency installation or hook re-synchronisation.
+agent_loop_hooks_resolve_default_bin() {
+    [[ -n "${AGENT_LOOP_BIN:-}" ]] && return 0
+
+    local repo_root
+    repo_root="$(agent_loop_hooks_repo_root)" || return 1
+
+    if [[ -x "$repo_root/vendor/bin/agent-loop" ]]; then
+        AGENT_LOOP_BIN="$repo_root/vendor/bin/agent-loop"
+    elif [[ -x "$repo_root/bin/agent-loop" ]]; then
+        AGENT_LOOP_BIN="$repo_root/bin/agent-loop"
+    fi
+
+    export AGENT_LOOP_BIN
+}
+
+agent_loop_hooks_resolve_default_bin || true
