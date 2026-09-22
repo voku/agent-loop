@@ -300,4 +300,31 @@ final class AgentFacingPathGuidanceTest extends TestCase
         self::assertStringContainsString('.agent-loop/runs/SELF-SHAPE', $workflow);
         self::assertStringContainsString('.agent-loop/recall/SELF-SHAPE', $workflow);
     }
+
+    public function testDiagnosticsWorkflowIsManualOnly(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__) . '/.github/workflows/ci-diagnostics.yml');
+
+        self::assertStringContainsString("  workflow_dispatch:\n", $workflow);
+        self::assertStringNotContainsString("  pull_request:\n", $workflow);
+    }
+
+    public function testSelfShapeSkipsExpensiveWorkForDocumentationOnlyChanges(): void
+    {
+        $workflow = (string) file_get_contents(dirname(__DIR__) . '/.github/workflows/ci.yml');
+        $selfShape = strstr($workflow, "  self-shape-dogfood:\n");
+        self::assertIsString($selfShape);
+        $selfShape = strstr($selfShape, "  release-set-dogfood:\n", true);
+        self::assertIsString($selfShape);
+
+        self::assertStringContainsString('id: self-shape-scope', $selfShape);
+        self::assertStringContainsString('--diff-filter=ACDMRTUXB', $selfShape);
+        self::assertStringContainsString('.release/*.json|CHANGELOG.md|README.md|docs/*', $selfShape);
+        self::assertStringContainsString('Self-Shape not applicable', $selfShape);
+        self::assertStringContainsString(
+            "if: steps.self-shape-scope.outputs.applicable == 'true'",
+            $selfShape,
+        );
+        self::assertStringContainsString('build/self-shape-scope.txt', $selfShape);
+    }
 }
