@@ -1,3 +1,9 @@
+## 0.20.36 - 2026-09-23
+
+### Fixed
+
+- Make package-owned Git hooks resolve the installed Composer wrapper or the repository's `bin/agent-loop` when generated hook environment metadata is unavailable.
+
 ## 0.20.35 - 2026-09-23
 
 ### Fixed
