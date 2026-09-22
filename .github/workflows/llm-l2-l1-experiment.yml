@@ -2,6 +2,10 @@ name: External L1 handoff experiment
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/llm-l2-l1-experiment.yml'
+      - 'tools/llm-l1-experiment.php'
 
 permissions:
   contents: read
@@ -31,6 +35,9 @@ jobs:
 
       - name: Install repository dependencies
         run: composer install --no-interaction --prefer-dist
+
+      - name: Lint experiment runner
+        run: php -l tools/llm-l1-experiment.php
 
       - name: Prepare governed task and export the external-reasoning handoff
         run: >-
