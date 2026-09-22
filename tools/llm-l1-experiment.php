@@ -8,9 +8,9 @@ final class ExternalL1HandoffFailure extends RuntimeException
 
 final readonly class ExternalL1HandoffExperiment
 {
-    private const string TASK = 'EXTERNAL-L1-HANDOFF';
-    private const string SOURCE = 'tests/fixtures/self-shape/SelfEditProbe.php';
-    private const string POLICY = 'docs/policies/pre-1.0-compatibility.md';
+    private const string TASK = 'ISSUE-533-TYPED-INVOCATION';
+    private const string SOURCE = 'src/Run/RunPolicyEvaluation.php';
+    private const string POLICY = 'AGENTS.md';
 
     public function __construct(
         private string $repositoryRoot,
@@ -70,7 +70,7 @@ final readonly class ExternalL1HandoffExperiment
             'bin/agent-loop',
             'map',
             'build',
-            '--paths=tests/fixtures/self-shape',
+            '--paths=src',
         ], $this->worktree);
 
         $this->runCommand([
@@ -83,18 +83,40 @@ final readonly class ExternalL1HandoffExperiment
             'handoff-experiment-planner',
             '--file',
             self::SOURCE,
+            '--file',
+            'src/Run/RunPolicyEvaluator.php',
+            '--file',
+            'src/Run/RunManifest.php',
+            '--file',
+            'src/Run/RunManifestProjector.php',
+            '--file',
+            'src/Workflow/WorkflowStatusCommand.php',
+            '--file',
+            'src/Workflow/HostFrontDoorCommand.php',
+            '--file',
+            'tests/RunPolicyEvaluatorTest.php',
+            '--file',
+            'tests/RunPolicyRecoveryConvergenceTest.php',
             '--goal',
-            'Change the self-edit probe from 100 + input to 101 + input without widening scope.',
+            'Close issue #533 with the smallest owner-produced typed invocation projection beside next_action so runtime-bound consumers can execute Loop-owned continuations without parsing rendered command strings.',
             '--non-goal',
-            'Do not modify any file except the self-edit probe.',
+            'Do not add Docker semantics, runtime transport, lifecycle-to-Make target mappings, a shell-prefix DSL, or parsing of rendered next_action strings.',
+            '--acceptance',
+            'Existing next_action and next_action_kind remain backward-compatible human/presentation contracts.',
+            '--acceptance',
+            'Loop-owned continuations can expose executable identity, argv tokens, and template status from owner-known structure.',
+            '--acceptance',
+            'Opaque project-owned validation commands remain deliberately untyped instead of being shell-split.',
+            '--acceptance',
+            'The nullable typed invocation survives manifest and host/status JSON projection without changing lifecycle authority.',
             '--validation',
-            'php -l ' . self::SOURCE,
+            'vendor/bin/phpunit tests/RunPolicyEvaluatorTest.php tests/RunPolicyRecoveryConvergenceTest.php',
             '--validation',
-            'vendor/bin/phpunit tests/ExecutionContractStoreTest.php',
+            'composer ci',
             '--operating-prompt-manifest',
             $this->operatingPromptManifest,
             '--operating-prompt',
-            '{"id":"breaking-change-review","arguments":{}}',
+            '{"id":"missingness-audit","arguments":{}}',
         ], $this->worktree);
 
         $this->runCommand([
@@ -139,7 +161,7 @@ final readonly class ExternalL1HandoffExperiment
 
         foreach ([
             'L2 marker' => '## L2 Operational Prompt Construction',
-            'recipe id' => 'breaking-change-review',
+            'recipe id' => 'missingness-audit',
             'approved source' => self::SOURCE,
             'task id' => self::TASK,
         ] as $label => $needle) {
@@ -282,7 +304,7 @@ The returned Markdown must contain exactly these top-level sections, in this ord
 ## Verification
 ## Done When
 
-Preserve the approved scope and non-goals. Ground instructions only in supplied evidence. Keep the exact validation commands. Require a changed-file scope check. The private fixture change does not create a public compatibility obligation; apply the supplied pre-1.0 policy rather than inventing an alias, adapter, fallback, migration layer, or unrelated refactor.
+Preserve the approved scope, acceptance criteria, and non-goals. Ground instructions only in supplied evidence. Keep the exact validation commands. Require a changed-file scope check. Respect the supplied repository ownership and lifecycle guidance; do not invent runtime transport, lifecycle choreography, or string-parsing fallbacks that are not evidenced by the handoff.
 
 If the supplied evidence is insufficient to construct a safe L1, do not guess. Return a blocked L1 using the same five sections and state the missing evidence concretely in Context and Done When.
 
@@ -294,11 +316,11 @@ If the supplied evidence is insufficient to construct a safe L1, do not guess. R
 
 {$validationPlan}
 
-# Project compatibility policy
+# Project guidance
 
 {$policy}
 
-# Current approved source
+# Current primary approved source
 
 ```php
 {$source}
