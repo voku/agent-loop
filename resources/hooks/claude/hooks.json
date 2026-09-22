@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "php .claude/hooks/context.php --event=SessionStart",
+            "command": "php \"$(git rev-parse --show-toplevel)/.claude/hooks/context.php\" --event=SessionStart",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "php .claude/hooks/context.php --event=SubagentStart",
+            "command": "php \"$(git rev-parse --show-toplevel)/.claude/hooks/context.php\" --event=SubagentStart",
             "timeout": 10
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "php .claude/hooks/pre_tool_use_policy.php",
+            "command": "php \"$(git rev-parse --show-toplevel)/.claude/hooks/pre_tool_use_policy.php\"",
             "timeout": 5
           }
         ]

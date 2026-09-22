@@ -139,7 +139,7 @@ function removeTree(string $directory): void
  * @param array<string, mixed> $hooks
  * @return array{SessionStart: list<string>, SubagentStart: list<string>, PreToolUse: list<string>}
  */
-function configuredHookCommands(array $hooks): array
+function configuredHookCommands(array $hooks, string $workspace): array
 {
     $commands = [];
     foreach (['SessionStart', 'SubagentStart', 'PreToolUse'] as $event) {
@@ -147,17 +147,21 @@ function configuredHookCommands(array $hooks): array
         if (!is_string($command) || $command === '') {
             throw new RuntimeException('hooks.json misses the configured command for ' . $event . '.');
         }
-        if (
-            preg_match(
-                '~\Aphp\s+(\.codex/hooks/[A-Za-z0-9_.-]+\.php)(?:\s+(--event=(?:SessionStart|SubagentStart)))?\z~',
-                trim($command),
-                $matches,
-            ) !== 1
-        ) {
+        $matches = [];
+        foreach ([
+            '~\Aphp\s+(\.codex/hooks/[A-Za-z0-9_.-]+\.php)(?:\s+(--event=(?:SessionStart|SubagentStart)))?\z~',
+            '~\Aphp\s+"\$\(git rev-parse --show-toplevel\)/(\.codex/hooks/[A-Za-z0-9_.-]+\.php)"(?:\s+(--event=(?:SessionStart|SubagentStart)))?\z~',
+        ] as $pattern) {
+            if (preg_match($pattern, trim($command), $candidateMatches) === 1) {
+                $matches = $candidateMatches;
+                break;
+            }
+        }
+        if ($matches === []) {
             throw new RuntimeException('Unsupported configured hook command for ' . $event . ': ' . $command);
         }
 
-        $arguments = [PHP_BINARY, $matches[1]];
+        $arguments = [PHP_BINARY, $workspace . '/' . $matches[1]];
         if (($matches[2] ?? '') !== '') {
             $arguments[] = $matches[2];
         }
@@ -294,10 +298,9 @@ try {
     $hooks = json_decode($hooksJson, true, 64, JSON_THROW_ON_ERROR);
     assertTrue(is_array($hooks), 'hooks.json is not an object.');
     assertTrue(!str_contains($hooksJson, 'http://') && !str_contains($hooksJson, 'https://'), 'hooks.json contains a remote command.');
-    assertTrue(!str_contains($hooksJson, 'git rev-parse'), 'hooks.json depends on Git repository discovery.');
-    $hookCommands = configuredHookCommands($hooks);
+    $hookCommands = configuredHookCommands($hooks, $workspace);
     foreach ($hookCommands as $event => $command) {
-        assertTrue(is_file($workspace . '/' . $command[1]), 'Configured hook file is missing for ' . $event . '.');
+        assertTrue(is_file($command[1]), 'Configured hook file is missing for ' . $event . '.');
     }
     $checks[] = ['id' => 'hooks-contract', 'result' => 'passed'];
 
