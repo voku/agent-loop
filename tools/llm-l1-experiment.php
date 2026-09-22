@@ -455,7 +455,7 @@ MD;
 }
 
 /** @return non-empty-string */
-function requiredOption(array $argv, string $name): string
+function externalL1HandoffRequiredOption(array $argv, string $name): string
 {
     $prefix = '--' . $name . '=';
     foreach ($argv as $token) {
@@ -484,9 +484,9 @@ try {
         );
     }
 
-    $worktree = requiredOption($argv, 'worktree');
-    $evidenceDirectory = requiredOption($argv, 'evidence-dir');
-    $manifest = requiredOption($argv, 'manifest');
+    $worktree = externalL1HandoffRequiredOption($argv, 'worktree');
+    $evidenceDirectory = externalL1HandoffRequiredOption($argv, 'evidence-dir');
+    $manifest = externalL1HandoffRequiredOption($argv, 'manifest');
 
     if (!str_starts_with($evidenceDirectory, '/')) {
         $evidenceDirectory = $repositoryRoot . '/' . ltrim($evidenceDirectory, '/');
