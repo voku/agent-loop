@@ -38,6 +38,20 @@ jobs:
       - name: Install repository dependencies
         run: composer install --no-interaction --prefer-dist
 
+      - name: Verify released Recall package
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+            require "vendor/autoload.php";
+            $version = Composer\InstalledVersions::getPrettyVersion("voku/agent-recall-compiler");
+            if ($version !== "0.23.0") {
+                fwrite(STDERR, "Expected released voku/agent-recall-compiler 0.23.0; got " . var_export($version, true) . PHP_EOL);
+                exit(1);
+            }
+            echo "voku/agent-recall-compiler=", $version, PHP_EOL;
+          '
+
       - name: Lint experiment runner
         run: php -l tools/llm-l1-experiment.php
 
@@ -98,7 +112,22 @@ jobs:
             ' "${EXPERIMENT_EVIDENCE}/handoff.json" >/dev/null
 
           grep -Fq '## L2 Operational Prompt Construction' "${EXPERIMENT_EVIDENCE}/handoff.md"
-          grep -Fq 'Task: EXTERNAL-L1-HANDOFF' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'Task: ISSUE-533-TYPED-INVOCATION' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'missing-implementation-authority' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq 'missing-verification-scope' "${EXPERIMENT_EVIDENCE}/handoff.md"
+          grep -Fq '### Omitted Project Capabilities' "${EXPERIMENT_EVIDENCE}/l2-system.md"
+          grep -Fq '### composer ci' "${EXPERIMENT_EVIDENCE}/l2-system.md"
+          grep -Fq 'workflow.recovery.next-action-must-advance' "${EXPERIMENT_EVIDENCE}/l2-system.md"
+          grep -Fq 'vendor/bin/phpunit tests/RunPolicyEvaluatorTest.php tests/RunPolicyRecoveryConvergenceTest.php' "${EXPERIMENT_EVIDENCE}/validation-plan.md"
+          if grep -Fq '### .github/workflows/ci.yml' "${EXPERIMENT_EVIDENCE}/l2-system.md"; then
+            echo 'Unreferenced CI workflow anchor leaked into runtime context.' >&2
+            exit 1
+          fi
+          l2_bytes="$(wc -c < "${EXPERIMENT_EVIDENCE}/l2-system.md")"
+          if [ "${l2_bytes}" -ge 40000 ]; then
+            echo "Expected bounded L2 system.md below 40000 bytes; got ${l2_bytes}." >&2
+            exit 1
+          fi
 
       - name: Publish the handoff prompt
         shell: bash
