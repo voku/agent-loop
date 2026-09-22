@@ -34,6 +34,9 @@ final class CanonicalActionKindTest extends TestCase
         self::assertStringContainsString('--goal <goal>', $policy->nextAction);
         self::assertStringContainsString('--validation <validation>', $policy->nextAction);
         self::assertStringNotContainsString('"..."', $policy->nextAction);
+        self::assertNotNull($policy->nextActionInvocation);
+        self::assertSame(['workflow', 'plan', 'E5-001', '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'], $policy->nextActionInvocation->arguments);
+        self::assertTrue($policy->nextActionInvocation->template);
     }
 
     public function testExecutionContractConstructionUsesModelOwnedCommandTemplate(): void
@@ -56,6 +59,9 @@ final class CanonicalActionKindTest extends TestCase
 
         self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
         self::assertStringContainsString('workflow contract E5-001 --status ready --from <l1.md>', $policy->nextAction);
+        self::assertNotNull($policy->nextActionInvocation);
+        self::assertSame(['workflow', 'contract', 'E5-001', '--status', 'ready', '--from', '<l1.md>', '--by', '<actor>'], $policy->nextActionInvocation->arguments);
+        self::assertTrue($policy->nextActionInvocation->template);
     }
 
     public function testContractApprovalRemainsHumanDecision(): void
@@ -78,6 +84,8 @@ final class CanonicalActionKindTest extends TestCase
 
         self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
         self::assertSame('agent-loop workflow approve E5-001 --by <named-actor>', $policy->nextAction);
+        self::assertNotNull($policy->nextActionInvocation);
+        self::assertSame(['workflow', 'approve', 'E5-001', '--by', '<named-actor>'], $policy->nextActionInvocation->arguments);
     }
 
     public function testReviewAcknowledgementIsDelegatedAfterContractApproval(): void
@@ -125,6 +133,22 @@ final class CanonicalActionKindTest extends TestCase
         self::assertStringContainsString('--by <actor>', $policy->nextAction);
     }
 
+    public function testRecallOutcomeFinishTemplatePreservesArgumentTokens(): void
+    {
+        $references = $this->references('approved', 'current', 'active', 'compiled', 'not_required', 'blocked', 'ok', 'decided');
+        $references['verification']['gate'] = 'recall_outcomes';
+        $references['verification']['action'] = 'agent-loop finish E5-001 --recall-outcome-draft .agent-loop/recall/E5-001/recall-log.draft.json --by <actor> --commit <commit>';
+        $references['verification']['recall_outcome_draft'] = '.agent-loop/recall/E5-001/recall-log.draft.json';
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $references, []);
+
+        self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
+        self::assertSame($references['verification']['action'], $policy->nextAction);
+        self::assertNotNull($policy->nextActionInvocation);
+        self::assertSame(['finish', 'E5-001', '--recall-outcome-draft', '.agent-loop/recall/E5-001/recall-log.draft.json', '--by', '<actor>', '--commit', '<commit>'], $policy->nextActionInvocation->arguments);
+        self::assertTrue($policy->nextActionInvocation->template);
+    }
+
     public function testExecutableAndTerminalStepsKeepDistinctKinds(): void
     {
         $enter = (new RunPolicyEvaluator())->evaluate(
@@ -162,6 +186,28 @@ final class CanonicalActionKindTest extends TestCase
         );
         self::assertSame(RunPolicyEvaluation::KIND_NONE, $complete->nextActionKind);
         self::assertSame('none', $complete->nextAction);
+        self::assertNull($complete->nextActionInvocation);
+    }
+
+    public function testEphemeralSessionCloseKeepsArgumentsAsTokens(): void
+    {
+        $references = $this->references('missing', 'unavailable', 'active', 'missing', 'not_required', 'pending_close', 'missing', 'unavailable');
+        $references['session']['session_id'] = 'session-1';
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'ephemeral', $references, []);
+
+        self::assertSame('agent-loop session close session-1 --status dropped', $policy->nextAction);
+        self::assertNotNull($policy->nextActionInvocation);
+        self::assertSame(['session', 'close', 'session-1', '--status', 'dropped'], $policy->nextActionInvocation->arguments);
+        self::assertFalse($policy->nextActionInvocation->template);
+    }
+
+    public function testReviewBlindspotsUsesTypedLoopCommand(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'governed', $this->references('approved', 'current', 'active', 'compiled', 'not_required', 'pending_close', 'fail', 'decided'), []);
+
+        self::assertSame('agent-loop review blindspots E5-001', $policy->nextAction);
+        self::assertSame(['review', 'blindspots', 'E5-001'], $policy->nextActionInvocation?->arguments);
     }
 
     /** @return array<string, array<string, mixed>> */

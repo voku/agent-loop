@@ -148,7 +148,8 @@ final readonly class WorkflowStatusCommand
      *     ordinary_close_allowed: bool,
      *     blockers: list<array{code: string, owner: string, message: string}>,
      *     next_action: string,
-     *     next_action_kind: string
+     *     next_action_kind: string,
+     *     next_action_invocation: array{executable: non-empty-string, arguments: list<string>, template: bool}|null
      * }
      */
     private function policyArray(RunPolicyEvaluation $policy): array
@@ -160,6 +161,7 @@ final readonly class WorkflowStatusCommand
             'blockers' => $policy->blockers,
             'next_action' => $policy->nextAction,
             'next_action_kind' => $policy->nextActionKind,
+            'next_action_invocation' => $policy->nextActionInvocation?->toArray(),
         ];
     }
 

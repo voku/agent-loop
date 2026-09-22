@@ -11,6 +11,8 @@ use RecursiveIteratorIterator;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunCommandInvocation;
+use voku\AgentLoop\Run\RunManifest;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
@@ -39,6 +41,24 @@ final class RunManifestProjectorTest extends TestCase
     protected function tearDown(): void
     {
         $this->rm($this->root);
+    }
+
+    public function testManifestSerializesTypedNextActionInvocation(): void
+    {
+        $manifest = new RunManifest('ABC-123', 'task:ABC-123:legacy', 'legacy_inferred', 'incomplete', [], [], 'agent-loop enter ABC-123', 'command', new RunCommandInvocation('agent-loop', ['enter', 'ABC-123']));
+
+        self::assertSame(['executable' => 'agent-loop', 'arguments' => ['enter', 'ABC-123'], 'template' => false], $manifest->toArray()['next_action_invocation']);
+    }
+
+    public function testOwnerReviewRepairCarriesTypedInvocationWithoutParsingActionText(): void
+    {
+        mkdir($this->root . '/.agent-loop/recall/ABC-123/reviews', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.json', '{');
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('agent-loop review blindspots ABC-123', $manifest->nextAction);
+        self::assertSame(['executable' => 'agent-loop', 'arguments' => ['review', 'blindspots', 'ABC-123'], 'template' => false], $manifest->toArray()['next_action_invocation']);
     }
 
     public function testIncompleteLegacyRunDoesNotInventMissingIdentity(): void

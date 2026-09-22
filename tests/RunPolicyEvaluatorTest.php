@@ -32,6 +32,11 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertFalse($policy->ordinaryCloseAllowed);
         self::assertSame([], $policy->blockers);
         self::assertStringContainsString('workflow plan ABC-123', $policy->nextAction);
+        self::assertSame([
+            'executable' => 'agent-loop',
+            'arguments' => ['workflow', 'plan', 'ABC-123', '--by', '<actor>', '--file', '<path>', '--goal', '<goal>', '--validation', '<validation>'],
+            'template' => true,
+        ], $policy->nextActionInvocation?->toArray());
     }
 
     public function testApprovedPlannedWorkPointsToEnterWithoutMutationAuthority(): void
@@ -56,6 +61,7 @@ final class RunPolicyEvaluatorTest extends TestCase
         self::assertFalse($policy->mutationAllowed);
         self::assertFalse($policy->ordinaryCloseAllowed);
         self::assertSame('agent-loop enter ABC-123', $policy->nextAction);
+        self::assertSame(['enter', 'ABC-123'], $policy->nextActionInvocation?->arguments);
     }
 
     public function testApprovedContractWithoutCurrentApprovalDoesNotRouteToEnter(): void

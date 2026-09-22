@@ -39,6 +39,7 @@ final readonly class RunPolicyEvaluation
          * none              - nothing further is required
          */
         public string $nextActionKind = self::KIND_COMMAND,
+        public ?RunCommandInvocation $nextActionInvocation = null,
     ) {
     }
 }

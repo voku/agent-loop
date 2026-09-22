@@ -48,7 +48,7 @@ final readonly class RunManifestProjector
 
     public function project(string $taskId): RunManifest
     {
-        /** @var list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements */
+        /** @var list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements */
         $disagreements = [];
         $contract = (new TaskContractStore($this->rootPath))->find($taskId);
         $run = (new GovernedRunStore($this->rootPath))->find($taskId);
@@ -127,11 +127,12 @@ final readonly class RunManifestProjector
             $disagreements,
             $policy->nextAction,
             $policy->nextActionKind,
+            $policy->nextActionInvocation,
         );
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      */
     private function sessionForTask(string $taskId, ?GovernedRun $run, array &$disagreements): ?Session
     {
@@ -198,7 +199,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      * @return array<string, mixed>
      */
     private function boardReference(
@@ -419,7 +420,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      * @return array<string, mixed>
      */
     private function recallReference(
@@ -547,7 +548,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      * @return array<string, mixed>
      */
     private function verificationReference(
@@ -673,6 +674,7 @@ final readonly class RunManifestProjector
             if ($diagnosticStore->find($taskId) !== null && $diagnosticStore->canAttemptRepair($taskId)) {
                 $repairAction = 'agent-loop repair ' . $taskId;
             }
+            $action = $this->closeReadinessAction($taskId, $readiness);
 
             return $this->withSupersededReceipt([
                 'owner' => 'agent-loop',
@@ -680,8 +682,18 @@ final readonly class RunManifestProjector
                 'observation_mode' => 'checked',
                 'gate' => $failure['gate'] ?? 'unknown',
                 'reason' => $failure['detail'] ?? 'workflow close readiness failed without detail',
-                'action' => $this->closeReadinessAction($taskId, $readiness),
+                'action' => $action,
+                'action_invocation' => $this->closeReadinessInvocation($taskId, $readiness),
+                'recall_outcome_draft' => ($failure['gate'] ?? null) === 'recall_outcomes'
+                    ? PathResolver::relativeTo(
+                        $this->rootPath,
+                        RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/recall-log.draft.json',
+                    )
+                    : null,
                 'repair_action' => $repairAction,
+                'repair_invocation' => $repairAction !== null
+                    ? (new RunCommandInvocation('agent-loop', ['repair', $taskId]))->toArray()
+                    : null,
                 'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
             ], $superseded);
@@ -785,8 +797,22 @@ final readonly class RunManifestProjector
         return 'agent-loop workflow status ' . $taskId . ' --format=json';
     }
 
+    /** @return array{executable: non-empty-string, arguments: list<string>, template: bool}|null */
+    private function closeReadinessInvocation(string $taskId, WorkflowCloseReadiness $readiness): ?array
+    {
+        $failure = $readiness->firstFailure();
+        if (($failure['gate'] ?? null) === 'verify') {
+            return (new RunCommandInvocation('agent-loop', ['verify', '--task-id=' . $taskId]))->toArray();
+        }
+        if (($failure['gate'] ?? null) !== 'validation' && ($failure['gate'] ?? null) !== 'recall_outcomes') {
+            return (new RunCommandInvocation('agent-loop', ['workflow', 'status', $taskId, '--format=json']))->toArray();
+        }
+
+        return null;
+    }
+
     /**
-     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      * @return array<string, mixed>
      */
     private function reviewReference(string $taskId, array &$disagreements): array
@@ -807,6 +833,7 @@ final readonly class RunManifestProjector
                 'owner' => 'agent-recall-compiler',
                 'message' => $reader->relativePath($taskId) . ' is not a valid blind-spot report.',
                 'repair_action' => 'agent-loop review blindspots ' . $taskId,
+                'repair_invocation' => (new RunCommandInvocation('agent-loop', ['review', 'blindspots', $taskId]))->toArray(),
             ];
 
             return ['owner' => 'agent-recall-compiler', 'state' => 'invalid', 'observation_mode' => 'checked'];
@@ -821,7 +848,7 @@ final readonly class RunManifestProjector
     }
 
     /**
-     * @param list<array{code: string, owner: string, message: string, repair_action?: string}> $disagreements
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      * @return array<string, mixed>
      */
     private function learningReference(

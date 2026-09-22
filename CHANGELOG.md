@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.20.33 - 2026-09-22
+
+### Added
+
+- Expose owner-produced typed executable, argv, and template projections for
+  Loop-owned continuations alongside the legacy `next_action` contract.
+
+### Fixed
+
+- Keep opaque project-owned validation and recovery commands untyped instead of
+  reconstructing argv by parsing rendered command text.
+
 ## 0.20.32 - 2026-09-22
 
 ### Changed
