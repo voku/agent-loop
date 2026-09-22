@@ -11,7 +11,7 @@ permissions:
 jobs:
   bind-returned-l1:
     if: >-
-      github.event.issue.pull_request
+      github.event.issue.pull_request != null
       && github.event.comment.user.login == github.repository_owner
       && startsWith(github.event.comment.body, 'AGENT_LOOP_EXTERNAL_L1_RETURN ')
     name: Restore handoff and bind returned L1
