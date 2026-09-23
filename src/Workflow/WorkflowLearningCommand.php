@@ -103,7 +103,7 @@ final readonly class WorkflowLearningCommand
                 throw new InvalidArgumentException($token . ' requires a value.');
             }
             $value = trim($tokens[++$index]);
-            if ($value === '') {
+            if ($value === '' && $token !== '--reason') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
             if ($token === '--status') {
@@ -111,7 +111,7 @@ final readonly class WorkflowLearningCommand
             } elseif ($token === '--by') {
                 $by = $value;
             } elseif ($token === '--reason') {
-                $reason = $value;
+                $reason = $value === '' ? null : $value;
             } elseif ($token === '--finding') {
                 $findingIds[] = $value;
             } elseif ($token === '--follow-up') {
