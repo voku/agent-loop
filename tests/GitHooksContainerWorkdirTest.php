@@ -70,6 +70,59 @@ final class GitHooksContainerWorkdirTest extends TestCase
         self::assertSame("a b\n", $this->runHook('value="a b"; echo "$value"'));
     }
 
+    public function testCheckoutAtTheDeclaredWorkdirIsRecognized(): void
+    {
+        $checkout = $this->gitCheckout('checkout');
+
+        self::assertTrue($this->workdirIsCurrentCheckout($checkout, $checkout));
+        // Running from a subdirectory still identifies the same checkout.
+        mkdir($checkout . '/src');
+        self::assertTrue($this->workdirIsCurrentCheckout($checkout . '/src', $checkout));
+    }
+
+    public function testDeclaredWorkdirReachedThroughASymlinkIsTheSameCheckout(): void
+    {
+        $checkout = $this->gitCheckout('checkout');
+        symlink($checkout, $this->root . '/linked-workdir');
+
+        self::assertTrue($this->workdirIsCurrentCheckout($checkout, $this->root . '/linked-workdir'));
+    }
+
+    public function testAnExistingDirectoryWithoutThisCheckoutIsNotTheDeclaredRuntime(): void
+    {
+        // A different container can have the declared path without this
+        // repository behind it (#608): existing is not enough.
+        $checkout = $this->gitCheckout('checkout');
+        mkdir($this->root . '/other-project');
+
+        self::assertFalse($this->workdirIsCurrentCheckout($checkout, $this->root . '/other-project'));
+        self::assertFalse($this->workdirIsCurrentCheckout($checkout, $this->root . '/missing'));
+    }
+
+    private function gitCheckout(string $name): string
+    {
+        $path = $this->root . '/' . $name;
+        mkdir($path);
+        exec('git -C ' . escapeshellarg($path) . ' init --quiet 2>/dev/null');
+
+        return $path;
+    }
+
+    private function workdirIsCurrentCheckout(string $cwd, string $workdir): bool
+    {
+        $script = 'source ' . escapeshellarg($this->root . '/lib/agent-loop-hooks.sh')
+            . '; AGENT_LOOP_CONTAINER_WORKDIR=' . escapeshellarg($workdir)
+            . '; agent_loop_hooks_workdir_is_current_checkout';
+        $process = proc_open(['bash', '-c', $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd);
+        self::assertIsResource($process);
+        stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return proc_close($process) === 0;
+    }
+
     private function runHook(string $command): string
     {
         $script = 'source ' . escapeshellarg($this->root . '/lib/agent-loop-hooks.sh')

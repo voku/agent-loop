@@ -36,8 +36,22 @@ agent_loop_hooks_repo_root() {
     git rev-parse --show-toplevel 2>/dev/null || pwd
 }
 
+# True when the checkout being worked on is the one at the declared workdir. An
+# existing directory alone is not enough: a different container can have the
+# same path without this repository behind it (#608).
+agent_loop_hooks_workdir_is_current_checkout() {
+    [[ -n "$AGENT_LOOP_CONTAINER_WORKDIR" && -d "$AGENT_LOOP_CONTAINER_WORKDIR" ]] || return 1
+
+    local checkout workdir
+    checkout="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    checkout="$(cd -- "$checkout" 2>/dev/null && pwd -P)" || return 1
+    workdir="$(cd -- "$AGENT_LOOP_CONTAINER_WORKDIR" 2>/dev/null && pwd -P)" || return 1
+
+    [[ "$checkout" == "$workdir" ]]
+}
+
 agent_loop_hooks_inside_container() {
-    [[ -f '/.dockerenv' && -n "$AGENT_LOOP_CONTAINER_WORKDIR" && -d "$AGENT_LOOP_CONTAINER_WORKDIR" ]]
+    [[ -f '/.dockerenv' ]] && agent_loop_hooks_workdir_is_current_checkout
 }
 
 agent_loop_hooks_docker_available() {
