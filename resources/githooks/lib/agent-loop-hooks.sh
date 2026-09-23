@@ -57,13 +57,15 @@ agent_loop_hooks_container_name() {
 # Runs a command where the project tooling actually lives: inside the current
 # container, through compose, through a matching container, or on the host.
 # Returns the command's own exit code; callers decide whether that may fail.
+# The workdir is passed as an argument, never spliced into shell source: a quote
+# in it would otherwise end the path literal and could skip the check.
 agent_loop_hooks_run() {
     local command="$1"
     shift
     local -a extra_args=("$@")
 
     if agent_loop_hooks_inside_container; then
-        bash -lc "cd '$AGENT_LOOP_CONTAINER_WORKDIR' && $command"
+        bash -lc 'cd -- "$1" && eval "$2"' agent-loop-hook "$AGENT_LOOP_CONTAINER_WORKDIR" "$command"
 
         return $?
     fi
@@ -81,7 +83,7 @@ agent_loop_hooks_run() {
 
     if [[ -n "$AGENT_LOOP_CONTAINER_SERVICE" ]] && [[ -n "$(docker compose ps -q "$AGENT_LOOP_CONTAINER_SERVICE" 2>/dev/null || true)" ]]; then
         docker compose exec -T "${user_args[@]}" "${extra_args[@]}" "$AGENT_LOOP_CONTAINER_SERVICE" \
-            bash -lc "cd '$AGENT_LOOP_CONTAINER_WORKDIR' && $command"
+            bash -lc 'cd -- "$1" && eval "$2"' agent-loop-hook "$AGENT_LOOP_CONTAINER_WORKDIR" "$command"
 
         return $?
     fi
@@ -95,7 +97,7 @@ agent_loop_hooks_run() {
     fi
 
     docker exec "${user_args[@]}" "${extra_args[@]}" "$container_name" \
-        bash -lc "cd '$AGENT_LOOP_CONTAINER_WORKDIR' && $command"
+        bash -lc 'cd -- "$1" && eval "$2"' agent-loop-hook "$AGENT_LOOP_CONTAINER_WORKDIR" "$command"
 }
 
 # Maps a host path inside the repository to its path inside the container, so a

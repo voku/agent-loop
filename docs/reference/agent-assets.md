@@ -172,6 +172,25 @@ For one resolved `.agent-loop/init.json`, the managed skill and subagent source 
 
 A default-mode sync never restores a missing package copy and never drops its manifest record, so `status` and `doctor` keep reporting it as locally modified and `host-status` keeps `install-assets` as the next action. Disabling a package flag makes its previously projected copies stale, and the next default-mode sync removes them.
 
+## Container runtime for Git hooks
+
+A project whose tooling runs inside a container declares that runtime once in `.agent-loop/init.json`:
+
+```json
+{
+  "runtime": {
+    "container": {
+      "service": "php",
+      "image": "my-app-php",
+      "workdir": "/var/www/html",
+      "user": "www-data"
+    }
+  }
+}
+```
+
+`init sync-githooks` (also invoked by `install-assets`) resolves each value with one precedence rule: an explicit `--container-*` flag, then `runtime.container`, then the value already in the generated `.githooks/lib/agent-loop-hooks.env`, then empty. The generated hooks then run their checks in that container when it is reachable: inside it, through `docker compose exec` for the service, or through `docker exec` for a running container of the image. If Docker is unavailable or no configured container is running, they fall back to host execution, so a declared runtime is a target, not a guarantee. An empty environment always means host execution. The workdir is passed to `cd` as an argument, never interpolated into shell source. Values containing control characters are rejected. Before this, a re-sync without flags silently rewrote the environment and moved a container-bound project's pre-commit checks onto the host. Invalid entries (unknown keys, empty values, a relative `workdir`) produce `init config` warnings and are ignored.
+
 ## Map boundary
 
 Generated map files are navigation state, not source evidence:

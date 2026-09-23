@@ -48,6 +48,45 @@ final class InitSyncGitHooksCommandTest extends TestCase
         self::assertSame('.gitmessage', $this->gitConfig('commit.template'));
     }
 
+    public function testDeclaredRuntimeContainerIsUsedWithoutFlags(): void
+    {
+        $this->declareRuntimeContainer(['service' => 'php', 'image' => 'demo-php', 'workdir' => '/var/www/html', 'user' => 'www-data']);
+
+        self::assertSame(0, $this->runGitHooksSync([])['exit']);
+
+        $environment = $this->environment();
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_SERVICE='php'", $environment);
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_IMAGE='demo-php'", $environment);
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_WORKDIR='/var/www/html'", $environment);
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_USER='www-data'", $environment);
+    }
+
+    public function testExplicitFlagOverridesTheDeclaredRuntime(): void
+    {
+        $this->declareRuntimeContainer(['service' => 'php', 'user' => 'www-data']);
+
+        self::assertSame(0, $this->runGitHooksSync(['--container-user=root'])['exit']);
+
+        $environment = $this->environment();
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_SERVICE='php'", $environment);
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_USER='root'", $environment);
+    }
+
+    public function testResyncWithoutFlagsKeepsThePreviouslyGeneratedRuntime(): void
+    {
+        // install-assets re-syncs hooks without any runtime flag. That used to
+        // rewrite the environment from nothing and silently move a container-bound
+        // project's pre-commit checks onto the host.
+        self::assertSame(0, $this->runGitHooksSync(['--container-service=php', "--container-workdir=/var/www/it's", '--map-index=.agent-loop/map/index.json'])['exit']);
+
+        self::assertSame(0, $this->runGitHooksSync([])['exit']);
+
+        $environment = $this->environment();
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_SERVICE='php'", $environment);
+        self::assertStringContainsString("AGENT_LOOP_CONTAINER_WORKDIR='/var/www/it'\\''s'", $environment);
+        self::assertStringContainsString("AGENT_LOOP_MAP_INDEX='.agent-loop/map/index.json'", $environment);
+    }
+
     public function testInstalledHooksPassShellSyntaxCheck(): void
     {
         self::assertSame(0, $this->runGitHooksSync([])['exit']);
@@ -175,6 +214,21 @@ final class InitSyncGitHooksCommandTest extends TestCase
         $output = (string) ob_get_clean();
 
         return ['exit' => $exit, 'output' => $output];
+    }
+
+    /** @param array<string, string> $container */
+    private function declareRuntimeContainer(array $container): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode(['runtime' => ['container' => $container]], JSON_THROW_ON_ERROR),
+        );
+    }
+
+    private function environment(): string
+    {
+        return (string) file_get_contents($this->root . '/.githooks/lib/agent-loop-hooks.env');
     }
 
     private function gitConfig(string $key): string

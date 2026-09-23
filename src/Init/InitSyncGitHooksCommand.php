@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\PackageResources;
+use voku\AgentLoop\ProjectLayout;
 
 /**
  * Installs the package-owned Git hooks into a host repository and points Git at them.
@@ -171,7 +172,7 @@ final readonly class InitSyncGitHooksCommand
             echo '[OK] sync githooks: installed ' . $entry . ' -> ' . $targetPath . "\n";
         }
 
-        $environment = $this->renderEnvironment($tokens);
+        $environment = $this->renderEnvironment($tokens, $targetRoot . '/' . self::ENV_ENTRY);
         if (isset($adopted[self::ENV_ENTRY])) {
             echo '[OK] sync githooks: adopted existing ' . $targetRoot . '/' . self::ENV_ENTRY . ' into the manifest (content left untouched)' . "\n";
         } elseif ($dryRun) {
@@ -247,10 +248,22 @@ final readonly class InitSyncGitHooksCommand
     }
 
     /**
+     * Resolves each runtime value with one precedence rule: an explicit CLI flag,
+     * then the project's declared `runtime.container` in .agent-loop/init.json,
+     * then the value already in the generated environment. Rebuilding from the
+     * current call's flags alone let `init install-assets` (which passes none)
+     * silently switch a container-bound project's hooks to host execution.
+     *
      * @param list<string> $tokens
      */
-    private function renderEnvironment(array $tokens): string
+    private function renderEnvironment(array $tokens, string $existingEnvironmentPath): string
     {
+        $declared = (new InitConfigLoader($this->rootPath))
+            ->load((new ProjectLayout($this->rootPath))->configPath())['runtime']['container'];
+        $existing = $this->existingEnvironment($existingEnvironmentPath);
+        $resolve = static fn (string $option, string $variable, ?string $declaredValue = null): string
+            => OptionTokens::value($tokens, $option) ?? $declaredValue ?? $existing[$variable] ?? '';
+
         $values = [
             // The hooks fall back to `vendor/bin/agent-loop`, which does not exist
             // in a repository whose own root package is agent-loop: every commit
@@ -258,12 +271,12 @@ final readonly class InitSyncGitHooksCommand
             // The resolved path is written out so the hooks never depend on that
             // guess.
             'AGENT_LOOP_BIN' => (new RepositoryActivation($this->rootPath))->cliPath(),
-            'AGENT_LOOP_CONTAINER_SERVICE' => OptionTokens::value($tokens, 'container-service') ?? '',
-            'AGENT_LOOP_CONTAINER_IMAGE' => OptionTokens::value($tokens, 'container-image') ?? '',
-            'AGENT_LOOP_CONTAINER_WORKDIR' => OptionTokens::value($tokens, 'container-workdir') ?? '',
-            'AGENT_LOOP_CONTAINER_USER' => OptionTokens::value($tokens, 'container-user') ?? '',
-            'AGENT_LOOP_MAP_INDEX' => OptionTokens::value($tokens, 'map-index') ?? '',
-            'AGENT_LOOP_MAP_SEARCH_DATABASE' => OptionTokens::value($tokens, 'map-search-database') ?? '',
+            'AGENT_LOOP_CONTAINER_SERVICE' => $resolve('container-service', 'AGENT_LOOP_CONTAINER_SERVICE', $declared['service'] ?? null),
+            'AGENT_LOOP_CONTAINER_IMAGE' => $resolve('container-image', 'AGENT_LOOP_CONTAINER_IMAGE', $declared['image'] ?? null),
+            'AGENT_LOOP_CONTAINER_WORKDIR' => $resolve('container-workdir', 'AGENT_LOOP_CONTAINER_WORKDIR', $declared['workdir'] ?? null),
+            'AGENT_LOOP_CONTAINER_USER' => $resolve('container-user', 'AGENT_LOOP_CONTAINER_USER', $declared['user'] ?? null),
+            'AGENT_LOOP_MAP_INDEX' => $resolve('map-index', 'AGENT_LOOP_MAP_INDEX'),
+            'AGENT_LOOP_MAP_SEARCH_DATABASE' => $resolve('map-search-database', 'AGENT_LOOP_MAP_SEARCH_DATABASE'),
         ];
 
         $lines = [
@@ -279,6 +292,29 @@ final readonly class InitSyncGitHooksCommand
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Values this command wrote last time. Only its own `NAME='value'` lines are
+     * read back; anything else in the file is ignored rather than trusted.
+     *
+     * @return array<string, string>
+     */
+    private function existingEnvironment(string $path): array
+    {
+        $content = is_file($path) ? file_get_contents($path) : false;
+        if (!is_string($content)) {
+            return [];
+        }
+
+        $values = [];
+        foreach (explode("\n", $content) as $line) {
+            if (preg_match("/^(AGENT_LOOP_[A-Z_]+)='((?:[^']|'\\\\'')*)'$/", $line, $match) === 1) {
+                $values[$match[1]] = str_replace("'\\''", "'", $match[2]);
+            }
+        }
+
+        return $values;
     }
 
     private function writeFile(string $filePath, string $content): void

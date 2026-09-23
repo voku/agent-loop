@@ -29,7 +29,8 @@ final readonly class InitConfigLoader
      *         human_explanations: 'ask'|'always'|'never',
      *         control_plane: array{enabled: bool, host: string, port: int}
      *     },
-     *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}}
+     *     workflow: array{future_work: array{mode: 'focus'|'discover'|'invest', max_follow_up_slices: int}},
+     *     runtime: array{container: array<'service'|'image'|'workdir'|'user', non-empty-string>}
      * }
      */
     public function load(?string $configPath): array
@@ -55,6 +56,7 @@ final readonly class InitConfigLoader
                     'max_follow_up_slices' => 1,
                 ],
             ],
+            'runtime' => ['container' => []],
         ];
 
         if ($configPath === null || trim($configPath) === '') {
@@ -261,6 +263,66 @@ final readonly class InitConfigLoader
                     }
                 }
             }
+        }
+
+        $hasRuntime = $decodedShape instanceof stdClass && property_exists($decodedShape, 'runtime');
+        $runtimeShape = $hasRuntime ? $decodedShape->runtime : null;
+        $runtime = $decoded['runtime'] ?? null;
+        if ($hasRuntime && !$runtimeShape instanceof stdClass) {
+            $result['warnings'][] = '[WARN] init config: runtime must be an object';
+        } elseif ($runtimeShape instanceof stdClass && is_array($runtime) && property_exists($runtimeShape, 'container')) {
+            $result['runtime']['container'] = $this->runtimeContainer(
+                $runtimeShape->container,
+                $runtime['container'] ?? null,
+                $result['warnings'],
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * The container the project's tooling runs in. Declared once here so every
+     * generated integration (Git hooks today) targets the same runtime instead of
+     * depending on which command happened to pass the right flags last.
+     *
+     * @param list<string> $warnings
+     *
+     * @return array<'service'|'image'|'workdir'|'user', non-empty-string>
+     */
+    private function runtimeContainer(mixed $shape, mixed $container, array &$warnings): array
+    {
+        if (!$shape instanceof stdClass || !is_array($container)) {
+            $warnings[] = '[WARN] init config: runtime.container must be an object';
+
+            return [];
+        }
+
+        $result = [];
+        foreach ($container as $key => $value) {
+            if (!in_array($key, ['service', 'image', 'workdir', 'user'], true)) {
+                $warnings[] = '[WARN] init config: runtime.container.' . $key . ' is not supported (service, image, workdir, user)';
+
+                continue;
+            }
+            $value = is_string($value) ? trim($value) : '';
+            if ($value === '') {
+                $warnings[] = '[WARN] init config: runtime.container.' . $key . ' must be a non-empty string';
+
+                continue;
+            }
+            if (preg_match('/[\x00-\x1F\x7F]/', $value) === 1) {
+                $warnings[] = '[WARN] init config: runtime.container.' . $key . ' must not contain control characters';
+
+                continue;
+            }
+            if ($key === 'workdir' && !str_starts_with($value, '/')) {
+                $warnings[] = '[WARN] init config: runtime.container.workdir must be an absolute path inside the container';
+
+                continue;
+            }
+
+            $result[$key] = $value;
         }
 
         return $result;
