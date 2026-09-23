@@ -1,3 +1,9 @@
+## 0.20.43 - 2026-09-23
+
+### Fixed
+
+- The generated hook runtime (used by Git hooks and the make fragment's default `AGENT_LOOP_RUN`) runs in place inside a container only when the checkout being worked on is located at the declared workdir; a different container that merely has the same path now uses the normal compose/docker/host resolution (#608, #609).
+
 ## 0.20.42 - 2026-09-23
 
 ### Changed
