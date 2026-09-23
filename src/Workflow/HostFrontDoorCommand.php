@@ -1128,7 +1128,7 @@ final readonly class HostFrontDoorCommand
             }
 
             if (str_contains($token, '=')) {
-                if (substr($token, strlen('--' . $name . '=')) === '') {
+                if ($name !== 'learning-reason' && substr($token, strlen('--' . $name . '=')) === '') {
                     throw new InvalidArgumentException('--' . $name . ' requires a non-empty value.');
                 }
                 continue;
