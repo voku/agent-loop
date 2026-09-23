@@ -34,10 +34,15 @@ AGENT_LOOP_QUOTE ?= '$(subst ','"'"',$(1))'
 # $(call RUN_IN_HOST_CONTEXT,$(1),$(2),$(3))
 # endef
 #
-# The default remains a direct package-binary execution for portable projects.
+# Without a host definition, the default runs the command where the generated
+# Git hook runtime says the project tooling lives: in the container declared by
+# `runtime.container` in .agent-loop/init.json (see `init sync-githooks`), or on
+# the host when no container is declared, Docker is unavailable, or the hook
+# library has not been generated. The command reaches that runtime as one quoted
+# argument, never as rewritten shell source.
 ifndef AGENT_LOOP_RUN
 define AGENT_LOOP_RUN
-$(1)
+if [ -f "$(AGENT_LOOP_GITHOOKS_DIR)/lib/agent-loop-hooks.sh" ]; then bash -c '. "$$1" && agent_loop_hooks_run "$$2"' agent-loop-run "$(AGENT_LOOP_GITHOOKS_DIR)/lib/agent-loop-hooks.sh" $(call AGENT_LOOP_QUOTE,$(1)); else $(1); fi
 endef
 endif
 

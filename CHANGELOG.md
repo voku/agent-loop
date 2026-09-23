@@ -1,3 +1,10 @@
+## 0.20.42 - 2026-09-23
+
+### Changed
+
+- When the including Makefile defines no `AGENT_LOOP_RUN`, the package make fragment runs its targets through the generated Git hook runtime: in the container declared by `runtime.container` in `.agent-loop/init.json`, otherwise on the host. A host-defined `AGENT_LOOP_RUN` still takes precedence, and without a generated hook library targets run directly on the host as before (#607).
+- Documented that only targets calling `AGENT_LOOP_RUN` (`agent_workflow_*`) are routed this way, and how the hook library decides it is inside the declared container (#607).
+
 ## 0.20.41 - 2026-09-23
 
 ### Fixed
