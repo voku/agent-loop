@@ -496,9 +496,6 @@ final readonly class HostFrontDoorCommand
         if ($hookResults !== []) {
             $payload['hooks'] = $hookResults;
         }
-        if ($complete) {
-            $payload['human_finding_capture'] = $this->humanFindingCaptureAffordance($taskId->value);
-        }
         $learningMaintenance = $this->learningMaintenance($taskId->value);
         if ($learningMaintenance !== []) {
             $payload['learning_maintenance'] = $learningMaintenance;
@@ -526,8 +523,11 @@ final readonly class HostFrontDoorCommand
                 echo '[HOOK] ' . $hookResult['hook'] . ': exit ' . $hookResult['exit_code'] . "\n";
             }
             if ($complete) {
-                $capture = $this->humanFindingCaptureAffordance($taskId->value);
-                echo "\nOptional human observation:\n" . $capture['question'] . "\nIf applicable, use:\n  " . $capture['command'] . "\n";
+                // Human-facing only. In the JSON contract an optional prompt reads
+                // as a required step, and agents dutifully answered it with Findings
+                // that almost never became guidance.
+                echo "\nOptional: if this run exposed a reusable lesson, record a Finding:\n  "
+                    . 'agent-loop learn capture --task ' . $taskId->value . ' --by <actor> --observation TEXT --hypothesis TEXT --evidence TEXT [--scope PATH]' . "\n";
             }
             foreach ($learningMaintenance as $item) {
                 echo "\nLearning maintenance (advisory): " . $item['message'] . "\n  " . $item['review_command'] . "\n";
@@ -588,17 +588,6 @@ final readonly class HostFrontDoorCommand
         }
 
         return $items;
-    }
-
-    /**
-     * @return array{question: string, command: string}
-     */
-    private function humanFindingCaptureAffordance(string $taskId): array
-    {
-        return [
-            'question' => 'Did you notice anything the bounded workflow or agent missed, got wrong despite green validation, found useful, or made unnecessarily difficult? If yes, capture it as a candidate Finding; otherwise no action is needed.',
-            'command' => 'agent-loop learn capture --task ' . $taskId . ' --by <actor> --observation TEXT --hypothesis TEXT --evidence TEXT [--scope PATH]',
-        ];
     }
 
     private function needsValidationReconciliation(RunManifest $manifest): bool
