@@ -215,6 +215,18 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId));
     }
 
+    public function testFindingAndFollowUpEvidenceCannotBeCombined(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Finding evidence cannot be combined with a follow-up reference.');
+
+        \voku\AgentLoop\Workflow\WorkflowLearningRecorder::resolveDecision(
+            null,
+            true,
+            'issue://voku/agent-loop/334',
+        );
+    }
+
     public function testWrongReviewDigestCannotCreateAcknowledgement(): void
     {
         $this->prepareRun('FINISH-4');
