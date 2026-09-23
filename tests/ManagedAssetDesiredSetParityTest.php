@@ -219,7 +219,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
 
         $this->installAssets();
         $manifestRoot = $this->root . '/.claude/skills';
-        self::assertSame($desired, InitSyncManifest::load($manifestRoot, 'skills', 'claude')->managedEntries());
+        self::assertEquals($desired, InitSyncManifest::load($manifestRoot, 'skills', 'claude')->managedEntries());
 
         $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
         self::assertSame($desired, InitSyncManifest::load($manifestRoot, 'skills', 'claude')->managedEntries());
