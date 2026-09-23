@@ -199,13 +199,8 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame('complete', $readyPayload['manifest']['state']);
         self::assertSame('none', $readyPayload['next_action']);
         self::assertSame('none', $readyPayload['next_action_kind']);
-        self::assertSame(
-            [
-                'question' => 'Did you notice anything the bounded workflow or agent missed, got wrong despite green validation, found useful, or made unnecessarily difficult? If yes, capture it as a candidate Finding; otherwise no action is needed.',
-                'command' => 'agent-loop learn capture --task ABC-123 --by <actor> --observation TEXT --hypothesis TEXT --evidence TEXT [--scope PATH]',
-            ],
-            $readyPayload['human_finding_capture'],
-        );
+        // An optional human prompt must not appear as a machine-contract step.
+        self::assertArrayNotHasKey('human_finding_capture', $readyPayload);
         self::assertSame(
             SessionStatus::DONE,
             (new SessionStore())->load($this->root . '/.agent-loop/sessions', $session->id)->status,
@@ -221,7 +216,12 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame('complete', $completePayload['manifest']['state']);
         self::assertSame('none', $completePayload['next_action']);
         self::assertSame('none', $completePayload['next_action_kind']);
-        self::assertSame($readyPayload['human_finding_capture'], $completePayload['human_finding_capture']);
+        self::assertArrayNotHasKey('human_finding_capture', $completePayload);
+
+        $text = $this->runBinary(['finish', 'ABC-123']);
+        self::assertSame(0, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Optional: if this run exposed a reusable lesson, record a Finding:', $text['stdout']);
+        self::assertStringContainsString('agent-loop learn capture --task ABC-123 --by <actor>', $text['stdout']);
         self::assertSame($afterClose, $this->snapshotFiles(), 'finish must be read-only after completion.');
     }
 
