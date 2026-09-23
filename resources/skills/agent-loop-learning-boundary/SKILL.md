@@ -28,7 +28,7 @@ Findings are **not** durable memory. A Run learning close-out records what happe
 
 ## Fast Path Sequence
 
-1. **Recall Outcome:** Append truthful draft outcome (only after work was actually exercised):
+1. **Recall Outcome:** Append truthful draft outcome (only after work was actually exercised). A `helpful` row needs `attribution`: `seen_before_decision` is `false` when you first opened the guidance while filling the draft, and `also_prescribed_by` lists the task prompt, Contract, skill, template, Constraint, or repository docs that already prescribed the same decision (`[]` only if nothing else did). Honest `false`/non-empty answers are valid evidence; do not tune them toward attribution. If `finish` reports `learning_maintenance`, a relevant LearningNote was withheld for evidence drift in files you touched: review it with the named command and republish or retire it only through the Learning owner.
    ```bash
    vendor/bin/agent-loop recall log-outcome \
      --draft <recall-root>/<task-id>/recall-log.draft.json \
