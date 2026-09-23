@@ -20,7 +20,7 @@ final readonly class DeferredFollowUp
         public string $followUpRef,
         public string $decidedBy,
         public string $decidedAt,
-        public string $reason,
+        public ?string $reason,
     ) {
     }
 
@@ -45,7 +45,7 @@ final readonly class DeferredFollowUp
      *     follow_up_ref: string,
      *     decided_by: string,
      *     decided_at: string,
-     *     reason: string
+     *     reason: string|null
      * }
      */
     public function toArray(): array
