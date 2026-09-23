@@ -1,3 +1,14 @@
+## 0.20.39 - 2026-09-23
+
+### Added
+
+- Report relevant LearningNotes that Recall withheld because their repository evidence needs review as an advisory `learning_maintenance` item on `finish` (JSON and text). It changes no lifecycle state, blocker, or next action and carries no authority to republish or retire (#599, #457).
+
+### Changed
+
+- Require `voku/agent-learning ^0.18.23` (decision-time guidance outcome attribution and the attributable-helpful audit set) and `voku/agent-recall-compiler ^0.24.0` (`helpful` outcomes require attribution; `suppressedLearningPrecedents()`); minimum-release guards and candidate dogfood follow Recall 0.24.0 (#599).
+- The learning-boundary skill explains honest outcome attribution and the maintenance item (#599).
+
 ## 0.20.38 - 2026-09-23
 
 ### Changed
