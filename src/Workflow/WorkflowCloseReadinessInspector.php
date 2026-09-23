@@ -259,7 +259,7 @@ final readonly class WorkflowCloseReadinessInspector
         }
 
         $selected = array_values(array_filter(
-            [...$output->selectedGuidance(), ...$output->selectedConstraints()],
+            $output->selectedGuidance(),
             static fn (string $id): bool => trim($id) !== '',
         ));
         if ($selected === []) {
