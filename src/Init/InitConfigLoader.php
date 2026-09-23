@@ -311,6 +311,11 @@ final readonly class InitConfigLoader
 
                 continue;
             }
+            if (preg_match('/[\x00-\x1F\x7F]/', $value) === 1) {
+                $warnings[] = '[WARN] init config: runtime.container.' . $key . ' must not contain control characters';
+
+                continue;
+            }
             if ($key === 'workdir' && !str_starts_with($value, '/')) {
                 $warnings[] = '[WARN] init config: runtime.container.workdir must be an absolute path inside the container';
 

@@ -317,6 +317,21 @@ final class InitConfigLoaderTest extends TestCase
         ], $config['warnings']);
     }
 
+    public function testRuntimeContainerValuesWithControlCharactersAreIgnored(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'runtime' => ['container' => ['service' => "php\nexit 0", 'workdir' => "/var/www/it's"]],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        // A quote is plain data for the hooks; a newline is not a service name.
+        self::assertSame(['workdir' => "/var/www/it's"], $config['runtime']['container']);
+        self::assertSame(['[WARN] init config: runtime.container.service must not contain control characters'], $config['warnings']);
+    }
+
     public function testRuntimeThatIsNotAnObjectWarns(): void
     {
         $root = $this->tempDir();
