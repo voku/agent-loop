@@ -1,3 +1,9 @@
+## 0.20.41 - 2026-09-23
+
+### Fixed
+
+- Declare a project's container runtime once in `.agent-loop/init.json` (`runtime.container`: service, image, workdir, user). `init sync-githooks` resolves each value as explicit flag > declared runtime > value already in the generated hooks environment, so `init install-assets` and fresh clones no longer silently move a container-bound project's Git hook checks onto the host (#606).
+
 ## 0.20.40 - 2026-09-23
 
 ### Changed
