@@ -88,7 +88,7 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertFileDoesNotExist($this->verificationReceipt());
     }
 
-    public function testCloseRequiresOutcomeForEverySelectedGuidanceItem(): void
+    public function testCloseRequiresSelectionEventForEverySelectedGuidanceItem(): void
     {
         $this->writeRecallMeta([
             'task_id' => 'ABC-123',
@@ -104,6 +104,26 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
         self::assertStringContainsString('session was not closed', $result['output']);
         self::assertFileDoesNotExist($this->verificationReceipt());
+    }
+
+    public function testCloseDoesNotRequireGuidanceOutcomeEventsForSelectedConstraints(): void
+    {
+        $this->writeRecallMeta([
+            'task_id' => 'ABC-123',
+            'compilation_id' => 'compilation.abc.constraint-only',
+            'selected_guidance' => [],
+            'selected_constraints' => [['id' => 'constraint.example']],
+            'output_hashes' => [],
+        ]);
+        $this->writeReviewReport(['status' => 'ok']);
+
+        $result = $this->runClose();
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString(
+            '[OK] recall outcomes: no selected guidance requires evaluation',
+            $result['output'],
+        );
     }
 
     public function testCloseAcceptsALoggedSelectionWithoutAnyJudgementOrReason(): void
