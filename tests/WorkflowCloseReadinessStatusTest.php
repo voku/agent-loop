@@ -172,7 +172,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertStringNotContainsString('missing explicit recall outcome for', $closeOutput);
     }
 
-    public function testMissingRecallOutcomeRoutesToTheJudgmentThatCanAdvanceIt(): void
+    public function testMissingRecallSelectionLogRoutesToTheDraftLoggingThatCanAdvanceIt(): void
     {
         $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
         file_put_contents(
@@ -198,7 +198,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $status['manifest']['next_action_kind'] ?? null);
         $action = (string) ($status['manifest']['next_action'] ?? '');
         // The completed draft goes back through finish, so the same invocation
-        // that logs the outcome can also close the Run.
+        // that logs the selection events can also close the Run.
         self::assertStringContainsString('agent-loop finish ABC-123 --recall-outcome-draft', $action);
         self::assertStringContainsString('.agent-loop/recall/ABC-123/recall-log.draft.json', $action);
         self::assertStringContainsString('--by <actor> --commit <commit>', $action);
