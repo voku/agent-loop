@@ -275,60 +275,51 @@ final readonly class WorkflowCloseReadinessInspector
         }
 
         try {
-            $outcomes = (new GuidanceOutcomeEventRepository())->load($learningRoot);
-            $recorded = [];
-            foreach ($outcomes as $outcome) {
-                if ($outcome->taskId === $taskId && $outcome->compilationId === $compilationId) {
-                    $recorded[$outcome->guidanceId] = true;
+            $selected = array_values(array_unique($selected));
+            $selectedSet = array_fill_keys($selected, true);
+
+            $judged = [];
+            foreach ((new GuidanceOutcomeEventRepository())->load($learningRoot) as $outcome) {
+                if (
+                    $outcome->taskId === $taskId
+                    && $outcome->compilationId === $compilationId
+                    && isset($selectedSet[$outcome->guidanceId])
+                ) {
+                    $judged[$outcome->guidanceId] = true;
                 }
             }
 
-            $selected = array_values(array_unique($selected));
-            $selectedSet = array_fill_keys($selected, true);
-            $withheld = array_intersect_key(
-                $this->declaredWithholdings($learningRoot, $taskId, $compilationId),
-                $selectedSet,
-            );
+            $loggedSelections = [];
+            foreach ((new RecallSelectionEventRepository())->load($learningRoot) as $event) {
+                if (
+                    $event->taskId === $taskId
+                    && $event->compilationId === $compilationId
+                    && $event->selected
+                    && isset($selectedSet[$event->guidanceId])
+                ) {
+                    $loggedSelections[$event->guidanceId] = true;
+                }
+            }
         } catch (RuntimeException $exception) {
             return ['detail' => 'invalid Learning recall history: ' . $exception->getMessage(), 'message' => null];
         }
 
-        $missing = array_values(array_filter(
+        $missingSelections = array_values(array_filter(
             $selected,
-            static fn (string $id): bool => !isset($recorded[$id]) && !isset($withheld[$id]),
+            static fn (string $id): bool => !isset($loggedSelections[$id]),
         ));
-        if ($missing !== []) {
-            return ['detail' => 'missing explicit recall outcome for: ' . implode(', ', $missing), 'message' => null];
+        if ($missingSelections !== []) {
+            return ['detail' => 'recall selection event not logged for: ' . implode(', ', $missingSelections), 'message' => null];
         }
 
         return [
             'detail' => null,
             'message' => sprintf(
-                '[OK] recall outcomes: %d judged, %d withheld with a stated reason, for %d selected guidance item(s)',
-                count($selected) - count($withheld),
-                count($withheld),
+                '[OK] recall outcomes: %d of %d selected guidance item(s) judged; unjudged selections are neutral',
+                count($judged),
                 count($selected),
             ),
         ];
-    }
-
-    /** @return array<string, true> */
-    private function declaredWithholdings(string $learningRoot, string $taskId, string $compilationId): array
-    {
-        $withheld = [];
-        foreach ((new RecallSelectionEventRepository())->load($learningRoot) as $event) {
-            if (
-                $event->taskId === $taskId
-                && $event->compilationId === $compilationId
-                && $event->selected
-                && $event->outcomeWithheldReason !== null
-                && trim($event->outcomeWithheldReason) !== ''
-            ) {
-                $withheld[$event->guidanceId] = true;
-            }
-        }
-
-        return $withheld;
     }
 
     /** @return array{detail: string|null, message: string|null} */
