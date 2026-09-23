@@ -22,9 +22,11 @@ Findings are **not** durable memory. A Run learning close-out records what happe
 
 | Situation | Status | Command Template | Required Arguments |
 |---|---|---|---|
-| Reusable lesson discovered | `findings_recorded` | `vendor/bin/agent-loop workflow learn <task-id> --status findings_recorded --finding <id> --by <actor> --reason "<what was learned>"` | `--finding <id>`, `--by`, `--reason` |
-| One-off fix / already known | `no_durable_learning` | `vendor/bin/agent-loop workflow learn <task-id> --status no_durable_learning --by <actor> --reason "<local scope reason>"` | `--by`, `--reason` |
-| Out-of-scope follow-up | `follow_up_required` | `vendor/bin/agent-loop workflow learn <task-id> --status follow_up_required --follow-up <ref> --by <actor> --reason "<why out of scope>"` | `--follow-up <ref>`, `--by`, `--reason` |
+| Reusable lesson discovered | `findings_recorded` | `vendor/bin/agent-loop workflow learn <task-id> --finding <id> --by <actor>` | `--finding <id>`, `--by` |
+| One-off fix / already known | `no_durable_learning` | `vendor/bin/agent-loop workflow learn <task-id> --status no_durable_learning --by <actor>` | `--status`, `--by` |
+| Out-of-scope follow-up | `follow_up_required` | `vendor/bin/agent-loop workflow learn <task-id> --follow-up <ref> --by <actor>` | `--follow-up <ref>`, `--by` |
+
+`--finding` and `--follow-up` already state the decision. `--reason` is optional context: do not write a sentence to say nothing durable was learned.
 
 ## Fast Path Sequence
 
@@ -43,8 +45,7 @@ Findings are **not** durable memory. A Run learning close-out records what happe
    ```bash
    vendor/bin/agent-loop workflow learn <task-id> \
      --status no_durable_learning \
-     --by <actor> \
-     --reason "Changes are task-local with no reusable guidance implications."
+     --by <actor>
    ```
 
 ### Bad vs Good Learning Disposition

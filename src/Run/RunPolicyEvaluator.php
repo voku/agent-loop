@@ -420,8 +420,6 @@ final readonly class RunPolicyEvaluator
                     $taskId,
                     '--learning',
                     '<no_durable_learning|findings_recorded|follow_up_required>',
-                    '--learning-reason',
-                    '<learning-reason>',
                     '--by',
                     '<actor>',
                     '[--finding',

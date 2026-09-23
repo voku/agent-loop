@@ -133,7 +133,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
             '--learning <no_durable_learning|findings_recorded|follow_up_required>',
             $learningPayload['next_action'] ?? '',
         );
-        self::assertStringContainsString('--learning-reason <learning-reason>', $learningPayload['next_action'] ?? '');
+        self::assertStringNotContainsString('--learning-reason', $learningPayload['next_action'] ?? '');
 
         self::assertSame($session->id, $run->sessionId);
     }

@@ -38,16 +38,16 @@ final readonly class HostFinishFindingIdAdapter
         $taskId = new WorkflowTaskId($args[0] ?? '');
         $tokens = array_slice($args, 1);
         $format = OptionTokens::value($tokens, 'format') ?? 'text';
-        $learning = OptionTokens::value($tokens, 'learning');
+        $explicitLearning = OptionTokens::value($tokens, 'learning');
         $by = OptionTokens::value($tokens, 'by');
         $reason = OptionTokens::value($tokens, 'learning-reason');
         $followUpRef = OptionTokens::value($tokens, 'follow-up-ref');
         $findingIds = OptionTokens::values($tokens, 'finding');
 
         try {
-            if ($learning !== 'findings_recorded') {
-                throw new InvalidArgumentException('--finding is only valid with --learning findings_recorded.');
-            }
+            // Finding ids already record findings_recorded; an explicit status is
+            // optional and only has to agree.
+            WorkflowLearningRecorder::resolveDecision($explicitLearning, true, $followUpRef);
             if ($findingIds === []) {
                 throw new InvalidArgumentException('--finding requires at least one non-empty Finding id.');
             }
@@ -56,8 +56,8 @@ final readonly class HostFinishFindingIdAdapter
                     '--finding cannot be combined with inline --finding-observation/--finding-hypothesis/--finding-conclusion/--finding-confidence/--finding-sensitivity input.',
                 );
             }
-            if ($by === null || $reason === null) {
-                throw new InvalidArgumentException('--learning requires --by <actor> and --learning-reason <text>.');
+            if ($by === null) {
+                throw new InvalidArgumentException('A learning decision requires --by <actor>.');
             }
 
             $command = new HostFrontDoorCommand($this->rootPath);

@@ -98,14 +98,12 @@ final class WorkflowLearningEvidenceTest extends TestCase
             'LEARN-FAILED-1',
             '--status', 'no_durable_learning',
             '--by', 'fixture',
-            '--reason', 'The failed checks are current evidence and can inform the Run learning close-out.',
         ]);
 
         self::assertSame(0, $exit, 'Learning must remain available for current failed validation/review evidence.');
-        self::assertNotNull(
-            (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId),
-            'Current failed evidence must still be bindable to a durable Run learning decision.',
-        );
+        $decision = (new RunLearningDecisionStore($this->root . '/.agent-loop/learning'))->find($run->runId);
+        self::assertNotNull($decision, 'Current failed evidence must still be bindable to a durable Run learning decision.');
+        self::assertNull($decision->reason, 'A learning decision needs no prose.');
     }
 
     private function removeDirectory(string $directory): void

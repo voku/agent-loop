@@ -293,8 +293,9 @@ final readonly class HostFrontDoorCommand
     private function finish(array $args): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning STATUS --learning-reason TEXT --by ACTOR] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT]\n";
+            echo "Usage: agent-loop finish <task-id> [--format text|json] [--reviewed-report-sha256 SHA --by ACTOR] [--learning no_durable_learning --by ACTOR] [--learning-reason TEXT] [--finding-observation TEXT --finding-hypothesis TEXT --finding-conclusion TEXT --finding-confidence LEVEL --finding-sensitivity VALUE] [--follow-up-ref REF] [--recall-outcome-draft PATH --by ACTOR --commit COMMIT]\n";
             echo "Reconcile deterministic validation/review evidence, bind explicit judgments, create Learning Findings through their owner, and close when canonical policy permits.\n";
+            echo "Finding input or --finding implies findings_recorded and --follow-up-ref implies follow_up_required; --learning-reason is optional context.\n";
 
             return 0;
         }
@@ -416,8 +417,8 @@ final readonly class HostFrontDoorCommand
                     }
 
                     if ($options['learning'] !== null) {
-                        if ($options['by'] === null || $options['learningReason'] === null) {
-                            throw new RuntimeException('--learning requires --by <actor> and --learning-reason <text>.');
+                        if ($options['by'] === null) {
+                            throw new RuntimeException('A learning decision requires --by <actor>.');
                         }
                         if (!in_array($manifest->references['review']['state'] ?? null, ['ok', 'warn'], true)) {
                             throw new RuntimeException('Learning disposition requires acknowledgement of the exact current review report first.');
@@ -949,13 +950,16 @@ final readonly class HostFrontDoorCommand
             throw new InvalidArgumentException('--learning must be no_durable_learning, findings_recorded, or follow_up_required.');
         }
 
+        $findingInputs = $this->findingInputs($tokens);
+        $followUpRef = OptionTokens::value($tokens, 'follow-up-ref');
+
         return [
             'reviewedReportSha256' => $reviewedReportSha256,
             'by' => OptionTokens::value($tokens, 'by'),
-            'learning' => $learning,
+            'learning' => WorkflowLearningRecorder::resolveDecision($learning, $findingInputs !== [], $followUpRef),
             'learningReason' => OptionTokens::value($tokens, 'learning-reason'),
-            'findingInputs' => $this->findingInputs($tokens),
-            'followUpRef' => OptionTokens::value($tokens, 'follow-up-ref'),
+            'findingInputs' => $findingInputs,
+            'followUpRef' => $followUpRef,
             'recallOutcomeDraft' => OptionTokens::value($tokens, 'recall-outcome-draft'),
             'commit' => OptionTokens::value($tokens, 'commit'),
         ];
@@ -1113,7 +1117,7 @@ final readonly class HostFrontDoorCommand
             }
 
             if (str_contains($token, '=')) {
-                if (substr($token, strlen('--' . $name . '=')) === '') {
+                if ($name !== 'learning-reason' && substr($token, strlen('--' . $name . '=')) === '') {
                     throw new InvalidArgumentException('--' . $name . ' requires a non-empty value.');
                 }
                 continue;

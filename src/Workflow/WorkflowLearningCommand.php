@@ -84,7 +84,7 @@ final readonly class WorkflowLearningCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{status: RunLearningDecisionStatus, by: string, reason: string, findingIds: list<string>, followUp: string|null}
+     * @return array{status: RunLearningDecisionStatus, by: string, reason: string|null, findingIds: list<string>, followUp: string|null}
      */
     private function parse(array $tokens): array
     {
@@ -103,28 +103,33 @@ final readonly class WorkflowLearningCommand
                 throw new InvalidArgumentException($token . ' requires a value.');
             }
             $value = trim($tokens[++$index]);
-            if ($value === '') {
+            if ($value === '' && $token !== '--reason') {
                 throw new InvalidArgumentException($token . ' requires a non-empty value.');
             }
             if ($token === '--status') {
-                $status = RunLearningDecisionStatus::tryFrom($value)
-                    ?? throw new InvalidArgumentException('--status must be findings_recorded, no_durable_learning, or follow_up_required.');
+                $status = $value;
             } elseif ($token === '--by') {
                 $by = $value;
             } elseif ($token === '--reason') {
-                $reason = $value;
+                $reason = $value === '' ? null : $value;
             } elseif ($token === '--finding') {
                 $findingIds[] = $value;
             } elseif ($token === '--follow-up') {
                 $followUp = $value;
             }
         }
-        if (!$status instanceof RunLearningDecisionStatus || $by === null || $reason === null) {
-            throw new InvalidArgumentException('--status, --by, and --reason are required.');
+        if ($status !== null && !RunLearningDecisionStatus::tryFrom($status) instanceof RunLearningDecisionStatus) {
+            throw new InvalidArgumentException('--status must be findings_recorded, no_durable_learning, or follow_up_required.');
+        }
+        // --finding / --follow-up already state the decision; --reason is optional context.
+        $resolved = WorkflowLearningRecorder::resolveDecision($status, $findingIds !== [], $followUp);
+        $decision = $resolved === null ? null : RunLearningDecisionStatus::tryFrom($resolved);
+        if (!$decision instanceof RunLearningDecisionStatus || $by === null) {
+            throw new InvalidArgumentException('--by and a decision (--status, --finding, or --follow-up) are required.');
         }
 
         return [
-            'status' => $status,
+            'status' => $decision,
             'by' => $by,
             'reason' => $reason,
             'findingIds' => $findingIds,

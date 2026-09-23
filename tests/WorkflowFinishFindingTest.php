@@ -74,8 +74,8 @@ final class WorkflowFinishFindingTest extends TestCase
         $closed = $this->finish($taskId, [
             '--format=json',
             '--reviewed-report-sha256', (string) $review['sha256'],
-            '--learning', 'findings_recorded',
-            '--learning-reason', 'The consumer friction is durable and evidence-backed.',
+            // Finding input already records findings_recorded; no status or
+            // reason has to be restated.
             '--by', 'fixture-reviewer',
             '--finding-observation', 'Ordinary close-out previously required hand-authored Finding JSON.',
             '--finding-hypothesis', 'Finding persistence should stay behind the Learning owner boundary.',

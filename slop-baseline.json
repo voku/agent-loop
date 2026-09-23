@@ -376,7 +376,7 @@
                 },
                 {
                     "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
-                    "line": 476,
+                    "line": 559,
                     "column": 1
                 },
                 {
@@ -432,11 +432,6 @@
                 {
                     "path": "tools/prompt-primitives-dogfood.php",
                     "line": 403,
-                    "column": 1
-                },
-                {
-                    "path": "tools/release-set-dogfood.php",
-                    "line": 1175,
                     "column": 1
                 }
             ],
@@ -535,9 +530,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "4431d1d4c0951299690452b9b1340c98f8475ac2fab921ff3aa9a2087d83174c",
+                        "fingerprint": "b8ea4797c0384685a2e6791cae2b272b2fbb214d58ce904c60e6a9c82f956340",
                         "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
-                        "line": 476,
+                        "line": 559,
                         "column": 1
                     },
                     {
@@ -604,12 +599,6 @@
                         "fingerprint": "2529834caa742254f6befa02ef31b93209d62bdb8287e2679cfbb9beffaa88ca",
                         "path": "tools/prompt-primitives-dogfood.php",
                         "line": 403,
-                        "column": 1
-                    },
-                    {
-                        "fingerprint": "616b9e6abf25998c538b7fc7e53a98025e989f04eefb73a220edbac49efdddf4",
-                        "path": "tools/release-set-dogfood.php",
-                        "line": 1175,
                         "column": 1
                     }
                 ]
