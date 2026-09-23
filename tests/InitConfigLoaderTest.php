@@ -265,6 +265,70 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testRuntimeContainerDefaultsToNone(): void
+    {
+        $config = (new InitConfigLoader($this->tempDir()))->load('.agent-loop/init.json');
+
+        self::assertSame(['container' => []], $config['runtime']);
+    }
+
+    public function testRuntimeContainerIsDeclaredOnce(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'runtime' => ['container' => [
+                'service' => 'php',
+                'image' => ' it-portal-php ',
+                'workdir' => '/var/www/html',
+                'user' => 'www-data',
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame(
+            ['service' => 'php', 'image' => 'it-portal-php', 'workdir' => '/var/www/html', 'user' => 'www-data'],
+            $config['runtime']['container'],
+        );
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testInvalidRuntimeContainerValuesWarnAndAreDropped(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'runtime' => ['container' => [
+                'service' => 'php',
+                'workdir' => 'var/www/html',
+                'user' => '  ',
+                'network' => 'host',
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame(['service' => 'php'], $config['runtime']['container']);
+        self::assertSame([
+            '[WARN] init config: runtime.container.workdir must be an absolute path inside the container',
+            '[WARN] init config: runtime.container.user must be a non-empty string',
+            '[WARN] init config: runtime.container.network is not supported (service, image, workdir, user)',
+        ], $config['warnings']);
+    }
+
+    public function testRuntimeThatIsNotAnObjectWarns(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', '{"runtime": "docker"}');
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame([], $config['runtime']['container']);
+        self::assertSame(['[WARN] init config: runtime must be an object'], $config['warnings']);
+    }
+
     private function tempDir(): string
     {
         $directory = sys_get_temp_dir() . '/agent-loop-init-config-' . bin2hex(random_bytes(6));
