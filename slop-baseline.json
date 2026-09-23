@@ -376,7 +376,7 @@
                 },
                 {
                     "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
-                    "line": 559,
+                    "line": 558,
                     "column": 1
                 },
                 {
@@ -530,9 +530,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "b8ea4797c0384685a2e6791cae2b272b2fbb214d58ce904c60e6a9c82f956340",
+                        "fingerprint": "bb2f9316ff80170b71cbfd7011275020de3be3db9c16a39bb48aeed4b1469d46",
                         "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
-                        "line": 559,
+                        "line": 558,
                         "column": 1
                     },
                     {
