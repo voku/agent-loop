@@ -3,6 +3,7 @@
 ### Fixed
 
 - Declare a project's container runtime once in `.agent-loop/init.json` (`runtime.container`: service, image, workdir, user). `init sync-githooks` resolves each value as explicit flag > declared runtime > value already in the generated hooks environment, so `init install-assets` and fresh clones no longer silently move a container-bound project's Git hook checks onto the host (#606).
+- Generated Git hooks pass the container workdir to `cd` as an argument instead of interpolating it into shell source, so a quote in the workdir can no longer skip the configured check; `runtime.container` values with control characters are rejected, and the docs state the host fallback when Docker or the configured container is unavailable (#606).
 
 ## 0.20.40 - 2026-09-23
 
