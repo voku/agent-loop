@@ -144,6 +144,77 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertSame('issue://voku/agent-loop/334', $decision->followUpRef);
     }
 
+    public function testNoDurableLearningIsAnExplicitDecisionWithoutProse(): void
+    {
+        [$runId] = $this->prepareRun('FINISH-NO-PROSE');
+        $this->finish('FINISH-NO-PROSE', ['--format=json']);
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-NO-PROSE');
+        self::assertNotNull($review['sha256']);
+
+        $closed = $this->finish('FINISH-NO-PROSE', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+            '--learning', 'no_durable_learning',
+        ]);
+
+        self::assertSame(0, $closed['exit'], json_encode($closed['payload'], JSON_THROW_ON_ERROR));
+        self::assertTrue($closed['payload']['complete'] ?? false);
+        $run = (new GovernedRunStore($this->root))->find('FINISH-NO-PROSE');
+        self::assertNotNull($run);
+        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId);
+        self::assertNotNull($decision);
+        self::assertSame(RunLearningDecisionStatus::NO_DURABLE_LEARNING, $decision->decision);
+        self::assertNull($decision->reason);
+    }
+
+    public function testFollowUpReferenceAloneRecordsTheDecision(): void
+    {
+        [$runId] = $this->prepareRun('FINISH-IMPLIED-FOLLOW-UP');
+        $this->finish('FINISH-IMPLIED-FOLLOW-UP', ['--format=json']);
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-IMPLIED-FOLLOW-UP');
+
+        $closed = $this->finish('FINISH-IMPLIED-FOLLOW-UP', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+            '--follow-up-ref', 'issue://voku/agent-loop/334',
+        ]);
+
+        self::assertSame(0, $closed['exit'], json_encode($closed['payload'], JSON_THROW_ON_ERROR));
+        $run = (new GovernedRunStore($this->root))->find('FINISH-IMPLIED-FOLLOW-UP');
+        self::assertNotNull($run);
+        $decision = (new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId);
+        self::assertNotNull($decision);
+        self::assertSame(RunLearningDecisionStatus::FOLLOW_UP_REQUIRED, $decision->decision);
+        self::assertSame('issue://voku/agent-loop/334', $decision->followUpRef);
+    }
+
+    public function testExplicitStatusContradictingItsEvidenceIsRefused(): void
+    {
+        [$runId] = $this->prepareRun('FINISH-CONTRADICTION');
+        $this->finish('FINISH-CONTRADICTION', ['--format=json']);
+        $review = (new WorkflowReviewReportReader($this->root))->read('FINISH-CONTRADICTION');
+
+        $refused = $this->finish('FINISH-CONTRADICTION', [
+            '--format=json',
+            '--reviewed-report-sha256', (string) $review['sha256'],
+            '--by', 'fixture-reviewer',
+            '--learning', 'no_durable_learning',
+            '--follow-up-ref', 'issue://voku/agent-loop/334',
+        ]);
+
+        self::assertNotSame(0, $refused['exit']);
+        self::assertSame('error', $refused['payload']['status'] ?? null);
+        self::assertStringContainsString(
+            '--learning no_durable_learning contradicts the supplied follow-up reference',
+            json_encode($refused['payload'], JSON_THROW_ON_ERROR),
+        );
+        $run = (new GovernedRunStore($this->root))->find('FINISH-CONTRADICTION');
+        self::assertNotNull($run);
+        self::assertNull((new RunLearningDecisionStore(WorkflowLearningRoot::forRun($this->root, $run)))->find($runId));
+    }
+
     public function testWrongReviewDigestCannotCreateAcknowledgement(): void
     {
         $this->prepareRun('FINISH-4');

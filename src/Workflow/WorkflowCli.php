@@ -59,7 +59,7 @@ Usage:
   agent-loop workflow review <task-id>
   agent-loop workflow reflect <task-id> [--scope project|task]
   agent-loop workflow handoff <task-id> (--context <text> | --context-file <path>)
-  agent-loop workflow learn <task-id> --status findings_recorded|no_durable_learning|follow_up_required --by <actor> --reason <text> [--finding <id> ...] [--follow-up <ref>]
+  agent-loop workflow learn <task-id> --by <actor> (--status no_durable_learning | --finding <id> [--finding <id> ...] | --follow-up <ref>) [--reason <text>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
 
 Commands:

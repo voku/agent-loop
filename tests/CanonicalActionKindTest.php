@@ -175,7 +175,8 @@ final class CanonicalActionKindTest extends TestCase
 
         self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $policy->nextActionKind);
         self::assertStringContainsString('--learning <no_durable_learning|findings_recorded|follow_up_required>', $policy->nextAction);
-        self::assertStringContainsString('--learning-reason <learning-reason>', $policy->nextAction);
+        // A reason is optional context; the canonical step must not ask for prose.
+        self::assertStringNotContainsString('--learning-reason', $policy->nextAction);
         self::assertStringContainsString('--by <actor>', $policy->nextAction);
     }
 

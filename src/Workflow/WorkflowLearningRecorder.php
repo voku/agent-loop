@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentLearning\FindingCreator;
 use voku\AgentLearning\FindingRepository;
@@ -20,6 +21,30 @@ final readonly class WorkflowLearningRecorder
     }
 
     /**
+     * The learning status is stated explicitly only where nothing already
+     * implies it: Finding input implies findings_recorded, and a follow-up
+     * reference alone implies follow_up_required. An explicit status that
+     * contradicts that evidence fails closed. no_durable_learning is never
+     * inferred; it stays a deliberate decision.
+     */
+    public static function resolveDecision(?string $explicit, bool $hasFindings, ?string $followUpRef): ?string
+    {
+        $implied = $hasFindings
+            ? RunLearningDecisionStatus::FINDINGS_RECORDED->value
+            : ($followUpRef !== null ? RunLearningDecisionStatus::FOLLOW_UP_REQUIRED->value : null);
+        if ($explicit !== null && $implied !== null && $explicit !== $implied) {
+            throw new InvalidArgumentException(sprintf(
+                '--learning %s contradicts the supplied %s, which records %s.',
+                $explicit,
+                $hasFindings ? 'Finding' : 'follow-up reference',
+                $implied,
+            ));
+        }
+
+        return $explicit ?? $implied;
+    }
+
+    /**
      * @param list<FinishFindingInput> $findingInputs
      * @param list<string> $findingIds
      */
@@ -29,7 +54,7 @@ final readonly class WorkflowLearningRecorder
         Session $session,
         string $decisionValue,
         string $decidedBy,
-        string $reason,
+        ?string $reason,
         array $findingInputs = [],
         ?string $followUpRef = null,
         array $findingIds = [],
@@ -37,9 +62,12 @@ final readonly class WorkflowLearningRecorder
         $decision = RunLearningDecisionStatus::tryFrom($decisionValue)
             ?? throw new RuntimeException('Unknown finish learning decision: ' . $decisionValue . '.');
         $decidedBy = trim($decidedBy);
-        $reason = trim($reason);
-        if ($decidedBy === '' || $reason === '') {
-            throw new RuntimeException('Finish learning disposition requires --by and --learning-reason.');
+        // The decision and its Finding ids or follow-up reference are the
+        // evidence. 74% of real decisions were no_durable_learning plus a
+        // filler sentence, so a reason is optional context, never a gate.
+        $reason = $reason === null || trim($reason) === '' ? null : trim($reason);
+        if ($decidedBy === '') {
+            throw new RuntimeException('Finish learning disposition requires --by.');
         }
         if ($run->taskId !== $contract->taskId || $session->taskId !== $run->taskId) {
             throw new RuntimeException('Finish learning disposition does not match the governed task lineage.');
