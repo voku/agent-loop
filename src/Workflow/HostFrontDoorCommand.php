@@ -13,6 +13,7 @@ use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\CanonicalJson;
@@ -22,6 +23,7 @@ use voku\AgentLoop\Run\RunPolicyEvaluation;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentRecallCompiler\CompileRequest;
 use voku\AgentRecallCompiler\CompileResult;
+use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
 use voku\AgentRecallCompiler\OutcomeCloseOutService;
 use voku\AgentRecallCompiler\OutcomeLoggingConfig;
 use voku\AgentRecallCompiler\RecallRootResolver;
@@ -497,6 +499,10 @@ final readonly class HostFrontDoorCommand
         if ($complete) {
             $payload['human_finding_capture'] = $this->humanFindingCaptureAffordance($taskId->value);
         }
+        $learningMaintenance = $this->learningMaintenance($taskId->value);
+        if ($learningMaintenance !== []) {
+            $payload['learning_maintenance'] = $learningMaintenance;
+        }
         if ($closeoutFailure !== null) {
             $payload['blockers'] = [[
                 'code' => 'finish.closeout_failed',
@@ -523,6 +529,9 @@ final readonly class HostFrontDoorCommand
                 $capture = $this->humanFindingCaptureAffordance($taskId->value);
                 echo "\nOptional human observation:\n" . $capture['question'] . "\nIf applicable, use:\n  " . $capture['command'] . "\n";
             }
+            foreach ($learningMaintenance as $item) {
+                echo "\nLearning maintenance (advisory): " . $item['message'] . "\n  " . $item['review_command'] . "\n";
+            }
         }
 
         if ($closeoutFailure !== null) {
@@ -533,6 +542,52 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->state === 'blocked' ? 2 : 1;
+    }
+
+    /**
+     * Relevant LearningNotes that Recall withheld from this task's briefing
+     * because their repository evidence needs review.
+     *
+     * Withholding is correct fail-closed behavior but was silent: in real use a
+     * relevant note was dropped from eight of nine matching tasks and nobody was
+     * told. The session that just touched the drifted files is best placed to
+     * judge whether the lesson still holds. This is advisory only: it changes
+     * no lifecycle state and carries no authority to republish or retire.
+     *
+     * @return list<array{note_id: string, pattern_key: string|null, evidence_state: string, matching_task_files: list<string>, message: string, review_command: string}>
+     */
+    private function learningMaintenance(string $taskId): array
+    {
+        try {
+            $output = (new CompiledRecallOutputReader())->readForTask(RecallOutputRoot::resolve($this->rootPath), $taskId);
+        } catch (RuntimeException) {
+            // Unreadable compiled output is reported by the Recall close gate;
+            // a maintenance hint must not turn it into a second failure.
+            return [];
+        }
+        if ($output === null) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($output->suppressedLearningPrecedents() as $precedent) {
+            $files = $precedent->matchingTaskFiles === [] ? 'this task' : implode(', ', $precedent->matchingTaskFiles);
+            $items[] = [
+                'note_id' => $precedent->noteId,
+                'pattern_key' => $precedent->patternKey,
+                'evidence_state' => $precedent->evidenceState,
+                'matching_task_files' => $precedent->matchingTaskFiles,
+                'message' => sprintf(
+                    'LearningNote %s matched %s but was withheld from Recall (%s). If you know whether its lesson still holds after this change, republish it with current evidence or retire it through the Learning owner.',
+                    $precedent->noteId,
+                    $files,
+                    $precedent->evidenceState,
+                ),
+                'review_command' => 'agent-learning-note review ' . $precedent->noteId,
+            ];
+        }
+
+        return $items;
     }
 
     /**

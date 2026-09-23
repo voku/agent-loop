@@ -225,6 +225,70 @@ final class HostFrontDoorCommandTest extends TestCase
         self::assertSame($afterClose, $this->snapshotFiles(), 'finish must be read-only after completion.');
     }
 
+    public function testFinishSurfacesEvidenceSuppressedPrecedentsWithoutChangingLifecycle(): void
+    {
+        $this->prepareGovernedRun(withCloseEvidence: true);
+        $precedent = static fn (string $noteId, string $state, bool $render): array => [
+            'type' => 'learning_precedent',
+            'source_ref' => 'agent-learning:' . $noteId,
+            'payload' => [
+                'note_id' => $noteId,
+                'pattern_key' => 'roles.desired_state',
+                'title' => 'Store member-scoped rights as desired state',
+                'evidence_state' => $state,
+                'matching_task_files' => ['src/Foo.php'],
+                'render' => $render,
+            ],
+        ];
+        file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', json_encode([
+            'schema_version' => '1.0',
+            'bundle_sha256' => str_repeat('a', 64),
+            'facts' => [
+                $precedent('learning-note.2026-09-10.170d09', 'review_needed', false),
+                $precedent('learning-note.2026-09-19.4d79e6', 'current', true),
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $json = $this->runBinary(['finish', 'ABC-123', '--format=json']);
+
+        self::assertSame(0, $json['exit'], $json['stderr']);
+        $payload = $this->json($json['stdout']);
+        self::assertTrue($payload['complete']);
+        self::assertSame('complete', $payload['manifest']['state']);
+        self::assertSame('none', $payload['next_action']);
+        self::assertArrayNotHasKey('blockers', $payload);
+        self::assertSame(
+            [[
+                'note_id' => 'learning-note.2026-09-10.170d09',
+                'pattern_key' => 'roles.desired_state',
+                'evidence_state' => 'review_needed',
+                'matching_task_files' => ['src/Foo.php'],
+                'message' => 'LearningNote learning-note.2026-09-10.170d09 matched src/Foo.php but was withheld from Recall (review_needed). If you know whether its lesson still holds after this change, republish it with current evidence or retire it through the Learning owner.',
+                'review_command' => 'agent-learning-note review learning-note.2026-09-10.170d09',
+            ]],
+            $payload['learning_maintenance'],
+        );
+
+        $before = $this->snapshotFiles();
+        $text = $this->runBinary(['finish', 'ABC-123']);
+
+        self::assertSame(0, $text['exit'], $text['stderr']);
+        self::assertStringContainsString('Learning maintenance (advisory): LearningNote learning-note.2026-09-10.170d09 matched src/Foo.php', $text['stdout']);
+        self::assertStringContainsString('agent-learning-note review learning-note.2026-09-10.170d09', $text['stdout']);
+        self::assertStringNotContainsString('4d79e6', $text['stdout']);
+        self::assertSame($before, $this->snapshotFiles(), 'the maintenance hint must not mutate anything.');
+    }
+
+    public function testFinishOmitsLearningMaintenanceWhenNothingWasSuppressed(): void
+    {
+        $this->prepareGovernedRun(withCloseEvidence: true);
+
+        $result = $this->runBinary(['finish', 'ABC-123', '--format=json']);
+
+        self::assertSame(0, $result['exit'], $result['stderr']);
+        self::assertArrayNotHasKey('learning_maintenance', $this->json($result['stdout']));
+    }
+
     public function testQuickRequiresGoalAndFile(): void
     {
         $result = $this->runBinary(['quick']);
