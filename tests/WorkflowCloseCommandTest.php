@@ -88,7 +88,7 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertFileDoesNotExist($this->verificationReceipt());
     }
 
-    public function testCloseRequiresOutcomeForEverySelectedGuidanceItem(): void
+    public function testCloseRequiresSelectionEventForEverySelectedGuidanceItem(): void
     {
         $this->writeRecallMeta([
             'task_id' => 'ABC-123',
@@ -106,7 +106,27 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertFileDoesNotExist($this->verificationReceipt());
     }
 
-    public function testCloseAcceptsSelectedGuidanceWhoseAbsentOutcomeWasDeclared(): void
+    public function testCloseDoesNotRequireGuidanceOutcomeEventsForSelectedConstraints(): void
+    {
+        $this->writeRecallMeta([
+            'task_id' => 'ABC-123',
+            'compilation_id' => 'compilation.abc.constraint-only',
+            'selected_guidance' => [],
+            'selected_constraints' => [['id' => 'constraint.example']],
+            'output_hashes' => [],
+        ]);
+        $this->writeReviewReport(['status' => 'ok']);
+
+        $result = $this->runClose();
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertStringContainsString(
+            '[OK] recall outcomes: no selected guidance requires evaluation',
+            $result['output'],
+        );
+    }
+
+    public function testCloseAcceptsALoggedSelectionWithoutAnyJudgementOrReason(): void
     {
         $this->writeRecallMeta([
             'task_id' => 'ABC-123',
@@ -114,12 +134,15 @@ final class WorkflowCloseCommandTest extends TestCase
             'selected_guidance' => ['G-002'],
         ]);
         $this->writeReviewReport(['status' => 'ok']);
-        $this->writeSelectionEvent('compilation.abc.002', 'G-002', 'This runner never reads the compiled briefing.');
+        $this->writeSelectionEvent('compilation.abc.002', 'G-002', null);
 
         $result = $this->runClose();
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('0 judged, 1 withheld with a stated reason', $result['output']);
+        self::assertStringContainsString(
+            '0 of 1 selected guidance item(s) judged; unjudged selections are neutral',
+            $result['output'],
+        );
     }
 
     public function testCloseStillRefusesAnEmptyWithheldReason(): void
@@ -139,7 +162,7 @@ final class WorkflowCloseCommandTest extends TestCase
         self::assertStringContainsString('outcome_withheld_reason must be non-empty when present', $result['output']);
     }
 
-    public function testCloseRefusesWithholdingFromAnUnselectedEvent(): void
+    public function testCloseRefusesAnUnselectedEventAsSelectionEvidence(): void
     {
         $this->writeRecallMeta([
             'task_id' => 'ABC-123',
@@ -157,13 +180,13 @@ final class WorkflowCloseCommandTest extends TestCase
         $result = $this->runClose();
 
         self::assertSame(1, $result['exit']);
-        self::assertStringContainsString('missing explicit recall outcome for: G-004', $result['output']);
+        self::assertStringContainsString('recall selection event not logged for: G-004', $result['output']);
     }
 
     private function writeSelectionEvent(
         string $compilationId,
         string $guidanceId,
-        string $withheldReason,
+        ?string $withheldReason,
         bool $selected = true,
     ): void {
         $history = $this->root . '/.agent-loop/learning/history';

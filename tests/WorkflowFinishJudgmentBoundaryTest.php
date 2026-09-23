@@ -324,7 +324,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertSame('working-tree', $calls[0]->commit);
     }
 
-    public function testAcknowledgedReviewWithPendingRecallOutcomeEmitsOutcomeTemplateAndAdvancesGate(): void
+    public function testAcknowledgedReviewWithLoggedRecallSelectionAdvancesDirectlyToLearningDecision(): void
     {
         [, $sessionId] = $this->prepareRun('FINISH-RECALL-GATE', ['guidance.finish-recall-gate']);
         $draft = $this->root . '/.agent-loop/recall/FINISH-RECALL-GATE/recall-log.draft.json';
@@ -344,13 +344,11 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
 
         self::assertSame(1, $ack['exit']);
         self::assertFalse($ack['payload']['complete'] ?? true);
-        self::assertSame('recall_outcomes', $ack['payload']['manifest']['references']['verification']['gate'] ?? null);
+        self::assertSame('learning_decision', $ack['payload']['manifest']['references']['verification']['gate'] ?? null);
         self::assertSame('command_template', $ack['payload']['next_action_kind'] ?? null);
         $nextAction = (string) ($ack['payload']['next_action'] ?? '');
-        self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --recall-outcome-draft', $nextAction);
-        self::assertStringContainsString('.agent-loop/recall/FINISH-RECALL-GATE/recall-log.draft.json', $nextAction);
-        self::assertStringContainsString('--by <actor> --commit <commit>', $nextAction);
-        self::assertStringNotContainsString('--learning', $nextAction);
+        self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --learning', $nextAction);
+        self::assertStringNotContainsString('--recall-outcome-draft', $nextAction);
 
         /** @var list<OutcomeLoggingConfig> $calls */
         $calls = [];
@@ -372,6 +370,7 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
 
         self::assertSame(1, $recorded['exit']);
         self::assertFalse($recorded['payload']['complete'] ?? true);
+        self::assertSame('learning_decision', $recorded['payload']['manifest']['references']['verification']['gate'] ?? null);
         self::assertSame('command_template', $recorded['payload']['next_action_kind'] ?? null);
         $advancedAction = (string) ($recorded['payload']['next_action'] ?? '');
         self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --learning', $advancedAction);
