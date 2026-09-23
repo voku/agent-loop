@@ -1,3 +1,15 @@
+## 0.20.40 - 2026-09-23
+
+### Changed
+
+- Make Run learning close-out sparse: `--learning-reason` / workflow `--reason` are optional context, Finding evidence implies `findings_recorded`, a follow-up reference implies `follow_up_required`, and `no_durable_learning` remains an explicit cheap decision instead of an inferred default (#602).
+- Make Recall close-out event-driven: matching Recall selection events remain required machine evidence, while guidance outcomes are optional judgments; unjudged selected guidance is neutral, and selected Constraints stay outside the guidance-usefulness gate (#604).
+- Require `voku/agent-learning ^0.18.24` and `voku/agent-recall-compiler ^0.25.0`; candidate dogfood and owner-boundary guards follow the same released floors (#602, #604).
+
+### Fixed
+
+- Keep the Loop consumer compatible with Learning 0.18.24's nullable decision reason and with PHPStan 2.2.15's stricter test diagnostics (#603).
+
 ## 0.20.39 - 2026-09-23
 
 ### Added
