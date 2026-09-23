@@ -29,6 +29,10 @@ final readonly class WorkflowLearningRecorder
      */
     public static function resolveDecision(?string $explicit, bool $hasFindings, ?string $followUpRef): ?string
     {
+        if ($hasFindings && $followUpRef !== null) {
+            throw new InvalidArgumentException('Finding evidence cannot be combined with a follow-up reference.');
+        }
+
         $implied = $hasFindings
             ? RunLearningDecisionStatus::FINDINGS_RECORDED->value
             : ($followUpRef !== null ? RunLearningDecisionStatus::FOLLOW_UP_REQUIRED->value : null);
