@@ -1,3 +1,13 @@
+## Unreleased
+
+### Added
+
+- `WorkflowDreamService` gives embedding hosts (agent-ui, runners) Dream through Loop: it resolves the repository's Learning root from the project layout and runs agent-learning's typed `DreamService`, returning a `WorkflowDreamReport` with the unchanged `DreamOutcome`. `preview()` writes nothing; `writeCandidates()` writes only candidate Proposals, which still need the existing human review before becoming guidance. Loop adds no Dream policy. `agent-loop learn dream` keeps working as before through the CLI pass-through.
+
+### Changed
+
+- Require `voku/agent-learning ^0.18.25` for the typed `DreamService`.
+
 ## 0.20.43 - 2026-09-23
 
 ### Fixed
