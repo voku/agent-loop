@@ -1,4 +1,4 @@
-## Unreleased
+## 0.20.44 - 2026-09-24
 
 ### Added
 
@@ -7,6 +7,10 @@
 ### Changed
 
 - Require `voku/agent-learning ^0.18.25` for the typed `DreamService`.
+
+### Validation
+
+- Local `composer ci` passed (1391 tests, PHPStan and dogfood gates) against the 0.18.25 candidate; exact-head PR CI against the released `voku/agent-learning 0.18.25` is the release gate.
 
 ## 0.20.43 - 2026-09-23
 
