@@ -128,7 +128,10 @@ project would receive without writing them. Detailed composition and host behavi
 live in [Agent assets and host integration](docs/reference/agent-assets.md).
 
 Portable assets are available for Codex, Claude Code, OpenCode, Copilot, Gemini
-CLI, and Antigravity. Host-specific capabilities and limitations remain explicit.
+CLI, Antigravity, and Cursor. Cursor projects the shared `AGENTS.md` router plus
+native `.cursor/skills` and `.cursor/agents` assets. Cursor runtime auto-detection
+is intentionally not claimed yet, so use explicit `--agent=cursor` selection.
+Host-specific capabilities and limitations remain explicit.
 
 ## The two lifecycle commands
 
