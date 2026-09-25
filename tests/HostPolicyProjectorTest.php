@@ -127,6 +127,102 @@ final class HostPolicyProjectorTest extends TestCase
         $projector->sync('codex');
     }
 
+
+    public function testCursorMergePreservesUnrelatedHooksAndIsIdempotent(): void
+    {
+        $cursorRoot = $this->root . '/.cursor';
+        mkdir($cursorRoot, 0o775, true);
+        file_put_contents($cursorRoot . '/hooks.json', json_encode([
+            'version' => 1,
+            'projectSetting' => 'preserve-me',
+            'hooks' => [
+                'beforeShellExecution' => [
+                    [
+                        'command' => 'php .cursor/hooks/project-owned.php',
+                        'timeout' => 5,
+                        'failClosed' => false,
+                    ],
+                ],
+                'afterShellExecution' => [
+                    ['command' => 'php .cursor/hooks/audit.php'],
+                ],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $projector = new HostPolicyProjector($this->root);
+        $first = $projector->sync('cursor');
+        $second = $projector->sync('cursor');
+
+        self::assertTrue($first['changed']);
+        self::assertFalse($second['changed']);
+        self::assertSame('ready', $projector->inspect('cursor')['status']);
+        self::assertFileExists($cursorRoot . '/hooks/authority_policy.php');
+
+        $config = $this->decodeJson($cursorRoot . '/hooks.json');
+        self::assertSame(1, $config['version'] ?? null);
+        self::assertSame('preserve-me', $config['projectSetting'] ?? null);
+        self::assertSame(
+            [['command' => 'php .cursor/hooks/audit.php']],
+            $config['hooks']['afterShellExecution'] ?? null,
+        );
+
+        $before = $config['hooks']['beforeShellExecution'] ?? null;
+        self::assertIsArray($before);
+        self::assertCount(2, $before);
+        self::assertSame('php .cursor/hooks/project-owned.php', $before[0]['command'] ?? null);
+        self::assertSame([
+            'command' => 'php .cursor/hooks/authority_policy.php',
+            'timeout' => 10,
+            'failClosed' => true,
+        ], $before[1]);
+    }
+
+    public function testCursorManagedHookConflictRequiresReviewedForce(): void
+    {
+        $cursorRoot = $this->root . '/.cursor';
+        mkdir($cursorRoot, 0o775, true);
+        file_put_contents($cursorRoot . '/hooks.json', json_encode([
+            'version' => 1,
+            'hooks' => [
+                'beforeShellExecution' => [[
+                    'command' => 'php .cursor/hooks/authority_policy.php',
+                    'timeout' => 10,
+                    'failClosed' => false,
+                ]],
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $projector = new HostPolicyProjector($this->root);
+        self::assertSame('conflict', $projector->inspect('cursor')['status']);
+
+        try {
+            $projector->sync('cursor');
+            self::fail('A weakened Cursor authority guard must not be overwritten silently.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('use --force only after reviewing', $exception->getMessage());
+        }
+
+        self::assertTrue($projector->sync('cursor', false, true)['changed']);
+        self::assertSame('ready', $projector->inspect('cursor')['status']);
+
+        $config = $this->decodeJson($cursorRoot . '/hooks.json');
+        self::assertTrue($config['hooks']['beforeShellExecution'][0]['failClosed'] ?? false);
+    }
+
+    public function testCursorUnknownHooksSchemaVersionFailsClosedEvenWithForce(): void
+    {
+        $cursorRoot = $this->root . '/.cursor';
+        mkdir($cursorRoot, 0o775, true);
+        file_put_contents($cursorRoot . '/hooks.json', '{"version":2,"hooks":{}}');
+
+        $projector = new HostPolicyProjector($this->root);
+        self::assertSame('conflict', $projector->inspect('cursor')['status']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('version must be 1');
+        $projector->sync('cursor', false, true);
+    }
+
     public function testOpenCodeMergePreservesUnrelatedConfigurationAndUsesDenyForAutoModeSafety(): void
     {
         file_put_contents($this->root . '/opencode.json', json_encode([

@@ -83,7 +83,7 @@ final class HostCapabilityMatrixTest extends TestCase
 
     public function testPolicyProjectionExistsOnlyWhereRepositoryPolicyCanBeRepresentedHonestly(): void
     {
-        foreach (['codex', 'claude', 'opencode'] as $agent) {
+        foreach (['codex', 'claude', 'opencode', 'cursor'] as $agent) {
             self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status($agent, HostCapability::PolicyProjection));
             self::assertSame(
                 'adapter-declared',
@@ -91,7 +91,7 @@ final class HostCapabilityMatrixTest extends TestCase
             );
         }
 
-        foreach (['copilot', 'gemini', 'antigravity', 'cursor'] as $agent) {
+        foreach (['copilot', 'gemini', 'antigravity'] as $agent) {
             self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, HostCapability::PolicyProjection));
             self::assertSame(
                 'no agent-loop host policy projector',
@@ -118,12 +118,28 @@ final class HostCapabilityMatrixTest extends TestCase
                 );
             }
 
-            foreach (['opencode', 'copilot', 'gemini', 'antigravity', 'cursor'] as $agent) {
+            foreach (['opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
                 $description = HostCapabilityMatrix::describe($agent, $capability);
                 self::assertSame('no-agent-loop-projector', $description['evidence']);
                 self::assertSame('no agent-loop host-native projector', $description['mechanism']);
             }
+        }
+
+        foreach ([HostCapability::PreToolGuardrail, HostCapability::RepositoryHooks] as $capability) {
+            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('cursor', $capability));
+            self::assertSame(
+                'adapter-declared;live-runtime-unverified',
+                HostCapabilityMatrix::describe('cursor', $capability)['evidence'],
+            );
+        }
+
+        foreach ([HostCapability::SessionBootstrap, HostCapability::SubagentBootstrap] as $capability) {
+            self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status('cursor', $capability));
+            self::assertSame(
+                'no-agent-loop-projector',
+                HostCapabilityMatrix::describe('cursor', $capability)['evidence'],
+            );
         }
     }
 
@@ -156,6 +172,14 @@ final class HostCapabilityMatrixTest extends TestCase
         self::assertSame(
             'Claude settings.json#hooks + repository-local command hooks',
             HostCapabilityMatrix::describe('claude', HostCapability::SessionBootstrap)['mechanism'],
+        );
+        self::assertSame(
+            '.cursor/hooks.json beforeShellExecution fail-closed authority policy',
+            HostCapabilityMatrix::describe('cursor', HostCapability::PolicyProjection)['mechanism'],
+        );
+        self::assertSame(
+            'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed authority guard',
+            HostCapabilityMatrix::describe('cursor', HostCapability::PreToolGuardrail)['mechanism'],
         );
     }
 
