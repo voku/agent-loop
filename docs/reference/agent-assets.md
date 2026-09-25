@@ -55,7 +55,7 @@ vendor/bin/agent-loop init install-assets \
 
 - instructions, skills, and subagents are checked for current managed projections, not merely manifest presence;
 - Codex, Claude Code, OpenCode, and Cursor expose repository policy projection as a separate capability;
-- Cursor policy uses a native `.cursor/hooks.json` `beforeShellExecution` entry plus an agent-loop-owned guard script with `failClosed: true`; unrelated hook entries remain project-owned and are preserved;
+- Cursor shell policy uses a native `.cursor/hooks.json` `beforeShellExecution` entry plus an agent-loop-owned guard script with `failClosed: true`; unrelated hook entries remain project-owned and are preserved; Cursor CLI policy and MCP authority coverage remain separate and unclaimed;
 - Copilot, Gemini CLI, and Antigravity can still converge portable assets even though agent-loop has no repository policy projector for them;
 - canonical `mutation: read-only` projects to Cursor frontmatter `readonly: true`; that is deterministic adapter evidence, not proof that a running Cursor instance discovered or enforced the role;
 - Cursor `pre-tool-guardrail` and `repository-hooks` are `degraded` until a real Cursor runtime proves hook execution; session/subagent bootstrap remain unsupported;
@@ -157,6 +157,7 @@ vendor/bin/agent-loop init host-status --agent=cursor --format=json
 vendor/bin/agent-loop init sync-policy --agent=codex --dry-run
 vendor/bin/agent-loop init sync-policy --agent=claude --dry-run
 vendor/bin/agent-loop init sync-policy --agent=opencode --dry-run
+vendor/bin/agent-loop init sync-policy --agent=cursor --dry-run
 vendor/bin/agent-loop init sync-skills --agent=codex --skills-root=resources/skills --dry-run
 vendor/bin/agent-loop init sync-subagents --agent=codex --dry-run
 vendor/bin/agent-loop init sync-hooks --agent=codex --dry-run

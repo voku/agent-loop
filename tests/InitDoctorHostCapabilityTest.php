@@ -57,7 +57,7 @@ final class InitDoctorHostCapabilityTest extends TestCase
                 $output,
             );
             self::assertStringContainsString(
-                'Host capability evidence [cursor/pre-tool-guardrail]: mechanism=Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed authority guard; evidence=adapter-declared;live-runtime-unverified',
+                'Host capability evidence [cursor/pre-tool-guardrail]: mechanism=Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed shell authority guard; evidence=adapter-declared;live-runtime-unverified',
                 $output,
             );
             self::assertStringContainsString('Host runtime [gemini]: ', $output);

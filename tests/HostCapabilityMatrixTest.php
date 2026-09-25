@@ -174,11 +174,11 @@ final class HostCapabilityMatrixTest extends TestCase
             HostCapabilityMatrix::describe('claude', HostCapability::SessionBootstrap)['mechanism'],
         );
         self::assertSame(
-            '.cursor/hooks.json beforeShellExecution fail-closed authority policy',
+            '.cursor/hooks.json beforeShellExecution fail-closed shell authority policy',
             HostCapabilityMatrix::describe('cursor', HostCapability::PolicyProjection)['mechanism'],
         );
         self::assertSame(
-            'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed authority guard',
+            'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed shell authority guard',
             HostCapabilityMatrix::describe('cursor', HostCapability::PreToolGuardrail)['mechanism'],
         );
     }
