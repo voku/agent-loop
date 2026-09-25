@@ -35,6 +35,8 @@ final class PackageResources
 
     private const string OPERATING_PROMPTS = 'resources/prompts/operating-prompts.json';
 
+    private const string CURSOR_AUTHORITY_HOOK = 'resources/hooks/cursor/authority_policy.php';
+
     private const string REVIEW = 'resources/review';
 
     /** Host hook bundles this package ships, keyed by canonical agent name. */
@@ -82,6 +84,11 @@ final class PackageResources
     public static function operatingPrompts(): string
     {
         return self::path(self::OPERATING_PROMPTS);
+    }
+
+    public static function cursorAuthorityHook(): string
+    {
+        return self::path(self::CURSOR_AUTHORITY_HOOK);
     }
 
     public static function reviewRoot(): string
