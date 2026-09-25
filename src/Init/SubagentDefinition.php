@@ -117,25 +117,19 @@ final readonly class SubagentDefinition
             ? ['description' => $this->description, 'mode' => 'subagent']
             : ['name' => $this->name, 'description' => $this->description];
 
+        $cursorReadOnly = false;
         if (in_array($client, ['gemini', 'antigravity'], true)) {
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
         } elseif ($client === 'cursor') {
-            if ($this->mutation === self::MUTATION_READ_ONLY) {
-                $frontmatter['readonly'] = true;
-            }
+            $cursorReadOnly = $this->mutation === self::MUTATION_READ_ONLY;
         } elseif (!in_array($client, ['opencode', 'copilot', 'claude'], true)) {
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
 
         $lines = ['---'];
         foreach ($frontmatter as $key => $value) {
-            if (is_bool($value)) {
-                $lines[] = $key . ': ' . ($value ? 'true' : 'false');
-
-                continue;
-            }
             if (is_numeric($value)) {
                 $lines[] = $key . ': ' . $value;
 
@@ -144,6 +138,9 @@ final readonly class SubagentDefinition
 
             $escaped = str_replace('"', '\"', $value);
             $lines[] = $key . ': "' . $escaped . '"';
+        }
+        if ($cursorReadOnly) {
+            $lines[] = 'readonly: true';
         }
         $lines[] = '---';
         $lines[] = '';
