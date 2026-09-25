@@ -359,7 +359,7 @@ final readonly class HostPolicyProjector
         $changed = !array_key_exists('version', $config);
 
         if ($state['index'] === null) {
-            $entries[] = (object) self::CURSOR_AUTHORITY_HOOK;
+            $entries[] = self::cursorAuthorityHookObject();
             $changed = true;
         } elseif ($state['managed'] !== self::CURSOR_AUTHORITY_HOOK) {
             if (!$force) {
@@ -367,7 +367,7 @@ final readonly class HostPolicyProjector
                     'Cursor agent-loop authority hook already exists with different settings; use --force only after reviewing the change to failClosed=true',
                 );
             }
-            $entries[$state['index']] = (object) self::CURSOR_AUTHORITY_HOOK;
+            $entries[$state['index']] = self::cursorAuthorityHookObject();
             $changed = true;
         }
 
@@ -463,6 +463,16 @@ final readonly class HostPolicyProjector
         }
 
         return ['changed' => true, 'path' => $path, 'detail' => 'OpenCode permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
+    }
+
+    private static function cursorAuthorityHookObject(): stdClass
+    {
+        $hook = new stdClass();
+        $hook->command = self::CURSOR_AUTHORITY_HOOK['command'];
+        $hook->timeout = self::CURSOR_AUTHORITY_HOOK['timeout'];
+        $hook->failClosed = self::CURSOR_AUTHORITY_HOOK['failClosed'];
+
+        return $hook;
     }
 
     /**
