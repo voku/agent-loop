@@ -195,7 +195,7 @@ final readonly class InitSyncSkillsCommand
             return 1;
         }
 
-        $targetRoot = $this->resolveTargetRoot($agent);
+        $targetRoot = (new ManagedAssetTargetCatalog($this->rootPath))->skillsTargetRoot($agent);
         try {
             $manifest = InitSyncManifest::load($targetRoot, 'skills', $agent);
         } catch (InvalidArgumentException $exception) {
@@ -279,20 +279,6 @@ final readonly class InitSyncSkillsCommand
         }
 
         return 0;
-    }
-
-    private function resolveTargetRoot(string $agent): string
-    {
-        return match ($agent) {
-            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_SKILLS_DIR')
-                ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/skills' : $this->rootPath . '/.codex/skills'),
-            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
-            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_SKILLS_DIR') ?? $this->rootPath . '/.claude/skills',
-            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_SKILLS_DIR') ?? $this->rootPath . '/.opencode/skills',
-            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
-            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
-            default => throw new InvalidArgumentException('Unsupported skill sync target: ' . $agent),
-        };
     }
 
     private function reloadHint(string $agent): ?string
