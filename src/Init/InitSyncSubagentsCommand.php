@@ -170,7 +170,8 @@ final readonly class InitSyncSubagentsCommand
             $definitions[$name] = SubagentDefinition::fromCanonicalFile($source->path);
         }
 
-        $targetRoot = $this->resolveTargetRoot($agent);
+        $targets = new ManagedAssetTargetCatalog($this->rootPath);
+        $targetRoot = $targets->subagentsTargetRoot($agent);
         try {
             $manifest = InitSyncManifest::load($targetRoot, 'subagents', $agent);
         } catch (InvalidArgumentException $exception) {
@@ -179,11 +180,7 @@ final readonly class InitSyncSubagentsCommand
             return 1;
         }
 
-        $targetSuffix = match ($agent) {
-            'codex' => '.toml',
-            'copilot' => '.agent.md',
-            default => '.md',
-        };
+        $targetSuffix = $targets->subagentSuffix($agent);
         $desiredEntries = [];
         $projectionSources = [];
         foreach ($sources as $name => $source) {
@@ -268,20 +265,6 @@ final readonly class InitSyncSubagentsCommand
         echo $this->reloadHint($agent) . "\n";
 
         return 0;
-    }
-
-    private function resolveTargetRoot(string $agent): string
-    {
-        return match ($agent) {
-            'codex' => PathResolver::fromEnvironment($this->rootPath, 'CODEX_AGENTS_DIR')
-                ?? (($codexHome = PathResolver::fromEnvironment($this->rootPath, 'CODEX_HOME')) !== null ? $codexHome . '/agents' : $this->rootPath . '/.codex/agents'),
-            'claude' => PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_AGENTS_DIR') ?? $this->rootPath . '/.claude/agents',
-            'opencode' => PathResolver::fromEnvironment($this->rootPath, 'OPENCODE_AGENTS_DIR') ?? $this->rootPath . '/.opencode/agents',
-            'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
-            'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
-            'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
-            default => throw new InvalidArgumentException('Unsupported subagent sync target: ' . $agent),
-        };
     }
 
     private function reloadHint(string $agent): string
