@@ -16,18 +16,21 @@ final readonly class SubagentDefinition
         '/\/home\/[^\/\s]+\/\.opencode\//',
         '/\/home\/[^\/\s]+\/\.config\/opencode\//',
         '/\/home\/[^\/\s]+\/\.agents\//',
+        '/\/home\/[^\/\s]+\/\.cursor\//',
         '/\/Users\/[^\/\s]+\/\.codex\//',
         '/\/Users\/[^\/\s]+\/\.gemini\//',
         '/\/Users\/[^\/\s]+\/\.claude\//',
         '/\/Users\/[^\/\s]+\/\.opencode\//',
         '/\/Users\/[^\/\s]+\/\.config\/opencode\//',
         '/\/Users\/[^\/\s]+\/\.agents\//',
+        '/\/Users\/[^\/\s]+\/\.cursor\//',
         '/~\/\.codex\//',
         '/~\/\.gemini\//',
         '/~\/\.claude\//',
         '/~\/\.opencode\//',
         '/~\/\.config\/opencode\//',
         '/~\/\.agents\//',
+        '/~\/\.cursor\//',
     ];
 
     private const string MUTATION_READ_ONLY = 'read-only';
@@ -114,10 +117,13 @@ final readonly class SubagentDefinition
             ? ['description' => $this->description, 'mode' => 'subagent']
             : ['name' => $this->name, 'description' => $this->description];
 
+        $cursorReadOnly = false;
         if (in_array($client, ['gemini', 'antigravity'], true)) {
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
+        } elseif ($client === 'cursor') {
+            $cursorReadOnly = $this->mutation === self::MUTATION_READ_ONLY;
         } elseif (!in_array($client, ['opencode', 'copilot', 'claude'], true)) {
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
@@ -132,6 +138,9 @@ final readonly class SubagentDefinition
 
             $escaped = str_replace('"', '\"', $value);
             $lines[] = $key . ': "' . $escaped . '"';
+        }
+        if ($cursorReadOnly) {
+            $lines[] = 'readonly: true';
         }
         $lines[] = '---';
         $lines[] = '';

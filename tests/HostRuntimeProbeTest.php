@@ -82,6 +82,17 @@ final class HostRuntimeProbeTest extends TestCase
         self::assertNull($result['path']);
     }
 
+    public function testCursorIsExplicitlyUnprobedEvenWhenGenericAgentExecutableExists(): void
+    {
+        $this->createExecutable('agent');
+
+        $result = (new HostRuntimeProbe($this->binRoot, self::pathExt()))->probe('cursor');
+
+        self::assertSame('unprobed', $result['status']);
+        self::assertNull($result['command']);
+        self::assertNull($result['path']);
+    }
+
     public function testAntigravityIsExplicitlyUnprobed(): void
     {
         $result = (new HostRuntimeProbe($this->binRoot, self::pathExt()))->probe('antigravity');

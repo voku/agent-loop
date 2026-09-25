@@ -67,10 +67,12 @@ final readonly class HostCapabilityMatrix
         }
 
         if ($capability === HostCapability::SubagentReadOnlyEnforcement) {
-            if ($canonicalAgent === 'codex') {
+            if (in_array($canonicalAgent, ['codex', 'cursor'], true)) {
                 return [
                     'status' => HostCapabilityStatus::Supported,
-                    'mechanism' => 'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only',
+                    'mechanism' => $canonicalAgent === 'codex'
+                        ? 'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only'
+                        : 'canonical subagent mutation: read-only -> Cursor readonly = true',
                     'evidence' => 'adapter-declared',
                 ];
             }
@@ -124,6 +126,7 @@ final readonly class HostCapabilityMatrix
                 'copilot' => 'SKILL.md -> GitHub Copilot skills directory',
                 'gemini' => 'SKILL.md -> Gemini CLI skills directory',
                 'antigravity' => 'SKILL.md -> Antigravity skills directory',
+                'cursor' => 'SKILL.md -> Cursor .cursor/skills directory',
                 default => throw new InvalidArgumentException('Unknown canonical agent: ' . $canonicalAgent),
             },
             HostCapability::SubagentProjection => match ($canonicalAgent) {
@@ -133,6 +136,7 @@ final readonly class HostCapabilityMatrix
                 'copilot' => 'canonical subagent -> GitHub Copilot .agent.md definition',
                 'gemini' => 'canonical subagent -> Gemini CLI Markdown agent definition',
                 'antigravity' => 'canonical subagent -> Antigravity Markdown agent definition',
+                'cursor' => 'canonical subagent -> Cursor .cursor/agents Markdown definition',
                 default => throw new InvalidArgumentException('Unknown canonical agent: ' . $canonicalAgent),
             },
             default => throw new InvalidArgumentException('Capability has no projection mechanism: ' . $capability->value),

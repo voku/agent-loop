@@ -83,7 +83,7 @@ final readonly class ManagedAssetTargetCatalog
         return match ($host) {
             'codex' => '.toml',
             'copilot' => '.agent.md',
-            'claude', 'opencode', 'gemini', 'antigravity' => '.md',
+            'claude', 'opencode', 'gemini', 'antigravity', 'cursor' => '.md',
             default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
         };
     }
@@ -98,6 +98,7 @@ final readonly class ManagedAssetTargetCatalog
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_SKILLS_DIR') ?? $this->rootPath . '/.github/skills',
             'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_SKILLS_DIR') ?? $this->rootPath . '/.gemini/skills',
             'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_SKILLS_DIR') ?? $this->rootPath . '/.agents/skills',
+            'cursor' => PathResolver::fromEnvironment($this->rootPath, 'CURSOR_SKILLS_DIR') ?? $this->rootPath . '/.cursor/skills',
             default => throw new InvalidArgumentException('Unsupported skill status target: ' . $host),
         };
     }
@@ -112,6 +113,7 @@ final readonly class ManagedAssetTargetCatalog
             'copilot' => PathResolver::fromEnvironment($this->rootPath, 'COPILOT_AGENTS_DIR') ?? $this->rootPath . '/.github/agents',
             'gemini' => PathResolver::fromEnvironment($this->rootPath, 'GEMINI_AGENTS_DIR') ?? $this->rootPath . '/.gemini/agents',
             'antigravity' => PathResolver::fromEnvironment($this->rootPath, 'ANTIGRAVITY_AGENTS_DIR') ?? $this->rootPath . '/.agents/agents',
+            'cursor' => PathResolver::fromEnvironment($this->rootPath, 'CURSOR_AGENTS_DIR') ?? $this->rootPath . '/.cursor/agents',
             default => throw new InvalidArgumentException('Unsupported subagent status target: ' . $host),
         };
     }

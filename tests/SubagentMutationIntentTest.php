@@ -33,7 +33,7 @@ final class SubagentMutationIntentTest extends TestCase
         $this->tempDirs = [];
     }
 
-    public function testFirstPartyReadOnlyIntentProjectsOnlyToCodexSandbox(): void
+    public function testFirstPartyReadOnlyIntentProjectsToOwnedNativeEnforcement(): void
     {
         $root = dirname(__DIR__) . '/resources/subagents';
         foreach ([
@@ -47,8 +47,15 @@ final class SubagentMutationIntentTest extends TestCase
 
             $definition = SubagentDefinition::fromCanonicalFile($path);
             self::assertStringContainsString('sandbox_mode = "read-only"', $definition->renderForClient('codex'));
+
+            $cursor = $definition->renderForClient('cursor');
+            self::assertStringContainsString('readonly: true', $cursor);
+            self::assertStringNotContainsString('sandbox_mode', $cursor);
+
             foreach (['copilot', 'claude', 'opencode', 'gemini', 'antigravity'] as $client) {
-                self::assertStringNotContainsString('sandbox_mode', $definition->renderForClient($client));
+                $rendered = $definition->renderForClient($client);
+                self::assertStringNotContainsString('sandbox_mode', $rendered);
+                self::assertStringNotContainsString('readonly: true', $rendered);
             }
         }
     }
@@ -58,10 +65,12 @@ final class SubagentMutationIntentTest extends TestCase
         $path = dirname(__DIR__) . '/resources/subagents/agent-loop-surgical-builder.md';
         self::assertSame([], SubagentDefinition::validationErrors($path));
 
-        $rendered = SubagentDefinition::fromCanonicalFile($path)->renderForClient('codex');
+        $definition = SubagentDefinition::fromCanonicalFile($path);
+        $rendered = $definition->renderForClient('codex');
 
         self::assertStringNotContainsString('sandbox_mode', $rendered);
         self::assertStringContainsString('developer_instructions = ', $rendered);
+        self::assertStringNotContainsString('readonly: true', $definition->renderForClient('cursor'));
     }
 
     public function testInvalidExplicitMutationIntentFailsClosed(): void
@@ -83,10 +92,9 @@ final class SubagentMutationIntentTest extends TestCase
         $path = $this->fixture("---\nname: fixture\ndescription: Fixture role.\n---\n\nInspect the repository.\n");
 
         self::assertSame([], SubagentDefinition::validationErrors($path));
-        self::assertStringNotContainsString(
-            'sandbox_mode',
-            SubagentDefinition::fromCanonicalFile($path)->renderForClient('codex'),
-        );
+        $definition = SubagentDefinition::fromCanonicalFile($path);
+        self::assertStringNotContainsString('sandbox_mode', $definition->renderForClient('codex'));
+        self::assertStringNotContainsString('readonly: true', $definition->renderForClient('cursor'));
     }
 
     private function fixture(string $content): string
