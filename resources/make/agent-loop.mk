@@ -54,7 +54,7 @@ agent_init_doctor:
 agent_init_install_plan:
 	@if [ -z "$(PROFILE)" ] || [ -z "$(AGENT)" ]; then \
 		echo "❌ Missing PROFILE or AGENT parameter"; \
-		echo "   Usage: make agent_init_install_plan PROFILE=wsl2|linux|windows AGENT=codex|claude|opencode|copilot|gemini|antigravity"; \
+		echo "   Usage: make agent_init_install_plan PROFILE=wsl2|linux|windows AGENT=codex|claude|opencode|copilot|gemini|antigravity|cursor"; \
 		exit 1; \
 	fi
 	$(AGENT_LOOP_INIT) install-plan --profile "$(PROFILE)" --agent "$(AGENT)"
