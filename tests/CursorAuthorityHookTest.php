@@ -28,8 +28,11 @@ final class CursorAuthorityHookTest extends TestCase
     public static function deniedCommandProvider(): iterable
     {
         yield 'git push' => ['git push origin main', 'git push'];
+        yield 'git with sudo and global option' => ['sudo /usr/bin/git -C /repo push origin main', 'git push'];
         yield 'chained gh pr create' => ['cd /repo && gh pr create --title test', 'gh pr create'];
+        yield 'absolute gh pr create' => ['/usr/local/bin/gh pr create --title test', 'gh pr create'];
         yield 'piped gh pr merge' => ['printf x | gh pr merge 123 --squash', 'gh pr merge'];
+        yield 'nested shell gh pr merge' => ["sh -c 'gh pr merge 123 --squash'", 'gh pr merge'];
     }
 
     public function testOrdinaryShellCommandIsAllowed(): void
