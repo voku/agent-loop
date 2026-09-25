@@ -209,7 +209,7 @@ final readonly class HostPolicyProjector
         return [
             'status' => 'ready',
             'path' => $path,
-            'detail' => 'Cursor beforeShellExecution authority guard is projected with failClosed=true; live Cursor execution remains unverified',
+            'detail' => 'Cursor beforeShellExecution shell authority guard is projected with failClosed=true; live Cursor execution remains unverified',
         ];
     }
 
@@ -410,7 +410,7 @@ final readonly class HostPolicyProjector
         return [
             'changed' => true,
             'path' => $path,
-            'detail' => 'Cursor fail-closed beforeShellExecution authority policy ' . ($dryRun ? 'would be merged' : 'merged'),
+            'detail' => 'Cursor fail-closed beforeShellExecution shell authority policy ' . ($dryRun ? 'would be merged' : 'merged'),
         ];
     }
 
