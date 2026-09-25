@@ -79,7 +79,7 @@ final readonly class InitSyncPolicyCommand
     {
         return match ($agent) {
             'claude' => '[IMPORTANT] sync policy [claude]: ' . HostPolicyProjector::claudeUserScopeAction(),
-            'codex' => '[IMPORTANT] sync policy [codex]: project rules load only after Codex trusts this repository. Agent-loop uses hard forbidden shell rules for remote publication, so Auto-review is not an approval path for those commands; MCP and other non-shell authority routes remain separate.',
+            'codex' => '[IMPORTANT] sync policy [codex]: project rules load only after Codex trusts this repository. Agent-loop uses forbidden rules for the direct git push / gh pr create / gh pr merge prefixes, so Auto-review is not an approval path for matched commands; wrapper forms, MCP, and other authority routes remain separate.',
             'opencode' => '[IMPORTANT] sync policy [opencode]: OpenCode --auto bypasses ask decisions, so authority-bearing remote mutations are projected as deny and must be performed outside that auto-approved path.',
             'cursor' => '[IMPORTANT] sync policy [cursor]: .cursor/hooks.json projects shell authority policy only. The beforeShellExecution guard is fail-closed; Cursor CLI/MCP authority coverage and live execution are not claimed until their runtime evidence exists.',
             default => throw new InvalidArgumentException('Unsupported host policy boundary: ' . $agent),
