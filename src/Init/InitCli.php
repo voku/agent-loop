@@ -155,7 +155,7 @@ final readonly class InitCli
           agent-loop init sync-skills --agent=<agent|all> [--config=PATH] [--skills-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-subagents --agent=<agent|all> [--config=PATH] [--subagents-root=PATH ...] [--dry-run] [--force] [--adopt-existing]
           agent-loop init sync-hooks --agent=<agent> [--config=PATH] [--hooks-root=PATH] [--dry-run] [--force] [--adopt-existing]
-          agent-loop init sync-policy --agent=<codex|claude|opencode|all> [--dry-run] [--force]
+          agent-loop init sync-policy --agent=<codex|claude|opencode|cursor|all> [--dry-run] [--force]
           agent-loop init sync-githooks [--hooks-dir=PATH] [--commit-template=PATH] [--container-service=NAME]
                                        [--container-image=NAME] [--container-workdir=PATH] [--container-user=NAME]
                                        [--skip-git-config] [--dry-run] [--force] [--adopt-existing]
@@ -178,7 +178,7 @@ final readonly class InitCli
           sync-skills       Project skills into one managed client target. With --skills-root, merge exactly those roots (duplicate skill IDs fail). Without it, copy the configured project skills root and prune only entries outside the config's desired set, so package copies install-assets projected are kept.
           sync-subagents    Project subagents into one managed client target. With --subagents-root, sync exactly those roots. Without it, copy the configured project subagents root and prune only entries outside the config's desired set.
           sync-hooks        Explicitly sync repo-managed executable hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key). Use --dry-run to inspect exact targets before mutation.
-          sync-policy       Merge only agent-loop-owned repository authority rules into Codex, Claude Code, or OpenCode host policy; host/user trust and Auto Mode remain explicit boundaries.
+          sync-policy       Merge only agent-loop-owned repository authority rules into Codex, Claude Code, OpenCode, or Cursor host policy; host/user trust, runtime execution, and Auto Mode remain explicit boundaries.
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
           sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
