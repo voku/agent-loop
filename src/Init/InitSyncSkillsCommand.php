@@ -288,6 +288,7 @@ final readonly class InitSyncSkillsCommand
             'opencode' => '[INFO] Start a fresh OpenCode session if the project skill registry needs to be reloaded.',
             'gemini' => '[INFO] Start a fresh Gemini CLI session if the project skill registry needs to be reloaded.',
             'antigravity' => "[INFO] Run '/skills reload' in your active Antigravity CLI session if needed.",
+            'cursor' => '[INFO] Start a fresh Cursor agent session if the project skill registry needs to be reloaded.',
             default => null,
         };
     }
