@@ -71,7 +71,7 @@ final readonly class InitCli
             'notes' => ['Use --dry-run to inspect exact targets; host/user trust and Auto Mode remain outside this command.'],
         ],
         'sync-policy' => [
-            'usage' => 'agent-loop init sync-policy --agent=<codex|claude|opencode|all> [--dry-run] [--force]',
+            'usage' => 'agent-loop init sync-policy --agent=<codex|claude|opencode|cursor|all> [--dry-run] [--force]',
             'description' => 'Merge only agent-loop-owned repository authority rules into the selected host policy.',
             'notes' => ['Host/user trust and Auto Mode are explicit boundaries and are never silently changed.'],
         ],

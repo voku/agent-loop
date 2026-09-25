@@ -85,7 +85,7 @@ final readonly class HostCapabilityMatrix
         }
 
         if ($capability === HostCapability::PolicyProjection) {
-            if (in_array($canonicalAgent, ['codex', 'claude', 'opencode'], true)) {
+            if (in_array($canonicalAgent, ['codex', 'claude', 'opencode', 'cursor'], true)) {
                 return [
                     'status' => HostCapabilityStatus::Supported,
                     'mechanism' => self::policyMechanism($canonicalAgent),
@@ -100,7 +100,9 @@ final readonly class HostCapabilityMatrix
             ];
         }
 
-        if (in_array($canonicalAgent, ['codex', 'claude'], true)) {
+        if (in_array($canonicalAgent, ['codex', 'claude'], true)
+            || ($canonicalAgent === 'cursor' && in_array($capability, [HostCapability::PreToolGuardrail, HostCapability::RepositoryHooks], true))
+        ) {
             return [
                 'status' => HostCapabilityStatus::Degraded,
                 'mechanism' => self::hookMechanism($canonicalAgent),
@@ -150,6 +152,7 @@ final readonly class HostCapabilityMatrix
             'codex' => '.codex/rules/agent-loop.rules executable policy',
             'claude' => '.claude/settings.json#permissions project policy; autoMode remains user-scoped',
             'opencode' => 'opencode.json#permission project policy',
+            'cursor' => '.cursor/hooks.json beforeShellExecution fail-closed authority policy',
             default => throw new InvalidArgumentException('No policy projector for canonical agent: ' . $canonicalAgent),
         };
     }
@@ -160,6 +163,7 @@ final readonly class HostCapabilityMatrix
         return match ($canonicalAgent) {
             'codex' => 'Codex hooks.json + repository-local command hooks',
             'claude' => 'Claude settings.json#hooks + repository-local command hooks',
+            'cursor' => 'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed authority guard',
             default => throw new InvalidArgumentException('No hook projector for canonical agent: ' . $canonicalAgent),
         };
     }

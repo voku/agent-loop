@@ -664,7 +664,7 @@ final readonly class RepositorySetupService
             'copilot' => 'agent-loop projects portable instructions, skills, and agents for Copilot, but does not claim a repository-native authority policy projector for this host.',
             'gemini' => 'agent-loop projects portable instructions, skills, and agents for Gemini CLI, but does not claim a repository-native authority policy projector for this host.',
             'antigravity' => 'agent-loop projects portable instructions, skills, and agents for Antigravity. Runtime auto-detection is unavailable, and authority controls remain host/user owned.',
-            'cursor' => 'agent-loop projects AGENTS.md, native Cursor skills, and native Cursor agents, including read-only role metadata. Runtime auto-detection and repository authority policy remain unclaimed; select Cursor explicitly and keep host/user authority controls outside this projection.',
+            'cursor' => 'agent-loop projects AGENTS.md, native Cursor skills and agents, read-only role metadata, and a fail-closed beforeShellExecution authority guard in .cursor/hooks.json. Runtime auto-detection and live hook/read-only enforcement remain unverified; select Cursor explicitly until Slice 3 supplies runtime evidence.',
             default => throw new InvalidArgumentException('Unsupported self-discovery host: ' . $host),
         };
     }
