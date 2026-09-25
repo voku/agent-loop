@@ -204,8 +204,8 @@ final readonly class InitValidateCommand
 
         $allowed = match (true) {
             $kind->isHooks() => ['codex', 'claude'],
-            $kind->isSubagents() => ['codex', 'copilot', 'antigravity'],
-            default => ['codex', 'claude', 'copilot', 'antigravity'],
+            $kind->isSubagents() => ['codex', 'copilot', 'antigravity', 'cursor'],
+            default => ['codex', 'claude', 'copilot', 'antigravity', 'cursor'],
         };
 
         $agent = InitAgent::parse($agentValue, $allowed, false, $configAgents);
