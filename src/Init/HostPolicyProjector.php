@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Init;
 use InvalidArgumentException;
 use JsonException;
 use stdClass;
+use voku\AgentLoop\PackageResources;
 
 /**
  * Projects the small repository-level authority policy that agent-loop needs
@@ -15,7 +16,14 @@ use stdClass;
 final readonly class HostPolicyProjector
 {
     /** @var non-empty-list<non-empty-string> */
-    private const array HOSTS = ['codex', 'claude', 'opencode'];
+    private const array HOSTS = ['codex', 'claude', 'opencode', 'cursor'];
+
+    /** @var array{command: non-empty-string, timeout: positive-int, failClosed: true} */
+    private const array CURSOR_AUTHORITY_HOOK = [
+        'command' => 'php .cursor/hooks/authority_policy.php',
+        'timeout' => 10,
+        'failClosed' => true,
+    ];
 
     /**
      * Remote publication is authority-bearing. Claude Auto Mode can route ask
@@ -60,6 +68,7 @@ final readonly class HostPolicyProjector
             'codex' => $this->inspectCodex(),
             'claude' => $this->inspectClaude(),
             'opencode' => $this->inspectOpenCode(),
+            'cursor' => $this->inspectCursor(),
             default => throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent),
         };
     }
@@ -73,6 +82,7 @@ final readonly class HostPolicyProjector
             'codex' => $this->syncCodex($dryRun, $force),
             'claude' => $this->syncClaude($dryRun, $force),
             'opencode' => $this->syncOpenCode($dryRun, $force),
+            'cursor' => $this->syncCursor($dryRun, $force),
             default => throw new InvalidArgumentException('Host policy projection is not supported for agent: ' . $agent),
         };
     }
@@ -152,6 +162,55 @@ final readonly class HostPolicyProjector
         }
 
         return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude project deny policy is current; Auto Mode classifier configuration remains user/local/managed scoped'];
+    }
+
+    /**
+     * @return array{status: 'ready'|'missing'|'conflict'|'manual', path: non-empty-string, detail: non-empty-string}
+     */
+    private function inspectCursor(): array
+    {
+        $path = $this->cursorHooksPath();
+        if (!is_file($path)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'Cursor project hooks are missing the agent-loop authority guard'];
+        }
+
+        try {
+            $config = $this->readJsonObject($path);
+            $state = $this->cursorHookState($config, $path);
+        } catch (InvalidArgumentException $exception) {
+            return [
+                'status' => 'conflict',
+                'path' => $path,
+                'detail' => self::failureDetail($exception->getMessage(), 'Cursor project hooks could not be inspected'),
+            ];
+        }
+
+        if ($state['index'] === null) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'Cursor beforeShellExecution is missing the agent-loop authority guard'];
+        }
+        if ($state['managed'] !== self::CURSOR_AUTHORITY_HOOK) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => 'Cursor agent-loop authority hook differs from the fail-closed managed definition'];
+        }
+
+        $source = file_get_contents(PackageResources::cursorAuthorityHook());
+        if (!is_string($source)) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => 'Packaged Cursor authority hook is unreadable'];
+        }
+
+        $target = $this->cursorAuthorityHookPath();
+        if (!is_file($target)) {
+            return ['status' => 'missing', 'path' => $path, 'detail' => 'Cursor authority hook script is missing: ' . $target];
+        }
+        $installed = file_get_contents($target);
+        if (!is_string($installed) || !hash_equals(hash('sha256', $source), hash('sha256', $installed))) {
+            return ['status' => 'conflict', 'path' => $path, 'detail' => 'Cursor authority hook script differs from the packaged guard'];
+        }
+
+        return [
+            'status' => 'ready',
+            'path' => $path,
+            'detail' => 'Cursor beforeShellExecution authority guard is projected with failClosed=true; live Cursor execution remains unverified',
+        ];
     }
 
     /**
@@ -290,6 +349,72 @@ final readonly class HostPolicyProjector
     }
 
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
+    private function syncCursor(bool $dryRun, bool $force): array
+    {
+        $path = $this->cursorHooksPath();
+        $config = is_file($path) ? $this->readJsonObject($path) : [];
+        $state = $this->cursorHookState($config, $path);
+
+        $entries = $state['entries'];
+        $changed = !array_key_exists('version', $config);
+
+        if ($state['index'] === null) {
+            $entries[] = self::cursorAuthorityHookObject();
+            $changed = true;
+        } elseif ($state['managed'] !== self::CURSOR_AUTHORITY_HOOK) {
+            if (!$force) {
+                throw new InvalidArgumentException(
+                    'Cursor agent-loop authority hook already exists with different settings; use --force only after reviewing the change to failClosed=true',
+                );
+            }
+            $entries[$state['index']] = self::cursorAuthorityHookObject();
+            $changed = true;
+        }
+
+        $source = file_get_contents(PackageResources::cursorAuthorityHook());
+        if (!is_string($source)) {
+            throw new InvalidArgumentException('Unable to read packaged Cursor authority hook: ' . PackageResources::cursorAuthorityHook());
+        }
+
+        $target = $this->cursorAuthorityHookPath();
+        $targetContent = is_file($target) ? file_get_contents($target) : false;
+        if (is_file($target) && !is_string($targetContent)) {
+            throw new InvalidArgumentException('Unable to read existing Cursor authority hook: ' . $target);
+        }
+        if (is_string($targetContent) && !hash_equals(hash('sha256', $source), hash('sha256', $targetContent))) {
+            if (!$force) {
+                throw new InvalidArgumentException(
+                    'Cursor authority hook script already exists with different content: ' . $target
+                    . ' (use --force only after reviewing the diff)',
+                );
+            }
+            $changed = true;
+        } elseif (!is_string($targetContent)) {
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return ['changed' => false, 'path' => $path, 'detail' => 'Cursor fail-closed authority policy is current'];
+        }
+
+        if (!$dryRun) {
+            $hooks = $state['hooks'];
+            $hooks['beforeShellExecution'] = $entries;
+            $config['version'] = 1;
+            $config['hooks'] = $hooks;
+
+            $this->writeFile($target, $source);
+            $this->writeJson($path, $config);
+        }
+
+        return [
+            'changed' => true,
+            'path' => $path,
+            'detail' => 'Cursor fail-closed beforeShellExecution authority policy ' . ($dryRun ? 'would be merged' : 'merged'),
+        ];
+    }
+
+    /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
     private function syncOpenCode(bool $dryRun, bool $force): array
     {
         $path = $this->openCodePath();
@@ -338,6 +463,68 @@ final readonly class HostPolicyProjector
         }
 
         return ['changed' => true, 'path' => $path, 'detail' => 'OpenCode permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
+    }
+
+    private static function cursorAuthorityHookObject(): stdClass
+    {
+        $hook = new stdClass();
+        $hook->command = self::CURSOR_AUTHORITY_HOOK['command'];
+        $hook->timeout = self::CURSOR_AUTHORITY_HOOK['timeout'];
+        $hook->failClosed = self::CURSOR_AUTHORITY_HOOK['failClosed'];
+
+        return $hook;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array{
+     *     hooks: array<string, mixed>,
+     *     entries: list<mixed>,
+     *     index: int|null,
+     *     managed: array<string, mixed>|null
+     * }
+     */
+    private function cursorHookState(array $config, string $path): array
+    {
+        if (array_key_exists('version', $config) && $config['version'] !== 1) {
+            throw new InvalidArgumentException('Cursor hooks.json version must be 1 before agent-loop can merge its guard: ' . $path);
+        }
+
+        $hooks = self::assertJsonObject(
+            self::objectBoundary($config, 'hooks'),
+            'Cursor hooks must be a JSON object before agent-loop can merge its guard',
+            $path,
+        );
+
+        $entries = $hooks['beforeShellExecution'] ?? [];
+        if (!is_array($entries) || !array_is_list($entries)) {
+            throw new InvalidArgumentException('Cursor hooks.beforeShellExecution must be a JSON array: ' . $path);
+        }
+
+        $managedIndex = null;
+        $managed = null;
+        foreach ($entries as $index => $entry) {
+            $hook = self::jsonObjectOrNull($entry);
+            if ($hook === null) {
+                throw new InvalidArgumentException('Cursor beforeShellExecution entries must be JSON objects: ' . $path);
+            }
+            if (($hook['command'] ?? null) !== self::CURSOR_AUTHORITY_HOOK['command']) {
+                continue;
+            }
+            if ($managedIndex !== null) {
+                throw new InvalidArgumentException('Cursor hooks.json contains the agent-loop authority hook more than once: ' . $path);
+            }
+            $managedIndex = $index;
+            $managed = $hook;
+        }
+
+        /** @var list<mixed> $entries */
+        return [
+            'hooks' => $hooks,
+            'entries' => $entries,
+            'index' => $managedIndex,
+            'managed' => $managed,
+        ];
     }
 
     /**
@@ -499,6 +686,18 @@ final readonly class HostPolicyProjector
     private function claudePath(): string
     {
         return rtrim($this->rootPath, '/') . '/.claude/settings.json';
+    }
+
+    /** @return non-empty-string */
+    private function cursorHooksPath(): string
+    {
+        return rtrim($this->rootPath, '/') . '/.cursor/hooks.json';
+    }
+
+    /** @return non-empty-string */
+    private function cursorAuthorityHookPath(): string
+    {
+        return rtrim($this->rootPath, '/') . '/.cursor/hooks/authority_policy.php';
     }
 
     /** @return non-empty-string */

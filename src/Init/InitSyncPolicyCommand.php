@@ -81,6 +81,7 @@ final readonly class InitSyncPolicyCommand
             'claude' => '[IMPORTANT] sync policy [claude]: ' . HostPolicyProjector::claudeUserScopeAction(),
             'codex' => '[IMPORTANT] sync policy [codex]: project rules load only after Codex trusts this repository; review .codex/rules/agent-loop.rules before granting trust.',
             'opencode' => '[IMPORTANT] sync policy [opencode]: OpenCode --auto bypasses ask decisions, so authority-bearing remote mutations are projected as deny and must be performed outside that auto-approved path.',
+            'cursor' => '[IMPORTANT] sync policy [cursor]: .cursor/hooks.json is repository policy only. The beforeShellExecution guard is fail-closed, but live Cursor execution is not claimed until the runtime proof in Slice 3.',
             default => throw new InvalidArgumentException('Unsupported host policy boundary: ' . $agent),
         };
     }

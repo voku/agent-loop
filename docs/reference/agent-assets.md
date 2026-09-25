@@ -49,14 +49,16 @@ vendor/bin/agent-loop init install-assets \
 
 `--extra-skills-root` is additive and repeatable. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
 
-`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, Antigravity, and Cursor. Cursor reuses the managed root `AGENTS.md` instruction router, projects skills to `.cursor/skills/<name>/SKILL.md`, and projects subagents to `.cursor/agents/<name>.md`. Executable host hooks remain an explicit opt-in for Codex and Claude Code.
+`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, Antigravity, and Cursor. Cursor reuses the managed root `AGENTS.md` instruction router, projects skills to `.cursor/skills/<name>/SKILL.md`, and projects subagents to `.cursor/agents/<name>.md`. Executable workflow/bootstrap hook bundles remain an explicit opt-in for Codex and Claude Code. Cursor authority policy is a separate `init sync-policy --agent=cursor` projection into `.cursor/hooks.json`, not a generic hook-bundle install.
 
 `host-status` distinguishes repository convergence from host/user authority:
 
 - instructions, skills, and subagents are checked for current managed projections, not merely manifest presence;
-- Codex, Claude Code, and OpenCode expose repository policy projection as a separate capability;
-- Copilot, Gemini CLI, Antigravity, and Cursor can still converge portable assets even though agent-loop has no repository policy projector for them;
+- Codex, Claude Code, OpenCode, and Cursor expose repository policy projection as a separate capability;
+- Cursor policy uses a native `.cursor/hooks.json` `beforeShellExecution` entry plus an agent-loop-owned guard script with `failClosed: true`; unrelated hook entries remain project-owned and are preserved;
+- Copilot, Gemini CLI, and Antigravity can still converge portable assets even though agent-loop has no repository policy projector for them;
 - canonical `mutation: read-only` projects to Cursor frontmatter `readonly: true`; that is deterministic adapter evidence, not proof that a running Cursor instance discovered or enforced the role;
+- Cursor `pre-tool-guardrail` and `repository-hooks` are `degraded` until a real Cursor runtime proves hook execution; session/subagent bootstrap remain unsupported;
 - `runtime_boundary` describes trust, Auto Mode, runtime discovery, or other host-owned decisions and is never authority to mutate them automatically.
 
 ## Bootstrap boundary

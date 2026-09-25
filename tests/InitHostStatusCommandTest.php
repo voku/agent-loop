@@ -160,37 +160,60 @@ final class InitHostStatusCommandTest extends TestCase
         self::assertStringContainsString('does not claim a repository-native authority policy projector', (string) $ready['runtime_boundary']);
     }
 
-    public function testCursorConvergesNativeAssetsWithoutInventingRuntimeOrPolicyEvidence(): void
+    public function testCursorConvergesNativeAssetsAndPolicyWithoutInventingRuntimeEvidence(): void
     {
         $initial = $this->hostStatus(['--agent=cursor', '--format=json']);
         self::assertSame('cursor', $initial['host']);
         self::assertSame('explicit', $initial['selection']);
         self::assertSame('unprobed', $initial['runtime']['status'] ?? null);
         self::assertNull($initial['runtime']['command'] ?? null);
-        self::assertSame('unsupported', $initial['integration']['policy'] ?? null);
+        self::assertSame('missing', $initial['integration']['policy'] ?? null);
         self::assertSame('command', $initial['next_action_kind']);
         self::assertSame('vendor/bin/agent-loop init install-assets --agent=cursor', $initial['next_action']);
 
         $this->installAssets('cursor');
+
+        $afterAssets = $this->hostStatus(['--agent=cursor', '--format=json']);
+        self::assertSame([
+            'instructions' => 'ready',
+            'skills' => 'ready',
+            'subagents' => 'ready',
+            'policy' => 'missing',
+            'git_integration' => 'not_declared',
+        ], $afterAssets['integration']);
+        self::assertSame('command', $afterAssets['next_action_kind']);
+        self::assertSame('vendor/bin/agent-loop init sync-policy --agent=cursor', $afterAssets['next_action']);
+
+        $policy = $this->capture(fn (): int => (new InitSyncPolicyCommand($this->root))->run(['--agent=cursor']));
+        self::assertSame(0, $policy['exit'], $policy['output']);
 
         $ready = $this->hostStatus(['--agent=cursor', '--format=json']);
         self::assertSame([
             'instructions' => 'ready',
             'skills' => 'ready',
             'subagents' => 'ready',
-            'policy' => 'unsupported',
+            'policy' => 'ready',
             'git_integration' => 'not_declared',
         ], $ready['integration']);
         self::assertSame('none', $ready['next_action_kind']);
         self::assertNull($ready['next_action']);
+        self::assertSame('unprobed', $ready['runtime']['status'] ?? null);
         self::assertFileExists($this->root . '/AGENTS.md');
         self::assertFileExists($this->root . '/.cursor/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.cursor/agents/agent-loop-investigator.md');
+        self::assertFileExists($this->root . '/.cursor/hooks.json');
+        self::assertFileExists($this->root . '/.cursor/hooks/authority_policy.php');
+
         $investigator = file_get_contents($this->root . '/.cursor/agents/agent-loop-investigator.md');
         self::assertIsString($investigator);
         self::assertStringContainsString('readonly: true', $investigator);
+
+        $hooks = json_decode((string) file_get_contents($this->root . '/.cursor/hooks.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($hooks);
+        self::assertTrue($hooks['hooks']['beforeShellExecution'][0]['failClosed'] ?? false);
+
         self::assertStringContainsString('Runtime auto-detection', (string) $ready['runtime_boundary']);
-        self::assertStringContainsString('authority policy remain unclaimed', (string) $ready['runtime_boundary']);
+        self::assertStringContainsString('live hook/read-only enforcement remain unverified', (string) $ready['runtime_boundary']);
     }
 
     public function testConfiguredAssetsWithoutPackageAssetsConvergeThroughCanonicalRepositoryActions(): void

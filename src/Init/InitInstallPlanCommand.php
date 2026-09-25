@@ -131,8 +131,9 @@ final readonly class InitInstallPlanCommand
             TXT,
             'cursor' => <<<TXT
             Restart Cursor inside {$environment} so it reloads AGENTS.md, project skills, and
-            project agents. Runtime auto-detection and repository authority policy are not
-            claimed in this slice; select Cursor explicitly with --agent=cursor.
+            project agents. Then run init sync-policy --agent=cursor to merge the fail-closed
+            beforeShellExecution authority guard. Runtime auto-detection and live enforcement
+            remain unverified; select Cursor explicitly with --agent=cursor.
             TXT,
             default => throw new InvalidArgumentException('Unsupported install-plan agent: ' . $agent),
         };
