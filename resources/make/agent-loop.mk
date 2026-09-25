@@ -114,6 +114,10 @@ install_gemini_skills:
 install_antigravity_skills:
 	$(AGENT_LOOP_INIT) sync-skills --agent=antigravity $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
 
+.PHONY: install_cursor_skills ## sync repo-managed skills for Cursor
+install_cursor_skills:
+	$(AGENT_LOOP_INIT) sync-skills --agent=cursor $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
 .PHONY: install_agent_skills ## sync repo-managed skills for every canonical client
 install_agent_skills:
 	$(AGENT_LOOP_INIT) sync-skills --agent=all $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
@@ -141,6 +145,10 @@ install_gemini_agents:
 .PHONY: install_antigravity_agents ## sync repo-managed subagents for Antigravity
 install_antigravity_agents:
 	$(AGENT_LOOP_INIT) sync-subagents --agent=antigravity $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
+
+.PHONY: install_cursor_agents ## sync repo-managed subagents for Cursor
+install_cursor_agents:
+	$(AGENT_LOOP_INIT) sync-subagents --agent=cursor $(AGENT_LOOP_WITH_CONFIG) $(AGENT_LOOP_SYNC_FLAGS)
 
 .PHONY: install_agent_subagents ## sync repo-managed subagents for every supported client
 install_agent_subagents:
