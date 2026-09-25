@@ -16,18 +16,21 @@ final readonly class SubagentDefinition
         '/\/home\/[^\/\s]+\/\.opencode\//',
         '/\/home\/[^\/\s]+\/\.config\/opencode\//',
         '/\/home\/[^\/\s]+\/\.agents\//',
+        '/\/home\/[^\/\s]+\/\.cursor\//',
         '/\/Users\/[^\/\s]+\/\.codex\//',
         '/\/Users\/[^\/\s]+\/\.gemini\//',
         '/\/Users\/[^\/\s]+\/\.claude\//',
         '/\/Users\/[^\/\s]+\/\.opencode\//',
         '/\/Users\/[^\/\s]+\/\.config\/opencode\//',
         '/\/Users\/[^\/\s]+\/\.agents\//',
+        '/\/Users\/[^\/\s]+\/\.cursor\//',
         '/~\/\.codex\//',
         '/~\/\.gemini\//',
         '/~\/\.claude\//',
         '/~\/\.opencode\//',
         '/~\/\.config\/opencode\//',
         '/~\/\.agents\//',
+        '/~\/\.cursor\//',
     ];
 
     private const string MUTATION_READ_ONLY = 'read-only';
@@ -118,12 +121,21 @@ final readonly class SubagentDefinition
             $frontmatter['kind'] = 'local';
             $frontmatter['max_turns'] = '12';
             $frontmatter['temperature'] = '0.2';
+        } elseif ($client === 'cursor') {
+            if ($this->mutation === self::MUTATION_READ_ONLY) {
+                $frontmatter['readonly'] = true;
+            }
         } elseif (!in_array($client, ['opencode', 'copilot', 'claude'], true)) {
             throw new InvalidArgumentException('Unsupported subagent sync target: ' . $client);
         }
 
         $lines = ['---'];
         foreach ($frontmatter as $key => $value) {
+            if (is_bool($value)) {
+                $lines[] = $key . ': ' . ($value ? 'true' : 'false');
+
+                continue;
+            }
             if (is_numeric($value)) {
                 $lines[] = $key . ': ' . $value;
 
