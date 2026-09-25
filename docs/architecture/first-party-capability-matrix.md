@@ -71,16 +71,16 @@ Status meanings are strict:
 
 `init host-status` separately reports whether the current repository projection is present and current. Neither `supported` nor a current projection proves that a running host session consumed it.
 
-| Capability | Codex | Claude | OpenCode | Copilot | Gemini | Antigravity |
-|---|---|---|---|---|---|---|
-| skill projection | supported | supported | supported | supported | supported | supported |
-| subagent projection | supported | supported | supported | supported | supported | supported |
-| read-only subagent enforcement projection | supported | unsupported | unsupported | unsupported | unsupported | unsupported |
-| policy projection | supported | supported | supported | unsupported | unsupported | unsupported |
-| session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
-| subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
-| pre-tool guardrail | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
-| repository hooks | degraded | degraded | unsupported | unsupported | unsupported | unsupported |
+| Capability | Codex | Claude | OpenCode | Copilot | Gemini | Antigravity | Cursor |
+|---|---|---|---|---|---|---|---|
+| skill projection | supported | supported | supported | supported | supported | supported | supported |
+| subagent projection | supported | supported | supported | supported | supported | supported | supported |
+| read-only subagent enforcement projection | supported | unsupported | unsupported | unsupported | unsupported | unsupported | supported |
+| policy projection | supported | supported | supported | unsupported | unsupported | unsupported | unsupported |
+| session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
+| subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
+| pre-tool guardrail | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
+| repository hooks | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
 
 Host-specific policy semantics are intentionally not flattened:
 
@@ -89,7 +89,9 @@ Host-specific policy semantics are intentionally not flattened:
 - Claude receives shared-project hard `deny` rules for authority-bearing remote mutations; Auto Mode classifier configuration remains user/local/managed scoped.
 - OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.
 - Claude, OpenCode, Copilot, Gemini, and Antigravity still receive portable role semantics, but Loop does not invent a read-only enforcement claim without an owned native host mapping.
-- Copilot, Gemini, and Antigravity still converge portable instructions/skills/subagents; absence of an `agent-loop` policy projector is reported as a runtime boundary, not as a broken host.
+- Cursor receives the shared root `AGENTS.md` router, `.cursor/skills`, and `.cursor/agents`; canonical `mutation: read-only` renders as native `readonly: true`. This proves repository-side projection only, not runtime discovery or enforcement.
+- Cursor runtime probing remains `unprobed`: the generic executable name `agent` is not used for automatic host selection.
+- Copilot, Gemini, Antigravity, and Cursor still converge portable instructions/skills/subagents; absence of an `agent-loop` policy projector is reported as a runtime boundary, not as a broken host.
 
 A vendor feature can prove that a possible mechanism exists; it does not turn an `unsupported` or `degraded` cell green. Change a status only with evidence at the boundary that new status claims.
 

@@ -34,6 +34,9 @@ final class InitDoctorHostCapabilityTest extends TestCase
             self::assertMatchesRegularExpression('/Host capabilities \[gemini\]: [^\n]*repository-hooks=unsupported/', $output);
             self::assertStringContainsString('Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertMatchesRegularExpression('/Host capabilities \[antigravity\]: [^\n]*repository-hooks=unsupported/', $output);
+            self::assertStringContainsString('Host capabilities [cursor]: skill-projection=supported, subagent-projection=supported', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*subagent-read-only-enforcement=supported/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*repository-hooks=unsupported/', $output);
 
             self::assertStringContainsString(
                 'Host capability evidence [codex/skill-projection]: mechanism=SKILL.md -> Codex skills directory; evidence=adapter-declared',
@@ -52,6 +55,7 @@ final class InitDoctorHostCapabilityTest extends TestCase
                 $output,
             );
             self::assertStringContainsString('Host runtime [gemini]: ', $output);
+            self::assertStringContainsString('Host runtime [cursor]: unprobed', $output);
             self::assertStringNotContainsString('live-runtime-observed', $output);
             self::assertSame($before, scandir($root));
         } finally {
