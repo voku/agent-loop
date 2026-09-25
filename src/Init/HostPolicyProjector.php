@@ -164,7 +164,6 @@ final readonly class HostPolicyProjector
         return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude project deny policy is current; Auto Mode classifier configuration remains user/local/managed scoped'];
     }
 
-
     /**
      * @return array{status: 'ready'|'missing'|'conflict'|'manual', path: non-empty-string, detail: non-empty-string}
      */
@@ -349,7 +348,6 @@ final readonly class HostPolicyProjector
         return ['changed' => true, 'path' => $path, 'detail' => 'Claude project deny policy ' . ($dryRun ? 'would be merged' : 'merged')];
     }
 
-
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
     private function syncCursor(bool $dryRun, bool $force): array
     {
@@ -466,7 +464,6 @@ final readonly class HostPolicyProjector
 
         return ['changed' => true, 'path' => $path, 'detail' => 'OpenCode permission policy ' . ($dryRun ? 'would be merged' : 'merged')];
     }
-
 
     /**
      * @param array<string, mixed> $config
