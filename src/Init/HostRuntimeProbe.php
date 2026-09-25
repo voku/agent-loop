@@ -18,6 +18,7 @@ final readonly class HostRuntimeProbe
         'copilot' => 'copilot',
         'gemini' => 'gemini',
         'antigravity' => null,
+        'cursor' => null,
     ];
 
     public function __construct(
