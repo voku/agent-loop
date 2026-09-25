@@ -40,6 +40,22 @@ final class InitScaffoldHostDiscoveryTest extends TestCase
         self::assertStringNotContainsString('host-status --agent=all', $output);
     }
 
+    public function testCursorCanBeSelectedExplicitlyWithoutRuntimeDetection(): void
+    {
+        ob_start();
+        try {
+            $exit = (new InitScaffoldCommand($this->root))->run(['--agent=cursor', '--dry-run']);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString('init host-status --agent=cursor --format=json', $output);
+        self::assertStringContainsString('.cursor/skills', $output);
+        self::assertStringContainsString('.cursor/agents', $output);
+    }
+
     private function removeDirectory(string $path): void
     {
         if (!is_dir($path)) {
