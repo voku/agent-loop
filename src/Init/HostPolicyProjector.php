@@ -118,7 +118,7 @@ final readonly class HostPolicyProjector
             return ['status' => 'conflict', 'path' => $path, 'detail' => 'agent-loop Codex policy file differs from the managed policy'];
         }
 
-        return ['status' => 'ready', 'path' => $path, 'detail' => 'repository Codex hard shell policy is current; project trust remains host-owned and MCP authority is separate'];
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'repository Codex forbidden publication-prefix policy is current; project trust remains host-owned and wrapper/MCP authority routes are separate'];
     }
 
     /**
@@ -281,7 +281,7 @@ final readonly class HostPolicyProjector
                 throw new InvalidArgumentException('Unable to read Codex policy file: ' . $path);
             }
             if ($this->normalizeText($existing) === $this->normalizeText($desired)) {
-                return ['changed' => false, 'path' => $path, 'detail' => 'Codex hard shell policy is current'];
+                return ['changed' => false, 'path' => $path, 'detail' => 'Codex forbidden publication-prefix policy is current'];
             }
             if (!$force) {
                 throw new InvalidArgumentException('Codex policy file already exists with different content: ' . $path . ' (use --force only after reviewing the diff)');
@@ -292,7 +292,7 @@ final readonly class HostPolicyProjector
             $this->writeFile($path, $desired);
         }
 
-        return ['changed' => true, 'path' => $path, 'detail' => 'Codex hard shell policy ' . ($dryRun ? 'would be written' : 'written')];
+        return ['changed' => true, 'path' => $path, 'detail' => 'Codex forbidden publication-prefix policy ' . ($dryRun ? 'would be written' : 'written')];
     }
 
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
@@ -720,23 +720,23 @@ final readonly class HostPolicyProjector
     private function codexRules(): string
     {
         return <<<'RULES'
-# Managed by agent-loop: authority-bearing remote publication is forbidden inside the autonomous Codex shell path.
+# Managed by agent-loop: canonical remote-publication command prefixes are forbidden inside the autonomous Codex path.
 prefix_rule(
     pattern = ["git", "push"],
     decision = "forbidden",
-    justification = "Run remote publication outside Codex after explicit human authority.",
+    justification = "Direct git push is forbidden in Codex; publish outside the autonomous Codex path after explicit human authority.",
 )
 
 prefix_rule(
     pattern = ["gh", "pr", "create"],
     decision = "forbidden",
-    justification = "Create the pull request outside Codex after explicit human authority.",
+    justification = "Direct gh pr create is forbidden in Codex; create the pull request outside the autonomous Codex path after explicit human authority.",
 )
 
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "Merge the pull request outside Codex after explicit human authority.",
+    justification = "Direct gh pr merge is forbidden in Codex; merge outside the autonomous Codex path after explicit human authority.",
 )
 RULES;
     }
