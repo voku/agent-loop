@@ -36,9 +36,9 @@ if (!is_string($command) || trim($command) === '') {
 }
 
 $blockedCommands = [
-    '~(?:^|&&|\\|\\||[;|()\\n])\\s*git[ \\t]+push(?:[ \\t]|$)~' => 'git push',
-    '~(?:^|&&|\\|\\||[;|()\\n])\\s*gh[ \\t]+pr[ \\t]+create(?:[ \\t]|$)~' => 'gh pr create',
-    '~(?:^|&&|\\|\\||[;|()\\n])\\s*gh[ \\t]+pr[ \\t]+merge(?:[ \\t]|$)~' => 'gh pr merge',
+    '~(?<![A-Za-z0-9_-])git(?![A-Za-z0-9_-])[\\s\\S]*?(?<![A-Za-z0-9_-])push(?![A-Za-z0-9_-])~i' => 'git push',
+    '~(?<![A-Za-z0-9_-])gh(?![A-Za-z0-9_-])[\\s\\S]*?(?<![A-Za-z0-9_-])pr(?![A-Za-z0-9_-])[\\s\\S]*?(?<![A-Za-z0-9_-])create(?![A-Za-z0-9_-])~i' => 'gh pr create',
+    '~(?<![A-Za-z0-9_-])gh(?![A-Za-z0-9_-])[\\s\\S]*?(?<![A-Za-z0-9_-])pr(?![A-Za-z0-9_-])[\\s\\S]*?(?<![A-Za-z0-9_-])merge(?![A-Za-z0-9_-])~i' => 'gh pr merge',
 ];
 
 foreach ($blockedCommands as $pattern => $label) {
