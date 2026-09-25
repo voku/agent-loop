@@ -56,6 +56,17 @@ final class HostCapabilityMatrixTest extends TestCase
             $codex['mechanism'],
         );
 
+        self::assertSame(
+            HostCapabilityStatus::Supported,
+            HostCapabilityMatrix::status('cursor', HostCapability::SubagentReadOnlyEnforcement),
+        );
+        $cursor = HostCapabilityMatrix::describe('cursor', HostCapability::SubagentReadOnlyEnforcement);
+        self::assertSame('adapter-declared', $cursor['evidence']);
+        self::assertSame(
+            'canonical subagent mutation: read-only -> Cursor readonly = true',
+            $cursor['mechanism'],
+        );
+
         foreach (['claude', 'opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
             self::assertSame(
                 HostCapabilityStatus::Unsupported,
@@ -80,7 +91,7 @@ final class HostCapabilityMatrixTest extends TestCase
             );
         }
 
-        foreach (['copilot', 'gemini', 'antigravity'] as $agent) {
+        foreach (['copilot', 'gemini', 'antigravity', 'cursor'] as $agent) {
             self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, HostCapability::PolicyProjection));
             self::assertSame(
                 'no agent-loop host policy projector',
@@ -107,7 +118,7 @@ final class HostCapabilityMatrixTest extends TestCase
                 );
             }
 
-            foreach (['opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
+            foreach (['opencode', 'copilot', 'gemini', 'antigravity', 'cursor'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
                 $description = HostCapabilityMatrix::describe($agent, $capability);
                 self::assertSame('no-agent-loop-projector', $description['evidence']);
@@ -125,6 +136,14 @@ final class HostCapabilityMatrixTest extends TestCase
         self::assertSame(
             'SKILL.md -> OpenCode .opencode/skills directory',
             HostCapabilityMatrix::describe('opencode', HostCapability::SkillProjection)['mechanism'],
+        );
+        self::assertSame(
+            'SKILL.md -> Cursor .cursor/skills directory',
+            HostCapabilityMatrix::describe('cursor', HostCapability::SkillProjection)['mechanism'],
+        );
+        self::assertSame(
+            'canonical subagent -> Cursor .cursor/agents Markdown definition',
+            HostCapabilityMatrix::describe('cursor', HostCapability::SubagentProjection)['mechanism'],
         );
         self::assertSame(
             '.codex/rules/agent-loop.rules executable policy',
