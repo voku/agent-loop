@@ -39,6 +39,8 @@ final class InitDiagnosticConsistencyTest extends TestCase
             'GEMINI_AGENTS_DIR',
             'ANTIGRAVITY_SKILLS_DIR',
             'ANTIGRAVITY_AGENTS_DIR',
+            'CURSOR_SKILLS_DIR',
+            'CURSOR_AGENTS_DIR',
         ] as $name) {
             $this->environment[$name] = getenv($name);
             putenv($name);

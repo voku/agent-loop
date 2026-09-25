@@ -76,6 +76,20 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertOfflineContract($result['output']);
     }
 
+    public function testInstallPlanForCursorKeepsRuntimeBoundaryExplicit(): void
+    {
+        $result = $this->runInstallPlan(['--profile=linux', '--agent=cursor']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('Agent: cursor', $result['output']);
+        self::assertStringContainsString('init install-assets --agent=cursor', $result['output']);
+        self::assertStringContainsString('init host-status --agent=cursor --format=json', $result['output']);
+        self::assertStringContainsString('Restart Cursor inside Linux', $result['output']);
+        self::assertStringContainsString('Runtime auto-detection and repository authority policy are not', $result['output']);
+        self::assertStringContainsString('select Cursor explicitly with --agent=cursor', $result['output']);
+        self::assertOfflineContract($result['output']);
+    }
+
     public function testUnknownProfileFails(): void
     {
         self::assertSame(1, $this->runInstallPlan(['--profile=macos', '--agent=codex'])['exit']);

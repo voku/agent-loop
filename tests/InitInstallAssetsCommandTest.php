@@ -31,8 +31,10 @@ final class InitInstallAssetsCommandTest extends TestCase
             'CLAUDE_SKILLS_DIR',
             'COPILOT_SKILLS_DIR',
             'ANTIGRAVITY_SKILLS_DIR',
+            'CURSOR_SKILLS_DIR',
             'COPILOT_AGENTS_DIR',
             'ANTIGRAVITY_AGENTS_DIR',
+            'CURSOR_AGENTS_DIR',
         ] as $name) {
             $this->environment[$name] = getenv($name);
             putenv($name);
@@ -216,6 +218,27 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertStringContainsString('executable host hooks were not registered', $result['output']);
     }
 
+    public function testCursorInstallsNativeSkillsAndReadOnlySubagentRoles(): void
+    {
+        $result = $this->runCommand(['--agent=cursor']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.cursor/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.cursor/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.cursor/agents/agent-loop-investigator.md');
+        self::assertFileExists($this->root . '/.cursor/agents/agent-loop-surgical-builder.md');
+        self::assertFileExists($this->root . '/.cursor/agents/agent-loop-code-reviewer.md');
+
+        $investigator = file_get_contents($this->root . '/.cursor/agents/agent-loop-investigator.md');
+        self::assertIsString($investigator);
+        self::assertStringContainsString('readonly: true', $investigator);
+
+        $builder = file_get_contents($this->root . '/.cursor/agents/agent-loop-surgical-builder.md');
+        self::assertIsString($builder);
+        self::assertStringNotContainsString('readonly: true', $builder);
+        self::assertStringNotContainsString('sandbox_mode', $investigator);
+    }
+
     public function testUnsupportedHostRejectsWithHooksBeforeWriting(): void
     {
         $result = $this->runCommand(['--agent=copilot', '--with-hooks']);
@@ -234,10 +257,12 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.github/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.agents/skills/agent-loop-discipline/SKILL.md');
+        self::assertFileExists($this->root . '/.cursor/skills/agent-loop-discipline/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.claude/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.github/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.agents/skills/agent-recall-consumer/SKILL.md');
+        self::assertFileExists($this->root . '/.cursor/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-investigator.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-surgical-builder.toml');
         self::assertFileExists($this->root . '/.codex/agents/agent-loop-code-reviewer.toml');
@@ -247,6 +272,9 @@ final class InitInstallAssetsCommandTest extends TestCase
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-investigator.md');
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-surgical-builder.md');
         self::assertFileExists($this->root . '/.agents/agents/agent-loop-code-reviewer.md');
+        self::assertFileExists($this->root . '/.cursor/agents/agent-loop-investigator.md');
+        self::assertFileExists($this->root . '/.cursor/agents/agent-loop-surgical-builder.md');
+        self::assertFileExists($this->root . '/.cursor/agents/agent-loop-code-reviewer.md');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks.json');
         self::assertFileDoesNotExist($this->root . '/.codex/hooks/context.php');
         self::assertFileDoesNotExist($this->root . '/.claude/hooks/context.php');

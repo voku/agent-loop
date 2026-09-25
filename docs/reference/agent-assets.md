@@ -29,7 +29,7 @@ Do not duplicate engineering semantics in package workflow skills merely because
 vendor/bin/agent-loop init host-status --format=json
 ```
 
-When exactly one probed coding-host executable is visible, `host-status` selects it automatically. Otherwise it returns `decision_required` with the explicit `--agent` choice it needs. Antigravity currently has no stable CLI probe and therefore requires explicit selection.
+When exactly one probed coding-host executable is visible, `host-status` selects it automatically. Otherwise it returns `decision_required` with the explicit `--agent` choice it needs. Antigravity currently has no stable CLI probe and therefore requires explicit selection. Cursor is also intentionally unprobed in this slice: its CLI executable is named `agent`, which is too generic for filename-only auto-detection, so select it explicitly with `--agent=cursor`.
 
 Follow the returned `next_action_kind` / `next_action` until no repository-owned action remains. A normal convergence starts by installing the package-owned assets:
 
@@ -49,14 +49,15 @@ vendor/bin/agent-loop init install-assets \
 
 `--extra-skills-root` is additive and repeatable. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
 
-`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, and Antigravity. Executable host hooks remain an explicit opt-in for Codex and Claude Code.
+`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, Antigravity, and Cursor. Cursor reuses the managed root `AGENTS.md` instruction router, projects skills to `.cursor/skills/<name>/SKILL.md`, and projects subagents to `.cursor/agents/<name>.md`. Executable host hooks remain an explicit opt-in for Codex and Claude Code.
 
 `host-status` distinguishes repository convergence from host/user authority:
 
 - instructions, skills, and subagents are checked for current managed projections, not merely manifest presence;
 - Codex, Claude Code, and OpenCode expose repository policy projection as a separate capability;
-- Copilot, Gemini CLI, and Antigravity can still converge portable assets even though agent-loop has no repository policy projector for them;
-- `runtime_boundary` describes trust, Auto Mode, or other host-owned decisions and is never authority to mutate them automatically.
+- Copilot, Gemini CLI, Antigravity, and Cursor can still converge portable assets even though agent-loop has no repository policy projector for them;
+- canonical `mutation: read-only` projects to Cursor frontmatter `readonly: true`; that is deterministic adapter evidence, not proof that a running Cursor instance discovered or enforced the role;
+- `runtime_boundary` describes trust, Auto Mode, runtime discovery, or other host-owned decisions and is never authority to mutate them automatically.
 
 ## Bootstrap boundary
 
@@ -148,7 +149,9 @@ vendor/bin/agent-loop init host-status --format=json
 vendor/bin/agent-loop init tools
 vendor/bin/agent-loop init validate --kind=all
 vendor/bin/agent-loop init install-plan --profile=linux --agent=codex
+vendor/bin/agent-loop init install-plan --profile=linux --agent=cursor
 vendor/bin/agent-loop init install-assets --agent=all --dry-run
+vendor/bin/agent-loop init host-status --agent=cursor --format=json
 vendor/bin/agent-loop init sync-policy --agent=codex --dry-run
 vendor/bin/agent-loop init sync-policy --agent=claude --dry-run
 vendor/bin/agent-loop init sync-policy --agent=opencode --dry-run

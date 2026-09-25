@@ -328,12 +328,15 @@ jobs:
           test -f .claude/skills/engineering-codelight/SKILL.md
           test -f .github/skills/engineering-codelight/SKILL.md
           test -f .agents/skills/engineering-codelight/SKILL.md
+          test -f .cursor/skills/engineering-codelight/SKILL.md
           test -f .claude/skills/coding-simplicity/SKILL.md
           test -f .github/skills/coding-simplicity/SKILL.md
           test -f .agents/skills/coding-simplicity/SKILL.md
+          test -f .cursor/skills/coding-simplicity/SKILL.md
           test -f .claude/skills/code-review-security/SKILL.md
           test -f .github/skills/code-review-security/SKILL.md
           test -f .agents/skills/code-review-security/SKILL.md
+          test -f .cursor/skills/code-review-security/SKILL.md
           grep -Fq 'name: engineering-codelight' .codex/skills/engineering-codelight/SKILL.md
           grep -Fq '`engineering-codelight`' .codex/skills/agent-loop-discipline/SKILL.md
           ! grep -Fq '## Nine laws' .codex/skills/agent-loop-discipline/SKILL.md
@@ -353,6 +356,13 @@ jobs:
           test -f .agents/agents/agent-loop-investigator.md
           test -f .agents/agents/agent-loop-surgical-builder.md
           test -f .agents/agents/agent-loop-code-reviewer.md
+          test -f .cursor/agents/agent-loop-investigator.md
+          test -f .cursor/agents/agent-loop-surgical-builder.md
+          test -f .cursor/agents/agent-loop-code-reviewer.md
+          grep -Fq 'readonly: true' .cursor/agents/agent-loop-investigator.md
+          ! grep -Fq 'readonly: true' .cursor/agents/agent-loop-surgical-builder.md
+          ! grep -Fq 'sandbox_mode' .cursor/agents/agent-loop-investigator.md
+          test -f AGENTS.md
           mkdir -p "${GITHUB_WORKSPACE}/build"
           doctor_output="$(php vendor/bin/agent-loop init doctor)"
           printf '%s\n' "${doctor_output}" > "${GITHUB_WORKSPACE}/build/installed-host-capabilities.txt"
@@ -362,6 +372,10 @@ jobs:
           grep -F 'Host capabilities [copilot]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
           grep -Fq 'Host capabilities [antigravity]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
           grep -F 'Host capabilities [antigravity]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
+          grep -Fq 'Host capabilities [cursor]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
+          grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'subagent-read-only-enforcement=supported'
+          grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
+          grep -Fq 'Host runtime [cursor]: unprobed' <<< "${doctor_output}"
           php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence
