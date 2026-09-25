@@ -129,9 +129,12 @@ live in [Agent assets and host integration](docs/reference/agent-assets.md).
 
 Portable assets are available for Codex, Claude Code, OpenCode, Copilot, Gemini
 CLI, Antigravity, and Cursor. Cursor projects the shared `AGENTS.md` router plus
-native `.cursor/skills` and `.cursor/agents` assets. Cursor runtime auto-detection
-is intentionally not claimed yet, so use explicit `--agent=cursor` selection.
-Host-specific capabilities and limitations remain explicit.
+native `.cursor/skills` and `.cursor/agents` assets. Its repository authority
+policy uses a native `.cursor/hooks.json` `beforeShellExecution` guard with
+`failClosed: true`; unrelated project hooks are preserved. Cursor runtime
+auto-detection and live hook/read-only enforcement remain unverified, so use
+explicit `--agent=cursor` selection. Host-specific capabilities and limitations
+remain explicit.
 
 ## The two lifecycle commands
 

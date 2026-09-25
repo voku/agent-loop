@@ -374,8 +374,15 @@ jobs:
           grep -F 'Host capabilities [antigravity]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
           grep -Fq 'Host capabilities [cursor]: skill-projection=supported, subagent-projection=supported' <<< "${doctor_output}"
           grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'subagent-read-only-enforcement=supported'
-          grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=unsupported'
+          grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'policy-projection=supported'
+          grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'pre-tool-guardrail=degraded'
+          grep -F 'Host capabilities [cursor]:' <<< "${doctor_output}" | grep -Fq 'repository-hooks=degraded'
           grep -Fq 'Host runtime [cursor]: unprobed' <<< "${doctor_output}"
+          php vendor/bin/agent-loop init sync-policy --agent=cursor
+          test -f .cursor/hooks.json
+          test -f .cursor/hooks/authority_policy.php
+          grep -Fq '"command": "php .cursor/hooks/authority_policy.php"' .cursor/hooks.json
+          grep -Fq '"failClosed": true' .cursor/hooks.json
           php vendor/voku/agent-loop/tools/agent-discipline-dogfood.php vendor/voku/agent-loop \
             > "${GITHUB_WORKSPACE}/build/installed-assets-dogfood.json"
       - name: Upload release-set evidence

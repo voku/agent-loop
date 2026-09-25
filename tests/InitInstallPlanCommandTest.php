@@ -85,7 +85,9 @@ final class InitInstallPlanCommandTest extends TestCase
         self::assertStringContainsString('init install-assets --agent=cursor', $result['output']);
         self::assertStringContainsString('init host-status --agent=cursor --format=json', $result['output']);
         self::assertStringContainsString('Restart Cursor inside Linux', $result['output']);
-        self::assertStringContainsString('Runtime auto-detection and repository authority policy are not', $result['output']);
+        self::assertStringContainsString('init sync-policy --agent=cursor', $result['output']);
+        self::assertStringContainsString('fail-closed', $result['output']);
+        self::assertStringContainsString('Runtime auto-detection and live enforcement', $result['output']);
         self::assertStringContainsString('select Cursor explicitly with --agent=cursor', $result['output']);
         self::assertOfflineContract($result['output']);
     }

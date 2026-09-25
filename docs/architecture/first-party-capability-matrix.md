@@ -76,11 +76,11 @@ Status meanings are strict:
 | skill projection | supported | supported | supported | supported | supported | supported | supported |
 | subagent projection | supported | supported | supported | supported | supported | supported | supported |
 | read-only subagent enforcement projection | supported | unsupported | unsupported | unsupported | unsupported | unsupported | supported |
-| policy projection | supported | supported | supported | unsupported | unsupported | unsupported | unsupported |
+| policy projection | supported | supported | supported | unsupported | unsupported | unsupported | supported |
 | session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
 | subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
-| pre-tool guardrail | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
-| repository hooks | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
+| pre-tool guardrail | degraded | degraded | unsupported | unsupported | unsupported | unsupported | degraded |
+| repository hooks | degraded | degraded | unsupported | unsupported | unsupported | unsupported | degraded |
 
 Host-specific policy semantics are intentionally not flattened:
 
@@ -90,8 +90,10 @@ Host-specific policy semantics are intentionally not flattened:
 - OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.
 - Claude, OpenCode, Copilot, Gemini, and Antigravity still receive portable role semantics, but Loop does not invent a read-only enforcement claim without an owned native host mapping.
 - Cursor receives the shared root `AGENTS.md` router, `.cursor/skills`, and `.cursor/agents`; canonical `mutation: read-only` renders as native `readonly: true`. This proves repository-side projection only, not runtime discovery or enforcement.
+- Cursor authority policy projects one agent-loop-owned `beforeShellExecution` entry into `.cursor/hooks.json` and installs its repository-local guard with `failClosed: true`. Existing unrelated hook entries are preserved.
+- Cursor `pre-tool-guardrail` and `repository-hooks` remain `degraded` because only the adapter is contract-tested; actual hook execution is Slice 3 runtime evidence. Cursor session/subagent bootstrap remain unsupported because this policy hook does not implement those lifecycle events.
 - Cursor runtime probing remains `unprobed`: the generic executable name `agent` is not used for automatic host selection.
-- Copilot, Gemini, Antigravity, and Cursor still converge portable instructions/skills/subagents; absence of an `agent-loop` policy projector is reported as a runtime boundary, not as a broken host.
+- Copilot, Gemini, and Antigravity still converge portable instructions/skills/subagents without an `agent-loop` policy projector; Cursor now has a repository policy projector but still reports its runtime-proof boundary separately.
 
 A vendor feature can prove that a possible mechanism exists; it does not turn an `unsupported` or `degraded` cell green. Change a status only with evidence at the boundary that new status claims.
 

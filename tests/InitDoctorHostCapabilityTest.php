@@ -36,7 +36,9 @@ final class InitDoctorHostCapabilityTest extends TestCase
             self::assertMatchesRegularExpression('/Host capabilities \[antigravity\]: [^\n]*repository-hooks=unsupported/', $output);
             self::assertStringContainsString('Host capabilities [cursor]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*subagent-read-only-enforcement=supported/', $output);
-            self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*repository-hooks=unsupported/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*policy-projection=supported/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*pre-tool-guardrail=degraded/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[cursor\\]: [^\\n]*repository-hooks=degraded/', $output);
 
             self::assertStringContainsString(
                 'Host capability evidence [codex/skill-projection]: mechanism=SKILL.md -> Codex skills directory; evidence=adapter-declared',
@@ -52,6 +54,10 @@ final class InitDoctorHostCapabilityTest extends TestCase
             );
             self::assertStringContainsString(
                 'Host capability evidence [copilot/pre-tool-guardrail]: mechanism=no agent-loop host-native projector; evidence=no-agent-loop-projector',
+                $output,
+            );
+            self::assertStringContainsString(
+                'Host capability evidence [cursor/pre-tool-guardrail]: mechanism=Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed authority guard; evidence=adapter-declared;live-runtime-unverified',
                 $output,
             );
             self::assertStringContainsString('Host runtime [gemini]: ', $output);
