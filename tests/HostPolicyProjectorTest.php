@@ -127,7 +127,6 @@ final class HostPolicyProjectorTest extends TestCase
         $projector->sync('codex');
     }
 
-
     public function testCursorMergePreservesUnrelatedHooksAndIsIdempotent(): void
     {
         $cursorRoot = $this->root . '/.cursor';
