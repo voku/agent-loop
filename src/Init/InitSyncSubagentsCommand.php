@@ -276,6 +276,7 @@ final readonly class InitSyncSubagentsCommand
             'gemini' => '[INFO] Start a fresh Gemini CLI session so the project agent registry is re-read.',
             'antigravity' => "[INFO] Run '/agents reload' in your active Antigravity CLI session if needed.",
             'copilot' => '[INFO] Reload the active Copilot agent registry if needed.',
+            'cursor' => '[INFO] Start a fresh Cursor agent session so the project agent registry is re-read.',
             default => throw new InvalidArgumentException('Unsupported subagent sync target: ' . $agent),
         };
     }
