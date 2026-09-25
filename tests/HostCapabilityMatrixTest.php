@@ -162,7 +162,7 @@ final class HostCapabilityMatrixTest extends TestCase
             HostCapabilityMatrix::describe('cursor', HostCapability::SubagentProjection)['mechanism'],
         );
         self::assertSame(
-            '.codex/rules/agent-loop.rules executable policy',
+            '.codex/rules/agent-loop.rules forbidden direct publication command prefixes',
             HostCapabilityMatrix::describe('codex', HostCapability::PolicyProjection)['mechanism'],
         );
         self::assertSame(
