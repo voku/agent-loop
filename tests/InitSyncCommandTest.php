@@ -180,6 +180,39 @@ final class InitSyncCommandTest extends TestCase
         self::assertStringContainsString('max_turns: 12', $content);
     }
 
+    public function testSyncSkillsUsesCatalogEnvironmentTarget(): void
+    {
+        $target = $this->root . '/custom-claude-skills';
+        putenv('CLAUDE_SKILLS_DIR=' . $target);
+
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
+
+        $result = $this->runSyncSkills(['--agent=claude']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($target . '/demo-skill/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.claude/skills/demo-skill/SKILL.md');
+    }
+
+    public function testSyncSubagentsUsesCatalogEnvironmentTarget(): void
+    {
+        $target = $this->root . '/custom-claude-agents';
+        putenv('CLAUDE_AGENTS_DIR=' . $target);
+
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/resources/subagents/reviewer.md',
+            "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n",
+        );
+
+        $result = $this->runSyncSubagents(['--agent=claude']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($target . '/reviewer.md');
+        self::assertFileDoesNotExist($this->root . '/.claude/agents/reviewer.md');
+    }
+
     public function testSyncHooksCopiesManifestAndScripts(): void
     {
         mkdir($this->root . '/resources/hooks/codex/hooks', 0o775, true);
