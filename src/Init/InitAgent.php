@@ -11,7 +11,7 @@ final readonly class InitAgent
     /**
      * @var non-empty-list<non-empty-string>
      */
-    private const array CANONICAL = ['codex', 'claude', 'opencode', 'copilot', 'gemini', 'antigravity'];
+    private const array CANONICAL = ['codex', 'claude', 'opencode', 'copilot', 'gemini', 'antigravity', 'cursor'];
 
     /**
      * @param non-empty-string $canonicalName
@@ -119,7 +119,7 @@ final readonly class InitAgent
     private static function resolveBuiltInAlias(string $requestedName): ?array
     {
         return match ($requestedName) {
-            'codex', 'claude', 'opencode', 'copilot', 'gemini', 'antigravity' => [
+            'codex', 'claude', 'opencode', 'copilot', 'gemini', 'antigravity', 'cursor' => [
                 'canonical' => $requestedName,
                 'messages' => [],
             ],
