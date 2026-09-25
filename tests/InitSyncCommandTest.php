@@ -27,7 +27,7 @@ final class InitSyncCommandTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-init-sync-' . bin2hex(random_bytes(6));
         mkdir($this->root, 0o775, true);
-        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'GEMINI_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'CLAUDE_AGENTS_DIR', 'COPILOT_AGENTS_DIR', 'GEMINI_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR']);
+        $this->backupEnv(['CODEX_HOME', 'CODEX_SKILLS_DIR', 'CODEX_AGENTS_DIR', 'COPILOT_SKILLS_DIR', 'CLAUDE_SKILLS_DIR', 'GEMINI_SKILLS_DIR', 'ANTIGRAVITY_SKILLS_DIR', 'CURSOR_SKILLS_DIR', 'CLAUDE_AGENTS_DIR', 'COPILOT_AGENTS_DIR', 'GEMINI_AGENTS_DIR', 'ANTIGRAVITY_AGENTS_DIR', 'CURSOR_AGENTS_DIR']);
     }
 
     protected function tearDown(): void
@@ -60,6 +60,7 @@ final class InitSyncCommandTest extends TestCase
         self::assertFileExists($this->root . '/.github/agents/demo-role.agent.md');
         self::assertFileExists($this->root . '/.gemini/agents/demo-role.md');
         self::assertFileExists($this->root . '/.agents/agents/demo-role.md');
+        self::assertFileExists($this->root . '/.cursor/agents/demo-role.md');
 
         $manifest = json_decode((string) file_get_contents($this->root . '/.claude/agents/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
         self::assertSame(3, $manifest['version']);
@@ -130,6 +131,18 @@ final class InitSyncCommandTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.agents/skills/demo-skill/SKILL.md');
     }
 
+    public function testSyncSkillsUsesCursorNativeTarget(): void
+    {
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
+
+        $result = $this->runSyncSkills(['--agent=cursor']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.cursor/skills/demo-skill/SKILL.md');
+        self::assertFileExists($this->root . '/.cursor/skills/.agent-loop-manifest.json');
+    }
+
     public function testSyncSubagentsRendersCodexTargets(): void
     {
         mkdir($this->root . '/resources/subagents', 0o775, true);
@@ -164,6 +177,22 @@ final class InitSyncCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertFileExists($this->root . '/.github/agents/reviewer.agent.md');
         self::assertStringContainsString('name: "reviewer"', file_get_contents($this->root . '/.github/agents/reviewer.agent.md') ?: '');
+    }
+
+    public function testSyncSubagentsRendersCursorTargets(): void
+    {
+        mkdir($this->root . '/resources/subagents', 0o775, true);
+        file_put_contents(
+            $this->root . '/resources/subagents/reviewer.md',
+            "---\nname: reviewer\ndescription: Review things\n---\n\n# Reviewer\n",
+        );
+
+        $result = $this->runSyncSubagents(['--agent=cursor']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        self::assertFileExists($this->root . '/.cursor/agents/reviewer.md');
+        self::assertFileExists($this->root . '/.cursor/agents/.agent-loop-manifest.json');
+        self::assertStringContainsString('name: "reviewer"', file_get_contents($this->root . '/.cursor/agents/reviewer.md') ?: '');
     }
 
     public function testSyncSubagentsRendersAntigravityTargets(): void
