@@ -129,6 +129,11 @@ final readonly class InitInstallPlanCommand
             'antigravity' => <<<TXT
             Restart Antigravity inside {$environment} so it reloads repository skills and agents.
             TXT,
+            'cursor' => <<<TXT
+            Restart Cursor inside {$environment} so it reloads AGENTS.md, project skills,
+            and project agents. Cursor CLI runtime auto-detection remains intentionally
+            unprobed; use explicit --agent=cursor for repository convergence.
+            TXT,
             default => throw new InvalidArgumentException('Unsupported install-plan agent: ' . $agent),
         };
     }
