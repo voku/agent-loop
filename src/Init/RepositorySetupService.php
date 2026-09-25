@@ -659,7 +659,7 @@ final readonly class RepositorySetupService
     {
         return match ($host) {
             'claude' => HostPolicyProjector::claudeUserScopeAction(),
-            'codex' => 'Codex loads project rules from the trusted project config layer. Repository policy can prepare .codex/rules, but trusting the project remains an explicit host/user decision.',
+            'codex' => 'Codex loads project rules only from a trusted project config layer. Agent-loop projects hard forbidden shell rules for remote publication, so Auto-review cannot turn those commands into an approval path; project trust remains host/user owned, and MCP or other non-shell authority routes remain separate and unclaimed.',
             'opencode' => 'OpenCode --auto automatically approves ask decisions. The projected agent-loop remote-mutation rules use deny because deny remains effective under --auto.',
             'copilot' => 'agent-loop projects portable instructions, skills, and agents for Copilot, but does not claim a repository-native authority policy projector for this host.',
             'gemini' => 'agent-loop projects portable instructions, skills, and agents for Gemini CLI, but does not claim a repository-native authority policy projector for this host.',

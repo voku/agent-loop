@@ -84,7 +84,7 @@ Status meanings are strict:
 
 Host-specific policy semantics are intentionally not flattened:
 
-- Codex receives project-layer `.codex/rules/*.rules`; the host still owns project trust.
+- Codex receives project-layer `.codex/rules/*.rules`; agent-loop-owned remote-publication shell rules use hard `forbidden`, not `prompt`, so Codex Auto-review cannot approve those commands. The host still owns project trust, and MCP/non-shell authority routes remain separate and unclaimed.
 - Codex roles with canonical `mutation: read-only` receive native `sandbox_mode = "read-only"`; this proves deterministic repository projection, not that a running host selected the role or enforced the sandbox.
 - Claude receives shared-project hard `deny` rules for authority-bearing remote mutations; Auto Mode classifier configuration remains user/local/managed scoped.
 - OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.

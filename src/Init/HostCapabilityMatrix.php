@@ -149,7 +149,7 @@ final readonly class HostCapabilityMatrix
     private static function policyMechanism(string $canonicalAgent): string
     {
         return match ($canonicalAgent) {
-            'codex' => '.codex/rules/agent-loop.rules executable policy',
+            'codex' => '.codex/rules/agent-loop.rules hard forbidden shell publication policy',
             'claude' => '.claude/settings.json#permissions project policy; autoMode remains user-scoped',
             'opencode' => 'opencode.json#permission project policy',
             'cursor' => '.cursor/hooks.json beforeShellExecution fail-closed shell authority policy',

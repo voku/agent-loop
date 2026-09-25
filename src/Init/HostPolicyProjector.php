@@ -118,7 +118,7 @@ final readonly class HostPolicyProjector
             return ['status' => 'conflict', 'path' => $path, 'detail' => 'agent-loop Codex policy file differs from the managed policy'];
         }
 
-        return ['status' => 'ready', 'path' => $path, 'detail' => 'repository Codex policy is current; project trust remains host-owned'];
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'repository Codex hard shell policy is current; project trust remains host-owned and MCP authority is separate'];
     }
 
     /**
@@ -281,7 +281,7 @@ final readonly class HostPolicyProjector
                 throw new InvalidArgumentException('Unable to read Codex policy file: ' . $path);
             }
             if ($this->normalizeText($existing) === $this->normalizeText($desired)) {
-                return ['changed' => false, 'path' => $path, 'detail' => 'Codex policy is current'];
+                return ['changed' => false, 'path' => $path, 'detail' => 'Codex hard shell policy is current'];
             }
             if (!$force) {
                 throw new InvalidArgumentException('Codex policy file already exists with different content: ' . $path . ' (use --force only after reviewing the diff)');
@@ -292,7 +292,7 @@ final readonly class HostPolicyProjector
             $this->writeFile($path, $desired);
         }
 
-        return ['changed' => true, 'path' => $path, 'detail' => 'Codex policy ' . ($dryRun ? 'would be written' : 'written')];
+        return ['changed' => true, 'path' => $path, 'detail' => 'Codex hard shell policy ' . ($dryRun ? 'would be written' : 'written')];
     }
 
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
@@ -720,23 +720,23 @@ final readonly class HostPolicyProjector
     private function codexRules(): string
     {
         return <<<'RULES'
-# Managed by agent-loop: remote authority-bearing mutations require an explicit boundary.
+# Managed by agent-loop: authority-bearing remote publication is forbidden inside the autonomous Codex shell path.
 prefix_rule(
     pattern = ["git", "push"],
-    decision = "prompt",
-    justification = "Remote mutation requires explicit authority.",
+    decision = "forbidden",
+    justification = "Run remote publication outside Codex after explicit human authority.",
 )
 
 prefix_rule(
     pattern = ["gh", "pr", "create"],
-    decision = "prompt",
-    justification = "Creating a pull request is an external mutation.",
+    decision = "forbidden",
+    justification = "Create the pull request outside Codex after explicit human authority.",
 )
 
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
-    decision = "prompt",
-    justification = "Merging a pull request is an external mutation.",
+    decision = "forbidden",
+    justification = "Merge the pull request outside Codex after explicit human authority.",
 )
 RULES;
     }

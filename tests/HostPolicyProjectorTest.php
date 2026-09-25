@@ -117,7 +117,10 @@ final class HostPolicyProjectorTest extends TestCase
         $content = file_get_contents($path);
         self::assertIsString($content);
         self::assertStringContainsString('pattern = ["git", "push"]', $content);
-        self::assertStringContainsString('decision = "prompt"', $content);
+        self::assertStringContainsString('pattern = ["gh", "pr", "create"]', $content);
+        self::assertStringContainsString('pattern = ["gh", "pr", "merge"]', $content);
+        self::assertSame(3, substr_count($content, 'decision = "forbidden"'));
+        self::assertStringNotContainsString('decision = "prompt"', $content);
 
         file_put_contents($path, "# project-owned\n");
         self::assertSame('conflict', $projector->inspect('codex')['status']);
