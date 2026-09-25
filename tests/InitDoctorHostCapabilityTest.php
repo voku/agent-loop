@@ -52,6 +52,7 @@ final class InitDoctorHostCapabilityTest extends TestCase
                 $output,
             );
             self::assertStringContainsString('Host runtime [gemini]: ', $output);
+            self::assertStringContainsString('Host runtime [cursor]: unprobed', $output);
             self::assertStringNotContainsString('live-runtime-observed', $output);
             self::assertSame($before, scandir($root));
         } finally {
