@@ -73,7 +73,7 @@ final readonly class InitStatusCommand
         $staleLines = [];
         $driftLines = [];
         echo "Target manifests:\n";
-        foreach ($this->buildManifestTargets($paths) as $target) {
+        foreach ((new ManagedAssetTargetCatalog($this->rootPath))->targets($paths) as $target) {
             [$manifestLine, $staleLine, $targetDriftLines] = $this->reportManifestTarget($target);
             echo $manifestLine . "\n";
             if ($staleLine !== null) {
@@ -190,51 +190,24 @@ final readonly class InitStatusCommand
     }
 
     /**
-     * The projection targets this repository owns.
-     *
-     * Root and expected-entry resolution lives in
-     * {@see ManagedAssetTargetCatalog} so `init status`, the typed setup
-     * projection, and the drift projector cannot drift apart from each other.
-     *
-     * @return list<array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null}>
-     */
-    private function buildManifestTargets(AgentAssetSourcePaths $paths): array
-    {
-        $targets = [];
-        foreach ((new ManagedAssetTargetCatalog($this->rootPath))->targets($paths) as $target) {
-            $targets[] = [
-                'label' => $target->label,
-                'targetRoot' => $target->targetRoot,
-                'kind' => $target->kind->value,
-                'agent' => $target->host,
-                'desiredEntries' => $target->desiredEntries(),
-            ];
-        }
-
-        return $targets;
-    }
-
-    /**
-     * @param array{label: string, targetRoot: string, kind: string, agent: string, desiredEntries: list<string>|null} $target
      * @return array{0: string, 1: ?string, 2: list<string>}
      */
-    private function reportManifestTarget(array $target): array
+    private function reportManifestTarget(ManagedAssetTarget $target): array
     {
-        $label = $target['label'];
-        $targetRoot = $target['targetRoot'];
-        $desiredEntries = $target['desiredEntries'];
+        $label = $target->label;
+        $targetRoot = $target->targetRoot;
+        $desiredEntries = $target->desiredEntries();
 
-        $manifestPath = rtrim($targetRoot, '/') . '/' . InitSyncManifest::fileName();
-        if (!is_file($manifestPath)) {
+        if (!$target->hasManifest()) {
             return [
-                '[INFO] ' . $label . ': no manifest at ' . $manifestPath,
+                '[INFO] ' . $label . ': no manifest at ' . $target->manifestPath(),
                 null,
                 $this->unmanagedTargetLines($label, $targetRoot, $desiredEntries),
             ];
         }
 
         try {
-            $manifest = InitSyncManifest::load($targetRoot, $target['kind'], $target['agent']);
+            $manifest = InitSyncManifest::load($targetRoot, $target->kind->value, $target->host);
         } catch (InvalidArgumentException $exception) {
             return ['[WARN] ' . $label . ': ' . $exception->getMessage(), null, []];
         }
@@ -251,14 +224,23 @@ final readonly class InitStatusCommand
                 : '[WARN] ' . $label . ': stale managed entries: ' . implode(', ', $staleEntries);
         }
 
-        $states = ManagedAssetDriftInspector::inspect(
-            $manifest,
-            $targetRoot,
-            $target['agent'],
-            $desiredEntries,
-        );
+        $projection = (new ManagedAssetDriftProjector())->projectTarget($target);
+        if ($projection->failure !== null) {
+            return [
+                $manifestLine,
+                $staleLine,
+                ['[WARN] ' . $label . ': ' . $projection->failure],
+            ];
+        }
 
-        return [$manifestLine, $staleLine, $this->driftLines($label, $states)];
+        return [$manifestLine, $staleLine, $this->driftLines($label, [
+            'current' => $projection->current,
+            'locally_modified' => $projection->locallyModified,
+            'stale' => $projection->stale,
+            'incompatible' => $projection->incompatible,
+            'project_owned' => $projection->projectOwned,
+            'unverifiable' => $projection->unverifiable,
+        ])];
     }
 
     /**

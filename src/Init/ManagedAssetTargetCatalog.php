@@ -260,7 +260,7 @@ final readonly class ManagedAssetTargetCatalog
             );
         }
 
-        $entries = ['settings.json#hooks'];
+        $entries = [ClaudeHookRegistrationProjector::RECEIPT_ENTRY];
         foreach ($definition->scriptNames() as $scriptName) {
             $entries[] = 'hooks/' . $scriptName;
         }

@@ -23,7 +23,7 @@ description: Maintain package-owned and host-owned agent skills, hooks, docs, sy
 | Project Skills | Configured `paths.skills_root` when `package_skills=false` | Host skill directories | `init sync-skills --config=.agent-loop/init.json` |
 | Subagents | `resources/subagents/` | `.codex/agents/`, `.claude/agents/` | `init sync-subagents` |
 | Codex Hooks | `resources/hooks/codex/` | `.codex/hooks.json`, `.codex/hooks/` | `init sync-hooks --agent=codex` |
-| Claude Hooks | `resources/hooks/claude/` | `.claude/settings.json#hooks` | `init sync-hooks --agent=claude` |
+| Claude Hooks | `resources/hooks/claude/` | granular registrations in `.claude/settings.json` + `.claude/hooks/` | `init sync-hooks --agent=claude` |
 | Make Targets | `resources/make/agent-loop.mk` | Host `Makefile` inclusion | Host Make include |
 | Runtime Logic | `src/AgentGuidance/`, `src/Init/` | Direct execution | PHPUnit / PHPStan |
 

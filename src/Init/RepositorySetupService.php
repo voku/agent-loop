@@ -164,11 +164,65 @@ final readonly class RepositorySetupService
         $resolved = $paths ?? $this->defaultSourcePaths();
         $this->assertCurrent($plan, $expectedState, $resolved);
 
+        if ($plan->agent === 'claude'
+            && $plan->withHooks
+            && $this->containsClaudeHookReceiptRemoval($plan->operations)
+        ) {
+            try {
+                (new ClaudeHookRegistrationProjector($this->rootPath))->removeOwnedRegistrations(true);
+            } catch (InvalidArgumentException $exception) {
+                $reason = 'Claude hook registrations changed before uninstall; no part of the reviewed plan was applied: '
+                    . $exception->getMessage();
+
+                return new ManagedAssetMutationResult(
+                    $plan,
+                    false,
+                    [],
+                    [...$plan->blocked, ...$this->blockedOperations($plan->operations, $reason)],
+                    [$reason],
+                    RepositorySetupStateToken::fromDriftProjections(
+                        $this->managedAssetDrift($resolved),
+                        (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                    ),
+                );
+            }
+        }
+
         $instructionOutcome = (new RepositoryInstructionSynchronizer($this->rootPath))->applyUninstall($plan);
         $assetOperations = array_values(array_filter(
             $plan->operations,
             static fn (ManagedAssetOperation $operation): bool => $operation->kind !== ManagedAssetKind::INSTRUCTIONS,
         ));
+        $registrationBlocked = [];
+        $registrationMessages = [];
+        if ($plan->agent === 'claude' && $plan->withHooks && $this->containsClaudeHookReceiptRemoval($assetOperations)) {
+            try {
+                if ((new ClaudeHookRegistrationProjector($this->rootPath))->removeOwnedRegistrations()) {
+                    $registrationMessages[] = 'Removed agent-loop-owned Claude hook registrations; unrelated project hooks were preserved.';
+                }
+            } catch (InvalidArgumentException $exception) {
+                $reason = 'Claude hook registrations changed after planning; hook assets were left untouched: '
+                    . $exception->getMessage();
+                $retained = [];
+                foreach ($assetOperations as $operation) {
+                    if ($operation->kind !== ManagedAssetKind::HOOKS) {
+                        $retained[] = $operation;
+
+                        continue;
+                    }
+                    $registrationBlocked[] = new ManagedAssetOperation(
+                        ManagedAssetOperationKind::BLOCKED,
+                        $operation->host,
+                        $operation->kind,
+                        $operation->entry,
+                        $operation->targetPath,
+                        $reason,
+                    );
+                }
+                $assetOperations = $retained;
+            }
+        }
+
         $assetPlan = new ManagedAssetChangePlan(
             $plan->intent,
             $plan->agent,
@@ -179,19 +233,60 @@ final readonly class RepositorySetupService
         );
         $assetOutcome = (new ManagedAssetUninstaller())->apply($assetPlan);
         $applied = [...$instructionOutcome['applied'], ...$assetOutcome['applied']];
-        $runtimeBlocked = [...$instructionOutcome['blocked'], ...$assetOutcome['blocked']];
+        $runtimeBlocked = [
+            ...$instructionOutcome['blocked'],
+            ...$registrationBlocked,
+            ...$assetOutcome['blocked'],
+        ];
 
         return new ManagedAssetMutationResult(
             $plan,
             $runtimeBlocked === [] || $applied !== [],
             $applied,
             [...$plan->blocked, ...$runtimeBlocked],
-            [...$instructionOutcome['messages'], ...$assetOutcome['messages']],
+            [
+                ...$instructionOutcome['messages'],
+                ...$registrationMessages,
+                ...$assetOutcome['messages'],
+            ],
             RepositorySetupStateToken::fromDriftProjections(
                 $this->managedAssetDrift($resolved),
                 (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
             ),
         );
+    }
+
+    /**
+     * @param list<ManagedAssetOperation> $operations
+     * @return list<ManagedAssetOperation>
+     */
+    private function blockedOperations(array $operations, string $reason): array
+    {
+        return array_map(
+            static fn (ManagedAssetOperation $operation): ManagedAssetOperation => new ManagedAssetOperation(
+                ManagedAssetOperationKind::BLOCKED,
+                $operation->host,
+                $operation->kind,
+                $operation->entry,
+                $operation->targetPath,
+                $reason,
+            ),
+            $operations,
+        );
+    }
+
+    /** @param list<ManagedAssetOperation> $operations */
+    private function containsClaudeHookReceiptRemoval(array $operations): bool
+    {
+        foreach ($operations as $operation) {
+            if ($operation->kind === ManagedAssetKind::HOOKS
+                && $operation->entry === ClaudeHookRegistrationProjector::RECEIPT_ENTRY
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Repository-owned policy projection only; host/user settings stay outside this boundary. */

@@ -30,7 +30,7 @@ final readonly class ManagedAssetPlanner
 
             $desired = array_fill_keys($expectation->entries ?? [], true);
             foreach ($projection->stale as $entry) {
-                if (isset($desired[$entry])) {
+                if (isset($desired[$entry]) || $this->isClaudeLegacyHookOwnership($target, $entry)) {
                     continue;
                 }
                 $blocked[] = new ManagedAssetOperation(
@@ -85,6 +85,21 @@ final readonly class ManagedAssetPlanner
                 continue;
             }
 
+            if ($this->claudeHookRegistrationBlocksUninstall($projection)) {
+                $blocked[] = new ManagedAssetOperation(
+                    ManagedAssetOperationKind::BLOCKED,
+                    $target->host,
+                    $target->kind,
+                    ClaudeHookRegistrationProjector::RECEIPT_ENTRY,
+                    rtrim($target->targetRoot, '/') . '/' . ClaudeHookRegistrationProjector::RECEIPT_ENTRY,
+                    in_array(ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY, $projection->stale, true)
+                        ? 'Legacy Claude whole-key hook ownership must be migrated with init sync-hooks --agent=claude before uninstall.'
+                        : 'Claude agent-loop hook registrations are missing or changed; sync or review them before uninstall.',
+                );
+
+                continue;
+            }
+
             foreach ($projection->current as $entry) {
                 $operations[] = new ManagedAssetOperation(
                     ManagedAssetOperationKind::REMOVE,
@@ -113,6 +128,26 @@ final readonly class ManagedAssetPlanner
             $operations,
             $blocked,
         );
+    }
+
+    private function isClaudeLegacyHookOwnership(ManagedAssetTarget $target, string $entry): bool
+    {
+        return $target->host === 'claude'
+            && $target->kind === ManagedAssetKind::HOOKS
+            && $entry === ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY;
+    }
+
+    private function claudeHookRegistrationBlocksUninstall(ManagedAssetDriftProjection $projection): bool
+    {
+        if ($projection->target->host !== 'claude' || $projection->target->kind !== ManagedAssetKind::HOOKS) {
+            return false;
+        }
+
+        if (in_array(ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY, $projection->stale, true)) {
+            return true;
+        }
+
+        return !in_array(ClaudeHookRegistrationProjector::RECEIPT_ENTRY, $projection->current, true);
     }
 
     private function installOperationFor(ManagedAssetDriftProjection $projection, string $entry): ManagedAssetOperation

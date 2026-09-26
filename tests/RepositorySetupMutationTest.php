@@ -11,9 +11,11 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Init\AgentAssetSourcePaths;
 use voku\AgentLoop\Init\InitSyncInstructionsCommand;
+use voku\AgentLoop\Init\InitSyncManifest;
 use voku\AgentLoop\Init\ManagedAssetChangePlan;
 use voku\AgentLoop\Init\ManagedAssetKind;
 use voku\AgentLoop\Init\ManagedAssetOperation;
+use voku\AgentLoop\Init\ManagedAssetSource;
 use voku\AgentLoop\Init\RepositorySetupService;
 use voku\AgentLoop\Init\StaleRepositorySetupPlan;
 
@@ -161,6 +163,145 @@ final class RepositorySetupMutationTest extends TestCase
         self::assertStringNotContainsString(InitSyncInstructionsCommand::END_MARKER, $remaining);
     }
 
+
+    public function testTypedClaudeLegacyHookOwnershipMustMigrateBeforeUninstall(): void
+    {
+        $this->writeClaudeHookBundle();
+        $sourceRoot = $this->root . '/fixture/claude-hooks';
+        if (!mkdir($this->root . '/.claude/hooks', 0o775, true) && !is_dir($this->root . '/.claude/hooks')) {
+            self::fail('Unable to create legacy Claude hook target.');
+        }
+        copy($sourceRoot . '/hooks/policy.php', $this->root . '/.claude/hooks/policy.php');
+        file_put_contents(
+            $this->root . '/.claude/settings.json',
+            json_encode([
+                'hooks' => [
+                    'Stop' => [[
+                        'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                    ]],
+                    'PreToolUse' => [[
+                        'matcher' => '^Bash$',
+                        'hooks' => [[
+                            'type' => 'command',
+                            'command' => 'php .claude/hooks/policy.php',
+                        ]],
+                    ]],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
+
+        InitSyncManifest::load($this->root . '/.claude', 'hooks', 'claude')->writeProjections([
+            'settings.json#hooks' => ManagedAssetSource::fromPath(
+                $this->root,
+                $sourceRoot . '/hooks.json',
+                'hooks:claude:settings-hooks',
+            ),
+            'hooks/policy.php' => ManagedAssetSource::fromPath(
+                $this->root,
+                $sourceRoot . '/hooks/policy.php',
+                'hooks:claude:hooks/policy.php',
+            ),
+        ], []);
+
+        $plan = (new RepositorySetupService($this->root))->planUninstall('claude', true, $this->paths());
+
+        $blocked = $this->operation($plan, 'hooks/.agent-loop-registration.json', true);
+        self::assertNotNull($blocked);
+        self::assertStringContainsString('must be migrated', (string) $blocked->reason);
+        foreach ($plan->operations as $operation) {
+            self::assertNotSame(ManagedAssetKind::HOOKS, $operation->kind);
+        }
+
+        $settings = $this->readClaudeSettings();
+        self::assertSame('echo project-stop', $settings['hooks']['Stop'][0]['hooks'][0]['command'] ?? null);
+        self::assertFileExists($this->root . '/.claude/hooks/policy.php');
+    }
+
+    public function testTypedClaudeHookInstallPreflightsCommandOwnershipBeforeAnyWrite(): void
+    {
+        $this->writeClaudeHookBundle();
+        if (!is_dir($this->root . '/.claude')) {
+            mkdir($this->root . '/.claude', 0o775, true);
+        }
+        file_put_contents(
+            $this->root . '/.claude/settings.json',
+            json_encode([
+                'hooks' => [
+                    'PreToolUse' => [[
+                        'matcher' => '^Bash$',
+                        'hooks' => [[
+                            'type' => 'command',
+                            'command' => 'php .claude/hooks/policy.php',
+                            'timeout' => 99,
+                        ]],
+                    ]],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
+
+        $service = new RepositorySetupService($this->root);
+        $plan = $service->planInstall('claude', true, $this->paths());
+
+        try {
+            $service->install($plan, $plan->expectedState->value, $this->paths());
+            self::fail('Expected unowned Claude command identity to fail before mutation.');
+        } catch (InvalidArgumentException) {
+            self::assertFileDoesNotExist($this->root . '/.claude/hooks/policy.php');
+            self::assertFileDoesNotExist($this->root . '/.claude/hooks/.agent-loop-registration.json');
+            self::assertFileDoesNotExist($this->root . '/.claude/skills/managed-skill/SKILL.md');
+            self::assertFileDoesNotExist($this->root . '/AGENTS.md');
+        }
+    }
+
+    public function testTypedClaudeHookInstallAndUninstallPreserveForeignProjectHooks(): void
+    {
+        $this->writeClaudeHookBundle();
+        if (!is_dir($this->root . '/.claude')) {
+            mkdir($this->root . '/.claude', 0o775, true);
+        }
+        file_put_contents(
+            $this->root . '/.claude/settings.json',
+            json_encode([
+                'model' => 'opus',
+                'hooks' => [
+                    'Stop' => [[
+                        'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                    ]],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
+
+        $service = new RepositorySetupService($this->root);
+        $install = $service->planInstall('claude', true, $this->paths());
+        self::assertNotNull($this->operation($install, 'hooks/.agent-loop-registration.json'));
+        self::assertNotNull($this->operation($install, 'hooks/policy.php'));
+
+        $installed = $service->install($install, $install->expectedState->value, $this->paths());
+
+        self::assertTrue($installed->succeeded);
+        self::assertFileExists($this->root . '/.claude/hooks/.agent-loop-registration.json');
+        self::assertFileExists($this->root . '/.claude/hooks/policy.php');
+        $settings = $this->readClaudeSettings();
+        self::assertSame('opus', $settings['model'] ?? null);
+        self::assertSame('echo project-stop', $settings['hooks']['Stop'][0]['hooks'][0]['command'] ?? null);
+        self::assertSame(
+            'php .claude/hooks/policy.php',
+            $settings['hooks']['PreToolUse'][0]['hooks'][0]['command'] ?? null,
+        );
+
+        $uninstall = $service->planUninstall('claude', true, $this->paths());
+        self::assertNotNull($this->operation($uninstall, 'hooks/.agent-loop-registration.json'));
+        $removed = $service->uninstall($uninstall, $uninstall->expectedState->value, $this->paths());
+
+        self::assertTrue($removed->succeeded);
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/.agent-loop-registration.json');
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/policy.php');
+        $remaining = $this->readClaudeSettings();
+        self::assertSame('opus', $remaining['model'] ?? null);
+        self::assertSame('echo project-stop', $remaining['hooks']['Stop'][0]['hooks'][0]['command'] ?? null);
+        self::assertArrayNotHasKey('PreToolUse', $remaining['hooks']);
+    }
+
     public function testTypedGitIntegrationUsesRepositoryDeclaredPolicyWithoutCliDispatch(): void
     {
         if (!mkdir($this->root . '/.agent-loop', 0o775, true) && !is_dir($this->root . '/.agent-loop')) {
@@ -184,6 +325,45 @@ final class RepositorySetupMutationTest extends TestCase
         );
         self::assertSame(0, $configExit);
         self::assertSame(['.githooks'], $configOutput);
+    }
+
+
+    private function writeClaudeHookBundle(): void
+    {
+        $root = $this->root . '/fixture/claude-hooks';
+        if (!mkdir($root . '/hooks', 0o775, true) && !is_dir($root . '/hooks')) {
+            throw new RuntimeException('Unable to create Claude hook fixture.');
+        }
+        file_put_contents($root . '/hooks/policy.php', "<?php\n\necho '{}';\n");
+        file_put_contents(
+            $root . '/hooks.json',
+            json_encode([
+                'hooks' => [
+                    'PreToolUse' => [[
+                        'matcher' => '^Bash$',
+                        'hooks' => [[
+                            'type' => 'command',
+                            'command' => 'php .claude/hooks/policy.php',
+                        ]],
+                    ]],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function readClaudeSettings(): array
+    {
+        $decoded = json_decode(
+            (string) file_get_contents($this->root . '/.claude/settings.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($decoded);
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 
     private function paths(): AgentAssetSourcePaths

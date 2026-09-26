@@ -17,9 +17,9 @@ use RuntimeException;
  * deleting. Between those two points a developer may have edited the file, and
  * that edit must win.
  *
- * Fragment entries such as `settings.json#hooks` remove a single key from a
- * host settings file. The file itself, and every other key in it — Auto Mode,
- * project trust, anything the user configured — is left exactly as it was.
+ * Generic fragment entries can remove one owned JSON key. Claude's historical
+ * `settings.json#hooks` entry is explicitly refused because current ownership
+ * is granular inside that shared hooks object; it must migrate first.
  */
 final readonly class ManagedAssetUninstaller
 {
@@ -55,6 +55,17 @@ final readonly class ManagedAssetUninstaller
 
             $removed = [];
             foreach ($group['operations'] as $operation) {
+                if ($group['host'] === 'claude'
+                    && $operation->entry === ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY
+                ) {
+                    $blocked[] = $this->block(
+                        $operation,
+                        'Legacy Claude whole-key hook ownership must be migrated before removal; refusing to delete the shared project hooks key.',
+                    );
+
+                    continue;
+                }
+
                 $verification = $this->verifyStillRemovable($manifest, $targetRoot, $operation->entry);
                 if ($verification !== null) {
                     $blocked[] = $this->block($operation, $verification);

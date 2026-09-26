@@ -49,7 +49,7 @@ final class InitDoctorHostCapabilityTest extends TestCase
                 $output,
             );
             self::assertStringContainsString(
-                'Host capability evidence [claude/session-bootstrap]: mechanism=Claude settings.json#hooks + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
+                'Host capability evidence [claude/session-bootstrap]: mechanism=Claude project settings granular hook registrations + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
                 $output,
             );
             self::assertStringContainsString(
