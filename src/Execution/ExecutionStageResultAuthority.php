@@ -89,7 +89,8 @@ final readonly class ExecutionStageResultAuthority
         ExecutionStage $stage,
         StageResult $result,
     ): void {
-        if ($stage->kind !== ExecutionStageKind::AGENT) {
+        if ($stage->kind !== ExecutionStageKind::AGENT
+            || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
             return;
         }
 
