@@ -82,8 +82,11 @@ final readonly class InitCli
         ],
         'sync-instructions' => [
             'usage' => 'agent-loop init sync-instructions --agent=<agent|all> [--dry-run]',
-            'description' => 'Update the agent-loop-owned instruction block in AGENTS.md and host import shims.',
-            'notes' => ['Only managed marker blocks are changed; project-owned text outside them is preserved. Use --dry-run to preview updates.'],
+            'description' => 'Update the agent-loop-owned AGENTS.md block and maintained host import shims.',
+            'notes' => [
+                'Only managed marker blocks are changed; project-owned text outside them is preserved. Use --dry-run to preview updates.',
+                'Claude Code may load AGENTS.md through its built-in agents-md fallback, but the managed CLAUDE.md @AGENTS.md import remains the deterministic repository-level entrypoint.',
+            ],
         ],
         'sync-tools' => [
             'usage' => 'agent-loop init sync-tools [--tools-root=PATH] [--tools-dir=PATH] [--config=PATH] [--dry-run] [--force] [--adopt-existing]',
@@ -180,7 +183,7 @@ final readonly class InitCli
           sync-hooks        Explicitly sync repo-managed executable hooks into a client target (Codex hooks.json, or the Claude settings.json hooks key). Use --dry-run to inspect exact targets before mutation.
           sync-policy       Merge only agent-loop-owned repository authority rules into Codex, Claude Code, OpenCode, or Cursor host policy; host/user trust, runtime execution, and Auto Mode remain explicit boundaries.
           sync-githooks     Install the package-owned Git hooks and point core.hooksPath / commit.template at them.
-          sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and host import shims; preserve project-owned instructions outside the markers.
+          sync-instructions Update only agent-loop-owned marker blocks in AGENTS.md and maintained host import shims; preserve project-owned instructions outside the markers.
           sync-tools        Install the isolated evidence tool projects (itp-context, slop-scan) under tools/. Writes project files only; never runs Composer.
           scaffold          Create minimum local workflow infrastructure. Use --prefix for a real empty board or --demo for tutorial board/task state; neither is invented by default.
         TXT;

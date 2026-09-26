@@ -108,8 +108,12 @@ own get the execute bit repaired on the next `init sync-githooks` run.
 ## Project instructions now route agents into installed capabilities
 
 `install-assets` now projects a small package-managed router into root
-`AGENTS.md`. Claude and Gemini-compatible hosts use thin import shims instead of
-copying the router. Project-owned instructions outside the agent-loop marker
+`AGENTS.md`. Claude Code 2.1.277+ can load `AGENTS.md` through its built-in
+`agents-md` plugin when the project has no Claude instruction file, but the
+default remains a fallback rather than unconditional project discovery.
+agent-loop therefore keeps `CLAUDE.md` with `@AGENTS.md` as the deterministic
+repository-level import shim. Gemini-compatible hosts continue to use their
+import shim instead of copying the router. Project-owned instructions outside the agent-loop marker
 block are preserved when package guidance changes.
 
 **Action:** existing repositories must rerun the asset installation once after
