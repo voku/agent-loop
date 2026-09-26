@@ -193,7 +193,7 @@ final readonly class WorkflowPipelineCommand
             if ($currentStage !== null) {
                 echo "Current stage: " . $currentStage . " (attempt " . $projection->currentAttempt . ")\n";
                 echo "Stage role: " . ($currentRole ?? "none") . " (mutation: " . ($mayMutate ? "allowed" : "read-only") . ")\n";
-                echo "Context policy: " . ($contextPolicy ?? "none") . "\n";
+                echo "Context policy: " . $contextPolicy . "\n";
                 echo "Context identity required: " . ($contextIdRequired ? "yes" : "no") . "\n";
             }
             if ($projection->attention !== null) {
