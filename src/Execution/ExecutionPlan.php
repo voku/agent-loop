@@ -115,6 +115,26 @@ final readonly class ExecutionPlan
         throw new RuntimeException('Execution plan has no stage ' . $stageId . '.');
     }
 
+    public function requiresContextId(string $stageId): bool
+    {
+        $stage = $this->stage($stageId);
+        if ($stage->kind !== ExecutionStageKind::AGENT) {
+            return false;
+        }
+        if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {
+            return true;
+        }
+
+        foreach ($this->stages as $candidateStage) {
+            if ($candidateStage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED
+                && in_array($stage->id, $candidateStage->requires, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function role(string $roleId): ExecutionRole
     {
         foreach ($this->roles as $role) {
