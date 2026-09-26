@@ -15,6 +15,7 @@ use voku\AgentLoop\Init\InitSyncManifest;
 use voku\AgentLoop\Init\ManagedAssetChangePlan;
 use voku\AgentLoop\Init\ManagedAssetKind;
 use voku\AgentLoop\Init\ManagedAssetOperation;
+use voku\AgentLoop\Init\ManagedAssetOperationKind;
 use voku\AgentLoop\Init\ManagedAssetSource;
 use voku\AgentLoop\Init\RepositorySetupService;
 use voku\AgentLoop\Init\StaleRepositorySetupPlan;
@@ -251,6 +252,47 @@ final class RepositorySetupMutationTest extends TestCase
             self::assertFileDoesNotExist($this->root . '/.claude/skills/managed-skill/SKILL.md');
             self::assertFileDoesNotExist($this->root . '/AGENTS.md');
         }
+    }
+
+    public function testTypedClaudeUninstallKeepsRegistrationsWhenAssetPreflightBlocks(): void
+    {
+        $this->writeClaudeHookBundle();
+        $service = new RepositorySetupService($this->root);
+        $install = $service->planInstall('claude', true, $this->paths());
+        self::assertTrue($service->install($install, $install->expectedState->value, $this->paths())->succeeded);
+
+        $uninstall = $service->planUninstall('claude', true, $this->paths());
+        $crafted = new ManagedAssetChangePlan(
+            $uninstall->intent,
+            $uninstall->agent,
+            $uninstall->withHooks,
+            $uninstall->expectedState,
+            [
+                ...$uninstall->operations,
+                new ManagedAssetOperation(
+                    ManagedAssetOperationKind::REMOVE,
+                    'claude',
+                    ManagedAssetKind::HOOKS,
+                    'hooks/unmanaged.php',
+                    $this->root . '/.claude/hooks/unmanaged.php',
+                ),
+            ],
+            $uninstall->blocked,
+        );
+
+        $result = $service->uninstall($crafted, $crafted->expectedState->value, $this->paths());
+
+        self::assertFalse($result->succeeded);
+        self::assertNotNull($this->operation($result->plan, 'hooks/.agent-loop-registration.json'));
+        self::assertFileExists($this->root . '/.claude/hooks/.agent-loop-registration.json');
+        self::assertFileExists($this->root . '/.claude/hooks/policy.php');
+        self::assertFileExists($this->root . '/.claude/skills/managed-skill/SKILL.md');
+        self::assertFileExists($this->root . '/AGENTS.md');
+        $settings = $this->readClaudeSettings();
+        self::assertSame(
+            'php .claude/hooks/policy.php',
+            $settings['hooks']['PreToolUse'][0]['hooks'][0]['command'] ?? null,
+        );
     }
 
     public function testTypedClaudeHookInstallAndUninstallPreserveForeignProjectHooks(): void

@@ -24,10 +24,67 @@ use RuntimeException;
 final readonly class ManagedAssetUninstaller
 {
     /**
+     * Re-validates every planned removal before the first filesystem mutation.
+     *
+     * @return list<ManagedAssetOperation>
+     */
+    public function preflight(ManagedAssetChangePlan $plan): array
+    {
+        $blocked = [];
+
+        foreach ($this->groupByTarget($plan) as $group) {
+            $targetRoot = $group['targetRoot'];
+            $manifestPath = rtrim($targetRoot, '/') . '/' . InitSyncManifest::fileName();
+            if (!is_file($manifestPath)) {
+                foreach ($group['operations'] as $operation) {
+                    $blocked[] = $this->block($operation, 'The manifest disappeared before removal, so ownership is unproven.');
+                }
+
+                continue;
+            }
+
+            try {
+                $manifest = InitSyncManifest::load($targetRoot, $group['kind'], $group['host']);
+            } catch (InvalidArgumentException $exception) {
+                foreach ($group['operations'] as $operation) {
+                    $blocked[] = $this->block($operation, 'The manifest became unreadable before removal: ' . $exception->getMessage());
+                }
+
+                continue;
+            }
+
+            foreach ($group['operations'] as $operation) {
+                if ($group['host'] === 'claude'
+                    && $operation->entry === ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY
+                ) {
+                    $blocked[] = $this->block(
+                        $operation,
+                        'Legacy Claude whole-key hook ownership must be migrated before removal; refusing to delete the shared project hooks key.',
+                    );
+
+                    continue;
+                }
+
+                $verification = $this->verifyStillRemovable($manifest, $targetRoot, $operation->entry);
+                if ($verification !== null) {
+                    $blocked[] = $this->block($operation, $verification);
+                }
+            }
+        }
+
+        return $blocked;
+    }
+
+    /**
      * @return array{applied: list<ManagedAssetOperation>, blocked: list<ManagedAssetOperation>, messages: list<string>}
      */
     public function apply(ManagedAssetChangePlan $plan): array
     {
+        $blocked = $this->preflight($plan);
+        if ($blocked !== []) {
+            return ['applied' => [], 'blocked' => $blocked, 'messages' => []];
+        }
+
         $applied = [];
         $blocked = [];
         $messages = [];
