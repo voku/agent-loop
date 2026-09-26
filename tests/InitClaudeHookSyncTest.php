@@ -121,10 +121,13 @@ final class InitClaudeHookSyncTest extends TestCase
         ]);
 
         $settingsPath = $this->root . '/.claude/settings.json';
-        $hooksDir = $this->root . '/.claude/hooks';
-        mkdir($hooksDir, 0o775, true);
+        $hooksRoot = $this->root . '/.claude/hooks';
+        if (!is_dir($hooksRoot)) {
+            mkdir($hooksRoot, 0o775, true);
+        }
+
         copy($settingsPath, $this->root . '/.claude/.agent-loop-settings.bak');
-        file_put_contents($hooksDir . '/.agent-loop-registration.absent', '');
+        file_put_contents($hooksRoot . '/.agent-loop-registration.absent', '');
         file_put_contents($this->root . '/.claude/.agent-loop-hook-registration.txn', "v1\n");
 
         $this->writeSettings([
@@ -558,29 +561,32 @@ final class InitClaudeHookSyncTest extends TestCase
     }
 }
 ,
-                    'hooks' => [[
-                        'type' => 'command',
-                        'command' => 'php .claude/hooks/policy.php',
-                    ]],
+                    'hooks' => [['type' => 'command', 'command' => 'echo half-applied']],
                 ]],
             ],
         ]);
+        file_put_contents($hooksRoot . '/.agent-loop-registration.json', '{"half_applied":true}');
 
         $result = $this->runSync(['--agent=claude']);
 
         self::assertSame(0, $result['exit'], $result['output']);
+        $settings = $this->readSettings();
         self::assertSame(
             'echo project-stop',
-            $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+            $settings['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
         );
-        self::assertSame(
-            'php .claude/hooks/policy.php',
-            $this->readSettings()['hooks']['PreToolUse'][0]['hooks'][0]['command'] ?? null,
-        );
-        self::assertFileExists($hooksDir . '/.agent-loop-registration.json');
-        self::assertFileDoesNotExist($this->root . '/.claude/.agent-loop-hook-registration.txn');
-        self::assertFileDoesNotExist($this->root . '/.claude/.agent-loop-settings.bak');
-        self::assertFileDoesNotExist($hooksDir . '/.agent-loop-registration.absent');
+        self::assertContains('php .claude/hooks/policy.php', $this->allHookCommands($settings));
+        self::assertNotContains('echo half-applied', $this->allHookCommands($settings));
+
+        foreach ([
+            '.claude/.agent-loop-hook-registration.txn',
+            '.claude/.agent-loop-hook-registration.txn.done',
+            '.claude/.agent-loop-settings.bak',
+            '.claude/hooks/.agent-loop-registration.absent',
+        ] as $artifact) {
+            self::assertFileDoesNotExist($this->root . '/' . $artifact);
+        }
+        self::assertFileExists($hooksRoot . '/.agent-loop-registration.json');
     }
 
     public function testRepeatedSyncIsIdempotentAndDoesNotDuplicateOwnedHandler(): void
