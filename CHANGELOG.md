@@ -1,3 +1,19 @@
+## 0.20.45 - 2026-09-26
+
+### Added
+
+- Independent review stages can require a fresh host execution context. The execution plan now distinguishes `reuse_allowed` from `fresh_required`, carries bounded opaque `context_id` lineage through `StageResult`, and fails closed when a successful independent review reuses its direct agent predecessor context (#621, #622).
+- `StageExecutionBundle` and pipeline projections expose both `context_policy` and the derived `context_id_required` contract so external runners know exactly which stages must report context identity without inferring policy from role names (#622).
+
+### Changed
+
+- Missing fresh-context evidence blocks successful review progression, while `blocked`, `needs_clarification`, and `failed` outcomes can still surface typed Attention instead of being suppressed by the isolation gate (#622).
+- Existing execution-plan payloads keep their prior digest when they use the default reuse policy; provider/session spawning remains owned by the external runner or host rather than agent-loop (#622).
+
+### Validation
+
+- PR #622 passed PHP 8.3, 8.4, and 8.5 CI, Self-Shape, deterministic slop review, installed release-set and governed execution-contract dogfoods, acceptance-criteria and prompt-primitives dogfoods, refactor lifecycles, and release upgrade/resume proof.
+
 ## 0.20.44 - 2026-09-24
 
 ### Added
