@@ -49,7 +49,7 @@ vendor/bin/agent-loop init install-assets \
 
 `--extra-skills-root` is additive and repeatable. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
 
-`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, Antigravity, and Cursor. Cursor reuses the managed root `AGENTS.md` instruction router, projects skills to `.cursor/skills/<name>/SKILL.md`, and projects subagents to `.cursor/agents/<name>.md`. Executable workflow/bootstrap hook bundles remain an explicit opt-in for Codex and Claude Code. Cursor authority policy is a separate `init sync-policy --agent=cursor` projection into `.cursor/hooks.json`, not a generic hook-bundle install.
+`--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, Antigravity, and Cursor. Claude Code can consume the managed root `AGENTS.md` directly; agent-loop still projects `CLAUDE.md` with `@AGENTS.md` as a compatibility/import shim, not because current Claude requires that shim. Cursor reuses the managed root `AGENTS.md` instruction router, projects skills to `.cursor/skills/<name>/SKILL.md`, and projects subagents to `.cursor/agents/<name>.md`. Executable workflow/bootstrap hook bundles remain an explicit opt-in for Codex and Claude Code. Cursor authority policy is a separate `init sync-policy --agent=cursor` projection into `.cursor/hooks.json`, not a generic hook-bundle install.
 
 `host-status` distinguishes repository convergence from host/user authority:
 
