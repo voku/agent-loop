@@ -94,16 +94,7 @@ final readonly class ExecutionStageResultAuthority
             return;
         }
 
-        $requiredForLaterFreshStage = false;
-        foreach ($plan->stages as $candidateStage) {
-            if ($candidateStage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED
-                && in_array($stage->id, $candidateStage->requires, true)) {
-                $requiredForLaterFreshStage = true;
-                break;
-            }
-        }
-
-        if ($stage->contextPolicy !== ExecutionContextPolicy::FRESH_REQUIRED && !$requiredForLaterFreshStage) {
+        if (!$plan->requiresContextId($stage->id)) {
             return;
         }
         if ($result->contextId === null) {
