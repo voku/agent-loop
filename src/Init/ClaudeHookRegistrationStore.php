@@ -70,18 +70,14 @@ final readonly class ClaudeHookRegistrationStore
                 $this->recover();
             } catch (Throwable $recoveryFailure) {
                 throw new InvalidArgumentException(
-                    'Claude hook registration transaction failed and rollback also failed: '
-                    . $recoveryFailure->getMessage(),
+                    'Claude hook registration transaction failed: ' . $exception->getMessage()
+                    . '; rollback also failed: ' . $recoveryFailure->getMessage(),
                     0,
-                    $exception,
+                    $recoveryFailure,
                 );
             }
 
-            throw new InvalidArgumentException(
-                'Claude hook registration transaction failed and was rolled back: ' . $exception->getMessage(),
-                0,
-                $exception,
-            );
+            throw $exception;
         }
 
         $this->cleanupUnjournaledArtifacts();
