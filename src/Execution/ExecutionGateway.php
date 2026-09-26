@@ -237,6 +237,7 @@ final readonly class ExecutionGateway
             $environment?->digest(),
             $executionContract['source'] ?? null,
             $stage->contextPolicy,
+            $plan->requiresContextId($stage->id),
         );
     }
 
@@ -391,6 +392,7 @@ final readonly class ExecutionGateway
             'Role: ' . ($stage->roleId ?? 'deterministic'),
             'Mutation allowed: ' . ($stage->mayMutate ? 'yes' : 'no'),
             'Context policy: ' . $stage->contextPolicy->value,
+            'Context identity required: ' . ($plan->requiresContextId($stage->id) ? 'yes' : 'no'),
             '',
             'Goal: ' . $contract->goal,
             'Allowed scope: ' . implode(', ', $contract->scope),
@@ -405,6 +407,9 @@ final readonly class ExecutionGateway
             $lines[] = '';
             $lines[] = 'Independent-review boundary: execute this stage in a host context distinct from its direct agent predecessor(s).';
             $lines[] = 'Do not continue the predecessor conversation and merely adopt a reviewer persona.';
+        } elseif ($plan->requiresContextId($stage->id)) {
+            $lines[] = '';
+            $lines[] = 'Context lineage boundary: report this host context identity so the next independent stage can prove separation.';
         }
 
         if ($environment !== null) {
