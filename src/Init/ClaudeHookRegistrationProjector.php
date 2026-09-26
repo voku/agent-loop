@@ -25,8 +25,11 @@ final readonly class ClaudeHookRegistrationProjector
 
     private const int RECEIPT_VERSION = 1;
 
+    private ClaudeHookRegistrationStore $store;
+
     public function __construct(private string $rootPath)
     {
+        $this->store = new ClaudeHookRegistrationStore($rootPath);
     }
 
     /** @param array<string, mixed> $desiredHooks */
@@ -82,8 +85,10 @@ final readonly class ClaudeHookRegistrationProjector
             || $this->receiptContent($desiredHooks) !== $this->currentReceiptContent();
 
         if (!$dryRun && $changed) {
-            $this->writeSettingsHooks($settings, $hooks);
-            $this->writeReceipt($desiredHooks);
+            $this->store->commit(
+                $this->settingsContent($settings, $hooks),
+                $this->receiptContent($desiredHooks),
+            );
         }
 
         return $changed;
@@ -162,28 +167,15 @@ final readonly class ClaudeHookRegistrationProjector
         }
 
         if (!$dryRun && $changed) {
-            $this->writeSettingsHooks($settings, $hooks);
+            $this->store->writeSettings($this->settingsContent($settings, $hooks));
         }
 
         return $changed;
     }
 
-    /** @param array<string, mixed> $hooks */
-    public function writeReceipt(array $hooks): void
-    {
-        $path = $this->receiptPath();
-        $directory = dirname($path);
-        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
-            throw new InvalidArgumentException('Unable to create Claude hook receipt directory: ' . $directory);
-        }
-        if (file_put_contents($path, $this->receiptContent($hooks)) === false) {
-            throw new InvalidArgumentException('Unable to write Claude hook registration receipt: ' . $path);
-        }
-    }
-
     public function receiptPath(): string
     {
-        return rtrim($this->rootPath, '/') . '/.claude/' . self::RECEIPT_ENTRY;
+        return $this->store->receiptPath();
     }
 
     /** @param array<string, mixed> $hooks */
@@ -201,25 +193,16 @@ final readonly class ClaudeHookRegistrationProjector
 
     private function currentReceiptContent(): ?string
     {
-        $path = $this->receiptPath();
-        if (!is_file($path)) {
-            return null;
-        }
-        $content = file_get_contents($path);
-
-        return is_string($content) ? $content : null;
+        return $this->store->readReceiptContent();
     }
 
     /** @return array<string, mixed>|null */
     private function readReceiptHooks(): ?array
     {
         $path = $this->receiptPath();
-        if (!is_file($path)) {
+        $content = $this->store->readReceiptContent();
+        if ($content === null) {
             return null;
-        }
-        $content = file_get_contents($path);
-        if (!is_string($content)) {
-            throw new InvalidArgumentException('Unable to read Claude hook registration receipt: ' . $path);
         }
 
         try {
@@ -242,15 +225,9 @@ final readonly class ClaudeHookRegistrationProjector
     /** @return array<string, mixed> */
     private function readSettings(): array
     {
-        $path = rtrim($this->rootPath, '/') . '/.claude/settings.json';
-        if (!is_file($path)) {
-            return [];
-        }
-        $content = file_get_contents($path);
-        if (!is_string($content)) {
-            throw new InvalidArgumentException('Unable to read Claude project settings: ' . $path);
-        }
-        if (trim($content) === '') {
+        $path = $this->store->settingsPath();
+        $content = $this->store->readSettingsContent();
+        if ($content === null || trim($content) === '') {
             return [];
         }
 
@@ -282,9 +259,8 @@ final readonly class ClaudeHookRegistrationProjector
      * @param array<string, mixed> $settings
      * @param array<string, mixed> $hooks
      */
-    private function writeSettingsHooks(array $settings, array $hooks): void
+    private function settingsContent(array $settings, array $hooks): ?string
     {
-        $path = rtrim($this->rootPath, '/') . '/.claude/settings.json';
         if ($hooks === []) {
             unset($settings['hooks']);
         } else {
@@ -292,29 +268,16 @@ final readonly class ClaudeHookRegistrationProjector
         }
 
         if ($settings === []) {
-            if (is_file($path) && !unlink($path)) {
-                throw new InvalidArgumentException('Unable to remove empty Claude project settings: ' . $path);
-            }
-
-            return;
-        }
-
-        $directory = dirname($path);
-        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
-            throw new InvalidArgumentException('Unable to create Claude project settings directory: ' . $directory);
+            return null;
         }
 
         try {
-            $json = json_encode(
+            return json_encode(
                 $settings,
                 JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
             ) . "\n";
         } catch (JsonException $exception) {
             throw new InvalidArgumentException('Unable to encode Claude project settings.', 0, $exception);
-        }
-
-        if (file_put_contents($path, $json) === false) {
-            throw new InvalidArgumentException('Unable to write Claude project settings: ' . $path);
         }
     }
 
