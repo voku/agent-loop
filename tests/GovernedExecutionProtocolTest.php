@@ -307,7 +307,8 @@ final class GovernedExecutionProtocolTest extends TestCase
             $candidate,
             [],
             [],
-            'Build complete.', 'ctx:build',
+            'Build complete.',
+            'ctx:build',
         ));
 
         $review = $gateway->prepareStage('ABC-123', 'review');
@@ -323,7 +324,8 @@ final class GovernedExecutionProtocolTest extends TestCase
             $candidate,
             [],
             [],
-            'Review passed.', 'ctx:review',
+            'Review passed.',
+            'ctx:review',
         ));
 
         $verify = $gateway->prepareStage('ABC-123', 'verify');
