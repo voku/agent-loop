@@ -9,7 +9,6 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Execution\AttentionResolutionStore;
-use voku\AgentLoop\Execution\ExecutionContextPolicy;
 use voku\AgentLoop\Execution\ExecutionEvidenceClaim;
 use voku\AgentLoop\Execution\ExecutionEvidenceKind;
 use voku\AgentLoop\Execution\ExecutionEvidenceStore;
@@ -81,7 +80,6 @@ final class GovernedExecutionProtocolTest extends TestCase
         $bundle = $gateway->prepareStage('ABC-123', 'investigate');
         self::assertFalse($bundle->mayMutate);
         self::assertSame('investigator', $bundle->roleId);
-        self::assertSame(ExecutionContextPolicy::REUSE_ALLOWED, $bundle->contextPolicy);
         self::assertSame(self::BASE_COMMIT, $bundle->baseCommit);
         self::assertContains(StageOutcome::COMPLETED, $bundle->acceptedOutcomes);
         self::assertSame(['src/Foo.php'], $bundle->allowedScope);
@@ -310,11 +308,9 @@ final class GovernedExecutionProtocolTest extends TestCase
             [],
             [],
             'Build complete.',
-            'ctx:builder',
         ));
 
         $review = $gateway->prepareStage('ABC-123', 'review');
-        self::assertSame(ExecutionContextPolicy::FRESH_REQUIRED, $review->contextPolicy);
         $gateway->submitStageResult(new StageResult(
             'submission:review',
             $review->taskId,
@@ -328,7 +324,6 @@ final class GovernedExecutionProtocolTest extends TestCase
             [],
             [],
             'Review passed.',
-            'ctx:reviewer',
         ));
 
         $verify = $gateway->prepareStage('ABC-123', 'verify');

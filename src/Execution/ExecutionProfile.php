@@ -100,7 +100,8 @@ final readonly class ExecutionProfile
         array $requires,
         array $transitions,
         ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
-    ): ExecutionStage {
+    ): ExecutionStage
+    {
         return new ExecutionStage(
             $id,
             ExecutionStageKind::AGENT,
