@@ -95,6 +95,8 @@ final class InitCliTest extends TestCase
         self::assertStringContainsString('--agent=<agent|all>', $result['output']);
         self::assertStringContainsString('managed marker blocks', $result['output']);
         self::assertStringContainsString('project-owned text outside them is preserved', $result['output']);
+        self::assertStringContainsString('Claude Code can consume AGENTS.md directly', $result['output']);
+        self::assertStringContainsString('CLAUDE.md import remains a compatibility shim', $result['output']);
     }
 
     public function testHelpWordUsedAsAnOptionValueIsNotTreatedAsAHelpRequest(): void
