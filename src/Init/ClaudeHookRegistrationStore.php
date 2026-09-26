@@ -66,21 +66,26 @@ final readonly class ClaudeHookRegistrationStore
             $this->replace($this->receiptTempPath(), $this->receiptPath());
             $this->replace($this->journalPath(), $this->committedMarkerPath());
         } catch (Throwable $exception) {
-            try {
-                $this->recover();
-            } catch (Throwable $recoveryFailure) {
-                throw new InvalidArgumentException(
-                    'Claude hook registration transaction failed: ' . $exception->getMessage()
-                    . '; rollback also failed: ' . $recoveryFailure->getMessage(),
-                    0,
-                    $recoveryFailure,
-                );
-            }
+            $this->recoverAfterCommitFailure($exception);
 
             throw $exception;
         }
 
         $this->cleanupUnjournaledArtifacts();
+    }
+
+    private function recoverAfterCommitFailure(Throwable $commitFailure): void
+    {
+        try {
+            $this->recover();
+        } catch (Throwable $recoveryFailure) {
+            throw new InvalidArgumentException(
+                'Claude hook registration transaction failed: ' . $commitFailure->getMessage()
+                . '; rollback also failed: ' . $recoveryFailure->getMessage(),
+                0,
+                $recoveryFailure,
+            );
+        }
     }
 
     public function recover(): void
