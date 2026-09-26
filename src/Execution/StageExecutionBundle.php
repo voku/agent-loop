@@ -24,7 +24,6 @@ final readonly class StageExecutionBundle
         public ExecutionStageKind $kind,
         public ?string $roleId,
         public bool $mayMutate,
-        public ExecutionContextPolicy $contextPolicy,
         public string $repositoryRoot,
         public ?string $baseCommit,
         public string $candidateRevision,
@@ -38,6 +37,7 @@ final readonly class StageExecutionBundle
         public string $prompt,
         public ?string $environmentObservationDigest = null,
         public ?array $executionContractSource = null,
+        public ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
     ) {
     }
 }
