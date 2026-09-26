@@ -15,9 +15,7 @@ use stdClass;
  * `hooks` object. The receipt persists the exact subset agent-loop registered,
  * so later sync/uninstall operations can distinguish owned handlers from project
  * configuration without claiming the whole settings key.
- *
- * @phpstan-import-type JsonValue from ClaudeJsonObjectCodec
- * @phpstan-import-type JsonObject from ClaudeJsonObjectCodec
+
  */
 final readonly class ClaudeHookRegistrationProjector
 {
@@ -34,7 +32,7 @@ final readonly class ClaudeHookRegistrationProjector
         $this->store = new ClaudeHookRegistrationStore($rootPath);
     }
 
-    /** @param JsonObject $desiredHooks */
+    /** @param array<string, mixed> $desiredHooks */
     public function sync(
         array $desiredHooks,
         bool $dryRun = false,
@@ -180,7 +178,7 @@ final readonly class ClaudeHookRegistrationProjector
         return $this->store->receiptPath();
     }
 
-    /** @param JsonObject $hooks */
+    /** @param array<string, mixed> $hooks */
     private function receiptContent(array $hooks): string
     {
         try {
@@ -198,7 +196,7 @@ final readonly class ClaudeHookRegistrationProjector
         return $this->store->readReceiptContent();
     }
 
-    /** @return JsonObject|null */
+    /** @return array<string, mixed>|null */
     private function readReceiptHooks(): ?array
     {
         $path = $this->receiptPath();
@@ -220,11 +218,11 @@ final readonly class ClaudeHookRegistrationProjector
             throw new InvalidArgumentException('Claude hook registration receipt must contain a hooks object: ' . $path);
         }
 
-        /** @var JsonObject $hooks */
+        /** @var array<string, mixed> $hooks */
         return $hooks;
     }
 
-    /** @return JsonObject */
+    /** @return array<string, mixed> */
     private function readSettings(): array
     {
         $path = $this->store->settingsPath();
@@ -237,8 +235,8 @@ final readonly class ClaudeHookRegistrationProjector
     }
 
     /**
-     * @param JsonObject $settings
-     * @return JsonObject
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
      */
     private function hooksObject(array $settings): array
     {
@@ -253,13 +251,13 @@ final readonly class ClaudeHookRegistrationProjector
             throw new InvalidArgumentException('Claude project settings hooks must be a JSON object.');
         }
 
-        /** @var JsonObject $hooks */
+        /** @var array<string, mixed> $hooks */
         return $hooks;
     }
 
     /**
-     * @param JsonObject $settings
-     * @param JsonObject $hooks
+     * @param array<string, mixed> $settings
+     * @param array<string, mixed> $hooks
      */
     private function settingsContent(array $settings, array $hooks): ?string
     {
@@ -284,8 +282,8 @@ final readonly class ClaudeHookRegistrationProjector
     }
 
     /**
-     * @param JsonObject $hooks
-     * @return array<string, array{command: non-empty-string, event: non-empty-string, group: JsonObject, handler: JsonObject}>
+     * @param array<string, mixed> $hooks
+     * @return array<string, array{command: non-empty-string, event: non-empty-string, group: array<string, mixed>, handler: array<string, mixed>}>
      */
     private function records(array $hooks): array
     {
@@ -331,8 +329,8 @@ final readonly class ClaudeHookRegistrationProjector
     }
 
     /**
-     * @param JsonObject $hooks
-     * @return list<array{command: non-empty-string, event: non-empty-string, group: JsonObject, handler: JsonObject}>
+     * @param array<string, mixed> $hooks
+     * @return list<array{command: non-empty-string, event: non-empty-string, group: array<string, mixed>, handler: array<string, mixed>}>
      */
     private function recordsForCommand(array $hooks, string $command): array
     {
@@ -369,8 +367,8 @@ final readonly class ClaudeHookRegistrationProjector
     }
 
     /**
-     * @param array{command: non-empty-string, event: non-empty-string, group: JsonObject, handler: JsonObject} $left
-     * @param array{command: non-empty-string, event: non-empty-string, group: JsonObject, handler: JsonObject} $right
+     * @param array{command: non-empty-string, event: non-empty-string, group: array<string, mixed>, handler: array<string, mixed>} $left
+     * @param array{command: non-empty-string, event: non-empty-string, group: array<string, mixed>, handler: array<string, mixed>} $right
      */
     private function sameRecord(array $left, array $right): bool
     {
@@ -380,8 +378,8 @@ final readonly class ClaudeHookRegistrationProjector
     }
 
     /**
-     * @param JsonObject $hooks
-     * @param array{command: non-empty-string, event: non-empty-string, group: JsonObject, handler: JsonObject} $record
+     * @param array<string, mixed> $hooks
+     * @param array{command: non-empty-string, event: non-empty-string, group: array<string, mixed>, handler: array<string, mixed>} $record
      */
     private function insertRecord(array &$hooks, array $record): void
     {
@@ -424,7 +422,7 @@ final readonly class ClaudeHookRegistrationProjector
         $hooks[$event] = $groups;
     }
 
-    /** @param JsonObject $hooks */
+    /** @param array<string, mixed> $hooks */
     private function removeCommand(array &$hooks, string $command): void
     {
         foreach (array_keys($hooks) as $event) {
