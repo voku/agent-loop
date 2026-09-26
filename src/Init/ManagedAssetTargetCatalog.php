@@ -125,7 +125,7 @@ final readonly class ManagedAssetTargetCatalog
 
     public function claudeHooksTargetRoot(): string
     {
-        return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
+        return $this->rootPath . '/.claude';
     }
 
     /**

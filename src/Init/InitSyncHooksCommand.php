@@ -235,7 +235,7 @@ final readonly class InitSyncHooksCommand
 
     private function resolveClaudeTargetRoot(): string
     {
-        return PathResolver::fromEnvironment($this->rootPath, 'CLAUDE_CONFIG_DIR') ?? $this->rootPath . '/.claude';
+        return (new ManagedAssetTargetCatalog($this->rootPath))->claudeHooksTargetRoot();
     }
 
     private function syncHooks(AgentAssetSourcePaths $paths, bool $dryRun, bool $force, bool $adoptExisting): int
