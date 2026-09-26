@@ -159,6 +159,33 @@ final class ExecutionContextIsolationTest extends TestCase
         );
     }
 
+    public function testFreshReviewCanReportBlockedWithoutContextIdentity(): void
+    {
+        [$plan, $state] = $this->reviewState('ctx:builder');
+
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $plan->stage('review'),
+            new StageResult(
+                'submission:review-blocked',
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $plan->digest(),
+                'review',
+                1,
+                StageOutcome::BLOCKED,
+                $state->candidateRevision,
+                [],
+                [],
+                'Host cannot provide an isolated review context.',
+            ),
+        );
+
+        self::addToAssertionCount(1);
+    }
+
     public function testStandaloneReuseAllowedStageDoesNotRequireContextLineage(): void
     {
         $role = new ExecutionRole('investigator', false, []);
