@@ -24,6 +24,7 @@ final readonly class StageExecutionBundle
         public ExecutionStageKind $kind,
         public ?string $roleId,
         public bool $mayMutate,
+        public ExecutionContextPolicy $contextPolicy,
         public string $repositoryRoot,
         public ?string $baseCommit,
         public string $candidateRevision,

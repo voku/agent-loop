@@ -39,7 +39,7 @@ final readonly class ExecutionProfile
                     self::agent('review', 'reviewer', false, ['build'], [
                         StageOutcome::PASS->value => 'verify',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::deterministic('verify', ['review'], [StageOutcome::PASS->value => null]),
                 ],
             ),
@@ -52,11 +52,11 @@ final readonly class ExecutionProfile
                     self::agent('correctness-review', 'correctness-review', false, ['build'], [
                         StageOutcome::PASS->value => 'blindspot-review',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::agent('blindspot-review', 'blindspot-review', false, ['correctness-review'], [
                         StageOutcome::PASS->value => 'verify',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::deterministic('verify', ['blindspot-review'], [StageOutcome::PASS->value => null]),
                 ],
             ),
@@ -69,20 +69,20 @@ final readonly class ExecutionProfile
                     self::agent('correctness-review', 'correctness-review', false, ['build'], [
                         StageOutcome::PASS->value => 'architecture-review',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::agent('architecture-review', 'architecture-review', false, ['correctness-review'], [
                         StageOutcome::PASS->value => 'hardening',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::agent('hardening', 'hardening', true, ['architecture-review'], [StageOutcome::COMPLETED->value => 'independent-verification']),
                     self::agent('independent-verification', 'independent-verification', false, ['hardening'], [
                         StageOutcome::PASS->value => 'blindspot-review',
                         StageOutcome::CHANGES_REQUIRED->value => 'hardening',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::agent('blindspot-review', 'blindspot-review', false, ['independent-verification'], [
                         StageOutcome::PASS->value => 'verify',
                         StageOutcome::CHANGES_REQUIRED->value => 'build',
-                    ]),
+                    ], ExecutionContextPolicy::FRESH_REQUIRED),
                     self::deterministic('verify', ['blindspot-review'], [StageOutcome::PASS->value => null]),
                 ],
             ),
@@ -93,9 +93,23 @@ final readonly class ExecutionProfile
      * @param list<non-empty-string> $requires
      * @param array<string, non-empty-string|null> $transitions
      */
-    private static function agent(string $id, string $role, bool $mayMutate, array $requires, array $transitions): ExecutionStage
-    {
-        return new ExecutionStage($id, ExecutionStageKind::AGENT, $role, $mayMutate, $requires, $transitions);
+    private static function agent(
+        string $id,
+        string $role,
+        bool $mayMutate,
+        array $requires,
+        array $transitions,
+        ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
+    ): ExecutionStage {
+        return new ExecutionStage(
+            $id,
+            ExecutionStageKind::AGENT,
+            $role,
+            $mayMutate,
+            $requires,
+            $transitions,
+            $contextPolicy,
+        );
     }
 
     /**
