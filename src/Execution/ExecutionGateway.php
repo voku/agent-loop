@@ -215,7 +215,6 @@ final readonly class ExecutionGateway
             $stage->kind,
             $stage->roleId,
             $stage->mayMutate,
-            $stage->contextPolicy,
             $this->repositoryRoot(),
             $plan->baseCommit,
             $projection->candidateRevision,
@@ -237,6 +236,7 @@ final readonly class ExecutionGateway
             ),
             $environment?->digest(),
             $executionContract['source'] ?? null,
+            $stage->contextPolicy,
         );
     }
 
