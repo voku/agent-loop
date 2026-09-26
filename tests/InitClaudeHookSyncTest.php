@@ -532,10 +532,14 @@ final class InitClaudeHookSyncTest extends TestCase
                 continue;
             }
             foreach ($groups as $group) {
-                if (!is_array($group) || !is_array($group['hooks'] ?? null)) {
+                if (!is_array($group)) {
                     continue;
                 }
-                array_push($commands, ...$this->commands($group['hooks']));
+                $handlers = $group['hooks'] ?? null;
+                if (!is_array($handlers) || !array_is_list($handlers)) {
+                    continue;
+                }
+                array_push($commands, ...$this->commands($handlers));
             }
         }
 

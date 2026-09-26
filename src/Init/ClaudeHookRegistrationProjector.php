@@ -293,7 +293,7 @@ final readonly class ClaudeHookRegistrationProjector
     {
         $records = [];
         foreach ($hooks as $event => $groups) {
-            if (!is_string($event) || $event === '' || !is_array($groups) || !array_is_list($groups)) {
+            if ($event === '' || !is_array($groups) || !array_is_list($groups)) {
                 throw new InvalidArgumentException('Claude hooks must map event names to hook-group lists.');
             }
             foreach ($groups as $group) {
@@ -334,19 +334,21 @@ final readonly class ClaudeHookRegistrationProjector
 
     /**
      * @param array<string, mixed> $hooks
+     * @param non-empty-string $command
      * @return list<array{command: non-empty-string, event: non-empty-string, group: array<string, mixed>, handler: array<string, mixed>}>
      */
     private function recordsForCommand(array $hooks, string $command): array
     {
         $records = [];
         foreach ($hooks as $event => $groups) {
-            if (!is_string($event) || !is_array($groups) || !array_is_list($groups)) {
+            if ($event === '' || !is_array($groups) || !array_is_list($groups)) {
                 throw new InvalidArgumentException('Claude hooks must map event names to hook-group lists.');
             }
             foreach ($groups as $group) {
                 if (!is_array($group) || array_is_list($group)) {
                     throw new InvalidArgumentException('Claude hook group must be a JSON object.');
                 }
+                /** @var array<string, mixed> $group */
                 $handlers = $group['hooks'] ?? null;
                 if (!is_array($handlers) || !array_is_list($handlers)) {
                     throw new InvalidArgumentException('Claude hook group must contain a hook list.');
@@ -357,6 +359,7 @@ final readonly class ClaudeHookRegistrationProjector
                     if (!is_array($handler) || array_is_list($handler) || ($handler['command'] ?? null) !== $command) {
                         continue;
                     }
+                    /** @var array<string, mixed> $handler */
                     $records[] = [
                         'command' => $command,
                         'event' => $event,
@@ -463,6 +466,10 @@ final readonly class ClaudeHookRegistrationProjector
         }
     }
 
+    /**
+     * @param bool|float|int|string|null|stdClass|array<array-key, mixed> $value
+     * @return bool|float|int|string|null|stdClass|array<array-key, mixed>
+     */
     private function normalize(bool|float|int|string|null|stdClass|array $value): bool|float|int|string|null|stdClass|array
     {
         if ($value instanceof stdClass) {

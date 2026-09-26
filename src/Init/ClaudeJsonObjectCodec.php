@@ -46,6 +46,7 @@ final readonly class ClaudeJsonObjectCodec
         return $values;
     }
 
+    /** @return bool|float|int|string|null|stdClass|array<array-key, mixed> */
     private static function decodedValue(mixed $value): bool|float|int|string|null|stdClass|array
     {
         if ($value instanceof stdClass) {
