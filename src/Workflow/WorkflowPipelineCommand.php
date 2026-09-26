@@ -123,6 +123,7 @@ final readonly class WorkflowPipelineCommand
         $currentRole = null;
         $mayMutate = false;
         $contextPolicy = null;
+        $contextIdRequired = false;
 
         if ($projection->currentStageId !== null) {
             $stage = $plan->stage($projection->currentStageId);
@@ -131,6 +132,7 @@ final readonly class WorkflowPipelineCommand
             $currentRole = $stage->roleId;
             $mayMutate = $stage->mayMutate;
             $contextPolicy = $stage->contextPolicy->value;
+            $contextIdRequired = $plan->requiresContextId($stage->id);
         }
 
         $handoffs = array_map(
@@ -171,6 +173,7 @@ final readonly class WorkflowPipelineCommand
             "role" => $currentRole,
             "may_mutate" => $mayMutate,
             "context_policy" => $contextPolicy,
+            "context_id_required" => $contextIdRequired,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
             "attention" => $projection->attention?->toArray(),
@@ -191,6 +194,7 @@ final readonly class WorkflowPipelineCommand
                 echo "Current stage: " . $currentStage . " (attempt " . $projection->currentAttempt . ")\n";
                 echo "Stage role: " . ($currentRole ?? "none") . " (mutation: " . ($mayMutate ? "allowed" : "read-only") . ")\n";
                 echo "Context policy: " . ($contextPolicy ?? "none") . "\n";
+                echo "Context identity required: " . ($contextIdRequired ? "yes" : "no") . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -247,7 +251,7 @@ final readonly class WorkflowPipelineCommand
             "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s",
             $taskId,
             $acceptedOutcomes[0] ?? "completed",
-            $bundle->kind === ExecutionStageKind::AGENT ? ' --context-id "<host-context-id>"' : '',
+            $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
         );
 
         $payload = [
@@ -260,6 +264,7 @@ final readonly class WorkflowPipelineCommand
             "role" => $bundle->roleId,
             "may_mutate" => $bundle->mayMutate,
             "context_policy" => $bundle->contextPolicy->value,
+            "context_id_required" => $bundle->contextIdRequired,
             "allowed_scope" => $bundle->allowedScope,
             "required_validation" => $bundle->requiredValidation,
             "accepted_outcomes" => $acceptedOutcomes,
@@ -277,6 +282,7 @@ final readonly class WorkflowPipelineCommand
             echo "Role: " . ($bundle->roleId ?? "deterministic") . "\n";
             echo "Mutation: " . ($bundle->mayMutate ? "allowed" : "read-only") . "\n";
             echo "Context policy: " . $bundle->contextPolicy->value . "\n";
+            echo "Context identity required: " . ($bundle->contextIdRequired ? "yes" : "no") . "\n";
             echo "Allowed scope: " . implode(", ", $bundle->allowedScope) . "\n";
             echo "Accepted outcomes: " . implode(", ", $acceptedOutcomes) . "\n";
             if ($bundle->priorHandoff !== null) {
