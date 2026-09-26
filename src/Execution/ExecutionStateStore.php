@@ -441,6 +441,9 @@ final readonly class ExecutionStateStore
             ExecutionArtifactValue::stringList($data['artifact_references'] ?? null, $path . '#artifact_references'),
             ExecutionArtifactValue::stringList($data['validation_references'] ?? null, $path . '#validation_references'),
             is_string($data['summary'] ?? null) ? trim($data['summary']) : '',
+            array_key_exists('context_id', $data)
+                ? $this->requiredString($data, 'context_id', $path)
+                : null,
         );
     }
 

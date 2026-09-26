@@ -236,6 +236,8 @@ final readonly class ExecutionGateway
             ),
             $environment?->digest(),
             $executionContract['source'] ?? null,
+            $stage->contextPolicy,
+            $plan->requiresContextId($stage->id),
         );
     }
 
@@ -389,6 +391,8 @@ final readonly class ExecutionGateway
             'Attempt: ' . $attempt,
             'Role: ' . ($stage->roleId ?? 'deterministic'),
             'Mutation allowed: ' . ($stage->mayMutate ? 'yes' : 'no'),
+            'Context policy: ' . $stage->contextPolicy->value,
+            'Context identity required: ' . ($plan->requiresContextId($stage->id) ? 'yes' : 'no'),
             '',
             'Goal: ' . $contract->goal,
             'Allowed scope: ' . implode(', ', $contract->scope),
@@ -398,6 +402,15 @@ final readonly class ExecutionGateway
             'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
+
+        if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {
+            $lines[] = '';
+            $lines[] = 'Independent-review boundary: execute this stage in a host context distinct from its direct agent predecessor(s).';
+            $lines[] = 'Do not continue the predecessor conversation and merely adopt a reviewer persona.';
+        } elseif ($plan->requiresContextId($stage->id)) {
+            $lines[] = '';
+            $lines[] = 'Context lineage boundary: report this host context identity so the next independent stage can prove separation.';
+        }
 
         if ($environment !== null) {
             $observationJson = json_encode($environment->toArray(), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

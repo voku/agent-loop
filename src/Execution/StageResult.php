@@ -22,6 +22,7 @@ final readonly class StageResult
     public array $validationReferences;
 
     public string $summary;
+    public ?string $contextId;
 
     /**
      * @param list<non-empty-string> $artifactReferences
@@ -40,6 +41,7 @@ final readonly class StageResult
         array $artifactReferences,
         array $validationReferences,
         string $summary,
+        ?string $contextId = null,
     ) {
         $this->submissionId = trim($submissionId);
         $this->taskId = trim($taskId);
@@ -50,6 +52,7 @@ final readonly class StageResult
         $this->artifactReferences = self::normalizeReferences($artifactReferences, 'artifact');
         $this->validationReferences = self::normalizeReferences($validationReferences, 'validation');
         $this->summary = trim($summary);
+        $this->contextId = $contextId === null ? null : trim($contextId);
 
         if ($this->submissionId === '' || $this->taskId === '' || $this->runId === '') {
             throw new InvalidArgumentException('Stage result requires submission, task, and Run ids.');
@@ -63,12 +66,16 @@ final readonly class StageResult
         if ($this->stageId === '' || $this->candidateRevision === '') {
             throw new InvalidArgumentException('Stage result requires stage and candidate revision.');
         }
+        if ($this->contextId !== null
+            && preg_match('/^[A-Za-z0-9][A-Za-z0-9._:@\/-]{0,255}$/D', $this->contextId) !== 1) {
+            throw new InvalidArgumentException('Stage result context id must be a bounded opaque identifier.');
+        }
     }
 
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return [
+        $payload = [
             'submission_id' => $this->submissionId,
             'task_id' => $this->taskId,
             'run_id' => $this->runId,
@@ -82,6 +89,12 @@ final readonly class StageResult
             'validation_references' => $this->validationReferences,
             'summary' => $this->summary,
         ];
+
+        if ($this->contextId !== null) {
+            $payload['context_id'] = $this->contextId;
+        }
+
+        return $payload;
     }
 
     /**

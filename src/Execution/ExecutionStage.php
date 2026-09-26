@@ -19,6 +19,7 @@ final readonly class ExecutionStage
         public bool $mayMutate,
         public array $requires,
         public array $transitions,
+        public ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
     ) {
         if (preg_match('/^[a-z][a-z0-9-]*$/', $this->id) !== 1) {
             throw new InvalidArgumentException('Execution stage id must match [a-z][a-z0-9-]*.');
@@ -51,12 +52,13 @@ final readonly class ExecutionStage
      *     role: string|null,
      *     may_mutate: bool,
      *     requires: list<non-empty-string>,
-     *     transitions: array<string, non-empty-string|null>
+     *     transitions: array<string, non-empty-string|null>,
+     *     context_policy?: string
      * }
      */
     public function toArray(): array
     {
-        return [
+        $payload = [
             'id' => $this->id,
             'kind' => $this->kind->value,
             'role' => $this->roleId,
@@ -64,6 +66,12 @@ final readonly class ExecutionStage
             'requires' => $this->requires,
             'transitions' => $this->transitions,
         ];
+
+        if ($this->contextPolicy !== ExecutionContextPolicy::REUSE_ALLOWED) {
+            $payload['context_policy'] = $this->contextPolicy->value;
+        }
+
+        return $payload;
     }
 
     public function next(StageOutcome $outcome): ?string

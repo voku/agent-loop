@@ -122,6 +122,8 @@ final readonly class WorkflowPipelineCommand
         $currentStageKind = null;
         $currentRole = null;
         $mayMutate = false;
+        $contextPolicy = null;
+        $contextIdRequired = false;
 
         if ($projection->currentStageId !== null) {
             $stage = $plan->stage($projection->currentStageId);
@@ -129,6 +131,8 @@ final readonly class WorkflowPipelineCommand
             $currentStageKind = $stage->kind->value;
             $currentRole = $stage->roleId;
             $mayMutate = $stage->mayMutate;
+            $contextPolicy = $stage->contextPolicy->value;
+            $contextIdRequired = $plan->requiresContextId($stage->id);
         }
 
         $handoffs = array_map(
@@ -168,6 +172,8 @@ final readonly class WorkflowPipelineCommand
             "stage_kind" => $currentStageKind,
             "role" => $currentRole,
             "may_mutate" => $mayMutate,
+            "context_policy" => $contextPolicy,
+            "context_id_required" => $contextIdRequired,
             "attempt" => $projection->currentAttempt,
             "candidate_revision" => $projection->candidateRevision,
             "attention" => $projection->attention?->toArray(),
@@ -187,6 +193,8 @@ final readonly class WorkflowPipelineCommand
             if ($currentStage !== null) {
                 echo "Current stage: " . $currentStage . " (attempt " . $projection->currentAttempt . ")\n";
                 echo "Stage role: " . ($currentRole ?? "none") . " (mutation: " . ($mayMutate ? "allowed" : "read-only") . ")\n";
+                echo "Context policy: " . $contextPolicy . "\n";
+                echo "Context identity required: " . ($contextIdRequired ? "yes" : "no") . "\n";
             }
             if ($projection->attention !== null) {
                 echo "[ATTENTION] " . $projection->attention->message . " (ID: " . $projection->attention->id . ")\n";
@@ -240,9 +248,10 @@ final readonly class WorkflowPipelineCommand
         $acceptedOutcomes = array_map(static fn (StageOutcome $o): string => $o->value, $bundle->acceptedOutcomes);
 
         $nextAction = sprintf(
-            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"",
+            "agent-loop pipeline submit %s --outcome %s --summary \"<summary>\"%s",
             $taskId,
             $acceptedOutcomes[0] ?? "completed",
+            $bundle->contextIdRequired ? ' --context-id "<host-context-id>"' : '',
         );
 
         $payload = [
@@ -254,6 +263,8 @@ final readonly class WorkflowPipelineCommand
             "kind" => $bundle->kind->value,
             "role" => $bundle->roleId,
             "may_mutate" => $bundle->mayMutate,
+            "context_policy" => $bundle->contextPolicy->value,
+            "context_id_required" => $bundle->contextIdRequired,
             "allowed_scope" => $bundle->allowedScope,
             "required_validation" => $bundle->requiredValidation,
             "accepted_outcomes" => $acceptedOutcomes,
@@ -270,6 +281,8 @@ final readonly class WorkflowPipelineCommand
             echo "=== Pipeline Stage: " . $bundle->stageId . " (Attempt " . $bundle->attempt . ") ===\n";
             echo "Role: " . ($bundle->roleId ?? "deterministic") . "\n";
             echo "Mutation: " . ($bundle->mayMutate ? "allowed" : "read-only") . "\n";
+            echo "Context policy: " . $bundle->contextPolicy->value . "\n";
+            echo "Context identity required: " . ($bundle->contextIdRequired ? "yes" : "no") . "\n";
             echo "Allowed scope: " . implode(", ", $bundle->allowedScope) . "\n";
             echo "Accepted outcomes: " . implode(", ", $acceptedOutcomes) . "\n";
             if ($bundle->priorHandoff !== null) {
@@ -303,6 +316,7 @@ final readonly class WorkflowPipelineCommand
 
         $summary = OptionTokens::value($tokens, "summary") ?? ("Stage result: " . $outcome->value);
         $candidate = OptionTokens::value($tokens, "candidate");
+        $contextId = OptionTokens::value($tokens, "context-id");
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
 
         $gateway = new ExecutionGateway($this->rootPath);
@@ -342,6 +356,7 @@ final readonly class WorkflowPipelineCommand
             [],
             [],
             $summary,
+            $contextId,
         );
 
         $newProjection = $gateway->submitStageResult($stageResult);
@@ -494,7 +509,7 @@ Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--auto-verify] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--auto-verify] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.
 TXT;

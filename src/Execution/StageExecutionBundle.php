@@ -37,6 +37,8 @@ final readonly class StageExecutionBundle
         public string $prompt,
         public ?string $environmentObservationDigest = null,
         public ?array $executionContractSource = null,
+        public ExecutionContextPolicy $contextPolicy = ExecutionContextPolicy::REUSE_ALLOWED,
+        public bool $contextIdRequired = false,
     ) {
     }
 }

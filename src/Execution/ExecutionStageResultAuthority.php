@@ -19,6 +19,7 @@ final readonly class ExecutionStageResultAuthority
         StageResult $result,
     ): void {
         $this->assertCandidate($plan, $state, $stage, $result->candidateRevision);
+        $this->assertExecutionContext($plan, $state, $stage, $result);
 
         $evidence = new ExecutionEvidenceStore($this->rootPath);
         foreach ($result->artifactReferences as $reference) {
@@ -80,6 +81,63 @@ final readonly class ExecutionStageResultAuthority
         if ($claim->kind === ExecutionEvidenceKind::ARTIFACT) {
             $this->assertArtifactClaim($plan, $claim);
         }
+    }
+
+    private function assertExecutionContext(
+        ExecutionPlan $plan,
+        ExecutionState $state,
+        ExecutionStage $stage,
+        StageResult $result,
+    ): void {
+        if ($stage->kind !== ExecutionStageKind::AGENT
+            || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
+            return;
+        }
+
+        if (!$plan->requiresContextId($stage->id)) {
+            return;
+        }
+        if ($result->contextId === null) {
+            throw new RuntimeException(
+                'MISSING_CONTEXT_EVIDENCE: stage ' . $stage->id
+                . ' requires an observable host context id for independent-review lineage.',
+            );
+        }
+        if ($stage->contextPolicy !== ExecutionContextPolicy::FRESH_REQUIRED) {
+            return;
+        }
+
+        foreach ($stage->requires as $requiredStageId) {
+            $requiredStage = $plan->stage($requiredStageId);
+            if ($requiredStage->kind !== ExecutionStageKind::AGENT) {
+                continue;
+            }
+
+            $predecessor = $this->latestAcceptedResultForStage($state, $requiredStageId);
+            if (!$predecessor instanceof StageResult || $predecessor->contextId === null) {
+                throw new RuntimeException(
+                    'MISSING_CONTEXT_EVIDENCE: fresh stage ' . $stage->id
+                    . ' cannot prove isolation from predecessor ' . $requiredStageId . '.',
+                );
+            }
+            if (hash_equals($predecessor->contextId, $result->contextId)) {
+                throw new RuntimeException(
+                    'CONTEXT_REUSE_FORBIDDEN: fresh stage ' . $stage->id
+                    . ' reused predecessor context ' . $requiredStageId . '.',
+                );
+            }
+        }
+    }
+
+    private function latestAcceptedResultForStage(ExecutionState $state, string $stageId): ?StageResult
+    {
+        foreach (array_reverse($state->history) as $accepted) {
+            if ($accepted->result->stageId === $stageId) {
+                return $accepted->result;
+            }
+        }
+
+        return null;
     }
 
     private function assertCandidateClaim(

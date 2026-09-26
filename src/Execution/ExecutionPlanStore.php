@@ -203,6 +203,14 @@ final readonly class ExecutionPlanStore
             if (!is_bool($mayMutate)) {
                 throw new RuntimeException('Execution stage may_mutate must be boolean in ' . $path . '.');
             }
+            $contextPolicyValue = $entry['context_policy'] ?? ExecutionContextPolicy::REUSE_ALLOWED->value;
+            if (!is_string($contextPolicyValue)) {
+                throw new RuntimeException('Execution stage context_policy must be a string in ' . $path . '.');
+            }
+            $contextPolicy = ExecutionContextPolicy::tryFrom($contextPolicyValue);
+            if (!$contextPolicy instanceof ExecutionContextPolicy) {
+                throw new RuntimeException('Unsupported execution stage context_policy in ' . $path . '.');
+            }
             $transitionData = $entry['transitions'] ?? null;
             if (!is_array($transitionData)) {
                 throw new RuntimeException('Execution stage transitions must be an object in ' . $path . '.');
@@ -224,6 +232,7 @@ final readonly class ExecutionPlanStore
                 $mayMutate,
                 ExecutionArtifactValue::stringList($entry['requires'] ?? null, $entryPath . '.requires'),
                 $transitions,
+                $contextPolicy,
             );
         }
 

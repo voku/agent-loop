@@ -46,8 +46,12 @@ hardened
 ```
 
 Review outcomes may route back to an explicit mutation stage. Reviewer roles are
-read-only by default. The deterministic final `verify` stage remains an
-`agent-loop` operation rather than an LLM claim.
+read-only by default. Independent review stages additionally declare
+`context_policy=fresh_required`: the host must execute them under an observable
+context identity that differs from their direct agent predecessor(s). This keeps
+"read-only" and "independent context" as separate invariants. The deterministic
+final `verify` stage remains an `agent-loop` operation rather than an LLM
+claim.
 
 ## Typed consumer API
 
@@ -114,11 +118,20 @@ scope, approve a Contract, resolve Attention, change accepted outcomes, select a
 workflow stage, or bypass validation. Missing facts remain unknown. The caller
 must not invent capabilities or convert host configuration into task policy.
 
-## Stage result and exact-once acceptance
+## Stage result, context lineage, and exact-once acceptance
 
 A host returns a `StageResult` with a caller-stable `submission_id`, exact
 Run/Contract/plan/stage/attempt binding, candidate revision, outcome and evidence
-references.
+references. Agent stages participating in an independent-review boundary also
+carry one bounded opaque `context_id`. It identifies the host execution context;
+it is not a transcript, model identity, credential, or authority claim.
+
+For `fresh_required` stages, agent-loop fails closed unless the current
+`context_id` differs from each direct agent predecessor. A predecessor whose
+result is needed to prove that comparison must therefore also report its context
+id. The host/runner still owns *how* it creates a new session/subagent/process;
+agent-loop owns only the stage invariant and its lineage check. Projected
+subagent files are not evidence that this runtime separation happened.
 
 `agent-loop` validates the result against current owner state before any
 transition is accepted. An exit code or model statement is not a passed gate.

@@ -98,7 +98,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $res2 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=completed",
-            "--summary=Implementation completed in Foo.php.",
+            "--summary=Implementation completed in Foo.php.", "--context-id=ctx:build-1",
             "--format=json",
         ]);
         self::assertSame(0, $res2["exit"]);
@@ -110,7 +110,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $res3 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=changes_required",
-            "--summary=Add missing null-check in Foo.php.",
+            "--summary=Add missing null-check in Foo.php.", "--context-id=ctx:review-1",
             "--format=json",
         ]);
         self::assertSame(0, $res3["exit"]);
@@ -130,7 +130,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $res4 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=completed",
-            "--summary=Added null-check.",
+            "--summary=Added null-check.", "--context-id=ctx:build-2",
             "--format=json",
         ]);
         self::assertSame(0, $res4["exit"]);
@@ -141,7 +141,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         $res5 = $this->captureRun($command, [
             "submit", "PIPE-2",
             "--outcome=pass",
-            "--summary=All checks satisfied.",
+            "--summary=All checks satisfied.", "--context-id=ctx:review-2",
             "--format=json",
         ]);
         self::assertSame(0, $res5["exit"]);
@@ -156,10 +156,10 @@ final class WorkflowPipelineCommandTest extends TestCase
 
         // Advance through investigate and build
         $this->captureRun($command, ["submit", "PIPE-3", "--outcome=completed", "--summary=Done"]);
-        $this->captureRun($command, ["submit", "PIPE-3", "--outcome=completed", "--summary=Done"]);
+        $this->captureRun($command, ["submit", "PIPE-3", "--outcome=completed", "--summary=Done", "--context-id=ctx:build"]);
 
         // Review passes -> next is deterministic verify
-        $this->captureRun($command, ["submit", "PIPE-3", "--outcome=pass", "--summary=Passed"]);
+        $this->captureRun($command, ["submit", "PIPE-3", "--outcome=pass", "--summary=Passed", "--context-id=ctx:review"]);
 
         // In verify stage, running pipeline run executes deterministic verify
         // Create valid evidence for verifier so verify passes
@@ -176,8 +176,8 @@ final class WorkflowPipelineCommandTest extends TestCase
 
         // Advance through all stages
         $this->captureRun($command, ["submit", "PIPE-4", "--outcome=completed", "--summary=Done"]);
-        $this->captureRun($command, ["submit", "PIPE-4", "--outcome=completed", "--summary=Done"]);
-        $this->captureRun($command, ["submit", "PIPE-4", "--outcome=pass", "--summary=Passed"]);
+        $this->captureRun($command, ["submit", "PIPE-4", "--outcome=completed", "--summary=Done", "--context-id=ctx:build"]);
+        $this->captureRun($command, ["submit", "PIPE-4", "--outcome=pass", "--summary=Passed", "--context-id=ctx:review"]);
         $this->captureRun($command, ["run", "PIPE-4"]);
 
         // Now test stage and status on complete pipeline
