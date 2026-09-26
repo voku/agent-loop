@@ -1,3 +1,19 @@
+## 0.20.46 - 2026-09-27
+
+### Fixed
+
+- Keep Claude Code repository hooks in project scope: `CLAUDE_CONFIG_DIR` no longer redirects repository-managed hook projection away from `<repo>/.claude` (#623, #624).
+- Preserve unrelated Claude project hooks and settings while syncing, adopting, migrating, or uninstalling agent-loop registrations. agent-loop now owns only its canonical command handlers and records their provenance separately instead of treating the shared `settings.json#hooks` object as wholly owned (#623, #625).
+
+### Changed
+
+- Document Claude Code 2.1.277+ `AGENTS.md` support accurately as the built-in `agents-md` fallback. agent-loop keeps `CLAUDE.md` with `@AGENTS.md` as the deterministic repository-level entrypoint rather than depending on fallback or per-user plugin behavior (#623, #626).
+- Live Claude hook and instruction consumption remain runtime evidence boundaries; repository projection alone is not claimed as host execution proof (#623, #625, #626).
+
+### Validation
+
+- PR #626 and the resulting `main` push passed PHP 8.3, 8.4, and 8.5 CI, deterministic slop review, and installed release-set dogfood after the Claude wording correction; the PR run also passed Self-Shape, governed execution-contract dogfood, acceptance-criteria and prompt-primitives dogfoods, refactor lifecycles, and release upgrade/resume proof.
+
 ## 0.20.45 - 2026-09-26
 
 ### Added
