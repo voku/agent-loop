@@ -10,9 +10,6 @@ use voku\AgentLoop\PathResolver;
 
 final readonly class InitSyncHooksCommand
 {
-    /** Manifest entry for the one `settings.json` key this sync owns on the Claude Code target. */
-    private const string CLAUDE_SETTINGS_HOOKS_ENTRY = 'settings.json#hooks';
-
     public function __construct(private string $rootPath)
     {
     }
@@ -103,8 +100,7 @@ final readonly class InitSyncHooksCommand
         }
 
         $targetRoot = $this->resolveClaudeTargetRoot();
-        $settingsPath = $targetRoot . '/settings.json';
-        $settings = new ClaudeSettingsHooksWriter($settingsPath);
+        $registration = new ClaudeHookRegistrationProjector($this->rootPath);
 
         try {
             $manifest = InitSyncManifest::load($targetRoot, 'hooks', 'claude');
@@ -114,12 +110,12 @@ final readonly class InitSyncHooksCommand
             return 1;
         }
 
-        $desiredEntries = [self::CLAUDE_SETTINGS_HOOKS_ENTRY];
+        $desiredEntries = [ClaudeHookRegistrationProjector::RECEIPT_ENTRY];
         $projectionSources = [
-            self::CLAUDE_SETTINGS_HOOKS_ENTRY => ManagedAssetSource::fromPath(
+            ClaudeHookRegistrationProjector::RECEIPT_ENTRY => ManagedAssetSource::fromPath(
                 $this->rootPath,
                 $hooksRoot . '/hooks.json',
-                'hooks:claude:settings-hooks',
+                'hooks:claude:registration',
             ),
         ];
         foreach ($definition->scriptNames() as $scriptName) {
@@ -133,40 +129,46 @@ final readonly class InitSyncHooksCommand
         }
         sort($desiredEntries);
 
+        $legacyWholeKeyOwned = $manifest->isManaged(
+            ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY,
+        );
+
+        try {
+            $registrationWouldChange = $registration->sync(
+                $definition->hooksObject(),
+                true,
+                $force,
+                $legacyWholeKeyOwned,
+            );
+        } catch (InvalidArgumentException $exception) {
+            fwrite(\STDERR, '[FAIL] sync hooks: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
         $adopted = [];
         foreach ($desiredEntries as $entry) {
-            $exists = $entry === self::CLAUDE_SETTINGS_HOOKS_ENTRY
-                ? $settings->hasHooks()
-                : $this->pathExists($targetRoot . '/' . $entry);
-            if (!$exists || $manifest->isManaged($entry) || $force) {
+            $targetPath = $targetRoot . '/' . $entry;
+            if (!$this->pathExists($targetPath) || $manifest->isManaged($entry) || $force) {
                 continue;
             }
 
-            if ($adoptExisting) {
+            if ($entry !== ClaudeHookRegistrationProjector::RECEIPT_ENTRY && $adoptExisting) {
                 $adopted[$entry] = true;
 
                 continue;
             }
 
-            $describedTarget = $entry === self::CLAUDE_SETTINGS_HOOKS_ENTRY
-                ? $settingsPath . ' (hooks key)'
-                : $targetRoot . '/' . $entry;
-
-            echo '[FAIL] sync hooks: unmanaged target already exists ' . $describedTarget . ' (use --force to overwrite, or --adopt-existing to record it as managed without touching its content)' . "\n";
+            echo '[FAIL] sync hooks: unmanaged target already exists ' . $targetPath
+                . ' (use --force to overwrite; --adopt-existing applies only to hook bundle files)' . "\n";
 
             return 1;
         }
 
         foreach ($manifest->staleEntries($desiredEntries) as $staleEntry) {
-            if ($staleEntry === self::CLAUDE_SETTINGS_HOOKS_ENTRY) {
-                if ($dryRun) {
-                    echo '[DRY-RUN] sync hooks: remove hooks key from ' . $settingsPath . "\n";
-
-                    continue;
-                }
-
-                $settings->removeHooks();
-                echo '[OK] sync hooks: removed hooks key from ' . $settingsPath . "\n";
+            if ($staleEntry === ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY) {
+                echo ($dryRun ? '[DRY-RUN]' : '[OK]')
+                    . ' sync hooks: migrate legacy whole-key Claude hook ownership to granular registration ownership' . "\n";
 
                 continue;
             }
@@ -210,13 +212,29 @@ final readonly class InitSyncHooksCommand
             echo '[OK] sync hooks: installed ' . $scriptName . ' -> ' . $targetFile . "\n";
         }
 
-        if (isset($adopted[self::CLAUDE_SETTINGS_HOOKS_ENTRY])) {
-            echo '[OK] sync hooks: adopted existing hooks key in ' . $settingsPath . ' into the manifest (content left untouched)' . "\n";
-        } elseif ($dryRun) {
-            echo '[DRY-RUN] sync hooks: write hooks key -> ' . $settingsPath . "\n";
+        try {
+            $registrationChanged = $dryRun
+                ? $registrationWouldChange
+                : $registration->sync(
+                    $definition->hooksObject(),
+                    false,
+                    $force,
+                    $legacyWholeKeyOwned,
+                );
+        } catch (InvalidArgumentException $exception) {
+            fwrite(\STDERR, '[FAIL] sync hooks: ' . $exception->getMessage() . "\n");
+
+            return 1;
+        }
+
+        if ($dryRun) {
+            echo '[DRY-RUN] sync hooks: '
+                . ($registrationChanged ? 'merge agent-loop hook registrations into ' : 'keep current registrations in ')
+                . $targetRoot . '/settings.json' . "\n";
         } else {
-            $settings->write($definition->hooksObject());
-            echo '[OK] sync hooks: wrote hooks key -> ' . $settingsPath . "\n";
+            echo '[OK] sync hooks: '
+                . ($registrationChanged ? 'merged' : 'kept')
+                . ' agent-loop hook registrations in ' . $targetRoot . '/settings.json' . "\n";
         }
 
         if (!$dryRun) {
@@ -228,7 +246,7 @@ final readonly class InitSyncHooksCommand
         }
 
         echo '[OK] sync hooks: synced ' . count($definition->scriptNames()) . ' hook file(s) into ' . $targetRoot . "\n";
-        echo "[IMPORTANT] Open '/hooks' in Claude Code to review the registered repository-local hooks; every other key in settings.json was left untouched.\n";
+        echo "[IMPORTANT] Open '/hooks' in Claude Code to review the registered repository-local hooks; unrelated project hooks were preserved.\n";
 
         return 0;
     }

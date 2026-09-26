@@ -162,7 +162,7 @@ final readonly class HostCapabilityMatrix
     {
         return match ($canonicalAgent) {
             'codex' => 'Codex hooks.json + repository-local command hooks',
-            'claude' => 'Claude settings.json#hooks + repository-local command hooks',
+            'claude' => 'Claude project settings granular hook registrations + repository-local command hooks',
             'cursor' => 'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed shell authority guard',
             default => throw new InvalidArgumentException('No hook projector for canonical agent: ' . $canonicalAgent),
         };

@@ -35,6 +35,7 @@ final readonly class RepositoryManagedAssetInstaller
         $skillSources = (new ManagedSkillSourceResolver($this->rootPath))->resolve($paths);
         $subagentSources = $this->subagentSources($paths, $plan->agent);
         $this->validateHookSources($paths, $plan);
+        $this->preflightClaudeHookRegistration($paths, $plan);
 
         $applied = [];
         foreach ([ManagedAssetKind::SKILLS, ManagedAssetKind::SUBAGENTS, ManagedAssetKind::HOOKS] as $kind) {
@@ -183,12 +184,21 @@ final readonly class RepositoryManagedAssetInstaller
             $root = $paths->absoluteClaudeHooksRoot();
             $definition = ClaudeHooksDefinition::fromRoot($root);
             foreach ($target->desiredEntries() ?? [] as $entry) {
-                $sourcePath = $entry === 'settings.json#hooks' ? $root . '/hooks.json' : $root . '/' . $entry;
-                $projectionSources[$entry] = ManagedAssetSource::fromPath($this->rootPath, $sourcePath, 'hooks:claude:' . $entry);
+                $sourcePath = $entry === ClaudeHookRegistrationProjector::RECEIPT_ENTRY
+                    ? $root . '/hooks.json'
+                    : $root . '/' . $entry;
+                $projectionSources[$entry] = ManagedAssetSource::fromPath(
+                    $this->rootPath,
+                    $sourcePath,
+                    'hooks:claude:' . $entry,
+                );
             }
+
+            $registrationPlanned = false;
             foreach ($operations as $operation) {
-                if ($operation->entry === 'settings.json#hooks') {
-                    (new ClaudeSettingsHooksWriter(rtrim($target->targetRoot, '/') . '/settings.json'))->write($definition->hooksObject());
+                if ($operation->entry === ClaudeHookRegistrationProjector::RECEIPT_ENTRY) {
+                    $registrationPlanned = true;
+
                     continue;
                 }
                 $content = file_get_contents($root . '/' . $operation->entry);
@@ -196,6 +206,15 @@ final readonly class RepositoryManagedAssetInstaller
                     throw new RuntimeException('Unable to read planned Claude hook source: ' . $operation->entry);
                 }
                 $this->writeFile($operation->targetPath, $content);
+            }
+
+            if ($registrationPlanned) {
+                (new ClaudeHookRegistrationProjector($this->rootPath))->sync(
+                    $definition->hooksObject(),
+                    legacyWholeKeyOwned: $this->manifest($target)->isManaged(
+                        ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY,
+                    ),
+                );
             }
         }
 
@@ -206,6 +225,36 @@ final readonly class RepositoryManagedAssetInstaller
         ]);
 
         return $operations;
+    }
+
+    private function preflightClaudeHookRegistration(
+        AgentAssetSourcePaths $paths,
+        ManagedAssetChangePlan $plan,
+    ): void {
+        if (!$plan->withHooks || $plan->agent !== 'claude') {
+            return;
+        }
+
+        $target = $this->target('claude', ManagedAssetKind::HOOKS, $paths);
+        $manifest = $this->manifest($target);
+        $registration = new ClaudeHookRegistrationProjector($this->rootPath);
+        if (is_file($registration->receiptPath())
+            && !$manifest->isManaged(ClaudeHookRegistrationProjector::RECEIPT_ENTRY)
+        ) {
+            throw new InvalidArgumentException(
+                'Claude hook registration receipt exists without agent-loop manifest ownership: '
+                . $registration->receiptPath(),
+            );
+        }
+
+        $definition = ClaudeHooksDefinition::fromRoot($paths->absoluteClaudeHooksRoot());
+        $registration->sync(
+            $definition->hooksObject(),
+            true,
+            legacyWholeKeyOwned: $manifest->isManaged(
+                ClaudeHookRegistrationProjector::LEGACY_WHOLE_KEY_ENTRY,
+            ),
+        );
     }
 
     private function validateHookSources(AgentAssetSourcePaths $paths, ManagedAssetChangePlan $plan): void

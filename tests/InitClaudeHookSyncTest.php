@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLoop\Init\InitStatusCommand;
 use voku\AgentLoop\Init\InitSyncHooksCommand;
+use voku\AgentLoop\Init\InitSyncManifest;
 use voku\AgentLoop\Init\InitValidateCommand;
+use voku\AgentLoop\Init\ManagedAssetSource;
 
 /**
  * @internal
@@ -44,65 +47,217 @@ final class InitClaudeHookSyncTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testSyncWritesHooksKeyAndScriptsWithoutTouchingOtherSettings(): void
+    public function testSyncMergesOwnedHooksAndPreservesUnrelatedProjectConfiguration(): void
     {
         $this->writeBundle();
-        $this->writeSettings(['model' => 'opus', 'theme' => 'auto']);
+        $this->writeSettings([
+            'model' => 'opus',
+            'theme' => 'auto',
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+                'PreToolUse' => [[
+                    'matcher' => '^Bash$',
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-bash']],
+                ]],
+            ],
+        ]);
 
         $result = $this->runSync(['--agent=claude']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('wrote hooks key', $result['output']);
+        self::assertStringContainsString('merged agent-loop hook registrations', $result['output']);
 
         $settings = $this->readSettings();
         self::assertSame('opus', $settings['model']);
         self::assertSame('auto', $settings['theme']);
-        self::assertArrayHasKey('PreToolUse', $settings['hooks']);
         self::assertSame(
-            'php .claude/hooks/policy.php',
-            $settings['hooks']['PreToolUse'][0]['hooks'][0]['command'],
+            'echo project-stop',
+            $settings['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
+        self::assertSame(
+            ['echo project-bash', 'php .claude/hooks/policy.php'],
+            $this->commands($settings['hooks']['PreToolUse'][0]['hooks'] ?? []),
         );
 
         self::assertFileExists($this->root . '/.claude/hooks/policy.php');
+        self::assertFileExists($this->root . '/.claude/hooks/.agent-loop-registration.json');
         self::assertFileDoesNotExist($this->root . '/.claude/hooks.json');
 
-        $manifest = json_decode((string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
-        self::assertSame(3, $manifest['version']);
-        self::assertSame('claude', $manifest['agent']);
-        self::assertContains('settings.json#hooks', array_column($manifest['entries'], 'target'));
-        self::assertContains('hooks/policy.php', array_column($manifest['entries'], 'target'));
-        self::assertContains('pre-tool-guardrail', $manifest['required_capabilities']);
+        $manifest = $this->manifestEntries();
+        self::assertArrayHasKey('hooks/.agent-loop-registration.json', $manifest);
+        self::assertArrayHasKey('hooks/policy.php', $manifest);
+        self::assertArrayNotHasKey('settings.json#hooks', $manifest);
+        self::assertFalse($manifest['hooks/.agent-loop-registration.json']['adopted']);
     }
 
-    public function testSyncRefusesUnmanagedHooksKeyUntilForced(): void
+    public function testSyncPreservesUnrelatedEmptyJsonObjects(): void
     {
         $this->writeBundle();
-        $this->writeSettings(['hooks' => ['Stop' => [['hooks' => [['type' => 'command', 'command' => 'echo hand-written']]]]]]);
+        $this->writeSettings([
+            'env' => new \stdClass(),
+            'permissions' => new \stdClass(),
+        ]);
+
+        $result = $this->runSync(['--agent=claude']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        $raw = file_get_contents($this->root . '/.claude/settings.json');
+        self::assertIsString($raw);
+        self::assertStringContainsString('"env": {}', $raw);
+        self::assertStringContainsString('"permissions": {}', $raw);
+    }
+
+    public function testInterruptedFreshRegistrationTransactionRecoversBeforeRetry(): void
+    {
+        $this->writeBundle();
+        $this->writeSettings([
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+            ],
+        ]);
+
+        $settingsPath = $this->root . '/.claude/settings.json';
+        $hooksRoot = $this->root . '/.claude/hooks';
+        if (!is_dir($hooksRoot)) {
+            mkdir($hooksRoot, 0o775, true);
+        }
+
+        copy($settingsPath, $this->root . '/.claude/.agent-loop-settings.bak');
+        file_put_contents($hooksRoot . '/.agent-loop-registration.absent', '');
+        file_put_contents($this->root . '/.claude/.agent-loop-hook-registration.txn', "v1\n");
+
+        $this->writeSettings([
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+                'PreToolUse' => [[
+                    'matcher' => '^Bash$',
+                    'hooks' => [['type' => 'command', 'command' => 'echo half-applied']],
+                ]],
+            ],
+        ]);
+        file_put_contents($hooksRoot . '/.agent-loop-registration.json', '{"half_applied":true}');
+
+        $result = $this->runSync(['--agent=claude']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        $settings = $this->readSettings();
+        self::assertSame(
+            'echo project-stop',
+            $settings['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
+        self::assertContains('php .claude/hooks/policy.php', $this->allHookCommands($settings));
+        self::assertNotContains('echo half-applied', $this->allHookCommands($settings));
+
+        foreach ([
+            '.claude/.agent-loop-hook-registration.txn',
+            '.claude/.agent-loop-hook-registration.txn.done',
+            '.claude/.agent-loop-settings.bak',
+            '.claude/hooks/.agent-loop-registration.absent',
+        ] as $artifact) {
+            self::assertFileDoesNotExist($this->root . '/' . $artifact);
+        }
+        self::assertFileExists($hooksRoot . '/.agent-loop-registration.json');
+    }
+
+    public function testRepeatedSyncIsIdempotentAndDoesNotDuplicateOwnedHandler(): void
+    {
+        $this->writeBundle();
+        self::assertSame(0, $this->runSync(['--agent=claude'])['exit']);
+
+        $second = $this->runSync(['--agent=claude']);
+
+        self::assertSame(0, $second['exit'], $second['output']);
+        self::assertStringContainsString('kept agent-loop hook registrations', $second['output']);
+        self::assertSame(
+            1,
+            count(array_filter(
+                $this->allHookCommands($this->readSettings()),
+                static fn (string $command): bool => $command === 'php .claude/hooks/policy.php',
+            )),
+        );
+    }
+
+    public function testConflictingOwnedCommandIdentityRequiresForceWithoutTouchingForeignHooks(): void
+    {
+        $this->writeBundle();
+        $this->writeSettings([
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+                'PreToolUse' => [[
+                    'matcher' => '^Bash$',
+                    'hooks' => [[
+                        'type' => 'command',
+                        'command' => 'php .claude/hooks/policy.php',
+                        'timeout' => 99,
+                    ]],
+                ]],
+            ],
+        ]);
 
         $blocked = $this->runSync(['--agent=claude']);
         self::assertSame(1, $blocked['exit']);
-        self::assertStringContainsString('unmanaged target already exists', $blocked['output']);
-        self::assertSame('echo hand-written', $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command']);
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/policy.php');
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/.agent-loop-registration.json');
+        self::assertSame(
+            'echo project-stop',
+            $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
+        self::assertSame(99, $this->readSettings()['hooks']['PreToolUse'][0]['hooks'][0]['timeout'] ?? null);
 
         $forced = $this->runSync(['--agent=claude', '--force']);
         self::assertSame(0, $forced['exit'], $forced['output']);
-        self::assertArrayNotHasKey('Stop', $this->readSettings()['hooks']);
+
+        $settings = $this->readSettings();
+        self::assertSame(
+            'echo project-stop',
+            $settings['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
+        $owned = array_values(array_filter(
+            $settings['hooks']['PreToolUse'][0]['hooks'] ?? [],
+            static fn (mixed $hook): bool => is_array($hook)
+                && ($hook['command'] ?? null) === 'php .claude/hooks/policy.php',
+        ));
+        self::assertCount(1, $owned);
+        self::assertArrayNotHasKey('timeout', $owned[0]);
     }
 
-    public function testAdoptExistingKeepsHooksKeyContent(): void
+    public function testAdoptExistingAppliesToBundleFilesWithoutClaimingForeignRegistrations(): void
     {
         $this->writeBundle();
-        $this->writeSettings(['hooks' => ['Stop' => [['hooks' => [['type' => 'command', 'command' => 'echo hand-written']]]]]]);
+        mkdir($this->root . '/.claude/hooks', 0o775, true);
+        file_put_contents($this->root . '/.claude/hooks/policy.php', "<?php\n\nreturn 'project-owned';\n");
+        $this->writeSettings([
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+            ],
+        ]);
 
         $result = $this->runSync(['--agent=claude', '--adopt-existing']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('adopted existing hooks key', $result['output']);
-        self::assertSame('echo hand-written', $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command']);
+        self::assertStringContainsString('adopted existing', $result['output']);
+        self::assertSame(
+            "<?php\n\nreturn 'project-owned';\n",
+            file_get_contents($this->root . '/.claude/hooks/policy.php'),
+        );
+        self::assertSame(
+            'echo project-stop',
+            $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
 
-        $manifest = json_decode((string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
-        $entries = array_column($manifest['entries'], null, 'target');
-        self::assertTrue($entries['settings.json#hooks']['adopted']);
+        $entries = $this->manifestEntries();
+        self::assertTrue($entries['hooks/policy.php']['adopted']);
+        self::assertFalse($entries['hooks/.agent-loop-registration.json']['adopted']);
     }
 
     public function testDryRunWritesNothing(): void
@@ -112,14 +267,22 @@ final class InitClaudeHookSyncTest extends TestCase
         $result = $this->runSync(['--agent=claude', '--dry-run']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('[DRY-RUN] sync hooks: write hooks key', $result['output']);
+        self::assertStringContainsString('merge agent-loop hook registrations', $result['output']);
         self::assertFileDoesNotExist($this->root . '/.claude/settings.json');
         self::assertFileDoesNotExist($this->root . '/.claude/hooks/policy.php');
+        self::assertFileDoesNotExist($this->root . '/.claude/hooks/.agent-loop-registration.json');
     }
 
-    public function testRemovedHookScriptIsCleanedUpOnNextSync(): void
+    public function testRemovedOwnedHookIsPrunedWhileUnrelatedHooksSurvive(): void
     {
         $this->writeBundle(['policy.php', 'context.php']);
+        $this->writeSettings([
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+            ],
+        ]);
         self::assertSame(0, $this->runSync(['--agent=claude'])['exit']);
         self::assertFileExists($this->root . '/.claude/hooks/context.php');
 
@@ -129,27 +292,91 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('removed stale', $result['output']);
         self::assertFileDoesNotExist($this->root . '/.claude/hooks/context.php');
-        self::assertFileExists($this->root . '/.claude/hooks/policy.php');
+        self::assertSame(
+            'echo project-stop',
+            $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
+        self::assertNotContains(
+            'php .claude/hooks/context.php',
+            $this->allHookCommands($this->readSettings()),
+        );
     }
 
-    public function testRemovingTheWholeBundleAlsoDropsTheHooksKeyButKeepsOtherSettings(): void
+    public function testLegacyWholeKeyOwnershipMigratesWithoutDeletingForeignHooks(): void
     {
         $this->writeBundle();
-        $this->writeSettings(['model' => 'opus']);
-        self::assertSame(0, $this->runSync(['--agent=claude'])['exit']);
-
-        // An empty bundle is the "no hooks at all" state; the manifest still owns the key.
-        file_put_contents($this->root . '/resources/hooks/claude/hooks.json', json_encode([
+        $sourceRoot = $this->root . '/resources/hooks/claude';
+        mkdir($this->root . '/.claude/hooks', 0o775, true);
+        copy($sourceRoot . '/hooks/policy.php', $this->root . '/.claude/hooks/policy.php');
+        $this->writeSettings([
             'hooks' => [
-                'PreToolUse' => [
-                    ['matcher' => '^Bash$', 'hooks' => [['type' => 'command', 'command' => 'php .claude/hooks/policy.php']]],
-                ],
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+                'PreToolUse' => [[
+                    'matcher' => '^Bash$',
+                    'hooks' => [['type' => 'command', 'command' => 'php .claude/hooks/policy.php']],
+                ]],
             ],
-        ], \JSON_PRETTY_PRINT));
+        ]);
+
+        $manifest = InitSyncManifest::load($this->root . '/.claude', 'hooks', 'claude');
+        $manifest->writeProjections([
+            'settings.json#hooks' => ManagedAssetSource::fromPath(
+                $this->root,
+                $sourceRoot . '/hooks.json',
+                'hooks:claude:settings-hooks',
+            ),
+            'hooks/policy.php' => ManagedAssetSource::fromPath(
+                $this->root,
+                $sourceRoot . '/hooks/policy.php',
+                'hooks:claude:hooks/policy.php',
+            ),
+        ], []);
 
         $result = $this->runSync(['--agent=claude']);
+
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertSame('opus', $this->readSettings()['model']);
+        self::assertStringContainsString('migrate legacy whole-key Claude hook ownership', $result['output']);
+        self::assertSame(
+            'echo project-stop',
+            $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
+
+        $entries = $this->manifestEntries();
+        self::assertArrayNotHasKey('settings.json#hooks', $entries);
+        self::assertArrayHasKey('hooks/.agent-loop-registration.json', $entries);
+    }
+
+    public function testStatusReportsMissingOwnedLiveRegistrationWithoutTreatingForeignHooksAsDrift(): void
+    {
+        $this->writeBundle();
+        $this->writeSettings([
+            'hooks' => [
+                'Stop' => [[
+                    'hooks' => [['type' => 'command', 'command' => 'echo project-stop']],
+                ]],
+            ],
+        ]);
+        self::assertSame(0, $this->runSync(['--agent=claude'])['exit']);
+
+        $settings = $this->readSettings();
+        unset($settings['hooks']['PreToolUse']);
+        $this->writeSettings($settings);
+
+        ob_start();
+        $exit = (new InitStatusCommand($this->root))->run([]);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString(
+            '[WARN] claude hooks: stale: hooks/.agent-loop-registration.json',
+            $output,
+        );
+        self::assertSame(
+            'echo project-stop',
+            $this->readSettings()['hooks']['Stop'][0]['hooks'][0]['command'] ?? null,
+        );
     }
 
     public function testValidateAcceptsClaudeBundleAndRejectsForeignHookDirectory(): void
@@ -211,7 +438,10 @@ final class InitClaudeHookSyncTest extends TestCase
             ];
         }
 
-        file_put_contents($bundleRoot . '/hooks.json', json_encode(['hooks' => $hooks], \JSON_PRETTY_PRINT));
+        file_put_contents(
+            $bundleRoot . '/hooks.json',
+            json_encode(['hooks' => $hooks], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES),
+        );
     }
 
     /**
@@ -223,7 +453,10 @@ final class InitClaudeHookSyncTest extends TestCase
             mkdir($this->root . '/.claude', 0o775, true);
         }
 
-        file_put_contents($this->root . '/.claude/settings.json', json_encode($settings, \JSON_PRETTY_PRINT));
+        file_put_contents(
+            $this->root . '/.claude/settings.json',
+            json_encode($settings, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES),
+        );
     }
 
     /**
@@ -231,11 +464,86 @@ final class InitClaudeHookSyncTest extends TestCase
      */
     private function readSettings(): array
     {
-        $decoded = json_decode((string) file_get_contents($this->root . '/.claude/settings.json'), true);
+        $decoded = json_decode(
+            (string) file_get_contents($this->root . '/.claude/settings.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
         self::assertIsArray($decoded);
 
         /** @var array<string, mixed> $decoded */
         return $decoded;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function manifestEntries(): array
+    {
+        $manifest = json_decode(
+            (string) file_get_contents($this->root . '/.claude/.agent-loop-manifest.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($manifest);
+        self::assertSame(3, $manifest['version'] ?? null);
+        self::assertSame('claude', $manifest['agent'] ?? null);
+
+        $entries = $manifest['entries'] ?? null;
+        self::assertIsArray($entries);
+
+        /** @var array<string, array<string, mixed>> $indexed */
+        $indexed = array_column($entries, null, 'target');
+
+        return $indexed;
+    }
+
+    /**
+     * @param list<mixed> $handlers
+     * @return list<string>
+     */
+    private function commands(array $handlers): array
+    {
+        $commands = [];
+        foreach ($handlers as $handler) {
+            if (is_array($handler) && is_string($handler['command'] ?? null)) {
+                $commands[] = $handler['command'];
+            }
+        }
+
+        return $commands;
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return list<string>
+     */
+    private function allHookCommands(array $settings): array
+    {
+        $commands = [];
+        $hooks = $settings['hooks'] ?? [];
+        if (!is_array($hooks)) {
+            return [];
+        }
+        foreach ($hooks as $groups) {
+            if (!is_array($groups)) {
+                continue;
+            }
+            foreach ($groups as $group) {
+                if (!is_array($group)) {
+                    continue;
+                }
+                $handlers = $group['hooks'] ?? null;
+                if (!is_array($handlers) || !array_is_list($handlers)) {
+                    continue;
+                }
+                array_push($commands, ...$this->commands($handlers));
+            }
+        }
+
+        return $commands;
     }
 
     /**

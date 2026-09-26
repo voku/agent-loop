@@ -164,7 +164,6 @@ final readonly class RepositorySetupService
         $resolved = $paths ?? $this->defaultSourcePaths();
         $this->assertCurrent($plan, $expectedState, $resolved);
 
-        $instructionOutcome = (new RepositoryInstructionSynchronizer($this->rootPath))->applyUninstall($plan);
         $assetOperations = array_values(array_filter(
             $plan->operations,
             static fn (ManagedAssetOperation $operation): bool => $operation->kind !== ManagedAssetKind::INSTRUCTIONS,
@@ -177,7 +176,134 @@ final readonly class RepositorySetupService
             $assetOperations,
             [],
         );
-        $assetOutcome = (new ManagedAssetUninstaller())->apply($assetPlan);
+        $uninstaller = new ManagedAssetUninstaller();
+
+        if ($plan->agent === 'claude'
+            && $plan->withHooks
+            && $this->containsClaudeHookReceiptRemoval($assetOperations)
+        ) {
+            try {
+                (new ClaudeHookRegistrationProjector($this->rootPath))->removeOwnedRegistrations(true);
+            } catch (InvalidArgumentException $exception) {
+                $reason = 'Claude hook registrations changed before uninstall; no part of the reviewed plan was applied: '
+                    . $exception->getMessage();
+
+                return new ManagedAssetMutationResult(
+                    $plan,
+                    false,
+                    [],
+                    [...$plan->blocked, ...$this->blockedOperations($plan->operations, $reason)],
+                    [$reason],
+                    RepositorySetupStateToken::fromDriftProjections(
+                        $this->managedAssetDrift($resolved),
+                        (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                    ),
+                );
+            }
+        }
+
+        $preflightBlocked = $uninstaller->preflight($assetPlan);
+        if ($preflightBlocked !== []) {
+            $reason = 'Uninstall was not applied because managed asset ownership changed before removal.';
+
+            return new ManagedAssetMutationResult(
+                $plan,
+                false,
+                [],
+                [...$plan->blocked, ...$preflightBlocked],
+                [$reason],
+                RepositorySetupStateToken::fromDriftProjections(
+                    $this->managedAssetDrift($resolved),
+                    (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                ),
+            );
+        }
+
+        $instructionOutcome = (new RepositoryInstructionSynchronizer($this->rootPath))->applyUninstall($plan);
+        if ($instructionOutcome['blocked'] !== []) {
+            return new ManagedAssetMutationResult(
+                $plan,
+                $instructionOutcome['applied'] !== [],
+                $instructionOutcome['applied'],
+                [...$plan->blocked, ...$instructionOutcome['blocked']],
+                $instructionOutcome['messages'],
+                RepositorySetupStateToken::fromDriftProjections(
+                    $this->managedAssetDrift($resolved),
+                    (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                ),
+            );
+        }
+
+        $registrationMessages = [];
+        $assetOutcome = ['applied' => [], 'blocked' => [], 'messages' => []];
+
+        if ($plan->agent === 'claude'
+            && $plan->withHooks
+            && $this->containsClaudeHookReceiptRemoval($assetOperations)
+        ) {
+            $receiptOperations = [];
+            $remainingAssetOperations = [];
+            foreach ($assetOperations as $operation) {
+                if ($operation->kind === ManagedAssetKind::HOOKS
+                    && $operation->entry === ClaudeHookRegistrationProjector::RECEIPT_ENTRY
+                ) {
+                    $receiptOperations[] = $operation;
+
+                    continue;
+                }
+                $remainingAssetOperations[] = $operation;
+            }
+
+            $remainingPlan = new ManagedAssetChangePlan(
+                $plan->intent,
+                $plan->agent,
+                $plan->withHooks,
+                $plan->expectedState,
+                $remainingAssetOperations,
+                [],
+            );
+            $assetOutcome = $uninstaller->apply($remainingPlan);
+            if ($assetOutcome['blocked'] === []) {
+                try {
+                    if ((new ClaudeHookRegistrationProjector($this->rootPath))->removeOwnedRegistrations()) {
+                        $registrationMessages[] = 'Removed agent-loop-owned Claude hook registrations; unrelated project hooks were preserved.';
+                    }
+                } catch (InvalidArgumentException $exception) {
+                    $reason = 'Claude hook registrations changed after asset cleanup; registration ownership was preserved: '
+                        . $exception->getMessage();
+
+                    return new ManagedAssetMutationResult(
+                        $plan,
+                        $assetOutcome['applied'] !== [] || $instructionOutcome['applied'] !== [],
+                        [...$instructionOutcome['applied'], ...$assetOutcome['applied']],
+                        [...$plan->blocked, ...$this->blockedOperations($receiptOperations, $reason)],
+                        [...$instructionOutcome['messages'], ...$assetOutcome['messages'], $reason],
+                        RepositorySetupStateToken::fromDriftProjections(
+                            $this->managedAssetDrift($resolved),
+                            (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
+                        ),
+                    );
+                }
+
+                $receiptPlan = new ManagedAssetChangePlan(
+                    $plan->intent,
+                    $plan->agent,
+                    $plan->withHooks,
+                    $plan->expectedState,
+                    $receiptOperations,
+                    [],
+                );
+                $receiptOutcome = $uninstaller->apply($receiptPlan);
+                $assetOutcome = [
+                    'applied' => [...$assetOutcome['applied'], ...$receiptOutcome['applied']],
+                    'blocked' => [...$assetOutcome['blocked'], ...$receiptOutcome['blocked']],
+                    'messages' => [...$assetOutcome['messages'], ...$receiptOutcome['messages']],
+                ];
+            }
+        } else {
+            $assetOutcome = $uninstaller->apply($assetPlan);
+        }
+
         $applied = [...$instructionOutcome['applied'], ...$assetOutcome['applied']];
         $runtimeBlocked = [...$instructionOutcome['blocked'], ...$assetOutcome['blocked']];
 
@@ -186,12 +312,49 @@ final readonly class RepositorySetupService
             $runtimeBlocked === [] || $applied !== [],
             $applied,
             [...$plan->blocked, ...$runtimeBlocked],
-            [...$instructionOutcome['messages'], ...$assetOutcome['messages']],
+            [
+                ...$instructionOutcome['messages'],
+                ...$registrationMessages,
+                ...$assetOutcome['messages'],
+            ],
             RepositorySetupStateToken::fromDriftProjections(
                 $this->managedAssetDrift($resolved),
                 (new RepositoryInstructionSynchronizer($this->rootPath))->stateFiles($plan->agent),
             ),
         );
+    }
+
+    /**
+     * @param list<ManagedAssetOperation> $operations
+     * @return list<ManagedAssetOperation>
+     */
+    private function blockedOperations(array $operations, string $reason): array
+    {
+        return array_map(
+            static fn (ManagedAssetOperation $operation): ManagedAssetOperation => new ManagedAssetOperation(
+                ManagedAssetOperationKind::BLOCKED,
+                $operation->host,
+                $operation->kind,
+                $operation->entry,
+                $operation->targetPath,
+                $reason,
+            ),
+            $operations,
+        );
+    }
+
+    /** @param list<ManagedAssetOperation> $operations */
+    private function containsClaudeHookReceiptRemoval(array $operations): bool
+    {
+        foreach ($operations as $operation) {
+            if ($operation->kind === ManagedAssetKind::HOOKS
+                && $operation->entry === ClaudeHookRegistrationProjector::RECEIPT_ENTRY
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Repository-owned policy projection only; host/user settings stay outside this boundary. */

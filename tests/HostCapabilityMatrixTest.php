@@ -170,7 +170,7 @@ final class HostCapabilityMatrixTest extends TestCase
             HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
         );
         self::assertSame(
-            'Claude settings.json#hooks + repository-local command hooks',
+            'Claude project settings granular hook registrations + repository-local command hooks',
             HostCapabilityMatrix::describe('claude', HostCapability::SessionBootstrap)['mechanism'],
         );
         self::assertSame(
