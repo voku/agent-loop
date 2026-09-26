@@ -311,7 +311,7 @@
                 },
                 {
                     "path": "tests/GovernedExecutionProtocolTest.php",
-                    "line": 489,
+                    "line": 491,
                     "column": 1
                 },
                 {
@@ -452,9 +452,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "d18a5e5af0bc2c93d8626029ce5f31d480c567ace42c6dd4579ccdf898c1195e",
+                        "fingerprint": "fb503b13a0c464f60d16fbb757e73f1988dd586fbd1323f22635eb5f393a65e3",
                         "path": "tests/GovernedExecutionProtocolTest.php",
-                        "line": 489,
+                        "line": 491,
                         "column": 1
                     },
                     {
