@@ -226,6 +226,17 @@ final readonly class InitStatusCommand
 
         $projection = (new ManagedAssetDriftProjector())->projectTarget($target);
         if ($projection->failure !== null) {
+            if (!$manifest->hasDriftEvidence()) {
+                return [$manifestLine, $staleLine, $this->driftLines($label, [
+                    'current' => [],
+                    'locally_modified' => [],
+                    'stale' => [],
+                    'incompatible' => [],
+                    'project_owned' => [],
+                    'unverifiable' => $manifest->managedEntries(),
+                ])];
+            }
+
             return [
                 $manifestLine,
                 $staleLine,
