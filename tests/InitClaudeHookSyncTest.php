@@ -173,7 +173,7 @@ final class InitClaudeHookSyncTest extends TestCase
         self::assertStringContainsString('must call one repository-local .claude/hooks PHP script', $invalid['output']);
     }
 
-    public function testClaudeConfigDirOverridesTheTargetRoot(): void
+    public function testClaudeConfigDirDoesNotMoveRepositoryHooksIntoUserScope(): void
     {
         $this->writeBundle();
         putenv('CLAUDE_CONFIG_DIR=custom-claude');
@@ -181,8 +181,10 @@ final class InitClaudeHookSyncTest extends TestCase
         $result = $this->runSync(['--agent=claude']);
 
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertFileExists($this->root . '/custom-claude/settings.json');
-        self::assertFileExists($this->root . '/custom-claude/hooks/policy.php');
+        self::assertFileExists($this->root . '/.claude/settings.json');
+        self::assertFileExists($this->root . '/.claude/hooks/policy.php');
+        self::assertFileDoesNotExist($this->root . '/custom-claude/settings.json');
+        self::assertFileDoesNotExist($this->root . '/custom-claude/hooks/policy.php');
     }
 
     /**
