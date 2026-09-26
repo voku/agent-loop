@@ -215,6 +215,7 @@ final readonly class ExecutionGateway
             $stage->kind,
             $stage->roleId,
             $stage->mayMutate,
+            $stage->contextPolicy,
             $this->repositoryRoot(),
             $plan->baseCommit,
             $projection->candidateRevision,
@@ -389,6 +390,7 @@ final readonly class ExecutionGateway
             'Attempt: ' . $attempt,
             'Role: ' . ($stage->roleId ?? 'deterministic'),
             'Mutation allowed: ' . ($stage->mayMutate ? 'yes' : 'no'),
+            'Context policy: ' . $stage->contextPolicy->value,
             '',
             'Goal: ' . $contract->goal,
             'Allowed scope: ' . implode(', ', $contract->scope),
@@ -398,6 +400,12 @@ final readonly class ExecutionGateway
             'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
+
+        if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {
+            $lines[] = '';
+            $lines[] = 'Independent-review boundary: execute this stage in a host context distinct from its direct agent predecessor(s).';
+            $lines[] = 'Do not continue the predecessor conversation and merely adopt a reviewer persona.';
+        }
 
         if ($environment !== null) {
             $observationJson = json_encode($environment->toArray(), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
