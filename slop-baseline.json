@@ -530,7 +530,7 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "bb2f9316ff80170b71cbfd7011275020de3be3db9c16a39bb48aeed4b1469d46",
+                        "fingerprint": "ffa3db780886d34532c147b52032415864c34652a77678f8df290c0b1089659a",
                         "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
                         "line": 600,
                         "column": 1
