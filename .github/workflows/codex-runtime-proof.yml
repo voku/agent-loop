@@ -192,7 +192,16 @@ jobs:
                           ),
                           None,
                       )
-                      if spawn_output is not None:
+                      wait_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-wait"
+                          ),
+                          None,
+                      )
+                      if spawn_output is not None and wait_output is None:
                           agent_id = json.loads(spawn_output["output"])["agent_id"]
                           events = [
                               {
@@ -240,7 +249,7 @@ jobs:
                   self.end_headers()
                   self.wfile.write(payload)
 
-          server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+          server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
           with open(port_path, "w", encoding="utf-8") as handle:
               handle.write(str(server.server_port))
           server.serve_forever()
