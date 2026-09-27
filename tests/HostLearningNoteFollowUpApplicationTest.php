@@ -100,12 +100,12 @@ final class HostLearningNoteFollowUpApplicationTest extends TestCase
         self::assertNotNull($decision);
         self::assertCount(1, $decision->findingIds);
         $findingId = $decision->findingIds[0];
-
         $finding = (new FindingRepository())->loadValidated($learningRoot)[$findingId] ?? null;
         self::assertNotNull($finding);
-        self::assertSame([null, null, null], [$finding->classification, $finding->patternKey, $finding->validationCase]);
+        self::assertNull($finding->classification);
+        self::assertNull($finding->patternKey);
+        self::assertNull($finding->validationCase);
         self::assertSame([], (new HostLearningNoteFollowUpProjector($this->root))->project($taskId));
-
         (new FindingClassifier())->classify(
             root: $learningRoot,
             findingId: $findingId,
