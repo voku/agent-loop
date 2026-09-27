@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d27217cf2d825fc3e840e9b56202dae4",
+    "content-hash": "3af95d013129a3cdc274c9d18d0739ce",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -1405,16 +1405,16 @@
         },
         {
             "name": "voku/slop-scan",
-            "version": "0.1.8",
+            "version": "0.1.9",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/slop-scan.git",
-                "reference": "990b8c4ef21194fe5d2b01430f8f12b0f4a156e1"
+                "reference": "009b5889164787b8d4a2dfdd185b070ea12baf2c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/slop-scan/zipball/990b8c4ef21194fe5d2b01430f8f12b0f4a156e1",
-                "reference": "990b8c4ef21194fe5d2b01430f8f12b0f4a156e1",
+                "url": "https://api.github.com/repos/voku/slop-scan/zipball/009b5889164787b8d4a2dfdd185b070ea12baf2c",
+                "reference": "009b5889164787b8d4a2dfdd185b070ea12baf2c",
                 "shasum": ""
             },
             "require": {
@@ -1452,9 +1452,9 @@
             "description": "Deterministic PHP CLI for explainable slop heuristics in PHP repositories.",
             "support": {
                 "issues": "https://github.com/voku/slop-scan/issues",
-                "source": "https://github.com/voku/slop-scan/tree/0.1.8"
+                "source": "https://github.com/voku/slop-scan/tree/0.1.9"
             },
-            "time": "2026-09-27T10:27:00+00:00"
+            "time": "2026-09-27T20:01:06+00:00"
         },
         {
             "name": "webmozart/assert",
