@@ -19,8 +19,8 @@ use voku\AgentLoop\Context\ArchitectureRules;
  * Rule attributes or ArchitectureRules namespace; the rule definitions instead
  * name concrete tests/PHPStan checks that CI executes.
  *
- * `voku/slop-scan` remains an isolated tool project because its published
- * dependency graph cannot currently co-resolve with the main package graph.
+ * `voku/slop-scan` remains an isolated tool project so repository-quality
+ * evidence stays versioned independently and does not enlarge the runtime graph.
  */
 final class RealIssueEvidenceToolBoundaryTest extends TestCase
 {
@@ -58,8 +58,8 @@ final class RealIssueEvidenceToolBoundaryTest extends TestCase
                 'voku/slop-scan',
                 $constraints,
                 sprintf(
-                    'voku/slop-scan is declared in composer.json "%s". It cannot co-resolve with agent-map until a '
-                    . '0.1.5 tag exists on Packagist, and CI runs it from tools/slop-scan instead. See %s.',
+                    'voku/slop-scan is declared in composer.json "%s". Quality evidence tooling stays in the '
+                    . 'isolated tools/slop-scan project instead of enlarging the package dependency graph. See %s.',
                     $section,
                     self::ACCEPTANCE_DOCUMENT,
                 ),
