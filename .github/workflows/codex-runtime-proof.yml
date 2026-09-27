@@ -79,27 +79,6 @@ jobs:
           cp "${proof_root}/.codex/skills/.agent-loop-manifest.json" "${evidence_root}/projected-codex-skills-manifest.json"
           cp "${proof_root}/.codex/rules/agent-loop.rules" "${evidence_root}/projected-agent-loop.rules"
 
-      - name: Inspect current Codex subagent discovery surfaces
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo '=== projected .codex/agents ==='
-            find "${PROOF_ROOT}/.codex/agents" -maxdepth 1 -type f -print -exec sed -n '1,120p' {} \;
-            echo
-            echo '=== codex debug --help ==='
-            codex debug --help || true
-            echo
-            echo '=== codex debug prompt-input --help ==='
-            codex debug prompt-input --help || true
-            echo
-            echo '=== codex features list ==='
-            codex features list || true
-            echo
-            echo '=== codex exec --help ==='
-            codex exec --help || true
-          } > "${EVIDENCE_ROOT}/subagent-discovery-surfaces.txt" 2>&1
-
       - name: Prove AGENTS.md and repository skill host consumption
         shell: bash
         env:
@@ -170,10 +149,6 @@ jobs:
             }' > "${EVIDENCE_ROOT}/evidence.json"
 
           (cd "${EVIDENCE_ROOT}" && sha256sum ./* > SHA256SUMS)
-
-      - name: Prove governed Learning reflection on real Codex discovery
-        shell: bash
-        run: bash tools/codex-learning-runtime-proof.sh
 
       - name: Upload Codex runtime evidence
         if: always()
