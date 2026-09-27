@@ -311,16 +311,15 @@ Report the comparison, not a single number:
 - changed fingerprints;
 - findings inside the changed production region.
 
-Separating changed fingerprints from new findings is not bookkeeping, and
-`delta` will not do it for you. An occurrence fingerprint covers the line
-number, so inserting lines above an untouched block retires its fingerprint and
-mints a new one. `delta` reports those as `added` and `resolved` — verified
-against both 0.1.4 and 0.1.5, which return identical counts for this
-repository's diff. A raw `added` count therefore over-reports on any diff that
-grows a file. Match `added` against `resolved` by rule, path and the source
-line's content before concluding anything: an identical line that moved is not
-a finding. This is also why `--fail-on=added` is an opt-in project decision
-rather than a sensible default.
+Finding identity still includes source location, but current slop-scan handles
+the common line-shift case before reporting the delta. Since 0.1.6, an
+unambiguous 1:1 pair with the same rule, message, path and evidence is treated
+as a relocation rather than as one resolved plus one added finding. Ambiguous
+duplicate candidates remain exact-match-only, and changed evidence still
+produces normal added/resolved entries. A previous 0.1.4 consumer run in this
+repository reproduced the older false delta, which is why the isolated tool
+lock must stay current. `--fail-on=added` remains an explicit project-policy
+decision rather than a universal correctness rule.
 
 Two rules govern what that comparison may do:
 
