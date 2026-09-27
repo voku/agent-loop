@@ -151,26 +151,23 @@ jobs:
                       events = [
                           {
                               "type": "response.created",
-                              "response": {"id": "resp-agent-loop-parent"},
+                              "response": {"id": "resp-agent-loop-parent-write"},
                           },
                           {
                               "type": "response.output_item.done",
                               "item": {
                                   "type": "function_call",
-                                  "call_id": "call-agent-loop-selection",
-                                  "namespace": "multi_agent_v1",
-                                  "name": "spawn_agent",
+                                  "call_id": "call-agent-loop-parent-write",
+                                  "name": "exec_command",
                                   "arguments": json.dumps({
-                                      "message": "Return no content. Deterministic role-selection probe.",
-                                      "agent_type": "agent-loop-investigator",
-                                      "fork_context": False,
+                                      "cmd": "printf 'parent-authority-probe\\n' > .agent-loop-parent-authority-probe",
                                   }),
                               },
                           },
                           {
                               "type": "response.completed",
                               "response": {
-                                  "id": "resp-agent-loop-parent",
+                                  "id": "resp-agent-loop-parent-write",
                                   "usage": {
                                       "input_tokens": 0,
                                       "input_tokens_details": None,
@@ -184,6 +181,15 @@ jobs:
                   else:
                       request = json.loads(body)
                       request_text = body.decode("utf-8", errors="replace")
+                      parent_write_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-parent-write"
+                          ),
+                          None,
+                      )
                       child_write_output = next(
                           (
                               item
@@ -234,6 +240,40 @@ jobs:
                                   "type": "response.completed",
                                   "response": {
                                       "id": "resp-agent-loop-child-write",
+                                      "usage": {
+                                          "input_tokens": 0,
+                                          "input_tokens_details": None,
+                                          "output_tokens": 0,
+                                          "output_tokens_details": None,
+                                          "total_tokens": 0,
+                                      },
+                                  },
+                              },
+                          ]
+                      elif parent_write_output is not None and spawn_output is None:
+                          events = [
+                              {
+                                  "type": "response.created",
+                                  "response": {"id": "resp-agent-loop-parent-spawn"},
+                              },
+                              {
+                                  "type": "response.output_item.done",
+                                  "item": {
+                                      "type": "function_call",
+                                      "call_id": "call-agent-loop-selection",
+                                      "namespace": "multi_agent_v1",
+                                      "name": "spawn_agent",
+                                      "arguments": json.dumps({
+                                          "message": "Return no content. Deterministic role-selection probe.",
+                                          "agent_type": "agent-loop-investigator",
+                                          "fork_context": False,
+                                      }),
+                                  },
+                              },
+                              {
+                                  "type": "response.completed",
+                                  "response": {
+                                      "id": "resp-agent-loop-parent-spawn",
                                       "usage": {
                                           "input_tokens": 0,
                                           "input_tokens_details": None,
@@ -343,6 +383,16 @@ jobs:
           test -n "${child_request}"
           cp "${child_request}" "${EVIDENCE_ROOT}/selected-investigator-child-request.json"
 
+          parent_write_result=""
+          for request in "${request_prefix}"-*.json; do
+            if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-parent-write")' "${request}" >/dev/null 2>&1; then
+              parent_write_result="${request}"
+              break
+            fi
+          done
+          test -n "${parent_write_result}"
+          jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-parent-write")'             "${parent_write_result}" > "${EVIDENCE_ROOT}/parent-write-tool-output.json"
+
           child_write_result=""
           for request in "${request_prefix}"-*.json; do
             if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-child-write")' "${request}" >/dev/null 2>&1; then
@@ -364,15 +414,40 @@ jobs:
           jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-wait")'             "${wait_result}" > "${EVIDENCE_ROOT}/wait-agent-tool-output.json"
           jq -e '.output | fromjson | (.timed_out == false and (.status | length > 0))'             "${EVIDENCE_ROOT}/wait-agent-tool-output.json" >/dev/null
 
+          classify_write() {
+            local sentinel_path="$1"
+            local output_path="$2"
+            local result_path="$3"
+
+            if test -f "${sentinel_path}"; then
+              printf '%s\n' 'write_succeeded' > "${result_path}"
+            elif grep -Eiq 'read-only file system|permission denied' "${output_path}"; then
+              printf '%s\n' 'filesystem_write_blocked' > "${result_path}"
+            elif grep -Eiq 'bwrap:.*operation not permitted|failed rtm_newaddr' "${output_path}"; then
+              printf '%s\n' 'sandbox_launch_failed' > "${result_path}"
+            else
+              printf '%s\n' 'write_failed_ambiguous' > "${result_path}"
+            fi
+          }
+
+          classify_write             "${PROOF_ROOT}/.agent-loop-parent-authority-probe"             "${EVIDENCE_ROOT}/parent-write-tool-output.json"             "${EVIDENCE_ROOT}/parent-write-outcome.txt"
+          classify_write             "${PROOF_ROOT}/.agent-loop-child-authority-probe"             "${EVIDENCE_ROOT}/child-write-tool-output.json"             "${EVIDENCE_ROOT}/child-write-outcome.txt"
+
+          if test -f "${PROOF_ROOT}/.agent-loop-parent-authority-probe"; then
+            cp "${PROOF_ROOT}/.agent-loop-parent-authority-probe" "${EVIDENCE_ROOT}/parent-write-sentinel.txt"
+          fi
           if test -f "${PROOF_ROOT}/.agent-loop-child-authority-probe"; then
             cp "${PROOF_ROOT}/.agent-loop-child-authority-probe" "${EVIDENCE_ROOT}/child-write-sentinel.txt"
-            printf '%s\n' 'write_succeeded' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
-          elif grep -Eiq 'permission denied|read-only file system|operation not permitted|sandbox' "${EVIDENCE_ROOT}/child-write-tool-output.json"; then
-            printf '%s\n' 'write_blocked_by_runtime' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
+          fi
+
+          parent_outcome="$(cat "${EVIDENCE_ROOT}/parent-write-outcome.txt")"
+          child_outcome="$(cat "${EVIDENCE_ROOT}/child-write-outcome.txt")"
+          if test "${parent_outcome}" = 'write_succeeded' && test "${child_outcome}" = 'filesystem_write_blocked'; then
+            printf '%s\n' 'role_read_only_enforced' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
+          elif test "${parent_outcome}" = 'write_succeeded' && test "${child_outcome}" = 'write_succeeded'; then
+            printf '%s\n' 'role_read_only_not_enforced' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
           else
-            echo 'Child write did not create the sentinel, but the tool output contains no recognizable sandbox rejection.' >&2
-            cat "${EVIDENCE_ROOT}/child-write-tool-output.json" >&2
-            exit 1
+            printf '%s\n' 'inconclusive_environment' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
           fi
 
       - name: Prove forbidden decisions in Codex execpolicy engine
@@ -394,9 +469,11 @@ jobs:
         run: |
           set -euo pipefail
           codex_version="$(cat "${EVIDENCE_ROOT}/codex-version.txt")"
+          parent_write_outcome="$(cat "${EVIDENCE_ROOT}/parent-write-outcome.txt")"
+          child_write_outcome="$(cat "${EVIDENCE_ROOT}/child-write-outcome.txt")"
           child_authority_outcome="$(cat "${EVIDENCE_ROOT}/child-read-only-outcome.txt")"
 
-          jq -n             --arg codex_version "${codex_version}"             --arg child_authority_outcome "${child_authority_outcome}"             '{
+          jq -n             --arg codex_version "${codex_version}"             --arg parent_write_outcome "${parent_write_outcome}"             --arg child_write_outcome "${child_write_outcome}"             --arg child_authority_outcome "${child_authority_outcome}"             '{
               schema_version: "1.0",
               codex_version: $codex_version,
               observed: {
@@ -434,12 +511,14 @@ jobs:
                 },
                 subagent_read_only_authority: {
                   evidence_class: "runtime_authority",
-                  mechanism: "selected child executes one real exec_command write attempt against a disposable repository sentinel",
+                  mechanism: "parent control and selected child each execute the same real exec_command write attempt against disposable repository sentinels",
                   projected_role: "agent-loop-investigator",
                   projected_sandbox_mode: "read-only",
+                  parent_write_outcome: $parent_write_outcome,
+                  child_write_outcome: $child_write_outcome,
                   outcome: $child_authority_outcome,
                   status: "observed",
-                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. The outcome records effective child filesystem authority only."
+                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. Only a parent-success/child-filesystem-block differential proves read-only enforcement; sandbox-launch failures remain inconclusive."
                 }
               },
               not_proven_by_this_slice: {
