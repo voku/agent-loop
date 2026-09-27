@@ -171,6 +171,10 @@ jobs:
 
           (cd "${EVIDENCE_ROOT}" && sha256sum ./* > SHA256SUMS)
 
+      - name: Prove governed Learning reflection on real Codex discovery
+        shell: bash
+        run: bash tools/codex-learning-runtime-proof.sh
+
       - name: Upload Codex runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
