@@ -1,3 +1,15 @@
+## 0.20.47 - 2026-09-27
+
+### Fixed
+
+- Reconcile linked default-topology `BLOCKED` cards after a governed Run has completed. The Run remains `complete`, but canonical routing now surfaces `board.active_after_run_complete` through `agent-kanban` instead of incorrectly collapsing to `next_action=none` (#628, #629).
+- Preserve the existing boundary for custom boards and `VERIFY`: custom lanes do not gain inferred lifecycle meaning merely from their names, and `VERIFY` continues to converge without this reconciliation signal (#628, #629).
+
+### Validation
+
+- PR #629 passed PHP 8.3, 8.4, and 8.5 CI, Self-Shape, governed execution-contract dogfood, installed release-set dogfood, acceptance-criteria and prompt-primitives dogfood, release upgrade/resume, all installed refactor lifecycles, deterministic slop review, AccessLint, and CodeRabbit review.
+- The resulting `main` push also passed PHP 8.3, 8.4, and 8.5 CI, installed release-set dogfood, and deterministic slop review.
+
 ## 0.20.46 - 2026-09-27
 
 ### Fixed
