@@ -161,6 +161,7 @@ jq -n \
   decision_path="$(jq -r '.manifest.references.learning.source.path // empty' "${EVIDENCE_ROOT}/learning-complete.json")"
   test -n "${decision_path}"
   jq -e --arg finding_id "${finding_id}" '.finding_ids | index($finding_id) != null' "${decision_path}" >/dev/null
+  cp "${decision_path}" "${EVIDENCE_ROOT}/learning-run-decision.json"
 
   cp ".agent-loop/learning/findings/validated/${finding_id}.json" "${EVIDENCE_ROOT}/${finding_id}.json"
 )
