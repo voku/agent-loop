@@ -83,8 +83,6 @@ final class HostLearningNoteFollowUpApplicationTest extends TestCase
 
         $closed = $this->finish($taskId, [
             '--reviewed-report-sha256', (string) $review['sha256'],
-            // Inline Finding capture deliberately does not classify reusable learning.
-            // Capture and promotion metadata have separate Learning-owned write paths.
             '--by', 'fixture-reviewer',
             '--finding-observation', 'A solved case should remain reusable without becoming active guidance.',
             '--finding-hypothesis', 'Optional precedent should be discoverable after Learning classifies the Finding.',
@@ -103,15 +101,10 @@ final class HostLearningNoteFollowUpApplicationTest extends TestCase
         self::assertCount(1, $decision->findingIds);
         $findingId = $decision->findingIds[0];
 
-        $findings = (new FindingRepository())->loadValidated($learningRoot);
-        $finding = $findings[$findingId] ?? null;
+        $finding = (new FindingRepository())->loadValidated($learningRoot)[$findingId] ?? null;
         self::assertNotNull($finding);
-        self::assertNull($finding->classification);
-        self::assertNull($finding->patternKey);
-        self::assertNull($finding->validationCase);
-
-        $projector = new HostLearningNoteFollowUpProjector($this->root);
-        self::assertSame([], $projector->project($taskId));
+        self::assertSame([null, null, null], [$finding->classification, $finding->patternKey, $finding->validationCase]);
+        self::assertSame([], (new HostLearningNoteFollowUpProjector($this->root))->project($taskId));
 
         (new FindingClassifier())->classify(
             root: $learningRoot,
@@ -125,11 +118,7 @@ final class HostLearningNoteFollowUpApplicationTest extends TestCase
             ),
         );
 
-        self::assertSame([[
-            'kind' => 'learning_note',
-            'finding_ids' => [$findingId],
-            'skill' => 'agent-learning-note',
-        ]], $projector->project($taskId));
+        self::assertSame([['kind' => 'learning_note', 'finding_ids' => [$findingId], 'skill' => 'agent-learning-note']], (new HostLearningNoteFollowUpProjector($this->root))->project($taskId));
     }
 
     /**
