@@ -26,9 +26,11 @@ final readonly class HostPolicyProjector
     ];
 
     /**
-     * Remote publication is authority-bearing. Claude Auto Mode can route ask
-     * rules through its classifier instead of a human prompt, so shared project
-     * policy must use deny for a boundary that remains hard in Auto Mode.
+     * These direct publication command forms are authority-bearing. Claude Auto
+     * Mode can route ask rules through its classifier instead of a human prompt,
+     * so shared project policy uses deny for the command text that actually
+     * matches. Alternate executable, git option/config, quoted-subcommand, shell
+     * wrapper, MCP, and other authority routes remain outside this claim.
      *
      * @var non-empty-list<string>
      */
@@ -96,7 +98,7 @@ final readonly class HostPolicyProjector
      */
     public static function claudeUserScopeAction(): string
     {
-        return 'Claude Auto Mode classifier configuration is user/local/managed scoped, not shared-project scoped. The repository deny rules remain hard; review effective Auto Mode settings separately when autonomous execution is desired.';
+        return 'Claude Auto Mode classifier configuration is user/local/managed scoped, not shared-project scoped. Repository deny rules are hard for the direct command forms they match; alternate executable, git option/config, quoted-subcommand, shell-wrapper, MCP, and other authority routes remain separate and unclaimed.';
     }
 
     /**
@@ -161,7 +163,7 @@ final readonly class HostPolicyProjector
             return ['status' => 'missing', 'path' => $path, 'detail' => 'Claude project deny permission is missing: ' . $rule];
         }
 
-        return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude project deny policy is current; Auto Mode classifier configuration remains user/local/managed scoped'];
+        return ['status' => 'ready', 'path' => $path, 'detail' => 'Claude direct-form project deny policy is current; alternate invocation and non-Bash authority routes remain separate and unclaimed'];
     }
 
     /**
@@ -328,7 +330,7 @@ final readonly class HostPolicyProjector
         }
 
         if (!$changed) {
-            return ['changed' => false, 'path' => $path, 'detail' => 'Claude project deny policy is current'];
+            return ['changed' => false, 'path' => $path, 'detail' => 'Claude direct-form project deny policy is current'];
         }
 
         $rawPermissions = self::assertJsonObject(
@@ -345,7 +347,7 @@ final readonly class HostPolicyProjector
             $this->writeJson($path, $settings);
         }
 
-        return ['changed' => true, 'path' => $path, 'detail' => 'Claude project deny policy ' . ($dryRun ? 'would be merged' : 'merged')];
+        return ['changed' => true, 'path' => $path, 'detail' => 'Claude direct-form project deny policy ' . ($dryRun ? 'would be merged' : 'merged')];
     }
 
     /** @return array{changed: bool, path: non-empty-string, detail: non-empty-string} */
