@@ -182,7 +182,52 @@ jobs:
                           },
                       ]
                   else:
-                      events = completed_events(f"resp-agent-loop-{request_number}")
+                      request = json.loads(body)
+                      spawn_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-selection"
+                          ),
+                          None,
+                      )
+                      if spawn_output is not None:
+                          agent_id = json.loads(spawn_output["output"])["agent_id"]
+                          events = [
+                              {
+                                  "type": "response.created",
+                                  "response": {"id": "resp-agent-loop-wait"},
+                              },
+                              {
+                                  "type": "response.output_item.done",
+                                  "item": {
+                                      "type": "function_call",
+                                      "call_id": "call-agent-loop-wait",
+                                      "namespace": "multi_agent_v1",
+                                      "name": "wait_agent",
+                                      "arguments": json.dumps({
+                                          "ids": [agent_id],
+                                          "timeout_ms": 20000,
+                                      }),
+                                  },
+                              },
+                              {
+                                  "type": "response.completed",
+                                  "response": {
+                                      "id": "resp-agent-loop-wait",
+                                      "usage": {
+                                          "input_tokens": 0,
+                                          "input_tokens_details": None,
+                                          "output_tokens": 0,
+                                          "output_tokens_details": None,
+                                          "total_tokens": 0,
+                                      },
+                                  },
+                              },
+                          ]
+                      else:
+                          events = completed_events(f"resp-agent-loop-{request_number}")
 
                   payload = "".join(
                       f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
@@ -229,14 +274,22 @@ jobs:
           trap - EXIT
 
           test -s "${request_prefix}-1.json"
-          test -s "${request_prefix}-2.json"
 
           jq '[.. | objects | select(((.name? // "") | tostring) | test("spawn_agent$"))]' \
             "${request_prefix}-1.json" > "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json"
 
           jq -e 'length > 0' "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json" >/dev/null
           grep -Fq 'agent-loop-investigator' "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json"
-          grep -Fq 'Locate. Verify. Report. Stop.' "${request_prefix}-2.json"
+
+          child_request=""
+          for request in "${request_prefix}"-*.json; do
+            if grep -Fq 'Locate. Verify. Report. Stop.' "${request}"; then
+              child_request="${request}"
+              break
+            fi
+          done
+          test -n "${child_request}"
+          cp "${child_request}" "${EVIDENCE_ROOT}/selected-investigator-child-request.json"
 
       - name: Prove forbidden decisions in Codex execpolicy engine
         shell: bash
