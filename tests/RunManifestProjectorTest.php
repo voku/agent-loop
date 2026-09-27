@@ -249,6 +249,29 @@ MD
         self::assertSame('host_work', $manifest->nextActionKind);
     }
 
+    public function testCompletedRunLeavesBlockedDefaultCardSurfacedForReconciliationWithoutWeakeningRunCompletion(): void
+    {
+        $this->writeActiveBoardCard(['projectPrefix' => 'ABC'], 'BLOCKED');
+        [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame($runId, $manifest->runId);
+        self::assertSame('governed', $manifest->mode);
+        self::assertSame('complete', $manifest->state, 'Completed Run must remain complete.');
+        self::assertSame('linked', $manifest->references['board']['state']);
+        self::assertSame('BLOCKED', $manifest->references['board']['lane']);
+        self::assertCount(1, $manifest->disagreements);
+        self::assertSame('board.active_after_run_complete', $manifest->disagreements[0]['code']);
+        self::assertSame('agent-kanban', $manifest->disagreements[0]['owner']);
+        self::assertStringContainsString('BLOCKED', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('governed Run is complete', $manifest->disagreements[0]['message']);
+        self::assertStringContainsString('board.active_after_run_complete', $manifest->nextAction);
+        self::assertStringContainsString('agent-kanban', $manifest->nextAction);
+        self::assertSame('host_work', $manifest->nextActionKind);
+    }
+
     public function testCompletedRunWithCardInVerifyLaneConvergesToNone(): void
     {
         $this->writeActiveBoardCard(['projectPrefix' => 'ABC']);
@@ -301,6 +324,29 @@ MD,
         self::assertSame('none', $manifest->nextActionKind);
     }
 
+    public function testCompletedRunWithCustomBlockedLaneDoesNotInferDefaultReconciliationSemantics(): void
+    {
+        $this->writeActiveBoardCard([
+            'projectPrefix' => 'ABC',
+            'lanes' => ['BACKLOG', 'BLOCKED'],
+            'transitions' => [
+                'BACKLOG' => ['BLOCKED'],
+                'BLOCKED' => ['BACKLOG'],
+            ],
+        ], 'BLOCKED');
+        [$sessions, $session, $runId] = $this->preparedRun('ok', withReceipt: true);
+        $sessions->setStatus($session, SessionStatus::DONE);
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame($runId, $manifest->runId);
+        self::assertSame('complete', $manifest->state);
+        self::assertSame('BLOCKED', $manifest->references['board']['lane']);
+        self::assertSame([], $manifest->disagreements);
+        self::assertSame('none', $manifest->nextAction);
+        self::assertSame('none', $manifest->nextActionKind);
+    }
+
     public function testFailedReviewCannotProduceCompletedRunOrCloseAction(): void
     {
         [, , $runId] = $this->preparedRun('fail', withReceipt: true);
@@ -340,25 +386,30 @@ MD,
     }
 
     /** @param array<string, mixed> $config */
-    private function writeActiveBoardCard(array $config): void
+    private function writeActiveBoardCard(array $config, string $lane = 'DOING'): void
     {
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);
         file_put_contents(
             $this->root . '/.agent-loop/todo/kanban.config.json',
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
         );
-        file_put_contents($this->root . '/.agent-loop/todo/cards/ABC-123.md', <<<'MD'
+        file_put_contents(
+            $this->root . '/.agent-loop/todo/cards/ABC-123.md',
+            sprintf(
+                <<<'MD'
 # ABC-123: Active without governance
 
 - **Ticket:** ABC-123
-- **Lane:** DOING
+- **Lane:** %s
 - **Status:** In Progress
 
 ## Agent Task Brief
 
 Prove that cross-owner lifecycle disagreement is explicit without inventing Kanban authority.
-MD
-            . "\n");
+MD,
+                $lane,
+            ) . "\n",
+        );
     }
 
     /** @return array{0: SessionStore, 1: Session, 2: string} */
