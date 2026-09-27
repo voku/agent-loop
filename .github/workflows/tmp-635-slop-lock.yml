@@ -1,36 +1,36 @@
-name: Temporary slop-scan lock refresh
+name: Temporary slop-scan lock commit
 
 on:
   push:
     branches:
       - chore/635-slop-scan-017
+    paths:
+      - '.github/workflows/tmp-635-slop-lock.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   refresh-lock:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
-      - name: Resolve isolated slop-scan tool
+      - name: Resolve and commit isolated slop-scan lock
         run: |
           composer update voku/slop-scan --with-all-dependencies \
             --working-dir=tools/slop-scan \
             --no-interaction --prefer-dist --no-progress
           composer show voku/slop-scan --working-dir=tools/slop-scan --format=json > build-slop-version.json
           php -r '$d=json_decode(file_get_contents("build-slop-version.json"), true, flags: JSON_THROW_ON_ERROR); if (($d["versions"][0] ?? null) !== "0.1.7") { fwrite(STDERR, json_encode($d).PHP_EOL); exit(1); }'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: issue-635-slop-lock
-          if-no-files-found: error
-          path: |
-            tools/slop-scan/composer.lock
-            build-slop-version.json
+          git diff --exit-code -- tools/slop-scan/composer.json
+          git diff -- tools/slop-scan/composer.lock
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/slop-scan/composer.lock
+          git diff --cached --quiet || git commit -m "chore: refresh slop-scan tool lock"
+          git push origin HEAD:chore/635-slop-scan-017
