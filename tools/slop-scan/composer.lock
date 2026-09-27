@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "630200ce83efddd2caeb063f3a8020d7",
+    "content-hash": "2695a2c165a72652158a1e74a72b112a",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -183,16 +183,16 @@
         },
         {
             "name": "nikic/php-parser",
-            "version": "v5.8.0",
+            "version": "v5.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nikic/PHP-Parser.git",
-                "reference": "044a6a392ff8ad0d61f14370a5fbbd0a0107152f"
+                "reference": "9e33da9553fe7786f0962b35f4e4ecf01be89def"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/044a6a392ff8ad0d61f14370a5fbbd0a0107152f",
-                "reference": "044a6a392ff8ad0d61f14370a5fbbd0a0107152f",
+                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/9e33da9553fe7786f0962b35f4e4ecf01be89def",
+                "reference": "9e33da9553fe7786f0962b35f4e4ecf01be89def",
                 "shasum": ""
             },
             "require": {
@@ -234,9 +234,9 @@
             ],
             "support": {
                 "issues": "https://github.com/nikic/PHP-Parser/issues",
-                "source": "https://github.com/nikic/PHP-Parser/tree/v5.8.0"
+                "source": "https://github.com/nikic/PHP-Parser/tree/v5.9.0"
             },
-            "time": "2026-07-04T14:30:18+00:00"
+            "time": "2026-09-13T18:51:52+00:00"
         },
         {
             "name": "phpdocumentor/reflection-common",
@@ -416,16 +416,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.3",
+            "version": "2.3.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3"
+                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
+                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
                 "shasum": ""
             },
             "require": {
@@ -457,9 +457,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.3"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.5"
             },
-            "time": "2026-07-08T07:01:06+00:00"
+            "time": "2026-08-31T16:05:28+00:00"
         },
         {
             "name": "psr/container",
@@ -516,16 +516,16 @@
         },
         {
             "name": "psr/simple-cache",
-            "version": "2.0.0",
+            "version": "3.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/php-fig/simple-cache.git",
-                "reference": "8707bf3cea6f710bf6ef05491234e3ab06f6432a"
+                "reference": "764e0b3939f5ca87cb904f570ef9be2d78a07865"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/php-fig/simple-cache/zipball/8707bf3cea6f710bf6ef05491234e3ab06f6432a",
-                "reference": "8707bf3cea6f710bf6ef05491234e3ab06f6432a",
+                "url": "https://api.github.com/repos/php-fig/simple-cache/zipball/764e0b3939f5ca87cb904f570ef9be2d78a07865",
+                "reference": "764e0b3939f5ca87cb904f570ef9be2d78a07865",
                 "shasum": ""
             },
             "require": {
@@ -534,7 +534,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "2.0.x-dev"
+                    "dev-master": "3.0.x-dev"
                 }
             },
             "autoload": {
@@ -561,22 +561,22 @@
                 "simple-cache"
             ],
             "support": {
-                "source": "https://github.com/php-fig/simple-cache/tree/2.0.0"
+                "source": "https://github.com/php-fig/simple-cache/tree/3.0.0"
             },
-            "time": "2021-10-29T13:22:09+00:00"
+            "time": "2021-10-29T13:26:27+00:00"
         },
         {
             "name": "symfony/console",
-            "version": "v7.4.16",
+            "version": "v7.4.19",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "f4c69c9aed03abf933b294257d618bdd9b30a06d"
+                "reference": "3a1973458b153f566a8d7499bc06ece323d60063"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/f4c69c9aed03abf933b294257d618bdd9b30a06d",
-                "reference": "f4c69c9aed03abf933b294257d618bdd9b30a06d",
+                "url": "https://api.github.com/repos/symfony/console/zipball/3a1973458b153f566a8d7499bc06ece323d60063",
+                "reference": "3a1973458b153f566a8d7499bc06ece323d60063",
                 "shasum": ""
             },
             "require": {
@@ -641,7 +641,7 @@
                 "terminal"
             ],
             "support": {
-                "source": "https://github.com/symfony/console/tree/v7.4.16"
+                "source": "https://github.com/symfony/console/tree/v7.4.19"
             },
             "funding": [
                 {
@@ -661,7 +661,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-07-31T12:37:14+00:00"
+            "time": "2026-09-13T10:38:41+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -901,16 +901,16 @@
         },
         {
             "name": "symfony/polyfill-intl-normalizer",
-            "version": "v1.38.0",
+            "version": "v1.42.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-intl-normalizer.git",
-                "reference": "2d446c214bdbe5b71bde5011b060a05fece3ae6b"
+                "reference": "aa20edea75bd9c48cfecc8360922e5a6e5c44502"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/2d446c214bdbe5b71bde5011b060a05fece3ae6b",
-                "reference": "2d446c214bdbe5b71bde5011b060a05fece3ae6b",
+                "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/aa20edea75bd9c48cfecc8360922e5a6e5c44502",
+                "reference": "aa20edea75bd9c48cfecc8360922e5a6e5c44502",
                 "shasum": ""
             },
             "require": {
@@ -962,7 +962,7 @@
                 "shim"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.38.0"
+                "source": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.42.0"
             },
             "funding": [
                 {
@@ -982,7 +982,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-05-25T13:48:31+00:00"
+            "time": "2026-08-07T06:33:24+00:00"
         },
         {
             "name": "symfony/polyfill-mbstring",
@@ -1071,16 +1071,16 @@
         },
         {
             "name": "symfony/service-contracts",
-            "version": "v3.7.1",
+            "version": "v3.7.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/service-contracts.git",
-                "reference": "c0a284bab1ed8aa0417e3d69250ab437739563a0"
+                "reference": "15e6a07ec2a2c75ceb1b21dd98105ee8456d2257"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/service-contracts/zipball/c0a284bab1ed8aa0417e3d69250ab437739563a0",
-                "reference": "c0a284bab1ed8aa0417e3d69250ab437739563a0",
+                "url": "https://api.github.com/repos/symfony/service-contracts/zipball/15e6a07ec2a2c75ceb1b21dd98105ee8456d2257",
+                "reference": "15e6a07ec2a2c75ceb1b21dd98105ee8456d2257",
                 "shasum": ""
             },
             "require": {
@@ -1134,7 +1134,7 @@
                 "standards"
             ],
             "support": {
-                "source": "https://github.com/symfony/service-contracts/tree/v3.7.1"
+                "source": "https://github.com/symfony/service-contracts/tree/v3.7.3"
             },
             "funding": [
                 {
@@ -1154,20 +1154,20 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-06-16T09:55:08+00:00"
+            "time": "2026-07-27T15:39:01+00:00"
         },
         {
             "name": "symfony/string",
-            "version": "v7.4.15",
+            "version": "v7.4.19",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/string.git",
-                "reference": "e394af32256bf9e7bf80849d95e589167c10097b"
+                "reference": "02731ce2bd26514bec9efc0baef2cd0b0cf67f46"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/string/zipball/e394af32256bf9e7bf80849d95e589167c10097b",
-                "reference": "e394af32256bf9e7bf80849d95e589167c10097b",
+                "url": "https://api.github.com/repos/symfony/string/zipball/02731ce2bd26514bec9efc0baef2cd0b0cf67f46",
+                "reference": "02731ce2bd26514bec9efc0baef2cd0b0cf67f46",
                 "shasum": ""
             },
             "require": {
@@ -1225,7 +1225,7 @@
                 "utf8"
             ],
             "support": {
-                "source": "https://github.com/symfony/string/tree/v7.4.15"
+                "source": "https://github.com/symfony/string/tree/v7.4.19"
             },
             "funding": [
                 {
@@ -1245,35 +1245,38 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-07-28T07:33:02+00:00"
+            "time": "2026-09-11T14:46:58+00:00"
         },
         {
             "name": "voku/simple-cache",
-            "version": "5.0.0",
+            "version": "6.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/simple-cache.git",
-                "reference": "71531e9a8f4bfb75a120a986ac12867af15c65be"
+                "reference": "c5d8b516d6780ae297adf4bcd7f87b0b81b8ccb3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/simple-cache/zipball/71531e9a8f4bfb75a120a986ac12867af15c65be",
-                "reference": "71531e9a8f4bfb75a120a986ac12867af15c65be",
+                "url": "https://api.github.com/repos/voku/simple-cache/zipball/c5d8b516d6780ae297adf4bcd7f87b0b81b8ccb3",
+                "reference": "c5d8b516d6780ae297adf4bcd7f87b0b81b8ccb3",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.0.0",
-                "psr/simple-cache": "~1.0 || ~2.0"
+                "php": ">=8.0.0",
+                "psr/simple-cache": "~1.0 || ~2.0 || ~3.0"
             },
             "provide": {
-                "psr/simple-cache-implementation": "1.0"
+                "psr/simple-cache-implementation": "1.0|2.0|3.0"
             },
             "require-dev": {
-                "phpunit/phpunit": "~6.0 || ~7.0 || ~9.0"
+                "phpstan/phpstan": "^1.12 || ^2.0",
+                "phpunit/phpunit": "~6.0 || ~7.0 || ~9.0",
+                "predis/predis": "^1.1 || ^2.0 || ^3.0",
+                "symfony/var-exporter": "^5.4 || ^6.0 || ^7.0 || ^8.0"
             },
             "suggest": {
                 "predis/predis": "~1.1 || ~2.0 || ~3.0",
-                "symfony/var-exporter": "~3.0 || ~4.0 || ~5.0 || ~6.0 || ~7.0"
+                "symfony/var-exporter": "^5.4 || ~6.0 || ~7.0 || ~8.0"
             },
             "type": "library",
             "autoload": {
@@ -1302,7 +1305,7 @@
             ],
             "support": {
                 "issues": "https://github.com/voku/simple-cache/issues",
-                "source": "https://github.com/voku/simple-cache/tree/5.0.0"
+                "source": "https://github.com/voku/simple-cache/tree/6.1.0"
             },
             "funding": [
                 {
@@ -1322,20 +1325,20 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-10-29T13:00:29+00:00"
+            "time": "2026-04-24T00:48:22+00:00"
         },
         {
             "name": "voku/simple-php-code-parser",
-            "version": "0.21.0",
+            "version": "0.22.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/Simple-PHP-Code-Parser.git",
-                "reference": "9a0a7455882bc014a49d56f5ad439ff175302475"
+                "reference": "78ced97f096899aeb5bd60a19422e72d3898ef79"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/Simple-PHP-Code-Parser/zipball/9a0a7455882bc014a49d56f5ad439ff175302475",
-                "reference": "9a0a7455882bc014a49d56f5ad439ff175302475",
+                "url": "https://api.github.com/repos/voku/Simple-PHP-Code-Parser/zipball/78ced97f096899aeb5bd60a19422e72d3898ef79",
+                "reference": "78ced97f096899aeb5bd60a19422e72d3898ef79",
                 "shasum": ""
             },
             "require": {
@@ -1346,7 +1349,7 @@
                 "phpdocumentor/reflection-docblock": "~5.3 || ~6.0",
                 "phpdocumentor/type-resolver": "~1.7.2 || ~2.0",
                 "phpstan/phpdoc-parser": "~2.0",
-                "voku/simple-cache": "~5.0"
+                "voku/simple-cache": "~6.0"
             },
             "require-dev": {
                 "phpstan/phpstan": "^2.0",
@@ -1377,7 +1380,7 @@
             ],
             "support": {
                 "issues": "https://github.com/voku/Simple-PHP-Code-Parser/issues",
-                "source": "https://github.com/voku/Simple-PHP-Code-Parser/tree/0.21.0"
+                "source": "https://github.com/voku/Simple-PHP-Code-Parser/tree/0.22.4"
             },
             "funding": [
                 {
@@ -1393,33 +1396,33 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2026-04-21T00:30:33+00:00"
+            "time": "2026-09-16T19:20:37+00:00"
         },
         {
             "name": "voku/slop-scan",
-            "version": "0.1.4",
+            "version": "0.1.7",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/slop-scan.git",
-                "reference": "679bedcc55add9636ba24c194231eef3cbb7ab5c"
+                "reference": "f872da38ae546a95d213f1e4e1914d583fa68aa7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/slop-scan/zipball/679bedcc55add9636ba24c194231eef3cbb7ab5c",
-                "reference": "679bedcc55add9636ba24c194231eef3cbb7ab5c",
+                "url": "https://api.github.com/repos/voku/slop-scan/zipball/f872da38ae546a95d213f1e4e1914d583fa68aa7",
+                "reference": "f872da38ae546a95d213f1e4e1914d583fa68aa7",
                 "shasum": ""
             },
             "require": {
-                "helgesverre/toon": "^3.1",
-                "nikic/php-parser": "^5.7",
+                "helgesverre/toon": "^3.2",
+                "nikic/php-parser": "^5.8",
                 "php": "^8.3",
                 "symfony/console": "^7.4",
-                "voku/simple-php-code-parser": "^0.21.0"
+                "voku/simple-php-code-parser": "^0.22.2"
             },
             "require-dev": {
-                "infection/infection": "^0.32.7",
-                "phpstan/phpstan": "^2.1.54",
-                "phpunit/phpunit": "^11.5"
+                "infection/infection": "^0.34.2",
+                "phpstan/phpstan": "^2.2.8",
+                "phpunit/phpunit": "^12.5"
             },
             "bin": [
                 "bin/slop-scan.php"
@@ -1442,9 +1445,10 @@
             ],
             "description": "Deterministic PHP CLI for explainable slop heuristics in PHP repositories.",
             "support": {
-                "source": "https://github.com/voku/slop-scan/tree/0.1.4"
+                "issues": "https://github.com/voku/slop-scan/issues",
+                "source": "https://github.com/voku/slop-scan/tree/0.1.7"
             },
-            "time": "2026-05-18T13:52:14+00:00"
+            "time": "2026-08-13T14:41:47+00:00"
         },
         {
             "name": "webmozart/assert",
@@ -1524,5 +1528,5 @@
     "platform-overrides": {
         "php": "8.3.0"
     },
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
