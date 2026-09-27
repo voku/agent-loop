@@ -191,6 +191,13 @@ final readonly class HostFrontDoorCommand
         }
 
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
+        $prePlanDiscovery = null;
+        if (
+            $policy->nextActionKind === RunPolicyEvaluation::KIND_COMMAND_TEMPLATE
+            && ($manifest->references['contract']['state'] ?? null) === 'missing'
+        ) {
+            $prePlanDiscovery = (new WorkflowPrePlanDiscoveryProjector($this->rootPath))->project($taskId->value);
+        }
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
         $warnings = $preparationWarning === null ? [] : [[
             'code' => 'enter.ranked_search_unavailable',
@@ -224,6 +231,9 @@ final readonly class HostFrontDoorCommand
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
+        if ($prePlanDiscovery !== null) {
+            $payload['pre_plan_discovery'] = $prePlanDiscovery;
+        }
         if ($hookResults !== []) {
             $payload['hooks'] = $hookResults;
         }
