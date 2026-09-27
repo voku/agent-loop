@@ -28,7 +28,7 @@ final class HostPolicyProjectorTest extends TestCase
         $this->removeDirectory($this->root);
     }
 
-    public function testClaudeMergePreservesProjectSettingsAndUsesHardDenyWithoutWritingAutoMode(): void
+    public function testClaudeMergePreservesProjectSettingsAndUsesDirectFormHardDenyWithoutWritingAutoMode(): void
     {
         mkdir($this->root . '/.claude', 0o775, true);
         file_put_contents($this->root . '/.claude/settings.json', json_encode([
@@ -46,7 +46,17 @@ final class HostPolicyProjectorTest extends TestCase
 
         self::assertTrue($first['changed']);
         self::assertFalse($second['changed']);
-        self::assertSame('ready', $projector->inspect('claude')['status']);
+
+        $inspection = $projector->inspect('claude');
+        self::assertSame('ready', $inspection['status']);
+        self::assertStringContainsString('direct-form', $inspection['detail']);
+        self::assertStringContainsString('remain separate and unclaimed', $inspection['detail']);
+
+        $boundary = HostPolicyProjector::claudeUserScopeAction();
+        self::assertStringContainsString('hard for the direct command forms they match', $boundary);
+        self::assertStringContainsString('git option/config', $boundary);
+        self::assertStringContainsString('MCP', $boundary);
+        self::assertStringContainsString('remain separate and unclaimed', $boundary);
 
         $settings = $this->decodeJson($this->root . '/.claude/settings.json');
         self::assertSame(['SessionStart' => []], $settings['hooks'] ?? null);
