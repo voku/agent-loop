@@ -68,6 +68,67 @@ jobs:
           sha256sum baseline/.agent-loop/map/search.sqlite > /tmp/search.before
           find baseline/.agent-loop/map -maxdepth 1 -printf '%f\n' | sort > /tmp/map-dir.before
 
+      - name: Compare lexical-only and full owner search
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+            require "vendor/autoload.php";
+
+            use voku\AgentMap\Index\IndexReader;
+            use voku\AgentMap\Search\HybridSearch;
+            use voku\AgentMap\Search\SearchIndexStore;
+
+            $root = realpath("baseline");
+            if (!is_string($root)) {
+                fwrite(STDERR, "baseline root missing\n");
+                exit(93);
+            }
+
+            $query = "feat(init): extend Cursor authority coverage beyond shell hooks Inventory Cursor CLI and MCP authority routes, preserve unrelated project configuration and hooks, and identify the smallest safe owner boundary without claiming runtime coverage before proof.";
+            $index = (new IndexReader())->read($root . "/.agent-loop/map/php-symbols.json");
+            $store = SearchIndexStore::openReadOnly($root . "/.agent-loop/map/search.sqlite");
+            $provider = $store->semanticProvider();
+            if ($provider === null) {
+                fwrite(STDERR, "semantic provider unavailable despite freshly embedded index\n");
+                exit(94);
+            }
+
+            $lexical = (new HybridSearch())->search($index, $store, $query, 20);
+            $full = (new HybridSearch(embeddings: $provider))->search($index, $store, $query, 20);
+
+            $summarize = static function (array $report): array {
+                $rows = [];
+                foreach ($report["results"] as $offset => $result) {
+                    $rows[] = [
+                        "rank" => $offset + 1,
+                        "symbol_id" => $result["symbol_id"],
+                        "file_path" => $result["file_path"],
+                        "rrf_score" => $result["rrf_score"],
+                        "channel_ranks" => $result["channel_ranks"],
+                        "reasons" => $result["reasons"],
+                    ];
+                }
+
+                return [
+                    "effective_mode" => $report["effective_mode"],
+                    "degraded" => $report["degraded"],
+                    "degraded_reason" => $report["degraded_reason"],
+                    "results" => $rows,
+                ];
+            };
+
+            echo "LEXICAL_ONLY_BEGIN\n";
+            echo json_encode($summarize($lexical), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+            echo "LEXICAL_ONLY_END\n";
+            echo "FULL_OWNER_SEARCH_BEGIN\n";
+            echo json_encode($summarize($full), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+            echo "FULL_OWNER_SEARCH_END\n";
+          '
+          sha256sum baseline/.agent-loop/map/php-symbols.json | diff -u /tmp/map.before -
+          sha256sum baseline/.agent-loop/map/search.sqlite | diff -u /tmp/search.before -
+          find baseline/.agent-loop/map -maxdepth 1 -printf '%f\n' | sort | diff -u /tmp/map-dir.before -
+
       - name: Execute candidate enter against real task base
         shell: bash
         run: |
