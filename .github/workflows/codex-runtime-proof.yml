@@ -67,6 +67,9 @@ jobs:
           )
 
           cat > "${runtime_home}/config.toml" <<EOF
+          [features]
+          use_legacy_landlock = true
+
           [projects."${proof_root}"]
           trust_level = "trusted"
           EOF
@@ -518,7 +521,8 @@ jobs:
                   child_write_outcome: $child_write_outcome,
                   outcome: $child_authority_outcome,
                   status: "observed",
-                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. Only a parent-success/child-filesystem-block differential proves read-only enforcement; sandbox-launch failures remain inconclusive."
+                  sandbox_backend: "legacy_landlock",
+                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. Legacy Landlock is enabled only as a Linux runner compatibility backend so the same parent/child permission profiles can execute. Only a parent-success/child-filesystem-block differential proves read-only enforcement."
                 }
               },
               not_proven_by_this_slice: {
