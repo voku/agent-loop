@@ -148,7 +148,7 @@ jobs:
               }
             }' > "${EVIDENCE_ROOT}/evidence.json"
 
-          sha256sum "${EVIDENCE_ROOT}"/* > "${EVIDENCE_ROOT}/SHA256SUMS"
+          (cd "${EVIDENCE_ROOT}" && sha256sum ./* > SHA256SUMS)
 
       - name: Upload Codex runtime evidence
         if: always()
