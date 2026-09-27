@@ -353,6 +353,17 @@ jobs:
           test -n "${child_write_result}"
           jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-child-write")'             "${child_write_result}" > "${EVIDENCE_ROOT}/child-write-tool-output.json"
 
+          wait_result=""
+          for request in "${request_prefix}"-*.json; do
+            if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-wait")' "${request}" >/dev/null 2>&1; then
+              wait_result="${request}"
+              break
+            fi
+          done
+          test -n "${wait_result}"
+          jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-wait")'             "${wait_result}" > "${EVIDENCE_ROOT}/wait-agent-tool-output.json"
+          jq -e '.output | fromjson | (.timed_out == false and (.status | length > 0))'             "${EVIDENCE_ROOT}/wait-agent-tool-output.json" >/dev/null
+
           if test -f "${PROOF_ROOT}/.agent-loop-child-authority-probe"; then
             cp "${PROOF_ROOT}/.agent-loop-child-authority-probe" "${EVIDENCE_ROOT}/child-write-sentinel.txt"
             printf '%s\n' 'write_succeeded' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
