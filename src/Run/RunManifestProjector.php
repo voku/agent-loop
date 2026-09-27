@@ -677,7 +677,7 @@ final readonly class RunManifestProjector
             }
             $action = $this->closeReadinessAction($taskId, $readiness);
 
-            return $this->withSupersededReceipt([
+            $reference = [
                 'owner' => 'agent-loop',
                 'state' => 'blocked',
                 'observation_mode' => 'checked',
@@ -697,7 +697,18 @@ final readonly class RunManifestProjector
                     : null,
                 'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
-            ], $superseded);
+            ];
+            if (($failure['gate'] ?? null) === 'learning_decision') {
+                $reference['learning_disposition'] = [
+                    'evaluate_reusable_learning' => true,
+                    'reusable_lesson' => 'capture an evidence-backed Finding and reference its id',
+                    'out_of_scope_work' => 'provide the concrete follow-up reference',
+                    'no_durable_learning' => 'choose explicitly only after evaluating the run and finding no reusable lesson or follow-up',
+                    'anti_shortcut' => 'Do not choose no_durable_learning merely to complete the Run.',
+                ];
+            }
+
+            return $this->withSupersededReceipt($reference, $superseded);
         }
 
         // Without an active governed Session there is nothing that could record
