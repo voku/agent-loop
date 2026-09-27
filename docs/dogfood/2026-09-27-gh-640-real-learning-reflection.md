@@ -83,10 +83,18 @@ The final `finish --format=json` response is:
 - `next_action=none`
 - `next_action_kind=none`
 
-This proves the post-#639 runtime can consume the Learning gate through JSON and
-typed next-action data and can reach an evidence-backed Finding plus
-`findings_recorded` without relying on human-only stdout or a synthetic
-Finding test.
+This proves the post-#639 machine-facing contract exposes the Learning gate
+through JSON and typed next-action data and that the acting machine consumer can
+follow that surface to an evidence-backed Finding plus `findings_recorded`
+without relying on human-only stdout or a synthetic Finding test.
+
+The proof does not claim that an unauthenticated Codex CLI model independently
+interpreted `learning_disposition`: the acting agent evaluated the real #618
+discovery, while the GitHub Actions consumer deterministically verified the
+machine contract and refused Finding creation unless the captured discovery
+predicate held. #640 requires reachability from the canonical machine-facing
+surface; Codex model-host behavior remains part of #618's separate runtime
+evidence boundary.
 
 ## Evidence
 
