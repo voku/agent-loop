@@ -57,20 +57,9 @@ context.
 Neither external tool is a dependency of `voku/agent-loop`, and a dogfood run
 must not make it one. They are invoked by the workflow, not welded into it.
 
-Until recently they could not even share a Composer project with `agent-map`:
-
-```text
-agent-map 0.7.0 -> voku/simple-php-code-parser ^0.22
-slop-scan 0.1.4 -> voku/simple-php-code-parser ^0.21.0
-```
-
-**That conflict is resolved upstream.** `slop-scan` 0.1.5 moves to
-`^0.22.2`, and `agent-map 0.7.0` plus `slop-scan` now co-resolve on
-`simple-php-code-parser 0.22.2` — verified with a resolver dry run, not
-inferred from the constraint strings. Note what that does and does not change:
-a resolvable graph is a reason the isolation is no longer *forced*, not
-evidence that merging is *better*. The reasons that survive are the ones that
-were never about resolution:
+Older slop-scan releases conflicted with agent-map's parser dependency. That
+constraint conflict is resolved in current slop-scan releases, so isolation is
+no longer a Composer workaround. It remains the intentional evidence boundary:
 
 - do not raise the supported PHP version of the library under test — both tools
   require PHP 8.3+, and a package like `simple-mysqli` still advertises PHP 7;
@@ -136,22 +125,16 @@ Binaries therefore live in the tool project, not in the repository's own
 uses its own `vendor/bin/` instead. Ask `init tools` for the path that exists
 rather than assuming one.
 
-`voku/slop-scan` has one wrinkle here: its bin resolves the autoloader as
-`__DIR__ . '/../vendor/autoload.php'`, which exists only in a standalone
-checkout. Installed as a Composer dependency it exits with "Composer autoload
-file not found", ignoring the location Composer already published in
-`$GLOBALS['_composer_autoload_path']`. The upstream README documents the PHAR,
-which is why the Composer path went unnoticed — and the 0.1.5 parser bump makes
-that path more attractive, so the bug matters more now, not less. Still present
-on `main` as of this run. `tools/slop-scan/slop-scan.php` is a three-line runner
-around it, and should be deleted once the bin honors the global.
+`voku/slop-scan` still has one Composer-install wrinkle: its published bin
+resolves the autoloader as `__DIR__ . '/../vendor/autoload.php'`, which exists
+in a standalone checkout but not below `vendor/voku/slop-scan/bin/`.
+`tools/slop-scan/slop-scan.php` therefore remains the tiny local runner around
+the installed library and should be deleted once the package bin honors
+Composer's published autoload location.
 
-`tools/slop-scan/composer.json` stays on `^0.1.4` because **0.1.5 is not
-installable**: the version exists in the upstream changelog and on `main`, but
-no `0.1.5` Git tag has been pushed, so Packagist still serves 0.1.4 and
-`composer require voku/slop-scan:^0.1.5` fails to resolve. Pin the tag when it
-lands; do not paper over a missing release with `dev-main`, per
-[Freeze](#freeze).
+The isolated project tracks released slop-scan versions normally. Keep its
+committed lock current: the lock identifies the exact scanner that produced the
+candidate-quality evidence.
 
 ## Candidate pre-screen
 
