@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLearning\FindingClassifier;
 use voku\AgentLearning\FindingRepository;
 use voku\AgentLearning\LearningClassification;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLearning\ValidationCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use RuntimeException;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
 use voku\AgentLoop\Workflow\HostLearningNoteFollowUpProjector;
