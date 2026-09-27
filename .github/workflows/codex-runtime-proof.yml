@@ -66,10 +66,17 @@ jobs:
             "${GITHUB_WORKSPACE}/bin/agent-loop" init sync-policy --agent=codex
           )
 
-          cat > "${runtime_home}/config.toml" <<EOF
-          [features]
-          use_legacy_landlock = true
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sysctl -n kernel.apparmor_restrict_unprivileged_userns > "${evidence_root}/apparmor-userns-before.txt"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            sysctl -n kernel.apparmor_restrict_unprivileged_userns > "${evidence_root}/apparmor-userns-after.txt"
+            test "$(cat "${evidence_root}/apparmor-userns-after.txt")" = '0'
+          else
+            printf '%s\n' 'unavailable' > "${evidence_root}/apparmor-userns-before.txt"
+            printf '%s\n' 'unavailable' > "${evidence_root}/apparmor-userns-after.txt"
+          fi
 
+          cat > "${runtime_home}/config.toml" <<EOF
           [projects."${proof_root}"]
           trust_level = "trusted"
           EOF
@@ -521,8 +528,9 @@ jobs:
                   child_write_outcome: $child_write_outcome,
                   outcome: $child_authority_outcome,
                   status: "observed",
-                  sandbox_backend: "legacy_landlock",
-                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. Legacy Landlock is enabled only as a Linux runner compatibility backend so the same parent/child permission profiles can execute. Only a parent-success/child-filesystem-block differential proves read-only enforcement."
+                  sandbox_backend: "bubblewrap",
+                  runner_prerequisite: "GitHub runner AppArmor unprivileged-userns restriction disabled for the disposable proof job when that sysctl exists",
+                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. The runner prerequisite only permits Codex's own bubblewrap sandbox to start; it does not alter the parent or child permission profile. Only a parent-success/child-filesystem-block differential proves read-only enforcement."
                 }
               },
               not_proven_by_this_slice: {
