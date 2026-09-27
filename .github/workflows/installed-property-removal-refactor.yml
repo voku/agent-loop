@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-map
-          ref: 0.18.0
+          ref: 0.18.2
           path: build/released-agent-map
           persist-credentials: false
 
@@ -71,7 +71,7 @@ jobs:
                 "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-map": "0.18.0"}
+                  "versions": {"voku/agent-map": "0.18.2"}
                 }
               }
             ],
