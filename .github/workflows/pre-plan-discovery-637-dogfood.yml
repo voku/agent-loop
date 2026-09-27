@@ -1,0 +1,109 @@
+name: Pre-PLAN discovery 637 dogfood
+
+on:
+  push:
+    branches:
+      - feat/pre-plan-discovery-637
+    paths:
+      - '.github/workflows/pre-plan-discovery-637-dogfood.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  real-task-616:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install candidate
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Checkout uncontaminated repository base
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-loop
+          ref: aeeace749b98b7079d22d4f11024aa1f06b1e498
+          path: baseline
+          persist-credentials: false
+
+      - name: Create real task intake without implementation hints
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p baseline/.agent-loop/todo/cards baseline/.agent-loop/map
+          printf '%s\n' '{"projectPrefix":"DOG"}' > baseline/.agent-loop/todo/kanban.config.json
+          cat > baseline/.agent-loop/todo/cards/DOG-616.md <<'CARD'
+          # DOG-616: feat(init): extend Cursor authority coverage beyond shell hooks
+
+          - **Ticket:** DOG-616
+          - **Lane:** READY
+          - **Status:** Selected
+          - **Summary:** Close the authority-coverage gap for Cursor without broadening claims beyond evidence.
+          - **Next:** Inventory Cursor CLI and MCP authority routes, preserve unrelated project configuration and hooks, and identify the smallest safe owner boundary without claiming runtime coverage before proof.
+          CARD
+
+      - name: Build fresh owner evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          vendor/bin/agent-map build \
+            --root="$GITHUB_WORKSPACE/baseline" \
+            --paths=src \
+            --out="$GITHUB_WORKSPACE/baseline/.agent-loop/map/php-symbols.json" \
+            --phpstan-memory-limit=512M
+          vendor/bin/agent-map search-index build \
+            --root="$GITHUB_WORKSPACE/baseline" \
+            --index="$GITHUB_WORKSPACE/baseline/.agent-loop/map/php-symbols.json" \
+            --database="$GITHUB_WORKSPACE/baseline/.agent-loop/map/search.sqlite"
+          sha256sum baseline/.agent-loop/map/php-symbols.json > /tmp/map.before
+          sha256sum baseline/.agent-loop/map/search.sqlite > /tmp/search.before
+          find baseline/.agent-loop/map -maxdepth 1 -printf '%f\n' | sort > /tmp/map-dir.before
+
+      - name: Execute candidate enter against real task base
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+            require "vendor/autoload.php";
+            $root = realpath("baseline");
+            if (!is_string($root)) {
+                fwrite(STDERR, "baseline root missing\n");
+                exit(90);
+            }
+            ob_start();
+            try {
+                $exit = (new voku\AgentLoop\Workflow\HostFrontDoorCommand($root))
+                    ->run("enter", ["DOG-616", "--format=json"]);
+                $json = (string) ob_get_contents();
+            } finally {
+                ob_end_clean();
+            }
+            file_put_contents("dogfood-enter.json", $json);
+            $payload = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+            if ($exit !== 1 || ($payload["next_action_kind"] ?? null) !== "command_template") {
+                fwrite(STDERR, "unplanned enter route changed\n");
+                exit(91);
+            }
+            if (is_file($root . "/.agent-loop/contracts/DOG-616/contract.json")) {
+                fwrite(STDERR, "enter created a Contract\n");
+                exit(92);
+            }
+          '
+          sha256sum baseline/.agent-loop/map/php-symbols.json | diff -u /tmp/map.before -
+          sha256sum baseline/.agent-loop/map/search.sqlite | diff -u /tmp/search.before -
+          find baseline/.agent-loop/map -maxdepth 1 -printf '%f\n' | sort | diff -u /tmp/map-dir.before -
+          echo 'DOGFOOD_PROJECTION_BEGIN'
+          jq -c '.pre_plan_discovery // {"status":"abstained"}' dogfood-enter.json
+          echo 'DOGFOOD_PROJECTION_END'
+          echo 'DOGFOOD_ROUTE_BEGIN'
+          jq -c '{next_action_kind,next_action,mutation_ready}' dogfood-enter.json
+          echo 'DOGFOOD_ROUTE_END'
