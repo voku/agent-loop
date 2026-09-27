@@ -267,16 +267,17 @@ final readonly class RunManifestProjector
                 ];
             } elseif (
                 $usesDefaultTopology
-                && $card->lane->toString() === 'DOING'
+                && in_array($card->lane->toString(), ['DOING', 'BLOCKED'], true)
                 && $this->isRunComplete($taskId, $contract, $run, $session)
             ) {
                 $disagreements[] = [
                     'code' => 'board.active_after_run_complete',
                     'owner' => 'agent-kanban',
                     'message' => sprintf(
-                        'Default Kanban card %s is still in DOING while governed Run is complete. '
+                        'Default Kanban card %s is still in %s while governed Run is complete. '
                         . 'Reconcile cross-owner task state through agent-kanban by moving or archiving the card.',
                         $taskId,
+                        $card->lane->toString(),
                     ),
                 ];
             }
