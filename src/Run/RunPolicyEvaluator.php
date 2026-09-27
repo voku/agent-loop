@@ -413,23 +413,29 @@ final readonly class RunPolicyEvaluator
                 : $this->classifyAction($action, $references['verification']['action_invocation'] ?? null);
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
-            return $this->command(
-                'agent-loop',
-                [
-                    'finish',
-                    $taskId,
-                    '--learning',
-                    '<no_durable_learning|findings_recorded|follow_up_required>',
-                    '--by',
-                    '<actor>',
-                    '[--finding',
-                    '<finding-id>',
-                    '...]',
-                    '[--follow-up-ref',
-                    '<follow-up-ref>]',
-                ],
-                true,
-            );
+            return [
+                'action' => 'evaluate whether this run exposed an evidence-backed reusable lesson before choosing the Learning disposition; '
+                    . 'if yes, capture and provide Finding evidence; if a concrete out-of-scope item remains, provide its follow-up reference; '
+                    . 'otherwise explicitly choose no_durable_learning. Do not choose no_durable_learning merely to complete the Run.',
+                'kind' => RunPolicyEvaluation::KIND_DECISION_REQUIRED,
+                'invocation' => new RunCommandInvocation(
+                    'agent-loop',
+                    [
+                        'finish',
+                        $taskId,
+                        '--learning',
+                        '<no_durable_learning|findings_recorded|follow_up_required>',
+                        '--by',
+                        '<actor>',
+                        '[--finding',
+                        '<finding-id>',
+                        '...]',
+                        '[--follow-up-ref',
+                        '<follow-up-ref>]',
+                    ],
+                    true,
+                ),
+            ];
         }
         if ($this->referenceState($references, 'verification') === 'blocked') {
             $action = $this->referenceAction($references, 'verification');
