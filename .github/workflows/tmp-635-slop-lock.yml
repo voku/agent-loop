@@ -1,0 +1,36 @@
+name: Temporary slop-scan lock refresh
+
+on:
+  push:
+    branches:
+      - chore/635-slop-scan-017
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Resolve isolated slop-scan tool
+        run: |
+          composer update voku/slop-scan --with-all-dependencies \
+            --working-dir=tools/slop-scan \
+            --no-interaction --prefer-dist --no-progress
+          composer show voku/slop-scan --working-dir=tools/slop-scan --format=json > build-slop-version.json
+          php -r '$d=json_decode(file_get_contents("build-slop-version.json"), true, flags: JSON_THROW_ON_ERROR); if (($d["versions"][0] ?? null) !== "0.1.7") { fwrite(STDERR, json_encode($d).PHP_EOL); exit(1); }'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-635-slop-lock
+          if-no-files-found: error
+          path: |
+            tools/slop-scan/composer.lock
+            build-slop-version.json
