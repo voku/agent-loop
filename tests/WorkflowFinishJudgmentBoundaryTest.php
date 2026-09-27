@@ -345,10 +345,27 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertSame(1, $ack['exit']);
         self::assertFalse($ack['payload']['complete'] ?? true);
         self::assertSame('learning_decision', $ack['payload']['manifest']['references']['verification']['gate'] ?? null);
-        self::assertSame('command_template', $ack['payload']['next_action_kind'] ?? null);
+        self::assertSame('decision_required', $ack['payload']['next_action_kind'] ?? null);
         $nextAction = (string) ($ack['payload']['next_action'] ?? '');
-        self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --learning', $nextAction);
-        self::assertStringNotContainsString('--recall-outcome-draft', $nextAction);
+        self::assertStringContainsString('evaluate whether this run exposed an evidence-backed reusable lesson', $nextAction);
+        self::assertStringContainsString('Do not choose no_durable_learning merely to complete the Run.', $nextAction);
+        self::assertSame([
+            'executable' => 'agent-loop',
+            'arguments' => [
+                'finish',
+                'FINISH-RECALL-GATE',
+                '--learning',
+                '<no_durable_learning|findings_recorded|follow_up_required>',
+                '--by',
+                '<actor>',
+                '[--finding',
+                '<finding-id>',
+                '...]',
+                '[--follow-up-ref',
+                '<follow-up-ref>]',
+            ],
+            'template' => true,
+        ], $ack['payload']['next_action_invocation'] ?? null);
 
         /** @var list<OutcomeLoggingConfig> $calls */
         $calls = [];
@@ -371,10 +388,10 @@ final class WorkflowFinishJudgmentBoundaryTest extends TestCase
         self::assertSame(1, $recorded['exit']);
         self::assertFalse($recorded['payload']['complete'] ?? true);
         self::assertSame('learning_decision', $recorded['payload']['manifest']['references']['verification']['gate'] ?? null);
-        self::assertSame('command_template', $recorded['payload']['next_action_kind'] ?? null);
+        self::assertSame('decision_required', $recorded['payload']['next_action_kind'] ?? null);
         $advancedAction = (string) ($recorded['payload']['next_action'] ?? '');
-        self::assertStringContainsString('agent-loop finish FINISH-RECALL-GATE --learning', $advancedAction);
-        self::assertStringNotContainsString('--recall-outcome-draft', $advancedAction);
+        self::assertStringContainsString('evaluate whether this run exposed an evidence-backed reusable lesson', $advancedAction);
+        self::assertStringContainsString('Do not choose no_durable_learning merely to complete the Run.', $advancedAction);
         self::assertCount(1, $calls);
         self::assertSame($this->root . '/.agent-loop/learning', $calls[0]->rootConfig->root);
         self::assertSame($draft, $calls[0]->draftPath);
