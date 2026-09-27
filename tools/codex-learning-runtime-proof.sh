@@ -111,7 +111,7 @@ jq -n \
   jq -e '.next_action_kind == "command_template"' "${EVIDENCE_ROOT}/learning-decision-gate.json" >/dev/null
   jq -e '.next_action_invocation.executable == "agent-loop"' "${EVIDENCE_ROOT}/learning-decision-gate.json" >/dev/null
   jq -e '.next_action_invocation.template == true' "${EVIDENCE_ROOT}/learning-decision-gate.json" >/dev/null
-  jq -e '(.next_action_invocation.arguments | index("--learning")) != null and (.next_action_invocation.arguments | index("--finding")) != null' "${EVIDENCE_ROOT}/learning-decision-gate.json" >/dev/null
+  jq -e '(.next_action_invocation.arguments | index("--learning")) != null and any(.next_action_invocation.arguments[]; contains("--finding"))' "${EVIDENCE_ROOT}/learning-decision-gate.json" >/dev/null
 
   # The Learning reflection is driven by discovered machine evidence. If this
   # predicate stops being true, fail instead of manufacturing a Finding for #640.
