@@ -530,7 +530,7 @@ jobs:
                   status: "observed",
                   sandbox_backend: "bubblewrap",
                   runner_prerequisite: "GitHub runner AppArmor unprivileged-userns restriction disabled for the disposable proof job when that sysctl exists",
-                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. The runner prerequisite only permits Codex's own bubblewrap sandbox to start; it does not alter the parent or child permission profile. Only a parent-success/child-filesystem-block differential proves read-only enforcement."
+                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. The runner prerequisite only permits the Codex bubblewrap sandbox to start; it does not alter the parent or child permission profile. Only a parent-success/child-filesystem-block differential proves read-only enforcement."
                 }
               },
               not_proven_by_this_slice: {
