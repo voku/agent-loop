@@ -1,0 +1,159 @@
+name: Codex runtime proof
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-runtime-proof.yml'
+      - 'src/Init/**'
+      - 'resources/instructions/**'
+      - 'resources/skills/**'
+      - 'resources/subagents/**'
+      - 'resources/hooks/codex/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-proof:
+    name: Codex 0.157.0 host consumption
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CODEX_VERSION: '0.157.0'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Install repository dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install exact Codex runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CODEX_NON_INTERACTIVE=1
+          export CODEX_INSTALL_DIR="${RUNNER_TEMP}/codex-bin"
+          export CODEX_HOME="${RUNNER_TEMP}/codex-install-home"
+          curl -fsSL https://chatgpt.com/codex/install.sh |
+            sh -s -- --release "${CODEX_VERSION}"
+          echo "${CODEX_INSTALL_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Project disposable Codex repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof_root="${RUNNER_TEMP}/agent-loop-codex-runtime-proof"
+          runtime_home="${RUNNER_TEMP}/codex-runtime-home"
+          evidence_root="${GITHUB_WORKSPACE}/build/codex-runtime-proof"
+
+          rm -rf "${proof_root}" "${runtime_home}" "${evidence_root}"
+          mkdir -p "${proof_root}" "${runtime_home}" "${evidence_root}"
+          git -C "${proof_root}" init --initial-branch=main
+
+          (
+            cd "${proof_root}"
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init scaffold --demo --agent=codex
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init sync-policy --agent=codex
+          )
+
+          cat > "${runtime_home}/config.toml" <<EOF
+          [projects."${proof_root}"]
+          trust_level = "trusted"
+          EOF
+
+          echo "PROOF_ROOT=${proof_root}" >> "${GITHUB_ENV}"
+          echo "CODEX_HOME=${runtime_home}" >> "${GITHUB_ENV}"
+          echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
+
+          cp "${proof_root}/AGENTS.md" "${evidence_root}/projected-AGENTS.md"
+          cp "${proof_root}/.codex/skills/.agent-loop-manifest.json" "${evidence_root}/projected-codex-skills-manifest.json"
+          cp "${proof_root}/.codex/rules/agent-loop.rules" "${evidence_root}/projected-agent-loop.rules"
+
+      - name: Prove AGENTS.md and repository skill host consumption
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          codex --version | tee "${EVIDENCE_ROOT}/codex-version.txt"
+
+          (
+            cd "${PROOF_ROOT}"
+            env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN               codex debug prompt-input
+          ) > "${EVIDENCE_ROOT}/prompt-input.json"
+
+          grep -Fq 'agent-loop workflow router' "${EVIDENCE_ROOT}/prompt-input.json"
+          grep -Fq 'agent-loop-discipline' "${EVIDENCE_ROOT}/prompt-input.json"
+
+      - name: Prove forbidden decisions in Codex execpolicy engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          rules="${PROOF_ROOT}/.codex/rules/agent-loop.rules"
+
+          codex execpolicy check --pretty --rules "${rules}"             git push origin HEAD > "${EVIDENCE_ROOT}/execpolicy-git-push.json"
+          codex execpolicy check --pretty --rules "${rules}"             gh pr create --title proof --body proof > "${EVIDENCE_ROOT}/execpolicy-gh-pr-create.json"
+          codex execpolicy check --pretty --rules "${rules}"             gh pr merge 1 > "${EVIDENCE_ROOT}/execpolicy-gh-pr-merge.json"
+
+          jq -e '.decision == "forbidden"' "${EVIDENCE_ROOT}/execpolicy-git-push.json" >/dev/null
+          jq -e '.decision == "forbidden"' "${EVIDENCE_ROOT}/execpolicy-gh-pr-create.json" >/dev/null
+          jq -e '.decision == "forbidden"' "${EVIDENCE_ROOT}/execpolicy-gh-pr-merge.json" >/dev/null
+
+      - name: Record evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          codex_version="$(cat "${EVIDENCE_ROOT}/codex-version.txt")"
+
+          jq -n             --arg codex_version "${codex_version}"             '{
+              schema_version: "1.0",
+              codex_version: $codex_version,
+              observed: {
+                agents_md: {
+                  evidence_class: "host_consumption",
+                  mechanism: "codex debug prompt-input",
+                  status: "observed"
+                },
+                repository_skill: {
+                  evidence_class: "host_consumption",
+                  mechanism: "codex debug prompt-input",
+                  projected_path: ".codex/skills/agent-loop-discipline/SKILL.md",
+                  status: "observed"
+                },
+                forbidden_rules: {
+                  evidence_class: "enforcement_engine",
+                  mechanism: "codex execpolicy check with the projected rule file",
+                  status: "observed",
+                  boundary: "Explicit rule evaluation proves Codex execpolicy decisions; project-rule auto-loading and live shell-tool blocking are not claimed."
+                }
+              },
+              not_proven_by_this_slice: {
+                subagent_role_discovery_or_selection: true,
+                child_read_only_sandbox_enforcement: true,
+                parent_runtime_override_interaction: true,
+                hook_trust_or_execution: true,
+                project_rule_autoload: true,
+                mcp_authority_coverage: true
+              }
+            }' > "${EVIDENCE_ROOT}/evidence.json"
+
+          (cd "${EVIDENCE_ROOT}" && sha256sum ./* > SHA256SUMS)
+
+      - name: Upload Codex runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-runtime-proof-${{ github.sha }}
+          if-no-files-found: error
+          path: build/codex-runtime-proof
