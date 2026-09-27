@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use voku\AgentLearning\FindingClassifier;
+use voku\AgentLearning\FindingRepository;
+use voku\AgentLearning\LearningClassification;
+use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLearning\ValidationCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\HostFrontDoorApplication;
+use voku\AgentLoop\Workflow\HostLearningNoteFollowUpProjector;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
@@ -23,7 +29,6 @@ final class HostLearningNoteFollowUpApplicationTest extends TestCase
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-learning-note-application-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/src', 0o775, true);
-        mkdir($this->root . '/.agent-loop/learning/findings/validated', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nreturn 'current';\n");
     }
 
@@ -74,51 +79,57 @@ final class HostLearningNoteFollowUpApplicationTest extends TestCase
         $review = (new WorkflowReviewReportReader($this->root))->read($taskId);
         self::assertIsString($review['sha256']);
 
-        $findingId = 'finding.2026-09-02.349';
         $learningRoot = WorkflowLearningRoot::forRun($this->root, $run);
-        file_put_contents($learningRoot . '/findings/validated/' . $findingId . '.json', json_encode([
-            'id' => $findingId,
-            'task_id' => $taskId,
-            'session' => $session->id,
-            'created_at' => '2026-09-02T00:00:00+00:00',
-            'created_by' => 'fixture-agent',
-            'scope' => ['src/Foo.php'],
-            'observation' => 'A solved case should remain reusable without becoming active guidance.',
-            'evidence' => [[
-                'type' => 'manual_verification',
-                'summary' => 'Verified by the focused return-loop fixture.',
-            ]],
-            'hypothesis' => 'Optional precedent should be discoverable after close.',
-            'validated_conclusion' => 'LearningNote authoring can remain downstream of software completion.',
-            'confidence' => 'high',
-            'validation_status' => 'validated',
-            'status' => 'validated',
-            'sensitivity' => 'public',
-            'classification' => 'ADD_LEARNING_NOTE',
-            'pattern_key' => 'workflow.learning_note_return_loop',
-            'validation_case' => [
-                'given' => 'A completed software change with an explicit LearningNote-classified Finding.',
-                'when' => 'finish closes the governed Run.',
-                'then' => 'the host sees optional LearningNote authoring without another close gate.',
-            ],
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 
         $closed = $this->finish($taskId, [
             '--reviewed-report-sha256', (string) $review['sha256'],
-            '--learning', 'findings_recorded',
-            '--learning-reason', 'The solved case is useful precedent but not active guidance.',
+            // Inline Finding capture deliberately does not classify reusable learning.
+            // Capture and promotion metadata have separate Learning-owned write paths.
             '--by', 'fixture-reviewer',
-            '--finding', $findingId,
+            '--finding-observation', 'A solved case should remain reusable without becoming active guidance.',
+            '--finding-hypothesis', 'Optional precedent should be discoverable after Learning classifies the Finding.',
+            '--finding-conclusion', 'LearningNote authoring can remain downstream of software completion.',
+            '--finding-confidence', 'high',
+            '--finding-sensitivity', 'public',
         ]);
 
         self::assertSame(0, $closed['exit'], json_encode($closed['payload'], JSON_THROW_ON_ERROR));
         self::assertTrue($closed['payload']['complete'] ?? false);
         self::assertSame('none', $closed['payload']['next_action'] ?? null);
+        self::assertSame([], $closed['payload']['optional_follow_ups'] ?? null);
+
+        $decision = (new RunLearningDecisionStore($learningRoot))->find($run->runId);
+        self::assertNotNull($decision);
+        self::assertCount(1, $decision->findingIds);
+        $findingId = $decision->findingIds[0];
+
+        $findings = (new FindingRepository())->loadValidated($learningRoot);
+        $finding = $findings[$findingId] ?? null;
+        self::assertNotNull($finding);
+        self::assertNull($finding->classification);
+        self::assertNull($finding->patternKey);
+        self::assertNull($finding->validationCase);
+
+        $projector = new HostLearningNoteFollowUpProjector($this->root);
+        self::assertSame([], $projector->project($taskId));
+
+        (new FindingClassifier())->classify(
+            root: $learningRoot,
+            findingId: $findingId,
+            classification: LearningClassification::ADD_LEARNING_NOTE,
+            patternKey: 'workflow.learning_note_return_loop',
+            validationCase: new ValidationCase(
+                given: 'A completed software change with an evidence-backed Finding.',
+                when: 'Learning classifies the Finding as ADD_LEARNING_NOTE.',
+                then: 'The host exposes optional LearningNote authoring without another close gate.',
+            ),
+        );
+
         self::assertSame([[
             'kind' => 'learning_note',
             'finding_ids' => [$findingId],
             'skill' => 'agent-learning-note',
-        ]], $closed['payload']['optional_follow_ups'] ?? null);
+        ]], $projector->project($taskId));
     }
 
     /**
