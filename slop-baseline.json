@@ -40,7 +40,7 @@
         }
     },
     "summary": {
-        "findingCount": 10
+        "findingCount": 74
     },
     "findings": [
         {
@@ -309,6 +309,732 @@
                         "path": "src/Workflow/ValidationDiagnosticStore.php",
                         "line": 136,
                         "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 156,
+                    "column": 34
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "efa0f37d93db624e1cc5985b89828aca1e8e30b15d702faf5cc9dc5d1a09bbd9",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 156,
+                        "column": 34
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 182,
+                    "column": 30
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "5d3ab2895d89e0248cd3b0031074a0f3f30a8255cf314422397fd08fcb58ff5d",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 182,
+                        "column": 30
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 300,
+                    "column": 30
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "407658081af41e8a2f214484483de1d73b5dd9413634c04a7a5114d8a815458e",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 300,
+                        "column": 30
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 438,
+                    "column": 115
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "413078edeb7251b6382b064fca404aec528832e28455807e15e41858c0d3fc4e",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 438,
+                        "column": 115
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 522,
+                    "column": 29
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "16a31da3d7db58dcc693c2bc61a36cd2cf0110220177482ddbdd8df065379432",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 522,
+                        "column": 29
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 601,
+                    "column": 42
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "30d3b89e24641321f335f3e1d67b5a672ac3b2e827e807710722aee7b9108d42",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 601,
+                        "column": 42
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 656,
+                    "column": 34
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "f44f53332ea2a6bc3fb0095eff27b37bf3869c3304683d7bb3f5bd420d7c9290",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 656,
+                        "column": 34
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestProjector.php",
+                    "line": 882,
+                    "column": 30
+                }
+            ],
+            "path": "src/Run/RunManifestProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "54cabe04ee9da651c3b36eb3ab4bff5f66c5ae2eedda76cbb80c96cfcc74c44d",
+                        "path": "src/Run/RunManifestProjector.php",
+                        "line": 882,
+                        "column": 30
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunManifestStore.php",
+                    "line": 93,
+                    "column": 29
+                }
+            ],
+            "path": "src/Run/RunManifestStore.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "f5d7f1b35257cc01c5a0d3445e52dec955afe7a221bb8e154a723761cada7ad2",
+                        "path": "src/Run/RunManifestStore.php",
+                        "line": 93,
+                        "column": 29
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/ExecutionContractStore.php",
+                    "line": 97,
+                    "column": 29
+                }
+            ],
+            "path": "src/Workflow/ExecutionContractStore.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "d6cf6f2721235f5cc5cbd300606f440cf2fca4591986d2db6a6e9d20a7b723c4",
+                        "path": "src/Workflow/ExecutionContractStore.php",
+                        "line": 97,
+                        "column": 29
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/HostFrontDoorApplication.php",
+                    "line": 107,
+                    "column": 38
+                }
+            ],
+            "path": "src/Workflow/HostFrontDoorApplication.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "4d33c8fbc9455dc59152ebab84221442015552e650c9a2df0b25b9439d7f02ba",
+                        "path": "src/Workflow/HostFrontDoorApplication.php",
+                        "line": 107,
+                        "column": 38
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/HostFrontDoorCommand.php",
+                    "line": 83,
+                    "column": 34
+                }
+            ],
+            "path": "src/Workflow/HostFrontDoorCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "c0bb89956e449fd628980e00b25d0892bb2e95c9468175f877e3e306b603089a",
+                        "path": "src/Workflow/HostFrontDoorCommand.php",
+                        "line": 83,
+                        "column": 34
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowApproveCommand.php",
+                    "line": 71,
+                    "column": 32
+                }
+            ],
+            "path": "src/Workflow/WorkflowApproveCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "13a04c69bada89a2ff7f043da0344ad69a800f2b544fba739871c7e5c22cb5ba",
+                        "path": "src/Workflow/WorkflowApproveCommand.php",
+                        "line": 71,
+                        "column": 32
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowCloseCommand.php",
+                    "line": 274,
+                    "column": 32
+                }
+            ],
+            "path": "src/Workflow/WorkflowCloseCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "e8492b15b5b8721594aef60d42fe071e8052e6b0d7c3ef35d608a08893c8d8fe",
+                        "path": "src/Workflow/WorkflowCloseCommand.php",
+                        "line": 274,
+                        "column": 32
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowCloseReadinessInspector.php",
+                    "line": 58,
+                    "column": 59
+                }
+            ],
+            "path": "src/Workflow/WorkflowCloseReadinessInspector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "afd3cf21ea3581f4d8b699020f0d5bf1b79f6c91c271cb2fac43e2f744972fd2",
+                        "path": "src/Workflow/WorkflowCloseReadinessInspector.php",
+                        "line": 58,
+                        "column": 59
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowHookRunner.php",
+                    "line": 77,
+                    "column": 32
+                }
+            ],
+            "path": "src/Workflow/WorkflowHookRunner.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "dc1b7b3c084801740f594c5dc59a2f92b09f58b6606e69e663a0708e99a1bb33",
+                        "path": "src/Workflow/WorkflowHookRunner.php",
+                        "line": 77,
+                        "column": 32
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowPipelineCommand.php",
+                    "line": 87,
+                    "column": 34
+                }
+            ],
+            "path": "src/Workflow/WorkflowPipelineCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "a15142d4a496769c55e081d8a15b8397f1c7a78eae595eba94e27b911b9c2518",
+                        "path": "src/Workflow/WorkflowPipelineCommand.php",
+                        "line": 87,
+                        "column": 34
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowPipelineCommand.php",
+                    "line": 100,
+                    "column": 34
+                }
+            ],
+            "path": "src/Workflow/WorkflowPipelineCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "24676e5aec9684d42aeb6c51dd3266923386cd162fe06903b440526b773777c5",
+                        "path": "src/Workflow/WorkflowPipelineCommand.php",
+                        "line": 100,
+                        "column": 34
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowPlanCommand.php",
+                    "line": 105,
+                    "column": 32
+                }
+            ],
+            "path": "src/Workflow/WorkflowPlanCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "1025adb23e3832da1ad6f584bc06a8362c21b609adfdc2a11a360a2874b15f94",
+                        "path": "src/Workflow/WorkflowPlanCommand.php",
+                        "line": 105,
+                        "column": 32
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/WorkflowStatusCommand.php",
+                    "line": 77,
+                    "column": 32
+                }
+            ],
+            "path": "src/Workflow/WorkflowStatusCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "ff89f64cf9762ab80d9f7ab9af67d6fc8ad95222a4d28e85f82a6e7aedc6a788",
+                        "path": "src/Workflow/WorkflowStatusCommand.php",
+                        "line": 77,
+                        "column": 32
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tools/agent-discipline-dogfood.php",
+                    "line": 403,
+                    "column": 20
+                }
+            ],
+            "path": "tools/agent-discipline-dogfood.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "8d4a460a6d6b31f6dcc310eb0999310c65fd794991f0211496e4403269a18bad",
+                        "path": "tools/agent-discipline-dogfood.php",
+                        "line": 403,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.catch-returns-exception-message",
+            "family": "error-handling",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found PHP catch block that flattens the caught exception into generic string data",
+            "why": "Flattening caught exception text into ordinary return or payload data blurs success and failure paths and loses typed failure context.",
+            "suggestedAction": "Preserve the exception path or map it to a deliberate typed/domain error result instead of generic string data.",
+            "confidence": "high",
+            "evidence": [
+                "normalization=property-caught-message"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tools/release-set-dogfood.php",
+                    "line": 114,
+                    "column": 30
+                }
+            ],
+            "path": "tools/release-set-dogfood.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "8d959c6d152770e5df6af836ecde0038bae516dc319604792b6690dcd1085fa7",
+                        "path": "tools/release-set-dogfood.php",
+                        "line": 114,
+                        "column": 30
                     }
                 ]
             }
@@ -663,6 +1389,1434 @@
                         "path": "src/AgentLoopVerifier.php",
                         "line": 440,
                         "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Run/RunVerificationReceiptStore.php",
+                    "line": 139,
+                    "column": 21
+                }
+            ],
+            "path": "src/Run/RunVerificationReceiptStore.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "de5480327a52633275d8fcb610de7bd0a0a1e23e9b87b8e337eb101034d3951d",
+                        "path": "src/Run/RunVerificationReceiptStore.php",
+                        "line": 139,
+                        "column": 21
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/ControlPlanePresentationProjector.php",
+                    "line": 81,
+                    "column": 24
+                }
+            ],
+            "path": "src/Workflow/ControlPlanePresentationProjector.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "953c804608b845d235b1b9d560f44b035e8a5b7def731efe9425a4ceca9b61b5",
+                        "path": "src/Workflow/ControlPlanePresentationProjector.php",
+                        "line": 81,
+                        "column": 24
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/HostFrontDoorApplication.php",
+                    "line": 65,
+                    "column": 24
+                }
+            ],
+            "path": "src/Workflow/HostFrontDoorApplication.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "48b79b0b7e1783fce4c6f88c06961d6bcc588695be82f3cd93ac62c99b122f0b",
+                        "path": "src/Workflow/HostFrontDoorApplication.php",
+                        "line": 65,
+                        "column": 24
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/HostFrontDoorCommand.php",
+                    "line": 751,
+                    "column": 17
+                }
+            ],
+            "path": "src/Workflow/HostFrontDoorCommand.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "fd3b13f6dc5b63c114c5b592e6f926077196ad0d129244c6b4174cc7b32eca39",
+                        "path": "src/Workflow/HostFrontDoorCommand.php",
+                        "line": 751,
+                        "column": 17
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/ValidationDiagnosticStore.php",
+                    "line": 133,
+                    "column": 21
+                }
+            ],
+            "path": "src/Workflow/ValidationDiagnosticStore.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "a0003cc1fddd86336323eba30fd6386bdc8e9dce42332ec53f4c7d65cf04af99",
+                        "path": "src/Workflow/ValidationDiagnosticStore.php",
+                        "line": 133,
+                        "column": 21
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/AgentMapDiscoveryBinaryTest.php",
+                    "line": 82,
+                    "column": 24
+                }
+            ],
+            "path": "tests/AgentMapDiscoveryBinaryTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "b8371e2e8809dc824c87346660fe53923c081aa6bd48d70827649989ad0b387f",
+                        "path": "tests/AgentMapDiscoveryBinaryTest.php",
+                        "line": 82,
+                        "column": 24
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/AgentMapPlanCapabilityContractTest.php",
+                    "line": 23,
+                    "column": 20
+                }
+            ],
+            "path": "tests/AgentMapPlanCapabilityContractTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "1730f8914302012f10c71d2b449b2e1a1a001db39edda7ce80af42aeb2e55246",
+                        "path": "tests/AgentMapPlanCapabilityContractTest.php",
+                        "line": 23,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/Cli/CommandCatalogTest.php",
+                    "line": 82,
+                    "column": 17
+                }
+            ],
+            "path": "tests/Cli/CommandCatalogTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "0ea69e4d7b080ac0ee3db1bb237bcfafb8041ea2a368326ad6bfc496a290595d",
+                        "path": "tests/Cli/CommandCatalogTest.php",
+                        "line": 82,
+                        "column": 17
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/Cli/CommandCatalogTest.php",
+                    "line": 145,
+                    "column": 17
+                }
+            ],
+            "path": "tests/Cli/CommandCatalogTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "5284d9dc9b174900d70d156a6defec91aa091aa4fb4912dab009e0c4bef29df3",
+                        "path": "tests/Cli/CommandCatalogTest.php",
+                        "line": 145,
+                        "column": 17
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$config",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/CompactLayoutIntegrationTest.php",
+                    "line": 47,
+                    "column": 19
+                }
+            ],
+            "path": "tests/CompactLayoutIntegrationTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "8b55b0f20068d97982e979836cc21dd459963cf3213117bb47750371ef07f61d",
+                        "path": "tests/CompactLayoutIntegrationTest.php",
+                        "line": 47,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/Dogfood/AutonomousReplanDogfoodTest.php",
+                    "line": 302,
+                    "column": 20
+                }
+            ],
+            "path": "tests/Dogfood/AutonomousReplanDogfoodTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "88a978e26baee0bbe5b936674443e2d8018816ffda2cdf3354d55ab48036487b",
+                        "path": "tests/Dogfood/AutonomousReplanDogfoodTest.php",
+                        "line": 302,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+                    "line": 312,
+                    "column": 20
+                }
+            ],
+            "path": "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "36b947b4b3c64d7661f35f248367ecade531a66297f3b2c593b7546e975a03d3",
+                        "path": "tests/Dogfood/LearningNoteTwoRunDogfoodTest.php",
+                        "line": 312,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$result",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/EditCommandIntegrationTest.php",
+                    "line": 128,
+                    "column": 19
+                }
+            ],
+            "path": "tests/EditCommandIntegrationTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "273be2d0c4aa2dc2beaf4f692b40f48a3cd7d14afb978d2bba5cd2689743c307",
+                        "path": "tests/EditCommandIntegrationTest.php",
+                        "line": 128,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$result",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/EditVerifyCommandTest.php",
+                    "line": 138,
+                    "column": 19
+                }
+            ],
+            "path": "tests/EditVerifyCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "a78066e2f1a7096d41984e08306e6f45a200e2a5ad2bd096189e1c2b753e76a1",
+                        "path": "tests/EditVerifyCommandTest.php",
+                        "line": 138,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$result",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/EditVerifyCommandTest.php",
+                    "line": 181,
+                    "column": 19
+                }
+            ],
+            "path": "tests/EditVerifyCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "3f02952dc3b8ab7020db73758a32dbc5a19441b4da76ab82414d9b88ff41a481",
+                        "path": "tests/EditVerifyCommandTest.php",
+                        "line": 181,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/EnterPreparationFailureRoutingTest.php",
+                    "line": 135,
+                    "column": 20
+                }
+            ],
+            "path": "tests/EnterPreparationFailureRoutingTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "8e8ce9b628c4ee02da8a892fa77dffc9d1f637ec1685ae082e2ab8faf104c865",
+                        "path": "tests/EnterPreparationFailureRoutingTest.php",
+                        "line": 135,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/EnterReconcilesDiscoveryTest.php",
+                    "line": 289,
+                    "column": 20
+                }
+            ],
+            "path": "tests/EnterReconcilesDiscoveryTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "86000704d15d11c146984548c9edd0468d910e0997b68ed0797847e4dc755051",
+                        "path": "tests/EnterReconcilesDiscoveryTest.php",
+                        "line": 289,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/ExecutionGatewayExecutionContractTest.php",
+                    "line": 241,
+                    "column": 20
+                }
+            ],
+            "path": "tests/ExecutionGatewayExecutionContractTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "b600bcd95f4552584b4db302729edeee0699c7f15050e6071732a7bc6b71f052",
+                        "path": "tests/ExecutionGatewayExecutionContractTest.php",
+                        "line": 241,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/HostFinishFindingIdContractTest.php",
+                    "line": 241,
+                    "column": 20
+                }
+            ],
+            "path": "tests/HostFinishFindingIdContractTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "2c206cb00d55d2216f33d037a9d0222710a8dd0515415f2890f4c395d835a77b",
+                        "path": "tests/HostFinishFindingIdContractTest.php",
+                        "line": 241,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/HostLearningNoteFollowUpApplicationTest.php",
+                    "line": 140,
+                    "column": 20
+                }
+            ],
+            "path": "tests/HostLearningNoteFollowUpApplicationTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "e5c77bc39ca1ad760a450fa9999b0b73c3dfa690f12047896ab38fa4df7974a5",
+                        "path": "tests/HostLearningNoteFollowUpApplicationTest.php",
+                        "line": 140,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$config",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/InitScaffoldArchiveTest.php",
+                    "line": 75,
+                    "column": 19
+                }
+            ],
+            "path": "tests/InitScaffoldArchiveTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "e0d2e729cbda19ccbea40e06a55219426d5645cf7354471a054d71a239fd1081",
+                        "path": "tests/InitScaffoldArchiveTest.php",
+                        "line": 75,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$config",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/InitScaffoldArchiveTest.php",
+                    "line": 97,
+                    "column": 19
+                }
+            ],
+            "path": "tests/InitScaffoldArchiveTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "07e81a5a3dcae525fc38a1f88920ee68c9b2c7e9c321046e210a1b3a912f10a8",
+                        "path": "tests/InitScaffoldArchiveTest.php",
+                        "line": 97,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$result",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/LearningCaptureDispatcherTest.php",
+                    "line": 44,
+                    "column": 19
+                }
+            ],
+            "path": "tests/LearningCaptureDispatcherTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "4d40f34f55d9cfe45f44e318ff6195def80955dcf0923acddd42769bda112577",
+                        "path": "tests/LearningCaptureDispatcherTest.php",
+                        "line": 44,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$record",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/LearningCaptureDispatcherTest.php",
+                    "line": 50,
+                    "column": 19
+                }
+            ],
+            "path": "tests/LearningCaptureDispatcherTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "53352d0385dd9d7dc46243671fdb782d994bc6c237aa5ccce62a0a913152cc30",
+                        "path": "tests/LearningCaptureDispatcherTest.php",
+                        "line": 50,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$record",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/LearningCaptureDispatcherTest.php",
+                    "line": 92,
+                    "column": 19
+                }
+            ],
+            "path": "tests/LearningCaptureDispatcherTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "d71096adb94dc7d72b58514540a95c45780dadd87e6555cbd0d8339b820d9231",
+                        "path": "tests/LearningCaptureDispatcherTest.php",
+                        "line": 92,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/ManagedAssetPortableProvenanceTest.php",
+                    "line": 46,
+                    "column": 20
+                }
+            ],
+            "path": "tests/ManagedAssetPortableProvenanceTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "95385a87fac527728cb47b79c8d82b3747dffb89cac102fa4ea7908ad4134a64",
+                        "path": "tests/ManagedAssetPortableProvenanceTest.php",
+                        "line": 46,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/ManagedAssetPortableProvenanceTest.php",
+                    "line": 98,
+                    "column": 20
+                }
+            ],
+            "path": "tests/ManagedAssetPortableProvenanceTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "55cada0a06f56d15a048ea024779223e2286be6e0e91ed6f3ba62686a1c60256",
+                        "path": "tests/ManagedAssetPortableProvenanceTest.php",
+                        "line": 98,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$result",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/MethodRemovalVerifyCommandTest.php",
+                    "line": 99,
+                    "column": 19
+                }
+            ],
+            "path": "tests/MethodRemovalVerifyCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "efe5e4f51402c4fcab1d0ac8cbff6f374682638dd695317f3580e5813a837115",
+                        "path": "tests/MethodRemovalVerifyCommandTest.php",
+                        "line": 99,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/ProgressiveGovernanceTest.php",
+                    "line": 219,
+                    "column": 20
+                }
+            ],
+            "path": "tests/ProgressiveGovernanceTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "86df786f39ec55ce32ac21d3e85b4b7572dccfbf59d991369283f8c051f2eb0f",
+                        "path": "tests/ProgressiveGovernanceTest.php",
+                        "line": 219,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$result",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/PropertyRemovalVerifyCommandTest.php",
+                    "line": 97,
+                    "column": 19
+                }
+            ],
+            "path": "tests/PropertyRemovalVerifyCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "24ff9ddf95d73d060688079bdb292315b7dfc66d3fd223fa46efc7ddd42d5d88",
+                        "path": "tests/PropertyRemovalVerifyCommandTest.php",
+                        "line": 97,
+                        "column": 19
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/RefactorEditCommandTest.php",
+                    "line": 182,
+                    "column": 17
+                }
+            ],
+            "path": "tests/RefactorEditCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "96261effc9d7f4e302c472504809524a7cb730d2ef7b175f61b74a09cf474ad3",
+                        "path": "tests/RefactorEditCommandTest.php",
+                        "line": 182,
+                        "column": 17
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/TemporalDispatcherTest.php",
+                    "line": 63,
+                    "column": 24
+                }
+            ],
+            "path": "tests/TemporalDispatcherTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "c75d0771945646224ec8b60d8e7301c34ef1ed9c2d821ba481db9721f0e59b0a",
+                        "path": "tests/TemporalDispatcherTest.php",
+                        "line": 63,
+                        "column": 24
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/TemporalDispatcherTest.php",
+                    "line": 111,
+                    "column": 24
+                }
+            ],
+            "path": "tests/TemporalDispatcherTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "057af6eb28fe61a0c63af8ac418cc310d75d2fab3710094355b8afddb11c132b",
+                        "path": "tests/TemporalDispatcherTest.php",
+                        "line": 111,
+                        "column": 24
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowApproveSearchIndexEvidenceTest.php",
+                    "line": 145,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowApproveSearchIndexEvidenceTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "9a175c5dbb403e7c207d74cbd8851f52f2507081f99a7c06c14ae077a65625b8",
+                        "path": "tests/WorkflowApproveSearchIndexEvidenceTest.php",
+                        "line": 145,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowFinishFindingTest.php",
+                    "line": 122,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowFinishFindingTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "30da5e1e758ed2e04dcbd1a447cc7f3b536b7dcfe437662c14b4600a2000acc6",
+                        "path": "tests/WorkflowFinishFindingTest.php",
+                        "line": 122,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
+                    "line": 592,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "0364a15b64c6ccb6b00f82517a0a4b7d1092dac4be9d68622d5ed2950f7032d9",
+                        "path": "tests/WorkflowFinishJudgmentBoundaryTest.php",
+                        "line": 592,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowFinishValidationConvergenceTest.php",
+                    "line": 191,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowFinishValidationConvergenceTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "74ee08f644ae8f5b4e41ce683faf8e20f0d3696d8dc2bc28379e940f436761da",
+                        "path": "tests/WorkflowFinishValidationConvergenceTest.php",
+                        "line": 191,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowFinishValidationTest.php",
+                    "line": 160,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowFinishValidationTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "c977845d0912c090fbf9f8111d6be2c31e1032c30e5786d605b820d48c0b60f8",
+                        "path": "tests/WorkflowFinishValidationTest.php",
+                        "line": 160,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowPipelineCommandTest.php",
+                    "line": 204,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowPipelineCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "ec2c8d818f4156a87b861971f3a98e1cdbfaf13a4d3dcc28c4445efe8826d368",
+                        "path": "tests/WorkflowPipelineCommandTest.php",
+                        "line": 204,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowRepairCommandTest.php",
+                    "line": 48,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowRepairCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "e944f14e3416c04b5c62c4c9949cdf3a0045abfc817cb7ed4a6427e0f7218aa6",
+                        "path": "tests/WorkflowRepairCommandTest.php",
+                        "line": 48,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowRepairCommandTest.php",
+                    "line": 83,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowRepairCommandTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "0621b536dc4831231dbd63bcead52d4e8050036df5925a1d56d9e1b20627c5de",
+                        "path": "tests/WorkflowRepairCommandTest.php",
+                        "line": 83,
+                        "column": 20
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "tests/WorkflowSupersessionRecoveryTest.php",
+                    "line": 337,
+                    "column": 20
+                }
+            ],
+            "path": "tests/WorkflowSupersessionRecoveryTest.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "c190051f44c39d252668942a05df902c6b5c47673d8d51e42b5f98ca4c9ea470",
+                        "path": "tests/WorkflowSupersessionRecoveryTest.php",
+                        "line": 337,
+                        "column": 20
                     }
                 ]
             }
