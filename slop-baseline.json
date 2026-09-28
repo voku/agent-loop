@@ -7,7 +7,37 @@
             "version": "0.1.0"
         },
         "configHash": "9cf885b3f20fd5d8ab354c887acdd8e57b4eb31fbd7fa404b066c07e24c8d1cd",
-        "findingFingerprintVersion": 1
+        "findingFingerprintVersion": 1,
+        "baselineCompatibility": {
+            "ruleSemanticsVersion": 2,
+            "activeRuleIds": [
+                "markdown.low-signal",
+                "php.blanket-static-analysis-suppressions",
+                "php.catch-default-fallbacks",
+                "php.catch-returns-exception-message",
+                "php.clone-cluster",
+                "php.commented-out-code",
+                "php.debug-output",
+                "php.duplicate-function-signatures",
+                "php.duplicate-mock-setup",
+                "php.empty-catch",
+                "php.error-obscuring-catch",
+                "php.error-swallowing",
+                "php.exception-wrap-without-previous",
+                "php.excessive-static-analysis-suppressions",
+                "php.generic-array-casts",
+                "php.generic-status-envelopes",
+                "php.misleading-phpdoc-types",
+                "php.mock-heavy-tests-without-assertions",
+                "php.over-fragmentation",
+                "php.pass-through-wrappers",
+                "php.placeholder-comments",
+                "php.placeholder-method-bodies",
+                "php.return-constant-stub",
+                "php.stacked-static-analysis-suppressions",
+                "php.type-escape-hotspots"
+            ]
+        }
     },
     "summary": {
         "findingCount": 10
