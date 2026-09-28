@@ -1405,16 +1405,16 @@
         },
         {
             "name": "voku/slop-scan",
-            "version": "0.1.10",
+            "version": "0.1.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/slop-scan.git",
-                "reference": "7500a3628c579cb2cf80a4f8177d5ca7108c0ea5"
+                "reference": "2ec486d0d3d0fac4020f376d0b2695ae5b017894"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/slop-scan/zipball/7500a3628c579cb2cf80a4f8177d5ca7108c0ea5",
-                "reference": "7500a3628c579cb2cf80a4f8177d5ca7108c0ea5",
+                "url": "https://api.github.com/repos/voku/slop-scan/zipball/2ec486d0d3d0fac4020f376d0b2695ae5b017894",
+                "reference": "2ec486d0d3d0fac4020f376d0b2695ae5b017894",
                 "shasum": ""
             },
             "require": {
@@ -1452,9 +1452,9 @@
             "description": "Deterministic PHP CLI for explainable slop heuristics in PHP repositories.",
             "support": {
                 "issues": "https://github.com/voku/slop-scan/issues",
-                "source": "https://github.com/voku/slop-scan/tree/0.1.10"
+                "source": "https://github.com/voku/slop-scan/tree/0.1.11"
             },
-            "time": "2026-09-28T04:14:12+00:00"
+            "time": "2026-09-28T09:21:17+00:00"
         },
         {
             "name": "webmozart/assert",
