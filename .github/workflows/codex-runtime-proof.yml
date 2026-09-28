@@ -431,10 +431,10 @@ jobs:
 
             if test -f "${sentinel_path}"; then
               printf '%s\n' 'write_succeeded' > "${result_path}"
+            elif grep -Eiq 'bwrap:.*(operation not permitted|permission denied)|failed rtm_newaddr' "${output_path}"; then
+              printf '%s\n' 'sandbox_launch_failed' > "${result_path}"
             elif grep -Eiq 'read-only file system|permission denied' "${output_path}"; then
               printf '%s\n' 'filesystem_write_blocked' > "${result_path}"
-            elif grep -Eiq 'bwrap:.*operation not permitted|failed rtm_newaddr' "${output_path}"; then
-              printf '%s\n' 'sandbox_launch_failed' > "${result_path}"
             else
               printf '%s\n' 'write_failed_ambiguous' > "${result_path}"
             fi
