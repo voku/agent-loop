@@ -66,6 +66,16 @@ jobs:
             "${GITHUB_WORKSPACE}/bin/agent-loop" init sync-policy --agent=codex
           )
 
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sysctl -n kernel.apparmor_restrict_unprivileged_userns > "${evidence_root}/apparmor-userns-before.txt"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            sysctl -n kernel.apparmor_restrict_unprivileged_userns > "${evidence_root}/apparmor-userns-after.txt"
+            test "$(cat "${evidence_root}/apparmor-userns-after.txt")" = '0'
+          else
+            printf '%s\n' 'unavailable' > "${evidence_root}/apparmor-userns-before.txt"
+            printf '%s\n' 'unavailable' > "${evidence_root}/apparmor-userns-after.txt"
+          fi
+
           cat > "${runtime_home}/config.toml" <<EOF
           [projects."${proof_root}"]
           trust_level = "trusted"
@@ -96,7 +106,7 @@ jobs:
           grep -Fq 'agent-loop workflow router' "${EVIDENCE_ROOT}/prompt-input.json"
           grep -Fq 'agent-loop-discipline' "${EVIDENCE_ROOT}/prompt-input.json"
 
-      - name: Prove projected subagent role discovery in Codex tool contract
+      - name: Prove projected subagent role discovery and selection in Codex runtime
         shell: bash
         env:
           OPENAI_API_KEY: ''
@@ -104,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           server_script="${RUNNER_TEMP}/codex-runtime-proof-server.py"
-          request_path="${EVIDENCE_ROOT}/subagent-discovery-request.json"
+          request_prefix="${EVIDENCE_ROOT}/subagent-runtime-request"
           port_path="${RUNNER_TEMP}/codex-runtime-proof-port"
 
           cat > "${server_script}" <<'PY'
@@ -112,38 +122,215 @@ jobs:
           import json
           import os
 
-          request_path = os.environ["REQUEST_PATH"]
+          request_prefix = os.environ["REQUEST_PREFIX"]
           port_path = os.environ["PORT_PATH"]
 
+          def completed_events(response_id):
+              return [
+                  {"type": "response.created", "response": {"id": response_id}},
+                  {
+                      "type": "response.completed",
+                      "response": {
+                          "id": response_id,
+                          "usage": {
+                              "input_tokens": 0,
+                              "input_tokens_details": None,
+                              "output_tokens": 0,
+                              "output_tokens_details": None,
+                              "total_tokens": 0,
+                          },
+                      },
+                  },
+              ]
+
           class Handler(http.server.BaseHTTPRequestHandler):
+              request_count = 0
+
               def log_message(self, format, *args):
                   return
 
               def do_POST(self):
+                  Handler.request_count += 1
+                  request_number = Handler.request_count
                   length = int(self.headers.get("Content-Length", "0"))
                   body = self.rfile.read(length)
-                  with open(request_path, "wb") as handle:
+                  with open(f"{request_prefix}-{request_number}.json", "wb") as handle:
                       handle.write(body)
 
-                  events = [
-                      {
-                          "type": "response.created",
-                          "response": {"id": "resp-agent-loop-discovery"},
-                      },
-                      {
-                          "type": "response.completed",
-                          "response": {
-                              "id": "resp-agent-loop-discovery",
-                              "usage": {
-                                  "input_tokens": 0,
-                                  "input_tokens_details": None,
-                                  "output_tokens": 0,
-                                  "output_tokens_details": None,
-                                  "total_tokens": 0,
+                  if request_number == 1:
+                      events = [
+                          {
+                              "type": "response.created",
+                              "response": {"id": "resp-agent-loop-parent-write"},
+                          },
+                          {
+                              "type": "response.output_item.done",
+                              "item": {
+                                  "type": "function_call",
+                                  "call_id": "call-agent-loop-parent-write",
+                                  "name": "exec_command",
+                                  "arguments": json.dumps({
+                                      "cmd": "printf 'parent-authority-probe\\n' > .agent-loop-parent-authority-probe",
+                                  }),
                               },
                           },
-                      },
-                  ]
+                          {
+                              "type": "response.completed",
+                              "response": {
+                                  "id": "resp-agent-loop-parent-write",
+                                  "usage": {
+                                      "input_tokens": 0,
+                                      "input_tokens_details": None,
+                                      "output_tokens": 0,
+                                      "output_tokens_details": None,
+                                      "total_tokens": 0,
+                                  },
+                              },
+                          },
+                      ]
+                  else:
+                      request = json.loads(body)
+                      request_text = body.decode("utf-8", errors="replace")
+                      parent_write_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-parent-write"
+                          ),
+                          None,
+                      )
+                      child_write_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-child-write"
+                          ),
+                          None,
+                      )
+                      spawn_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-selection"
+                          ),
+                          None,
+                      )
+                      wait_output = next(
+                          (
+                              item
+                              for item in request.get("input", [])
+                              if item.get("type") == "function_call_output"
+                              and item.get("call_id") == "call-agent-loop-wait"
+                          ),
+                          None,
+                      )
+                      if child_write_output is not None:
+                          events = completed_events(f"resp-agent-loop-child-complete-{request_number}")
+                      elif "Locate. Verify. Report. Stop." in request_text:
+                          events = [
+                              {
+                                  "type": "response.created",
+                                  "response": {"id": "resp-agent-loop-child-write"},
+                              },
+                              {
+                                  "type": "response.output_item.done",
+                                  "item": {
+                                      "type": "function_call",
+                                      "call_id": "call-agent-loop-child-write",
+                                      "name": "exec_command",
+                                      "arguments": json.dumps({
+                                          "cmd": "printf 'child-authority-probe\\n' > .agent-loop-child-authority-probe",
+                                      }),
+                                  },
+                              },
+                              {
+                                  "type": "response.completed",
+                                  "response": {
+                                      "id": "resp-agent-loop-child-write",
+                                      "usage": {
+                                          "input_tokens": 0,
+                                          "input_tokens_details": None,
+                                          "output_tokens": 0,
+                                          "output_tokens_details": None,
+                                          "total_tokens": 0,
+                                      },
+                                  },
+                              },
+                          ]
+                      elif parent_write_output is not None and spawn_output is None:
+                          events = [
+                              {
+                                  "type": "response.created",
+                                  "response": {"id": "resp-agent-loop-parent-spawn"},
+                              },
+                              {
+                                  "type": "response.output_item.done",
+                                  "item": {
+                                      "type": "function_call",
+                                      "call_id": "call-agent-loop-selection",
+                                      "namespace": "multi_agent_v1",
+                                      "name": "spawn_agent",
+                                      "arguments": json.dumps({
+                                          "message": "Return no content. Deterministic role-selection probe.",
+                                          "agent_type": "agent-loop-investigator",
+                                          "fork_context": False,
+                                      }),
+                                  },
+                              },
+                              {
+                                  "type": "response.completed",
+                                  "response": {
+                                      "id": "resp-agent-loop-parent-spawn",
+                                      "usage": {
+                                          "input_tokens": 0,
+                                          "input_tokens_details": None,
+                                          "output_tokens": 0,
+                                          "output_tokens_details": None,
+                                          "total_tokens": 0,
+                                      },
+                                  },
+                              },
+                          ]
+                      elif spawn_output is not None and wait_output is None:
+                          agent_id = json.loads(spawn_output["output"])["agent_id"]
+                          events = [
+                              {
+                                  "type": "response.created",
+                                  "response": {"id": "resp-agent-loop-wait"},
+                              },
+                              {
+                                  "type": "response.output_item.done",
+                                  "item": {
+                                      "type": "function_call",
+                                      "call_id": "call-agent-loop-wait",
+                                      "namespace": "multi_agent_v1",
+                                      "name": "wait_agent",
+                                      "arguments": json.dumps({
+                                          "targets": [agent_id],
+                                          "timeout_ms": 20000,
+                                      }),
+                                  },
+                              },
+                              {
+                                  "type": "response.completed",
+                                  "response": {
+                                      "id": "resp-agent-loop-wait",
+                                      "usage": {
+                                          "input_tokens": 0,
+                                          "input_tokens_details": None,
+                                          "output_tokens": 0,
+                                          "output_tokens_details": None,
+                                          "total_tokens": 0,
+                                      },
+                                  },
+                              },
+                          ]
+                      else:
+                          events = completed_events(f"resp-agent-loop-{request_number}")
+
                   payload = "".join(
                       f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
                       for event in events
@@ -155,13 +342,13 @@ jobs:
                   self.end_headers()
                   self.wfile.write(payload)
 
-          server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+          server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
           with open(port_path, "w", encoding="utf-8") as handle:
               handle.write(str(server.server_port))
-          server.handle_request()
+          server.serve_forever()
           PY
 
-          REQUEST_PATH="${request_path}" PORT_PATH="${port_path}" python3 "${server_script}" &
+          REQUEST_PREFIX="${request_prefix}" PORT_PATH="${port_path}" python3 "${server_script}" &
           server_pid=$!
           trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
 
@@ -181,17 +368,97 @@ jobs:
                 -c 'model="proof-model"' \
                 -c 'model_provider="mock"' \
                 -c "model_providers.mock={ name = \"mock\", base_url = \"http://127.0.0.1:${port}/v1\", env_key = \"PATH\", wire_api = \"responses\" }" \
-                'Return no content. This is a deterministic runtime-contract probe.'
-          ) > "${EVIDENCE_ROOT}/subagent-discovery-exec.jsonl" 2> "${EVIDENCE_ROOT}/subagent-discovery-exec.stderr"
+                'Delegate this deterministic probe to the agent-loop-investigator subagent.'
+          ) > "${EVIDENCE_ROOT}/subagent-runtime-exec.jsonl" 2> "${EVIDENCE_ROOT}/subagent-runtime-exec.stderr"
 
-          wait "${server_pid}"
+          kill "${server_pid}" 2>/dev/null || true
+          wait "${server_pid}" 2>/dev/null || true
           trap - EXIT
 
+          test -s "${request_prefix}-1.json"
+
           jq '[.. | objects | select(((.name? // "") | tostring) | test("spawn_agent$"))]' \
-            "${request_path}" > "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json"
+            "${request_prefix}-1.json" > "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json"
 
           jq -e 'length > 0' "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json" >/dev/null
           grep -Fq 'agent-loop-investigator' "${EVIDENCE_ROOT}/spawn-agent-tool-contract.json"
+
+          child_request=""
+          for request in "${request_prefix}"-*.json; do
+            if grep -Fq 'Locate. Verify. Report. Stop.' "${request}"; then
+              child_request="${request}"
+              break
+            fi
+          done
+          test -n "${child_request}"
+          cp "${child_request}" "${EVIDENCE_ROOT}/selected-investigator-child-request.json"
+
+          parent_write_result=""
+          for request in "${request_prefix}"-*.json; do
+            if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-parent-write")' "${request}" >/dev/null 2>&1; then
+              parent_write_result="${request}"
+              break
+            fi
+          done
+          test -n "${parent_write_result}"
+          jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-parent-write")'             "${parent_write_result}" > "${EVIDENCE_ROOT}/parent-write-tool-output.json"
+
+          child_write_result=""
+          for request in "${request_prefix}"-*.json; do
+            if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-child-write")' "${request}" >/dev/null 2>&1; then
+              child_write_result="${request}"
+              break
+            fi
+          done
+          test -n "${child_write_result}"
+          jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-child-write")'             "${child_write_result}" > "${EVIDENCE_ROOT}/child-write-tool-output.json"
+
+          wait_result=""
+          for request in "${request_prefix}"-*.json; do
+            if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-wait")' "${request}" >/dev/null 2>&1; then
+              wait_result="${request}"
+              break
+            fi
+          done
+          test -n "${wait_result}"
+          jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-agent-loop-wait")'             "${wait_result}" > "${EVIDENCE_ROOT}/wait-agent-tool-output.json"
+          jq -e '.output | fromjson | (.timed_out == false and (.status | length > 0))'             "${EVIDENCE_ROOT}/wait-agent-tool-output.json" >/dev/null
+
+          classify_write() {
+            local sentinel_path="$1"
+            local output_path="$2"
+            local result_path="$3"
+
+            if test -f "${sentinel_path}"; then
+              printf '%s\n' 'write_succeeded' > "${result_path}"
+            elif grep -Eiq 'bwrap:.*(operation not permitted|permission denied)|failed rtm_newaddr' "${output_path}"; then
+              printf '%s\n' 'sandbox_launch_failed' > "${result_path}"
+            elif grep -Eiq 'read-only file system|permission denied' "${output_path}"; then
+              printf '%s\n' 'filesystem_write_blocked' > "${result_path}"
+            else
+              printf '%s\n' 'write_failed_ambiguous' > "${result_path}"
+            fi
+          }
+
+          classify_write             "${PROOF_ROOT}/.agent-loop-parent-authority-probe"             "${EVIDENCE_ROOT}/parent-write-tool-output.json"             "${EVIDENCE_ROOT}/parent-write-outcome.txt"
+          classify_write             "${PROOF_ROOT}/.agent-loop-child-authority-probe"             "${EVIDENCE_ROOT}/child-write-tool-output.json"             "${EVIDENCE_ROOT}/child-write-outcome.txt"
+
+          if test -f "${PROOF_ROOT}/.agent-loop-parent-authority-probe"; then
+            cp "${PROOF_ROOT}/.agent-loop-parent-authority-probe" "${EVIDENCE_ROOT}/parent-write-sentinel.txt"
+          fi
+          if test -f "${PROOF_ROOT}/.agent-loop-child-authority-probe"; then
+            cp "${PROOF_ROOT}/.agent-loop-child-authority-probe" "${EVIDENCE_ROOT}/child-write-sentinel.txt"
+          fi
+
+          parent_outcome="$(cat "${EVIDENCE_ROOT}/parent-write-outcome.txt")"
+          child_outcome="$(cat "${EVIDENCE_ROOT}/child-write-outcome.txt")"
+          if test "${parent_outcome}" = 'write_succeeded' && test "${child_outcome}" = 'filesystem_write_blocked'; then
+            printf '%s\n' 'role_read_only_enforced' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
+          elif test "${parent_outcome}" = 'write_succeeded' && test "${child_outcome}" = 'write_succeeded'; then
+            printf '%s\n' 'role_read_only_not_enforced' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
+          else
+            printf '%s\n' 'inconclusive_environment' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
+          fi
 
       - name: Prove forbidden decisions in Codex execpolicy engine
         shell: bash
@@ -212,8 +479,11 @@ jobs:
         run: |
           set -euo pipefail
           codex_version="$(cat "${EVIDENCE_ROOT}/codex-version.txt")"
+          parent_write_outcome="$(cat "${EVIDENCE_ROOT}/parent-write-outcome.txt")"
+          child_write_outcome="$(cat "${EVIDENCE_ROOT}/child-write-outcome.txt")"
+          child_authority_outcome="$(cat "${EVIDENCE_ROOT}/child-read-only-outcome.txt")"
 
-          jq -n             --arg codex_version "${codex_version}"             '{
+          jq -n             --arg codex_version "${codex_version}"             --arg parent_write_outcome "${parent_write_outcome}"             --arg child_write_outcome "${child_write_outcome}"             --arg child_authority_outcome "${child_authority_outcome}"             '{
               schema_version: "1.0",
               codex_version: $codex_version,
               observed: {
@@ -239,12 +509,31 @@ jobs:
                   mechanism: "real codex exec request tool contract against a local Responses-compatible provider",
                   projected_role: "agent-loop-investigator",
                   status: "observed",
-                  boundary: "The runtime exposed the projected role in its spawn_agent tool contract. Role selection and effective child authority remain separate proofs."
+                  boundary: "The runtime exposed the projected role in its spawn_agent tool contract."
+                },
+                subagent_role_selection: {
+                  evidence_class: "host_consumption",
+                  mechanism: "real multi_agent_v1.spawn_agent call through Codex 0.157.0 against a local Responses-compatible provider",
+                  projected_role: "agent-loop-investigator",
+                  child_fingerprint: "Locate. Verify. Report. Stop.",
+                  status: "observed",
+                  boundary: "The selected child request contains the projected role developer instructions."
+                },
+                subagent_read_only_authority: {
+                  evidence_class: "runtime_authority",
+                  mechanism: "parent control and selected child each execute the same real exec_command write attempt against disposable repository sentinels",
+                  projected_role: "agent-loop-investigator",
+                  projected_sandbox_mode: "read-only",
+                  parent_write_outcome: $parent_write_outcome,
+                  child_write_outcome: $child_write_outcome,
+                  outcome: $child_authority_outcome,
+                  status: "observed",
+                  sandbox_backend: "bubblewrap",
+                  runner_prerequisite: "GitHub runner AppArmor unprivileged-userns restriction disabled for the disposable proof job when that sysctl exists",
+                  boundary: "No explicit parent sandbox override is supplied; hooks and MCP are not part of this proof. The runner prerequisite only permits the Codex bubblewrap sandbox to start; it does not alter the parent or child permission profile. Only a parent-success/child-filesystem-block differential proves read-only enforcement."
                 }
               },
               not_proven_by_this_slice: {
-                subagent_role_selection: true,
-                child_read_only_sandbox_enforcement: true,
                 parent_runtime_override_interaction: true,
                 hook_trust_or_execution: true,
                 project_rule_autoload: true,

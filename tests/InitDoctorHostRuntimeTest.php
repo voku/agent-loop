@@ -82,11 +82,11 @@ final class InitDoctorHostRuntimeTest extends TestCase
             $output,
         );
         self::assertStringContainsString(
-            '[INFO] Host capabilities [codex]: skill-projection=supported, subagent-projection=supported, subagent-read-only-enforcement=supported',
+            '[INFO] Host capabilities [codex]: skill-projection=supported, subagent-projection=supported, subagent-read-only-enforcement=degraded',
             $output,
         );
         self::assertStringContainsString(
-            'Host capability evidence [codex/subagent-read-only-enforcement]: mechanism=canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; evidence=adapter-declared',
+            'Host capability evidence [codex/subagent-read-only-enforcement]: mechanism=canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade; evidence=adapter-declared;live-runtime-refuted',
             $output,
         );
         self::assertStringContainsString(

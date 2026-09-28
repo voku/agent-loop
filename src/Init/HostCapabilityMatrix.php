@@ -21,7 +21,7 @@ final readonly class HostCapabilityMatrix
      *     capability: HostCapability,
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
-     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'no-agent-loop-projector'
+     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }>
      */
     public static function forAgent(string $canonicalAgent): array
@@ -51,7 +51,7 @@ final readonly class HostCapabilityMatrix
      * @return array{
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
-     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'no-agent-loop-projector'
+     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }
      */
     public static function describe(string $canonicalAgent, HostCapability $capability): array
@@ -67,12 +67,18 @@ final readonly class HostCapabilityMatrix
         }
 
         if ($capability === HostCapability::SubagentReadOnlyEnforcement) {
-            if (in_array($canonicalAgent, ['codex', 'cursor'], true)) {
+            if ($canonicalAgent === 'codex') {
+                return [
+                    'status' => HostCapabilityStatus::Degraded,
+                    'mechanism' => 'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
+                    'evidence' => 'adapter-declared;live-runtime-refuted',
+                ];
+            }
+
+            if ($canonicalAgent === 'cursor') {
                 return [
                     'status' => HostCapabilityStatus::Supported,
-                    'mechanism' => $canonicalAgent === 'codex'
-                        ? 'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only'
-                        : 'canonical subagent mutation: read-only -> Cursor readonly = true',
+                    'mechanism' => 'canonical subagent mutation: read-only -> Cursor readonly = true',
                     'evidence' => 'adapter-declared',
                 ];
             }
