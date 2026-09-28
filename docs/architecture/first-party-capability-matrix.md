@@ -66,7 +66,7 @@ Installed release-set CI pins the merged first-party `voku/agent-skills` revisio
 Status meanings are strict:
 
 - `supported`: `agent-loop` owns a host adapter/projector for the capability and contract tests can exercise that repository-side boundary;
-- `degraded`: a native adapter exists, but the stronger runtime/delegation behavior implied by the capability has not been observed;
+- `degraded`: a native adapter exists, but the stronger runtime/delegation behavior implied by the capability is unverified or has been observed not to hold at a validated runtime boundary;
 - `unsupported`: `agent-loop` has no adapter/projector for the capability.
 
 `init host-status` separately reports whether the current repository projection is present and current. Neither `supported` nor a current projection proves that a running host session consumed it.
@@ -75,7 +75,7 @@ Status meanings are strict:
 |---|---|---|---|---|---|---|---|
 | skill projection | supported | supported | supported | supported | supported | supported | supported |
 | subagent projection | supported | supported | supported | supported | supported | supported | supported |
-| read-only subagent enforcement projection | supported | unsupported | unsupported | unsupported | unsupported | unsupported | supported |
+| read-only subagent enforcement | degraded | unsupported | unsupported | unsupported | unsupported | unsupported | supported |
 | policy projection | supported | supported | supported | unsupported | unsupported | unsupported | supported |
 | session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
 | subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
@@ -85,7 +85,7 @@ Status meanings are strict:
 Host-specific policy semantics are intentionally not flattened:
 
 - Codex receives project-layer `.codex/rules/*.rules`; agent-loop-owned direct `git push`, `gh pr create`, and `gh pr merge` prefixes use hard `forbidden`, not `prompt`, so Codex Auto-review cannot approve a matched command. The runtime resolves absolute executable paths to basename rules, but wrapper forms such as `sudo`/`env`, MCP, and other authority routes are separate and unclaimed. The host still owns project trust.
-- Codex roles with canonical `mutation: read-only` receive native `sandbox_mode = "read-only"`; this proves deterministic repository projection, not that a running host selected the role or enforced the sandbox. Codex 0.157.0 specifically preserves the parent sandbox permission profile when applying a role and excludes `sandbox_mode` from role-controlled authority, so that projected key is not evidence of a child runtime authority downgrade; see `docs/dogfood/2026-09-27-gh-640-real-learning-reflection.md`.
+- Codex roles with canonical `mutation: read-only` receive native `sandbox_mode = "read-only"`; this proves deterministic repository projection, not runtime enforcement. Real Codex 0.157.0 proof run `36356682049` selected `agent-loop-investigator` and observed both parent and child writes succeed, producing `role_read_only_not_enforced`. The capability therefore remains `degraded` for this runtime boundary. That proof did not exercise explicit parent runtime overrides, hooks, or MCP, so those surfaces remain separate and unclaimed; see PR #645 and `docs/dogfood/2026-09-27-gh-640-real-learning-reflection.md`.
 - Claude receives shared-project hard `deny` rules for the canonical direct `git push`, `gh pr create`, and `gh pr merge` command forms. Claude Bash rules match command text rather than establishing a security boundary around the underlying program, so alternate executable paths, git option/config forms, quoted subcommands, shell wrappers, MCP, and other authority routes remain separate and unclaimed; Auto Mode classifier configuration remains user/local/managed scoped.
 - Claude executable hooks are registered granularly inside project `.claude/settings.json`; agent-loop owns only its canonical command handlers and receipt, while unrelated project hook events, matcher groups, and handlers are preserved. Live hook execution remains degraded/unverified.
 - OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.

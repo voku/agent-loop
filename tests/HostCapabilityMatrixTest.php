@@ -43,16 +43,16 @@ final class HostCapabilityMatrixTest extends TestCase
         }
     }
 
-    public function testReadOnlySubagentEnforcementIsProjectedOnlyWhereOwnedNatively(): void
+    public function testReadOnlySubagentEnforcementReflectsObservedRuntimeBoundary(): void
     {
         self::assertSame(
-            HostCapabilityStatus::Supported,
+            HostCapabilityStatus::Degraded,
             HostCapabilityMatrix::status('codex', HostCapability::SubagentReadOnlyEnforcement),
         );
         $codex = HostCapabilityMatrix::describe('codex', HostCapability::SubagentReadOnlyEnforcement);
-        self::assertSame('adapter-declared', $codex['evidence']);
+        self::assertSame('adapter-declared;live-runtime-refuted', $codex['evidence']);
         self::assertSame(
-            'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only',
+            'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
             $codex['mechanism'],
         );
 
