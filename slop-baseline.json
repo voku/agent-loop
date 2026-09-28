@@ -6,7 +6,7 @@
             "name": "slop-scan-php",
             "version": "0.1.0"
         },
-        "configHash": "9bfc5162085707e07fa28f85e1a515334409bfb2a0673c78743823f6c83cdc49",
+        "configHash": "df3ad706f2049184233453c6008b4d1b8a07963c902f3e1f1348520858aec981",
         "findingFingerprintVersion": 1,
         "baselineCompatibility": {
             "ruleSemanticsVersion": 3,
