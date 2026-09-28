@@ -21,7 +21,7 @@ final class InitSyncToolsCommandTest extends TestCase
         $this->root = sys_get_temp_dir() . '/agent-loop-sync-tools-' . bin2hex(random_bytes(6));
         mkdir($this->root . '/resources/tools/slop-scan', 0o775, true);
         mkdir($this->root . '/resources/tools/itp-context', 0o775, true);
-        file_put_contents($this->root . '/resources/tools/slop-scan/composer.json', '{"require":{"voku/slop-scan":"^0.1.4"}}');
+        file_put_contents($this->root . '/resources/tools/slop-scan/composer.json', '{"require":{"voku/slop-scan":"^0.1.9"}}');
         file_put_contents($this->root . '/resources/tools/slop-scan/slop-scan.php', "#!/usr/bin/env php\n");
         chmod($this->root . '/resources/tools/slop-scan/slop-scan.php', 0o755);
         file_put_contents($this->root . '/resources/tools/itp-context/composer.json', '{"require":{"voku/itp-context":"^0.3.0"}}');
@@ -103,7 +103,7 @@ final class InitSyncToolsCommandTest extends TestCase
         $result = $this->runSync(['--force']);
 
         self::assertSame(0, $result['exit']);
-        self::assertStringContainsString('^0.1.4', (string) file_get_contents($this->root . '/tools/slop-scan/composer.json'));
+        self::assertStringContainsString('^0.1.9', (string) file_get_contents($this->root . '/tools/slop-scan/composer.json'));
     }
 
     public function testAdoptExistingRecordsWithoutTouchingContent(): void

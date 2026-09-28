@@ -6,11 +6,41 @@
             "name": "slop-scan-php",
             "version": "0.1.0"
         },
-        "configHash": "9cf885b3f20fd5d8ab354c887acdd8e57b4eb31fbd7fa404b066c07e24c8d1cd",
-        "findingFingerprintVersion": 1
+        "configHash": "df3ad706f2049184233453c6008b4d1b8a07963c902f3e1f1348520858aec981",
+        "findingFingerprintVersion": 1,
+        "baselineCompatibility": {
+            "ruleSemanticsVersion": 3,
+            "activeRuleIds": [
+                "markdown.low-signal",
+                "php.blanket-static-analysis-suppressions",
+                "php.catch-default-fallbacks",
+                "php.catch-returns-exception-message",
+                "php.clone-cluster",
+                "php.commented-out-code",
+                "php.debug-output",
+                "php.duplicate-function-signatures",
+                "php.duplicate-mock-setup",
+                "php.empty-catch",
+                "php.error-obscuring-catch",
+                "php.error-swallowing",
+                "php.exception-wrap-without-previous",
+                "php.excessive-static-analysis-suppressions",
+                "php.generic-array-casts",
+                "php.generic-status-envelopes",
+                "php.misleading-phpdoc-types",
+                "php.mock-heavy-tests-without-assertions",
+                "php.over-fragmentation",
+                "php.pass-through-wrappers",
+                "php.placeholder-comments",
+                "php.placeholder-method-bodies",
+                "php.return-constant-stub",
+                "php.stacked-static-analysis-suppressions",
+                "php.type-escape-hotspots"
+            ]
+        }
     },
     "summary": {
-        "findingCount": 10
+        "findingCount": 12
     },
     "findings": [
         {
@@ -633,6 +663,74 @@
                         "path": "src/AgentLoopVerifier.php",
                         "line": 440,
                         "column": 1
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$payload",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/HostFrontDoorApplication.php",
+                    "line": 65,
+                    "column": 24
+                }
+            ],
+            "path": "src/Workflow/HostFrontDoorApplication.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "48b79b0b7e1783fce4c6f88c06961d6bcc588695be82f3cd93ac62c99b122f0b",
+                        "path": "src/Workflow/HostFrontDoorApplication.php",
+                        "line": 65,
+                        "column": 24
+                    }
+                ]
+            }
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "family": "type-safety",
+            "severity": "medium",
+            "scope": "file",
+            "message": "Found generic array conversion assigned to a vague bag variable",
+            "why": "Runtime conversion into a vaguely named array bag erases structure at a boundary where the expected shape should usually be explicit.",
+            "suggestedAction": "Decode or map into a typed DTO/value object, or document and validate a precise array shape at the boundary.",
+            "confidence": "medium",
+            "evidence": [
+                "variable=$data",
+                "kind=json-decode-assoc"
+            ],
+            "score": 2,
+            "locations": [
+                {
+                    "path": "src/Workflow/ValidationDiagnosticStore.php",
+                    "line": 133,
+                    "column": 21
+                }
+            ],
+            "path": "src/Workflow/ValidationDiagnosticStore.php",
+            "deltaIdentity": {
+                "fingerprintVersion": 1,
+                "occurrences": [
+                    {
+                        "fingerprint": "a0003cc1fddd86336323eba30fd6386bdc8e9dce42332ec53f4c7d65cf04af99",
+                        "path": "src/Workflow/ValidationDiagnosticStore.php",
+                        "line": 133,
+                        "column": 21
                     }
                 ]
             }

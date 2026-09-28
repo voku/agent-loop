@@ -6,7 +6,7 @@ declare(strict_types=1);
 /**
  * Entry point for the isolated slop-scan tool project.
  *
- * `voku/slop-scan` 0.1.4 ships a bin that resolves its autoloader as
+ * The published `voku/slop-scan` Composer bin still resolves its autoloader as
  * `__DIR__ . '/../vendor/autoload.php'`. That path only exists in a standalone
  * checkout of slop-scan: installed as a Composer dependency the file sits in
  * `vendor/voku/slop-scan/bin/`, and the bin exits with "Composer autoload file

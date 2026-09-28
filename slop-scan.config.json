@@ -57,10 +57,35 @@
             "paths": [
                 "src/Execution/ExecutionStateStore.php"
             ]
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "path": "src/Run/RunVerificationReceiptStore.php",
+            "count": 1
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "path": "src/Workflow/ControlPlanePresentationProjector.php",
+            "count": 1
+        },
+        {
+            "ruleId": "php.generic-array-casts",
+            "path": "src/Workflow/HostFrontDoorCommand.php",
+            "count": 1
         }
     ],
     "scan": {
         "cacheFile": ".slop-scan.cache.json",
         "baselineFile": "slop-baseline.json"
-    }
+    },
+    "overrides": [
+        {
+            "path": "tests/**",
+            "rules": {
+                "php.generic-array-casts": {
+                    "enabled": false
+                }
+            }
+        }
+    ]
 }
