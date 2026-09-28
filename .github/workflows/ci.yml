@@ -424,6 +424,9 @@ jobs:
         run: |
           php tools/slop-scan/slop-scan.php scan . --config-file slop-scan.config.json --json \
             > "${GITHUB_WORKSPACE}/build-slop-report.json" || true
+          printf 'SLOP_BASELINE_PAYLOAD='
+          jq -c '{metadata,findings}' "${GITHUB_WORKSPACE}/build-slop-report.json" | base64 -w0
+          printf '\n'
       - name: Upload slop-scan evidence
         if: always()
         uses: actions/upload-artifact@v4
