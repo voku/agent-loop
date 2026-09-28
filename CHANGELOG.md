@@ -1,3 +1,16 @@
+## 0.20.48 - 2026-09-28
+
+### Changed
+
+- Update the isolated Slop evidence consumer to `voku/slop-scan 0.1.11`, including the upstream structured-failure-record refinement, and keep `php.generic-array-casts` policy scoped instead of blanket-baselining scanner noise. Test-only transport/assertion decodes are excluded by consumer configuration, explicit reviewed production boundaries are documented, and genuine weakly typed bags remain visible (#635, #643; voku/slop-scan#53, #54).
+- Report Codex selected-subagent read-only enforcement as `degraded` rather than `supported` after the Codex 0.157.0 runtime proof showed that a projected `sandbox_mode = "read-only"` did not prevent writes. Keep the native projection explicit while limiting the negative enforcement claim to the observed runtime boundary; hooks, MCP, and parent-override interaction remain separate evidence surfaces (#618, #647).
+
+### Validation
+
+- PR #643 exact head `fe6b7894214057f361a6e45729c3d2ce15804c13` passed CI, release upgrade/resume proof, acceptance-criteria and prompt-primitives dogfood, and installed refactor lifecycle workflows while consuming slop-scan 0.1.11.
+- PR #647 exact head `c1fdde346e4ac5bc3a4786c602f8c1b1f117cdc5` passed CI, the Codex runtime proof, release upgrade/resume proof, acceptance-criteria and prompt-primitives dogfood, and installed refactor lifecycle workflows.
+- The resulting `main` head `bb377053cba4c23af8fc5af75e8fdb28da216775` passed push CI before this release preparation.
+
 ## 0.20.47 - 2026-09-27
 
 ### Fixed
