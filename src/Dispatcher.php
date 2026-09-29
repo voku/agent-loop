@@ -21,6 +21,7 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Review\ReviewCli as RecallReviewCli;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentSession\AmbiguousActiveSession;
 use voku\AgentSession\Cli as SessionCli;
 use voku\AgentSession\SessionStore;
@@ -168,6 +169,19 @@ final class Dispatcher
         $resolved = $this->bindGovernedReview($this->resolveReviewArgv($rest));
         if ($resolved === null) {
             return 1;
+        }
+
+        if (in_array($resolved[0] ?? null, ['blindspots', 'code'], true)) {
+            $layout = new ProjectLayout($this->rootPath);
+            $prompting = (new InitConfigLoader($this->rootPath))->load($layout->configPath())['prompting'];
+            if (!in_array('--language', $resolved, true)) {
+                $resolved[] = '--language';
+                $resolved[] = $prompting['language'];
+            }
+            if ($resolved[0] === 'blindspots' && !in_array('--tone', $resolved, true)) {
+                $resolved[] = '--tone';
+                $resolved[] = $prompting['blindspots']['tone'];
+            }
         }
 
         return (new RecallReviewCli($this->rootPath))->run($this->subArgv($scriptName, $resolved));

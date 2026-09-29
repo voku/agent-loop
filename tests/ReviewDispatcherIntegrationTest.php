@@ -53,6 +53,30 @@ final class ReviewDispatcherIntegrationTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/infra/doc/agent-learning/recall-output/ABC-123/reviews/ABC-123.blindspots.json');
     }
 
+    public function testConfiguredLanguageAndUnflinchingToneReachGeneratedReviewPrompt(): void
+    {
+        $this->write('.agent-loop/init.json', json_encode([
+            'prompting' => ['language' => 'de', 'blindspots' => ['tone' => 'unflinching']],
+        ], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/meta.json', json_encode(['task_id' => 'ABC-123', 'task_files' => []], JSON_THROW_ON_ERROR));
+        $this->write('.agent-loop/recall/ABC-123/validation-plan.md', "PHPStan passed.\nreview blindspots ABC-123 checked.\nrecall-log.draft.json prepared.\n");
+        $this->write('.agent-loop/recall/ABC-123/recall-log.draft.json', '{"outcome":"prepared"}');
+
+        $result = $this->dispatch(['agent-loop', 'review', 'blindspots', 'ABC-123', '--focus', 'rollback after timeout']);
+
+        self::assertSame(0, $result['exit'], $result['output']);
+        $prompt = (string) file_get_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.prompt.md');
+        self::assertStringContainsString('Write the final review in language de.', $prompt);
+        self::assertStringContainsString('Be unflinching about evidenced defects', $prompt);
+        self::assertStringContainsString('"rollback after timeout"', $prompt);
+
+        $override = $this->dispatch(['agent-loop', 'review', 'blindspots', 'ABC-123', '--language', 'fr', '--tone', 'measured']);
+        self::assertSame(0, $override['exit'], $override['output']);
+        $prompt = (string) file_get_contents($this->root . '/.agent-loop/recall/ABC-123/reviews/ABC-123.blindspots.prompt.md');
+        self::assertStringContainsString('Write the final review in language fr.', $prompt);
+        self::assertStringNotContainsString('Be unflinching about evidenced defects', $prompt);
+    }
+
     public function testReviewFirstDraftDelegatesToRecallCompilerWithoutTaskState(): void
     {
         $result = $this->dispatch(['agent-loop', 'review', 'first-draft']);

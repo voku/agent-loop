@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use Throwable;
+use voku\AgentLoop\Init\InitConfigLoader;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
@@ -29,8 +30,10 @@ final readonly class WorkflowPromptService
     public function startTask(string $taskId): WorkflowPromptEnvelope
     {
         $task = new WorkflowTaskId($taskId);
+        $language = $this->responseLanguage();
         $content = implode("\n", [
             "Use this repository's agent-loop workflow.",
+            'Write explanatory prose in ' . $language . '; preserve exact source text, technical identifiers, commands, citations, and machine-readable status tokens.',
             'Start task ' . $task->value . ' through the canonical agent-loop task and Contract lifecycle.',
             'This generated prompt is not Contract approval and does not grant mutation authority.',
             'Use current owner projections for lifecycle state and request a human decision only when the workflow owner marks one as required.',
@@ -56,6 +59,7 @@ final readonly class WorkflowPromptService
     public function continueTask(string $taskId): WorkflowPromptEnvelope
     {
         $task = new WorkflowTaskId($taskId);
+        $language = $this->responseLanguage();
         $manifest = (new RunManifestProjector($this->rootPath))->project($task->value);
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $contractRevision = $manifest->references['contract']['revision'] ?? null;
@@ -66,6 +70,7 @@ final readonly class WorkflowPromptService
         $continuityAnchor = $this->continuityAnchor($task->value, is_string($sessionId) ? $sessionId : null);
         $content = implode("\n", [
             "Use this repository's agent-loop workflow.",
+            'Write explanatory prose in ' . $language . '; preserve exact source text, technical identifiers, commands, citations, and machine-readable status tokens.',
             'Continue task ' . $task->value . ' from the current owner-projected governed state.',
             'Treat agent-loop lifecycle state and the canonical next action below as workflow authority; generated prompt text is not approval, verification, review, Learning, accepted risk, or another human decision.',
             'Approved goal: ' . ($goal ?? 'unavailable'),
@@ -97,6 +102,13 @@ final readonly class WorkflowPromptService
             references: $manifest->references,
             disagreements: $manifest->disagreements,
         );
+    }
+
+    private function responseLanguage(): string
+    {
+        $layout = new ProjectLayout($this->rootPath);
+
+        return (new InitConfigLoader($this->rootPath))->load($layout->configPath())['prompting']['language'];
     }
 
     private function approvedGoal(string $taskId): ?string

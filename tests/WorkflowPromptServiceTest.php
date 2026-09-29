@@ -48,6 +48,18 @@ final class WorkflowPromptServiceTest extends TestCase
         self::assertSame('sha256:' . $first->digest, $first->toArray()['digest']);
     }
 
+    public function testPromptEnvelopeUsesConfiguredResponseLanguage(): void
+    {
+        self::assertTrue(mkdir($this->root . '/.agent-loop', 0o775, true));
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'prompting' => ['language' => 'de'],
+        ], JSON_THROW_ON_ERROR));
+
+        $service = new WorkflowPromptService($this->root);
+        self::assertStringContainsString('Write explanatory prose in de;', $service->startTask('ABC-123')->content);
+        self::assertStringContainsString('Write explanatory prose in de;', $service->continueTask('ABC-123')->content);
+    }
+
     public function testContinueTaskUsesCurrentOwnerProjectionWithoutWritingState(): void
     {
         $before = scandir($this->root);

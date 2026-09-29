@@ -106,6 +106,28 @@ final class WorkflowContextCommandTest extends TestCase
         );
     }
 
+    public function testContextProjectsPromptPresentationWithoutChangingReviewAuthority(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'prompting' => [
+                'language' => 'de',
+                'blindspots' => ['tone' => 'direct'],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertSame([
+            'language' => 'de',
+            'blindspots' => ['tone' => 'direct'],
+        ], $context['prompting']);
+        self::assertStringContainsString('Response language: de;', $rendered);
+        self::assertStringContainsString('Blind-spot presentation: direct tone.', $rendered);
+        self::assertStringContainsString('do not invent personal motives or evidence', $rendered);
+        self::assertSame('human_required', $context['interaction']['authority_bearing_decisions']);
+    }
+
     public function testContextProjectsInvestPolicyWithoutGrantingFollowUpAuthority(): void
     {
         file_put_contents($this->root . '/.agent-loop/init.json', json_encode([

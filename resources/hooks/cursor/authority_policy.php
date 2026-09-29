@@ -2,9 +2,6 @@
 
 declare(strict_types=1);
 
-use JsonException;
-use stdClass;
-
 const AGENT_LOOP_CURSOR_MAX_INPUT_BYTES = 1_048_576;
 
 $rawPayload = stream_get_contents(STDIN, AGENT_LOOP_CURSOR_MAX_INPUT_BYTES + 1);
