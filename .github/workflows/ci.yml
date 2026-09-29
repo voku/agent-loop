@@ -312,6 +312,14 @@ jobs:
             --agent=all \
             --extra-skills-root="${GITHUB_WORKSPACE}/build/agent-skills-source/skills"
           test ! -e .codex/hooks/context.php
+          relocated_claude_config="${RUNNER_TEMP}/agent-loop-assets-user-claude"
+          rm -rf "${relocated_claude_config}"
+          CLAUDE_CONFIG_DIR="${relocated_claude_config}" php vendor/bin/agent-loop init install-assets --agent=claude --with-hooks
+          test -f .claude/settings.json
+          test -f .claude/hooks/context.php
+          test -f .claude/hooks/pre_tool_use_policy.php
+          test -f .claude/hooks/runtime.php
+          test ! -e "${relocated_claude_config}"
           test -f vendor/voku/agent-loop/resources/skills/agent-loop-discipline/SKILL.md
           test -f vendor/voku/agent-loop/resources/skills/agent-loop-investigate/SKILL.md
           test -f vendor/voku/agent-loop/resources/skills/agent-loop-surgical-edit/SKILL.md
