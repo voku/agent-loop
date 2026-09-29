@@ -25,6 +25,7 @@ final readonly class InitConfigLoader
      *     package_skills: bool,
      *     package_subagents: bool,
      *     recall: array{document_manifests: list<string>},
+     *     prompting: array{language: string, blindspots: array{tone: 'measured'|'direct'|'unflinching'}},
      *     interaction: array{
      *         human_explanations: 'ask'|'always'|'never',
      *         control_plane: array{enabled: bool, host: string, port: int}
@@ -42,6 +43,10 @@ final readonly class InitConfigLoader
             'package_skills' => true,
             'package_subagents' => true,
             'recall' => ['document_manifests' => []],
+            'prompting' => [
+                'language' => 'en',
+                'blindspots' => ['tone' => 'measured'],
+            ],
             'interaction' => [
                 'human_explanations' => HumanExplanationPolicy::ASK->value,
                 'control_plane' => [
@@ -174,6 +179,41 @@ final readonly class InitConfigLoader
         }
 
         $decodedShape = json_decode($content);
+        $promptingShape = $decodedShape instanceof stdClass ? ($decodedShape->prompting ?? null) : null;
+        if ($decodedShape instanceof stdClass && property_exists($decodedShape, 'prompting')) {
+            if (!$promptingShape instanceof stdClass) {
+                $result['warnings'][] = '[WARN] init config: prompting must be an object';
+            } else {
+                $prompting = $decoded['prompting'];
+                if (property_exists($promptingShape, 'language')) {
+                    $language = $prompting['language'] ?? null;
+                    if (!is_string($language) || preg_match('/\A[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*\z/', $language) !== 1 || strlen($language) > 35) {
+                        $result['warnings'][] = '[WARN] init config: prompting.language must be a BCP 47 language tag';
+                    } else {
+                        $result['prompting']['language'] = strtolower($language);
+                    }
+                }
+                if (property_exists($promptingShape, 'blindspots')) {
+                    $blindspotsShape = $promptingShape->blindspots;
+                    if (!$blindspotsShape instanceof stdClass) {
+                        $result['warnings'][] = '[WARN] init config: prompting.blindspots must be an object';
+                    } else {
+                        $blindspots = $prompting['blindspots'];
+                        foreach (['tone' => ['measured', 'direct', 'unflinching']] as $key => $allowed) {
+                            if (!property_exists($blindspotsShape, $key)) {
+                                continue;
+                            }
+                            $value = $blindspots[$key] ?? null;
+                            if (!is_string($value) || !in_array($value, $allowed, true)) {
+                                $result['warnings'][] = '[WARN] init config: prompting.blindspots.' . $key . ' must be ' . implode(' or ', $allowed);
+                            } else {
+                                $result['prompting']['blindspots'][$key] = $value;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         $hasInteraction = $decodedShape instanceof stdClass && property_exists($decodedShape, 'interaction');
         $interactionShape = $hasInteraction ? $decodedShape->interaction : null;
         $interaction = $decoded['interaction'] ?? null;

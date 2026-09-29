@@ -411,7 +411,7 @@
                 },
                 {
                     "path": "tests/WorkflowFinishValidationConvergenceTest.php",
-                    "line": 199,
+                    "line": 214,
                     "column": 1
                 },
                 {
@@ -566,9 +566,9 @@
                         "column": 1
                     },
                     {
-                        "fingerprint": "e8fc79d6d78b8e4374a61821d34bf4a38526b7ff4211ece1f18e56361611d213",
+                        "fingerprint": "ff4407ab4d3dd8735f136d7d605b6fb5c1074e031596461f3946c8bacd76565c",
                         "path": "tests/WorkflowFinishValidationConvergenceTest.php",
-                        "line": 199,
+                        "line": 214,
                         "column": 1
                     },
                     {

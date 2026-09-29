@@ -1877,3 +1877,17 @@ release.
 ## 0.0.1 - 2026-06-20
 
 - init commit
+## 0.20.49 - 2026-09-29
+
+### Added
+
+- Project `prompting.language` and `prompting.blindspots.tone` preferences from `.agent-loop/init.json` into workflow context, prompt envelopes, explicit review commands, and finish-prepared review prompts. Review commands also accept an optional per-review focus through Recall's public API.
+- Support the evidence-bound `unflinching` review tone while preserving audit status, machine-readable tokens, and human decision authority.
+
+### Fixed
+
+- Keep the Cursor authority hook's JSON output free of PHP 8.4 warnings from redundant global `use` declarations.
+
+### Changed
+
+- Require released `voku/agent-recall-compiler ^0.25.1` for review prompt presentation options and update candidate dogfoods to that minimum release.

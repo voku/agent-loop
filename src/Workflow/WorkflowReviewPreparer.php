@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
+use voku\AgentLoop\Init\InitConfigLoader;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentRecallCompiler\Review\ReviewAuditPreparer;
+use voku\AgentRecallCompiler\Review\ReviewPromptOptions;
 
 /**
  * Reconciles the deterministic blind-spot report for the current implementation.
@@ -45,11 +48,14 @@ final readonly class WorkflowReviewPreparer
         }
 
         $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId;
+        $layout = new ProjectLayout($this->rootPath);
+        $prompting = (new InitConfigLoader($this->rootPath))->load($layout->configPath())['prompting'];
         (new ReviewAuditPreparer($this->rootPath))->prepare(
             taskId: $contract->taskId,
             outputDirectory: $outputDirectory,
             contractRevision: $contract->revision,
             implementationSnapshot: $snapshot->digest,
+            promptOptions: new ReviewPromptOptions($prompting['language'], $prompting['blindspots']['tone']),
         );
 
         $prepared = $reader->read($contract->taskId);

@@ -70,6 +70,21 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
         self::assertSame('none', $learned['payload']['next_action'] ?? null);
     }
 
+    public function testFinishPreparedReviewUsesConfiguredPromptPresentation(): void
+    {
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'prompting' => ['language' => 'de', 'blindspots' => ['tone' => 'unflinching']],
+        ], JSON_THROW_ON_ERROR));
+        $this->prepareRun('FINISH-LOCALIZED');
+        $contract = (new TaskContractStore($this->root))->load('FINISH-LOCALIZED');
+
+        (new WorkflowReviewPreparer($this->root))->prepare($contract);
+
+        $prompt = (string) file_get_contents($this->root . '/.agent-loop/recall/FINISH-LOCALIZED/reviews/FINISH-LOCALIZED.blindspots.prompt.md');
+        self::assertStringContainsString('Write the final review in language de.', $prompt);
+        self::assertStringContainsString('Be unflinching about evidenced defects', $prompt);
+    }
+
     public function testReviewDoesNotTurnFailedValidationIntoAnAutomaticRetry(): void
     {
         $session = $this->prepareRun('FINISH-REVIEW-FAILED', 'php -r "exit(7);"');

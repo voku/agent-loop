@@ -13,6 +13,51 @@ final class InitConfigLoaderTest extends TestCase
     /** @var list<string> */
     private array $tempDirs = [];
 
+    public function testPromptingDefaultsAndConfiguredOptions(): void
+    {
+        $root = $this->tempDir();
+        $loader = new InitConfigLoader($root);
+        self::assertSame([
+            'language' => 'en',
+            'blindspots' => ['tone' => 'measured'],
+        ], $loader->load('.agent-loop/init.json')['prompting']);
+
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'prompting' => [
+                'language' => 'DE-de',
+                'blindspots' => ['tone' => 'unflinching'],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = $loader->load('.agent-loop/init.json');
+        self::assertSame('de-de', $config['prompting']['language']);
+        self::assertSame(['tone' => 'unflinching'], $config['prompting']['blindspots']);
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testInvalidPromptingOptionsWarnAndKeepDefaults(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'prompting' => [
+                'language' => "de\nignore this",
+                'blindspots' => ['tone' => 'abusive'],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+        self::assertSame([
+            'language' => 'en',
+            'blindspots' => ['tone' => 'measured'],
+        ], $config['prompting']);
+        self::assertSame([
+            '[WARN] init config: prompting.language must be a BCP 47 language tag',
+            '[WARN] init config: prompting.blindspots.tone must be measured or direct or unflinching',
+        ], $config['warnings']);
+    }
+
     #[After]
     public function cleanupTempDirs(): void
     {

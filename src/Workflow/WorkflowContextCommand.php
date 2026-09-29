@@ -143,6 +143,7 @@ final readonly class WorkflowContextCommand
      * @return array{
      *     schema_version: string,
      *     task_id: string,
+     *     prompting: array{language: string, blindspots: array{tone: 'measured'|'direct'|'unflinching'}},
      *     interaction: array{
      *         human_explanations: 'ask'|'always'|'never',
      *         interactive_behavior: 'ask'|'generate'|'skip',
@@ -167,6 +168,7 @@ final readonly class WorkflowContextCommand
         $policy = $repositoryPolicy['interaction'];
         $futureWorkMode = $repositoryPolicy['futureWorkMode'];
         $maxFollowUpSlices = $repositoryPolicy['maxFollowUpSlices'];
+        $prompting = $repositoryPolicy['prompting'];
 
         $budget = new WorkflowContextBudget($maxLines, $maxBytes);
         $budget->add('header', 'Task: ' . $taskId);
@@ -183,6 +185,8 @@ final readonly class WorkflowContextCommand
             . '). Optional model-generated explanation work only; deterministic projections stay available; human authority remains required.',
         );
         $budget->add('policy', $this->futureWorkLine($futureWorkMode, $maxFollowUpSlices));
+        $budget->add('policy', 'Response language: ' . $prompting['language'] . '; preserve source text, technical identifiers, evidence citations, and required machine-readable status tokens.');
+        $budget->add('policy', 'Blind-spot presentation: ' . $prompting['blindspots']['tone'] . ' tone. Focus on the task or concern supplied by the user; do not invent personal motives or evidence.');
 
         $this->addLifecycleAuthority($budget, $taskId);
 
@@ -247,6 +251,7 @@ final readonly class WorkflowContextCommand
         return [
             'schema_version' => '2.0',
             'task_id' => $taskId,
+            'prompting' => $prompting,
             'interaction' => [
                 'human_explanations' => $policy->value,
                 'interactive_behavior' => $policy->interactiveBehavior(),
@@ -270,6 +275,7 @@ final readonly class WorkflowContextCommand
      *     interaction: HumanExplanationPolicy,
      *     futureWorkMode: FutureWorkMode,
      *     maxFollowUpSlices: int,
+     *     prompting: array{language: string, blindspots: array{tone: 'measured'|'direct'|'unflinching'}},
      *     warnings: list<string>
      * }
      */
@@ -281,6 +287,7 @@ final readonly class WorkflowContextCommand
             $config['warnings'],
             static fn (string $warning): bool => $warning === '[WARN] init config: invalid JSON'
                 || str_starts_with($warning, '[WARN] init config: interaction')
+                || str_starts_with($warning, '[WARN] init config: prompting')
                 || str_starts_with($warning, '[WARN] init config: workflow'),
         ));
 
@@ -288,6 +295,7 @@ final readonly class WorkflowContextCommand
             'interaction' => HumanExplanationPolicy::from($config['interaction']['human_explanations']),
             'futureWorkMode' => FutureWorkMode::from($config['workflow']['future_work']['mode']),
             'maxFollowUpSlices' => $config['workflow']['future_work']['max_follow_up_slices'],
+            'prompting' => $config['prompting'],
             'warnings' => $warnings,
         ];
     }
