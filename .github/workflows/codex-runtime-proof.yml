@@ -807,8 +807,11 @@ jobs:
 
           jq -e '.arm == "baseline" and .hint == null and .selected_candidate_id == "agent-loop-code-reviewer" and .spawn_observed and .child_started and .wait_completed' \
             "${EVIDENCE_ROOT}/routing-0a-baseline-receipt.json" >/dev/null
-          jq -e '.arm == "hinted" and .hint.candidate_id == "agent-loop-investigator" and .hint.authority == null' \
-            "${EVIDENCE_ROOT}/routing-0a-hinted-receipt.json" >/dev/null || true
+          jq -e '.arm == "hinted"
+            and .hint == {"candidate_id":"agent-loop-investigator","probability":0.82}
+            and (.hint | has("authority") | not)
+            and (.hint | has("host_retains_final_selection") | not)' \
+            "${EVIDENCE_ROOT}/routing-0a-hinted-receipt.json" >/dev/null
           jq -e '.arm == "hinted" and .hint.candidate_id == "agent-loop-investigator" and .selected_candidate_id == "agent-loop-investigator" and .spawn_observed and .child_started and .wait_completed' \
             "${EVIDENCE_ROOT}/routing-0a-hinted-receipt.json" >/dev/null
 
