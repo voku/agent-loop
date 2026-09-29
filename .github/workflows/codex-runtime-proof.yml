@@ -8,6 +8,7 @@ on:
       - 'resources/instructions/**'
       - 'resources/skills/**'
       - 'resources/subagents/**'
+      - 'tools/Dogfood/Routing/**'
       - 'resources/hooks/codex/**'
   workflow_dispatch:
 
@@ -459,6 +460,357 @@ jobs:
           else
             printf '%s\n' 'inconclusive_environment' > "${EVIDENCE_ROOT}/child-read-only-outcome.txt"
           fi
+
+      - name: Prove bounded routing hint injection through paired Codex selection
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          server_script="${RUNNER_TEMP}/codex-routing-0a-server.py"
+          fixture_id="routing-001"
+          task_prompt="Locate the repository owner for a bounded source-validation question and delegate to exactly one managed specialist."
+          base_sha="$(git rev-parse HEAD)"
+
+          export ROUTING_FIXTURE_ID="${fixture_id}"
+          export ROUTING_TASK_PROMPT="${task_prompt}"
+          export ROUTING_BASE_SHA="${base_sha}"
+
+          php <<'PHP'
+          <?php
+          require getenv('GITHUB_WORKSPACE') . '/vendor/autoload.php';
+
+          use voku\AgentLoop\Dogfood\Routing\RoutingExperimentFixture;
+
+          $root = getenv('GITHUB_WORKSPACE');
+          $evidence = getenv('EVIDENCE_ROOT');
+          $fixtureId = getenv('ROUTING_FIXTURE_ID');
+          $taskPrompt = getenv('ROUTING_TASK_PROMPT');
+          if (!is_string($root) || !is_string($evidence) || !is_string($fixtureId) || !is_string($taskPrompt)) {
+              throw new RuntimeException('Missing routing experiment environment.');
+          }
+
+          $baseline = RoutingExperimentFixture::baseline($root, $fixtureId, $taskPrompt);
+          $hinted = RoutingExperimentFixture::hinted(
+              $root,
+              $fixtureId,
+              $taskPrompt,
+              'agent-loop-investigator',
+              0.82,
+          );
+
+          file_put_contents($evidence . '/routing-0a-candidate-ids.json', json_encode(
+              $baseline->candidateIds(),
+              JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+          ) . "\n");
+          file_put_contents($evidence . '/routing-0a-baseline-prompt.txt', $baseline->renderParentPrompt() . "\n");
+          file_put_contents($evidence . '/routing-0a-hinted-prompt.txt', $hinted->renderParentPrompt() . "\n");
+          PHP
+
+          cat > "${server_script}" <<'PY'
+          import http.server
+          import json
+          import os
+          import re
+
+          arm = os.environ["ROUTING_ARM"]
+          candidate_path = os.environ["ROUTING_CANDIDATE_PATH"]
+          request_prefix = os.environ["ROUTING_REQUEST_PREFIX"]
+          port_path = os.environ["ROUTING_PORT_PATH"]
+          selected_path = os.environ["ROUTING_SELECTED_PATH"]
+
+          with open(candidate_path, "r", encoding="utf-8") as handle:
+              allowed_candidates = set(json.load(handle))
+
+          def all_strings(value):
+              if isinstance(value, str):
+                  return [value]
+              if isinstance(value, list):
+                  result = []
+                  for item in value:
+                      result.extend(all_strings(item))
+                  return result
+              if isinstance(value, dict):
+                  result = []
+                  for item in value.values():
+                      result.extend(all_strings(item))
+                  return result
+              return []
+
+          def completed_events(response_id):
+              return [
+                  {"type": "response.created", "response": {"id": response_id}},
+                  {
+                      "type": "response.completed",
+                      "response": {
+                          "id": response_id,
+                          "usage": {
+                              "input_tokens": 0,
+                              "input_tokens_details": None,
+                              "output_tokens": 0,
+                              "output_tokens_details": None,
+                              "total_tokens": 0,
+                          },
+                      },
+                  },
+              ]
+
+          def output_for(request, call_id):
+              return next(
+                  (
+                      item
+                      for item in request.get("input", [])
+                      if item.get("type") == "function_call_output"
+                      and item.get("call_id") == call_id
+                  ),
+                  None,
+              )
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              request_count = 0
+              selected_candidate = None
+
+              def log_message(self, format, *args):
+                  return
+
+              def do_POST(self):
+                  Handler.request_count += 1
+                  length = int(self.headers.get("Content-Length", "0"))
+                  body = self.rfile.read(length)
+                  with open(f"{request_prefix}-{Handler.request_count}.json", "wb") as handle:
+                      handle.write(body)
+
+                  request = json.loads(body)
+                  request_text = "\n".join(all_strings(request))
+                  spawn_output = output_for(request, "call-routing-0a-spawn")
+                  wait_output = output_for(request, "call-routing-0a-wait")
+
+                  fingerprints = {
+                      "agent-loop-investigator": "Locate. Verify. Report. Stop.",
+                      "agent-loop-code-reviewer": "Review only the supplied diff",
+                  }
+                  if Handler.selected_candidate is not None and fingerprints[Handler.selected_candidate] in request_text:
+                      events = completed_events(f"resp-routing-child-{Handler.request_count}")
+                  elif spawn_output is not None and wait_output is None:
+                      agent_id = json.loads(spawn_output["output"])["agent_id"]
+                      events = [
+                          {"type": "response.created", "response": {"id": "resp-routing-wait"}},
+                          {
+                              "type": "response.output_item.done",
+                              "item": {
+                                  "type": "function_call",
+                                  "call_id": "call-routing-0a-wait",
+                                  "namespace": "multi_agent_v1",
+                                  "name": "wait_agent",
+                                  "arguments": json.dumps({
+                                      "targets": [agent_id],
+                                      "timeout_ms": 20000,
+                                  }),
+                              },
+                          },
+                          *completed_events("resp-routing-wait-complete")[1:],
+                      ]
+                  elif wait_output is not None:
+                      events = completed_events(f"resp-routing-parent-complete-{Handler.request_count}")
+                  else:
+                      marker = re.search(
+                          r"<agent-loop-routing-hint>\s*(\{.*?\})\s*</agent-loop-routing-hint>",
+                          request_text,
+                          re.DOTALL,
+                      )
+                      if arm == "baseline":
+                          if marker is not None:
+                              raise RuntimeError("Baseline arm unexpectedly received a routing hint.")
+                          selected = "agent-loop-code-reviewer"
+                      else:
+                          if marker is None:
+                              raise RuntimeError("Hinted arm did not receive the routing hint.")
+                          hint = json.loads(marker.group(1))
+                          if hint.get("authority") != "advisory" or hint.get("host_retains_final_selection") is not True:
+                              raise RuntimeError("Routing hint lost its advisory authority boundary.")
+                          selected = hint["candidate_id"]
+
+                      if selected not in allowed_candidates:
+                          raise RuntimeError(f"Unknown routing candidate: {selected}")
+                      if selected not in fingerprints:
+                          raise RuntimeError(f"Fixture has no child fingerprint for: {selected}")
+
+                      Handler.selected_candidate = selected
+                      with open(selected_path, "w", encoding="utf-8") as handle:
+                          handle.write(selected)
+
+                      events = [
+                          {"type": "response.created", "response": {"id": "resp-routing-spawn"}},
+                          {
+                              "type": "response.output_item.done",
+                              "item": {
+                                  "type": "function_call",
+                                  "call_id": "call-routing-0a-spawn",
+                                  "namespace": "multi_agent_v1",
+                                  "name": "spawn_agent",
+                                  "arguments": json.dumps({
+                                      "message": "Return no content. Deterministic bounded routing experiment.",
+                                      "agent_type": selected,
+                                      "fork_context": False,
+                                  }),
+                              },
+                          },
+                          *completed_events("resp-routing-spawn-complete")[1:],
+                      ]
+
+                  payload = "".join(
+                      f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+                      for event in events
+                  ).encode()
+
+                  self.send_response(200)
+                  self.send_header("Content-Type", "text/event-stream")
+                  self.send_header("Content-Length", str(len(payload)))
+                  self.end_headers()
+                  self.wfile.write(payload)
+
+          server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+          with open(port_path, "w", encoding="utf-8") as handle:
+              handle.write(str(server.server_port))
+          server.serve_forever()
+          PY
+
+          run_arm() {
+            local arm="$1"
+            local prompt_path="${EVIDENCE_ROOT}/routing-0a-${arm}-prompt.txt"
+            local request_prefix="${EVIDENCE_ROOT}/routing-0a-${arm}-request"
+            local selected_path="${EVIDENCE_ROOT}/routing-0a-${arm}-selected.txt"
+            local port_path="${RUNNER_TEMP}/routing-0a-${arm}-port"
+            local arm_home="${RUNNER_TEMP}/routing-0a-${arm}-home"
+
+            rm -rf "${arm_home}"
+            rm -f "${port_path}" "${selected_path}" "${request_prefix}"-*.json
+            mkdir -p "${arm_home}"
+            cat > "${arm_home}/config.toml" <<EOF
+          [projects."${PROOF_ROOT}"]
+          trust_level = "trusted"
+          EOF
+
+            ROUTING_ARM="${arm}" \
+            ROUTING_CANDIDATE_PATH="${EVIDENCE_ROOT}/routing-0a-candidate-ids.json" \
+            ROUTING_REQUEST_PREFIX="${request_prefix}" \
+            ROUTING_PORT_PATH="${port_path}" \
+            ROUTING_SELECTED_PATH="${selected_path}" \
+              python3 "${server_script}" &
+            local server_pid=$!
+
+            for _ in $(seq 1 100); do
+              if test -s "${port_path}"; then
+                break
+              fi
+              sleep 0.05
+            done
+            test -s "${port_path}"
+            local port
+            port="$(cat "${port_path}")"
+
+            (
+              cd "${PROOF_ROOT}"
+              CODEX_HOME="${arm_home}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+                codex exec --ephemeral --json \
+                  -c 'model="proof-model"' \
+                  -c 'model_provider="mock"' \
+                  -c "model_providers.mock={ name = \"mock\", base_url = \"http://127.0.0.1:${port}/v1\", env_key = \"PATH\", wire_api = \"responses\" }" \
+                  "$(cat "${prompt_path}")"
+            ) > "${EVIDENCE_ROOT}/routing-0a-${arm}-exec.jsonl" \
+              2> "${EVIDENCE_ROOT}/routing-0a-${arm}-exec.stderr"
+
+            kill "${server_pid}" 2>/dev/null || true
+            wait "${server_pid}" 2>/dev/null || true
+
+            test -s "${selected_path}"
+            local selected
+            selected="$(cat "${selected_path}")"
+            local fingerprint
+            case "${selected}" in
+              agent-loop-investigator) fingerprint='Locate. Verify. Report. Stop.' ;;
+              agent-loop-code-reviewer) fingerprint='Review only the supplied diff' ;;
+              *) printf 'unexpected selected candidate: %s\n' "${selected}" >&2; return 1 ;;
+            esac
+
+            local child_request=""
+            local spawn_result=""
+            local wait_result=""
+            for request in "${request_prefix}"-*.json; do
+              if grep -Fq "${fingerprint}" "${request}"; then
+                child_request="${request}"
+              fi
+              if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-routing-0a-spawn")' "${request}" >/dev/null 2>&1; then
+                spawn_result="${request}"
+              fi
+              if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-routing-0a-wait")' "${request}" >/dev/null 2>&1; then
+                wait_result="${request}"
+              fi
+            done
+            test -n "${child_request}"
+            test -n "${spawn_result}"
+            test -n "${wait_result}"
+            jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-routing-0a-wait") | .output | fromjson | (.timed_out == false and (.status | length > 0))' \
+              "${wait_result}" >/dev/null
+          }
+
+          run_arm baseline
+          run_arm hinted
+
+          test "$(cat "${EVIDENCE_ROOT}/routing-0a-baseline-selected.txt")" = 'agent-loop-code-reviewer'
+          test "$(cat "${EVIDENCE_ROOT}/routing-0a-hinted-selected.txt")" = 'agent-loop-investigator'
+
+          php <<'PHP'
+          <?php
+          require getenv('GITHUB_WORKSPACE') . '/vendor/autoload.php';
+
+          use voku\AgentLoop\Dogfood\Routing\RoutingExperimentFixture;
+          use voku\AgentLoop\Dogfood\Routing\RoutingExperimentReceipt;
+
+          $root = getenv('GITHUB_WORKSPACE');
+          $evidence = getenv('EVIDENCE_ROOT');
+          $fixtureId = getenv('ROUTING_FIXTURE_ID');
+          $taskPrompt = getenv('ROUTING_TASK_PROMPT');
+          $baseSha = getenv('ROUTING_BASE_SHA');
+          if (!is_string($root) || !is_string($evidence) || !is_string($fixtureId) || !is_string($taskPrompt) || !is_string($baseSha)) {
+              throw new RuntimeException('Missing routing receipt environment.');
+          }
+
+          $fixtures = [
+              'baseline' => RoutingExperimentFixture::baseline($root, $fixtureId, $taskPrompt),
+              'hinted' => RoutingExperimentFixture::hinted(
+                  $root,
+                  $fixtureId,
+                  $taskPrompt,
+                  'agent-loop-investigator',
+                  0.82,
+              ),
+          ];
+
+          foreach ($fixtures as $arm => $fixture) {
+              $selected = trim((string) file_get_contents($evidence . '/routing-0a-' . $arm . '-selected.txt'));
+              $receipt = RoutingExperimentReceipt::observe(
+                  $fixture,
+                  $baseSha,
+                  $selected,
+                  true,
+                  true,
+                  true,
+              );
+              file_put_contents(
+                  $evidence . '/routing-0a-' . $arm . '-receipt.json',
+                  json_encode($receipt->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+              );
+          }
+          PHP
+
+          jq -e '.arm == "baseline" and .hint == null and .selected_candidate_id == "agent-loop-code-reviewer" and .spawn_observed and .child_started and .wait_completed' \
+            "${EVIDENCE_ROOT}/routing-0a-baseline-receipt.json" >/dev/null
+          jq -e '.arm == "hinted" and .hint.candidate_id == "agent-loop-investigator" and .hint.authority == null' \
+            "${EVIDENCE_ROOT}/routing-0a-hinted-receipt.json" >/dev/null || true
+          jq -e '.arm == "hinted" and .hint.candidate_id == "agent-loop-investigator" and .selected_candidate_id == "agent-loop-investigator" and .spawn_observed and .child_started and .wait_completed' \
+            "${EVIDENCE_ROOT}/routing-0a-hinted-receipt.json" >/dev/null
 
       - name: Prove forbidden decisions in Codex execpolicy engine
         shell: bash
