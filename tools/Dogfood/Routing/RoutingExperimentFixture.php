@@ -63,6 +63,7 @@ final readonly class RoutingExperimentFixture
         );
     }
 
+    /** @return 'baseline'|'hinted' */
     public function arm(): string
     {
         return $this->hint === null ? 'baseline' : 'hinted';
