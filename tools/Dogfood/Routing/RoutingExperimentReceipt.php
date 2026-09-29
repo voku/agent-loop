@@ -8,12 +8,16 @@ use InvalidArgumentException;
 
 final readonly class RoutingExperimentReceipt
 {
+    /** @var 'baseline'|'hinted' */
+    public string $arm;
+
     /**
+     * @param 'baseline'|'hinted' $arm
      * @param non-empty-list<string> $candidateIds
      */
     private function __construct(
         public string $fixtureId,
-        public string $arm,
+        string $arm,
         public string $baseSha,
         public array $candidateIds,
         public ?RoutingHint $hint,
@@ -22,6 +26,7 @@ final readonly class RoutingExperimentReceipt
         public bool $childStarted,
         public bool $waitCompleted,
     ) {
+        $this->arm = $arm;
     }
 
     public static function observe(
