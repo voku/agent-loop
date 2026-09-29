@@ -106,6 +106,6 @@ final readonly class RoutingExperimentFixture
             throw new LogicException('Routing experiment requires at least one managed subagent candidate.');
         }
 
-        return array_values($candidateIds);
+        return $candidateIds;
     }
 }
