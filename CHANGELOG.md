@@ -1,3 +1,15 @@
+## 0.20.51 - 2026-09-30
+
+### Changed
+
+- Require released `voku/agent-map ^0.18.3`, the first supported Map floor that combines structured `PHPAttributeExpression` consumption with parser 0.22.7 AST-only source-bound constant handling and key-preserving attribute-array rendering.
+- Advance the four installed refactor lifecycle proofs to exact released Map 0.18.3 / target commit `17b5ee02a75ac7fa4b5281b85ef78877df2fb8ec`, so the proof graph matches the package floor instead of constructing an unsatisfiable 0.18.0 path repository.
+
+### Validation
+
+- PR #659 exact head `e4ac8fbb780c804ae8456f5d4baa160723b29742` passed PHP 8.3, 8.4 and 8.5 CI, installed release-set dogfood resolving `voku/agent-map 0.18.3` with `voku/simple-php-code-parser 0.22.7`, deterministic slop review, release upgrade/resume, acceptance-criteria and prompt-primitives dogfood, all four installed refactor lifecycle workflows, Self-Shape, and AccessLint.
+- The resulting `main` head `0e25dd9f70c765b1643c844eaac5b3c40ee127a0` passed push CI on PHP 8.3, 8.4 and 8.5, installed release-set dogfood, and deterministic slop review before this release preparation.
+
 ## 0.20.50 - 2026-09-30
 
 ### Added
