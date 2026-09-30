@@ -15,8 +15,10 @@ use voku\AgentLearning\LearningNoteContent;
 use voku\AgentLearning\LearningNoteDraft;
 use voku\AgentLearning\LearningNoteService;
 use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
+use PHPUnit\Framework\Attributes\Group;
 
 /** @internal */
+#[Group('slow')]
 final class AgentDisciplineHookTest extends TestCase
 {
     public function testSessionStartInjectsBundledDiscipline(): void

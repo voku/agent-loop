@@ -8,7 +8,9 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
+use PHPUnit\Framework\Attributes\Group;
 
+#[Group('slow')]
 final class DispatcherTest extends TestCase
 {
     /**

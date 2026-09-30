@@ -10,6 +10,7 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\GitWorkTree;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Replays a public package fix through the same edit path consumers use.
@@ -20,6 +21,7 @@ use voku\AgentLoop\GitWorkTree;
  *
  * @internal
  */
+#[Group('slow')]
 final class AgentLoopHistoricalEditReplayTest extends TestCase
 {
     private string $packageRoot;

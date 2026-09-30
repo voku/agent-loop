@@ -10,9 +10,9 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\Refactor\MethodRemovalPlanApplier;
 use voku\AgentLoop\Edit\Refactor\MethodRemovalPlanDocument;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Removal\MethodRemovalPlanner;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class MethodRemovalPlanApplierTest extends TestCase
 {
@@ -134,7 +134,7 @@ PHP);
 
     private function map(): AgentMapIndex
     {
-        return (new AgentMapBuilder())->build($this->root, ['src'], []);
+        return CachedAgentMapBuilder::build($this->root, ['src'], []);
     }
 
     /** @return array<string, mixed> */

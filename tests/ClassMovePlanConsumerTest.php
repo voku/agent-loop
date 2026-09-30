@@ -9,8 +9,8 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\Refactor\ClassMovePlanApplier;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class ClassMovePlanConsumerTest extends TestCase
 {
@@ -131,7 +131,7 @@ PHP);
     /** Builds the structural-only Map snapshot used by class-move host tests. */
     private function structuralMap(): AgentMapIndex
     {
-        $built = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $built = CachedAgentMapBuilder::build($this->root, ['src'], []);
 
         return new AgentMapIndex(
             schemaVersion: $built->schemaVersion,

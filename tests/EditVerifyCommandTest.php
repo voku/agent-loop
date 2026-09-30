@@ -8,11 +8,13 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\EditCommand;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Drives the real chain: `edit` compiles a plan and writes the answer sheet, the answers are filled
  * in the way an agent would, and `edit verify` grades them against the key it never saw.
  */
+#[Group('slow')]
 final class EditVerifyCommandTest extends TestCase
 {
     private string $root;

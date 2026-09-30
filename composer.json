@@ -25,6 +25,7 @@
     "voku/portable-utf8": "^6.1"
   },
   "require-dev": {
+    "brianium/paratest": "^7.8",
     "friendsofphp/php-cs-fixer": "^3.95",
     "phpstan/phpstan": "^2.1",
     "phpunit/phpunit": "^11.5",
@@ -48,6 +49,8 @@
   ],
   "scripts": {
     "test": "phpunit",
+    "test:fast": "phpunit --exclude-group slow",
+    "test:parallel": "paratest --functional",
     "cs": "php-cs-fixer check --config=.php-cs-fixer.dist.php --diff --show-progress=none",
     "cs:fix": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --show-progress=none",
     "phpstan": "phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M",

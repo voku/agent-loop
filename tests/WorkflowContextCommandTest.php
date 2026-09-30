@@ -11,10 +11,10 @@ use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowContextBudget;
 use voku\AgentLoop\Workflow\WorkflowContextCommand;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\MapArtifactPaths;
 use voku\AgentSession\SessionStore;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class WorkflowContextCommandTest extends TestCase
 {
@@ -55,7 +55,7 @@ final class WorkflowContextCommandTest extends TestCase
             'selected_constraints' => [['id' => 'C-001']],
         ], JSON_THROW_ON_ERROR));
         mkdir($this->root . '/.agent-loop/map', 0777, true);
-        (new IndexWriter())->write((new AgentMapBuilder())->build($this->root, ['src'], []), $this->root . '/.agent-loop/map/php-symbols.json');
+        (new IndexWriter())->write(CachedAgentMapBuilder::build($this->root, ['src'], []), $this->root . '/.agent-loop/map/php-symbols.json');
     }
 
     protected function tearDown(): void

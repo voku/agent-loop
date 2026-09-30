@@ -10,8 +10,8 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\Refactor\ClassConstantRemovalPlanApplier;
 use voku\AgentLoop\Edit\Refactor\ClassConstantRemovalPlanDocument;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class ClassConstantRemovalPlanApplierTest extends TestCase
 {
@@ -136,7 +136,7 @@ PHP);
 
     private function map(): AgentMapIndex
     {
-        return (new AgentMapBuilder())->build($this->root, ['src'], []);
+        return CachedAgentMapBuilder::build($this->root, ['src'], []);
     }
 
     /** @return array<string, mixed> */

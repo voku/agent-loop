@@ -10,6 +10,7 @@ use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * A stale verification receipt must converge instead of naming itself.
@@ -21,6 +22,7 @@ use voku\AgentLoop\Workflow\HostFrontDoorCommand;
  * reported. Verification currentness is a Loop fact, so the convergence has to
  * come from Loop rather than from a consumer working around it.
  */
+#[Group('slow')]
 final class StaleVerificationConvergenceTest extends TestCase
 {
     private const TASK = 'STALE-399';

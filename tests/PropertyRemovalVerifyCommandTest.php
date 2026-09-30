@@ -9,9 +9,9 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\Refactor\PropertyRemovalPlanApplier;
 use voku\AgentLoop\Edit\Refactor\PropertyRemovalVerifyCommand;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class PropertyRemovalVerifyCommandTest extends TestCase
 {
@@ -54,14 +54,14 @@ PHP);
 
     public function testVerificationRequiresTargetAbsentFromCurrentMap(): void
     {
-        $beforeMap = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $beforeMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $plan = $this->plan($beforeMap);
         $planJson = json_encode($plan, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
         $planPath = $this->root . '/bundle/plan.json';
         file_put_contents($planPath, $planJson);
 
         (new PropertyRemovalPlanApplier())->apply($plan, $beforeMap, $this->root);
-        $currentMap = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $currentMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $mapPath = $this->root . '/map.json';
         (new IndexWriter())->write($currentMap, $mapPath);
 
