@@ -28,7 +28,7 @@ Flag semantics (from the Learning CLI): candidates are written only with `--writ
 
 ## Write candidates (only on an explicit human ask)
 
-`make agent_learning_dream_write_candidates` (or `learn dream --write-candidates`) writes review records only. Run it once step 1 shows no concurrent diff in the Learning root. Route each record through `learn proposal-approve|reject|acknowledge` with a named human (`--by`) and, for reject/acknowledge, a real reason. Never approve a candidate because it exists, and never bulk-acknowledge to empty the queue.
+`make agent_learning_dream_write_candidates` (or `learn dream --write-candidates`) writes review records only. Run it once step 1 shows no concurrent diff in the Learning root. Route each record through exactly one of `learn proposal-approve`, `learn proposal-reject` or `learn proposal-acknowledge`, with a named human (`--by`) and, for reject and acknowledge, a real reason. Never approve a candidate because it exists, and never bulk-acknowledge to empty the queue.
 
 ## History projections
 
