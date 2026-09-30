@@ -25,6 +25,11 @@ AGENT_LOOP_WITH_CONFIG = --config "$(AGENT_LOOP_CONFIG)"
 AGENT_LOOP_DEFAULT_ACTOR ?= $(USER)
 AGENT_LOOP_DEFAULT_VALIDATION ?= composer ci
 AGENT_LOOP_QUOTE ?= '$(subst ','"'"',$(1))'
+# Dream maintenance (`agent-loop learn dream`). Leave AGENT_LEARNING_ROOT empty to
+# use the Learning root that auto-discovery resolves; a host with a non-default
+# root sets it once. The report lives with other generated, regenerable state.
+AGENT_LEARNING_ROOT ?=
+AGENT_DREAM_REPORT ?= .agent-loop/dream/latest.json
 
 # Hosts that must enter a container, bootstrap an application, or select a user
 # can define this function before including the file. Its arguments are the
@@ -299,3 +304,11 @@ agent_workflow_handoff:
 agent_workflow_close:
 	@test -n "$(TASK)" || { echo "TASK is required, e.g. make agent_workflow_close TASK=TASK-123 [STATUS=done]"; exit 1; }
 	$(call AGENT_LOOP_RUN,$(AGENT_LOOP_BIN) workflow close "$(TASK)" --status "$(if $(STATUS),$(STATUS),done)" $(ARGS),agent_workflow_close,)
+
+.PHONY: agent_learning_dream ## dry-run the Dream maintenance review and write its JSON report, e.g. make agent_learning_dream [ARGS=--format=json]
+agent_learning_dream:
+	$(call AGENT_LOOP_RUN,$(AGENT_LOOP_BIN) learn dream $(if $(AGENT_LEARNING_ROOT),--root "$(AGENT_LEARNING_ROOT)",) --report "$(AGENT_DREAM_REPORT)" --dry-run $(ARGS),agent_learning_dream,)
+
+.PHONY: agent_learning_dream_write_candidates ## write reviewable Dream candidate proposals after an explicit human ask; never approves or applies guidance
+agent_learning_dream_write_candidates:
+	$(call AGENT_LOOP_RUN,$(AGENT_LOOP_BIN) learn dream $(if $(AGENT_LEARNING_ROOT),--root "$(AGENT_LEARNING_ROOT)",) --report "$(AGENT_DREAM_REPORT)" --write-candidates $(ARGS),agent_learning_dream_write_candidates,)
