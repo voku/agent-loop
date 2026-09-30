@@ -13,9 +13,9 @@ use voku\AgentLoop\Edit\EditExecution;
 use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\MethodRenameEditRunner;
 use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Rename\MethodRenamePlanner;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class MethodRenameEditRunnerTest extends TestCase
 {
@@ -185,7 +185,7 @@ final class MethodRenameEditRunnerTest extends TestCase
     /** @return array{\voku\AgentMap\Index\AgentMapIndex, array<string, mixed>} */
     private function realPlan(): array
     {
-        $map = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $map = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $plan = (new MethodRenamePlanner())->plan($map, 'Demo\\Service::save', 'persist')->toArray();
         self::assertSame('safe', $plan['status']);
 

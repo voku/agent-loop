@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\ProjectLayout;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * The derived search index is what turns retrieval into ranked Recall evidence.
@@ -23,6 +24,7 @@ use voku\AgentLoop\ProjectLayout;
  *
  * @internal
  */
+#[Group('slow')]
 final class MapSearchIndexOwnershipTest extends TestCase
 {
     private string $root;

@@ -19,6 +19,7 @@ use voku\AgentMap\MapArtifactPaths;
 use voku\AgentMap\Search\ChunkExtractor;
 use voku\AgentMap\Search\ChunkPolicy;
 use voku\AgentMap\Search\SearchIndexStore;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Deterministic Map preparation belongs behind `enter`, not in host prose.
@@ -29,6 +30,7 @@ use voku\AgentMap\Search\SearchIndexStore;
  * needs no human decision, so requiring the host to produce it first was
  * choreography.
  */
+#[Group('slow')]
 final class EnterReconcilesDiscoveryTest extends TestCase
 {
     private string $root;

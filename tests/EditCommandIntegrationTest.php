@@ -12,7 +12,9 @@ use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Edit\EditMutationLock;
 use voku\AgentLoop\Edit\EditOrchestrator;
 use voku\AgentLoop\Edit\MethodRenameEditRunner;
+use PHPUnit\Framework\Attributes\Group;
 
+#[Group('slow')]
 final class EditCommandIntegrationTest extends TestCase
 {
     private string $root;

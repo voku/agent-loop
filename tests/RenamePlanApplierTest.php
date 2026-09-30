@@ -11,8 +11,8 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
 use voku\AgentLoop\Edit\Refactor\RenamePlanDocument;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class RenamePlanApplierTest extends TestCase
 {
@@ -248,7 +248,7 @@ PHP);
 
     private function map(): AgentMapIndex
     {
-        return (new AgentMapBuilder())->build($this->root, ['src'], []);
+        return CachedAgentMapBuilder::build($this->root, ['src'], []);
     }
 
     /**

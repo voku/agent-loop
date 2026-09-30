@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * A deterministic preparation refusal must not name `enter` as its own repair.
@@ -20,6 +21,7 @@ use voku\AgentLoop\Workflow\HostFrontDoorCommand;
  * exactly what was wrong, but agent-loop discarded that text, so the only
  * machine-readable message was an exit code shared by every possible cause.
  */
+#[Group('slow')]
 final class EnterPreparationFailureRoutingTest extends TestCase
 {
     private string $root;

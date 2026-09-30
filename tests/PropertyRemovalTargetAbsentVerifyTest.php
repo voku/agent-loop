@@ -9,9 +9,9 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\Refactor\PropertyRemovalPlanApplier;
 use voku\AgentLoop\Edit\Refactor\PropertyRemovalVerifyCommand;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class PropertyRemovalTargetAbsentVerifyTest extends TestCase
 {
@@ -54,7 +54,7 @@ PHP);
 
     public function testCurrentHashesDoNotHidePersistingPropertyRelation(): void
     {
-        $beforeMap = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $beforeMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         self::assertNotNull($beforeMap->fingerprint);
 
         $path = 'src/Service.php';
@@ -99,7 +99,7 @@ PHP);
         file_put_contents($planPath, $planJson);
         (new PropertyRemovalPlanApplier())->apply($plan, $beforeMap, $this->root);
 
-        $currentMap = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $currentMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $hybridMap = new AgentMapIndex(
             $currentMap->schemaVersion,
             $currentMap->root,

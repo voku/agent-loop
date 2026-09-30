@@ -21,6 +21,12 @@ composer validate --strict
 composer test
 # or: vendor/bin/phpunit
 
+# Quick feedback while developing: skips the tests tagged #[Group('slow')]
+composer test:fast
+
+# The full suite on several processes (paratest, one test per process slot)
+composer test:parallel
+
 # Run PHPStan static analysis
 composer phpstan
 # or: vendor/bin/phpstan analyse -c phpstan.neon.dist
@@ -28,6 +34,14 @@ composer phpstan
 # Run all CI checks
 composer ci
 ```
+
+### Why some tests are slow
+
+Every map build starts a PHPStan process (about 1.5-2 s even for a two-file fixture). Tests that build the
+same fixture in a fresh temporary root should use `voku\AgentLoop\Tests\Support\CachedAgentMapBuilder::build()`
+instead of `new AgentMapBuilder()`: it caches the built map by the fixture's content and the installed
+agent-map/PHPStan, and re-roots it on a hit. Set `AGENT_LOOP_TEST_MAP_CACHE=0` to force real builds.
+Tests whose map build happens inside production code (the CLI flows) are tagged `#[Group('slow')]`.
 
 ## Pull Requests
 

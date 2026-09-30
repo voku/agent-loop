@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Dispatcher;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
+use PHPUnit\Framework\Attributes\Group;
 
 /**
  * Obeying the canonical next action must make progress.
@@ -19,6 +20,7 @@ use voku\AgentLoop\Workflow\HostFrontDoorCommand;
  * could only escape by reading prose or holding a private "map missing means
  * build the map" rule.
  */
+#[Group('slow')]
 final class CanonicalNextActionConvergenceTest extends TestCase
 {
     private string $root;

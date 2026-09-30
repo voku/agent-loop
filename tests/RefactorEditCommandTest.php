@@ -12,9 +12,9 @@ use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Edit\EditMutationLock;
 use voku\AgentLoop\Edit\Refactor\RefactorEditCommand;
 use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class RefactorEditCommandTest extends TestCase
 {
@@ -42,7 +42,7 @@ final class Service
 }
 PHP);
 
-        $this->map = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $this->map = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $this->mapPath = $this->root . '/map.json';
         (new IndexWriter())->write($this->map, $this->mapPath);
         $this->planPath = $this->root . '/plan.json';

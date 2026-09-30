@@ -9,9 +9,9 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Edit\Refactor\RefactorVerifyCommand;
 use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
+use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
 final class RefactorVerifyCommandTest extends TestCase
 {
@@ -109,7 +109,7 @@ PHP);
     private function rebuildMap(): void
     {
         (new IndexWriter())->write(
-            (new AgentMapBuilder())->build($this->root, ['src'], []),
+            CachedAgentMapBuilder::build($this->root, ['src'], []),
             $this->root . '/.agent-loop/map/php-symbols.json',
         );
     }
@@ -131,7 +131,7 @@ PHP);
 
     private function prepareAppliedClassRename(): string
     {
-        $beforeMap = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $beforeMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         $target = 'class:Demo\\Service';
         $source = (string) file_get_contents($this->root . '/src/Service.php');
         $start = strpos($source, 'Service');
@@ -173,7 +173,7 @@ PHP);
         ];
 
         (new RenamePlanApplier())->apply($plan, $beforeMap, $this->root);
-        $afterMap = (new AgentMapBuilder())->build($this->root, ['src'], []);
+        $afterMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         (new IndexWriter())->write($afterMap, $this->root . '/.agent-loop/map/php-symbols.json');
 
         $bundle = $this->root . '/.agent-loop/edit/RENAME-1';
