@@ -16,7 +16,7 @@ use voku\AgentMap\MapArtifactPaths;
  * Test-only drop-in for `(new AgentMapBuilder())->build($root, $paths, $excludes)`.
  *
  * A real build starts a PHPStan process (1.5-2 s even for a two-file fixture), and many tests build the
- * same pristine fixture in a fresh temporary root. The built map is identical apart from the absolute root,
+ * same pristine fixture in a fresh scratch root. The built map is identical apart from the absolute root,
  * so it is cached by the fixture's content and re-rooted on a hit.
  *
  * The key covers the PHP files the builder would read, the paths and excludes, the backend identity and a
@@ -131,7 +131,7 @@ final class CachedAgentMapBuilder
         return str_replace($from, $to, $content);
     }
 
-    /** Writes through a temporary file so parallel test workers never see a half-written entry. */
+    /** Writes through a sibling scratch file so parallel test workers never see a half-written entry. */
     private static function publish(string $file, string $content): void
     {
         $temporary = $file . '.tmp-' . getmypid() . '-' . bin2hex(random_bytes(4));
