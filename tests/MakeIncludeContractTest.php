@@ -76,6 +76,8 @@ final class MakeIncludeContractTest extends TestCase
             'agent_workflow_reflect',
             'agent_workflow_handoff',
             'agent_workflow_close',
+            'agent_learning_dream',
+            'agent_learning_dream_write_candidates',
         ];
 
         foreach ($expectedTargets as $target) {
@@ -105,7 +107,7 @@ final class MakeIncludeContractTest extends TestCase
     {
         $content = $this->includeContent();
 
-        foreach (['AGENT_LOOP_BIN', 'AGENT_LOOP_CONFIG', 'AGENT_LOOP_SYNC_FLAGS', 'AGENT_LOOP_DEFAULT_ACTOR', 'AGENT_LOOP_DEFAULT_VALIDATION', 'AGENT_LOOP_QUOTE'] as $variable) {
+        foreach (['AGENT_LOOP_BIN', 'AGENT_LOOP_CONFIG', 'AGENT_LOOP_SYNC_FLAGS', 'AGENT_LOOP_DEFAULT_ACTOR', 'AGENT_LOOP_DEFAULT_VALIDATION', 'AGENT_LOOP_QUOTE', 'AGENT_LEARNING_ROOT', 'AGENT_DREAM_REPORT'] as $variable) {
             self::assertMatchesRegularExpression(
                 '~^' . preg_quote($variable, '~') . '\s+\?=~m',
                 $content,
@@ -213,6 +215,73 @@ MAKE;
             self::assertSame(0, $result['exit'], $result['stderr']);
             self::assertStringContainsString("'Confirm Bob'\"'\"'s approval'", $result['stdout']);
             self::assertStringEndsWith("quick\nTASK-123\nConfirm Bob's approval\n--file=src/Foo.php\n", $result['stdout']);
+        } finally {
+            unlink($makefile);
+        }
+    }
+
+    public function testDreamTargetsUseTheHostRunnerAndNeverBlurDryRunAndWrite(): void
+    {
+        $content = $this->includeContent();
+
+        $recipes = [];
+        foreach (['agent_learning_dream', 'agent_learning_dream_write_candidates'] as $target) {
+            $pattern = '~^' . preg_quote($target, '~') . ":\\n(?<recipe>(?:\\t[^\\n]*(?:\\n|$))+)~m";
+            self::assertSame(1, preg_match($pattern, $content, $matches), 'Missing recipe: ' . $target);
+            self::assertStringContainsString('$(call AGENT_LOOP_RUN,', $matches['recipe'], $target . ' must preserve the host runtime boundary');
+            $recipes[$target] = $matches['recipe'];
+        }
+
+        // The review target must stay read-only for candidates; only the explicit target may write them.
+        self::assertStringContainsString('--dry-run', $recipes['agent_learning_dream']);
+        self::assertStringNotContainsString('--write-candidates', $recipes['agent_learning_dream']);
+        self::assertStringContainsString('--write-candidates', $recipes['agent_learning_dream_write_candidates']);
+        self::assertStringNotContainsString('--dry-run', $recipes['agent_learning_dream_write_candidates']);
+    }
+
+    public function testDreamTargetsForwardRootReportAndArgsThroughTheHostRunner(): void
+    {
+        $makefile = tempnam(sys_get_temp_dir(), 'agent-loop-make-');
+        self::assertIsString($makefile);
+
+        $includePath = realpath(self::INCLUDE_PATH);
+        self::assertIsString($includePath);
+        $fixture = <<<'MAKE'
+define AGENT_LOOP_RUN
+	@printf 'command=%%s\n' '$(1)'
+	@printf 'target=%%s\n' '$(2)'
+endef
+
+include %s
+MAKE;
+
+        try {
+            self::assertNotFalse(file_put_contents($makefile, sprintf($fixture, $includePath)));
+
+            // Defaults: auto-discovered Learning root, so no --root is emitted.
+            $default = $this->runProcess(['make', '--no-print-directory', '--file', $makefile, 'agent_learning_dream']);
+            self::assertSame(0, $default['exit'], $default['stderr']);
+            self::assertStringContainsString('command=vendor/bin/agent-loop learn dream  --report ".agent-loop/dream/latest.json" --dry-run', $default['stdout']);
+            self::assertStringNotContainsString('--root', $default['stdout']);
+            self::assertStringContainsString('target=agent_learning_dream', $default['stdout']);
+
+            // Host configuration and ARGS pass through unchanged.
+            $configured = $this->runProcess([
+                'make',
+                '--no-print-directory',
+                '--file',
+                $makefile,
+                'agent_learning_dream_write_candidates',
+                'AGENT_LEARNING_ROOT=docs/learning',
+                'AGENT_DREAM_REPORT=build/dream.json',
+                'ARGS=--format=json',
+            ]);
+            self::assertSame(0, $configured['exit'], $configured['stderr']);
+            self::assertStringContainsString(
+                'command=vendor/bin/agent-loop learn dream --root "docs/learning" --report "build/dream.json" --write-candidates --format=json',
+                $configured['stdout'],
+            );
+            self::assertStringContainsString('target=agent_learning_dream_write_candidates', $configured['stdout']);
         } finally {
             unlink($makefile);
         }

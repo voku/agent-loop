@@ -1,3 +1,10 @@
+## Unreleased
+
+### Added
+
+- `agent-loop-dream` package skill: how to run the Dream maintenance review, triage its warnings and candidate decisions, and hand every decision to a named human. It states the exact flag semantics (`--write-candidates` never combines with `--dry-run`; `--report` writes the JSON report) and adds no Dream policy beyond the released `voku/agent-learning` contract.
+- `agent_learning_dream` and `agent_learning_dream_write_candidates` targets in `resources/make/agent-loop.mk`. The review target always passes `--dry-run`; only the explicit write target passes `--write-candidates`. Both run through the host `AGENT_LOOP_RUN` boundary and honor `AGENT_LEARNING_ROOT` (empty means auto-discovery), `AGENT_DREAM_REPORT`, and `ARGS`. A host that already defines targets with these names should drop its copies when it adopts this include.
+
 ## 0.20.48 - 2026-09-28
 
 ### Changed
