@@ -1,9 +1,38 @@
-## Unreleased
+## 0.20.50 - 2026-09-30
 
 ### Added
 
 - `agent-loop-dream` package skill: how to run the Dream maintenance review, triage its warnings and candidate decisions, and hand every decision to a named human. It states the exact flag semantics (`--write-candidates` never combines with `--dry-run`; `--report` writes the JSON report) and adds no Dream policy beyond the released `voku/agent-learning` contract.
 - `agent_learning_dream` and `agent_learning_dream_write_candidates` targets in `resources/make/agent-loop.mk`. The review target always passes `--dry-run`; only the explicit write target passes `--write-candidates`. Both run through the host `AGENT_LOOP_RUN` boundary and honor `AGENT_LEARNING_ROOT` (empty means auto-discovery), `AGENT_DREAM_REPORT`, and `ARGS`. A host that already defines targets with these names should drop its copies when it adopts this include.
+
+### Changed
+
+- The `agent-loop-dream` skill names `learn proposal-approve`, `learn proposal-reject` and `learn proposal-acknowledge` as separate alternatives instead of a `|` list that reads as a shell pipeline when copied; the `--by` and real-reason requirements are unchanged (#655, from the review of #654).
+
+### Fixed
+
+- Restore the `0.20.49` changelog section to its chronological place; it had been appended after the `0.0.1` entry at the end of the file, so the tag workflow's substring check passed while the section was unreadable in context.
+
+### Validation
+
+- PR #654 exact head `8f4f93d4f3911781915809883d71b411f98514d5` passed CI on PHP 8.3, 8.4 and 8.5, the slop review, release upgrade/resume proof, acceptance-criteria and prompt-primitives dogfood, and the installed refactor lifecycle workflows (24 checks passed, 2 skipped from an earlier run of the same workflow).
+- PR #655 is a documentation-only wording change to the same skill.
+- The resulting `main` head `9f669ee430b99c8f15b00ff55902eba04faa7999` passed push CI before this release preparation.
+
+## 0.20.49 - 2026-09-29
+
+### Added
+
+- Project `prompting.language` and `prompting.blindspots.tone` preferences from `.agent-loop/init.json` into workflow context, prompt envelopes, explicit review commands, and finish-prepared review prompts. Review commands also accept an optional per-review focus through Recall's public API.
+- Support the evidence-bound `unflinching` review tone while preserving audit status, machine-readable tokens, and human decision authority.
+
+### Fixed
+
+- Keep the Cursor authority hook's JSON output free of PHP 8.4 warnings from redundant global `use` declarations.
+
+### Changed
+
+- Require released `voku/agent-recall-compiler ^0.25.1` for review prompt presentation options and update candidate dogfoods to that minimum release.
 
 ## 0.20.48 - 2026-09-28
 
@@ -1884,17 +1913,3 @@ release.
 ## 0.0.1 - 2026-06-20
 
 - init commit
-## 0.20.49 - 2026-09-29
-
-### Added
-
-- Project `prompting.language` and `prompting.blindspots.tone` preferences from `.agent-loop/init.json` into workflow context, prompt envelopes, explicit review commands, and finish-prepared review prompts. Review commands also accept an optional per-review focus through Recall's public API.
-- Support the evidence-bound `unflinching` review tone while preserving audit status, machine-readable tokens, and human decision authority.
-
-### Fixed
-
-- Keep the Cursor authority hook's JSON output free of PHP 8.4 warnings from redundant global `use` declarations.
-
-### Changed
-
-- Require released `voku/agent-recall-compiler ^0.25.1` for review prompt presentation options and update candidate dogfoods to that minimum release.
