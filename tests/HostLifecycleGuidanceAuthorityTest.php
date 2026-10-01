@@ -41,6 +41,29 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         self::assertStringContainsString('next_action', $skill);
     }
 
+    public function testAlwaysOnDisciplineDoesNotRestateTheNextActionKindContract(): void
+    {
+        $skill = file_get_contents(
+            dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md',
+        );
+
+        self::assertIsString($skill);
+        foreach ([
+            '- `command` - run it as written;',
+            '- `command_template` - fill model-owned placeholders',
+            '- `decision_required` - present the exact human-authority decision',
+            '- `host_work` - do the described host-native implementation work;',
+            '- `none` - no further lifecycle action.',
+        ] as $duplicatedTreatment) {
+            self::assertStringNotContainsString($duplicatedTreatment, $skill);
+        }
+
+        self::assertStringContainsString(
+            'The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.',
+            $skill,
+        );
+    }
+
     /** The rule this skill defers to has to actually be in the always-on router. */
     public function testTheRouterStillCarriesTheContractTheSkillDefersTo(): void
     {
