@@ -80,15 +80,44 @@ function markdownHeadings(string $content): array
     return $headings;
 }
 
-/** @return array<string, array{router: bool, discipline: bool}> */
-function nextActionKindPresence(string $router, string $discipline): array
+/**
+ * @return array<string, array{
+ *   router_treatment: bool,
+ *   discipline_treatment: bool,
+ *   discipline_term_present: bool
+ * }>
+ */
+function nextActionKindTreatment(string $router, string $discipline): array
 {
+    $checks = [
+        'command' => [
+            'router' => '`command` means execute it as written',
+            'discipline' => '- `command` - run it as written;',
+        ],
+        'command_template' => [
+            'router' => '`command_template` means fill model-owned placeholders',
+            'discipline' => '- `command_template` - fill model-owned placeholders',
+        ],
+        'decision_required' => [
+            'router' => '`decision_required` means a genuine human-authority decision is required',
+            'discipline' => '- `decision_required` - present the exact human-authority decision',
+        ],
+        'host_work' => [
+            'router' => '`host_work` means perform the described host-native implementation/model work',
+            'discipline' => '- `host_work` - do the described host-native implementation work;',
+        ],
+        'none' => [
+            'router' => '`none` means there is no further lifecycle action',
+            'discipline' => '- `none` - no further lifecycle action.',
+        ],
+    ];
+
     $result = [];
-    foreach (['command', 'command_template', 'decision_required', 'host_work', 'none'] as $kind) {
-        $needle = '`' . $kind . '`';
+    foreach ($checks as $kind => $needles) {
         $result[$kind] = [
-            'router' => str_contains($router, $needle),
-            'discipline' => str_contains($discipline, $needle),
+            'router_treatment' => str_contains($router, $needles['router']),
+            'discipline_treatment' => str_contains($discipline, $needles['discipline']),
+            'discipline_term_present' => str_contains($discipline, chr(96) . $kind . chr(96)),
         ];
     }
 
@@ -186,7 +215,7 @@ function measurement(string $root): array
             'claude_with_five_resume_hints' => projectedContext($discipline, true, true),
         ],
         'duplicate_observations' => [
-            'next_action_kind_treatment' => nextActionKindPresence($router, $discipline),
+            'next_action_kind_treatment' => nextActionKindTreatment($router, $discipline),
             'hook_boundary_rule' => [
                 'discipline' => str_contains($discipline, $hookRule),
                 'agent_assets_reference' => str_contains($agentAssets, $hookRule),
