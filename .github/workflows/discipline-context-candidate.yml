@@ -40,6 +40,9 @@ jobs:
         run: php -l tools/discipline-context-measurement.php
 
       - name: Measure source and real hook projection
+        env:
+          AGENT_LOOP_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          AGENT_LOOP_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: >-
           php tools/discipline-context-measurement.php
           --report=build/discipline-context-measurement.json
@@ -49,6 +52,9 @@ jobs:
           jq -e '
             (.schema_version == "1.0")
             and (.scope == "agent-loop-discipline-context-boundary")
+            and (.github_event_sha | type == "string" and length == 40)
+            and (.candidate_sha | type == "string" and length == 40)
+            and (.base_sha | type == "string" and length == 40)
             and (.measurement.source.managed_router_bytes > 0)
             and (.measurement.source.injected_discipline_bytes > 0)
             and (.measurement.runtime_projection.codex_without_resume_hints.bytes > 0)
@@ -59,7 +65,9 @@ jobs:
       - name: Publish concise evidence summary
         run: |
           jq '{
-            github_sha,
+            github_event_sha,
+            candidate_sha,
+            base_sha,
             source: .measurement.source,
             runtime_projection: .measurement.runtime_projection,
             duplicate_observations: .measurement.duplicate_observations
