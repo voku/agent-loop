@@ -14,7 +14,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
  */
 
 /** @return array{report: non-empty-string, root: non-empty-string} */
-function options(): array
+function disciplineContextOptions(): array
 {
     $raw = getopt('', ['report:', 'root::']);
     $report = is_array($raw) ? ($raw['report'] ?? null) : null;
@@ -196,7 +196,7 @@ function measurement(string $root): array
 }
 
 try {
-    $options = options();
+    $options = disciplineContextOptions();
     $result = [
         'schema_version' => '1.0',
         'scope' => 'agent-loop-discipline-context-boundary',
