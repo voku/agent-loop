@@ -200,7 +200,9 @@ try {
     $result = [
         'schema_version' => '1.0',
         'scope' => 'agent-loop-discipline-context-boundary',
-        'github_sha' => (($sha = getenv('GITHUB_SHA')) !== false && $sha !== '') ? $sha : null,
+        'github_event_sha' => (($sha = getenv('GITHUB_SHA')) !== false && $sha !== '') ? $sha : null,
+        'candidate_sha' => (($candidate = getenv('AGENT_LOOP_CANDIDATE_SHA')) !== false && $candidate !== '') ? $candidate : null,
+        'base_sha' => (($base = getenv('AGENT_LOOP_BASE_SHA')) !== false && $base !== '') ? $base : null,
         'measurement' => measurement($options['root']),
     ];
 
