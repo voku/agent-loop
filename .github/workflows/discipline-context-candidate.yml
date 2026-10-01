@@ -1,0 +1,74 @@
+name: Discipline context candidate measurement
+
+on:
+  pull_request:
+    paths:
+      - AGENTS.md
+      - resources/instructions/project-instructions.md
+      - resources/skills/agent-loop-discipline/SKILL.md
+      - src/AgentGuidance/AgentDisciplineHook.php
+      - tools/discipline-context-measurement.php
+      - tests/AgentDisciplineContextBudgetTest.php
+      - tests/HostLifecycleGuidanceAuthorityTest.php
+      - .github/workflows/discipline-context-candidate.yml
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Measure always-on context boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Lint measurement harness
+        run: php -l tools/discipline-context-measurement.php
+
+      - name: Measure source and real hook projection
+        run: >-
+          php tools/discipline-context-measurement.php
+          --report=build/discipline-context-measurement.json
+
+      - name: Validate measurement contract
+        run: |
+          jq -e '
+            (.schema_version == "1.0")
+            and (.scope == "agent-loop-discipline-context-boundary")
+            and (.measurement.source.managed_router_bytes > 0)
+            and (.measurement.source.injected_discipline_bytes > 0)
+            and (.measurement.runtime_projection.codex_without_resume_hints.bytes > 0)
+            and (.measurement.runtime_projection.claude_without_resume_hints.bytes > 0)
+            and (.measurement.duplicate_observations.next_action_kind_treatment | length == 5)
+          ' build/discipline-context-measurement.json >/dev/null
+
+      - name: Publish concise evidence summary
+        run: |
+          jq '{
+            github_sha,
+            source: .measurement.source,
+            runtime_projection: .measurement.runtime_projection,
+            duplicate_observations: .measurement.duplicate_observations
+          }' build/discipline-context-measurement.json
+
+      - name: Upload context measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discipline-context-measurement-${{ github.sha }}
+          if-no-files-found: error
+          path: build/discipline-context-measurement.json
