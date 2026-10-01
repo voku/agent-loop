@@ -16,14 +16,6 @@ vendor/bin/agent-loop enter <task-id> --format=json
 vendor/bin/agent-loop finish <task-id> --format=json
 ```
 
-Obey `next_action_kind` and `next_action`:
-
-- `command` - run it as written;
-- `command_template` - fill model-owned placeholders from request/repository evidence and execute;
-- `decision_required` - present the exact human-authority decision; never fabricate it;
-- `host_work` - do the described host-native implementation work;
-- `none` - no further lifecycle action.
-
 Do not decide mutation legality, gates, contract currency, or superseded scope. The canonical result owns them. If its command refuses without changing the next step, report a workflow defect; do not invent choreography.
 
 SessionStart/SubagentStart hints are navigation only. Never infer approval, validation, review, learning, product intent, or a next command from them.
