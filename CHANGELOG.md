@@ -1,3 +1,20 @@
+## 0.20.52 - 2026-10-02
+
+### Added
+
+- Add `RunManifestProjector::projectMany()` for multi-task read consumers. One explicit batch reuses project-wide Map/Search readiness, repeated artifact digests (including a large Search SQLite index), and the Session inventory while preserving the existing governed/ephemeral/ambiguous Session selection semantics; all batch observations are discarded when the call returns or throws, so ordinary `project()` calls and later batches stay fresh (#666, #667).
+- Add the provider-free routing-hint experiment harness for bounded specialist-routing research. Candidate resolution comes from the existing managed subagent source, receipts contain only sanitized observable facts, and the Codex runtime proof covers baseline/hinted `spawn_agent` plus `wait_agent` without moving lifecycle, approval, mutation, or Learning authority into the experiment (#646, #651).
+
+### Changed
+
+- Keep lifecycle `next_action_kind` treatment in the managed AGENTS router as the single always-on authority and remove the duplicated treatment list from the always-injected discipline body. The measured injected path shrank by 371 bytes / 8 lines while preserving the router contract; the separate human-authority mention of `decision_required` remains intentional (#663, #665).
+
+### Validation
+
+- PR #651 exact head `90974dc4b0879decb81cc751eaf0d957efc06f51` passed CI, Codex runtime proof, release upgrade/resume, acceptance-criteria and prompt-primitives dogfood, and all four installed refactor lifecycle workflows.
+- PR #665 exact head `0184fc34415a0da022b2307aa1003fc6cb1039d4` passed CI, Codex runtime proof, release upgrade/resume, acceptance-criteria and prompt-primitives dogfood, and all four installed refactor lifecycle workflows.
+- PR #667 exact head `fb0f8425650193de5999486b9331ba6d27262cc2` passed PHP 8.3/8.4/8.5 `composer ci`, deterministic slop review, installed release-set and governed execution-contract dogfood, Self-Shape, release upgrade/resume, acceptance-criteria and prompt-primitives dogfood, and all four installed refactor lifecycle workflows.
+
 ## 0.20.51 - 2026-09-30
 
 ### Changed
