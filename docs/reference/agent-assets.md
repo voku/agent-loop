@@ -73,7 +73,7 @@ vendor/bin/agent-loop init install-assets \
 - uncertainty/evidence rules;
 - hook and human-authority boundaries.
 
-They deliberately do **not** inject the full `engineering-codelight` reasoning body, the Ponytail-derived implementation ladder, or PHP coding rules into every session.
+They deliberately do **not** inject the full `engineering-codelight` reasoning body, the Ponytail-derived implementation ladder, or generic PHP/framework cookbook rules into every session.
 
 When work is governed by `agent-loop`:
 
@@ -99,7 +99,8 @@ Reusable engineering behavior is selected when the task needs it:
 
 - `engineering-codelight`: technology-neutral evidence-first reasoning for non-trivial engineering work; it operates inside the current Loop action and does not own lifecycle state;
 - `coding-simplicity`: coding, bug fixing, and refactoring with the smallest correct implementation;
-- `php-best-practices`: PHP-specific engineering guidance;
+- `php-static-analysis`: strict PHP type-contract and analyzer guidance;
+- `linux-strace`: bounded Linux syscall/runtime diagnosis when runtime evidence, not generic PHP knowledge, is the question;
 - `agent-loop-solution-triage`: triage whether existing code/tests already satisfy a requirement;
 - `agent-loop-blindspot-review`: evidence-first stress testing of plans and diffs for hidden failure modes;
 - `code-review-*`: one dominant engineering review lens, with at most one evidence-backed handoff;
