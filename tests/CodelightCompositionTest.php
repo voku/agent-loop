@@ -16,6 +16,9 @@ final class CodelightCompositionTest extends TestCase
         self::assertLessThanOrEqual(8_000, strlen($skill));
         self::assertStringContainsString('engineering-codelight', $skill);
         self::assertStringContainsString('coding-simplicity', $skill);
+        self::assertStringContainsString('php-static-analysis', $skill);
+        self::assertStringContainsString('linux-strace', $skill);
+        self::assertStringNotContainsString('php-best-practices', $skill);
         self::assertStringContainsString('next_action_kind', $skill);
         self::assertStringContainsString('next_action', $skill);
         self::assertStringNotContainsString('## Nine laws', $skill);
