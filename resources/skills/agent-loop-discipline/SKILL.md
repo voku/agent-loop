@@ -74,7 +74,7 @@ Construction is model-owned from approved intent/Recall evidence unless lifecycl
 
 ## Engineering Skill Routing
 
-`agent-loop` owns orchestration, not engineering judgment. Route non-trivial reasoning to `engineering-codelight`, minimization to `coding-simplicity`, PHP work to `php-best-practices`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Load the smallest relevant set; never copy missing skill rules. `coding-simplicity` owns implementation search, root-cause, safety, and verification rules.
+`agent-loop` owns orchestration, not engineering judgment. Route non-trivial reasoning to `engineering-codelight`, minimization to `coding-simplicity`, PHP static-analysis/type-contract work to `php-static-analysis`, Linux syscall/runtime bottleneck diagnosis to `linux-strace`, and review to one dominant `code-review-*` lens plus at most one evidence-backed handoff. Generic PHP and framework knowledge stays with the model, repository evidence, and current owner documentation instead of a cookbook skill. Load the smallest relevant set; never copy missing skill rules. `coding-simplicity` owns implementation search, root-cause, safety, and verification rules.
 
 ## Role Routing
 
