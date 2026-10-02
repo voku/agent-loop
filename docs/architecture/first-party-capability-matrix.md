@@ -11,7 +11,7 @@ This is the current ownership map for first-party agent behavior. Historical mig
 | Engineering lessons and principle history | `voku/learnings` | Architecture input only; never dump it wholesale into runtime context |
 | Technology-neutral non-trivial engineering reasoning | `voku/agent-skills/engineering-codelight` | Route to the portable reasoning lens inside the current lifecycle action when relevant; do not copy its laws or create parallel workflow state |
 | Implementation-time simplicity | `voku/agent-skills/coding-simplicity` | Select/project it for coding, bug fixing, and refactoring; do not copy its rules into session bootstrap |
-| PHP/testing/security/performance/type/architecture engineering guidance | `voku/agent-skills` | Select/project the relevant skill; engineering truth stays outside the umbrella package |
+| PHP static-analysis, testing, security, performance, type, architecture, and runtime-diagnostic guidance | `voku/agent-skills` | Select/project the relevant retained skill; generic framework/language knowledge stays with repository evidence and current semantic-owner documentation |
 | Engineering review lenses | `voku/agent-skills/code-review-*` | Provide exact scope/evidence, select one dominant lens, persist the lens-local result, allow at most one evidence-backed handoff |
 | Workflow phases, approval, review gate, learning decision, verify, close | `voku/agent-loop` | Canonical owner |
 | Process/evidence blind-spot review | `voku/agent-loop` | Deterministic lifecycle check, separate from engineering review |
@@ -59,7 +59,7 @@ Review-time simplicity is a separate concern: `code-review-simplicity` judges an
 - no remote source is downloaded by `install-assets`;
 - the caller owns source provenance and may pin/check out the source before invocation.
 
-Installed release-set CI pins the merged first-party `voku/agent-skills` revision and proves package workflow skills plus `engineering-codelight`, `coding-simplicity`, and review skills coexist in the projected host roots.
+Installed release-set CI pins the merged first-party `voku/agent-skills` revision and proves package workflow skills plus the retained engineering catalog coexist in the projected host roots, including `engineering-codelight`, `coding-simplicity`, `php-static-analysis`, `linux-strace`, and review skills while removed cookbook skills stay absent.
 
 ## Projection is not runtime behavior
 
