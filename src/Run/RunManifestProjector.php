@@ -40,10 +40,55 @@ use voku\AgentSession\SessionStore;
  * Read-only projection of one governed task across package-owned artifacts.
  * Session state may disappear after close; durable run state must not.
  */
-final readonly class RunManifestProjector
+final class RunManifestProjector
 {
-    public function __construct(private string $rootPath)
+    private bool $batchProjectionActive = false;
+
+    /** @var array<string, array{path: string, sha256: string}>|null */
+    private ?array $batchArtifactCache = null;
+
+    /** @var array<string, list<Session>>|null */
+    private ?array $batchSessionsByTask = null;
+
+    private ?MapReadiness $batchMapReadiness = null;
+
+    public function __construct(private readonly string $rootPath)
     {
+    }
+
+    /**
+     * Project several tasks against one bounded read snapshot.
+     *
+     * The shared observations live only for this call. Single-task project()
+     * calls remain fresh, and a later batch re-reads every owner.
+     *
+     * @param list<string> $taskIds
+     * @return list<RunManifest>
+     */
+    public function projectMany(array $taskIds): array
+    {
+        if ($this->batchProjectionActive) {
+            throw new RuntimeException('Nested Run manifest batch projections are not supported.');
+        }
+
+        $this->batchProjectionActive = true;
+        $this->batchArtifactCache = [];
+        $this->batchSessionsByTask = null;
+        $this->batchMapReadiness = null;
+
+        try {
+            $manifests = [];
+            foreach ($taskIds as $taskId) {
+                $manifests[] = $this->project($taskId);
+            }
+
+            return $manifests;
+        } finally {
+            $this->batchProjectionActive = false;
+            $this->batchArtifactCache = null;
+            $this->batchSessionsByTask = null;
+            $this->batchMapReadiness = null;
+        }
     }
 
     public function project(string $taskId): RunManifest
@@ -80,11 +125,7 @@ final readonly class RunManifestProjector
             }
         }
 
-        $layout = new ProjectLayout($this->rootPath);
-        $mapReadiness = (new MapReadinessInspector())->inspect(
-            MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
-            false,
-        );
+        $mapReadiness = $this->mapReadiness();
         $references = [
             'board' => $this->boardReference($taskId, $contract, $run, $session, $disagreements),
             'session' => $this->sessionReference($session, $run),
@@ -131,6 +172,24 @@ final readonly class RunManifestProjector
         );
     }
 
+    private function mapReadiness(): MapReadiness
+    {
+        if ($this->batchProjectionActive && $this->batchMapReadiness !== null) {
+            return $this->batchMapReadiness;
+        }
+
+        $layout = new ProjectLayout($this->rootPath);
+        $readiness = (new MapReadinessInspector())->inspect(
+            MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot()),
+            false,
+        );
+        if ($this->batchProjectionActive) {
+            $this->batchMapReadiness = $readiness;
+        }
+
+        return $readiness;
+    }
+
     /**
      * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
      */
@@ -172,6 +231,10 @@ final readonly class RunManifestProjector
             return $session;
         }
 
+        if ($this->batchProjectionActive) {
+            return $this->sessionForTaskFromBatch($root, $taskId, $disagreements);
+        }
+
         $ambiguous = false;
         try {
             $active = $store->activeForTask($root, $taskId);
@@ -192,6 +255,52 @@ final readonly class RunManifestProjector
 
         $ephemeral = array_values(array_filter(
             $store->openForTask($root, $taskId),
+            static fn (Session $session): bool => $session->ephemeral,
+        ));
+
+        return count($ephemeral) === 1 ? $ephemeral[0] : null;
+    }
+
+    /**
+     * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
+     */
+    private function sessionForTaskFromBatch(string $root, string $taskId, array &$disagreements): ?Session
+    {
+        if ($this->batchSessionsByTask === null) {
+            $sessionsByTask = [];
+            foreach ((new SessionStore())->all($root) as $session) {
+                $sessionsByTask[$session->taskId][] = $session;
+            }
+            $this->batchSessionsByTask = $sessionsByTask;
+        }
+
+        $open = array_values(array_filter(
+            $this->batchSessionsByTask[$taskId] ?? [],
+            static fn (Session $session): bool => !$session->status->isClosed(),
+        ));
+        $governed = array_values(array_filter(
+            $open,
+            static fn (Session $session): bool => !$session->ephemeral,
+        ));
+        if (count($governed) > 1) {
+            $exception = new AmbiguousActiveSession(
+                trim($taskId),
+                array_map(static fn (Session $session): string => $session->id, $governed),
+            );
+            $disagreements[] = [
+                'code' => 'session.multiple_active',
+                'owner' => 'agent-session',
+                'message' => $exception->getMessage(),
+            ];
+
+            return null;
+        }
+        if ($governed !== []) {
+            return $governed[0];
+        }
+
+        $ephemeral = array_values(array_filter(
+            $open,
             static fn (Session $session): bool => $session->ephemeral,
         ));
 
@@ -1010,6 +1119,9 @@ final readonly class RunManifestProjector
     /** @return array{path: string, sha256: string} */
     private function artifact(string $path): array
     {
+        if ($this->batchProjectionActive && isset($this->batchArtifactCache[$path])) {
+            return $this->batchArtifactCache[$path];
+        }
         if (!is_file($path)) {
             throw new RuntimeException('Referenced artifact does not exist: ' . $path);
         }
@@ -1019,7 +1131,13 @@ final readonly class RunManifestProjector
             throw new RuntimeException('Unable to hash referenced artifact: ' . $path);
         }
 
-        return ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
+        $artifact = ['path' => PathResolver::relativeTo($this->rootPath, $path), 'sha256' => 'sha256:' . $sha];
+        if ($this->batchProjectionActive) {
+            $this->batchArtifactCache ??= [];
+            $this->batchArtifactCache[$path] = $artifact;
+        }
+
+        return $artifact;
     }
 
 }
