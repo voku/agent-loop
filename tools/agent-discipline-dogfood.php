@@ -264,6 +264,9 @@ try {
     assertTrue(str_contains($skill, 'Engineering Skill Routing'), 'Discipline skill misses engineering skill routing.');
     assertTrue(str_contains($skill, 'engineering-codelight'), 'Discipline skill misses engineering-codelight route.');
     assertTrue(str_contains($skill, 'coding-simplicity'), 'Discipline skill misses coding-simplicity route.');
+    assertTrue(str_contains($skill, 'php-static-analysis'), 'Discipline skill misses php-static-analysis route.');
+    assertTrue(str_contains($skill, 'linux-strace'), 'Discipline skill misses linux-strace route.');
+    assertTrue(!str_contains($skill, 'php-best-practices'), 'Discipline skill still routes to removed php-best-practices.');
     assertTrue(!str_contains($skill, 'Minimal Implementation Ladder'), 'Discipline bootstrap still embeds implementation minimization rules.');
     assertTrue(!str_contains($skill, '## Nine laws'), 'Discipline bootstrap embeds the Codelight law body.');
     assertTrue(!str_contains($skill, '### 1. Evidence and authority'), 'Discipline bootstrap embeds Codelight law text.');
