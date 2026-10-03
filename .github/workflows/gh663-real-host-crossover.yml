@@ -44,10 +44,10 @@ jobs:
       - name: Lint experiment runner
         run: bash -n tools/gh663-copilot-crossover.sh
 
-      - name: Run minimum pre-approved real-host pair
+      - name: Run missing minimal pre-approved real-host arm
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: bash tools/gh663-copilot-crossover.sh preapproved-pair
+        run: bash tools/gh663-copilot-crossover.sh preapproved-minimal-only
 
       - name: Publish receipt summary
         if: always()
