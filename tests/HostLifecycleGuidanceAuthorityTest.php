@@ -62,6 +62,21 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
             'The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.',
             $skill,
         );
+        self::assertStringContainsString('## Workflow Evidence Integrity', $skill);
+        self::assertStringContainsString('## Workflow Output', $skill);
+
+        foreach ([
+            'Agent I/O',
+            'Prompt Controls',
+            'Navigate Before Editing',
+            'L2 Execution Contract',
+            'Engineering Skill Routing',
+            'Role Routing',
+            'Hook Boundary',
+            'Validation And Close',
+        ] as $specialistHeading) {
+            self::assertStringNotContainsString('## ' . $specialistHeading, $skill);
+        }
     }
 
     /** The rule this skill defers to has to actually be in the always-on router. */
