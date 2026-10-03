@@ -444,7 +444,7 @@ run_case() {
 
     (
         cd "${worktree}"
-        git diff --binary > "${out}/task.diff"
+        git diff --binary "${base}" > "${out}/task.diff"
         git status --porcelain=v1 > "${out}/git-status.txt"
     )
 
