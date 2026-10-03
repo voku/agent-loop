@@ -255,15 +255,15 @@ write_receipt() {
     prompt_sha="$(printf '%s' "${prompt}" | sha256sum | cut -d' ' -f1)"
     router_state="absent"
     router_sha=""
-    if [[ -f "${worktree}/AGENTS.md" ]]; then
+    if git -C "${ROOT}" cat-file -e "${base}:AGENTS.md" 2>/dev/null; then
         router_state="present"
-        router_sha="$(sha256sum "${worktree}/AGENTS.md" | cut -d' ' -f1)"
+        router_sha="$(git -C "${ROOT}" show "${base}:AGENTS.md" | sha256sum | cut -d' ' -f1)"
     fi
     task_authority_path=""
     task_authority_sha=""
     if [[ "${task}" == "task-b" ]]; then
         task_authority_path="docs/agents/dogfood/self-shaping.md"
-        task_authority_sha="$(sha256sum "${worktree}/${task_authority_path}" | cut -d' ' -f1)"
+        task_authority_sha="$(git -C "${ROOT}" show "${base}:${task_authority_path}" | sha256sum | cut -d' ' -f1)"
     fi
     discipline_sha="$(sha256sum "${discipline}" | cut -d' ' -f1)"
     dependency_lock_sha="$(sha256sum "${worktree}/composer.lock" | cut -d' ' -f1)"
