@@ -1334,16 +1334,16 @@
         },
         {
             "name": "voku/simple-php-code-parser",
-            "version": "0.22.4",
+            "version": "0.22.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/Simple-PHP-Code-Parser.git",
-                "reference": "78ced97f096899aeb5bd60a19422e72d3898ef79"
+                "reference": "b8573b3ac3718c8153462cc2918b15cfae342b1f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/Simple-PHP-Code-Parser/zipball/78ced97f096899aeb5bd60a19422e72d3898ef79",
-                "reference": "78ced97f096899aeb5bd60a19422e72d3898ef79",
+                "url": "https://api.github.com/repos/voku/Simple-PHP-Code-Parser/zipball/b8573b3ac3718c8153462cc2918b15cfae342b1f",
+                "reference": "b8573b3ac3718c8153462cc2918b15cfae342b1f",
                 "shasum": ""
             },
             "require": {
@@ -1385,7 +1385,7 @@
             ],
             "support": {
                 "issues": "https://github.com/voku/Simple-PHP-Code-Parser/issues",
-                "source": "https://github.com/voku/Simple-PHP-Code-Parser/tree/0.22.4"
+                "source": "https://github.com/voku/Simple-PHP-Code-Parser/tree/0.22.8"
             },
             "funding": [
                 {
@@ -1401,20 +1401,20 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2026-09-16T19:20:37+00:00"
+            "time": "2026-10-01T02:27:14+00:00"
         },
         {
             "name": "voku/slop-scan",
-            "version": "0.1.11",
+            "version": "0.1.15",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/slop-scan.git",
-                "reference": "2ec486d0d3d0fac4020f376d0b2695ae5b017894"
+                "reference": "0f967d406d3273a69218e4ae4bf419b041a963b5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/slop-scan/zipball/2ec486d0d3d0fac4020f376d0b2695ae5b017894",
-                "reference": "2ec486d0d3d0fac4020f376d0b2695ae5b017894",
+                "url": "https://api.github.com/repos/voku/slop-scan/zipball/0f967d406d3273a69218e4ae4bf419b041a963b5",
+                "reference": "0f967d406d3273a69218e4ae4bf419b041a963b5",
                 "shasum": ""
             },
             "require": {
@@ -1422,13 +1422,13 @@
                 "nikic/php-parser": "^5.8",
                 "php": "^8.3",
                 "symfony/console": "^7.4",
-                "voku/simple-php-code-parser": "^0.22.3"
+                "voku/simple-php-code-parser": "^0.22.8"
             },
             "require-dev": {
                 "infection/infection": "^0.35.0",
                 "phpstan/phpstan": "^2.2.8",
                 "phpunit/phpunit": "^12.5",
-                "voku/agent-loop": "^0.16.5"
+                "voku/agent-loop": "^0.20.0"
             },
             "bin": [
                 "bin/slop-scan.php"
@@ -1452,9 +1452,9 @@
             "description": "Deterministic PHP CLI for explainable slop heuristics in PHP repositories.",
             "support": {
                 "issues": "https://github.com/voku/slop-scan/issues",
-                "source": "https://github.com/voku/slop-scan/tree/0.1.11"
+                "source": "https://github.com/voku/slop-scan/tree/0.1.15"
             },
-            "time": "2026-09-28T09:21:17+00:00"
+            "time": "2026-10-03T11:22:07+00:00"
         },
         {
             "name": "webmozart/assert",

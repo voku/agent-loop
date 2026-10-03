@@ -9,7 +9,7 @@
         "configHash": "df3ad706f2049184233453c6008b4d1b8a07963c902f3e1f1348520858aec981",
         "findingFingerprintVersion": 1,
         "baselineCompatibility": {
-            "ruleSemanticsVersion": 3,
+            "ruleSemanticsVersion": 7,
             "activeRuleIds": [
                 "markdown.low-signal",
                 "php.blanket-static-analysis-suppressions",
@@ -324,7 +324,6 @@
             "confidence": "medium",
             "evidence": [
                 "name=removeDirectory",
-                "name=removeTree",
                 "name=rm"
             ],
             "score": 2,
@@ -457,11 +456,6 @@
                 {
                     "path": "tests/WorkflowSupersessionRecoveryTest.php",
                     "line": 345,
-                    "column": 1
-                },
-                {
-                    "path": "tools/prompt-primitives-dogfood.php",
-                    "line": 403,
                     "column": 1
                 }
             ],
@@ -623,12 +617,6 @@
                         "fingerprint": "a5bc78f35c9d4c91126f1709f22d747e56e059d8b9589db504e0ec08580c2ac2",
                         "path": "tests/WorkflowSupersessionRecoveryTest.php",
                         "line": 345,
-                        "column": 1
-                    },
-                    {
-                        "fingerprint": "2529834caa742254f6befa02ef31b93209d62bdb8287e2679cfbb9beffaa88ca",
-                        "path": "tools/prompt-primitives-dogfood.php",
-                        "line": 403,
                         "column": 1
                     }
                 ]
