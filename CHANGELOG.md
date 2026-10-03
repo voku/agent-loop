@@ -7,6 +7,7 @@
 
 ### Changed
 
+- Let `.agent-loop/init.json` persist multiple local `extra_skills_roots` as part of the owner-computed desired skill set. `install-assets`, default `sync-skills`, status/doctor/host-status and typed setup planning now share those roots; removing one from config makes its managed entries stale, while CLI `--extra-skills-root` remains an invocation-only additive override (#671).
 - Align the installed engineering-skill dogfood with the pruned 15-skill `voku/agent-skills` catalog at immutable commit `dc31d7c262730c54d3847463b4c0f4c1d8585a70`. The always-on discipline no longer routes generic PHP work to the removed `php-best-practices` cookbook; it routes strict PHP analyzer/type-contract work to `php-static-analysis`, runtime syscall diagnosis to `linux-strace`, and leaves ordinary framework/language knowledge to repository evidence and current owner documentation.
 - Keep lifecycle `next_action_kind` treatment in the managed AGENTS router as the single always-on authority and remove the duplicated treatment list from the always-injected discipline body. The measured injected path shrank by 371 bytes / 8 lines while preserving the router contract; the separate human-authority mention of `decision_required` remains intentional (#663, #665).
 
