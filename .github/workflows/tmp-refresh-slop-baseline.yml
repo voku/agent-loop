@@ -1,0 +1,88 @@
+name: Temporary slop baseline refresh
+
+on:
+  push:
+    branches:
+      - chore/slop-scan-0.1.15
+    paths:
+      - '.github/workflows/tmp-refresh-slop-baseline.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chore/slop-scan-0.1.15
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer
+
+      - name: Install isolated slop-scan
+        run: composer install --no-interaction --prefer-dist --working-dir=tools/slop-scan
+
+      - name: Regenerate baseline with slop-scan 0.1.15
+        run: |
+          cp slop-baseline.json /tmp/slop-baseline-old.json
+          composer review:slop-baseline
+
+      - name: Report baseline finding delta
+        run: |
+          php -r '
+          $old = json_decode(file_get_contents("/tmp/slop-baseline-old.json"), true, 512, JSON_THROW_ON_ERROR);
+          $new = json_decode(file_get_contents("slop-baseline.json"), true, 512, JSON_THROW_ON_ERROR);
+          $key = static function (array $finding): string {
+              return hash("sha256", json_encode([
+                  "ruleId" => $finding["ruleId"] ?? null,
+                  "path" => $finding["path"] ?? null,
+                  "evidence" => $finding["evidence"] ?? [],
+                  "locations" => array_map(
+                      static fn(array $l): array => [
+                          "path" => $l["path"] ?? null,
+                          "line" => $l["line"] ?? null,
+                          "column" => $l["column"] ?? null,
+                      ],
+                      $finding["locations"] ?? [],
+                  ),
+              ], JSON_THROW_ON_ERROR));
+          };
+          $index = static function (array $baseline) use ($key): array {
+              $out = [];
+              foreach ($baseline["findings"] ?? [] as $finding) {
+                  $out[$key($finding)] = [
+                      "ruleId" => $finding["ruleId"] ?? null,
+                      "path" => $finding["path"] ?? null,
+                      "evidence" => $finding["evidence"] ?? [],
+                  ];
+              }
+              return $out;
+          };
+          $before = $index($old);
+          $after = $index($new);
+          $added = array_diff_key($after, $before);
+          $removed = array_diff_key($before, $after);
+          echo "oldSemantics=" . ($old["metadata"]["baselineCompatibility"]["ruleSemanticsVersion"] ?? "?") . PHP_EOL;
+          echo "newSemantics=" . ($new["metadata"]["baselineCompatibility"]["ruleSemanticsVersion"] ?? "?") . PHP_EOL;
+          echo "oldFindings=" . count($before) . PHP_EOL;
+          echo "newFindings=" . count($after) . PHP_EOL;
+          echo "added=" . json_encode(array_values($added), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+          echo "removed=" . json_encode(array_values($removed), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+          '
+
+      - name: Commit regenerated baseline and remove temporary workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-refresh-slop-baseline.yml
+          git add slop-baseline.json
+          git diff --cached --check
+          git commit -m "chore(tools): refresh slop baseline for 0.1.15"
+          git push origin HEAD:chore/slop-scan-0.1.15
