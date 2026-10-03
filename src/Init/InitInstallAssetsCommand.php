@@ -94,12 +94,16 @@ final readonly class InitInstallAssetsCommand
         if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $skillRoots, true)) {
             $skillRoots[] = $configuredSkillsRoot;
         }
+        $configuredExtraSkillRoots = $paths->absoluteExtraSkillRoots();
+        array_push($skillRoots, ...$configuredExtraSkillRoots);
+
         $extraSkillRoots = OptionTokens::values($tokens, 'extra-skills-root');
         $absoluteExtraSkillRoots = [];
         foreach ($extraSkillRoots as $extraSkillRoot) {
             $absoluteExtraSkillRoots[] = PathResolver::join($this->rootPath, $extraSkillRoot);
         }
         array_push($skillRoots, ...$absoluteExtraSkillRoots);
+        $skillRoots = array_values(array_unique($skillRoots));
 
         $subagentRoots = [];
         if ($includePackageSubagents) {
@@ -228,6 +232,9 @@ final readonly class InitInstallAssetsCommand
         $extraSources = [];
         if (is_dir($configuredSkillsRoot) && !in_array($configuredSkillsRoot, $this->firstPartySkillRoots($packageRoot, $this->rootPath), true)) {
             $extraSources[] = 'configured repository guidance';
+        }
+        if ($configuredExtraSkillRoots !== []) {
+            $extraSources[] = count($configuredExtraSkillRoots) . ' configured local skill source(s)';
         }
         if ($extraSkillRoots !== []) {
             $extraSources[] = count($extraSkillRoots) . ' explicit local skill source(s)';

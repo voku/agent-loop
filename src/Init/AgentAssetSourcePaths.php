@@ -18,12 +18,15 @@ final readonly class AgentAssetSourcePaths
         private string $claudeHooksRoot,
         private bool $packageSkills = true,
         private bool $packageSubagents = true,
+        /** @var list<string> */
+        private array $extraSkillsRoots = [],
     ) {
     }
 
     /**
      * @param array<string, string> $configPaths
      * @param array<string, string> $cliOverrides
+     * @param list<string> $extraSkillsRoots
      */
     public static function fromSources(
         string $rootPath,
@@ -31,6 +34,7 @@ final readonly class AgentAssetSourcePaths
         array $cliOverrides = [],
         bool $packageSkills = true,
         bool $packageSubagents = true,
+        array $extraSkillsRoots = [],
     ): self {
         $paths = [
             'skills_root' => PackageResources::SKILLS,
@@ -70,6 +74,7 @@ final readonly class AgentAssetSourcePaths
             $paths['claude_hooks_root'],
             $packageSkills,
             $packageSubagents,
+            $extraSkillsRoots,
         );
     }
 
@@ -81,7 +86,7 @@ final readonly class AgentAssetSourcePaths
      * which is how `init status` and the sync commands came to compute a
      * different desired set than `install-assets` for the same config.
      *
-     * @param array{paths: array<string, string>, package_skills: bool, package_subagents: bool} $config
+     * @param array{paths: array<string, string>, package_skills: bool, package_subagents: bool, extra_skills_roots: list<string>} $config
      * @param array<string, string> $cliOverrides
      */
     public static function fromConfig(string $rootPath, array $config, array $cliOverrides = []): self
@@ -92,6 +97,7 @@ final readonly class AgentAssetSourcePaths
             $cliOverrides,
             $config['package_skills'],
             $config['package_subagents'],
+            $config['extra_skills_roots'],
         );
     }
 
@@ -105,6 +111,18 @@ final readonly class AgentAssetSourcePaths
         return $this->packageSubagents;
     }
 
+    /** @return list<string> */
+    public function extraSkillsRoots(): array
+    {
+        return $this->extraSkillsRoots;
+    }
+
+    /** @return list<string> */
+    public function absoluteExtraSkillRoots(): array
+    {
+        return array_map($this->resolvePath(...), $this->extraSkillsRoots);
+    }
+
     public function withPackageSkills(bool $packageSkills): self
     {
         return new self(
@@ -116,6 +134,7 @@ final readonly class AgentAssetSourcePaths
             $this->claudeHooksRoot,
             $packageSkills,
             $this->packageSubagents,
+            $this->extraSkillsRoots,
         );
     }
 
@@ -130,6 +149,7 @@ final readonly class AgentAssetSourcePaths
             $this->claudeHooksRoot,
             $this->packageSkills,
             $packageSubagents,
+            $this->extraSkillsRoots,
         );
     }
 

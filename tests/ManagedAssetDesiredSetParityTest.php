@@ -46,7 +46,13 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-desired-set-parity-' . bin2hex(random_bytes(6));
-        foreach (['/custom-skills/repository-skill', '/custom-subagents', '/bin'] as $directory) {
+        foreach ([
+            '/custom-skills/repository-skill',
+            '/extra-skills-a/external-a',
+            '/extra-skills-b/external-b',
+            '/custom-subagents',
+            '/bin',
+        ] as $directory) {
             if (!mkdir($this->root . $directory, 0o775, true) && !is_dir($this->root . $directory)) {
                 throw new RuntimeException('Unable to create parity fixture directory: ' . $directory);
             }
@@ -54,6 +60,14 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         file_put_contents(
             $this->root . '/custom-skills/repository-skill/SKILL.md',
             "---\nname: repository-skill\ndescription: Repository skill.\n---\n\nSkill body.\n",
+        );
+        file_put_contents(
+            $this->root . '/extra-skills-a/external-a/SKILL.md',
+            "---\nname: external-a\ndescription: External skill A.\n---\n\nSkill body.\n",
+        );
+        file_put_contents(
+            $this->root . '/extra-skills-b/external-b/SKILL.md',
+            "---\nname: external-b\ndescription: External skill B.\n---\n\nSkill body.\n",
         );
         file_put_contents(
             $this->root . '/custom-subagents/repository-agent.md',
@@ -94,8 +108,8 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
     {
         $this->installAssets();
 
-        $skills = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
-        $subagents = $this->execute(new InitSyncSubagentsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
+        $skills = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude']);
+        $subagents = $this->execute(new InitSyncSubagentsCommand($this->root), ['--agent=claude']);
 
         self::assertStringNotContainsString('removed stale', $skills . $subagents);
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-workflow/SKILL.md');
@@ -109,7 +123,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         $subagentManifest = InitSyncManifest::load($this->root . '/.claude/agents', 'subagents', 'claude');
         self::assertTrue($subagentManifest->isManaged('agent-loop-investigator.md'));
 
-        $status = $this->execute(new InitStatusCommand($this->root), ['--config=' . self::CONFIG]);
+        $status = $this->execute(new InitStatusCommand($this->root), []);
         self::assertStringContainsString('[OK] claude skills: no stale managed entries', $status);
         self::assertStringNotContainsString('[WARN] claude skills: locally modified', $status);
     }
@@ -119,7 +133,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         $this->installAssets();
         $this->removeDirectory($this->root . '/.claude/skills/agent-loop-workflow');
 
-        $sync = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
+        $sync = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude']);
 
         self::assertStringNotContainsString('removed stale', $sync);
         self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/agent-loop-workflow');
@@ -128,7 +142,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
             'A retained entry must keep its manifest record even when its copy is missing.',
         );
 
-        $status = $this->execute(new InitStatusCommand($this->root), ['--config=' . self::CONFIG]);
+        $status = $this->execute(new InitStatusCommand($this->root), []);
         self::assertMatchesRegularExpression('/\[WARN\] claude skills: locally modified: [^\n]*agent-loop-workflow/', $status);
 
         self::assertContains('agent-loop-workflow', $this->claudeSkillDrift()->locallyModified);
@@ -143,8 +157,8 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         $this->installAssets();
         $this->writeConfig(['package_skills' => false, 'package_subagents' => false]);
 
-        $skills = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
-        $subagents = $this->execute(new InitSyncSubagentsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
+        $skills = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude']);
+        $subagents = $this->execute(new InitSyncSubagentsCommand($this->root), ['--agent=claude']);
 
         self::assertStringContainsString('removed stale', $skills);
         self::assertStringContainsString('removed stale', $subagents);
@@ -155,7 +169,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
             InitSyncManifest::load($this->root . '/.claude/skills', 'skills', 'claude')->managedEntries(),
         );
 
-        $status = $this->execute(new InitStatusCommand($this->root), ['--config=' . self::CONFIG]);
+        $status = $this->execute(new InitStatusCommand($this->root), []);
         self::assertStringContainsString('[OK] claude skills: no stale managed entries', $status);
         self::assertStringNotContainsString('agent-loop-workflow', $status);
 
@@ -182,7 +196,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         self::assertSame(['repository-skill'], $plannedSkills);
 
         $this->installAssets();
-        $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
+        $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude']);
 
         self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/agent-loop-workflow');
         self::assertFileDoesNotExist($this->root . '/.claude/agents/agent-loop-investigator.md');
@@ -190,6 +204,96 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
             ['repository-skill'],
             InitSyncManifest::load($this->root . '/.claude/skills', 'skills', 'claude')->managedEntries(),
         );
+    }
+
+    public function testConfiguredExtraSkillRootsPersistAcrossConvergenceAndPruneOnlyAfterConfigRemoval(): void
+    {
+        $this->writeConfig([
+            'extra_skills_roots' => ['extra-skills-a', 'extra-skills-b'],
+        ]);
+        $paths = $this->configuredPaths();
+        $desired = array_keys((new ManagedSkillSourceResolver($this->root))->resolve($paths));
+
+        self::assertContains('external-a', $desired);
+        self::assertContains('external-b', $desired);
+
+        $plannedSkills = [];
+        foreach ((new RepositorySetupService($this->root))->planInstall('claude')->operations as $operation) {
+            if ($operation->kind === ManagedAssetKind::SKILLS) {
+                $plannedSkills[] = $operation->entry;
+            }
+        }
+        self::assertContains('external-a', $plannedSkills);
+        self::assertContains('external-b', $plannedSkills);
+
+        $this->installAssets();
+        self::assertFileExists($this->root . '/.claude/skills/external-a/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/external-b/SKILL.md');
+
+        $sync = $this->execute(
+            new InitSyncSkillsCommand($this->root),
+            ['--agent=claude'],
+        );
+        self::assertStringNotContainsString('removed stale', $sync);
+        self::assertFileExists($this->root . '/.claude/skills/external-a/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/external-b/SKILL.md');
+
+        $status = $this->execute(new InitStatusCommand($this->root), []);
+        self::assertStringContainsString('[OK] claude skills: no stale managed entries', $status);
+        self::assertSame('ready', $this->hostStatus()['integration']['skills'] ?? null);
+
+        $this->writeConfig([]);
+        $sync = $this->execute(
+            new InitSyncSkillsCommand($this->root),
+            ['--agent=claude'],
+        );
+
+        self::assertStringContainsString('removed stale', $sync);
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/external-a');
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/external-b');
+    }
+
+    public function testConfiguredExtraSkillDuplicateFailsBeforeTargetMutation(): void
+    {
+        $duplicate = $this->root . '/extra-skills-a/repository-skill';
+        if (!mkdir($duplicate, 0o775, true) && !is_dir($duplicate)) {
+            throw new RuntimeException('Unable to create duplicate skill fixture.');
+        }
+        file_put_contents(
+            $duplicate . '/SKILL.md',
+            "---\nname: repository-skill\ndescription: Duplicate.\n---\n",
+        );
+        $this->writeConfig([
+            'extra_skills_roots' => ['extra-skills-a'],
+        ]);
+
+        ob_start();
+        try {
+            $exit = (new InitInstallAssetsCommand($this->root))->run(['--agent=claude']);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit, $output);
+        self::assertStringContainsString('Multiple skill sources own the same entry: repository-skill', $output);
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills');
+    }
+
+    public function testExplicitRootSyncIgnoresConfiguredExtraRootAvailability(): void
+    {
+        $this->writeConfig([
+            'extra_skills_roots' => ['missing-team-skills'],
+        ]);
+
+        $skills = $this->execute(
+            new InitSyncSkillsCommand($this->root),
+            ['--agent=claude', '--skills-root=custom-skills'],
+        );
+
+        self::assertStringContainsString('from 1 source root(s)', $skills);
+        self::assertFileExists($this->root . '/.claude/skills/repository-skill/SKILL.md');
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/agent-loop-workflow');
     }
 
     public function testExplicitRootsStayRootExactAndGainNoPackageEntries(): void
@@ -221,7 +325,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         $manifestRoot = $this->root . '/.claude/skills';
         self::assertEquals($desired, InitSyncManifest::load($manifestRoot, 'skills', 'claude')->managedEntries());
 
-        $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--config=' . self::CONFIG]);
+        $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude']);
         self::assertSame($desired, InitSyncManifest::load($manifestRoot, 'skills', 'claude')->managedEntries());
 
         $drift = $this->claudeSkillDrift();
@@ -232,8 +336,8 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         self::assertSame('ready', $this->hostStatus()['integration']['skills'] ?? null);
     }
 
-    /** @param array<string, bool> $packageFlags */
-    private function writeConfig(array $packageFlags): void
+    /** @param array<string, mixed> $overrides */
+    private function writeConfig(array $overrides): void
     {
         if (!is_dir($this->root . '/.agent-loop') && !mkdir($this->root . '/.agent-loop', 0o775, true)) {
             throw new RuntimeException('Unable to create config directory.');
@@ -242,7 +346,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         file_put_contents(
             $this->root . '/' . self::CONFIG,
             json_encode([
-                ...$packageFlags,
+                ...$overrides,
                 'paths' => [
                     'skills_root' => 'custom-skills',
                     'subagents_root' => 'custom-subagents',

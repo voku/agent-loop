@@ -49,6 +49,12 @@ final readonly class ManagedSkillSourceResolver
             }
         }
 
+        foreach ($paths->absoluteExtraSkillRoots() as $extraRoot) {
+            if (is_dir($extraRoot)) {
+                $this->registerRoot($sources, $extraRoot);
+            }
+        }
+
         foreach ($extraRoots as $extraRoot) {
             if (is_dir($extraRoot)) {
                 $this->registerRoot($sources, $extraRoot);

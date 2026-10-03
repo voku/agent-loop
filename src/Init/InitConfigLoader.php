@@ -24,6 +24,7 @@ final readonly class InitConfigLoader
      *     agents: array<string, array<string, string>>,
      *     package_skills: bool,
      *     package_subagents: bool,
+     *     extra_skills_roots: list<string>,
      *     recall: array{document_manifests: list<string>},
      *     prompting: array{language: string, blindspots: array{tone: 'measured'|'direct'|'unflinching'}},
      *     interaction: array{
@@ -42,6 +43,7 @@ final readonly class InitConfigLoader
             'agents' => [],
             'package_skills' => true,
             'package_subagents' => true,
+            'extra_skills_roots' => [],
             'recall' => ['document_manifests' => []],
             'prompting' => [
                 'language' => 'en',
@@ -146,6 +148,31 @@ final readonly class InitConfigLoader
                 $result['warnings'][] = '[WARN] init config: package_subagents must be a boolean';
             } else {
                 $result['package_subagents'] = $decoded['package_subagents'];
+            }
+        }
+
+        if (array_key_exists('extra_skills_roots', $decoded)) {
+            $extraSkillRoots = $decoded['extra_skills_roots'];
+            if (!is_array($extraSkillRoots)) {
+                $result['warnings'][] = '[WARN] init config: extra_skills_roots must be an array';
+            } else {
+                foreach ($extraSkillRoots as $extraSkillRoot) {
+                    if (!is_string($extraSkillRoot) || trim($extraSkillRoot) === '') {
+                        $result['warnings'][] = '[WARN] init config: extra_skills_roots must contain only non-empty strings';
+
+                        continue;
+                    }
+
+                    $extraSkillRoot = trim($extraSkillRoot);
+                    if (preg_match('/[\x00-\x1F\x7F]/', $extraSkillRoot) === 1) {
+                        $result['warnings'][] = '[WARN] init config: extra_skills_roots must not contain control characters';
+
+                        continue;
+                    }
+
+                    $result['extra_skills_roots'][] = $extraSkillRoot;
+                }
+                $result['extra_skills_roots'] = array_values(array_unique($result['extra_skills_roots']));
             }
         }
 
