@@ -47,8 +47,24 @@ final class AgentDisciplineContextBudgetTest extends TestCase
 
             self::assertLessThanOrEqual(9_500, strlen($context));
             self::assertStringContainsString('Agent Loop Resume Hint', $context);
-            self::assertStringContainsString('Engineering Skill Routing', $context);
-            self::assertStringContainsString('do not manufacture follow-up work', $context);
+            self::assertStringContainsString(
+                'The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.',
+                $context,
+            );
+            self::assertStringContainsString('Workflow Evidence Integrity', $context);
+            self::assertStringContainsString('Workflow Output', $context);
+            foreach ([
+                'Agent I/O',
+                'Prompt Controls',
+                'Navigate Before Editing',
+                'L2 Execution Contract',
+                'Engineering Skill Routing',
+                'Role Routing',
+                'Hook Boundary',
+                'Validation And Close',
+            ] as $specialistHeading) {
+                self::assertStringNotContainsString('## ' . $specialistHeading, $context);
+            }
             self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
             self::assertStringNotContainsString('UNTRUSTED-', $context);
         } finally {
