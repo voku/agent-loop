@@ -27,9 +27,9 @@ This is the current ownership map for first-party agent behavior. Historical mig
 
 ## Engineering-skill boundary
 
-`agent-loop-discipline` is intentionally smaller than the engineering skills it can route to.
+`agent-loop-discipline` is intentionally a minimal always-on lifecycle/evidence bootstrap. Conditional engineering routing belongs to the repository router and focused workflow/role surfaces rather than the SessionStart payload.
 
-`engineering-codelight` owns technology-neutral reasoning for non-trivial engineering work. It is workflow-neutral: the active project lifecycle remains authoritative, and Loop loads only the smallest relevant skill combination instead of injecting Codelight into every session or specialist.
+`engineering-codelight` owns technology-neutral reasoning for non-trivial engineering work. It is workflow-neutral: the active project lifecycle remains authoritative, and Loop loads only the smallest relevant skill combination instead of injecting Codelight routing or its reasoning body into every session or specialist.
 
 For implementation minimization, the Ponytail-derived rules live in `coding-simplicity`:
 
