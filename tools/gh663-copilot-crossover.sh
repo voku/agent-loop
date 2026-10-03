@@ -8,6 +8,7 @@ WORKTREES=()
 TASK_A_BASE="10bef9759fa8d6b0c09773781d458cd3837a5b6d"
 TASK_B_BASE="17ca145c7937de66aea8779412265e32e42c0682"
 CURRENT_SKILL="${ROOT}/resources/skills/agent-loop-discipline/SKILL.md"
+MODE="${1:-full-cohort}"
 
 rm -rf "${RESULT_ROOT}"
 mkdir -p "${RESULT_ROOT}"
@@ -162,6 +163,78 @@ prepare_worktree() {
     )
 }
 
+authority_classification() {
+    local file="$1"
+    local mode="$2"
+
+    if [[ ! -s "${file}" ]]; then
+        printf '%s' "unobserved"
+        return
+    fi
+
+    local kind
+    kind="$(jq -r '.manifest.next_action_kind // "unknown"' "${file}")"
+
+    case "${kind}" in
+        decision_required)
+            printf '%s' "human_decision_required"
+            ;;
+        host_work)
+            printf '%s' "host_mutation_authorized"
+            ;;
+        command|command_template)
+            if [[ "${mode}" == "preapproved" ]]; then
+                printf '%s' "preapproved_lifecycle_command"
+            else
+                printf '%s' "lifecycle_command_required"
+            fi
+            ;;
+        none)
+            printf '%s' "lifecycle_complete"
+            ;;
+        *)
+            printf '%s' "unknown"
+            ;;
+    esac
+}
+
+capture_authority_state() {
+    local worktree="$1"
+    local out="$2"
+    local phase="$3"
+
+    (
+        cd "${worktree}"
+        if php bin/agent-loop workflow status STALE-399 --format=json > "${out}/authority-${phase}.json" 2> "${out}/authority-${phase}.stderr"; then
+            :
+        else
+            printf '{"status":"unavailable"}\n' > "${out}/authority-${phase}.json"
+        fi
+    )
+}
+
+seed_task_a_preapproval() {
+    local worktree="$1"
+    local out="$2"
+
+    (
+        cd "${worktree}"
+        {
+            php bin/agent-loop map build --paths=src,tests
+            php bin/agent-loop workflow plan STALE-399 \
+              --by lars \
+              --file src/Run/RunManifestProjector.php \
+              --file tests/StaleVerificationConvergenceTest.php \
+              --goal 'Repair the repeated reviewed-report finish action so amended implementation converges through a fresh exact-head receipt without weakening the assertion.' \
+              --scope src/Run/RunManifestProjector.php \
+              --scope tests/StaleVerificationConvergenceTest.php \
+              --acceptance 'The canonical lifecycle action converges without repeating the same reviewed-report finish command.' \
+              --validation 'vendor/bin/phpunit tests/StaleVerificationConvergenceTest.php'
+            php bin/agent-loop workflow approve STALE-399 --by lars
+        } > "${out}/preapproval.log" 2>&1
+    )
+}
+
 write_receipt() {
     local out="$1"
     local task="$2"
@@ -175,8 +248,9 @@ write_receipt() {
     local exit_code="${10}"
     local started_at="${11}"
     local finished_at="${12}"
+    local authority_mode="${13}"
 
-    local cli_version prompt_sha router_state router_sha task_authority_path task_authority_sha discipline_sha discipline_bytes final_sha final_bytes transcript_sha transcript_bytes diff_sha hook_fired hook_input_sha
+    local cli_version prompt_sha router_state router_sha task_authority_path task_authority_sha discipline_sha discipline_bytes final_sha final_bytes transcript_sha transcript_bytes diff_sha hook_fired hook_input_sha dependency_lock_sha dependency_graph_sha authority_before_kind authority_before_action authority_before_class authority_after_kind authority_after_action authority_after_class
     cli_version="$(copilot --version | head -n 1)"
     prompt_sha="$(printf '%s' "${prompt}" | sha256sum | cut -d' ' -f1)"
     router_state="absent"
@@ -192,6 +266,17 @@ write_receipt() {
         task_authority_sha="$(sha256sum "${worktree}/${task_authority_path}" | cut -d' ' -f1)"
     fi
     discipline_sha="$(sha256sum "${discipline}" | cut -d' ' -f1)"
+    dependency_lock_sha="$(sha256sum "${worktree}/composer.lock" | cut -d' ' -f1)"
+    dependency_graph_sha="$(
+        jq -S -c '[.packages[] | {name, version}] | sort_by(.name)' "${worktree}/vendor/composer/installed.json" |
+          sha256sum | cut -d' ' -f1
+    )"
+    authority_before_kind="$(jq -r '.manifest.next_action_kind // null' "${out}/authority-before.json")"
+    authority_before_action="$(jq -r '.manifest.next_action // null' "${out}/authority-before.json")"
+    authority_before_class="$(authority_classification "${out}/authority-before.json" "${authority_mode}")"
+    authority_after_kind="$(jq -r '.manifest.next_action_kind // null' "${out}/authority-after.json")"
+    authority_after_action="$(jq -r '.manifest.next_action // null' "${out}/authority-after.json")"
+    authority_after_class="$(authority_classification "${out}/authority-after.json" "${authority_mode}")"
     discipline_bytes="$(wc -c < "${discipline}" | tr -d ' ')"
     final_sha="$(sha256sum "${out}/final.txt" | cut -d' ' -f1)"
     final_bytes="$(wc -c < "${out}/final.txt" | tr -d ' ')"
@@ -220,6 +305,15 @@ write_receipt() {
       --arg task_authority_path "${task_authority_path}" \
       --arg task_authority_sha256 "${task_authority_sha}" \
       --arg discipline_sha256 "${discipline_sha}" \
+      --arg dependency_lock_sha256 "${dependency_lock_sha}" \
+      --arg dependency_graph_sha256 "${dependency_graph_sha}" \
+      --arg authority_mode "${authority_mode}" \
+      --arg authority_before_kind "${authority_before_kind}" \
+      --arg authority_before_action "${authority_before_action}" \
+      --arg authority_before_class "${authority_before_class}" \
+      --arg authority_after_kind "${authority_after_kind}" \
+      --arg authority_after_action "${authority_after_action}" \
+      --arg authority_after_class "${authority_after_class}" \
       --argjson discipline_bytes "${discipline_bytes}" \
       --argjson exit_code "${exit_code}" \
       --arg started_at "${started_at}" \
@@ -252,6 +346,23 @@ write_receipt() {
           sha256: (if $task_authority_sha256 == "" then null else $task_authority_sha256 end)
         },
         discipline: {sha256: $discipline_sha256, bytes: $discipline_bytes},
+        dependency_graph: {
+          composer_lock_sha256: $dependency_lock_sha256,
+          installed_packages_sha256: $dependency_graph_sha256
+        },
+        authority_state: {
+          mode: $authority_mode,
+          before: {
+            next_action_kind: (if $authority_before_kind == "null" then null else $authority_before_kind end),
+            next_action: (if $authority_before_action == "null" then null else $authority_before_action end),
+            classification: $authority_before_class
+          },
+          after: {
+            next_action_kind: (if $authority_after_kind == "null" then null else $authority_after_kind end),
+            next_action: (if $authority_after_action == "null" then null else $authority_after_action end),
+            classification: $authority_after_class
+          }
+        },
         session_start_hook: {fired: $hook_fired, input_sha256: $hook_input_sha256},
         exit_code: $exit_code,
         started_at: $started_at,
@@ -269,6 +380,7 @@ run_case() {
     local order="$4"
     local prompt="$5"
     local discipline="$6"
+    local authority_mode="${7:-observe-only}"
 
     local slug="${task}-${arm}"
     local worktree="${RUNNER_TEMP}/gh663-${slug}"
@@ -278,6 +390,15 @@ run_case() {
     mkdir -p "${out}"
     prepare_worktree "${worktree}" "${base}"
     setup_home "${home}" "${discipline}"
+
+    if [[ "${authority_mode}" == "preapproved" ]]; then
+        if [[ "${task}" != "task-a" ]]; then
+            echo "preapproved mode is only valid for task-a" >&2
+            return 96
+        fi
+        seed_task_a_preapproval "${worktree}" "${out}"
+    fi
+    capture_authority_state "${worktree}" "${out}" "before"
 
     if [[ "${task}" == "task-b" ]] && [[ ! -f "${worktree}/docs/agents/dogfood/self-shaping.md" ]]; then
         echo "Task B authority file is missing at frozen base" >&2
@@ -312,6 +433,7 @@ run_case() {
     set -e
 
     finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    capture_authority_state "${worktree}" "${out}" "after"
 
     if [[ ! -s "${home}/hook-fired.txt" ]] || [[ ! -s "${home}/session-start-input.json" ]]; then
         echo "SessionStart hook did not produce evidence for ${slug}" >&2
@@ -330,7 +452,7 @@ run_case() {
         : > "${out}/transcript.md"
     fi
 
-    write_receipt "${out}" "${task}" "${arm}" "${base}" "${order}" "${prompt}" "${worktree}" "${home}" "${discipline}" "${exit_code}" "${started_at}" "${finished_at}"
+    write_receipt "${out}" "${task}" "${arm}" "${base}" "${order}" "${prompt}" "${worktree}" "${home}" "${discipline}" "${exit_code}" "${started_at}" "${finished_at}" "${authority_mode}"
 
     jq . "${out}/receipt.json"
     echo "--- final ${slug} ---"
@@ -343,29 +465,56 @@ run_case() {
     fi
 }
 
-run_case "task-a" "current" "${TASK_A_BASE}" "1/2" "${TASK_A_PROMPT}" "${CURRENT_BODY}"
-run_case "task-a" "minimal" "${TASK_A_BASE}" "2/2" "${TASK_A_PROMPT}" "${MINIMAL_BODY}"
-run_case "task-b" "minimal" "${TASK_B_BASE}" "1/2" "${TASK_B_PROMPT}" "${MINIMAL_BODY}"
-run_case "task-b" "current" "${TASK_B_BASE}" "2/2" "${TASK_B_PROMPT}" "${CURRENT_BODY}"
+if [[ "${MODE}" == "preapproved-pair" ]]; then
+    run_case "task-a" "current-preapproved" "${TASK_A_BASE}" "1/2" "${TASK_A_PROMPT}" "${CURRENT_BODY}" "preapproved"
+    run_case "task-a" "minimal-preapproved" "${TASK_A_BASE}" "2/2" "${TASK_A_PROMPT}" "${MINIMAL_BODY}" "preapproved"
 
-jq -s '.' \
-  "${RESULT_ROOT}/task-a-current/receipt.json" \
-  "${RESULT_ROOT}/task-a-minimal/receipt.json" \
-  "${RESULT_ROOT}/task-b-minimal/receipt.json" \
-  "${RESULT_ROOT}/task-b-current/receipt.json" > "${RESULT_ROOT}/cohort.json"
+    jq -s '.' \
+      "${RESULT_ROOT}/task-a-current-preapproved/receipt.json" \
+      "${RESULT_ROOT}/task-a-minimal-preapproved/receipt.json" > "${RESULT_ROOT}/cohort.json"
 
-jq -e '
-  length == 4
-  and all(.[]; .exit_code == 0)
-  and (map(select(.task == "task-a") | .prompt_sha256) | unique | length == 1)
-  and (map(select(.task == "task-b") | .prompt_sha256) | unique | length == 1)
-  and (map(select(.task == "task-a") | .base_sha) | unique | length == 1)
-  and (map(select(.task == "task-b") | .base_sha) | unique | length == 1)
-  and (map(select(.task == "task-a") | .router) | unique | length == 1)
-  and (map(select(.task == "task-b") | .router) | unique | length == 1)
-  and (map(select(.task == "task-a") | .task_authority) | unique | length == 1)
-  and (map(select(.task == "task-b") | .task_authority) | unique | length == 1)
-  and (map(.model_policy) | unique | length == 1)
-  and (map(.cli_version) | unique | length == 1)
-  and all(.[]; .session_start_hook.fired == true)
-' "${RESULT_ROOT}/cohort.json" >/dev/null
+    jq -e '
+      length == 2
+      and all(.[]; .exit_code == 0)
+      and (map(.prompt_sha256) | unique | length == 1)
+      and (map(.base_sha) | unique | length == 1)
+      and (map(.router) | unique | length == 1)
+      and (map(.dependency_graph.composer_lock_sha256) | unique | length == 1)
+      and (map(.dependency_graph.installed_packages_sha256) | unique | length == 1)
+      and all(.[];
+        .authority_state.mode == "preapproved"
+        and .authority_state.before.classification != "human_decision_required"
+        and .authority_state.before.next_action_kind != null
+      )
+      and (map(.model_policy) | unique | length == 1)
+      and (map(.cli_version) | unique | length == 1)
+      and all(.[]; .session_start_hook.fired == true)
+    ' "${RESULT_ROOT}/cohort.json" >/dev/null
+else
+    run_case "task-a" "current" "${TASK_A_BASE}" "1/2" "${TASK_A_PROMPT}" "${CURRENT_BODY}"
+    run_case "task-a" "minimal" "${TASK_A_BASE}" "2/2" "${TASK_A_PROMPT}" "${MINIMAL_BODY}"
+    run_case "task-b" "minimal" "${TASK_B_BASE}" "1/2" "${TASK_B_PROMPT}" "${MINIMAL_BODY}"
+    run_case "task-b" "current" "${TASK_B_BASE}" "2/2" "${TASK_B_PROMPT}" "${CURRENT_BODY}"
+
+    jq -s '.' \
+      "${RESULT_ROOT}/task-a-current/receipt.json" \
+      "${RESULT_ROOT}/task-a-minimal/receipt.json" \
+      "${RESULT_ROOT}/task-b-minimal/receipt.json" \
+      "${RESULT_ROOT}/task-b-current/receipt.json" > "${RESULT_ROOT}/cohort.json"
+
+    jq -e '
+      length == 4
+      and all(.[]; .exit_code == 0)
+      and (map(select(.task == "task-a") | .prompt_sha256) | unique | length == 1)
+      and (map(select(.task == "task-b") | .prompt_sha256) | unique | length == 1)
+      and (map(select(.task == "task-a") | .base_sha) | unique | length == 1)
+      and (map(select(.task == "task-b") | .base_sha) | unique | length == 1)
+      and (map(select(.task == "task-a") | .router) | unique | length == 1)
+      and (map(select(.task == "task-b") | .router) | unique | length == 1)
+      and (map(select(.task == "task-a") | .task_authority) | unique | length == 1)
+      and (map(select(.task == "task-b") | .task_authority) | unique | length == 1)
+      and (map(.model_policy) | unique | length == 1)
+      and (map(.cli_version) | unique | length == 1)
+      and all(.[]; .session_start_hook.fired == true)
+    ' "${RESULT_ROOT}/cohort.json" >/dev/null
+fi
