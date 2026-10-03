@@ -44,10 +44,10 @@ jobs:
       - name: Lint experiment runner
         run: bash -n tools/gh663-copilot-crossover.sh
 
-      - name: Run four fresh real-host sessions
+      - name: Run minimum pre-approved real-host pair
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: bash tools/gh663-copilot-crossover.sh
+        run: bash tools/gh663-copilot-crossover.sh preapproved-pair
 
       - name: Publish receipt summary
         if: always()
@@ -65,6 +65,8 @@ jobs:
               router,
               task_authority,
               discipline,
+              dependency_graph,
+              authority_state,
               session_start_hook,
               exit_code,
               final,
@@ -87,4 +89,9 @@ jobs:
             build/gh663-real-host/**/git-status.txt
             build/gh663-real-host/**/task.diff
             build/gh663-real-host/**/transcript.md
+            build/gh663-real-host/**/authority-before.json
+            build/gh663-real-host/**/authority-before.stderr
+            build/gh663-real-host/**/authority-after.json
+            build/gh663-real-host/**/authority-after.stderr
+            build/gh663-real-host/**/preapproval.log
             build/gh663-real-host/cohort.json
