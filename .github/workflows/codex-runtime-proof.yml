@@ -311,7 +311,7 @@ jobs:
                       },
                   ]
                   payload = "".join(
-                      f"event: {event['type']}\\ndata: {json.dumps(event)}\\n\\n"
+                      f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
                       for event in events
                   ).encode()
 
@@ -359,7 +359,7 @@ jobs:
             (
               cd "${hook_root}"
               CODEX_HOME="${home}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
-                codex exec --ephemeral --json \
+                codex exec --ephemeral --json --dangerously-bypass-hook-trust \
                   -c 'model="proof-model"' \
                   -c 'model_provider="mock"' \
                   -c "model_providers.mock={ name = \"mock\", base_url = \"http://127.0.0.1:${port}/v1\", env_key = \"PATH\", wire_api = \"responses\" }" \
@@ -1207,11 +1207,11 @@ jobs:
                 },
                 session_start_hook_trust_execution: {
                   evidence_class: "host_runtime_execution",
-                  mechanism: "paired real codex exec requests from an installed consumer with trusted and untrusted project configurations",
+                  mechanism: "paired real codex exec requests from an installed consumer with package-vetted hook hash trust bypassed and project trust varied between trusted and untrusted",
                   trusted_context_marker_count: $session_start_hook_proof.trusted_context_marker_count,
                   untrusted_context_marker_count: $session_start_hook_proof.untrusted_context_marker_count,
                   status: "observed",
-                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. SubagentStart and PreToolUse execution remain separate runtime claims."
+                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag bypasses persisted per-hook hash review for these package-vetted fixtures; interactive /hooks review and persisted hook-hash trust are not proven. SubagentStart and PreToolUse execution remain separate runtime claims."
                 },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
@@ -1252,6 +1252,7 @@ jobs:
                 parent_runtime_override_interaction: true,
                 subagent_start_hook_execution: true,
                 pre_tool_use_hook_execution: true,
+                interactive_hook_review_persistence: true,
                 project_rule_autoload: true,
                 mcp_authority_coverage: true
               }
