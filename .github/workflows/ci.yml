@@ -352,9 +352,14 @@ jobs:
           test -f .agents/skills/code-review-security/SKILL.md
           test -f .cursor/skills/code-review-security/SKILL.md
           grep -Fq 'name: engineering-codelight' .codex/skills/engineering-codelight/SKILL.md
-          grep -Fq '`engineering-codelight`' .codex/skills/agent-loop-discipline/SKILL.md
-          grep -Fq '`php-static-analysis`' .codex/skills/agent-loop-discipline/SKILL.md
-          grep -Fq '`linux-strace`' .codex/skills/agent-loop-discipline/SKILL.md
+          grep -Fq '## Governed Workflow' .codex/skills/agent-loop-discipline/SKILL.md
+          grep -Fq '## Workflow Evidence Integrity' .codex/skills/agent-loop-discipline/SKILL.md
+          grep -Fq '## Workflow Output' .codex/skills/agent-loop-discipline/SKILL.md
+          ! grep -Fq '## Engineering Skill Routing' .codex/skills/agent-loop-discipline/SKILL.md
+          ! grep -Fq '`engineering-codelight`' .codex/skills/agent-loop-discipline/SKILL.md
+          ! grep -Fq '`coding-simplicity`' .codex/skills/agent-loop-discipline/SKILL.md
+          ! grep -Fq '`php-static-analysis`' .codex/skills/agent-loop-discipline/SKILL.md
+          ! grep -Fq '`linux-strace`' .codex/skills/agent-loop-discipline/SKILL.md
           ! grep -Fq '`php-best-practices`' .codex/skills/agent-loop-discipline/SKILL.md
           ! grep -Fq '## Nine laws' .codex/skills/agent-loop-discipline/SKILL.md
           grep -Fq '## Search order' .codex/skills/coding-simplicity/SKILL.md
