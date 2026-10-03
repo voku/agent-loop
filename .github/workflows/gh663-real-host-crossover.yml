@@ -1,0 +1,89 @@
+name: GH663 real-host discipline crossover
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/gh663-real-host-crossover.yml
+      - tools/gh663-copilot-crossover.sh
+
+permissions:
+  contents: read
+  copilot-requests: write
+
+jobs:
+  crossover:
+    name: Copilot CLI paired real-host cohort
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout experiment branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install current Copilot CLI
+        run: |
+          version="$(npm view @github/copilot version)"
+          npm install -g "@github/copilot@${version}"
+          copilot --version
+
+      - name: Lint experiment runner
+        run: bash -n tools/gh663-copilot-crossover.sh
+
+      - name: Run four fresh real-host sessions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash tools/gh663-copilot-crossover.sh
+
+      - name: Publish receipt summary
+        if: always()
+        run: |
+          if [[ -f build/gh663-real-host/cohort.json ]]; then
+            jq '[.[] | {
+              task,
+              arm,
+              base_sha,
+              pair_order,
+              host,
+              model,
+              cli_version,
+              prompt_sha256,
+              router_sha256,
+              discipline,
+              session_start_hook,
+              exit_code,
+              final,
+              transcript,
+              task_diff_sha256
+            }]' build/gh663-real-host/cohort.json
+          fi
+
+      - name: Upload observable receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gh663-real-host-crossover-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/gh663-real-host/**/receipt.json
+            build/gh663-real-host/**/final.txt
+            build/gh663-real-host/**/stderr.txt
+            build/gh663-real-host/**/git-status.txt
+            build/gh663-real-host/**/task.diff
+            build/gh663-real-host/**/transcript.md
+            build/gh663-real-host/cohort.json
