@@ -261,13 +261,11 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         $this->installAssets();
 
         $extraRoot = $this->root . '/extra-skills-a';
-        if (!chmod($extraRoot, 0o000)) {
-            self::markTestSkipped('Filesystem does not support making the configured extra skill root unreadable.');
-        }
+        self::assertTrue(chmod($extraRoot, 0o111));
         clearstatcache(true, $extraRoot);
         if (is_readable($extraRoot)) {
-            chmod($extraRoot, 0o775);
-            self::markTestSkipped('Current filesystem permissions do not expose an unreadable-directory state.');
+            self::assertTrue(chmod($extraRoot, 0o775));
+            self::markTestSkipped('Current test user can still read a 0111 directory.');
         }
 
         ob_start();
@@ -276,7 +274,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
             $output = (string) ob_get_contents();
         } finally {
             ob_end_clean();
-            chmod($extraRoot, 0o775);
+            self::assertTrue(chmod($extraRoot, 0o775));
             clearstatcache(true, $extraRoot);
         }
 
