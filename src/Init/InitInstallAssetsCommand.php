@@ -140,6 +140,11 @@ final readonly class InitInstallAssetsCommand
 
                 return 1;
             }
+            if (!is_readable($skillRoot)) {
+                fwrite(\STDERR, 'Skills root is unreadable: ' . $skillRoot . "\n");
+
+                return 1;
+            }
         }
         if ($installsSubagents && $subagentRoots === []) {
             fwrite(\STDERR, "No subagents roots configured or found.\n");
