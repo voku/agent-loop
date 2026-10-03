@@ -8,30 +8,32 @@ use PHPUnit\Framework\TestCase;
 
 final class CodelightCompositionTest extends TestCase
 {
-    public function testBootstrapRoutesWithoutCopyingPortableReasoning(): void
+    public function testBootstrapDefersEngineeringRoutingToOwnedSurfaces(): void
     {
-        $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
+        $root = dirname(__DIR__);
+        $discipline = file_get_contents($root . '/resources/skills/agent-loop-discipline/SKILL.md');
+        $router = file_get_contents($root . '/AGENTS.md');
+        $assets = file_get_contents($root . '/docs/reference/agent-assets.md');
 
-        self::assertIsString($skill);
-        self::assertLessThanOrEqual(8_000, strlen($skill));
-        self::assertStringContainsString('engineering-codelight', $skill);
-        self::assertStringContainsString('coding-simplicity', $skill);
-        self::assertStringContainsString('php-static-analysis', $skill);
-        self::assertStringContainsString('linux-strace', $skill);
-        self::assertStringNotContainsString('php-best-practices', $skill);
-        self::assertStringContainsString('Route non-trivial reasoning to `engineering-codelight`', $skill);
-        self::assertStringContainsString('minimization to `coding-simplicity`', $skill);
-        self::assertStringContainsString('PHP static-analysis/type-contract work to `php-static-analysis`', $skill);
-        self::assertStringContainsString('Linux syscall/runtime bottleneck diagnosis to `linux-strace`', $skill);
-        self::assertStringContainsString(
-            'Generic PHP and framework knowledge stays with the model, repository evidence, and current owner documentation instead of a cookbook skill.',
-            $skill,
-        );
-        self::assertStringContainsString('next_action_kind', $skill);
-        self::assertStringContainsString('next_action', $skill);
-        self::assertStringNotContainsString('## Nine laws', $skill);
-        self::assertStringNotContainsString('### 1. Evidence and authority', $skill);
-        self::assertStringNotContainsString('no code -> reuse -> stdlib/native', $skill);
+        self::assertIsString($discipline);
+        self::assertIsString($router);
+        self::assertIsString($assets);
+        self::assertLessThanOrEqual(8_000, strlen($discipline));
+
+        self::assertStringNotContainsString('## Engineering Skill Routing', $discipline);
+        self::assertStringNotContainsString('coding-simplicity', $discipline);
+        self::assertStringNotContainsString('php-static-analysis', $discipline);
+        self::assertStringNotContainsString('linux-strace', $discipline);
+        self::assertStringNotContainsString('php-best-practices', $discipline);
+        self::assertStringNotContainsString('## Nine laws', $discipline);
+        self::assertStringNotContainsString('### 1. Evidence and authority', $discipline);
+        self::assertStringNotContainsString('no code -> reuse -> stdlib/native', $discipline);
+
+        self::assertStringContainsString('voku/agent-skills/engineering-codelight', $router);
+        self::assertStringContainsString('engineering-codelight', $assets);
+        self::assertStringContainsString('coding-simplicity', $assets);
+        self::assertStringContainsString('php-static-analysis', $assets);
+        self::assertStringContainsString('linux-strace', $assets);
     }
 
     public function testBootstrapKeepsColonBearingDescriptionYamlSafe(): void
@@ -40,7 +42,7 @@ final class CodelightCompositionTest extends TestCase
 
         self::assertIsString($skill);
         self::assertStringContainsString(
-            'description: "Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing."',
+            'description: "Minimal governed bootstrap: lifecycle authority, evidence integrity, and bounded workflow output."',
             $skill,
         );
     }
