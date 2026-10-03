@@ -46,7 +46,13 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-desired-set-parity-' . bin2hex(random_bytes(6));
-        foreach (['/custom-skills/repository-skill', '/custom-subagents', '/bin'] as $directory) {
+        foreach ([
+            '/custom-skills/repository-skill',
+            '/extra-skills-a/external-a',
+            '/extra-skills-b/external-b',
+            '/custom-subagents',
+            '/bin',
+        ] as $directory) {
             if (!mkdir($this->root . $directory, 0o775, true) && !is_dir($this->root . $directory)) {
                 throw new RuntimeException('Unable to create parity fixture directory: ' . $directory);
             }
@@ -54,6 +60,14 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         file_put_contents(
             $this->root . '/custom-skills/repository-skill/SKILL.md',
             "---\nname: repository-skill\ndescription: Repository skill.\n---\n\nSkill body.\n",
+        );
+        file_put_contents(
+            $this->root . '/extra-skills-a/external-a/SKILL.md',
+            "---\nname: external-a\ndescription: External skill A.\n---\n\nSkill body.\n",
+        );
+        file_put_contents(
+            $this->root . '/extra-skills-b/external-b/SKILL.md',
+            "---\nname: external-b\ndescription: External skill B.\n---\n\nSkill body.\n",
         );
         file_put_contents(
             $this->root . '/custom-subagents/repository-agent.md',
@@ -192,6 +206,80 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         );
     }
 
+    public function testConfiguredExtraSkillRootsPersistAcrossConvergenceAndPruneOnlyAfterConfigRemoval(): void
+    {
+        $this->writeConfig([
+            'extra_skills_roots' => ['extra-skills-a', 'extra-skills-b'],
+        ]);
+        $paths = $this->configuredPaths();
+        $desired = array_keys((new ManagedSkillSourceResolver($this->root))->resolve($paths));
+
+        self::assertContains('external-a', $desired);
+        self::assertContains('external-b', $desired);
+
+        $plannedSkills = [];
+        foreach ((new RepositorySetupService($this->root))->planInstall('claude')->operations as $operation) {
+            if ($operation->kind === ManagedAssetKind::SKILLS) {
+                $plannedSkills[] = $operation->entry;
+            }
+        }
+        self::assertContains('external-a', $plannedSkills);
+        self::assertContains('external-b', $plannedSkills);
+
+        $this->installAssets();
+        self::assertFileExists($this->root . '/.claude/skills/external-a/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/external-b/SKILL.md');
+
+        $sync = $this->execute(
+            new InitSyncSkillsCommand($this->root),
+            ['--agent=claude', '--config=' . self::CONFIG],
+        );
+        self::assertStringNotContainsString('removed stale', $sync);
+        self::assertFileExists($this->root . '/.claude/skills/external-a/SKILL.md');
+        self::assertFileExists($this->root . '/.claude/skills/external-b/SKILL.md');
+
+        $status = $this->execute(new InitStatusCommand($this->root), ['--config=' . self::CONFIG]);
+        self::assertStringContainsString('[OK] claude skills: no stale managed entries', $status);
+        self::assertSame('ready', $this->hostStatus()['integration']['skills'] ?? null);
+
+        $this->writeConfig([]);
+        $sync = $this->execute(
+            new InitSyncSkillsCommand($this->root),
+            ['--agent=claude', '--config=' . self::CONFIG],
+        );
+
+        self::assertStringContainsString('removed stale', $sync);
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/external-a');
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/external-b');
+    }
+
+    public function testConfiguredExtraSkillDuplicateFailsBeforeTargetMutation(): void
+    {
+        $duplicate = $this->root . '/extra-skills-a/repository-skill';
+        if (!mkdir($duplicate, 0o775, true) && !is_dir($duplicate)) {
+            throw new RuntimeException('Unable to create duplicate skill fixture.');
+        }
+        file_put_contents(
+            $duplicate . '/SKILL.md',
+            "---\nname: repository-skill\ndescription: Duplicate.\n---\n",
+        );
+        $this->writeConfig([
+            'extra_skills_roots' => ['extra-skills-a'],
+        ]);
+
+        ob_start();
+        try {
+            $exit = (new InitInstallAssetsCommand($this->root))->run(['--agent=claude']);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit, $output);
+        self::assertStringContainsString('Multiple skill sources own the same entry: repository-skill', $output);
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills');
+    }
+
     public function testExplicitRootsStayRootExactAndGainNoPackageEntries(): void
     {
         $skills = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--skills-root=custom-skills']);
@@ -232,8 +320,8 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         self::assertSame('ready', $this->hostStatus()['integration']['skills'] ?? null);
     }
 
-    /** @param array<string, bool> $packageFlags */
-    private function writeConfig(array $packageFlags): void
+    /** @param array<string, mixed> $overrides */
+    private function writeConfig(array $overrides): void
     {
         if (!is_dir($this->root . '/.agent-loop') && !mkdir($this->root . '/.agent-loop', 0o775, true)) {
             throw new RuntimeException('Unable to create config directory.');
@@ -242,7 +330,7 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         file_put_contents(
             $this->root . '/' . self::CONFIG,
             json_encode([
-                ...$packageFlags,
+                ...$overrides,
                 'paths' => [
                     'skills_root' => 'custom-skills',
                     'subagents_root' => 'custom-subagents',
