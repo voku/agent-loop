@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 RESULT_ROOT="${ROOT}/build/gh663-real-host"
-MODEL="claude-sonnet-4.5"
+MODEL_POLICY="cli-default-1.0.91"
 WORKTREES=()
 TASK_A_BASE="10bef9759fa8d6b0c09773781d458cd3837a5b6d"
 TASK_B_BASE="17ca145c7937de66aea8779412265e32e42c0682"
@@ -77,7 +77,6 @@ select_model() {
     local home="${RUNNER_TEMP}/gh663-copilot-model-probe"
     mkdir -p "${home}"
 
-    export MODEL
     echo "Probing Copilot CLI v1.0.91 documented default model policy"
     COPILOT_HOME="${home}" \
     COPILOT_AUTO_UPDATE=false \
@@ -95,7 +94,7 @@ select_model() {
 
     cat "${home}/probe.out"
     cat "${home}/probe.err" >&2
-    echo "Selected model policy: ${MODEL}"
+    echo "Selected model policy: ${MODEL_POLICY}"
 }
 select_model
 
@@ -213,7 +212,7 @@ write_receipt() {
       --arg arm "${arm}" \
       --arg base_sha "${base}" \
       --arg pair_order "${order}" \
-      --arg model_request "${MODEL}" \
+      --arg model_policy "${MODEL_POLICY}" \
       --arg cli_version "${cli_version}" \
       --arg prompt_sha256 "${prompt_sha}" \
       --arg router_state "${router_state}" \
@@ -240,7 +239,7 @@ write_receipt() {
         base_sha: $base_sha,
         pair_order: $pair_order,
         host: "github-copilot-cli",
-        model_request: $model_request,
+        model_policy: $model_policy,
         cli_version: $cli_version,
         prompt_sha256: $prompt_sha256,
         router: {
@@ -366,7 +365,7 @@ jq -e '
   and (map(select(.task == "task-b") | .router) | unique | length == 1)
   and (map(select(.task == "task-a") | .task_authority) | unique | length == 1)
   and (map(select(.task == "task-b") | .task_authority) | unique | length == 1)
-  and (map(.model_request) | unique | length == 1)
+  and (map(.model_policy) | unique | length == 1)
   and (map(.cli_version) | unique | length == 1)
   and all(.[]; .session_start_hook.fired == true)
 ' "${RESULT_ROOT}/cohort.json" >/dev/null
