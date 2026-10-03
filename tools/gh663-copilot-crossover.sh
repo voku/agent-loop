@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 RESULT_ROOT="${ROOT}/build/gh663-real-host"
-MODEL="Claude Sonnet 4.5"
+MODEL="claude-sonnet-4.5"
 WORKTREES=()
 TASK_A_BASE="10bef9759fa8d6b0c09773781d458cd3837a5b6d"
 TASK_B_BASE="17ca145c7937de66aea8779412265e32e42c0682"
@@ -79,6 +79,7 @@ select_model() {
 
     export MODEL
     echo "Probing fixed Copilot model: ${MODEL}"
+    set +e
     COPILOT_HOME="${home}" \
     COPILOT_AUTO_UPDATE=false \
     GITHUB_TOKEN="${GITHUB_TOKEN}" \
@@ -93,9 +94,15 @@ select_model() {
       --no-remote \
       --no-remote-export \
       >"${home}/probe.out" 2>"${home}/probe.err"
+    local probe_exit=$?
+    set -e
 
     cat "${home}/probe.out"
     cat "${home}/probe.err" >&2
+    if [[ "${probe_exit}" -ne 0 ]]; then
+        echo "Fixed Copilot model probe failed: ${MODEL}" >&2
+        return "${probe_exit}"
+    fi
     echo "Selected fixed Copilot model: ${MODEL}"
 }
 select_model
