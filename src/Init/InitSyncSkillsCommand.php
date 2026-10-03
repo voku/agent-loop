@@ -9,6 +9,7 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\PathResolver;
+use voku\AgentLoop\ProjectLayout;
 
 final readonly class InitSyncSkillsCommand
 {
@@ -28,7 +29,12 @@ final readonly class InitSyncSkillsCommand
             return 1;
         }
 
-        $config = (new InitConfigLoader($this->rootPath))->load(OptionTokens::value($tokens, 'config'));
+        $requestedConfig = OptionTokens::value($tokens, 'config');
+        $layout = new ProjectLayout($this->rootPath);
+        $canonicalConfig = $layout->configPath();
+        $config = (new InitConfigLoader($this->rootPath))->load(
+            $requestedConfig ?? (is_file($canonicalConfig) ? $layout->display($canonicalConfig) : null),
+        );
         foreach ($config['warnings'] as $warning) {
             echo $warning . "\n";
         }
