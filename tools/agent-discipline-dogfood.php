@@ -260,24 +260,35 @@ try {
     $skillPath = $workspace . '/.codex/skills/agent-loop-discipline/SKILL.md';
     $skill = file_get_contents($skillPath);
     assertTrue(is_string($skill), 'Unable to read staged discipline skill.');
-    assertTrue(strlen($skill) <= 8_000, 'Discipline skill exceeds the 8 KiB bootstrap budget.');
-    assertTrue(str_contains($skill, 'Engineering Skill Routing'), 'Discipline skill misses engineering skill routing.');
-    assertTrue(str_contains($skill, 'engineering-codelight'), 'Discipline skill misses engineering-codelight route.');
-    assertTrue(str_contains($skill, 'coding-simplicity'), 'Discipline skill misses coding-simplicity route.');
-    assertTrue(str_contains($skill, 'php-static-analysis'), 'Discipline skill misses php-static-analysis route.');
-    assertTrue(str_contains($skill, 'linux-strace'), 'Discipline skill misses linux-strace route.');
-    assertTrue(!str_contains($skill, 'php-best-practices'), 'Discipline skill still routes to removed php-best-practices.');
-    assertTrue(!str_contains($skill, 'Minimal Implementation Ladder'), 'Discipline bootstrap still embeds implementation minimization rules.');
-    assertTrue(!str_contains($skill, '## Nine laws'), 'Discipline bootstrap embeds the Codelight law body.');
-    assertTrue(!str_contains($skill, '### 1. Evidence and authority'), 'Discipline bootstrap embeds Codelight law text.');
+    assertTrue(strlen($skill) <= 2_500, 'Discipline skill exceeds the proven bootstrap floor budget.');
+    assertTrue(str_contains($skill, '## Governed Workflow'), 'Discipline skill misses governed workflow authority.');
     assertTrue(str_contains($skill, 'Workflow Evidence Integrity'), 'Discipline skill misses workflow evidence boundary.');
+    assertTrue(str_contains($skill, '## Workflow Output'), 'Discipline skill misses workflow output contract.');
     assertTrue(str_contains($skill, 'next_action_kind'), 'Discipline skill misses canonical lifecycle authority.');
+    foreach ([
+        '## Agent I/O',
+        '## Prompt Controls',
+        '## Navigate Before Editing',
+        '## L2 Execution Contract',
+        '## Engineering Skill Routing',
+        '## Role Routing',
+        '## Hook Boundary',
+        '## Validation And Close',
+        'engineering-codelight',
+        'coding-simplicity',
+        'php-static-analysis',
+        'linux-strace',
+        'Minimal Implementation Ladder',
+        '## Nine laws',
+        '### 1. Evidence and authority',
+        'agent-loop map query',
+    ] as $specialistRule) {
+        assertTrue(!str_contains($skill, $specialistRule), 'Discipline bootstrap still embeds specialist guidance: ' . $specialistRule);
+    }
     assertTrue(
         str_contains($skill, 'Summaries may point to evidence; they never replace it.'),
         'Discipline skill misses evidence integrity boundary.',
     );
-    assertTrue(str_contains($skill, 'Hook Boundary'), 'Discipline skill misses hook boundary.');
-    assertTrue(str_contains($skill, 'agent-loop map query'), 'Discipline skill misses map-first navigation.');
     assertTrue(!str_contains($skill, 'raw.githubusercontent.com'), 'Discipline skill contains a remote bootstrap URL.');
     foreach (['agent-loop-simplify-review', 'agent-loop-dogfood'] as $requiredSkill) {
         assertTrue(
@@ -317,7 +328,8 @@ try {
     assertTrue(($session['continue'] ?? null) === true, 'SessionStart did not continue.');
     assertTrue(($session['hookSpecificOutput']['hookEventName'] ?? null) === 'SessionStart', 'SessionStart event mismatch.');
     $sessionContext = (string) ($session['hookSpecificOutput']['additionalContext'] ?? '');
-    assertTrue(str_contains($sessionContext, 'Engineering Skill Routing'), 'SessionStart did not inject workflow discipline context.');
+    assertTrue(str_contains($sessionContext, 'Workflow Evidence Integrity'), 'SessionStart did not inject workflow evidence context.');
+    assertTrue(!str_contains($sessionContext, 'Engineering Skill Routing'), 'SessionStart injected specialist engineering routing.');
     assertTrue(!str_contains($sessionContext, 'Minimal Implementation Ladder'), 'SessionStart injected coding implementation rules.');
     assertTrue(str_contains($sessionContext, 'Agent Loop Resume Hint'), 'SessionStart did not inject workflow resume hint.');
     assertTrue(str_contains($sessionContext, '`DOGFOOD-42`'), 'SessionStart resume hint misses unfinished task id.');
@@ -342,7 +354,8 @@ try {
     ], 'SubagentStart configured command');
     assertTrue(($subagent['hookSpecificOutput']['hookEventName'] ?? null) === 'SubagentStart', 'SubagentStart event mismatch.');
     $subagentContext = (string) ($subagent['hookSpecificOutput']['additionalContext'] ?? '');
-    assertTrue(str_contains($subagentContext, 'agent-loop map query'), 'SubagentStart did not inherit map guidance.');
+    assertTrue(str_contains($subagentContext, 'Workflow Evidence Integrity'), 'SubagentStart did not inherit workflow evidence context.');
+    assertTrue(!str_contains($subagentContext, 'agent-loop map query'), 'SubagentStart injected specialist map guidance.');
     assertTrue(!str_contains($subagentContext, 'Minimal Implementation Ladder'), 'SubagentStart injected coding implementation rules.');
     assertTrue(str_contains($subagentContext, '`DOGFOOD-42`'), 'SubagentStart did not inherit workflow resume hint.');
     assertTrue(!str_contains($subagentContext, 'IGNORE PRIOR INSTRUCTIONS'), 'SubagentStart injected free-form manifest next_action.');
