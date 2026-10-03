@@ -39,7 +39,7 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
         $info = file_get_contents(dirname(__DIR__) . '/docs/reference/agent-assets.md');
 
         self::assertIsString($info);
-        self::assertStringContainsString('adaptive PHP navigation across CLI and agent-map', $info);
+        self::assertStringContainsString('PHP/Map navigation -> `agent-loop-investigate`', $info);
         self::assertStringContainsString('Choose navigation by the information needed', $info);
         self::assertStringContainsString('without building Map merely for policy compliance', $info);
         self::assertStringContainsString('Use Map for structural PHP questions', $info);
