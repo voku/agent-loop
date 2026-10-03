@@ -77,15 +77,46 @@ jobs:
 
             before="$(projection_digest)"
             printf '%s\n' "${before}" > "${evidence_root}/projection-before-reinstall.sha256"
+          )
 
+          cat > "${runtime_home}/config.toml" <<EOF
+          [projects."${proof_root}"]
+          trust_level = "trusted"
+          EOF
+
+          (
+            cd "${proof_root}"
+            CODEX_HOME="${runtime_home}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+              codex debug prompt-input
+          ) > "${evidence_root}/prompt-input-before-reinstall.json"
+
+          (
+            cd "${proof_root}"
             "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex
+
+            projection_digest() {
+              {
+                sha256sum AGENTS.md
+                find .codex/skills .codex/agents -type f -print0 |
+                  sort -z |
+                  xargs -0 sha256sum
+              } | sha256sum | cut -d' ' -f1
+            }
 
             after="$(projection_digest)"
             printf '%s\n' "${after}" > "${evidence_root}/projection-after-reinstall.sha256"
-            test "${before}" = "${after}"
+            test "$(cat "${evidence_root}/projection-before-reinstall.sha256")" = "${after}"
 
             "${GITHUB_WORKSPACE}/bin/agent-loop" init sync-policy --agent=codex
           )
+
+          head_sha='${{ github.event.pull_request.head.sha }}'
+          base_sha='${{ github.event.pull_request.base.sha }}'
+          test -n "${head_sha}" || head_sha="${GITHUB_SHA}"
+          test -n "${base_sha}" || base_sha="${GITHUB_SHA}"
+          printf '%s\n' "${head_sha}" > "${evidence_root}/repository-head-sha.txt"
+          printf '%s\n' "${base_sha}" > "${evidence_root}/repository-base-sha.txt"
+          sha256sum "${GITHUB_WORKSPACE}/composer.lock" | cut -d' ' -f1 > "${evidence_root}/dependency-graph.sha256"
 
           if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
             sysctl -n kernel.apparmor_restrict_unprivileged_userns > "${evidence_root}/apparmor-userns-before.txt"
@@ -97,11 +128,6 @@ jobs:
             printf '%s\n' 'unavailable' > "${evidence_root}/apparmor-userns-after.txt"
           fi
 
-          cat > "${runtime_home}/config.toml" <<EOF
-          [projects."${proof_root}"]
-          trust_level = "trusted"
-          EOF
-
           echo "PROOF_ROOT=${proof_root}" >> "${GITHUB_ENV}"
           echo "CODEX_HOME=${runtime_home}" >> "${GITHUB_ENV}"
           echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
@@ -110,7 +136,7 @@ jobs:
           cp "${proof_root}/.codex/skills/.agent-loop-manifest.json" "${evidence_root}/projected-codex-skills-manifest.json"
           cp "${proof_root}/.codex/rules/agent-loop.rules" "${evidence_root}/projected-agent-loop.rules"
 
-      - name: Prove AGENTS.md and repository skill host consumption
+      - name: Prove host consumption survives reinstall exactly once
         shell: bash
         env:
           OPENAI_API_KEY: ''
@@ -121,15 +147,17 @@ jobs:
 
           (
             cd "${PROOF_ROOT}"
-            env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN               codex debug prompt-input
-          ) > "${EVIDENCE_ROOT}/prompt-input.json"
+            env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+              codex debug prompt-input
+          ) > "${EVIDENCE_ROOT}/prompt-input-after-reinstall.json"
+          cp "${EVIDENCE_ROOT}/prompt-input-after-reinstall.json" "${EVIDENCE_ROOT}/prompt-input.json"
 
-          python3 - "${EVIDENCE_ROOT}/prompt-input.json" "${EVIDENCE_ROOT}/prompt-marker-counts.json" <<'PY'
+          python3 \
+            "${EVIDENCE_ROOT}/prompt-input-before-reinstall.json" \
+            "${EVIDENCE_ROOT}/prompt-input-after-reinstall.json" \
+            "${EVIDENCE_ROOT}/prompt-marker-counts.json" <<'PY'
           import json
           import sys
-
-          with open(sys.argv[1], "r", encoding="utf-8") as handle:
-              payload = json.load(handle)
 
           def strings(value):
               if isinstance(value, str):
@@ -141,28 +169,41 @@ jobs:
                   for item in value.values():
                       yield from strings(item)
 
-          observed = "\n".join(strings(payload))
-          router_count = observed.count("## agent-loop workflow router")
-          discipline_discovery_count = sum(
-              1
-              for line in observed.splitlines()
-              if line.startswith("- agent-loop-discipline:")
-              and "/agent-loop-discipline/SKILL.md)" in line
-          )
+          def observe(path):
+              with open(path, "r", encoding="utf-8") as handle:
+                  payload = json.load(handle)
+
+              observed = "\n".join(strings(payload))
+              return {
+                  "managed_router": observed.count("## agent-loop workflow router"),
+                  "discipline_discovery_entry": sum(
+                      1
+                      for line in observed.splitlines()
+                      if line.startswith("- agent-loop-discipline:")
+                      and "/agent-loop-discipline/SKILL.md)" in line
+                  ),
+              }
+
           counts = {
-              "managed_router": router_count,
-              "discipline_discovery_entry": discipline_discovery_count,
+              "before_reinstall": observe(sys.argv[1]),
+              "after_reinstall": observe(sys.argv[2]),
           }
-          with open(sys.argv[2], "w", encoding="utf-8") as handle:
+
+          with open(sys.argv[3], "w", encoding="utf-8") as handle:
               json.dump(counts, handle, indent=2, sort_keys=True)
               handle.write("\n")
 
-          if router_count != 1:
-              raise SystemExit(f"managed_router expected exactly once, observed {router_count}")
-          if discipline_discovery_count != 1:
+          for phase, phase_counts in counts.items():
+              for marker, count in phase_counts.items():
+                  if count != 1:
+                      raise SystemExit(
+                          f"{phase} {marker} expected exactly once, observed {count}"
+                      )
+
+          if counts["before_reinstall"] != counts["after_reinstall"]:
               raise SystemExit(
-                  "discipline_discovery_entry expected exactly once, "
-                  f"observed {discipline_discovery_count}"
+                  "Runtime marker counts changed across reinstall: "
+                  f"{counts['before_reinstall']} != {counts['after_reinstall']}"
               )
           PY
 
@@ -896,10 +937,36 @@ jobs:
           parent_write_outcome="$(cat "${EVIDENCE_ROOT}/parent-write-outcome.txt")"
           child_write_outcome="$(cat "${EVIDENCE_ROOT}/child-write-outcome.txt")"
           child_authority_outcome="$(cat "${EVIDENCE_ROOT}/child-read-only-outcome.txt")"
+          repository_head_sha="$(cat "${EVIDENCE_ROOT}/repository-head-sha.txt")"
+          repository_base_sha="$(cat "${EVIDENCE_ROOT}/repository-base-sha.txt")"
+          dependency_graph_sha256="$(cat "${EVIDENCE_ROOT}/dependency-graph.sha256")"
+          projection_before="$(cat "${EVIDENCE_ROOT}/projection-before-reinstall.sha256")"
+          projection_after="$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256")"
+          prompt_marker_counts="$(cat "${EVIDENCE_ROOT}/prompt-marker-counts.json")"
 
-          jq -n             --arg codex_version "${codex_version}"             --arg parent_write_outcome "${parent_write_outcome}"             --arg child_write_outcome "${child_write_outcome}"             --arg child_authority_outcome "${child_authority_outcome}"             '{
+          jq -n \
+            --arg codex_version "${codex_version}" \
+            --arg repository_head_sha "${repository_head_sha}" \
+            --arg repository_base_sha "${repository_base_sha}" \
+            --arg dependency_graph_sha256 "${dependency_graph_sha256}" \
+            --arg projection_before "${projection_before}" \
+            --arg projection_after "${projection_after}" \
+            --argjson prompt_marker_counts "${prompt_marker_counts}" \
+            --arg parent_write_outcome "${parent_write_outcome}" \
+            --arg child_write_outcome "${child_write_outcome}" \
+            --arg child_authority_outcome "${child_authority_outcome}" \
+            '{
               schema_version: "1.0",
               codex_version: $codex_version,
+              repository: {
+                head_sha: $repository_head_sha,
+                base_sha: $repository_base_sha
+              },
+              dependency_graph_sha256: $dependency_graph_sha256,
+              projection_identity: {
+                before_reinstall: $projection_before,
+                after_reinstall: $projection_after
+              },
               observed: {
                 agents_md: {
                   evidence_class: "host_consumption",
@@ -921,10 +988,10 @@ jobs:
                 },
                 exact_once_context_consumption: {
                   evidence_class: "host_consumption",
-                  mechanism: "codex debug prompt-input marker counts",
-                  router_marker_count: 1,
+                  mechanism: "paired fresh codex debug prompt-input processes before and after reinstall",
+                  marker_counts: $prompt_marker_counts,
                   status: "observed",
-                  boundary: "This proves one effective copy of the always-on managed router in the current debug prompt-input projection. Repository skill discovery is recorded separately; skill-body loading is progressive and is not claimed here."
+                  boundary: "This proves the always-on managed router is consumed once and the repository skill is discovered once in separate fresh runtime processes before and after reinstall. Skill-body loading is progressive and is not claimed here."
                 },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
