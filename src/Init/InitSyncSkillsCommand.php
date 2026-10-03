@@ -53,19 +53,6 @@ final readonly class InitSyncSkillsCommand
         }
 
         $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config);
-        foreach ($paths->absoluteExtraSkillRoots() as $configuredExtraSkillRoot) {
-            if (!is_dir($configuredExtraSkillRoot)) {
-                echo '[FAIL] sync skills: configured extra source root does not exist: ' . $this->displayPath($configuredExtraSkillRoot) . "\n";
-
-                return 1;
-            }
-            if (!is_readable($configuredExtraSkillRoot)) {
-                echo '[FAIL] sync skills: unable to read configured extra source root: ' . $this->displayPath($configuredExtraSkillRoot) . "\n";
-
-                return 1;
-            }
-        }
-
         $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
         $force = OptionTokens::hasFlag($tokens, 'force');
         $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
@@ -105,9 +92,22 @@ final readonly class InitSyncSkillsCommand
         }
 
         // Default mode: the owner resolver computes the desired set for this
-        // config. Only the configured project root is materialized here; the
-        // rest of the desired set - package copies install-assets projected - is
-        // retained, never pruned and never restored.
+        // config. Only the configured project root is materialized here; package
+        // and configured extra copies installed by install-assets are retained,
+        // never pruned and never restored.
+        foreach ($paths->absoluteExtraSkillRoots() as $configuredExtraSkillRoot) {
+            if (!is_dir($configuredExtraSkillRoot)) {
+                echo '[FAIL] sync skills: configured extra source root does not exist: ' . $this->displayPath($configuredExtraSkillRoot) . "\n";
+
+                return 1;
+            }
+            if (!is_readable($configuredExtraSkillRoot)) {
+                echo '[FAIL] sync skills: unable to read configured extra source root: ' . $this->displayPath($configuredExtraSkillRoot) . "\n";
+
+                return 1;
+            }
+        }
+
         try {
             $desired = (new ManagedSkillSourceResolver($this->rootPath))->resolve($paths);
         } catch (InvalidArgumentException $exception) {
