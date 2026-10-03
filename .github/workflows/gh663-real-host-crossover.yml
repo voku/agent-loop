@@ -59,7 +59,7 @@ jobs:
               base_sha,
               pair_order,
               host,
-              model_request,
+              model_policy,
               cli_version,
               prompt_sha256,
               router,
