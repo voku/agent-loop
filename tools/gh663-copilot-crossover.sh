@@ -78,14 +78,12 @@ select_model() {
     mkdir -p "${home}"
 
     export MODEL
-    echo "Probing fixed Copilot model: ${MODEL}"
-    set +e
+    echo "Probing Copilot CLI v1.0.91 documented default model policy"
     COPILOT_HOME="${home}" \
     COPILOT_AUTO_UPDATE=false \
     GITHUB_TOKEN="${GITHUB_TOKEN}" \
     timeout 2m copilot \
       -p "Reply with exactly OK." \
-      --model "${MODEL}" \
       --no-ask-user \
       --allow-tool=read \
       --deny-tool=write \
@@ -94,16 +92,10 @@ select_model() {
       --no-remote \
       --no-remote-export \
       >"${home}/probe.out" 2>"${home}/probe.err"
-    local probe_exit=$?
-    set -e
 
     cat "${home}/probe.out"
     cat "${home}/probe.err" >&2
-    if [[ "${probe_exit}" -ne 0 ]]; then
-        echo "Fixed Copilot model probe failed: ${MODEL}" >&2
-        return "${probe_exit}"
-    fi
-    echo "Selected fixed Copilot model: ${MODEL}"
+    echo "Selected model policy: ${MODEL}"
 }
 select_model
 
@@ -304,7 +296,6 @@ run_case() {
         GITHUB_TOKEN="${GITHUB_TOKEN}" \
         timeout 12m copilot \
           -p "${prompt}" \
-          --model "${MODEL}" \
           --no-ask-user \
           --allow-tool=read \
           --allow-tool=write \
