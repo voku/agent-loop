@@ -31,6 +31,7 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
             'Do not use text search to rediscover a PHP identity that `scope` already resolves.',
             $skill,
         );
+        self::assertStringNotContainsString('known files/symbols', $skill);
     }
 
     public function testPackageDocumentationKeepsCliAndMapComplementary(): void
@@ -44,6 +45,7 @@ final class AdaptiveNavigationGuidanceTest extends TestCase
         self::assertStringContainsString('Use Map for structural PHP questions', $info);
         self::assertStringContainsString('fall back to CLI navigation', $info);
         self::assertStringContainsString('Do not mechanically repeat equivalent discovery', $info);
+        self::assertStringContainsString('prefer a governed Map plan for a supported rename, removal or move', $info);
     }
 
     public function testLearningPointsToTheFocusedNavigationOwner(): void
