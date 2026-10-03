@@ -37,7 +37,7 @@ jobs:
 
       - name: Install current Copilot CLI
         run: |
-          version="$(npm view @github/copilot version)"
+          version="1.0.91"
           npm install -g "@github/copilot@${version}"
           copilot --version
 
