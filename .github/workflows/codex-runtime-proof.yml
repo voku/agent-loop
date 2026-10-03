@@ -207,6 +207,205 @@ jobs:
               )
           PY
 
+      - name: Prove SessionStart project hook trust and execution
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          hook_root="${RUNNER_TEMP}/agent-loop-codex-hook-proof"
+          server_script="${RUNNER_TEMP}/codex-session-start-proof-server.py"
+          rm -rf "${hook_root}"
+          mkdir -p "${hook_root}"
+
+          cat > "${hook_root}/composer.json" <<JSON
+          {
+            "name": "voku/codex-session-start-hook-proof",
+            "type": "project",
+            "require": {
+              "voku/agent-loop": "dev-main"
+            },
+            "repositories": [
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-loop": "dev-main"}
+                }
+              }
+            ],
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+
+          composer install \
+            --working-dir="${hook_root}" \
+            --no-interaction \
+            --prefer-dist \
+            --no-progress
+
+          git -C "${hook_root}" init --initial-branch=main
+          (
+            cd "${hook_root}"
+            vendor/bin/agent-loop init scaffold --demo --agent=codex
+            vendor/bin/agent-loop init install-assets --agent=codex
+          )
+
+          test -f "${hook_root}/.codex/hooks.json"
+          test -f "${hook_root}/.codex/hooks/context.php"
+
+          cat > "${server_script}" <<'PY'
+          import http.server
+          import json
+          import os
+
+          request_prefix = os.environ["REQUEST_PREFIX"]
+          port_path = os.environ["PORT_PATH"]
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              request_count = 0
+
+              def log_message(self, format, *args):
+                  return
+
+              def do_POST(self):
+                  Handler.request_count += 1
+                  request_number = Handler.request_count
+                  length = int(self.headers.get("Content-Length", "0"))
+                  body = self.rfile.read(length)
+                  with open(f"{request_prefix}-{request_number}.json", "wb") as handle:
+                      handle.write(body)
+
+                  events = [
+                      {"type": "response.created", "response": {"id": f"resp-session-start-{request_number}"}},
+                      {
+                          "type": "response.completed",
+                          "response": {
+                              "id": f"resp-session-start-{request_number}",
+                              "usage": {
+                                  "input_tokens": 0,
+                                  "input_tokens_details": None,
+                                  "output_tokens": 0,
+                                  "output_tokens_details": None,
+                                  "total_tokens": 0,
+                              },
+                          },
+                      },
+                  ]
+                  payload = "".join(
+                      f"event: {event['type']}\\ndata: {json.dumps(event)}\\n\\n"
+                      for event in events
+                  ).encode()
+
+                  self.send_response(200)
+                  self.send_header("Content-Type", "text/event-stream")
+                  self.send_header("Content-Length", str(len(payload)))
+                  self.end_headers()
+                  self.wfile.write(payload)
+
+          server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+          with open(port_path, "w", encoding="utf-8") as handle:
+              handle.write(str(server.server_port))
+          server.serve_forever()
+          PY
+
+          run_probe() {
+            local trust_level="$1"
+            local home="${RUNNER_TEMP}/codex-session-start-${trust_level}-home"
+            local port_path="${RUNNER_TEMP}/codex-session-start-${trust_level}-port"
+            local request_prefix="${EVIDENCE_ROOT}/session-start-${trust_level}-request"
+
+            rm -rf "${home}"
+            rm -f "${port_path}" "${request_prefix}"-*.json
+            mkdir -p "${home}"
+            cat > "${home}/config.toml" <<EOF
+          [projects."${hook_root}"]
+          trust_level = "${trust_level}"
+          EOF
+
+            REQUEST_PREFIX="${request_prefix}" PORT_PATH="${port_path}" \
+              python3 "${server_script}" &
+            local server_pid=$!
+            trap 'kill "${server_pid}" 2>/dev/null || true' RETURN
+
+            for _ in $(seq 1 100); do
+              if test -s "${port_path}"; then
+                break
+              fi
+              sleep 0.05
+            done
+            test -s "${port_path}"
+            local port
+            port="$(cat "${port_path}")"
+
+            (
+              cd "${hook_root}"
+              CODEX_HOME="${home}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+                codex exec --ephemeral --json \
+                  -c 'model="proof-model"' \
+                  -c 'model_provider="mock"' \
+                  -c "model_providers.mock={ name = \\"mock\\", base_url = \\"http://127.0.0.1:${port}/v1\\", env_key = \\"PATH\\", wire_api = \\"responses\\" }" \
+                  'Return no content. SessionStart hook trust probe.'
+            ) > "${EVIDENCE_ROOT}/session-start-${trust_level}-exec.jsonl" \
+              2> "${EVIDENCE_ROOT}/session-start-${trust_level}-exec.stderr"
+
+            kill "${server_pid}" 2>/dev/null || true
+            wait "${server_pid}" 2>/dev/null || true
+            trap - RETURN
+
+            test -s "${request_prefix}-1.json"
+          }
+
+          run_probe trusted
+          run_probe untrusted
+
+          python3 - \
+            "${EVIDENCE_ROOT}/session-start-trusted-request-1.json" \
+            "${EVIDENCE_ROOT}/session-start-untrusted-request-1.json" \
+            "${EVIDENCE_ROOT}/session-start-hook-proof.json" <<'PY'
+          import json
+          import sys
+
+          marker = "Rule: persisted workflow state beats conversational state."
+
+          with open(sys.argv[1], "r", encoding="utf-8") as handle:
+              trusted = handle.read()
+          with open(sys.argv[2], "r", encoding="utf-8") as handle:
+              untrusted = handle.read()
+
+          trusted_count = trusted.count(marker)
+          untrusted_count = untrusted.count(marker)
+
+          if trusted_count != 1:
+              raise SystemExit(
+                  f"trusted SessionStart context marker expected exactly once, observed {trusted_count}"
+              )
+          if untrusted_count != 0:
+              raise SystemExit(
+                  f"untrusted SessionStart context marker expected zero times, observed {untrusted_count}"
+              )
+
+          with open(sys.argv[3], "w", encoding="utf-8") as handle:
+              json.dump(
+                  {
+                      "marker": marker,
+                      "trusted_context_marker_count": trusted_count,
+                      "untrusted_context_marker_count": untrusted_count,
+                  },
+                  handle,
+                  indent=2,
+                  sort_keys=True,
+              )
+              handle.write("\\n")
+          PY
+
       - name: Prove projected subagent role discovery and selection in Codex runtime
         shell: bash
         env:
@@ -943,6 +1142,7 @@ jobs:
           projection_before="$(cat "${EVIDENCE_ROOT}/projection-before-reinstall.sha256")"
           projection_after="$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256")"
           prompt_marker_counts="$(cat "${EVIDENCE_ROOT}/prompt-marker-counts.json")"
+          session_start_hook_proof="$(cat "${EVIDENCE_ROOT}/session-start-hook-proof.json")"
 
           jq -n \
             --arg codex_version "${codex_version}" \
@@ -952,6 +1152,7 @@ jobs:
             --arg projection_before "${projection_before}" \
             --arg projection_after "${projection_after}" \
             --argjson prompt_marker_counts "${prompt_marker_counts}" \
+            --argjson session_start_hook_proof "${session_start_hook_proof}" \
             --arg parent_write_outcome "${parent_write_outcome}" \
             --arg child_write_outcome "${child_write_outcome}" \
             --arg child_authority_outcome "${child_authority_outcome}" \
@@ -993,6 +1194,14 @@ jobs:
                   status: "observed",
                   boundary: "This proves the always-on managed router is consumed once and the repository skill is discovered once in separate fresh runtime processes before and after reinstall. Skill-body loading is progressive and is not claimed here."
                 },
+                session_start_hook_trust_execution: {
+                  evidence_class: "host_runtime_execution",
+                  mechanism: "paired real codex exec requests from an installed consumer with trusted and untrusted project configurations",
+                  trusted_context_marker_count: $session_start_hook_proof.trusted_context_marker_count,
+                  untrusted_context_marker_count: $session_start_hook_proof.untrusted_context_marker_count,
+                  status: "observed",
+                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0. SubagentStart and PreToolUse execution remain separate runtime claims."
+                },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
                   mechanism: "codex execpolicy check with the projected rule file",
@@ -1030,7 +1239,8 @@ jobs:
               },
               not_proven_by_this_slice: {
                 parent_runtime_override_interaction: true,
-                hook_trust_or_execution: true,
+                subagent_start_hook_execution: true,
+                pre_tool_use_hook_execution: true,
                 project_rule_autoload: true,
                 mcp_authority_coverage: true
               }
