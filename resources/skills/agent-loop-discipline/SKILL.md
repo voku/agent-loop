@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: "Minimal governed bootstrap: lifecycle authority, evidence integrity, and bounded workflow output."
+description: "Minimal governed bootstrap: persisted workflow routing, evidence integrity, and bounded workflow output."
 ---
 
 # Agent Loop Discipline
