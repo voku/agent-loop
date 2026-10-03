@@ -49,7 +49,8 @@ final class AgentDisciplineContextBudgetTest extends TestCase
             self::assertStringContainsString('Agent Loop Resume Hint', $context);
             self::assertStringContainsString('Workflow Evidence Integrity', $context);
             self::assertStringContainsString('Receipts compress narration, never evidence.', $context);
-            self::assertStringNotContainsString('Engineering Skill Routing', $context);\n            self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
+            self::assertStringNotContainsString('Engineering Skill Routing', $context);
+            self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
             self::assertStringNotContainsString('UNTRUSTED-', $context);
         } finally {
             $this->removeTree($root);
