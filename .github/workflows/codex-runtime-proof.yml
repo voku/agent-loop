@@ -255,7 +255,7 @@ jobs:
           (
             cd "${hook_root}"
             vendor/bin/agent-loop init scaffold --demo --agent=codex
-            vendor/bin/agent-loop init install-assets --agent=codex
+            vendor/bin/agent-loop init install-assets --agent=codex --with-hooks
           )
 
           test -f "${hook_root}/.codex/hooks.json"
