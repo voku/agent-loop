@@ -65,36 +65,29 @@ select_model() {
     local home="${RUNNER_TEMP}/gh663-copilot-model-probe"
     mkdir -p "${home}"
 
-    local candidate
-    for candidate in claude-sonnet-4.6 gpt-5.4 gpt-5.3-codex claude-haiku-4.5; do
-        echo "Probing Copilot model: ${candidate}"
-        if COPILOT_HOME="${home}" \
-            COPILOT_AUTO_UPDATE=false \
-            GITHUB_TOKEN="${GITHUB_TOKEN}" \
-            timeout 2m copilot \
-              -p "Reply with exactly OK." \
-              --model "${candidate}" \
-              --no-ask-user \
-              --allow-tool=read \
-              --deny-tool=write \
-              --deny-tool=shell \
-              --deny-tool=memory \
-              --no-remote \
-              --no-remote-export \
-              -s >"${home}/probe.out" 2>"${home}/probe.err"; then
-            MODEL="${candidate}"
-            export MODEL
-            echo "Selected Copilot model: ${MODEL}"
-            return 0
-        fi
+    MODEL="auto"
+    export MODEL
 
-        cat "${home}/probe.err" >&2 || true
-    done
+    echo "Probing Copilot model selection: auto"
+    COPILOT_HOME="${home}" \
+    COPILOT_AUTO_UPDATE=false \
+    GITHUB_TOKEN="${GITHUB_TOKEN}" \
+    timeout 2m copilot \
+      -p "Reply with exactly OK." \
+      --model auto \
+      --no-ask-user \
+      --allow-tool=read \
+      --deny-tool=write \
+      --deny-tool=shell \
+      --deny-tool=memory \
+      --no-remote \
+      --no-remote-export \
+      >"${home}/probe.out" 2>"${home}/probe.err"
 
-    echo "No fixed Copilot model from the approved probe list is available." >&2
-    return 1
+    cat "${home}/probe.out"
+    cat "${home}/probe.err" >&2
+    echo "Selected Copilot model policy: auto"
 }
-
 select_model
 
 TASK_A_PROMPT="$(cat <<'EOF'
@@ -193,7 +186,7 @@ write_receipt() {
       --arg arm "${arm}" \
       --arg base_sha "${base}" \
       --arg pair_order "${order}" \
-      --arg model "${MODEL}" \
+      --arg model_request "${MODEL}" \
       --arg cli_version "${cli_version}" \
       --arg prompt_sha256 "${prompt_sha}" \
       --arg router_sha256 "${router_sha}" \
@@ -216,7 +209,7 @@ write_receipt() {
         base_sha: $base_sha,
         pair_order: $pair_order,
         host: "github-copilot-cli",
-        model: $model,
+        model_request: $model_request,
         cli_version: $cli_version,
         prompt_sha256: $prompt_sha256,
         router_sha256: $router_sha256,
@@ -327,7 +320,7 @@ jq -e '
   and (map(select(.task == "task-b") | .base_sha) | unique | length == 1)
   and (map(select(.task == "task-a") | .router_sha256) | unique | length == 1)
   and (map(select(.task == "task-b") | .router_sha256) | unique | length == 1)
-  and (map(.model) | unique | length == 1)
+  and (map(.model_request) | unique | length == 1)
   and (map(.cli_version) | unique | length == 1)
   and all(.[]; .session_start_hook.fired == true)
 ' "${RESULT_ROOT}/cohort.json" >/dev/null
