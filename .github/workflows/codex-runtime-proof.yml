@@ -152,7 +152,7 @@ jobs:
           ) > "${EVIDENCE_ROOT}/prompt-input-after-reinstall.json"
           cp "${EVIDENCE_ROOT}/prompt-input-after-reinstall.json" "${EVIDENCE_ROOT}/prompt-input.json"
 
-          python3 \
+          python3 - \
             "${EVIDENCE_ROOT}/prompt-input-before-reinstall.json" \
             "${EVIDENCE_ROOT}/prompt-input-after-reinstall.json" \
             "${EVIDENCE_ROOT}/prompt-marker-counts.json" <<'PY'
