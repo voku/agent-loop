@@ -9,7 +9,7 @@ behavior. A repository recheck is not evidence of completeness by itself.
 Reviewed source pins:
 
 - Caveman (`JuliusBrussee/caveman`): `14d4f2e21a16b573373ca24698cd6bd3db75bf52`;
-- Ponytail (`DietrichGebert/ponytail`): `2ed6c52c9d7e5e56942508591085fd45dea277d3`;
+- Ponytail (`DietrichGebert/ponytail`): `c982cd411abb53323c4baa1baa3c2f020b8d0b08`;
 - Attention Control (`aaddrick/attention-control`): `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`.
 
 Decision vocabulary:
@@ -46,9 +46,21 @@ objective constraints where they can be enforced.
 
 The current Ponytail benchmark explicitly treats `Follow YAGNI principles, and prefer one-liner solutions` as a comparison arm, not as a proven compact reproduction of the skill. Its own result calls that arm erratic and records one dropped path-traversal guard. The transferable target is therefore the smallest instruction set that preserves the useful behavior and safety, not the fewest English words.
 
+Current upstream recheck at `c982cd411abb53323c4baa1baa3c2f020b8d0b08` adds four useful evidence lessons without creating new first-party guidance owners:
+
+- Ponytail's Hermes adapter stopped reinjecting the same persisted ruleset on every turn (`9410bcbc`). In `agent-loop`, exact-once runtime consumption belongs to the host-runtime proofs in #618 (Codex), #623 (Claude Code), and #611 (Cursor), while the injected payload itself remains owned by `src/AgentGuidance/AgentDisciplineHook.php`.
+- Its agentic benchmark fixed two contamination paths: a self-test that lost `PONYTAIL_PLUGIN_DIR`, and benchmark cells that accidentally inherited the repository `AGENTS.md` / user memory (`e9d4a7ee`). Our corresponding evidence owner is the disposable #663/#675 crossover harness; these checks are experiment provenance, not product/session guidance.
+- Its review/audit skills added repository-reuse verification before accepting replacement findings (`446e4ad4`). The first-party semantic owner is `voku/agent-skills` `code-review-simplicity` (PR voku/agent-skills#67), not `agent-loop-discipline`.
+- Its audit now requires whole-tree caller evidence before a delete finding (`6f7a570e`). `agent-loop` keeps caller/source evidence in the review skill boundary and the simplify-audit wrapper; no new lifecycle state is justified.
+- Ponytail now requires benchmark evidence for ruleset changes (`b432558e`). We do not adopt that as a blanket package rule: always-on guidance changes need behavior evidence proportionate to their runtime reach, as #663 does, while ordinary adapter/docs fixes remain under their existing deterministic tests.
+
+
 | Upstream mechanism | Decision | First-party equivalent / enforcement |
 | --- | --- | --- |
 | YAGNI / existing code / stdlib / native / installed dependency / minimum code ladder | `ADAPT` | `voku/agent-skills/coding-simplicity` owns the coding-time search order. `agent-loop` routes to it instead of injecting the ladder into every session. |
+| Review-time replacement verification uses repository reuse -> stdlib -> native -> installed dependency | `ADAPT` | `voku/agent-skills/code-review-simplicity` owns the review check; voku/agent-skills#67 adds the concrete-evidence requirement without new `agent-loop` guidance. |
+| Exact-once host consumption of persisted context | `DEFER` | Repository projection is already owned; real consumption/reinjection semantics must be proven per host in #618, #623 and #611 before any runtime claim changes. |
+| Benchmark-arm isolation from repository instructions, user memory and mutable plugin selection | `ADAPT` | #663/#675 owns this only as experiment provenance: frozen inputs, authority-state observation and dependency-graph identity. It is not session guidance or a product subsystem. |
 | Understand the real flow before choosing the small fix | `ADAPT` | `coding-simplicity` requires task/flow understanding before minimization; `agent-map` remains bounded navigation support, not the semantic owner. |
 | Root-cause fix after checking callers | `ADAPT` | `coding-simplicity` owns the root-cause rule; `agent-loop-surgical-edit` keeps caller evidence and bounded-scope orchestration. |
 | No speculative abstraction, config, compatibility, dependency or cleanup | `ADAPT` | `coding-simplicity` owns implementation restraint. The surgical role only prevents silent scope expansion. |
