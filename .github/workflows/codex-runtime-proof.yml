@@ -254,8 +254,8 @@ jobs:
           git -C "${hook_root}" init --initial-branch=main
           (
             cd "${hook_root}"
-            vendor/bin/agent-loop init scaffold --demo --agent=codex
-            vendor/bin/agent-loop init install-assets --agent=codex --with-hooks
+            env -u CODEX_HOME vendor/bin/agent-loop init scaffold --demo --agent=codex
+            env -u CODEX_HOME vendor/bin/agent-loop init install-assets --agent=codex --with-hooks
           )
 
           test -f "${hook_root}/.codex/hooks.json"
