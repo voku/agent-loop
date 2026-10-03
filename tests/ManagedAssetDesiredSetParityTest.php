@@ -253,6 +253,40 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/external-b');
     }
 
+    public function testInstallAssetsFailsBeforePruningWhenConfiguredExtraSkillRootBecomesUnreadable(): void
+    {
+        $this->writeConfig([
+            'extra_skills_roots' => ['extra-skills-a'],
+        ]);
+        $this->installAssets();
+
+        $extraRoot = $this->root . '/extra-skills-a';
+        if (!chmod($extraRoot, 0o000)) {
+            self::markTestSkipped('Filesystem does not support making the configured extra skill root unreadable.');
+        }
+        clearstatcache(true, $extraRoot);
+        if (is_readable($extraRoot)) {
+            chmod($extraRoot, 0o775);
+            self::markTestSkipped('Current filesystem permissions do not expose an unreadable-directory state.');
+        }
+
+        ob_start();
+        try {
+            $exit = (new InitInstallAssetsCommand($this->root))->run(['--agent=claude']);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+            chmod($extraRoot, 0o775);
+            clearstatcache(true, $extraRoot);
+        }
+
+        self::assertSame(1, $exit, $output);
+        self::assertFileExists($this->root . '/.claude/skills/external-a/SKILL.md');
+        self::assertTrue(
+            InitSyncManifest::load($this->root . '/.claude/skills', 'skills', 'claude')->isManaged('external-a'),
+        );
+    }
+
     public function testConfiguredExtraSkillDuplicateFailsBeforeTargetMutation(): void
     {
         $duplicate = $this->root . '/extra-skills-a/repository-skill';
