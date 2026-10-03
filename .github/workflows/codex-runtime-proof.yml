@@ -782,7 +782,7 @@ jobs:
 
           (
             cd "${PROOF_ROOT}"
-            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex --with-hooks
+            env -u CODEX_HOME "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex --with-hooks
           )
           test -f "${PROOF_ROOT}/.codex/hooks.json"
           test -f "${PROOF_ROOT}/.codex/hooks/context.php"
