@@ -1,6 +1,6 @@
 ---
 name: agent-loop-discipline
-description: "Governed agent-* orchestration: resumable state, adaptive navigation, evidence, L2 gates, review routing."
+description: "Always-on agent-loop workflow floor: persisted lifecycle authority, evidence integrity, and concise receipts."
 ---
 
 # Agent Loop Discipline
