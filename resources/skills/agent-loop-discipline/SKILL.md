@@ -24,7 +24,7 @@ Human authority exists only for lifecycle `decision_required`; present its exact
 
 ## Workflow Evidence Integrity
 
-Never fabricate workflow state or runtime facts. Preserve exact commands, errors, diffs, contracts, and verification artifacts. Summaries may point to evidence; they never replace it. General uncertainty reasoning belongs to `engineering-codelight`.
+Never fabricate workflow state or runtime facts. Preserve exact commands, errors, diffs, contracts, and verification artifacts. Summaries may point to evidence; they never replace it.
 
 ## Workflow Output
 
