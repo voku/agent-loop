@@ -3,12 +3,24 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 RESULT_ROOT="${ROOT}/build/gh663-real-host"
-MODEL=""
+MODEL="Claude Sonnet 4.5"
+WORKTREES=()
 TASK_A_BASE="10bef9759fa8d6b0c09773781d458cd3837a5b6d"
 TASK_B_BASE="17ca145c7937de66aea8779412265e32e42c0682"
 CURRENT_SKILL="${ROOT}/resources/skills/agent-loop-discipline/SKILL.md"
 
+rm -rf "${RESULT_ROOT}"
 mkdir -p "${RESULT_ROOT}"
+
+cleanup() {
+    local dir
+    for dir in "${WORKTREES[@]:-}"; do
+        [[ -n "${dir}" ]] || continue
+        git worktree remove --force "${dir}" >/dev/null 2>&1 || true
+    done
+    git worktree prune >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 CURRENT_BODY="${RESULT_ROOT}/discipline-current.md"
 MINIMAL_BODY="${RESULT_ROOT}/discipline-minimal.md"
 
@@ -65,16 +77,14 @@ select_model() {
     local home="${RUNNER_TEMP}/gh663-copilot-model-probe"
     mkdir -p "${home}"
 
-    MODEL="auto"
     export MODEL
-
-    echo "Probing Copilot model selection: auto"
+    echo "Probing fixed Copilot model: ${MODEL}"
     COPILOT_HOME="${home}" \
     COPILOT_AUTO_UPDATE=false \
     GITHUB_TOKEN="${GITHUB_TOKEN}" \
     timeout 2m copilot \
       -p "Reply with exactly OK." \
-      --model auto \
+      --model "${MODEL}" \
       --no-ask-user \
       --allow-tool=read \
       --deny-tool=write \
@@ -86,7 +96,7 @@ select_model() {
 
     cat "${home}/probe.out"
     cat "${home}/probe.err" >&2
-    echo "Selected Copilot model policy: auto"
+    echo "Selected fixed Copilot model: ${MODEL}"
 }
 select_model
 
@@ -147,6 +157,7 @@ prepare_worktree() {
     local base="$2"
 
     git worktree add --detach "${dir}" "${base}"
+    WORKTREES+=("${dir}")
     (
         cd "${dir}"
         composer install --no-interaction --prefer-dist --no-progress
