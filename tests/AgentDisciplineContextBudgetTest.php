@@ -20,7 +20,7 @@ final class AgentDisciplineContextBudgetTest extends TestCase
 
         $skill = file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md');
         self::assertIsString($skill);
-        self::assertLessThanOrEqual(8_000, strlen($skill), 'Canonical bootstrap skill must leave room for the bounded resume hint.');
+        self::assertLessThanOrEqual(2_500, strlen($skill), 'Canonical bootstrap stays at the proven workflow/evidence floor.');
         self::assertNotFalse(file_put_contents($skillDirectory . '/SKILL.md', $skill));
 
         for ($index = 0; $index < 5; ++$index) {
@@ -47,9 +47,9 @@ final class AgentDisciplineContextBudgetTest extends TestCase
 
             self::assertLessThanOrEqual(9_500, strlen($context));
             self::assertStringContainsString('Agent Loop Resume Hint', $context);
-            self::assertStringContainsString('Engineering Skill Routing', $context);
-            self::assertStringContainsString('do not manufacture follow-up work', $context);
-            self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
+            self::assertStringContainsString('Workflow Evidence Integrity', $context);
+            self::assertStringContainsString('Receipts compress narration, never evidence.', $context);
+            self::assertStringNotContainsString('Engineering Skill Routing', $context);\n            self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
             self::assertStringNotContainsString('UNTRUSTED-', $context);
         } finally {
             $this->removeTree($root);
