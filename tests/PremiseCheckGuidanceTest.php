@@ -28,7 +28,7 @@ final class PremiseCheckGuidanceTest extends TestCase
         self::assertStringContainsString('"id": "checkpoint-autonomy"', $manifest);
         self::assertStringContainsString('"id": "momentum"', $manifest);
         self::assertStringContainsString('Stop for human input only when approval', $manifest);
-        self::assertStringContainsString('re-check its authority, freshness, and scope', $manifest);
+        self::assertStringContainsString('Re-check anything whose authority, freshness, repository scope, or assumptions may have changed.', $manifest);
     }
 
     public function testWorkflowSkillKeepsPromptControlsRoutable(): void
