@@ -124,7 +124,7 @@ jobs:
             env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN               codex debug prompt-input
           ) > "${EVIDENCE_ROOT}/prompt-input.json"
 
-          python3 - "${EVIDENCE_ROOT}/prompt-input.json" <<'PY'
+          python3 - "${EVIDENCE_ROOT}/prompt-input.json" "${EVIDENCE_ROOT}/prompt-marker-counts.json" <<'PY'
           import json
           import sys
 
@@ -147,7 +147,7 @@ jobs:
               "discipline_body": "# Agent Loop Discipline",
           }
           counts = {name: observed.count(marker) for name, marker in markers.items()}
-          with open("${EVIDENCE_ROOT}/prompt-marker-counts.json", "w", encoding="utf-8") as handle:
+          with open(sys.argv[2], "w", encoding="utf-8") as handle:
               json.dump(counts, handle, indent=2, sort_keys=True)
               handle.write("\n")
 
