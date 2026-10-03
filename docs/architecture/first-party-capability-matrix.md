@@ -27,7 +27,7 @@ This is the current ownership map for first-party agent behavior. Historical mig
 
 ## Engineering-skill boundary
 
-`agent-loop-discipline` is intentionally smaller than the engineering skills it can route to.
+`agent-loop-discipline` is intentionally only the always-on workflow/evidence floor. It does not route or copy engineering semantics; repository/host skill discovery selects focused engineering guidance when the task requires it.
 
 `engineering-codelight` owns technology-neutral reasoning for non-trivial engineering work. It is workflow-neutral: the active project lifecycle remains authoritative, and Loop loads only the smallest relevant skill combination instead of injecting Codelight into every session or specialist.
 
