@@ -178,7 +178,7 @@ write_receipt() {
     local started_at="${11}"
     local finished_at="${12}"
 
-    local cli_version prompt_sha router_state router_sha task_authority_path task_authority_sha discipline_sha discipline_bytes final_sha final_bytes transcript_sha transcript_bytes diff_sha
+    local cli_version prompt_sha router_state router_sha task_authority_path task_authority_sha discipline_sha discipline_bytes final_sha final_bytes transcript_sha transcript_bytes diff_sha hook_fired hook_input_sha
     cli_version="$(copilot --version | head -n 1)"
     prompt_sha="$(printf '%s' "${prompt}" | sha256sum | cut -d' ' -f1)"
     router_state="absent"
@@ -200,6 +200,12 @@ write_receipt() {
     transcript_sha="$(sha256sum "${out}/transcript.md" | cut -d' ' -f1)"
     transcript_bytes="$(wc -c < "${out}/transcript.md" | tr -d ' ')"
     diff_sha="$(sha256sum "${out}/task.diff" | cut -d' ' -f1)"
+    hook_fired=false
+    hook_input_sha=""
+    if [[ -s "${home}/hook-fired.txt" ]] && [[ -s "${home}/session-start-input.json" ]]; then
+        hook_fired=true
+        hook_input_sha="$(sha256sum "${home}/session-start-input.json" | cut -d' ' -f1)"
+    fi
 
     jq -n \
       --arg schema_version "1.0" \
@@ -225,7 +231,8 @@ write_receipt() {
       --arg transcript_sha256 "${transcript_sha}" \
       --argjson transcript_bytes "${transcript_bytes}" \
       --arg task_diff_sha256 "${diff_sha}" \
-      --arg hook_input_sha256 "$(sha256sum "${home}/session-start-input.json" | cut -d' ' -f1)" \
+      --argjson hook_fired "${hook_fired}" \
+      --arg hook_input_sha256 "${hook_input_sha}" \
       '{
         schema_version: $schema_version,
         issue: $issue,
@@ -247,7 +254,7 @@ write_receipt() {
           sha256: (if $task_authority_sha256 == "" then null else $task_authority_sha256 end)
         },
         discipline: {sha256: $discipline_sha256, bytes: $discipline_bytes},
-        session_start_hook: {fired: true, input_sha256: $hook_input_sha256},
+        session_start_hook: {fired: $hook_fired, input_sha256: $hook_input_sha256},
         exit_code: $exit_code,
         started_at: $started_at,
         finished_at: $finished_at,
@@ -311,7 +318,9 @@ run_case() {
 
     if [[ ! -s "${home}/hook-fired.txt" ]] || [[ ! -s "${home}/session-start-input.json" ]]; then
         echo "SessionStart hook did not produce evidence for ${slug}" >&2
-        exit_code=97
+        if [[ "${exit_code}" -eq 0 ]]; then
+            exit_code=97
+        fi
     fi
 
     (
@@ -342,7 +351,11 @@ run_case "task-a" "minimal" "${TASK_A_BASE}" "2/2" "${TASK_A_PROMPT}" "${MINIMAL
 run_case "task-b" "minimal" "${TASK_B_BASE}" "1/2" "${TASK_B_PROMPT}" "${MINIMAL_BODY}"
 run_case "task-b" "current" "${TASK_B_BASE}" "2/2" "${TASK_B_PROMPT}" "${CURRENT_BODY}"
 
-jq -s '.' "${RESULT_ROOT}"/*/receipt.json > "${RESULT_ROOT}/cohort.json"
+jq -s '.' \
+  "${RESULT_ROOT}/task-a-current/receipt.json" \
+  "${RESULT_ROOT}/task-a-minimal/receipt.json" \
+  "${RESULT_ROOT}/task-b-minimal/receipt.json" \
+  "${RESULT_ROOT}/task-b-current/receipt.json" > "${RESULT_ROOT}/cohort.json"
 
 jq -e '
   length == 4
