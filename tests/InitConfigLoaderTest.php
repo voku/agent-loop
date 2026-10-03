@@ -310,6 +310,52 @@ final class InitConfigLoaderTest extends TestCase
         self::assertSame([], $config['warnings']);
     }
 
+    public function testExtraSkillRootsDefaultToEmptyAndAcceptMultipleLocalRoots(): void
+    {
+        $root = $this->tempDir();
+        $loader = new InitConfigLoader($root);
+
+        self::assertSame([], $loader->load('.agent-loop/init.json')['extra_skills_roots']);
+
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'extra_skills_roots' => [
+                'vendor/team-skills',
+                '/opt/local-agent-skills',
+                'vendor/team-skills',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = $loader->load('.agent-loop/init.json');
+
+        self::assertSame(
+            ['vendor/team-skills', '/opt/local-agent-skills'],
+            $config['extra_skills_roots'],
+        );
+        self::assertSame([], $config['warnings']);
+    }
+
+    public function testInvalidExtraSkillRootsWarnAndKeepOnlyValidLocalPaths(): void
+    {
+        $root = $this->tempDir();
+        mkdir($root . '/.agent-loop', 0o775, true);
+        file_put_contents($root . '/.agent-loop/init.json', json_encode([
+            'extra_skills_roots' => ['valid-skills', '', 42, "bad\npath"],
+        ], JSON_THROW_ON_ERROR));
+
+        $config = (new InitConfigLoader($root))->load('.agent-loop/init.json');
+
+        self::assertSame(['valid-skills'], $config['extra_skills_roots']);
+        self::assertContains(
+            '[WARN] init config: extra_skills_roots must contain only non-empty strings',
+            $config['warnings'],
+        );
+        self::assertContains(
+            '[WARN] init config: extra_skills_roots must not contain control characters',
+            $config['warnings'],
+        );
+    }
+
     public function testRuntimeContainerDefaultsToNone(): void
     {
         $config = (new InitConfigLoader($this->tempDir()))->load('.agent-loop/init.json');
