@@ -10,7 +10,7 @@ use voku\AgentLoop\AgentGuidance\AgentDisciplineHook;
 /** @internal */
 final class PromptPrimitiveSkillSurfaceTest extends TestCase
 {
-    public function testBundledDisciplineActuallyInjectsPromptControlsAndReflectionBoundary(): void
+    public function testBundledDisciplineLeavesConditionalPromptControlsToFocusedOwners(): void
     {
         $output = (new AgentDisciplineHook(dirname(__DIR__)))->contextOutput(
             'SessionStart',
@@ -18,11 +18,13 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         );
         $context = $output['hookSpecificOutput']['additionalContext'];
 
-        self::assertStringContainsString('checkpoint-autonomy', $context);
-        self::assertStringContainsString('momentum', $context);
-        self::assertStringContainsString('workflow reflect <task-id> --scope task', $context);
-        self::assertStringContainsString('workflow reflect <task-id> --scope project', $context);
-        self::assertStringContainsString('Never persist a synthetic human/self approval.', $context);
+        self::assertStringContainsString('## Governed Workflow', $context);
+        self::assertStringContainsString('## Workflow Evidence Integrity', $context);
+        self::assertStringContainsString('## Workflow Output', $context);
+        self::assertStringNotContainsString('checkpoint-autonomy', $context);
+        self::assertStringNotContainsString('momentum', $context);
+        self::assertStringNotContainsString('workflow reflect <task-id> --scope task', $context);
+        self::assertStringNotContainsString('workflow reflect <task-id> --scope project', $context);
     }
 
     public function testWorkflowReviewAndReflectionSkillsKeepPromptPrimitivesRoutable(): void
