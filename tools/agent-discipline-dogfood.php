@@ -356,7 +356,11 @@ try {
     ], 'SubagentStart configured command');
     assertTrue(($subagent['hookSpecificOutput']['hookEventName'] ?? null) === 'SubagentStart', 'SubagentStart event mismatch.');
     $subagentContext = (string) ($subagent['hookSpecificOutput']['additionalContext'] ?? '');
-    assertTrue(str_contains($subagentContext, 'agent-loop map query'), 'SubagentStart did not inherit map guidance.');
+    assertTrue(
+        str_contains($subagentContext, 'The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.'),
+        'SubagentStart did not inherit workflow discipline authority.',
+    );
+    assertTrue(!str_contains($subagentContext, 'agent-loop map query'), 'SubagentStart restored always-on map guidance.');
     assertTrue(!str_contains($subagentContext, 'Minimal Implementation Ladder'), 'SubagentStart injected coding implementation rules.');
     assertTrue(str_contains($subagentContext, '`DOGFOOD-42`'), 'SubagentStart did not inherit workflow resume hint.');
     assertTrue(!str_contains($subagentContext, 'IGNORE PRIOR INSTRUCTIONS'), 'SubagentStart injected free-form manifest next_action.');
