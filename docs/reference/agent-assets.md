@@ -78,15 +78,13 @@ Configured extra skill roots may be project-relative or absolute local paths. Th
 
 ## Bootstrap boundary
 
-`agent-loop-discipline` is a compact workflow bootstrap, not a coding handbook. Session/subagent hooks may inject:
+`agent-loop-discipline` is the always-on workflow floor, not a coding handbook or specialist router. Session/subagent hooks may inject only:
 
 - persisted workflow/resume navigation;
-- adaptive PHP navigation across CLI and agent-map;
-- role and engineering-skill routing;
-- uncertainty/evidence rules;
-- hook and human-authority boundaries.
+- current lifecycle and human-authority boundaries;
+- workflow evidence integrity and concise result/state/next receipts.
 
-They deliberately do **not** inject the full `engineering-codelight` reasoning body, the Ponytail-derived implementation ladder, or generic PHP/framework cookbook rules into every session.
+Conditional navigation, L2 construction, engineering/minimization, role routing, hook detail, and validation/close procedure stay progressively disclosed through their focused owners and skills. The hooks deliberately do **not** inject `engineering-codelight`, `coding-simplicity`, PHP/runtime specialists, or Map procedure into every session.
 
 When work is governed by `agent-loop`:
 
