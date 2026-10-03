@@ -47,7 +47,20 @@ vendor/bin/agent-loop init install-assets \
   --extra-skills-root=/path/to/agent-skills/skills
 ```
 
-`--extra-skills-root` is additive and repeatable. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
+`--extra-skills-root` is additive and repeatable for that invocation. All roots are checked before target mutation; duplicate skill IDs fail rather than selecting a winner by source order. The caller owns provenance for additional local roots.
+
+When an external local skill root is part of the repository's normal setup, persist it in `.agent-loop/init.json` instead of repeating a CLI flag:
+
+```json
+{
+  "extra_skills_roots": [
+    "../agent-skills/skills",
+    "/opt/team-agent-skills"
+  ]
+}
+```
+
+Configured extra skill roots may be project-relative or absolute local paths. They join the owner-computed desired set used by install/status/doctor/host-status; removing a root from the config makes its managed entries stale on the next default sync. The config never clones, downloads, or otherwise resolves a remote source. CLI `--extra-skills-root` remains an invocation-scoped additive override and is never written back into config.
 
 `--agent=all` projects workflow skills and package roles for Codex, Claude Code, OpenCode, Copilot, Gemini CLI, Antigravity, and Cursor. Claude Code 2.1.277+ has built-in `agents-md` plugin support, but its default `claude-md-or-agents-md` mode loads `AGENTS.md` only when the project has no Claude instruction file. agent-loop therefore keeps `CLAUDE.md` with `@AGENTS.md` as the deterministic repository-level import shim instead of depending on per-user plugin options or fallback behavior. Cursor reuses the managed root `AGENTS.md` instruction router, projects skills to `.cursor/skills/<name>/SKILL.md`, and projects subagents to `.cursor/agents/<name>.md`. Executable workflow/bootstrap hook bundles remain an explicit opt-in for Codex and Claude Code. Cursor authority policy is a separate `init sync-policy --agent=cursor` projection into `.cursor/hooks.json`, not a generic hook-bundle install.
 
@@ -171,12 +184,12 @@ vendor/bin/agent-loop init sync-hooks --agent=claude --dry-run
 
 ## Desired set, materialization, and retention
 
-For one resolved `.agent-loop/init.json`, the managed skill and subagent source resolvers compute one **desired set**: the configured project roots plus the enabled first-party package exports (`package_skills` / `package_subagents`). Maintainer-only package skills belong to it only in their owner repository. `install-assets`, `status`, `doctor`, and `host-status` all read that set. The commands differ only in what they materialize:
+For one resolved `.agent-loop/init.json`, the managed skill and subagent source resolvers compute one **desired set**: the configured project roots, configured `extra_skills_roots`, and the enabled first-party package exports (`package_skills` / `package_subagents`). Maintainer-only package skills belong to it only in their owner repository. `install-assets`, `status`, `doctor`, and `host-status` all read that set. The commands differ only in what they materialize:
 
 | Command | Materializes | Prunes managed entries outside |
 | --- | --- | --- |
-| `install-assets` | the whole desired set plus `--extra-*-root` sources | the desired set plus extra roots |
-| `sync-skills` / `sync-subagents` without roots | desired entries under the configured project root | the desired set |
+| `install-assets` | the whole desired set plus invocation-scoped `--extra-*-root` sources | the desired set plus invocation-scoped extra roots |
+| `sync-skills` / `sync-subagents` without roots | desired entries under the configured project root; configured extra/package copies are retained | the desired set |
 | `sync-skills --skills-root=...` / `sync-subagents --subagents-root=...` | exactly those roots | exactly those roots |
 
 A default-mode sync never restores a missing package copy and never drops its manifest record, so `status` and `doctor` keep reporting it as locally modified and `host-status` keeps `install-assets` as the next action. Disabling a package flag makes its previously projected copies stale, and the next default-mode sync removes them.
