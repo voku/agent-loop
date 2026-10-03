@@ -465,7 +465,28 @@ run_case() {
     fi
 }
 
-if [[ "${MODE}" == "preapproved-pair" ]]; then
+if [[ "${MODE}" == "preapproved-minimal-only" ]]; then
+    run_case "task-a" "minimal-preapproved" "${TASK_A_BASE}" "2/2" "${TASK_A_PROMPT}" "${MINIMAL_BODY}" "preapproved"
+
+    jq -s '.' \
+      "${RESULT_ROOT}/task-a-minimal-preapproved/receipt.json" > "${RESULT_ROOT}/cohort.json"
+
+    jq -e '
+      length == 1
+      and .[0].prompt_sha256 == "a155d72cf1de3342279358d0d9344f86794038f93cfcfbad061db3d61ba01f11"
+      and .[0].base_sha == "10bef9759fa8d6b0c09773781d458cd3837a5b6d"
+      and .[0].router.sha256 == "12c0746a3f516ccbd1cf09bdd62a917112b317c73d2253de9d93e4d02d313d33"
+      and .[0].dependency_graph.composer_lock_sha256 == "25df05beb1641b93fdfc83687261b74fa62a420be1f26b31b38c2bdf7a149fda"
+      and .[0].dependency_graph.installed_packages_sha256 == "45efa37a3c3811d0e6529e7b48f928883acffe675d6ba601af4188d3bd11a064"
+      and .[0].authority_state.mode == "preapproved"
+      and .[0].authority_state.before.next_action_kind == "command"
+      and .[0].authority_state.before.next_action == "agent-loop enter STALE-399"
+      and .[0].authority_state.before.classification == "preapproved_lifecycle_command"
+      and .[0].model_policy == "cli-default-1.0.91"
+      and .[0].cli_version == "GitHub Copilot CLI 1.0.91."
+      and .[0].session_start_hook.fired == true
+    ' "${RESULT_ROOT}/cohort.json" >/dev/null
+elif [[ "${MODE}" == "preapproved-pair" ]]; then
     run_case "task-a" "current-preapproved" "${TASK_A_BASE}" "1/2" "${TASK_A_PROMPT}" "${CURRENT_BODY}" "preapproved"
     run_case "task-a" "minimal-preapproved" "${TASK_A_BASE}" "2/2" "${TASK_A_PROMPT}" "${MINIMAL_BODY}" "preapproved"
 
