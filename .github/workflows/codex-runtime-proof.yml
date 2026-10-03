@@ -842,6 +842,186 @@ jobs:
               subagent_start_invocation_count: $subagent_start_invocations
             }' > "${EVIDENCE_ROOT}/subagent-start-hook-proof.json"
 
+      - name: Prove PreToolUse hook deny in live Codex runtime
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          server_script="${RUNNER_TEMP}/codex-pre-tool-use-proof-server.py"
+          request_prefix="${EVIDENCE_ROOT}/pre-tool-use-request"
+          port_path="${RUNNER_TEMP}/codex-pre-tool-use-proof-port"
+          php_wrapper_dir="${RUNNER_TEMP}/codex-pre-tool-use-php-wrapper"
+          hook_invocation_log="${EVIDENCE_ROOT}/pre-tool-use-hook-invocations.log"
+          probe_file="${PROOF_ROOT}/pre-tool-use-probe.txt"
+          tool_output="${EVIDENCE_ROOT}/pre-tool-use-tool-output.json"
+          real_php="$(command -v php)"
+
+          printf '%s\n' 'before' > "${probe_file}"
+          rm -rf "${php_wrapper_dir}"
+          rm -f "${port_path}" "${request_prefix}"-*.json "${hook_invocation_log}" "${tool_output}"
+          mkdir -p "${php_wrapper_dir}"
+
+          cat > "${php_wrapper_dir}/php" <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+          printf '%s\\n' "\$*" >> "${hook_invocation_log}"
+          exec "${real_php}" "\$@"
+          EOF
+          chmod +x "${php_wrapper_dir}/php"
+
+          cat > "${server_script}" <<'PY'
+          import http.server
+          import json
+          import os
+
+          request_prefix = os.environ["REQUEST_PREFIX"]
+          port_path = os.environ["PORT_PATH"]
+
+          def completed_events(response_id):
+              return [
+                  {"type": "response.created", "response": {"id": response_id}},
+                  {
+                      "type": "response.completed",
+                      "response": {
+                          "id": response_id,
+                          "usage": {
+                              "input_tokens": 0,
+                              "input_tokens_details": None,
+                              "output_tokens": 0,
+                              "output_tokens_details": None,
+                              "total_tokens": 0,
+                          },
+                      },
+                  },
+              ]
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              request_count = 0
+
+              def log_message(self, format, *args):
+                  return
+
+              def do_POST(self):
+                  Handler.request_count += 1
+                  request_number = Handler.request_count
+                  length = int(self.headers.get("Content-Length", "0"))
+                  body = self.rfile.read(length)
+                  with open(f"{request_prefix}-{request_number}.json", "wb") as handle:
+                      handle.write(body)
+
+                  if request_number == 1:
+                      events = [
+                          {
+                              "type": "response.created",
+                              "response": {"id": "resp-pre-tool-use-deny"},
+                          },
+                          {
+                              "type": "response.output_item.done",
+                              "item": {
+                                  "type": "function_call",
+                                  "call_id": "call-pre-tool-use-deny",
+                                  "name": "exec_command",
+                                  "arguments": json.dumps({
+                                      "cmd": "sed -i 's/before/after/' pre-tool-use-probe.txt",
+                                  }),
+                              },
+                          },
+                          {
+                              "type": "response.completed",
+                              "response": {
+                                  "id": "resp-pre-tool-use-deny",
+                                  "usage": {
+                                      "input_tokens": 0,
+                                      "input_tokens_details": None,
+                                      "output_tokens": 0,
+                                      "output_tokens_details": None,
+                                      "total_tokens": 0,
+                                  },
+                              },
+                          },
+                      ]
+                  else:
+                      events = completed_events(f"resp-pre-tool-use-complete-{request_number}")
+
+                  payload = "".join(
+                      f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+                      for event in events
+                  ).encode()
+
+                  self.send_response(200)
+                  self.send_header("Content-Type", "text/event-stream")
+                  self.send_header("Content-Length", str(len(payload)))
+                  self.end_headers()
+                  self.wfile.write(payload)
+
+          server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+          with open(port_path, "w", encoding="utf-8") as handle:
+              handle.write(str(server.server_port))
+          server.serve_forever()
+          PY
+
+          REQUEST_PREFIX="${request_prefix}" PORT_PATH="${port_path}" \
+            python3 "${server_script}" &
+          server_pid=$!
+          trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 100); do
+            if test -s "${port_path}"; then
+              break
+            fi
+            sleep 0.05
+          done
+          test -s "${port_path}"
+          port="$(cat "${port_path}")"
+
+          (
+            cd "${PROOF_ROOT}"
+            PATH="${php_wrapper_dir}:${PATH}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+              codex exec --ephemeral --json --dangerously-bypass-hook-trust \
+                -c 'model="proof-model"' \
+                -c 'model_provider="mock"' \
+                -c "model_providers.mock={ name = \"mock\", base_url = \"http://127.0.0.1:${port}/v1\", env_key = \"PATH\", wire_api = \"responses\" }" \
+                'Execute the deterministic shell probe requested by the provider.'
+          ) > "${EVIDENCE_ROOT}/pre-tool-use-exec.jsonl" \
+            2> "${EVIDENCE_ROOT}/pre-tool-use-exec.stderr"
+
+          kill "${server_pid}" 2>/dev/null || true
+          wait "${server_pid}" 2>/dev/null || true
+          trap - EXIT
+
+          test "$(cat "${probe_file}")" = 'before'
+          test -s "${hook_invocation_log}"
+          pre_tool_use_invocations="$(grep -Fc -- 'pre_tool_use_policy.php' "${hook_invocation_log}" || true)"
+          test "${pre_tool_use_invocations}" -eq 1
+
+          tool_result_request=""
+          for request in "${request_prefix}"-*.json; do
+            if jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-pre-tool-use-deny")' "${request}" >/dev/null 2>&1; then
+              tool_result_request="${request}"
+              break
+            fi
+          done
+          test -n "${tool_result_request}"
+
+          jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-pre-tool-use-deny")' \
+            "${tool_result_request}" > "${tool_output}"
+          grep -Fq 'In-place sed edits are blocked.' "${tool_output}"
+
+          jq -n \
+            --arg command "sed -i 's/before/after/' pre-tool-use-probe.txt" \
+            --arg deny_reason 'In-place sed edits are blocked.' \
+            --arg probe_after "$(cat "${probe_file}")" \
+            --argjson hook_invocation_count "${pre_tool_use_invocations}" \
+            '{
+              command: $command,
+              hook_invocation_count: $hook_invocation_count,
+              deny_reason: $deny_reason,
+              deny_reason_observed_in_tool_output: true,
+              probe_after: $probe_after
+            }' > "${EVIDENCE_ROOT}/pre-tool-use-hook-proof.json"
+
       - name: Prove bounded routing hint injection through paired Codex selection
         shell: bash
         env:
@@ -1226,6 +1406,7 @@ jobs:
           prompt_marker_counts="$(cat "${EVIDENCE_ROOT}/prompt-marker-counts.json")"
           session_start_hook_proof="$(cat "${EVIDENCE_ROOT}/session-start-hook-proof.json")"
           subagent_start_hook_proof="$(cat "${EVIDENCE_ROOT}/subagent-start-hook-proof.json")"
+          pre_tool_use_hook_proof="$(cat "${EVIDENCE_ROOT}/pre-tool-use-hook-proof.json")"
 
           jq -n \
             --arg codex_version "${codex_version}" \
@@ -1237,6 +1418,7 @@ jobs:
             --argjson prompt_marker_counts "${prompt_marker_counts}" \
             --argjson session_start_hook_proof "${session_start_hook_proof}" \
             --argjson subagent_start_hook_proof "${subagent_start_hook_proof}" \
+            --argjson pre_tool_use_hook_proof "${pre_tool_use_hook_proof}" \
             --arg parent_write_outcome "${parent_write_outcome}" \
             --arg child_write_outcome "${child_write_outcome}" \
             --arg child_authority_outcome "${child_authority_outcome}" \
@@ -1294,6 +1476,17 @@ jobs:
                   status: "observed",
                   boundary: "This proves Codex 0.157.0 invokes the projected context.php command with --event=SubagentStart for the selected agent-loop-investigator child. The observer changes PATH only and execs the same real PHP interpreter with the original arguments; it does not rewrite hooks.json or the projected hook script. Hook-hash review remains bypassed only for the package-vetted CI fixture. PreToolUse remains unproven."
                 },
+                pre_tool_use_hook_deny: {
+                  evidence_class: "host_runtime_enforcement",
+                  mechanism: "real Codex 0.157.0 exec_command request against a disposable file with the unchanged projected PreToolUse hook",
+                  command: $pre_tool_use_hook_proof.command,
+                  hook_invocation_count: $pre_tool_use_hook_proof.hook_invocation_count,
+                  deny_reason: $pre_tool_use_hook_proof.deny_reason,
+                  deny_reason_observed_in_tool_output: $pre_tool_use_hook_proof.deny_reason_observed_in_tool_output,
+                  probe_after: $pre_tool_use_hook_proof.probe_after,
+                  status: "observed",
+                  boundary: "The live Codex turn invoked the projected PreToolUse policy exactly once, surfaced the hook denial as the tool result, and left the disposable file unchanged. This proves enforcement for the canonical exec_command/Bash route and this bounded in-place sed shape only; wrapper/path variants, MCP, and unrelated tool routes remain unclaimed. Hook-hash review remains bypassed only for the package-vetted CI fixture."
+                },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
                   mechanism: "codex execpolicy check with the projected rule file",
@@ -1331,7 +1524,6 @@ jobs:
               },
               not_proven_by_this_slice: {
                 parent_runtime_override_interaction: true,
-                pre_tool_use_hook_execution: true,
                 interactive_hook_review_persistence: true,
                 project_rule_autoload: true,
                 mcp_authority_coverage: true
