@@ -53,6 +53,19 @@ final readonly class InitSyncSkillsCommand
         }
 
         $paths = AgentAssetSourcePaths::fromConfig($this->rootPath, $config);
+        foreach ($paths->absoluteExtraSkillRoots() as $configuredExtraSkillRoot) {
+            if (!is_dir($configuredExtraSkillRoot)) {
+                echo '[FAIL] sync skills: configured extra source root does not exist: ' . $this->displayPath($configuredExtraSkillRoot) . "\n";
+
+                return 1;
+            }
+            if (!is_readable($configuredExtraSkillRoot)) {
+                echo '[FAIL] sync skills: unable to read configured extra source root: ' . $this->displayPath($configuredExtraSkillRoot) . "\n";
+
+                return 1;
+            }
+        }
+
         $dryRun = OptionTokens::hasFlag($tokens, 'dry-run');
         $force = OptionTokens::hasFlag($tokens, 'force');
         $adoptExisting = OptionTokens::hasFlag($tokens, 'adopt-existing');
