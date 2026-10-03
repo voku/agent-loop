@@ -167,10 +167,21 @@ write_receipt() {
     local started_at="${11}"
     local finished_at="${12}"
 
-    local cli_version prompt_sha router_sha discipline_sha discipline_bytes final_sha final_bytes transcript_sha transcript_bytes diff_sha
+    local cli_version prompt_sha router_state router_sha task_authority_path task_authority_sha discipline_sha discipline_bytes final_sha final_bytes transcript_sha transcript_bytes diff_sha
     cli_version="$(copilot --version | head -n 1)"
     prompt_sha="$(printf '%s' "${prompt}" | sha256sum | cut -d' ' -f1)"
-    router_sha="$(sha256sum "${worktree}/AGENTS.md" | cut -d' ' -f1)"
+    router_state="absent"
+    router_sha=""
+    if [[ -f "${worktree}/AGENTS.md" ]]; then
+        router_state="present"
+        router_sha="$(sha256sum "${worktree}/AGENTS.md" | cut -d' ' -f1)"
+    fi
+    task_authority_path=""
+    task_authority_sha=""
+    if [[ "${task}" == "task-b" ]]; then
+        task_authority_path="docs/agents/dogfood/self-shaping.md"
+        task_authority_sha="$(sha256sum "${worktree}/${task_authority_path}" | cut -d' ' -f1)"
+    fi
     discipline_sha="$(sha256sum "${discipline}" | cut -d' ' -f1)"
     discipline_bytes="$(wc -c < "${discipline}" | tr -d ' ')"
     final_sha="$(sha256sum "${out}/final.txt" | cut -d' ' -f1)"
@@ -189,7 +200,10 @@ write_receipt() {
       --arg model_request "${MODEL}" \
       --arg cli_version "${cli_version}" \
       --arg prompt_sha256 "${prompt_sha}" \
+      --arg router_state "${router_state}" \
       --arg router_sha256 "${router_sha}" \
+      --arg task_authority_path "${task_authority_path}" \
+      --arg task_authority_sha256 "${task_authority_sha}" \
       --arg discipline_sha256 "${discipline_sha}" \
       --argjson discipline_bytes "${discipline_bytes}" \
       --argjson exit_code "${exit_code}" \
@@ -212,7 +226,15 @@ write_receipt() {
         model_request: $model_request,
         cli_version: $cli_version,
         prompt_sha256: $prompt_sha256,
-        router_sha256: $router_sha256,
+        router: {
+          path: "AGENTS.md",
+          state: $router_state,
+          sha256: (if $router_sha256 == "" then null else $router_sha256 end)
+        },
+        task_authority: {
+          path: (if $task_authority_path == "" then null else $task_authority_path end),
+          sha256: (if $task_authority_sha256 == "" then null else $task_authority_sha256 end)
+        },
         discipline: {sha256: $discipline_sha256, bytes: $discipline_bytes},
         session_start_hook: {fired: true, input_sha256: $hook_input_sha256},
         exit_code: $exit_code,
@@ -318,8 +340,10 @@ jq -e '
   and (map(select(.task == "task-b") | .prompt_sha256) | unique | length == 1)
   and (map(select(.task == "task-a") | .base_sha) | unique | length == 1)
   and (map(select(.task == "task-b") | .base_sha) | unique | length == 1)
-  and (map(select(.task == "task-a") | .router_sha256) | unique | length == 1)
-  and (map(select(.task == "task-b") | .router_sha256) | unique | length == 1)
+  and (map(select(.task == "task-a") | .router) | unique | length == 1)
+  and (map(select(.task == "task-b") | .router) | unique | length == 1)
+  and (map(select(.task == "task-a") | .task_authority) | unique | length == 1)
+  and (map(select(.task == "task-b") | .task_authority) | unique | length == 1)
   and (map(.model_request) | unique | length == 1)
   and (map(.cli_version) | unique | length == 1)
   and all(.[]; .session_start_hook.fired == true)
