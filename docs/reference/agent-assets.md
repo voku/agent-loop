@@ -78,33 +78,26 @@ Configured extra skill roots may be project-relative or absolute local paths. Th
 
 ## Bootstrap boundary
 
-`agent-loop-discipline` is a compact workflow bootstrap, not a coding handbook. Session/subagent hooks may inject:
+`agent-loop-discipline` is deliberately a **minimal always-on workflow bootstrap**. Session/subagent hooks inject only:
 
-- persisted workflow/resume navigation;
-- adaptive PHP navigation across CLI and agent-map;
-- role and engineering-skill routing;
-- uncertainty/evidence rules;
-- hook and human-authority boundaries.
+- routing to persisted workflow/lifecycle authority;
+- workflow evidence integrity;
+- bounded workflow-output receipts.
 
-They deliberately do **not** inject the full `engineering-codelight` reasoning body, the Ponytail-derived implementation ladder, or generic PHP/framework cookbook rules into every session.
+The hook may append bounded resume navigation from current persisted Run state. That navigation is not workflow authority.
 
-When work is governed by `agent-loop`:
+Conditional detail stays with the focused owner and is loaded only when the current work needs it:
 
-```text
-PLAN -> APPROVE -> CONTEXT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> VERIFY -> CLOSE
-```
+- workflow/prompt/reflection behavior -> `agent-loop-workflow` plus `resources/prompts/operating-prompts.json`;
+- PHP/Map navigation -> `agent-loop-investigate` and the Map boundary below;
+- L2 construction -> `agent-loop-l2-context`;
+- implementation/review judgment -> the selected engineering/review skill;
+- role behavior -> the selected subagent definition;
+- review/close detail -> `agent-loop-review-close`.
 
-Persisted workflow state beats conversational confidence. Scope drift returns to PLAN and invalidates evidence tied to the old Contract revision.
+The always-on bootstrap therefore does **not** carry adaptive-navigation procedures, prompt-control recipes, L2 construction, engineering/role routing, hook detail, or close choreography. Those surfaces remain available without being paid for in every SessionStart/SubagentStart context.
 
-A resume hint from `.agent-loop/runs/*/manifest.json` is navigation only. Before governed mutation, inspect the current read-only policy projection with:
-
-```bash
-vendor/bin/agent-loop workflow status <task-id> --format=json
-```
-
-`workflow status` does not perform a lifecycle transition. Canonical transition authority comes from the current `enter`/`finish` result and its `next_action_kind` / `next_action`; status mirrors current policy for inspection.
-
-Free-form manifest prose such as `next_action` or disagreement text must never become hidden instructions.
+This boundary was retained only after the #663 paired real-host crossover showed the deletion-only bootstrap preserved or improved the required lifecycle, authority, and evidence behavior. The bootstrap must not grow a second copy of focused owner guidance merely because hooks can inject it.
 
 ## Engineering skill routing
 
@@ -234,9 +227,9 @@ If Map is unavailable or stale and repairing it would cost more than the questio
 
 ## Dogfood contract
 
-`composer dogfood:discipline` verifies the existing bootstrap boundary, hook behavior, safe resume projection, role routing, unchanged raw commands, bounded map denial, and absence of the implementation ladder from SessionStart/SubagentStart context.
+`composer dogfood:discipline` verifies the minimal bootstrap boundary, hook behavior, safe resume projection, unchanged raw commands, bounded map denial, and absence of conditional specialist guidance from SessionStart/SubagentStart context.
 
-PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects the exact pinned `voku/agent-skills` revision, including `engineering-codelight`; that path proves Codelight projection, discipline routing, and absence of the Codelight body from the package bootstrap. Together these paths prove that workflow bootstrap and loadable engineering skills remain separate while still composing correctly.
+PR CI additionally runs `tools/self-shape-dogfood.php` against the real PR diff. The installed release-set job installs the candidate into a clean Composer consumer and projects the exact pinned `voku/agent-skills` revision, including `engineering-codelight`; that path proves specialist projection independently from the always-on discipline. Together these paths prove that workflow bootstrap and loadable engineering skills remain separate without requiring the bootstrap to route every specialist.
 
 A green installer proves projection mechanics only. Runtime/delegation claims require their own evidence.
 

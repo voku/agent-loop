@@ -29,7 +29,7 @@ Raw Finding (observed, evidence-backed defect/discovery)
 | Static Rule | PHPStan custom rules / coding standards | Statically verifiable property; avoids noisy style preferences |
 | Typed Runtime | `src/AgentGuidance/`, `src/Init/` | Behavior must execute deterministically during operation |
 | Dogfood Gate | `tools/agent-discipline-dogfood.php`, `docs/dogfood/` | Skill/hook/prompt regression prevention |
-| Targeted Skill | `resources/skills/<skill-name>/SKILL.md` | Domain heuristic or workflow decision boundaries (e.g. `agent-loop-discipline` for adaptive PHP navigation) |
+| Targeted Skill | `resources/skills/<skill-name>/SKILL.md` | Domain heuristic or workflow decision boundaries (e.g. `agent-loop-investigate` for adaptive PHP navigation) |
 | Durable Memory | `.agent-loop/learning/` or `MEMORY.md` | General reviewable precedent needing human validation |
 
 ### Bad vs Good Promotion
