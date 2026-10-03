@@ -64,6 +64,46 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         );
     }
 
+    public function testAlwaysOnDisciplineKeepsOnlyTheProvenBootstrapFloor(): void
+    {
+        $skill = file_get_contents(
+            dirname(__DIR__) . '/resources/skills/agent-loop-discipline/SKILL.md',
+        );
+
+        self::assertIsString($skill);
+
+        foreach ([
+            '## Governed Workflow',
+            '## Workflow Evidence Integrity',
+            '## Workflow Output',
+        ] as $requiredHeading) {
+            self::assertStringContainsString($requiredHeading, $skill);
+        }
+
+        foreach ([
+            '## Agent I/O',
+            '## Prompt Controls',
+            '## Navigate Before Editing',
+            '## L2 Execution Contract',
+            '## Engineering Skill Routing',
+            '## Role Routing',
+            '## Hook Boundary',
+            '## Validation And Close',
+        ] as $specialistHeading) {
+            self::assertStringNotContainsString(
+                $specialistHeading,
+                $skill,
+                $specialistHeading . ' belongs to a focused owner/skill, not the always-on bootstrap.',
+            );
+        }
+
+        self::assertLessThan(
+            2_500,
+            strlen($skill),
+            'The real-host deletion proof reduced the canonical bootstrap to a small routing/evidence floor.',
+        );
+    }
+
     /** The rule this skill defers to has to actually be in the always-on router. */
     public function testTheRouterStillCarriesTheContractTheSkillDefersTo(): void
     {
