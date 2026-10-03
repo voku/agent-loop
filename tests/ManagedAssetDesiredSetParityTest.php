@@ -280,6 +280,22 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
         self::assertDirectoryDoesNotExist($this->root . '/.claude/skills');
     }
 
+    public function testExplicitRootSyncIgnoresConfiguredExtraRootAvailability(): void
+    {
+        $this->writeConfig([
+            'extra_skills_roots' => ['missing-team-skills'],
+        ]);
+
+        $skills = $this->execute(
+            new InitSyncSkillsCommand($this->root),
+            ['--agent=claude', '--skills-root=custom-skills'],
+        );
+
+        self::assertStringContainsString('from 1 source root(s)', $skills);
+        self::assertFileExists($this->root . '/.claude/skills/repository-skill/SKILL.md');
+        self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/agent-loop-workflow');
+    }
+
     public function testExplicitRootsStayRootExactAndGainNoPackageEntries(): void
     {
         $skills = $this->execute(new InitSyncSkillsCommand($this->root), ['--agent=claude', '--skills-root=custom-skills']);
