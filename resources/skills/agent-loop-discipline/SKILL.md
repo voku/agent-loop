@@ -9,7 +9,7 @@ Rule: persisted workflow state beats conversational state. Keep attention bounde
 
 ## Governed Workflow
 
-The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.
+The lifecycle decides what happens next through the current `next_action_kind` / `next_action`; this SessionStart skill adds no independent ordering rules.
 
 ```bash
 vendor/bin/agent-loop enter <task-id> --format=json
