@@ -64,6 +64,26 @@ jobs:
           (
             cd "${proof_root}"
             "${GITHUB_WORKSPACE}/bin/agent-loop" init scaffold --demo --agent=codex
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex
+
+            projection_digest() {
+              {
+                sha256sum AGENTS.md
+                find .codex/skills .codex/agents -type f -print0 |
+                  sort -z |
+                  xargs -0 sha256sum
+              } | sha256sum | cut -d' ' -f1
+            }
+
+            before="$(projection_digest)"
+            printf '%s\n' "${before}" > "${evidence_root}/projection-before-reinstall.sha256"
+
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex
+
+            after="$(projection_digest)"
+            printf '%s\n' "${after}" > "${evidence_root}/projection-after-reinstall.sha256"
+            test "${before}" = "${after}"
+
             "${GITHUB_WORKSPACE}/bin/agent-loop" init sync-policy --agent=codex
           )
 
@@ -104,8 +124,37 @@ jobs:
             env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN               codex debug prompt-input
           ) > "${EVIDENCE_ROOT}/prompt-input.json"
 
-          grep -Fq 'agent-loop workflow router' "${EVIDENCE_ROOT}/prompt-input.json"
-          grep -Fq 'agent-loop-discipline' "${EVIDENCE_ROOT}/prompt-input.json"
+          python3 - "${EVIDENCE_ROOT}/prompt-input.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          def strings(value):
+              if isinstance(value, str):
+                  yield value
+              elif isinstance(value, list):
+                  for item in value:
+                      yield from strings(item)
+              elif isinstance(value, dict):
+                  for item in value.values():
+                      yield from strings(item)
+
+          observed = "\n".join(strings(payload))
+          markers = {
+              "managed_router": "## agent-loop workflow router",
+              "discipline_body": "# Agent Loop Discipline",
+          }
+          counts = {name: observed.count(marker) for name, marker in markers.items()}
+          with open("${EVIDENCE_ROOT}/prompt-marker-counts.json", "w", encoding="utf-8") as handle:
+              json.dump(counts, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+
+          for name, count in counts.items():
+              if count != 1:
+                  raise SystemExit(f"{name} expected exactly once, observed {count}")
+          PY
 
       - name: Prove projected subagent role discovery and selection in Codex runtime
         shell: bash
@@ -852,6 +901,19 @@ jobs:
                   mechanism: "codex debug prompt-input",
                   projected_path: ".codex/skills/agent-loop-discipline/SKILL.md",
                   status: "observed"
+                },
+                reinstall_convergence: {
+                  evidence_class: "installed_projection",
+                  mechanism: "two consecutive init install-assets --agent=codex runs with identical owned projection digest",
+                  status: "observed"
+                },
+                exact_once_context_consumption: {
+                  evidence_class: "host_consumption",
+                  mechanism: "codex debug prompt-input marker counts",
+                  router_marker_count: 1,
+                  discipline_marker_count: 1,
+                  status: "observed",
+                  boundary: "This proves one effective copy in the current debug prompt-input projection; it does not claim SessionStart hook execution or model-side attention."
                 },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
