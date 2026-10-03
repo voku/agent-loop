@@ -1,0 +1,64 @@
+name: Temporary slop-scan lock refresh
+
+on:
+  push:
+    branches:
+      - chore/slop-scan-0.1.15
+    paths:
+      - '.github/workflows/tmp-update-slop-scan-lock.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chore/slop-scan-0.1.15
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer
+
+      - name: Refresh isolated slop-scan lock
+        run: |
+          set -euo pipefail
+          composer update voku/slop-scan voku/simple-php-code-parser --with-dependencies --working-dir=tools/slop-scan --no-interaction --prefer-dist
+
+      - name: Verify resolved versions
+        run: |
+          php -r '
+          $lock = json_decode(file_get_contents("tools/slop-scan/composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+          $packages = array_column($lock["packages"], null, "name");
+          $slop = $packages["voku/slop-scan"]["version"] ?? null;
+          $parser = $packages["voku/simple-php-code-parser"]["version"] ?? null;
+          if ($slop !== "0.1.15") {
+              fwrite(STDERR, "Expected voku/slop-scan 0.1.15, got " . var_export($slop, true) . PHP_EOL);
+              exit(1);
+          }
+          if (!is_string($parser) || version_compare($parser, "0.22.8", "<") || version_compare($parser, "0.23.0", ">=")) {
+              fwrite(STDERR, "Expected voku/simple-php-code-parser >=0.22.8 <0.23.0, got " . var_export($parser, true) . PHP_EOL);
+              exit(1);
+          }
+          echo "Resolved slop-scan={$slop}; parser={$parser}" . PHP_EOL;
+          '
+
+      - name: Smoke-test isolated tool
+        run: php tools/slop-scan/slop-scan.php --help
+
+      - name: Commit generated lock and remove temporary workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-update-slop-scan-lock.yml
+          git add tools/slop-scan/composer.lock
+          git diff --cached --check
+          git diff --cached --name-only
+          git commit -m "chore(tools): lock slop-scan 0.1.15"
+          git push origin HEAD:chore/slop-scan-0.1.15
