@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 RESULT_ROOT="${ROOT}/build/gh663-real-host"
-MODEL="gpt-5.3-codex"
+MODEL=""
 TASK_A_BASE="10bef9759fa8d6b0c09773781d458cd3837a5b6d"
 TASK_B_BASE="17ca145c7937de66aea8779412265e32e42c0682"
 CURRENT_SKILL="${ROOT}/resources/skills/agent-loop-discipline/SKILL.md"
@@ -60,6 +60,42 @@ PY
 
 sha256sum "${CURRENT_BODY}" "${MINIMAL_BODY}"
 wc -c -l "${CURRENT_BODY}" "${MINIMAL_BODY}"
+
+select_model() {
+    local home="${RUNNER_TEMP}/gh663-copilot-model-probe"
+    mkdir -p "${home}"
+
+    local candidate
+    for candidate in claude-sonnet-4.6 gpt-5.4 gpt-5.3-codex claude-haiku-4.5; do
+        echo "Probing Copilot model: ${candidate}"
+        if COPILOT_HOME="${home}" \
+            COPILOT_AUTO_UPDATE=false \
+            GITHUB_TOKEN="${GITHUB_TOKEN}" \
+            timeout 2m copilot \
+              -p "Reply with exactly OK." \
+              --model "${candidate}" \
+              --no-ask-user \
+              --allow-tool=read \
+              --deny-tool=write \
+              --deny-tool=shell \
+              --deny-tool=memory \
+              --no-remote \
+              --no-remote-export \
+              -s >"${home}/probe.out" 2>"${home}/probe.err"; then
+            MODEL="${candidate}"
+            export MODEL
+            echo "Selected Copilot model: ${MODEL}"
+            return 0
+        fi
+
+        cat "${home}/probe.err" >&2 || true
+    done
+
+    echo "No fixed Copilot model from the approved probe list is available." >&2
+    return 1
+}
+
+select_model
 
 TASK_A_PROMPT="$(cat <<'EOF'
 Current CI has one deterministic failure:
