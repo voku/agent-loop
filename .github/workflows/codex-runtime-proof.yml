@@ -142,18 +142,28 @@ jobs:
                       yield from strings(item)
 
           observed = "\n".join(strings(payload))
-          markers = {
-              "managed_router": "## agent-loop workflow router",
-              "discipline_body": "# Agent Loop Discipline",
+          router_count = observed.count("## agent-loop workflow router")
+          discipline_discovery_count = sum(
+              1
+              for line in observed.splitlines()
+              if line.startswith("- agent-loop-discipline:")
+              and "/agent-loop-discipline/SKILL.md)" in line
+          )
+          counts = {
+              "managed_router": router_count,
+              "discipline_discovery_entry": discipline_discovery_count,
           }
-          counts = {name: observed.count(marker) for name, marker in markers.items()}
           with open(sys.argv[2], "w", encoding="utf-8") as handle:
               json.dump(counts, handle, indent=2, sort_keys=True)
               handle.write("\n")
 
-          for name, count in counts.items():
-              if count != 1:
-                  raise SystemExit(f"{name} expected exactly once, observed {count}")
+          if router_count != 1:
+              raise SystemExit(f"managed_router expected exactly once, observed {router_count}")
+          if discipline_discovery_count != 1:
+              raise SystemExit(
+                  "discipline_discovery_entry expected exactly once, "
+                  f"observed {discipline_discovery_count}"
+              )
           PY
 
       - name: Prove projected subagent role discovery and selection in Codex runtime
@@ -897,10 +907,12 @@ jobs:
                   status: "observed"
                 },
                 repository_skill: {
-                  evidence_class: "host_consumption",
-                  mechanism: "codex debug prompt-input",
+                  evidence_class: "host_runtime_discovery",
+                  mechanism: "codex debug prompt-input skill inventory",
                   projected_path: ".codex/skills/agent-loop-discipline/SKILL.md",
-                  status: "observed"
+                  discovery_entry_count: 1,
+                  status: "observed",
+                  boundary: "Codex advertises the installed repository skill once; its body is progressively disclosed and is not expected to be inlined into the initial prompt."
                 },
                 reinstall_convergence: {
                   evidence_class: "installed_projection",
@@ -911,9 +923,8 @@ jobs:
                   evidence_class: "host_consumption",
                   mechanism: "codex debug prompt-input marker counts",
                   router_marker_count: 1,
-                  discipline_marker_count: 1,
                   status: "observed",
-                  boundary: "This proves one effective copy in the current debug prompt-input projection; it does not claim SessionStart hook execution or model-side attention."
+                  boundary: "This proves one effective copy of the always-on managed router in the current debug prompt-input projection. Repository skill discovery is recorded separately; skill-body loading is progressive and is not claimed here."
                 },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
