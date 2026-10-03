@@ -80,7 +80,7 @@ Configured extra skill roots may be project-relative or absolute local paths. Th
 
 `agent-loop-discipline` is deliberately a **minimal always-on workflow bootstrap**. Session/subagent hooks inject only:
 
-- persisted workflow/lifecycle authority;
+- routing to persisted workflow/lifecycle authority;
 - workflow evidence integrity;
 - bounded workflow-output receipts.
 
