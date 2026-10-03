@@ -261,6 +261,17 @@ jobs:
           test -f "${hook_root}/.codex/hooks.json"
           test -f "${hook_root}/.codex/hooks/context.php"
 
+          resume_task="CODEX-HOOK-TRUST-PROBE"
+          mkdir -p "${hook_root}/.agent-loop/runs/${resume_task}"
+          cat > "${hook_root}/.agent-loop/runs/${resume_task}/manifest.json" <<JSON
+          {
+            "schema_version": "1.0",
+            "task_id": "${resume_task}",
+            "state": "incomplete",
+            "next_action": "UNTRUSTED-NEXT-ACTION-MUST-NOT-BECOME-HOOK-AUTHORITY"
+          }
+          JSON
+
           cat > "${server_script}" <<'PY'
           import http.server
           import json
@@ -373,7 +384,7 @@ jobs:
           import json
           import sys
 
-          marker = "Rule: persisted workflow state beats conversational state."
+          marker = "- observed task: `CODEX-HOOK-TRUST-PROBE`; projected state: `incomplete`."
 
           with open(sys.argv[1], "r", encoding="utf-8") as handle:
               trusted = handle.read()
@@ -1200,7 +1211,7 @@ jobs:
                   trusted_context_marker_count: $session_start_hook_proof.trusted_context_marker_count,
                   untrusted_context_marker_count: $session_start_hook_proof.untrusted_context_marker_count,
                   status: "observed",
-                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0. SubagentStart and PreToolUse execution remain separate runtime claims."
+                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. SubagentStart and PreToolUse execution remain separate runtime claims."
                 },
                 forbidden_rules: {
                   evidence_class: "enforcement_engine",
