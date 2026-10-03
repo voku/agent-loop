@@ -29,16 +29,18 @@ final class AgentDisciplineHookTest extends TestCase
         $context = $output['hookSpecificOutput']['additionalContext'];
 
         self::assertSame('SessionStart', $output['hookSpecificOutput']['hookEventName']);
-        self::assertStringContainsString('Engineering Skill Routing', $context);
-        self::assertStringContainsString('coding-simplicity', $context);
+        self::assertStringContainsString(
+            'The lifecycle decides what happens next; this SessionStart skill adds no independent ordering rules.',
+            $context,
+        );
+        self::assertStringContainsString('Workflow Evidence Integrity', $context);
+        self::assertStringContainsString('Workflow Output', $context);
+        self::assertStringNotContainsString('Engineering Skill Routing', $context);
+        self::assertStringNotContainsString('agent-loop map query', $context);
+        self::assertStringNotContainsString('Hook Boundary', $context);
         self::assertStringNotContainsString('Minimal Implementation Ladder', $context);
         self::assertStringNotContainsString('## Nine laws', $context);
         self::assertStringNotContainsString('### 1. Evidence and authority', $context);
-        self::assertStringContainsString('agent-loop map query', $context);
-        self::assertStringContainsString(
-            'Hooks are behavioral guardrails, never correctness or security boundaries.',
-            $context,
-        );
     }
 
     public function testSubagentStartUsesTheSameDiscipline(): void
