@@ -105,7 +105,8 @@ if [ -n "${LOOP_REPO:-}" ]; then
     }' > composer.json
   composer update --no-interaction --prefer-dist --no-progress --no-ansi
   composer show voku/agent-edit --format=json > resolved-agent-edit.json
-  jq -e '(.versions | index("0.1.0")) != null' resolved-agent-edit.json >/dev/null
+  # Any release inside Loop's own `^0.1.0` constraint proves the Packagist resolution; pinning one patch breaks on every release.
+  jq -e '(.versions | length) == 1 and (.versions[0] | test("^0\\.1\\.[0-9]+$"))' resolved-agent-edit.json >/dev/null
 else
   cat > composer.json <<JSON
 {
