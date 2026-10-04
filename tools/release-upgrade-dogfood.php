@@ -344,6 +344,11 @@ final class ReleaseUpgradeDogfood
                 continue;
             }
             $version = $package['version'] ?? null;
+            if ($candidate && $name === 'voku/agent-edit' && $this->isPinnedAgentEditCandidate($package)) {
+                // Temporary, exact exception: voku/agent-edit has no stable release yet. Remove this branch (and the
+                // package repository pin in composer.json) when it is released.
+                continue;
+            }
             if (!is_string($version) || str_starts_with($version, 'dev-')) {
                 throw new RuntimeException('Focused dependency is not released: ' . $name . ' ' . (string) $version . '.');
             }
@@ -387,6 +392,27 @@ final class ReleaseUpgradeDogfood
             throw new RuntimeException('Candidate archive was not created: ' . $archive);
         }
         $this->candidateArchivePath = $archive;
+    }
+
+    /**
+     * True only for the one candidate commit the candidate's own composer.json pins; any other dev build,
+     * branch head or path package still fails the released-dependency gate.
+     *
+     * @param array<string, mixed> $package locked package row
+     */
+    private function isPinnedAgentEditCandidate(array $package): bool
+    {
+        $pinned = $this->candidateAgentEditRepository()['package'] ?? null;
+        $pinnedReference = is_array($pinned) && is_array($pinned['source'] ?? null) ? ($pinned['source']['reference'] ?? null) : null;
+        $source = $package['source'] ?? null;
+        $dist = $package['dist'] ?? null;
+
+        return ($package['version'] ?? null) === 'dev-candidate'
+            && is_string($pinnedReference)
+            && preg_match('/\A[0-9a-f]{40}\z/', $pinnedReference) === 1
+            && is_array($source)
+            && ($source['reference'] ?? null) === $pinnedReference
+            && !(is_array($dist) && ($dist['type'] ?? null) === 'path');
     }
 
     /**
