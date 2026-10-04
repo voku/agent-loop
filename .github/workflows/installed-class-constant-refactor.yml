@@ -315,7 +315,7 @@ jobs:
             --out=.agent-loop/map/php-symbols.json
 
           vendor/bin/agent-map method-move-plan \
-            'Fixture\\MethodSource::normalize' 'Fixture\\MethodDestination' \
+            'Fixture\MethodSource::normalize' 'Fixture\MethodDestination' \
             --index=.agent-loop/map/php-symbols.json \
             --format=json > .agent-loop/edit/DEMO-1/method-move-plan.json
 
