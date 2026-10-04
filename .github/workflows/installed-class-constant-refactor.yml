@@ -279,6 +279,160 @@ jobs:
           vendor/bin/agent-loop finish DEMO-1 --format=json > finish.json
           jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
 
+          git add src
+          git commit -m 'fixture: persist completed class constant refactor'
+
+          cat > src/MethodSource.php <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class MethodSource
+          {
+              private static function normalize(string $value): string
+              {
+                  return trim($value);
+              }
+          }
+          PHP
+
+          cat > src/MethodDestination.php <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class MethodDestination
+          {
+          }
+          PHP
+
+          git add src/MethodSource.php src/MethodDestination.php
+          git commit -m 'fixture: add method move consumer'
+
+          vendor/bin/agent-loop workflow plan METHOD-MOVE-1 \
+            --by installed-method-move-dogfood \
+            --file src/MethodSource.php \
+            --file src/MethodDestination.php \
+            --goal 'Move Fixture\MethodSource::normalize to Fixture\MethodDestination through the released agent-map method move plan.' \
+            --behavior-anchor 'Method declaration removal -> destination insertion' \
+            --validation 'php -l src/MethodSource.php && php -l src/MethodDestination.php' \
+            --acceptance 'normalize exists only on MethodDestination and refactor verification passes.'
+          vendor/bin/agent-loop workflow approve METHOD-MOVE-1 --by installed-method-move-dogfood
+          vendor/bin/agent-loop enter METHOD-MOVE-1 --format=json --max-lines=40 --max-bytes=4096 > method-move-enter.json
+          jq -e '.mutation_ready == true' method-move-enter.json >/dev/null
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --out=.agent-loop/map/php-symbols.json
+
+          mkdir -p .agent-loop/edit/METHOD-MOVE-1
+          vendor/bin/agent-map method-move-plan \
+            'Fixture\MethodSource::normalize' 'Fixture\MethodDestination' \
+            --index=.agent-loop/map/php-symbols.json \
+            --format=json > .agent-loop/edit/METHOD-MOVE-1/method-move-plan.json
+
+          jq -e '
+            (.type == "method_move_plan")
+            and (.contract_version == "1.0")
+            and (.status == "safe")
+            and (.stale_evidence == [])
+            and (.blockers == [])
+            and (.blind_spots == [])
+            and (.owner_dependencies == [])
+            and ((.edits | length) == 2)
+          ' .agent-loop/edit/METHOD-MOVE-1/method-move-plan.json >/dev/null
+
+          before_source="$(sha256sum src/MethodSource.php | cut -d' ' -f1)"
+          before_destination="$(sha256sum src/MethodDestination.php | cut -d' ' -f1)"
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/METHOD-MOVE-1/method-move-plan.json \
+            --task=METHOD-MOVE-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/METHOD-MOVE-1/dry-run \
+            --dry-run
+          test "$(sha256sum src/MethodSource.php | cut -d' ' -f1)" = "$before_source"
+          test "$(sha256sum src/MethodDestination.php | cut -d' ' -f1)" = "$before_destination"
+
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/METHOD-MOVE-1/method-move-plan.json \
+            --task=METHOD-MOVE-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/METHOD-MOVE-1
+
+          if grep -Fq 'function normalize' src/MethodSource.php; then
+            echo 'Moved method remains in source class.' >&2
+            exit 1
+          fi
+          grep -Fq 'private static function normalize' src/MethodDestination.php
+          php -l src/MethodSource.php
+          php -l src/MethodDestination.php
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --out=.agent-loop/map/php-symbols.json
+          vendor/bin/agent-loop edit refactor verify \
+            --bundle=.agent-loop/edit/METHOD-MOVE-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=.
+          jq -e '
+            (.kind == "method_move_plan_verification")
+            and (.status == "passed")
+            and (.plan.type == "method_move_plan")
+            and (.plan.contract_version == "1.0")
+            and (.checks.execution_binding == "passed")
+            and (.checks.current_map == "passed")
+            and (.checks.changed_files == "passed")
+            and (.checks.replacements == "passed")
+            and (.checks.moves == "passed")
+          ' .agent-loop/edit/METHOD-MOVE-1/verification-result.json >/dev/null
+
+          vendor/bin/agent-loop session validation record METHOD-MOVE-1 \
+            --contract-revision 1 \
+            --command 'php -l src/MethodSource.php && php -l src/MethodDestination.php' \
+            --status passed \
+            --exit-code 0 \
+            --duration-ms 0 \
+            --by installed-method-move-dogfood
+
+          set +e
+          vendor/bin/agent-loop review blindspots METHOD-MOVE-1
+          method_move_review_rc=$?
+          set -e
+          if test "$method_move_review_rc" -ne 0 && test "$method_move_review_rc" -ne 1; then
+            exit "$method_move_review_rc"
+          fi
+
+          vendor/bin/agent-loop session checkpoint METHOD-MOVE-1 \
+            --title 'Installed method move refactor review' \
+            --body 'Reviewed released owner plan, exact source/destination identity, deterministic verification, and validation evidence.'
+          vendor/bin/agent-loop review blindspots METHOD-MOVE-1
+          vendor/bin/agent-loop workflow learn METHOD-MOVE-1 \
+            --status no_durable_learning \
+            --by installed-method-move-dogfood \
+            --reason 'The released method-move integration proof added no reusable project-specific guidance.'
+          vendor/bin/agent-loop verify --task-id=METHOD-MOVE-1
+
+          vendor/bin/agent-loop workflow status METHOD-MOVE-1 --format=json > method-move-status.json
+          method_move_review_sha="$(jq -er '.manifest.references.review.source.sha256' method-move-status.json)"
+          case "$method_move_review_sha" in
+            sha256:*) ;;
+            *) echo 'Missing exact method-move review digest.' >&2; exit 1 ;;
+          esac
+
+          vendor/bin/agent-loop finish METHOD-MOVE-1 \
+            --reviewed-report-sha256 "$method_move_review_sha" \
+            --by installed-method-move-dogfood
+          vendor/bin/agent-loop finish METHOD-MOVE-1 --format=json > method-move-finish.json
+          jq -e '(.complete == true) and (.next_action == "none")' method-move-finish.json >/dev/null
+
       - name: Upload installed class-constant evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -291,3 +445,6 @@ jobs:
             ${{ runner.temp }}/agent-loop-installed-class-constant/.agent-loop/edit/DEMO-1/class-constant-rename-plan.json
             ${{ runner.temp }}/agent-loop-installed-class-constant/.agent-loop/edit/DEMO-1/verification-result.json
             ${{ runner.temp }}/agent-loop-installed-class-constant/finish.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/.agent-loop/edit/METHOD-MOVE-1/method-move-plan.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/.agent-loop/edit/METHOD-MOVE-1/verification-result.json
+            ${{ runner.temp }}/agent-loop-installed-class-constant/method-move-finish.json
