@@ -29,6 +29,16 @@ def observed_text(payload: dict[str, Any]) -> str:
     return "\n".join(strings(payload))
 
 
+def objects(value: Any) -> Iterable[dict[str, Any]]:
+    if isinstance(value, dict):
+        yield value
+        for item in value.values():
+            yield from objects(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from objects(item)
+
+
 def request_records(evidence_root: Path) -> list[tuple[Path, dict[str, Any], str]]:
     records = []
     for raw_path in glob.glob(str(evidence_root / "provider-request-*.json")):
@@ -147,9 +157,12 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
     denied = [
         record
         for record in pretool_requests[1:]
-        if denial_reason in record[2]
-        and '"type": "tool_result"' in record[2]
-        and '"is_error": true' in record[2]
+        if any(
+            item.get("type") == "tool_result"
+            and item.get("is_error") is True
+            and denial_reason in "\n".join(strings(item))
+            for item in objects(record[1].get("messages", []))
+        )
     ]
     if len(denied) != 1:
         raise SystemExit(
