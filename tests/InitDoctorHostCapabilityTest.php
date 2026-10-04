@@ -45,7 +45,7 @@ final class InitDoctorHostCapabilityTest extends TestCase
                 $output,
             );
             self::assertStringContainsString(
-                'Host capability evidence [codex/pre-tool-guardrail]: mechanism=Codex hooks.json + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
+                'Host capability evidence [codex/pre-tool-guardrail]: mechanism=Codex hooks.json PreToolUse ^Bash$ command hook; Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement; evidence=adapter-declared;live-runtime-verified',
                 $output,
             );
             self::assertStringContainsString(
