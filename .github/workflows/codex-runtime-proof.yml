@@ -2030,6 +2030,7 @@ jobs:
           projection_after="$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256")"
           prompt_marker_counts="$(cat "${EVIDENCE_ROOT}/prompt-marker-counts.json")"
           session_start_hook_proof="$(cat "${EVIDENCE_ROOT}/session-start-hook-proof.json")"
+          persisted_hook_hash_trust_proof="$(cat "${EVIDENCE_ROOT}/persisted-hook-hash-trust-proof.json")"
           subagent_start_hook_proof="$(cat "${EVIDENCE_ROOT}/subagent-start-hook-proof.json")"
           pre_tool_use_hook_proof="$(cat "${EVIDENCE_ROOT}/pre-tool-use-hook-proof.json")"
           project_rule_live_proof="$(cat "${EVIDENCE_ROOT}/project-rule-live-proof.json")"
@@ -2043,6 +2044,7 @@ jobs:
             --arg projection_after "${projection_after}" \
             --argjson prompt_marker_counts "${prompt_marker_counts}" \
             --argjson session_start_hook_proof "${session_start_hook_proof}" \
+            --argjson persisted_hook_hash_trust_proof "${persisted_hook_hash_trust_proof}" \
             --argjson subagent_start_hook_proof "${subagent_start_hook_proof}" \
             --argjson pre_tool_use_hook_proof "${pre_tool_use_hook_proof}" \
             --argjson project_rule_live_proof "${project_rule_live_proof}" \
@@ -2093,7 +2095,23 @@ jobs:
                   trusted_context_marker_count: $session_start_hook_proof.trusted_context_marker_count,
                   untrusted_context_marker_count: $session_start_hook_proof.untrusted_context_marker_count,
                   status: "observed",
-                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag bypasses persisted per-hook hash review for these package-vetted fixtures; interactive /hooks review and persisted hook-hash trust are not proven. PreToolUse enforcement is recorded separately in pre_tool_use_hook_deny."
+                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag removes per-hook hash review as a variable in this paired project-trust proof. Persisted hash trust is recorded separately in persisted_hook_hash_trust; interactive /hooks review remains unproven. PreToolUse enforcement is recorded separately in pre_tool_use_hook_deny."
+                },
+                persisted_hook_hash_trust: {
+                  evidence_class: "host_runtime_trust",
+                  mechanism: "Codex 0.157.0 app-server hooks/list + config/batchWrite persisted trusted_hash, followed by fresh codex exec processes without --dangerously-bypass-hook-trust",
+                  hook_key: $persisted_hook_hash_trust_proof.key,
+                  initial_hash: $persisted_hook_hash_trust_proof.initial_hash,
+                  modified_hash: $persisted_hook_hash_trust_proof.modified_hash,
+                  initial_trust_status: $persisted_hook_hash_trust_proof.initial_trust_status,
+                  trusted_trust_status: $persisted_hook_hash_trust_proof.trusted_trust_status,
+                  modified_trust_status: $persisted_hook_hash_trust_proof.modified_trust_status,
+                  session_start_invocations_before_trust: $persisted_hook_hash_trust_proof.session_start_invocations_before_trust,
+                  session_start_invocations_after_trust: $persisted_hook_hash_trust_proof.session_start_invocations_after_trust,
+                  session_start_invocations_after_modification: $persisted_hook_hash_trust_proof.session_start_invocations_after_modification,
+                  runtime_bypass_hook_trust: $persisted_hook_hash_trust_proof.runtime_bypass_hook_trust,
+                  status: "observed",
+                  boundary: "This proves the non-interactive persisted trusted_hash contract for the projected SessionStart hook: an untrusted hook is skipped, the exact current hash persisted through Codex app-server makes a fresh runtime execute it, and a later hook-content hash change moves trust to modified and suppresses execution again. It does not prove the interactive /hooks review UI or its user interaction."
                 },
                 subagent_start_hook_execution: {
                   evidence_class: "host_runtime_execution",
