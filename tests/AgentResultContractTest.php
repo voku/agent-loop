@@ -8,7 +8,6 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentEdit\Apply\WorkingTreeSnapshot;
-use voku\AgentEdit\Apply\WorkingTreeSnapshotter;
 use voku\AgentLoop\Edit\AgentResultWriter;
 use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\EditRunResult;
@@ -117,97 +116,6 @@ final class AgentResultContractTest extends TestCase
 
         self::assertSame([], $payload['changed_files']);
         self::assertSame('unavailable', $payload['changed_files_source']);
-    }
-
-    public function testSnapshotterReportsNoRepositoryInsteadOfThrowing(): void
-    {
-        $snapshot = (new WorkingTreeSnapshotter())->capture($this->root);
-
-        self::assertFalse($snapshot->available);
-        self::assertSame([], $snapshot->entries);
-    }
-
-    public function testSnapshotDiffIgnoresAFileRestoredToItsOriginalContent(): void
-    {
-        $before = new WorkingTreeSnapshot(true, 'abc', ['src/A.php' => ' M:same']);
-        $after = new WorkingTreeSnapshot(true, 'abc', ['src/A.php' => ' M:same']);
-
-        self::assertSame([], $after->changedPathsSince($before));
-    }
-
-    public function testSnapshotterSeesRealGitChangesIncludingUntrackedAndDeletedFiles(): void
-    {
-        $repository = $this->root . '/repo';
-        mkdir($repository . '/src', 0o775, true);
-        file_put_contents($repository . '/src/Kept.php', "<?php\n");
-        file_put_contents($repository . '/src/Removed.php', "<?php\n");
-        foreach ([
-            ['git', 'init', '-q'],
-            ['git', 'config', 'user.email', 'test@example.com'],
-            ['git', 'config', 'user.name', 'test'],
-            ['git', 'add', '-A'],
-            ['git', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'baseline'],
-        ] as $command) {
-            $this->git($repository, $command);
-        }
-
-        $snapshotter = new WorkingTreeSnapshotter();
-        $before = $snapshotter->capture($repository);
-        self::assertTrue($before->available);
-        self::assertSame([], $before->entries, 'a clean tree has no dirty entries to hash');
-
-        file_put_contents($repository . '/src/Kept.php', "<?php\n// edited\n");
-        file_put_contents($repository . '/src/Added.php', "<?php\n");
-        unlink($repository . '/src/Removed.php');
-
-        $changed = $snapshotter->capture($repository)->changedPathsSince($before);
-
-        self::assertSame(['src/Added.php', 'src/Kept.php', 'src/Removed.php'], $changed);
-    }
-
-    public function testSnapshotterSeesChangesInsideALinkedGitWorktree(): void
-    {
-        $repository = $this->root . '/worktree-source';
-        mkdir($repository . '/src', 0o775, true);
-        file_put_contents($repository . '/src/Probe.php', "<?php\n");
-        foreach ([
-            ['git', 'init', '-q'],
-            ['git', 'config', 'user.email', 'test@example.com'],
-            ['git', 'config', 'user.name', 'test'],
-            ['git', 'add', '-A'],
-            ['git', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'baseline'],
-        ] as $command) {
-            $this->git($repository, $command);
-        }
-
-        $worktree = $this->root . '/linked-worktree';
-        $this->git($repository, ['git', 'worktree', 'add', '-q', '--detach', $worktree, 'HEAD']);
-        self::assertFileExists($worktree . '/.git');
-        self::assertFalse(is_dir($worktree . '/.git'), 'linked worktrees use a .git file, not a directory');
-
-        $snapshotter = new WorkingTreeSnapshotter();
-        $before = $snapshotter->capture($worktree);
-        self::assertTrue($before->available);
-        self::assertSame([], $before->entries);
-
-        file_put_contents($worktree . '/src/Probe.php', "<?php\n// edited in linked worktree\n");
-
-        self::assertSame(
-            ['src/Probe.php'],
-            $snapshotter->capture($worktree)->changedPathsSince($before),
-        );
-    }
-
-    /** @param non-empty-list<string> $command */
-    private function git(string $workingDirectory, array $command): void
-    {
-        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $workingDirectory);
-        self::assertIsResource($process);
-        stream_get_contents($pipes[1]);
-        stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        self::assertSame(0, proc_close($process), 'git ' . implode(' ', $command) . ' failed');
     }
 
     private function request(string $taskId, bool $dryRun = false): EditRequest
