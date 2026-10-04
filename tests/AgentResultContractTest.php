@@ -7,12 +7,12 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentEdit\Apply\WorkingTreeSnapshot;
+use voku\AgentEdit\Apply\WorkingTreeSnapshotter;
 use voku\AgentLoop\Edit\AgentResultWriter;
 use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\EditRunResult;
 use voku\AgentLoop\Edit\VerificationPlanBinding;
-use voku\AgentLoop\Edit\WorkingTreeSnapshot;
-use voku\AgentLoop\Edit\WorkingTreeSnapshotter;
 
 final class AgentResultContractTest extends TestCase
 {

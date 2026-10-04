@@ -64,4 +64,12 @@ final class EditRefactorOwnerBoundaryTest extends TestCase
         self::assertMatchesRegularExpression('/\A\^\d+\.\d+\.\d+\z/', (string) $composer['require']['voku/agent-edit']);
         self::assertArrayNotHasKey('repositories', $composer);
     }
+
+    public function testLoopDoesNotCarryItsOwnCopyOfTheWorkingTreeSnapshotter(): void
+    {
+        // Observed changed files are agent-edit's evidence primitive; a private copy drifted once (it reported Git
+        // top-level paths for projects in a subdirectory of a work tree).
+        self::assertFileDoesNotExist(dirname(__DIR__) . '/src/Edit/WorkingTreeSnapshotter.php');
+        self::assertFileDoesNotExist(dirname(__DIR__) . '/src/Edit/WorkingTreeSnapshot.php');
+    }
 }

@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- Observe edit evidence through `voku/agent-edit`'s `WorkingTreeSnapshotter` instead of a private copy. The copy reported Git top-level paths for a project that lives in a subdirectory of a larger work tree: `changed_files` in `agent-result.json` held `app/src/...` paths (and counted changes outside the project), so the `php_lint_changed_files` gate looked for files that do not exist and silently had nothing to lint. Regression tests cover the receipt paths and a post-edit syntax error in a subdirectory project.
+
+### Removed
+
+- Remove `voku\AgentLoop\Edit\WorkingTreeSnapshotter` and `WorkingTreeSnapshot` (internal classes now owned by `voku/agent-edit`).
+
 ## 0.20.53 - 2026-10-04
 
 ### Changed

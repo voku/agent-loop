@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Edit;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentEdit\Apply\WorkingTreeSnapshotter;
 
 final readonly class EditOrchestrator
 {
