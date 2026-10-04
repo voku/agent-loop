@@ -813,8 +813,9 @@ jobs:
           subagent_hook_port="$(cat "${subagent_hook_port_path}")"
 
           (
-            cd "${PROOF_ROOT}"
-            PATH="${php_wrapper_dir}:${PATH}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+            cd "${hook_root}"
+            CODEX_HOME="${runtime_home}" PATH="${php_wrapper_dir}:${PATH}" \
+              env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
               codex exec --ephemeral --json --dangerously-bypass-hook-trust \
                 -c 'model="proof-model"' \
                 -c 'model_provider="mock"' \
@@ -849,6 +850,8 @@ jobs:
           CODEX_ACCESS_TOKEN: ''
         run: |
           set -euo pipefail
+          hook_root="${RUNNER_TEMP}/agent-loop-codex-hook-proof"
+          runtime_home="${RUNNER_TEMP}/codex-pre-tool-use-home"
           server_script="${RUNNER_TEMP}/codex-pre-tool-use-proof-server.py"
           request_prefix="${EVIDENCE_ROOT}/pre-tool-use-request"
           port_path="${RUNNER_TEMP}/codex-pre-tool-use-proof-port"
@@ -856,15 +859,23 @@ jobs:
           hook_invocation_log="${EVIDENCE_ROOT}/pre-tool-use-hook-invocations.log"
           hook_stdin="${EVIDENCE_ROOT}/pre-tool-use-hook-stdin.json"
           hook_stdout="${EVIDENCE_ROOT}/pre-tool-use-hook-stdout.json"
-          probe_file="${PROOF_ROOT}/pre-tool-use-probe.txt"
+          probe_file="${hook_root}/pre-tool-use-probe.txt"
           tool_output="${EVIDENCE_ROOT}/pre-tool-use-tool-output.json"
           real_php="$(command -v php)"
 
+          test -f "${hook_root}/vendor/autoload.php"
+          test -f "${hook_root}/.codex/hooks.json"
+          test -f "${hook_root}/.codex/hooks/pre_tool_use_policy.php"
+
           printf '%s\n' 'before' > "${probe_file}"
-          rm -rf "${php_wrapper_dir}"
+          rm -rf "${php_wrapper_dir}" "${runtime_home}"
           rm -f "${port_path}" "${request_prefix}"-*.json "${hook_invocation_log}" \
             "${hook_stdin}" "${hook_stdout}" "${tool_output}"
-          mkdir -p "${php_wrapper_dir}"
+          mkdir -p "${php_wrapper_dir}" "${runtime_home}"
+          cat > "${runtime_home}/config.toml" <<EOF
+          [projects."${hook_root}"]
+          trust_level = "trusted"
+          EOF
 
           cat > "${php_wrapper_dir}/php" <<EOF
           #!/usr/bin/env bash
@@ -1003,6 +1014,18 @@ jobs:
 
           test "$(cat "${probe_file}")" = 'before'
           test -s "${hook_invocation_log}"
+          test -s "${hook_stdin}"
+          test -s "${hook_stdout}"
+          jq -e '
+            .hook_event_name == "PreToolUse"
+            and .tool_name == "Bash"
+            and .tool_input.command == "sed -i '\''s/before/after/'\'' pre-tool-use-probe.txt"
+          ' "${hook_stdin}" >/dev/null
+          jq -e '
+            .hookSpecificOutput.hookEventName == "PreToolUse"
+            and .hookSpecificOutput.permissionDecision == "deny"
+            and .hookSpecificOutput.permissionDecisionReason == "In-place sed edits are blocked."
+          ' "${hook_stdout}" >/dev/null
           pre_tool_use_invocations="$(grep -Fc -- 'pre_tool_use_policy.php' "${hook_invocation_log}" || true)"
           test "${pre_tool_use_invocations}" -eq 1
 
@@ -1026,7 +1049,9 @@ jobs:
             --argjson hook_invocation_count "${pre_tool_use_invocations}" \
             '{
               command: $command,
+              consumer: "composer-installed-hook-consumer",
               hook_invocation_count: $hook_invocation_count,
+              structured_deny_observed_at_hook_stdout: true,
               deny_reason: $deny_reason,
               deny_reason_observed_in_tool_output: true,
               probe_after: $probe_after
