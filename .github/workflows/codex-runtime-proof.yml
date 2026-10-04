@@ -608,6 +608,431 @@ jobs:
               handle.write("\n")
           PY
 
+      - name: Prove persisted hook hash trust and invalidation
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          source_hook_root="${RUNNER_TEMP}/agent-loop-codex-hook-proof"
+          trust_root="${RUNNER_TEMP}/agent-loop-codex-persisted-hook-trust-proof"
+          runtime_home="${RUNNER_TEMP}/codex-persisted-hook-trust-home"
+          php_wrapper_dir="${RUNNER_TEMP}/codex-persisted-hook-trust-php-wrapper"
+          hook_invocation_log="${EVIDENCE_ROOT}/persisted-hook-trust-invocations.log"
+          trust_state="${EVIDENCE_ROOT}/persisted-hook-trust-state.json"
+          hook_list_before="${EVIDENCE_ROOT}/persisted-hook-list-before.json"
+          trust_git_root="${EVIDENCE_ROOT}/persisted-hook-trust-git-root.txt"
+          trust_config="${EVIDENCE_ROOT}/persisted-hook-trust-config.toml"
+          modified_state="${EVIDENCE_ROOT}/persisted-hook-modified-state.json"
+          proof="${EVIDENCE_ROOT}/persisted-hook-hash-trust-proof.json"
+          port_path="${RUNNER_TEMP}/codex-persisted-hook-trust-port"
+          request_prefix="${EVIDENCE_ROOT}/persisted-hook-trust-request"
+          server_script="${RUNNER_TEMP}/codex-session-start-proof-server.py"
+          real_php="$(command -v php)"
+
+          test -d "${source_hook_root}/vendor"
+          test -f "${source_hook_root}/.codex/hooks.json"
+          test -f "${server_script}"
+
+          rm -rf "${trust_root}" "${runtime_home}" "${php_wrapper_dir}"
+          rm -f "${hook_invocation_log}" "${trust_state}" "${modified_state}" "${proof}" \
+            "${hook_list_before}" "${trust_git_root}" "${trust_config}" \
+            "${port_path}" "${request_prefix}"-*.json
+          cp -a "${source_hook_root}" "${trust_root}"
+          mkdir -p "${runtime_home}" "${php_wrapper_dir}"
+
+          cat > "${runtime_home}/config.toml" <<EOF
+          [projects."${trust_root}"]
+          trust_level = "trusted"
+          EOF
+
+          git -C "${trust_root}" rev-parse --show-toplevel > "${trust_git_root}"
+          cat > "${php_wrapper_dir}/php" <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+          printf '%s\\n' "\$*" >> "${hook_invocation_log}"
+          exec "${real_php}" "\$@"
+          EOF
+          chmod +x "${php_wrapper_dir}/php"
+
+          REQUEST_PREFIX="${request_prefix}" PORT_PATH="${port_path}" \
+            python3 "${server_script}" &
+          server_pid=$!
+          trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 100); do
+            if test -s "${port_path}"; then
+              break
+            fi
+            sleep 0.05
+          done
+          test -s "${port_path}"
+          port="$(cat "${port_path}")"
+
+          run_exec() {
+            local phase="$1"
+            (
+              cd "${trust_root}"
+              CODEX_HOME="${runtime_home}" PATH="${php_wrapper_dir}:${PATH}" \
+                env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+                codex exec --ephemeral --json \
+                  -c 'model="proof-model"' \
+                  -c 'model_provider="mock"' \
+                  -c "model_providers.mock={ name = \"mock\", base_url = \"http://127.0.0.1:${port}/v1\", env_key = \"PATH\", wire_api = \"responses\" }" \
+                  "Return no content. Persisted hook trust phase: ${phase}."
+            ) > "${EVIDENCE_ROOT}/persisted-hook-trust-${phase}-exec.jsonl" \
+              2> "${EVIDENCE_ROOT}/persisted-hook-trust-${phase}-exec.stderr"
+          }
+
+          session_start_invocations() {
+            if ! test -f "${hook_invocation_log}"; then
+              printf '%s\n' '0'
+              return
+            fi
+            grep -Fc -- '--event=SessionStart' "${hook_invocation_log}" || true
+          }
+
+          run_exec untrusted
+          untrusted_invocations="$(session_start_invocations)"
+          test "${untrusted_invocations}" -eq 0
+
+          CODEX_HOME="${runtime_home}" TRUST_ROOT="${trust_root}" TRUST_STATE="${trust_state}" \
+            HOOK_LIST_BEFORE="${hook_list_before}" \
+            python3 <<'PY'
+          import json
+          import os
+          import select
+          import subprocess
+
+          codex_home = os.environ["CODEX_HOME"]
+          trust_root = os.environ["TRUST_ROOT"]
+          state_path = os.environ["TRUST_STATE"]
+          hook_list_before_path = os.environ["HOOK_LIST_BEFORE"]
+
+          env = os.environ.copy()
+          env["CODEX_HOME"] = codex_home
+          env.pop("OPENAI_API_KEY", None)
+          env.pop("CODEX_ACCESS_TOKEN", None)
+
+          process = subprocess.Popen(
+              ["codex", "app-server", "--stdio"],
+              cwd=trust_root,
+              env=env,
+              stdin=subprocess.PIPE,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.DEVNULL,
+              text=True,
+              encoding="utf-8",
+              bufsize=1,
+          )
+          if process.stdin is None or process.stdout is None:
+              raise SystemExit("Codex app-server stdio was unavailable")
+
+          next_id = 1
+
+          def send_request(method, params):
+              global next_id
+              request_id = next_id
+              next_id += 1
+              payload = {"id": request_id, "method": method}
+              if params is not None:
+                  payload["params"] = params
+              process.stdin.write(json.dumps(payload) + "\n")
+              process.stdin.flush()
+              while True:
+                  readable, _, _ = select.select([process.stdout], [], [], 15)
+                  if not readable:
+                      raise SystemExit(f"Codex app-server timed out while waiting for {method}")
+                  line = process.stdout.readline()
+                  if line == "":
+                      raise SystemExit(f"Codex app-server closed while waiting for {method}")
+                  message = json.loads(line)
+                  if message.get("id") != request_id:
+                      continue
+                  if "error" in message:
+                      raise SystemExit(f"{method} failed: {message['error']}")
+                  return message.get("result")
+
+          try:
+              send_request(
+                  "initialize",
+                  {"clientInfo": {"name": "agent-loop-runtime-proof", "version": "1"}},
+              )
+              process.stdin.write(json.dumps({"method": "initialized"}) + "\n")
+              process.stdin.flush()
+
+              before = send_request("hooks/list", {"cwds": [trust_root]})
+              with open(hook_list_before_path, "w", encoding="utf-8") as handle:
+                  json.dump(before, handle, indent=2, sort_keys=True)
+                  handle.write("\n")
+              hooks = [
+                  hook
+                  for entry in before["data"]
+                  for hook in entry["hooks"]
+                  if hook["eventName"] == "sessionStart"
+              ]
+              if len(hooks) != 1:
+                  raise SystemExit(
+                      f"expected one SessionStart hook, observed {len(hooks)}"
+                  )
+              hook = hooks[0]
+              if hook["trustStatus"] != "untrusted":
+                  raise SystemExit(
+                      "SessionStart hook must begin untrusted, observed "
+                      + repr(hook["trustStatus"])
+                  )
+
+              send_request(
+                  "config/batchWrite",
+                  {
+                      "edits": [
+                          {
+                              "keyPath": "hooks.state",
+                              "value": {
+                                  hook["key"]: {
+                                      "trusted_hash": hook["currentHash"],
+                                  }
+                              },
+                              "mergeStrategy": "upsert",
+                          }
+                      ],
+                      "filePath": None,
+                      "expectedVersion": None,
+                      "reloadUserConfig": True,
+                  },
+              )
+
+              after = send_request("hooks/list", {"cwds": [trust_root]})
+              trusted_hooks = [
+                  candidate
+                  for entry in after["data"]
+                  for candidate in entry["hooks"]
+                  if candidate["eventName"] == "sessionStart"
+              ]
+              if len(trusted_hooks) != 1:
+                  raise SystemExit(
+                      f"expected one trusted SessionStart hook, observed {len(trusted_hooks)}"
+                  )
+              trusted = trusted_hooks[0]
+              if trusted["key"] != hook["key"]:
+                  raise SystemExit("SessionStart hook key changed while trusting")
+              if trusted["currentHash"] != hook["currentHash"]:
+                  raise SystemExit("SessionStart hook hash changed while trusting")
+              if trusted["trustStatus"] != "trusted":
+                  raise SystemExit(
+                      "SessionStart hook must become trusted, observed "
+                      + repr(trusted["trustStatus"])
+                  )
+
+              with open(state_path, "w", encoding="utf-8") as handle:
+                  json.dump(
+                      {
+                          "key": hook["key"],
+                          "initial_hash": hook["currentHash"],
+                          "initial_trust_status": hook["trustStatus"],
+                          "trusted_trust_status": trusted["trustStatus"],
+                      },
+                      handle,
+                      indent=2,
+                      sort_keys=True,
+                  )
+                  handle.write("\n")
+          finally:
+              try:
+                  process.terminate()
+              except ProcessLookupError:
+                  pass
+              try:
+                  process.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                  process.kill()
+                  process.wait(timeout=5)
+              try:
+                  process.stdin.close()
+              except Exception:
+                  pass
+          PY
+
+          test -s "${runtime_home}/config.toml"
+          grep -Fq 'trusted_hash' "${runtime_home}/config.toml"
+
+          cp "${runtime_home}/config.toml" "${trust_config}"
+
+          run_exec trusted
+          trusted_invocations="$(session_start_invocations)"
+          test "${trusted_invocations}" -eq 1
+
+          TRUST_ROOT="${trust_root}" python3 <<'PY'
+          import json
+          import os
+
+          path = os.path.join(os.environ["TRUST_ROOT"], ".codex", "hooks.json")
+          with open(path, "r", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          session_start = payload["hooks"]["SessionStart"][0]["hooks"][0]
+          session_start["statusMessage"] = "modified persisted-hook-trust proof"
+
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, indent=2)
+              handle.write("\n")
+          PY
+
+          CODEX_HOME="${runtime_home}" TRUST_ROOT="${trust_root}" \
+            MODIFIED_STATE="${modified_state}" TRUST_STATE="${trust_state}" \
+            python3 <<'PY'
+          import json
+          import os
+          import select
+          import subprocess
+
+          codex_home = os.environ["CODEX_HOME"]
+          trust_root = os.environ["TRUST_ROOT"]
+          modified_state_path = os.environ["MODIFIED_STATE"]
+          trust_state_path = os.environ["TRUST_STATE"]
+
+          with open(trust_state_path, "r", encoding="utf-8") as handle:
+              trusted_state = json.load(handle)
+
+          env = os.environ.copy()
+          env["CODEX_HOME"] = codex_home
+          env.pop("OPENAI_API_KEY", None)
+          env.pop("CODEX_ACCESS_TOKEN", None)
+
+          process = subprocess.Popen(
+              ["codex", "app-server", "--stdio"],
+              cwd=trust_root,
+              env=env,
+              stdin=subprocess.PIPE,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.DEVNULL,
+              text=True,
+              encoding="utf-8",
+              bufsize=1,
+          )
+          if process.stdin is None or process.stdout is None:
+              raise SystemExit("Codex app-server stdio was unavailable")
+
+          next_id = 1
+
+          def send_request(method, params):
+              global next_id
+              request_id = next_id
+              next_id += 1
+              payload = {"id": request_id, "method": method}
+              if params is not None:
+                  payload["params"] = params
+              process.stdin.write(json.dumps(payload) + "\n")
+              process.stdin.flush()
+              while True:
+                  readable, _, _ = select.select([process.stdout], [], [], 15)
+                  if not readable:
+                      raise SystemExit(f"Codex app-server timed out while waiting for {method}")
+                  line = process.stdout.readline()
+                  if line == "":
+                      raise SystemExit(f"Codex app-server closed while waiting for {method}")
+                  message = json.loads(line)
+                  if message.get("id") != request_id:
+                      continue
+                  if "error" in message:
+                      raise SystemExit(f"{method} failed: {message['error']}")
+                  return message.get("result")
+
+          try:
+              send_request(
+                  "initialize",
+                  {"clientInfo": {"name": "agent-loop-runtime-proof", "version": "1"}},
+              )
+              process.stdin.write(json.dumps({"method": "initialized"}) + "\n")
+              process.stdin.flush()
+
+              response = send_request("hooks/list", {"cwds": [trust_root]})
+              hooks = [
+                  hook
+                  for entry in response["data"]
+                  for hook in entry["hooks"]
+                  if hook["eventName"] == "sessionStart"
+              ]
+              if len(hooks) != 1:
+                  raise SystemExit(
+                      f"expected one modified SessionStart hook, observed {len(hooks)}"
+                  )
+              modified = hooks[0]
+              if modified["key"] != trusted_state["key"]:
+                  raise SystemExit("SessionStart hook key changed after content modification")
+              if modified["currentHash"] == trusted_state["initial_hash"]:
+                  raise SystemExit("SessionStart hook hash did not change after modification")
+              if modified["trustStatus"] != "modified":
+                  raise SystemExit(
+                      "SessionStart hook must become modified, observed "
+                      + repr(modified["trustStatus"])
+                  )
+
+              with open(modified_state_path, "w", encoding="utf-8") as handle:
+                  json.dump(
+                      {
+                          "modified_hash": modified["currentHash"],
+                          "modified_trust_status": modified["trustStatus"],
+                      },
+                      handle,
+                      indent=2,
+                      sort_keys=True,
+                  )
+                  handle.write("\n")
+          finally:
+              try:
+                  process.terminate()
+              except ProcessLookupError:
+                  pass
+              try:
+                  process.wait(timeout=5)
+              except subprocess.TimeoutExpired:
+                  process.kill()
+                  process.wait(timeout=5)
+              try:
+                  process.stdin.close()
+              except Exception:
+                  pass
+          PY
+
+          run_exec modified
+          modified_invocations="$(session_start_invocations)"
+          test "${modified_invocations}" -eq 1
+
+          python3 - \
+            "${trust_state}" \
+            "${modified_state}" \
+            "${untrusted_invocations}" \
+            "${trusted_invocations}" \
+            "${modified_invocations}" \
+            "${proof}" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], "r", encoding="utf-8") as handle:
+              trusted = json.load(handle)
+          with open(sys.argv[2], "r", encoding="utf-8") as handle:
+              modified = json.load(handle)
+
+          proof = {
+              **trusted,
+              **modified,
+              "session_start_invocations_before_trust": int(sys.argv[3]),
+              "session_start_invocations_after_trust": int(sys.argv[4]),
+              "session_start_invocations_after_modification": int(sys.argv[5]),
+              "trust_write_surface": "Codex app-server hooks/list + config/batchWrite",
+              "runtime_bypass_hook_trust": False,
+          }
+          with open(sys.argv[6], "w", encoding="utf-8") as handle:
+              json.dump(proof, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+          kill "${server_pid}" 2>/dev/null || true
+          wait "${server_pid}" 2>/dev/null || true
+          trap - EXIT
+
       - name: Prove projected subagent role discovery and selection in Codex runtime
         shell: bash
         env:
@@ -1631,6 +2056,7 @@ jobs:
           projection_after="$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256")"
           prompt_marker_counts="$(cat "${EVIDENCE_ROOT}/prompt-marker-counts.json")"
           session_start_hook_proof="$(cat "${EVIDENCE_ROOT}/session-start-hook-proof.json")"
+          persisted_hook_hash_trust_proof="$(cat "${EVIDENCE_ROOT}/persisted-hook-hash-trust-proof.json")"
           subagent_start_hook_proof="$(cat "${EVIDENCE_ROOT}/subagent-start-hook-proof.json")"
           pre_tool_use_hook_proof="$(cat "${EVIDENCE_ROOT}/pre-tool-use-hook-proof.json")"
           project_rule_live_proof="$(cat "${EVIDENCE_ROOT}/project-rule-live-proof.json")"
@@ -1644,6 +2070,7 @@ jobs:
             --arg projection_after "${projection_after}" \
             --argjson prompt_marker_counts "${prompt_marker_counts}" \
             --argjson session_start_hook_proof "${session_start_hook_proof}" \
+            --argjson persisted_hook_hash_trust_proof "${persisted_hook_hash_trust_proof}" \
             --argjson subagent_start_hook_proof "${subagent_start_hook_proof}" \
             --argjson pre_tool_use_hook_proof "${pre_tool_use_hook_proof}" \
             --argjson project_rule_live_proof "${project_rule_live_proof}" \
@@ -1694,7 +2121,23 @@ jobs:
                   trusted_context_marker_count: $session_start_hook_proof.trusted_context_marker_count,
                   untrusted_context_marker_count: $session_start_hook_proof.untrusted_context_marker_count,
                   status: "observed",
-                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag bypasses persisted per-hook hash review for these package-vetted fixtures; interactive /hooks review and persisted hook-hash trust are not proven. PreToolUse enforcement is recorded separately in pre_tool_use_hook_deny."
+                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag removes per-hook hash review as a variable in this paired project-trust proof. Persisted hash trust is recorded separately in persisted_hook_hash_trust; interactive /hooks review remains unproven. PreToolUse enforcement is recorded separately in pre_tool_use_hook_deny."
+                },
+                persisted_hook_hash_trust: {
+                  evidence_class: "host_runtime_trust",
+                  mechanism: "Codex 0.157.0 app-server hooks/list + config/batchWrite persisted trusted_hash, followed by fresh codex exec processes without --dangerously-bypass-hook-trust",
+                  hook_key: $persisted_hook_hash_trust_proof.key,
+                  initial_hash: $persisted_hook_hash_trust_proof.initial_hash,
+                  modified_hash: $persisted_hook_hash_trust_proof.modified_hash,
+                  initial_trust_status: $persisted_hook_hash_trust_proof.initial_trust_status,
+                  trusted_trust_status: $persisted_hook_hash_trust_proof.trusted_trust_status,
+                  modified_trust_status: $persisted_hook_hash_trust_proof.modified_trust_status,
+                  session_start_invocations_before_trust: $persisted_hook_hash_trust_proof.session_start_invocations_before_trust,
+                  session_start_invocations_after_trust: $persisted_hook_hash_trust_proof.session_start_invocations_after_trust,
+                  session_start_invocations_after_modification: $persisted_hook_hash_trust_proof.session_start_invocations_after_modification,
+                  runtime_bypass_hook_trust: $persisted_hook_hash_trust_proof.runtime_bypass_hook_trust,
+                  status: "observed",
+                  boundary: "This proves the non-interactive persisted trusted_hash contract for the projected SessionStart hook: an untrusted hook is skipped, the exact current hash persisted through Codex app-server makes a fresh runtime execute it, and a later hook-content hash change moves trust to modified and suppresses execution again. It does not prove the interactive /hooks review UI or its user interaction."
                 },
                 subagent_start_hook_execution: {
                   evidence_class: "host_runtime_execution",
@@ -1764,7 +2207,7 @@ jobs:
               },
               not_proven_by_this_slice: {
                 parent_runtime_override_interaction: true,
-                interactive_hook_review_persistence: true,
+                interactive_hooks_review_interaction: true,
                 mcp_authority_coverage: true
               }
             }' > "${EVIDENCE_ROOT}/evidence.json"
