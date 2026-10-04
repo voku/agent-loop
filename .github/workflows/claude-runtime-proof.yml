@@ -1,0 +1,441 @@
+name: Claude runtime proof
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/claude-runtime-proof.yml'
+      - 'src/Init/**'
+      - 'resources/instructions/**'
+      - 'resources/skills/**'
+      - 'resources/subagents/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-proof:
+    name: Claude 2.1.287 instruction consumption
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLAUDE_VERSION: '2.1.287'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Install repository dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install exact Claude runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global "@anthropic-ai/claude-code@${CLAUDE_VERSION}"
+          claude --version
+
+      - name: Project disposable Claude repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof_root="${RUNNER_TEMP}/agent-loop-claude-runtime-proof"
+          runtime_home="${RUNNER_TEMP}/claude-runtime-home"
+          evidence_root="${GITHUB_WORKSPACE}/build/claude-runtime-proof"
+
+          rm -rf "${proof_root}" "${runtime_home}" "${evidence_root}"
+          mkdir -p "${proof_root}" "${runtime_home}" "${evidence_root}"
+          git -C "${proof_root}" init --initial-branch=main
+
+          (
+            cd "${proof_root}"
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init scaffold --demo --agent=claude
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=claude
+
+            projection_digest() {
+              {
+                sha256sum AGENTS.md CLAUDE.md
+                find .claude/skills .claude/agents -type f -print0 |
+                  sort -z |
+                  xargs -0 sha256sum
+              } | sha256sum | cut -d' ' -f1
+            }
+
+            projection_digest > "${evidence_root}/projection-before-reinstall.sha256"
+          )
+
+          head_sha='${{ github.event.pull_request.head.sha }}'
+          base_sha='${{ github.event.pull_request.base.sha }}'
+          test -n "${head_sha}" || head_sha="${GITHUB_SHA}"
+          test -n "${base_sha}" || base_sha="${GITHUB_SHA}"
+          printf '%s\n' "${head_sha}" > "${evidence_root}/repository-head-sha.txt"
+          printf '%s\n' "${base_sha}" > "${evidence_root}/repository-base-sha.txt"
+          sha256sum "${GITHUB_WORKSPACE}/composer.lock" | cut -d' ' -f1 > "${evidence_root}/dependency-graph.sha256"
+
+          echo "PROOF_ROOT=${proof_root}" >> "${GITHUB_ENV}"
+          echo "CLAUDE_CONFIG_DIR=${runtime_home}" >> "${GITHUB_ENV}"
+          echo "EVIDENCE_ROOT=${evidence_root}" >> "${GITHUB_ENV}"
+
+          cp "${proof_root}/AGENTS.md" "${evidence_root}/projected-AGENTS.md"
+          cp "${proof_root}/CLAUDE.md" "${evidence_root}/projected-CLAUDE.md"
+
+      - name: Start deterministic Anthropic-compatible provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          server_script="${RUNNER_TEMP}/claude-runtime-proof-server.py"
+          port_path="${RUNNER_TEMP}/claude-runtime-proof-port"
+
+          cat > "${server_script}" <<'PY'
+          import json
+          import os
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+          from urllib.parse import urlparse
+
+          evidence_root = os.environ["EVIDENCE_ROOT"]
+          port_path = os.environ["PORT_PATH"]
+          request_index = 0
+
+          class Handler(BaseHTTPRequestHandler):
+              def log_message(self, format, *args):
+                  return
+
+              def _record_path(self, method):
+                  with open(
+                      os.path.join(evidence_root, "provider-paths.log"),
+                      "a",
+                      encoding="utf-8",
+                  ) as handle:
+                      handle.write(f"{method} {self.path}\n")
+
+              def _json(self, status, payload):
+                  body = json.dumps(payload).encode("utf-8")
+                  self.send_response(status)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def do_GET(self):
+                  self._record_path("GET")
+                  path = urlparse(self.path).path
+                  if path.rstrip("/") == "/v1/models":
+                      self._json(200, {
+                          "data": [{
+                              "id": "claude-sonnet-4-5",
+                              "type": "model",
+                              "display_name": "proof-model",
+                              "created_at": "2026-01-01T00:00:00Z",
+                          }],
+                          "has_more": False,
+                          "first_id": "claude-sonnet-4-5",
+                          "last_id": "claude-sonnet-4-5",
+                      })
+                      return
+                  if path.startswith("/v1/models/"):
+                      model_id = path.removeprefix("/v1/models/")
+                      self._json(200, {
+                          "id": model_id,
+                          "type": "model",
+                          "display_name": "proof-model",
+                          "created_at": "2026-01-01T00:00:00Z",
+                      })
+                      return
+                  self._json(404, {"error": {"type": "not_found_error", "message": self.path}})
+
+              def do_POST(self):
+                  global request_index
+                  self._record_path("POST")
+                  path = urlparse(self.path).path
+                  length = int(self.headers.get("Content-Length", "0"))
+                  raw = self.rfile.read(length)
+                  try:
+                      payload = json.loads(raw.decode("utf-8"))
+                  except json.JSONDecodeError:
+                      self._json(400, {"error": {"type": "invalid_request_error", "message": "invalid json"}})
+                      return
+
+                  if path.endswith("/count_tokens"):
+                      self._json(200, {"input_tokens": 1})
+                      return
+
+                  if not path.endswith("/messages"):
+                      self._json(404, {"error": {"type": "not_found_error", "message": self.path}})
+                      return
+
+                  request_index += 1
+                  with open(
+                      os.path.join(evidence_root, f"provider-request-{request_index}.json"),
+                      "w",
+                      encoding="utf-8",
+                  ) as handle:
+                      json.dump(payload, handle, indent=2, sort_keys=True)
+                      handle.write("\n")
+
+                  if payload.get("stream"):
+                      events = [
+                          (
+                              "message_start",
+                              {
+                                  "type": "message_start",
+                                  "message": {
+                                      "id": f"msg_proof_{request_index}",
+                                      "type": "message",
+                                      "role": "assistant",
+                                      "model": "claude-sonnet-4-5",
+                                      "content": [],
+                                      "stop_reason": None,
+                                      "stop_sequence": None,
+                                      "usage": {"input_tokens": 1, "output_tokens": 0},
+                                  },
+                              },
+                          ),
+                          (
+                              "content_block_start",
+                              {
+                                  "type": "content_block_start",
+                                  "index": 0,
+                                  "content_block": {"type": "text", "text": ""},
+                              },
+                          ),
+                          (
+                              "content_block_delta",
+                              {
+                                  "type": "content_block_delta",
+                                  "index": 0,
+                                  "delta": {"type": "text_delta", "text": "PROOF_OK"},
+                              },
+                          ),
+                          (
+                              "content_block_stop",
+                              {"type": "content_block_stop", "index": 0},
+                          ),
+                          (
+                              "message_delta",
+                              {
+                                  "type": "message_delta",
+                                  "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                                  "usage": {"output_tokens": 1},
+                              },
+                          ),
+                          ("message_stop", {"type": "message_stop"}),
+                      ]
+                      body = "".join(
+                          f"event: {event}\ndata: {json.dumps(data)}\n\n"
+                          for event, data in events
+                      ).encode("utf-8")
+                      self.send_response(200)
+                      self.send_header("Content-Type", "text/event-stream")
+                      self.send_header("Cache-Control", "no-cache")
+                      self.send_header("Connection", "close")
+                      self.end_headers()
+                      self.wfile.write(body)
+                      self.wfile.flush()
+                      self.close_connection = True
+                      return
+
+                  self._json(200, {
+                      "id": f"msg_proof_{request_index}",
+                      "type": "message",
+                      "role": "assistant",
+                      "model": "claude-sonnet-4-5",
+                      "content": [{"type": "text", "text": "PROOF_OK"}],
+                      "stop_reason": "end_turn",
+                      "stop_sequence": None,
+                      "usage": {"input_tokens": 1, "output_tokens": 1},
+                  })
+
+          server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+          with open(port_path, "w", encoding="utf-8") as handle:
+              handle.write(str(server.server_port))
+              handle.write("\n")
+          server.serve_forever()
+          PY
+
+          PORT_PATH="${port_path}" python3 "${server_script}" &
+          server_pid=$!
+          echo "CLAUDE_PROOF_SERVER_PID=${server_pid}" >> "${GITHUB_ENV}"
+
+          for _ in $(seq 1 100); do
+            if test -s "${port_path}"; then
+              break
+            fi
+            sleep 0.05
+          done
+          test -s "${port_path}"
+          echo "CLAUDE_PROOF_PORT=$(cat "${port_path}")" >> "${GITHUB_ENV}"
+
+      - name: Prove fresh Claude session consumes managed router exactly once
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: proof-key
+          DISABLE_TELEMETRY: '1'
+          DISABLE_AUTOUPDATER: '1'
+          ENABLE_CLAUDEAI_MCP_SERVERS: 'false'
+          MCP_CONNECTION_NONBLOCKING: 'true'
+          CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: 'false'
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: '1'
+          IS_DEMO: '1'
+        run: |
+          set -euo pipefail
+          export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_PROOF_PORT}"
+
+          claude --version | tee "${EVIDENCE_ROOT}/claude-version.txt"
+
+          (
+            cd "${PROOF_ROOT}"
+            claude -p               --model claude-sonnet-4-5               --output-format json               "Return exactly PROOF_OK and do not use tools."
+          ) > "${EVIDENCE_ROOT}/claude-before-reinstall.json"
+
+          (
+            cd "${PROOF_ROOT}"
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=claude
+
+            projection_digest() {
+              {
+                sha256sum AGENTS.md CLAUDE.md
+                find .claude/skills .claude/agents -type f -print0 |
+                  sort -z |
+                  xargs -0 sha256sum
+              } | sha256sum | cut -d' ' -f1
+            }
+
+            projection_digest > "${EVIDENCE_ROOT}/projection-after-reinstall.sha256"
+          )
+
+          test "$(cat "${EVIDENCE_ROOT}/projection-before-reinstall.sha256")" =             "$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256")"
+
+          (
+            cd "${PROOF_ROOT}"
+            claude -p               --model claude-sonnet-4-5               --output-format json               "Return exactly PROOF_OK and do not use tools."
+          ) > "${EVIDENCE_ROOT}/claude-after-reinstall.json"
+
+          python3 - "${EVIDENCE_ROOT}" <<'PY'
+          import glob
+          import json
+          import os
+          import sys
+
+          evidence_root = sys.argv[1]
+          request_paths = sorted(glob.glob(os.path.join(evidence_root, "provider-request-*.json")))
+          if len(request_paths) != 2:
+              raise SystemExit(
+                  f"expected exactly two model requests from two fresh sessions, observed {len(request_paths)}"
+              )
+
+          def strings(value):
+              if isinstance(value, str):
+                  yield value
+              elif isinstance(value, list):
+                  for item in value:
+                      yield from strings(item)
+              elif isinstance(value, dict):
+                  for item in value.values():
+                      yield from strings(item)
+
+          observations = {}
+          for phase, path in zip(("before_reinstall", "after_reinstall"), request_paths):
+              with open(path, "r", encoding="utf-8") as handle:
+                  payload = json.load(handle)
+
+              observed = "\n".join(strings(payload))
+              router_count = observed.count("## agent-loop workflow router")
+              if router_count != 1:
+                  raise SystemExit(
+                      f"{phase}: managed router expected exactly once, observed {router_count}"
+                  )
+
+              observations[phase] = {
+                  "managed_router_count": router_count,
+                  "request_file": os.path.basename(path),
+              }
+
+          if observations["before_reinstall"]["managed_router_count"] != observations["after_reinstall"]["managed_router_count"]:
+              raise SystemExit("managed router count changed across reinstall")
+
+          with open(
+              os.path.join(evidence_root, "prompt-marker-counts.json"),
+              "w",
+              encoding="utf-8",
+          ) as handle:
+              json.dump(observations, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
+      - name: Record evidence boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "${EVIDENCE_ROOT}"
+
+          if test -n "${CLAUDE_PROOF_SERVER_PID:-}"; then
+            kill "${CLAUDE_PROOF_SERVER_PID}" 2>/dev/null || true
+            wait "${CLAUDE_PROOF_SERVER_PID}" 2>/dev/null || true
+          fi
+
+          if test -s "${EVIDENCE_ROOT}/prompt-marker-counts.json"; then
+            marker_counts="$(cat "${EVIDENCE_ROOT}/prompt-marker-counts.json")"
+          else
+            marker_counts='null'
+          fi
+
+          jq -n             --arg claude_version "$(cat "${EVIDENCE_ROOT}/claude-version.txt" 2>/dev/null || printf '%s' 'unknown')"             --arg repository_head_sha "$(cat "${EVIDENCE_ROOT}/repository-head-sha.txt")"             --arg repository_base_sha "$(cat "${EVIDENCE_ROOT}/repository-base-sha.txt")"             --arg dependency_graph_sha256 "$(cat "${EVIDENCE_ROOT}/dependency-graph.sha256")"             --arg projection_before "$(cat "${EVIDENCE_ROOT}/projection-before-reinstall.sha256")"             --arg projection_after "$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256" 2>/dev/null || printf '%s' 'unknown')"             --argjson marker_counts "${marker_counts}"             '{
+              schema_version: "1.0",
+              claude_version: $claude_version,
+              repository: {
+                head_sha: $repository_head_sha,
+                base_sha: $repository_base_sha
+              },
+              dependency_graph_sha256: $dependency_graph_sha256,
+              projection_identity: {
+                before_reinstall: $projection_before,
+                after_reinstall: $projection_after
+              },
+              observed: {
+                instruction_consumption: {
+                  evidence_class: "host_consumption",
+                  mechanism: "fresh claude -p processes routed through a deterministic Anthropic-compatible provider",
+                  marker_counts: $marker_counts,
+                  status: (if $marker_counts == null then "unverified" else "observed" end),
+                  boundary: "This proves only that Claude Code 2.1.287 sends the managed agent-loop router exactly once in the effective model request before and after reinstall when the repository contains the owned CLAUDE.md -> @AGENTS.md compatibility entrypoint. It does not prove skill, subagent, hook, permission-deny, MCP, interactive workspace-trust, or resume semantics."
+                },
+                reinstall_convergence: {
+                  evidence_class: "installed_projection",
+                  mechanism: "two consecutive init install-assets --agent=claude runs with identical owned projection digest",
+                  status: (if $projection_before == $projection_after then "observed" else "unverified" end)
+                }
+              },
+              not_proven_by_this_slice: {
+                repository_skill_discovery: true,
+                subagent_discovery_or_selection: true,
+                hook_execution: true,
+                permission_deny_enforcement: true,
+                mcp_authority_coverage: true,
+                interactive_workspace_trust: true,
+                resume_exact_once_context: true
+              }
+            }' > "${EVIDENCE_ROOT}/evidence.json"
+
+          (
+            cd "${EVIDENCE_ROOT}"
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 |
+              sort -z |
+              xargs -0 sha256sum > SHA256SUMS
+          )
+
+      - name: Upload Claude runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-runtime-proof-${{ github.sha }}
+          if-no-files-found: error
+          path: build/claude-runtime-proof
