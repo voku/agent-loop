@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-use voku\AgentLoop\Dogfood\AgentEditCandidate;
-
-require dirname(__DIR__) . '/tools/Dogfood/AgentEditCandidate.php';
-
 final readonly class UpgradeCommandResult
 {
     public function __construct(
@@ -290,13 +286,10 @@ final class ReleaseUpgradeDogfood
             'prefer-stable' => true,
         ];
         if ($candidate) {
-            $config['repositories'] = [
-                $this->candidateAgentEditRepository(),
-                [
-                    'type' => 'package',
-                    'package' => $this->candidatePackage(),
-                ],
-            ];
+            $config['repositories'] = [[
+                'type' => 'package',
+                'package' => $this->candidatePackage(),
+            ]];
             $config['minimum-stability'] = 'dev';
         }
         $this->writeJson($scenario->composerRoot . '/composer.json', $config);
@@ -344,11 +337,6 @@ final class ReleaseUpgradeDogfood
                 continue;
             }
             $version = $package['version'] ?? null;
-            if ($candidate && $name === 'voku/agent-edit' && $this->isPinnedAgentEditCandidate($package)) {
-                // voku/agent-edit has no stable release yet, so exactly its pinned candidate commit is accepted;
-                // this branch and the composer.json pin end with its first release.
-                continue;
-            }
             if (!is_string($version) || str_starts_with($version, 'dev-')) {
                 throw new RuntimeException('Focused dependency is not released: ' . $name . ' ' . (string) $version . '.');
             }
@@ -392,47 +380,6 @@ final class ReleaseUpgradeDogfood
             throw new RuntimeException('Candidate archive was not created: ' . $archive);
         }
         $this->candidateArchivePath = $archive;
-    }
-
-    /**
-     * True only for the one candidate commit the candidate's own composer.json pins; any other dev build,
-     * branch head or path package still fails the released-dependency gate.
-     *
-     * @param array<string, mixed> $package locked package row
-     */
-    private function isPinnedAgentEditCandidate(array $package): bool
-    {
-        $pinned = $this->candidateAgentEditRepository()['package'] ?? null;
-        $pinnedReference = is_array($pinned) && is_array($pinned['source'] ?? null) ? ($pinned['source']['reference'] ?? null) : null;
-        $source = $package['source'] ?? null;
-        $dist = $package['dist'] ?? null;
-
-        return ($package['version'] ?? null) === 'dev-candidate'
-            && is_string($pinnedReference)
-            && preg_match('/\A[0-9a-f]{40}\z/', $pinnedReference) === 1
-            && is_array($source)
-            && ($source['reference'] ?? null) === $pinnedReference
-            && !(is_array($dist) && ($dist['type'] ?? null) === 'path');
-    }
-
-    /**
-     * The candidate pins voku/agent-edit in its own composer.json; a consumer needs that same package repository
-     * because nested requirements cannot bring their own repositories.
-     *
-     * @return array<string, mixed>
-     */
-    private function candidateAgentEditRepository(): array
-    {
-        $composer = $this->execute(
-            ['git', '-C', $this->candidateRepositoryRoot, 'show', $this->toRef . ':composer.json'],
-            $this->candidateRepositoryRoot,
-        );
-        $decoded = json_decode($composer->stdout, true, 512, JSON_THROW_ON_ERROR);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Candidate composer.json must decode to an object.');
-        }
-
-        return AgentEditCandidate::repository($decoded);
     }
 
     /** @return array<string, mixed> */

@@ -8,36 +8,6 @@
     "issues": "https://github.com/voku/agent-loop/issues",
     "source": "https://github.com/voku/agent-loop"
   },
-  "repositories": [
-    {
-      "type": "package",
-      "package": {
-        "name": "voku/agent-edit",
-        "version": "dev-candidate",
-        "type": "library",
-        "license": "MIT",
-        "description": "Candidate pin until voku/agent-edit has a stable release; replace with a released constraint.",
-        "source": {
-          "type": "git",
-          "url": "https://github.com/voku/agent-edit.git",
-          "reference": "7b5a0551191549e844cce70ce164c03ebac633ec"
-        },
-        "require": {
-          "php": "^8.3",
-          "helgesverre/toon": "^3.1",
-          "voku/agent-map": "^0.18.3"
-        },
-        "autoload": {
-          "psr-4": {
-            "voku\\AgentEdit\\": "src/"
-          }
-        },
-        "bin": [
-          "bin/agent-edit"
-        ]
-      }
-    }
-  ],
   "authors": [
     {
       "name": "Lars Moelleken",
@@ -47,7 +17,7 @@
   "require": {
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
-    "voku/agent-edit": "dev-candidate@dev",
+    "voku/agent-edit": "^0.1.0",
     "voku/agent-kanban": "^0.4.4",
     "voku/agent-learning": "^0.18.25",
     "voku/agent-map": "^0.18.3",

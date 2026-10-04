@@ -49,9 +49,6 @@ jobs:
           rm -rf "$root"
           mkdir -p "$root/src" "$root/tests"
 
-          # voku/agent-edit has no stable release yet: reuse the exact candidate package pin from agent-loop's own composer.json.
-          edit_repo="$(jq -c '.repositories[] | select(.type == "package" and .package.name == "voku/agent-edit")' "${GITHUB_WORKSPACE}/composer.json")"
-
           cat > "$root/composer.json" <<JSON
           {
             "name": "voku/installed-class-constant-removal-consumer",
@@ -61,7 +58,6 @@ jobs:
               "voku/agent-loop": "dev-main"
             },
             "repositories": [
-              ${edit_repo},
               {
                 "type": "path",
                 "url": "${GITHUB_WORKSPACE}",

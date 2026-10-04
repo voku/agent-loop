@@ -19,7 +19,7 @@ run; this page is its human projection.
 
 ```json
 {
-  "voku/agent-edit": "dev-candidate@dev",
+  "voku/agent-edit": "^0.1.0",
   "voku/agent-kanban": "^0.4.4",
   "voku/agent-learning": "^0.18.21",
   "voku/agent-map": "^0.17.0",
@@ -27,11 +27,6 @@ run; this page is its human projection.
   "voku/agent-session": "^0.7.1"
 }
 ```
-
-`voku/agent-edit` is a temporary candidate pin: `composer.json` resolves
-`dev-candidate@dev` through one exact commit in a `package` repository, and
-`release-upgrade-dogfood` accepts exactly that commit as the only unreleased
-focused dependency. The exception ends with agent-edit's first release.
 
 The last pinned released-set evidence below remains historical until the changed
 `dev-main` boundary completes its clean-consumer gates and is released. Do not

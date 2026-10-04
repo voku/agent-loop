@@ -82,21 +82,18 @@ else
   psr4='"Fixture\\": "src/"'
 fi
 if [ -n "${LOOP_REPO:-}" ]; then
-  # Installed-consumer mode: agent-loop (path), the released agent-map (path) and agent-loop's own pinned agent-edit
-  # candidate package (AGENT_EDIT_REPO, the `package` repository entry from agent-loop's composer.json) are installed
-  # exactly as a consuming project would, so the pin has one source of truth.
+  # Installed-consumer mode: agent-loop (path) and the released agent-map (path) are installed as a consuming project
+  # would; voku/agent-edit resolves from Packagist through agent-loop's own `^0.1.0` requirement.
   jq -n \
     --argjson psr4 "{${psr4}}" \
     --arg loop "$LOOP_REPO" \
     --arg map "${MAP_REPO:?MAP_REPO required in installed mode}" \
     --arg map_version "${MAP_VERSION:?MAP_VERSION required in installed mode}" \
-    --argjson edit_repo "${AGENT_EDIT_REPO:?AGENT_EDIT_REPO required in installed mode}" \
     '{
       name: "voku/installed-edit-lifecycle-consumer",
       type: "project",
       "require-dev": {"phpstan/phpstan": "^2.2", "voku/agent-loop": "dev-main"},
       repositories: [
-        $edit_repo,
         {type: "path", url: $loop, options: {symlink: false, versions: {"voku/agent-loop": "dev-main"}}},
         {type: "path", url: $map, options: {symlink: false, versions: {"voku/agent-map": $map_version}}}
       ],
@@ -108,8 +105,7 @@ if [ -n "${LOOP_REPO:-}" ]; then
     }' > composer.json
   composer update --no-interaction --prefer-dist --no-progress --no-ansi
   composer show voku/agent-edit --format=json > resolved-agent-edit.json
-  expected_sha="$(jq -er '.package.source.reference' <<<"$AGENT_EDIT_REPO")"
-  jq -e --arg sha "$expected_sha" '.source.reference == $sha' resolved-agent-edit.json >/dev/null
+  jq -e '(.versions | index("0.1.0")) != null' resolved-agent-edit.json >/dev/null
 else
   cat > composer.json <<JSON
 {

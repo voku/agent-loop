@@ -280,9 +280,6 @@ jobs:
           consumer="${RUNNER_TEMP}/agent-loop-assets-consumer"
           rm -rf "${consumer}"
           mkdir -p "${consumer}"
-          # voku/agent-edit has no stable release yet: reuse the exact candidate package pin from agent-loop's own composer.json.
-          edit_repo="$(jq -c '.repositories[] | select(.type == "package" and .package.name == "voku/agent-edit")' "${GITHUB_WORKSPACE}/composer.json")"
-
           cat > "${consumer}/composer.json" <<JSON
           {
             "name": "voku/agent-loop-assets-consumer",
@@ -290,7 +287,6 @@ jobs:
               "voku/agent-loop": "dev-main"
             },
             "repositories": [
-              ${edit_repo},
               {
                 "type": "path",
                 "url": "${GITHUB_WORKSPACE}",
