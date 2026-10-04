@@ -854,19 +854,29 @@ jobs:
           port_path="${RUNNER_TEMP}/codex-pre-tool-use-proof-port"
           php_wrapper_dir="${RUNNER_TEMP}/codex-pre-tool-use-php-wrapper"
           hook_invocation_log="${EVIDENCE_ROOT}/pre-tool-use-hook-invocations.log"
+          hook_stdin="${EVIDENCE_ROOT}/pre-tool-use-hook-stdin.json"
+          hook_stdout="${EVIDENCE_ROOT}/pre-tool-use-hook-stdout.json"
           probe_file="${PROOF_ROOT}/pre-tool-use-probe.txt"
           tool_output="${EVIDENCE_ROOT}/pre-tool-use-tool-output.json"
           real_php="$(command -v php)"
 
           printf '%s\n' 'before' > "${probe_file}"
           rm -rf "${php_wrapper_dir}"
-          rm -f "${port_path}" "${request_prefix}"-*.json "${hook_invocation_log}" "${tool_output}"
+          rm -f "${port_path}" "${request_prefix}"-*.json "${hook_invocation_log}" \
+            "${hook_stdin}" "${hook_stdout}" "${tool_output}"
           mkdir -p "${php_wrapper_dir}"
 
           cat > "${php_wrapper_dir}/php" <<EOF
           #!/usr/bin/env bash
           set -euo pipefail
           printf '%s\\n' "\$*" >> "${hook_invocation_log}"
+          if [[ "\$*" == *'pre_tool_use_policy.php'* ]]; then
+            set +e
+            tee "${hook_stdin}" | "${real_php}" "\$@" | tee "${hook_stdout}"
+            status="\${PIPESTATUS[1]}"
+            set -e
+            exit "\${status}"
+          fi
           exec "${real_php}" "\$@"
           EOF
           chmod +x "${php_wrapper_dir}/php"
