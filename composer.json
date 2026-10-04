@@ -20,7 +20,7 @@
         "source": {
           "type": "git",
           "url": "https://github.com/voku/agent-edit.git",
-          "reference": "c213b419a749398108a3875a47af99f6f77e8631"
+          "reference": "7b5a0551191549e844cce70ce164c03ebac633ec"
         },
         "require": {
           "php": "^8.3",
