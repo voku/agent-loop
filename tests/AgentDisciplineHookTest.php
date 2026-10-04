@@ -509,7 +509,7 @@ final class AgentDisciplineHookTest extends TestCase
         yield 'absolute git with sudo' => ['sudo /usr/bin/git -C /repo push origin main'];
         yield 'absolute gh with env' => ['env GH_HOST=github.com /usr/local/bin/gh pr create --title test'];
         yield 'chained gh merge' => ['cd /repo && gh pr merge 123 --squash'];
-        yield 'newline chained git push' => ["echo ok\\ngit -C . push origin main"];
+        yield 'newline chained git push' => ["echo ok\ngit -C . push origin main"];
     }
 
     #[DataProvider('claudeAlternateRemotePublicationProvider')]
