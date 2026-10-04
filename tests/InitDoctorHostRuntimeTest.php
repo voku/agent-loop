@@ -71,7 +71,7 @@ final class InitDoctorHostRuntimeTest extends TestCase
         );
     }
 
-    public function testBinaryDiscoveryDoesNotUpgradeUnverifiedLifecycleCapabilities(): void
+    public function testBinaryDiscoveryRemainsSeparateFromCommittedRuntimeCapabilityEvidence(): void
     {
         $this->createExecutable('codex');
 
@@ -90,15 +90,15 @@ final class InitDoctorHostRuntimeTest extends TestCase
             $output,
         );
         self::assertStringContainsString(
-            'Host capability evidence [codex/session-bootstrap]: mechanism=Codex hooks.json + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
+            'Host capability evidence [codex/session-bootstrap]: mechanism=Codex hooks.json SessionStart command hook; Codex 0.157.0 project-trust and persisted-hash runtime proofs observed execution; evidence=adapter-declared;live-runtime-verified',
             $output,
         );
         self::assertSame(
-            HostCapabilityStatus::Degraded,
+            HostCapabilityStatus::Supported,
             HostCapabilityMatrix::status('codex', HostCapability::SessionBootstrap),
         );
         self::assertSame(
-            'adapter-declared;live-runtime-unverified',
+            'adapter-declared;live-runtime-verified',
             HostCapabilityMatrix::describe('codex', HostCapability::SessionBootstrap)['evidence'],
         );
         self::assertSame(
