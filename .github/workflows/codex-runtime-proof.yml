@@ -1731,7 +1731,7 @@ jobs:
                   rejection_observed_in_tool_output: $project_rule_live_proof.rejection_observed_in_tool_output,
                   rejection: $project_rule_live_proof.rejection,
                   status: "observed",
-                  boundary: "This proves Codex 0.157.0 auto-loads the trusted project's projected .codex/rules policy for the canonical exec_command shell route and rejects git push origin HEAD before the git process starts. Hooks are not projected at this point, so the denial cannot be attributed to PreToolUse. MCP and unrelated tool routes remain unclaimed."
+                  boundary: "This proves Codex 0.157.0 auto-loads the trusted project .codex/rules policy for the canonical exec_command shell route and rejects git push origin HEAD before the git process starts. Hooks are not projected at this point, so the denial cannot be attributed to PreToolUse. MCP and unrelated tool routes remain unclaimed."
                 },
                 subagent_role_discovery: {
                   evidence_class: "host_consumption",
