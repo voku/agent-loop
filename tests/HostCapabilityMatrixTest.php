@@ -116,12 +116,6 @@ final class HostCapabilityMatrixTest extends TestCase
                 HostCapabilityMatrix::describe('codex', $capability)['evidence'],
             );
 
-            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('claude', $capability));
-            self::assertSame(
-                'adapter-declared;live-runtime-unverified',
-                HostCapabilityMatrix::describe('claude', $capability)['evidence'],
-            );
-
             foreach (['opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
                 $description = HostCapabilityMatrix::describe($agent, $capability);
@@ -142,6 +136,31 @@ final class HostCapabilityMatrixTest extends TestCase
             'Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement',
             HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
         );
+
+        self::assertSame(
+            HostCapabilityStatus::Supported,
+            HostCapabilityMatrix::status('claude', HostCapability::PreToolGuardrail),
+        );
+        self::assertSame(
+            'adapter-declared;live-runtime-verified',
+            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail)['evidence'],
+        );
+        self::assertStringContainsString(
+            'Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
+            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail)['mechanism'],
+        );
+
+        foreach ([
+            HostCapability::SessionBootstrap,
+            HostCapability::SubagentBootstrap,
+            HostCapability::RepositoryHooks,
+        ] as $capability) {
+            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('claude', $capability));
+            self::assertSame(
+                'adapter-declared;live-runtime-unverified',
+                HostCapabilityMatrix::describe('claude', $capability)['evidence'],
+            );
+        }
 
         foreach ([HostCapability::PreToolGuardrail, HostCapability::RepositoryHooks] as $capability) {
             self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('cursor', $capability));
@@ -189,6 +208,10 @@ final class HostCapabilityMatrixTest extends TestCase
         self::assertSame(
             'Claude project settings granular hook registrations + repository-local command hooks',
             HostCapabilityMatrix::describe('claude', HostCapability::SessionBootstrap)['mechanism'],
+        );
+        self::assertSame(
+            'Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
+            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail)['mechanism'],
         );
         self::assertSame(
             '.cursor/hooks.json beforeShellExecution fail-closed shell authority policy',
