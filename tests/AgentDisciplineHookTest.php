@@ -501,6 +501,55 @@ final class AgentDisciplineHookTest extends TestCase
         $this->assertPassThrough('sed -n "120,180p" src/Foo.php');
     }
 
+    /** @return iterable<string, array{string}> */
+    public static function claudeAlternateRemotePublicationProvider(): iterable
+    {
+        yield 'git directory option' => ['git -C . push origin main'];
+        yield 'git config option' => ['git -c push.default=current push'];
+        yield 'absolute git with sudo' => ['sudo /usr/bin/git -C /repo push origin main'];
+        yield 'absolute gh with env' => ['env GH_HOST=github.com /usr/local/bin/gh pr create --title test'];
+        yield 'chained gh merge' => ['cd /repo && gh pr merge 123 --squash'];
+        yield 'newline chained git push' => ["echo ok\ngit -C . push origin main"];
+    }
+
+    #[DataProvider('claudeAlternateRemotePublicationProvider')]
+    public function testClaudePreToolUseDeniesBoundedAlternateRemotePublicationForms(string $command): void
+    {
+        $output = $this->hook()->claudePreToolUseOutput($this->json([
+            'hook_event_name' => 'PreToolUse',
+            'tool_input' => ['command' => $command],
+        ]));
+
+        self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
+        self::assertStringContainsString(
+            'Claude workflow guardrail',
+            $output['hookSpecificOutput']['permissionDecisionReason'] ?? '',
+        );
+        self::assertStringContainsString(
+            'defense in depth',
+            $output['hookSpecificOutput']['additionalContext'] ?? '',
+        );
+        self::assertStringContainsString(
+            'does not claim universal shell or MCP coverage',
+            $output['hookSpecificOutput']['additionalContext'] ?? '',
+        );
+    }
+
+    public function testClaudeDirectPublicationRemainsOwnedByHardPermissionRules(): void
+    {
+        $output = $this->hook()->claudePreToolUseOutput($this->json([
+            'hook_event_name' => 'PreToolUse',
+            'tool_input' => ['command' => 'git push origin main'],
+        ]));
+
+        self::assertArrayNotHasKey('permissionDecision', $output['hookSpecificOutput']);
+    }
+
+    public function testSharedPreToolUseDoesNotInheritClaudeSpecificPublicationGuardrail(): void
+    {
+        $this->assertPassThrough('git -C . push origin main');
+    }
+
     public function testMalformedPayloadFailsWithContext(): void
     {
         $this->expectException(UnexpectedValueException::class);
