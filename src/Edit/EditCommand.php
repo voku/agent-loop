@@ -80,10 +80,10 @@ final readonly class EditCommand
         the compiled prompt to a generic command runner.
 
         `edit refactor` is the separate governed boundary for consuming an already-produced
-        agent-map rename or method-removal plan. It does not reinterpret those targets as methods
-        and does not accept arbitrary edit plans. Method-removal keeps a separate fail-closed
-        decoder and verifier while sharing the project mutation lock and transactional publication
-        boundary. After mutation and Map refresh, `edit refactor verify` dispatches from persisted
+        versioned agent-map rename, move or removal plan. It does not reinterpret those targets as
+        methods and does not accept arbitrary edit plans. Plan families keep fail-closed decoders
+        and semantic verifiers while exact edits/moves share one transactional mutation owner.
+        After mutation and Map refresh, `edit refactor verify` dispatches from persisted
         runner evidence and writes the verification-result.json required by governed closeout.
 
         Governed mutation gate:
