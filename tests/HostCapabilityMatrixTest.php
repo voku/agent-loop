@@ -183,7 +183,7 @@ final class HostCapabilityMatrixTest extends TestCase
             HostCapabilityMatrix::describe('codex', HostCapability::PolicyProjection)['mechanism'],
         );
         self::assertSame(
-            'Codex hooks.json + repository-local command hooks',
+            'Codex hooks.json PreToolUse ^Bash$ command hook; Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement',
             HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
         );
         self::assertSame(
