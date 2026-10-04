@@ -100,7 +100,7 @@ final class HostCapabilityMatrixTest extends TestCase
         }
     }
 
-    public function testHookBackedDisciplineStaysDegradedUntilHostRuntimeIsObserved(): void
+    public function testHookBackedDisciplineReflectsHostSpecificRuntimeEvidence(): void
     {
         $hookBacked = [
             HostCapability::SessionBootstrap,
@@ -110,13 +110,17 @@ final class HostCapabilityMatrixTest extends TestCase
         ];
 
         foreach ($hookBacked as $capability) {
-            foreach (['codex', 'claude'] as $agent) {
-                self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status($agent, $capability));
-                self::assertSame(
-                    'adapter-declared;live-runtime-unverified',
-                    HostCapabilityMatrix::describe($agent, $capability)['evidence'],
-                );
-            }
+            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status('codex', $capability));
+            self::assertSame(
+                'adapter-declared;live-runtime-verified',
+                HostCapabilityMatrix::describe('codex', $capability)['evidence'],
+            );
+
+            self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('claude', $capability));
+            self::assertSame(
+                'adapter-declared;live-runtime-unverified',
+                HostCapabilityMatrix::describe('claude', $capability)['evidence'],
+            );
 
             foreach (['opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
                 self::assertSame(HostCapabilityStatus::Unsupported, HostCapabilityMatrix::status($agent, $capability));
@@ -125,6 +129,19 @@ final class HostCapabilityMatrixTest extends TestCase
                 self::assertSame('no agent-loop host-native projector', $description['mechanism']);
             }
         }
+
+        self::assertStringContainsString(
+            'Codex 0.157.0 project-trust and persisted-hash runtime proofs observed execution',
+            HostCapabilityMatrix::describe('codex', HostCapability::SessionBootstrap)['mechanism'],
+        );
+        self::assertStringContainsString(
+            'Codex 0.157.0 selected-child runtime proof observed execution',
+            HostCapabilityMatrix::describe('codex', HostCapability::SubagentBootstrap)['mechanism'],
+        );
+        self::assertStringContainsString(
+            'Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement',
+            HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
+        );
 
         foreach ([HostCapability::PreToolGuardrail, HostCapability::RepositoryHooks] as $capability) {
             self::assertSame(HostCapabilityStatus::Degraded, HostCapabilityMatrix::status('cursor', $capability));
