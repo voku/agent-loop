@@ -621,6 +621,9 @@ jobs:
           php_wrapper_dir="${RUNNER_TEMP}/codex-persisted-hook-trust-php-wrapper"
           hook_invocation_log="${EVIDENCE_ROOT}/persisted-hook-trust-invocations.log"
           trust_state="${EVIDENCE_ROOT}/persisted-hook-trust-state.json"
+          hook_list_before="${EVIDENCE_ROOT}/persisted-hook-list-before.json"
+          trust_git_root="${EVIDENCE_ROOT}/persisted-hook-trust-git-root.txt"
+          trust_config="${EVIDENCE_ROOT}/persisted-hook-trust-config.toml"
           modified_state="${EVIDENCE_ROOT}/persisted-hook-modified-state.json"
           proof="${EVIDENCE_ROOT}/persisted-hook-hash-trust-proof.json"
           port_path="${RUNNER_TEMP}/codex-persisted-hook-trust-port"
@@ -634,6 +637,7 @@ jobs:
 
           rm -rf "${trust_root}" "${runtime_home}" "${php_wrapper_dir}"
           rm -f "${hook_invocation_log}" "${trust_state}" "${modified_state}" "${proof}" \
+            "${hook_list_before}" "${trust_git_root}" "${trust_config}" \
             "${port_path}" "${request_prefix}"-*.json
           cp -a "${source_hook_root}" "${trust_root}"
           mkdir -p "${runtime_home}" "${php_wrapper_dir}"
@@ -642,6 +646,9 @@ jobs:
           [projects."${trust_root}"]
           trust_level = "trusted"
           EOF
+
+          git -C "${trust_root}" rev-parse --show-toplevel > "${trust_git_root}"
+          cp "${runtime_home}/config.toml" "${trust_config}"
 
           cat > "${php_wrapper_dir}/php" <<EOF
           #!/usr/bin/env bash
@@ -693,6 +700,7 @@ jobs:
           test "${untrusted_invocations}" -eq 0
 
           CODEX_HOME="${runtime_home}" TRUST_ROOT="${trust_root}" TRUST_STATE="${trust_state}" \
+            HOOK_LIST_BEFORE="${hook_list_before}" \
             python3 <<'PY'
           import json
           import os
@@ -702,6 +710,7 @@ jobs:
           codex_home = os.environ["CODEX_HOME"]
           trust_root = os.environ["TRUST_ROOT"]
           state_path = os.environ["TRUST_STATE"]
+          hook_list_before_path = os.environ["HOOK_LIST_BEFORE"]
 
           env = os.environ.copy()
           env["CODEX_HOME"] = codex_home
@@ -756,6 +765,9 @@ jobs:
               process.stdin.flush()
 
               before = send_request("hooks/list", {"cwds": [trust_root]})
+              with open(hook_list_before_path, "w", encoding="utf-8") as handle:
+                  json.dump(before, handle, indent=2, sort_keys=True)
+                  handle.write("\n")
               hooks = [
                   hook
                   for entry in before["data"]
