@@ -154,6 +154,7 @@ jobs:
               def do_POST(self):
                   global request_index
                   self._record_path("POST")
+                  path = urlparse(self.path).path
                   length = int(self.headers.get("Content-Length", "0"))
                   raw = self.rfile.read(length)
                   try:
@@ -162,11 +163,11 @@ jobs:
                       self._json(400, {"error": {"type": "invalid_request_error", "message": "invalid json"}})
                       return
 
-                  if self.path.endswith("/count_tokens"):
+                  if path.endswith("/count_tokens"):
                       self._json(200, {"input_tokens": 1})
                       return
 
-                  if not self.path.endswith("/messages"):
+                  if not path.endswith("/messages"):
                       self._json(404, {"error": {"type": "not_found_error", "message": self.path}})
                       return
 
