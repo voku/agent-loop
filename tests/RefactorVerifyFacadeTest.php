@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentEdit\EditEngine;
+use voku\AgentEdit\Verify\MapManifestEvidence;
 use voku\AgentLoop\Edit\Refactor\RefactorVerifyDispatchCommand;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
@@ -64,9 +65,30 @@ PHP);
         self::assertSame(['src/RenamedService.php', 'src/Service.php'], $result['changed_files'] ?? null);
     }
 
-    private function prepareAppliedClassRename(): string
+    public function testFacadeReportsIncompleteAndExitsThreeForGitFreeMapScopedEvidence(): void
+    {
+        $bundle = $this->prepareAppliedClassRename(gitFree: true);
+
+        ob_start();
+        $exit = (new RefactorVerifyDispatchCommand($this->root))->run([
+            '--bundle=.agent-loop/edit/RENAME-1',
+        ]);
+        $output = (string) ob_get_clean();
+
+        self::assertSame(3, $exit);
+        self::assertStringContainsString('verification: incomplete', $output);
+        self::assertStringNotContainsString('verification: passed', $output);
+        $result = $this->json($bundle . '/verification-result.json');
+        self::assertSame('incomplete', $result['status'] ?? null);
+        self::assertSame('scope_unproven', $result['scope']['status'] ?? null);
+        self::assertSame('map_indexed_files', $result['scope']['proven'] ?? null);
+        self::assertSame(['src/RenamedService.php', 'src/Service.php'], $result['changed_files'] ?? null);
+    }
+
+    private function prepareAppliedClassRename(bool $gitFree = false): string
     {
         $beforeMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
+        $manifestBefore = $gitFree ? MapManifestEvidence::capture($beforeMap, $this->root) : null;
         $target = 'class:Demo\\Service';
         $source = (string) file_get_contents($this->root . '/src/Service.php');
         $start = strpos($source, 'Service');
@@ -130,11 +152,32 @@ PHP);
                 'name' => 'rename-plan',
                 'dry_run' => false,
             ],
-            'changed_files' => ['src/Service.php', 'src/RenamedService.php'],
-            'changed_files_source' => 'git_status_diff',
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        ] + $this->observedChangedFiles($bundle, $manifestBefore), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 
         return $bundle;
+    }
+
+    /**
+     * @param array<string, string>|null $manifestBefore Map-scoped manifest captured before the edit, for Git-free receipts
+     * @return array<string, mixed>
+     */
+    private function observedChangedFiles(string $bundle, ?array $manifestBefore): array
+    {
+        if ($manifestBefore === null) {
+            return [
+                'changed_files' => ['src/Service.php', 'src/RenamedService.php'],
+                'changed_files_source' => 'git_status_diff',
+            ];
+        }
+
+        $encoded = MapManifestEvidence::encode($manifestBefore);
+        file_put_contents($bundle . '/' . MapManifestEvidence::FILE, $encoded);
+
+        return [
+            'changed_files' => MapManifestEvidence::changedSince($manifestBefore, $this->root),
+            'changed_files_source' => MapManifestEvidence::SOURCE,
+            'scope_evidence' => MapManifestEvidence::reference($encoded),
+        ];
     }
 
     private function sourceHash(AgentMapIndex $map, string $path): string
