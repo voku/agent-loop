@@ -85,6 +85,19 @@ Status meanings are strict:
 Host-specific policy semantics are intentionally not flattened:
 
 - Codex receives project-layer `.codex/rules/*.rules`; agent-loop-owned direct `git push`, `gh pr create`, and `gh pr merge` prefixes use hard `forbidden`, not `prompt`, so Codex Auto-review cannot approve a matched command. The runtime resolves absolute executable paths to basename rules, but wrapper forms such as `sudo`/`env`, MCP, and other authority routes are separate and unclaimed. The host still owns project trust.
+
+### Codex MCP authority inventory
+
+The Codex 0.157.0 boundary is explicit rather than inferred from the shell policy:
+
+- agent-loop does not project `mcp_servers`, Codex Apps/connector policy, or any MCP-specific allow/deny configuration;
+- agent-loop's managed Codex `PreToolUse` hook currently matches `^Bash$` only, so it does not intercept MCP tool calls;
+- Codex exposes MCP calls to `PreToolUse` under hook-facing names such as `mcp__<server>__<tool>` and passes the resolved JSON arguments as `tool_input`;
+- Codex owns a separate MCP approval path. Configured server/tool approval modes and host permission policy participate in that decision; `read_only_hint` participates in the generic approval requirement, while Codex Apps policy additionally evaluates annotations such as `destructive_hint` and `open_world_hint`;
+- those annotations are server/vendor metadata, not agent-loop authorization evidence;
+- therefore an MCP tool capable of external mutation remains a host/user-configured authority route outside agent-loop's repository shell-policy claim. A future agent-loop MCP guard would need an explicit owned tool/intent contract instead of blanket-denying every MCP call.
+
+Source boundary checked against `openai/codex` tag `rust-v0.157.0`: `codex-rs/core/src/tools/handlers/mcp.rs` (hook-facing MCP tool name and PreToolUse payload) and `codex-rs/core/src/mcp_tool_call.rs` (MCP approval modes, permission policy, and annotation handling). This is an inventory of the current authority boundary, not proof that arbitrary third-party MCP annotations are correct or trustworthy.
 - Codex roles with canonical `mutation: read-only` receive native `sandbox_mode = "read-only"`; this proves deterministic repository projection, not runtime enforcement. Real Codex 0.157.0 proof run `36356682049` selected `agent-loop-investigator` and observed both parent and child writes succeed, producing `role_read_only_not_enforced`. The capability therefore remains `degraded` for this runtime boundary. That proof did not exercise explicit parent runtime overrides, hooks, or MCP, so those surfaces remain separate and unclaimed; see PR #645 and `docs/dogfood/2026-09-27-gh-640-real-learning-reflection.md`.
 - Claude receives shared-project hard `deny` rules for the canonical direct `git push`, `gh pr create`, and `gh pr merge` command forms. Claude Bash rules match command text rather than establishing a security boundary around the underlying program, so alternate executable paths, git option/config forms, quoted subcommands, shell wrappers, MCP, and other authority routes remain separate and unclaimed; Auto Mode classifier configuration remains user/local/managed scoped.
 - Claude executable hooks are registered granularly inside project `.claude/settings.json`; agent-loop owns only its canonical command handlers and receipt, while unrelated project hook events, matcher groups, and handlers are preserved. Live hook execution remains degraded/unverified.
