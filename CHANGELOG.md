@@ -1,3 +1,9 @@
+## Unreleased
+
+### Added
+
+- Broaden the installed agent-edit lifecycle proof (`tools/installed-edit-lifecycle.sh` and the `Installed agent-edit refactor lifecycle` matrix) with `property-rename` (`property_rename_plan@1.0`) and `method-removal` (`method_removal_plan@1.0`): each runs plan, dry run, stale-plan refusal, apply, map rebuild, verify, validation/review/learning evidence and `finish` against the released agent-map and agent-edit.
+
 ## 0.20.55 - 2026-10-04
 
 ### Changed

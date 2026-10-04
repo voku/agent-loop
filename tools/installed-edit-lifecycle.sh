@@ -4,7 +4,7 @@
 #   agent-map plan -> agent-loop edit refactor --dry-run -> apply (agent-edit preflight/apply) -> map rebuild
 #   -> agent-loop edit refactor verify (agent-edit verify) -> validation/review/learning evidence -> finish
 #
-# Usage: tools/installed-edit-lifecycle.sh <method-rename|class-rename|class-move|method-move> <work-dir>
+# Usage: tools/installed-edit-lifecycle.sh <method-rename|class-rename|class-move|method-move|property-rename|method-removal> <work-dir>
 # Environment: LOOP (default vendor/bin/agent-loop) and MAP (default vendor/bin/agent-map), resolved inside <work-dir>.
 set -euo pipefail
 
@@ -71,6 +71,28 @@ case "$scenario" in
     php_file src/Source.php 'Fixture' $'final class Source\n{\n    private static function helper(int $x): int\n    {\n        return $x + 1;\n    }\n}'
     php_file src/Target.php 'Fixture' $'final class Target\n{\n}'
     post_check() { grep -q 'function helper' src/Target.php && ! grep -q 'function helper' src/Source.php; }
+    ;;
+  property-rename)
+    plan_command=(property-rename-plan 'Fixture\Greeter::$greeting' salutation)
+    plan_type=property_rename_plan
+    verify_kind=rename_plan_verification
+    runner=rename-plan
+    goal='Rename the private Fixture\Greeter::$greeting property to salutation through the released agent-map property rename plan.'
+    file=src/Greeter.php
+    expected_changed='["src/Greeter.php"]'
+    php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    private string $greeting = \'Hello \';\n\n    public function greet(string $name): string\n    {\n        return $this->greeting . $name;\n    }\n\n    public function reset(): void\n    {\n        $this->greeting = \'Hello \';\n    }\n}'
+    post_check() { grep -q 'private string \$salutation' src/Greeter.php && ! grep -q 'greeting' src/Greeter.php; }
+    ;;
+  method-removal)
+    plan_command=(method-removal-plan 'Fixture\Greeter::obsolete')
+    plan_type=method_removal_plan
+    verify_kind=method_removal_plan_verification
+    runner=method-removal-plan
+    goal='Remove the unused private Fixture\Greeter::obsolete method through the released agent-map method removal plan.'
+    file=src/Greeter.php
+    expected_changed='["src/Greeter.php"]'
+    php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    private function obsolete(): string\n    {\n        return \'obsolete\';\n    }\n\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
+    post_check() { ! grep -q 'obsolete' src/Greeter.php && grep -q 'public function greet' src/Greeter.php; }
     ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
