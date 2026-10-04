@@ -345,8 +345,8 @@ final class ReleaseUpgradeDogfood
             }
             $version = $package['version'] ?? null;
             if ($candidate && $name === 'voku/agent-edit' && $this->isPinnedAgentEditCandidate($package)) {
-                // Temporary, exact exception: voku/agent-edit has no stable release yet. Remove this branch (and the
-                // package repository pin in composer.json) when it is released.
+                // voku/agent-edit has no stable release yet, so exactly its pinned candidate commit is accepted;
+                // this branch and the composer.json pin end with its first release.
                 continue;
             }
             if (!is_string($version) || str_starts_with($version, 'dev-')) {
