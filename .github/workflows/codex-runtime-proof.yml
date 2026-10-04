@@ -666,7 +666,7 @@ jobs:
           port="$(cat "${port_path}")"
 
           run_exec() {
-            local phase="\$1"
+            local phase="$1"
             (
               cd "${trust_root}"
               CODEX_HOME="${runtime_home}" PATH="${php_wrapper_dir}:${PATH}" \
@@ -696,6 +696,7 @@ jobs:
             python3 <<'PY'
           import json
           import os
+          import select
           import subprocess
 
           codex_home = os.environ["CODEX_HOME"]
@@ -733,6 +734,9 @@ jobs:
               process.stdin.write(json.dumps(payload) + "\n")
               process.stdin.flush()
               while True:
+                  readable, _, _ = select.select([process.stdout], [], [], 15)
+                  if not readable:
+                      raise SystemExit(f"Codex app-server timed out while waiting for {method}")
                   line = process.stdout.readline()
                   if line == "":
                       raise SystemExit(f"Codex app-server closed while waiting for {method}")
@@ -826,15 +830,18 @@ jobs:
                   handle.write("\n")
           finally:
               try:
-                  process.stdin.close()
-              except Exception:
+                  process.terminate()
+              except ProcessLookupError:
                   pass
-              process.terminate()
               try:
                   process.wait(timeout=5)
               except subprocess.TimeoutExpired:
                   process.kill()
                   process.wait(timeout=5)
+              try:
+                  process.stdin.close()
+              except Exception:
+                  pass
           PY
 
           test -s "${runtime_home}/config.toml"
@@ -865,6 +872,7 @@ jobs:
             python3 <<'PY'
           import json
           import os
+          import select
           import subprocess
 
           codex_home = os.environ["CODEX_HOME"]
@@ -906,6 +914,9 @@ jobs:
               process.stdin.write(json.dumps(payload) + "\n")
               process.stdin.flush()
               while True:
+                  readable, _, _ = select.select([process.stdout], [], [], 15)
+                  if not readable:
+                      raise SystemExit(f"Codex app-server timed out while waiting for {method}")
                   line = process.stdout.readline()
                   if line == "":
                       raise SystemExit(f"Codex app-server closed while waiting for {method}")
@@ -959,15 +970,18 @@ jobs:
                   handle.write("\n")
           finally:
               try:
-                  process.stdin.close()
-              except Exception:
+                  process.terminate()
+              except ProcessLookupError:
                   pass
-              process.terminate()
               try:
                   process.wait(timeout=5)
               except subprocess.TimeoutExpired:
                   process.kill()
                   process.wait(timeout=5)
+              try:
+                  process.stdin.close()
+              except Exception:
+                  pass
           PY
 
           run_exec modified
