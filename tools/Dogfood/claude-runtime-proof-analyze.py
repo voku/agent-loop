@@ -123,7 +123,8 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
             record
             for record in child_requests
             if "Locate. Verify. Report. Stop." in record[2]
-            and "Read-only PHP locator using agent-map" in record[2]
+            and "Map output is navigation only." in record[2]
+            and "Read-only. Do not edit, design, or propose a fix." in record[2]
         ]
         if len(selected) != 1:
             raise SystemExit(
