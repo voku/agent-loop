@@ -867,11 +867,15 @@ final class ReleaseSetDogfood
         $this->mkdir($this->artifactRoot);
         $this->mkdir($this->logRoot);
 
-        $repositories = [[
-            'type' => 'path',
-            'url' => ComposerPathRepository::url($this->candidateRoot),
-            'options' => ['symlink' => false, 'versions' => ['voku/agent-loop' => 'dev-main']],
-        ]];
+        $repositories = [
+            // voku/agent-edit has no stable release yet; agent-loop pins an explicit candidate reference.
+            ['type' => 'vcs', 'url' => 'https://github.com/voku/agent-edit'],
+            [
+                'type' => 'path',
+                'url' => ComposerPathRepository::url($this->candidateRoot),
+                'options' => ['symlink' => false, 'versions' => ['voku/agent-loop' => 'dev-main']],
+            ],
+        ];
         foreach ($this->candidateSelection->paths() as $package => $relative) {
             $path = $this->repositoryRoot . '/' . $relative;
             if (!is_dir($path) || !is_file($path . '/composer.json')) {

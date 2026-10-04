@@ -7,13 +7,13 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use voku\AgentLoop\Edit\Refactor\RefactorVerifyCommand;
-use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
+use voku\AgentEdit\EditEngine;
+use voku\AgentLoop\Edit\Refactor\RefactorVerifyDispatchCommand;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
 
-final class RefactorVerifyCommandTest extends TestCase
+final class RefactorVerifyFacadeTest extends TestCase
 {
     private string $root;
 
@@ -48,14 +48,12 @@ PHP);
         rmdir($this->root);
     }
 
-    public function testVerifiesAppliedClassEditAndMoveAgainstCurrentMap(): void
+    public function testFacadeVerifiesReceiptThroughAgentEditUsingLoopMapDefault(): void
     {
         $bundle = $this->prepareAppliedClassRename();
 
-        $exit = (new RefactorVerifyCommand($this->root))->run([
+        $exit = (new RefactorVerifyDispatchCommand($this->root))->run([
             '--bundle=.agent-loop/edit/RENAME-1',
-            '--map-index=.agent-loop/map/php-symbols.json',
-            '--map-root=.',
         ]);
 
         self::assertSame(0, $exit);
@@ -64,69 +62,6 @@ PHP);
         self::assertSame('rename_plan_verification', $result['kind'] ?? null);
         self::assertSame('class_rename_plan', $result['plan']['type'] ?? null);
         self::assertSame(['src/RenamedService.php', 'src/Service.php'], $result['changed_files'] ?? null);
-    }
-
-    public function testVerifiesWhenAnUnrelatedEditAboveTheTokenShiftedItsOffset(): void
-    {
-        // The real case this missed: a governed rename is applied, then a resolved docblock
-        // above the renamed token is deleted by hand. Every plan offset below that deletion shifts,
-        // although the rename itself is exactly what the plan published.
-        $bundle = $this->prepareAppliedClassRename();
-        $path = $this->root . '/src/RenamedService.php';
-        $source = (string) file_get_contents($path);
-        file_put_contents($path, str_replace("declare(strict_types=1);\n\n", '', $source));
-        $this->rebuildMap();
-
-        $exit = (new RefactorVerifyCommand($this->root))->run([
-            '--bundle=.agent-loop/edit/RENAME-1',
-            '--map-index=.agent-loop/map/php-symbols.json',
-            '--map-root=.',
-        ]);
-
-        self::assertSame(0, $exit);
-        self::assertSame('passed', $this->json($bundle . '/verification-result.json')['status'] ?? null);
-    }
-
-    public function testRejectsAReplacementThatIsGoneAfterApply(): void
-    {
-        // Shifting an offset stays verifiable; losing the renamed token does not.
-        $bundle = $this->prepareAppliedClassRename();
-        $path = $this->root . '/src/RenamedService.php';
-        $source = (string) file_get_contents($path);
-        file_put_contents($path, str_replace('RenamedService', 'SomethingElse', $source));
-        $this->rebuildMap();
-
-        $exit = (new RefactorVerifyCommand($this->root))->run([
-            '--bundle=.agent-loop/edit/RENAME-1',
-            '--map-index=.agent-loop/map/php-symbols.json',
-            '--map-root=.',
-        ]);
-
-        self::assertSame(2, $exit);
-        self::assertFileDoesNotExist($bundle . '/verification-result.json');
-    }
-
-    private function rebuildMap(): void
-    {
-        (new IndexWriter())->write(
-            CachedAgentMapBuilder::build($this->root, ['src'], []),
-            $this->root . '/.agent-loop/map/php-symbols.json',
-        );
-    }
-
-    public function testRejectsSourceChangedAfterApply(): void
-    {
-        $bundle = $this->prepareAppliedClassRename();
-        file_put_contents($this->root . '/src/RenamedService.php', "\n// changed after apply\n", FILE_APPEND);
-
-        $exit = (new RefactorVerifyCommand($this->root))->run([
-            '--bundle=.agent-loop/edit/RENAME-1',
-            '--map-index=.agent-loop/map/php-symbols.json',
-            '--map-root=.',
-        ]);
-
-        self::assertSame(2, $exit);
-        self::assertFileDoesNotExist($bundle . '/verification-result.json');
     }
 
     private function prepareAppliedClassRename(): string
@@ -172,7 +107,7 @@ PHP);
             'not_observable' => [],
         ];
 
-        (new RenamePlanApplier())->apply($plan, $beforeMap, $this->root);
+        (new EditEngine())->apply($plan, $beforeMap, $this->root);
         $afterMap = CachedAgentMapBuilder::build($this->root, ['src'], []);
         (new IndexWriter())->write($afterMap, $this->root . '/.agent-loop/map/php-symbols.json');
 

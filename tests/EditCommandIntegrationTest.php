@@ -8,6 +8,8 @@ use Closure;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentEdit\Apply\RenamePlanApplier;
+use voku\AgentEdit\EditEngine;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Edit\EditMutationLock;
 use voku\AgentLoop\Edit\EditOrchestrator;
@@ -237,12 +239,14 @@ final class EditCommandIntegrationTest extends TestCase
             },
         );
         $renameRunner = new MethodRenameEditRunner(
-            renameOperation: static function (string $from, string $to) use ($state): bool {
-                self::assertTrue($state->insideLock, 'source publication must stay inside the shared edit mutation lock');
-                $state->observedPublicationMove = true;
+            engine: new EditEngine(applierOverrides: [RenamePlanApplier::class => new RenamePlanApplier(
+                renameOperation: static function (string $from, string $to) use ($state): bool {
+                    self::assertTrue($state->insideLock, 'source publication must stay inside the shared edit mutation lock');
+                    $state->observedPublicationMove = true;
 
-                return rename($from, $to);
-            },
+                    return rename($from, $to);
+                },
+            )]),
         );
         $command = new EditCommand(
             $this->root,

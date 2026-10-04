@@ -49,15 +49,23 @@ jobs:
           rm -rf "$root"
           mkdir -p "$root/src" "$root/tests"
 
+          # agent-edit is not released yet: install the exact candidate reference pinned in agent-loop's own composer.json.
+          edit_ref="$(jq -er '.require["voku/agent-edit"]' "${GITHUB_WORKSPACE}/composer.json")"
+
           cat > "$root/composer.json" <<JSON
           {
             "name": "voku/installed-class-constant-removal-consumer",
             "type": "project",
             "require-dev": {
               "phpstan/phpstan": "^2.2",
+              "voku/agent-edit": "${edit_ref}",
               "voku/agent-loop": "dev-main"
             },
             "repositories": [
+              {
+                "type": "vcs",
+                "url": "https://github.com/voku/agent-edit"
+              },
               {
                 "type": "path",
                 "url": "${GITHUB_WORKSPACE}",

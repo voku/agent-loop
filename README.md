@@ -220,7 +220,8 @@ quietly owning everything.
 | Workflow and task authority | [`agent-loop`](https://github.com/voku/agent-loop) |
 | Git-native work items | [`agent-kanban`](https://github.com/voku/agent-kanban) |
 | Temporary working memory and validation evidence | [`agent-session`](https://github.com/voku/agent-session) |
-| Repository structure and code navigation | [`agent-map`](https://github.com/voku/agent-map) |
+| Repository structure, code navigation and typed refactoring plans | [`agent-map`](https://github.com/voku/agent-map) |
+| Deterministic plan validation, transactional apply and verification | [`agent-edit`](https://github.com/voku/agent-edit) |
 | Bounded task context and prompt construction material | [`agent-recall-compiler`](https://github.com/voku/agent-recall-compiler) |
 | Findings, precedent and durable learning | [`agent-learning`](https://github.com/voku/agent-learning) |
 | Reusable engineering and review skills | [`agent-skills`](https://github.com/voku/agent-skills) |

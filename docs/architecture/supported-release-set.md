@@ -97,7 +97,8 @@ fail.
 | semantic map and refactoring/removal plans | `agent-map` | read-only typed evidence; mutation remains outside Map |
 | Recall compilation and verification-plan evidence | `agent-recall-compiler` | bounded selected guidance with deterministic provenance |
 | Learning events/findings/proposals | `agent-learning` | durable evidence-backed learning owned outside Session |
-| governed lifecycle, edit application and verification | `agent-loop` | only Loop accepts governed transitions and owns mutation/verification |
+| deterministic plan validation, transactional apply and receipt verification | `agent-edit` | executes already-produced Map plans through a public engine; it never authorizes mutation and does not know Loop |
+| governed lifecycle and mutation authority | `agent-loop` | only Loop accepts governed transitions; `edit refactor` is a governance facade (execution-contract gate, task/bundle paths, workflow evidence) over `agent-edit` |
 | optional external process execution | `agent-loop-runner` | downstream consumer of released typed `agent-loop` execution APIs only |
 
 `agent-loop-runner` is released at `0.1.0` and consumed as a stable dependency

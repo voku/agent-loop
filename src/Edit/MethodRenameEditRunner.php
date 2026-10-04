@@ -4,30 +4,20 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit;
 
-use Closure;
 use RuntimeException;
-use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
+use voku\AgentEdit\EditEngine;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
 use voku\AgentMap\Rename\MethodRenamePlanner;
 
-/** Plans one current method rename, then delegates all mutation to the shared rename-plan boundary. */
+/** Plans one current method rename, then delegates all mutation to agent-edit. */
 final readonly class MethodRenameEditRunner implements EditRunner
 {
-    private RenamePlanApplier $applier;
-
-    /**
-     * @param (Closure(string, string): bool)|null $renameOperation
-     * @param (Closure(string): array{exit_code: int, stdout: string, stderr: string})|null $lintOperation
-     */
     public function __construct(
         private MethodRenamePlanner $planner = new MethodRenamePlanner(),
         private IndexReader $reader = new IndexReader(),
-        ?Closure $renameOperation = null,
-        ?Closure $lintOperation = null,
-        ?RenamePlanApplier $applier = null,
+        private EditEngine $engine = new EditEngine(),
     ) {
-        $this->applier = $applier ?? new RenamePlanApplier($renameOperation, $lintOperation);
     }
 
     /** Replans at the mutation boundary and applies only the resulting current safe contract. */
@@ -57,6 +47,8 @@ final readonly class MethodRenameEditRunner implements EditRunner
 
         $plan = $this->planner->plan($map, $execution->request->target, $replacement)->toArray();
 
-        return $this->applier->apply($plan, $map, $execution->request->mapRoot);
+        $result = $this->engine->apply($plan, $map, $execution->request->mapRoot);
+
+        return new EditRunResult($result->status, $result->exitCode, $result->stdout, $result->stderr);
     }
 }

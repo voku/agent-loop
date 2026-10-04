@@ -260,6 +260,10 @@ final class PromptPrimitivesDogfood
             ],
             'repositories' => [
                 [
+                    'type' => 'vcs',
+                    'url' => 'https://github.com/voku/agent-edit',
+                ],
+                [
                     'type' => 'path',
                     'url' => str_replace('\\', '/', $this->agentLoopRoot),
                     'options' => [

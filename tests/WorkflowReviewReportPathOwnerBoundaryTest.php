@@ -37,10 +37,8 @@ final class WorkflowReviewReportPathOwnerBoundaryTest extends TestCase
         // agent-map names its own index. A default spelled out here would keep
         // working right up until the owner renames the artifact.
         foreach ([
-            'src/Edit/Refactor/RefactorVerifyCommand.php',
-            'src/Edit/Refactor/MethodRemovalVerifyCommand.php',
-            'src/Edit/Refactor/PropertyRemovalVerifyCommand.php',
-            'src/Edit/Refactor/ClassConstantRemovalVerifyCommand.php',
+            'src/Edit/Refactor/RefactorEditCommand.php',
+            'src/Edit/Refactor/RefactorVerifyDispatchCommand.php',
         ] as $path) {
             $source = $this->source($path);
 

@@ -8,6 +8,12 @@
     "issues": "https://github.com/voku/agent-loop/issues",
     "source": "https://github.com/voku/agent-loop"
   },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/voku/agent-edit"
+    }
+  ],
   "authors": [
     {
       "name": "Lars Moelleken",
@@ -17,6 +23,7 @@
   "require": {
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
+    "voku/agent-edit": "dev-ccr-6f81b111-pl491d#c213b419a749398108a3875a47af99f6f77e8631@dev",
     "voku/agent-kanban": "^0.4.4",
     "voku/agent-learning": "^0.18.25",
     "voku/agent-map": "^0.18.3",
