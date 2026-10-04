@@ -147,6 +147,34 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertStringContainsString('missing verification-result.json for edit bundle ABC-123-plan2', $closeOutput);
     }
 
+    public function testIncompleteScopeVerificationFromAgentEditBlocksClose(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/execution.json', '{}');
+        // The Git-free verdict agent-edit 0.2 can produce: Map-indexed files were observed, files outside the Map index were not.
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/verification-result.json', json_encode([
+            'status' => 'incomplete',
+            'changed_files' => ['src/Service.php'],
+            'scope' => [
+                'status' => 'scope_unproven',
+                'changed_files_source' => 'map_manifest_diff',
+                'proven' => 'map_indexed_files',
+                'unproven' => 'files_outside_map_index',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        [$readyExit, $readyOutput] = $this->runStatus(['--format=json']);
+        $ready = json_decode($readyOutput, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $readyExit);
+        self::assertSame('blocked', $ready['manifest']['state'] ?? null);
+
+        [$closeExit, $closeOutput] = $this->runClose();
+        self::assertSame(1, $closeExit);
+        self::assertStringContainsString('edit verification status incomplete for edit bundle ABC-123', $closeOutput);
+    }
+
     public function testWhitespaceCompilationIdIsNotAcceptedAsIdentifyingACompilation(): void
     {
         $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
