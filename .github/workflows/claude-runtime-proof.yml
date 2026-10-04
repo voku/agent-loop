@@ -462,7 +462,30 @@ jobs:
 
           (
             cd "${PROOF_ROOT}"
-            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=claude --with-hooks
+
+            jq -n --arg source "${GITHUB_WORKSPACE}" '{
+              repositories: [{
+                type: "path",
+                url: $source,
+                options: {
+                  symlink: false,
+                  versions: {"voku/agent-loop": "dev-candidate"}
+                }
+              }],
+              require: {"voku/agent-loop": "dev-candidate"}
+            }' > composer.json
+
+            composer install --no-interaction --prefer-dist --no-progress
+            composer show voku/agent-loop --format=json > "${EVIDENCE_ROOT}/installed-agent-loop.json"
+
+            test -x vendor/bin/agent-loop
+            test -f vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php
+            test "$(sha256sum vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php | cut -d' ' -f1)" = \
+              "$(sha256sum "${GITHUB_WORKSPACE}/src/AgentGuidance/AgentDisciplineHook.php" | cut -d' ' -f1)"
+            test "$(sha256sum vendor/voku/agent-loop/resources/hooks/claude/hooks/pre_tool_use_policy.php | cut -d' ' -f1)" = \
+              "$(sha256sum "${GITHUB_WORKSPACE}/resources/hooks/claude/hooks/pre_tool_use_policy.php" | cut -d' ' -f1)"
+
+            vendor/bin/agent-loop init install-assets --agent=claude --with-hooks
           )
 
           test -f "${PROOF_ROOT}/.claude/settings.json"
@@ -482,11 +505,14 @@ jobs:
           sha256sum \
             "${PROOF_ROOT}/.claude/settings.json" \
             "${PROOF_ROOT}/.claude/hooks/pre_tool_use_policy.php" \
+            "${PROOF_ROOT}/vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php" \
             > "${EVIDENCE_ROOT}/pretool-projection.sha256"
 
+          export CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose
           (
             cd "${PROOF_ROOT}"
             claude -p \
+              --debug-file "${EVIDENCE_ROOT}/claude-pretool-debug.log" \
               --permission-mode bypassPermissions \
               --model claude-sonnet-4-5 \
               --output-format json \
@@ -622,7 +648,7 @@ jobs:
                 },
                 pretool_deny_enforcement: {
                   evidence_class: "host_runtime_enforcement",
-                  mechanism: "Claude 2.1.287 received a Bash tool_use for a bounded alternate publication command while running with bypassPermissions; the projected repository PreToolUse hook returned deny, Claude reported that denial as the tool_result, and the fake git executable left no execution sentinel",
+                  mechanism: "an installed candidate consumer ran Claude 2.1.287 with bypassPermissions; the provider emitted a Bash tool_use for a bounded alternate publication command, the repository PreToolUse hook returned deny, Claude reported that denial as the tool_result, and the fake git executable left no execution sentinel",
                   proof: $pretool_deny,
                   status: (if $pretool_deny == null then "unverified" else "observed" end),
                   boundary: "This proves the projected Claude PreToolUse Bash hook executes and its deny output suppresses this bounded alternate publication command. It does not make the hook a universal shell, MCP, or security boundary and does not prove the separate hard direct-form permission rules."
