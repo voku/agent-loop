@@ -98,6 +98,7 @@ jobs:
           import json
           import os
           from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+          from urllib.parse import urlparse
 
           evidence_root = os.environ["EVIDENCE_ROOT"]
           port_path = os.environ["PORT_PATH"]
@@ -106,6 +107,14 @@ jobs:
           class Handler(BaseHTTPRequestHandler):
               def log_message(self, format, *args):
                   return
+
+              def _record_path(self, method):
+                  with open(
+                      os.path.join(evidence_root, "provider-paths.log"),
+                      "a",
+                      encoding="utf-8",
+                  ) as handle:
+                      handle.write(f"{method} {self.path}\n")
 
               def _json(self, status, payload):
                   body = json.dumps(payload).encode("utf-8")
@@ -116,22 +125,35 @@ jobs:
                   self.wfile.write(body)
 
               def do_GET(self):
-                  if self.path.rstrip("/") == "/v1/models":
+                  self._record_path("GET")
+                  path = urlparse(self.path).path
+                  if path.rstrip("/") == "/v1/models":
                       self._json(200, {
                           "data": [{
                               "id": "claude-sonnet-4-5",
                               "type": "model",
                               "display_name": "proof-model",
+                              "created_at": "2026-01-01T00:00:00Z",
                           }],
                           "has_more": False,
                           "first_id": "claude-sonnet-4-5",
                           "last_id": "claude-sonnet-4-5",
                       })
                       return
+                  if path.startswith("/v1/models/"):
+                      model_id = path.removeprefix("/v1/models/")
+                      self._json(200, {
+                          "id": model_id,
+                          "type": "model",
+                          "display_name": "proof-model",
+                          "created_at": "2026-01-01T00:00:00Z",
+                      })
+                      return
                   self._json(404, {"error": {"type": "not_found_error", "message": self.path}})
 
               def do_POST(self):
                   global request_index
+                  self._record_path("POST")
                   length = int(self.headers.get("Content-Length", "0"))
                   raw = self.rfile.read(length)
                   try:
