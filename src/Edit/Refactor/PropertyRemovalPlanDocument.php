@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit\Refactor;
 
 use RuntimeException;
+use voku\AgentMap\Index\AgentMapIndex;
 
 /** Fail-closed wire envelope for agent-map property_removal_plan@1.0. */
-final readonly class PropertyRemovalPlanDocument
+final readonly class PropertyRemovalPlanDocument implements EditMovePlanEvidence
 {
-    /** @param list<PropertyRemovalPlanEditEvidence> $edits */
+    /** @param list<RenamePlanEditEvidence> $edits */
     public function __construct(
         public string $targetId,
-        public PropertyRemovalPlanProvenanceEvidence $provenance,
+        public RenamePlanProvenanceEvidence $provenance,
         public array $edits,
     ) {
     }
@@ -34,15 +35,7 @@ final readonly class PropertyRemovalPlanDocument
         self::requireEmptyList($data, 'blockers', 'Property removal plan has semantic blockers; no source was changed.');
         self::requireEmptyList($data, 'blind_spots', 'Property removal plan requires explicit review; no source was changed.');
 
-        $notObservable = $data['not_observable'] ?? null;
-        if (!is_array($notObservable) || !array_is_list($notObservable)) {
-            throw new RuntimeException('Property removal plan requires not_observable list evidence.');
-        }
-        foreach ($notObservable as $boundary) {
-            if (!is_string($boundary) || trim($boundary) === '') {
-                throw new RuntimeException('Property removal plan contains invalid not_observable evidence.');
-            }
-        }
+        self::assertNotObservable($data);
 
         $targetId = self::string($data, 'target_id');
         if (!str_starts_with($targetId, 'property:')) {
@@ -67,7 +60,16 @@ final readonly class PropertyRemovalPlanDocument
             if (!is_array($rawEdit)) {
                 throw new RuntimeException('Property removal plan contains an invalid edit.');
             }
-            $edit = PropertyRemovalPlanEditEvidence::fromArray($rawEdit);
+            $edit = RenamePlanEditEvidence::fromArray($rawEdit, true);
+            if ($edit->replacement !== '') {
+                throw new RuntimeException('Property removal edit must use an empty replacement.');
+            }
+            if ($edit->role !== 'property_declaration_removal') {
+                throw new RuntimeException('Property removal edit has an unsupported role.');
+            }
+            if ($edit->resolution !== 'phpstan_resolved') {
+                throw new RuntimeException('Property removal edit must be PHPStan-resolved.');
+            }
             if ($edit->symbolId !== $targetId) {
                 throw new RuntimeException('Property removal edit is not bound to the declared target identity.');
             }
@@ -76,9 +78,55 @@ final readonly class PropertyRemovalPlanDocument
 
         return new self(
             targetId: $targetId,
-            provenance: PropertyRemovalPlanProvenanceEvidence::fromArray($rawProvenance),
+            provenance: RenamePlanProvenanceEvidence::fromArray($rawProvenance),
             edits: $edits,
         );
+    }
+
+    public function planType(): string
+    {
+        return 'property_removal_plan';
+    }
+
+    public function targetId(): string
+    {
+        return $this->targetId;
+    }
+
+    public function requiresPhpStan(): bool
+    {
+        return true;
+    }
+
+    /** @return list<RenamePlanEditEvidence> */
+    public function edits(): array
+    {
+        return $this->edits;
+    }
+
+    /** @return list<RenamePlanMoveEvidence> */
+    public function moves(): array
+    {
+        return [];
+    }
+
+    public function assertMatches(AgentMapIndex $map): void
+    {
+        $this->provenance->assertMatches($map, true);
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function assertNotObservable(array $data): void
+    {
+        $notObservable = $data['not_observable'] ?? null;
+        if (!is_array($notObservable) || !array_is_list($notObservable)) {
+            throw new RuntimeException('Property removal plan requires not_observable list evidence.');
+        }
+        foreach ($notObservable as $boundary) {
+            if (!is_string($boundary) || trim($boundary) === '') {
+                throw new RuntimeException('Property removal plan contains invalid not_observable evidence.');
+            }
+        }
     }
 
     /** @param array<string, mixed> $data */
