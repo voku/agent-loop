@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Edit\Refactor;
 
-use JsonException;
-use RuntimeException;
+use voku\AgentEdit\Cli\VerifyCommand;
+use voku\AgentLoop\ProjectLayout;
 
-/** Routes refactor verification from persisted runner identity without weakening either verifier. */
+/**
+ * Governance facade for `agent-loop edit refactor verify`: supplies Loop's map-index default and delegates the
+ * receipt dispatch, verification and `verification-result.json` to `voku/agent-edit`.
+ */
 final readonly class RefactorVerifyDispatchCommand
 {
     public function __construct(private string $projectRoot)
@@ -18,67 +21,32 @@ final readonly class RefactorVerifyDispatchCommand
     public function run(array $tokens): int
     {
         if (in_array($tokens[0] ?? '', ['help', '--help', '-h'], true)) {
-            return (new RefactorVerifyCommand($this->projectRoot))->run($tokens);
+            echo $this->help();
+
+            return 0;
         }
 
-        try {
-            $bundle = $this->bundle($tokens);
-            $raw = file_get_contents($bundle . '/execution.json');
-            if (!is_string($raw)) {
-                throw new RuntimeException('Unable to read refactor execution evidence.');
-            }
-            $execution = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-            if (!is_array($execution)) {
-                throw new RuntimeException('Refactor execution evidence must decode to an object.');
-            }
-        } catch (JsonException|RuntimeException $exception) {
-            fwrite(STDERR, '[ERROR] ' . $exception->getMessage() . "\n");
-
-            return 2;
+        $hasMapIndex = false;
+        foreach ($tokens as $token) {
+            $hasMapIndex = $hasMapIndex || $token === '--map-index' || str_starts_with($token, '--map-index=');
+        }
+        if (!$hasMapIndex) {
+            $tokens[] = '--map-index=' . (new ProjectLayout($this->projectRoot))->mapIndex();
         }
 
-        return match ($execution['runner']['name'] ?? null) {
-            'method-removal-plan' => (new MethodRemovalVerifyCommand($this->projectRoot))->run($tokens),
-            'property-removal-plan' => (new PropertyRemovalVerifyCommand($this->projectRoot))->run($tokens),
-            'class-constant-removal-plan' => (new ClassConstantRemovalVerifyCommand($this->projectRoot))->run($tokens),
-            default => (new RefactorVerifyCommand($this->projectRoot))->run($tokens),
-        };
+        return (new VerifyCommand($this->projectRoot))->run($tokens);
     }
 
-    /** @param list<string> $tokens */
-    private function bundle(array $tokens): string
+    private function help(): string
     {
-        $value = null;
-        for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
-            $token = $tokens[$index];
-            if (str_starts_with($token, '--bundle=')) {
-                $value = substr($token, strlen('--bundle='));
-                break;
-            }
-            if ($token === '--bundle') {
-                $value = $tokens[$index + 1] ?? null;
-                break;
-            }
-        }
-        if (!is_string($value) || trim($value) === '') {
-            throw new RuntimeException('Refactor verify requires --bundle.');
-        }
+        return <<<'TXT'
+Usage:
+  agent-loop edit refactor verify --bundle=.agent-loop/edit/TASK [--map-index PATH] [--map-root PATH]
 
-        $root = realpath($this->projectRoot);
-        if (!is_string($root)) {
-            throw new RuntimeException('Project root not found: ' . $this->projectRoot);
-        }
-        $candidate = str_starts_with($value, '/') ? $value : $root . '/' . $value;
-        $bundle = realpath($candidate);
-        if (!is_string($bundle) || !is_dir($bundle)) {
-            throw new RuntimeException('Refactor verify bundle not found: ' . $value);
-        }
-        $root = rtrim(str_replace('\\', '/', $root), '/');
-        $bundle = str_replace('\\', '/', $bundle);
-        if ($bundle !== $root && !str_starts_with($bundle, $root . '/')) {
-            throw new RuntimeException('Refactor verify bundle escapes the project root.');
-        }
+Read-only verification of one applied refactor bundle, executed by voku/agent-edit from the persisted
+receipt (`execution.json`). It requires independently observed changed-file evidence, binds the plan
+and the refreshed Map, and writes verification-result.json into the bundle.
 
-        return $bundle;
+TXT;
     }
 }

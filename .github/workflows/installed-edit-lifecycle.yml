@@ -1,0 +1,70 @@
+name: Installed agent-edit refactor lifecycle
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-edit-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-edit-lifecycle:
+    name: installed ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [method-rename, class-rename, class-move, method-move]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout released agent-map contract owner
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-map
+          ref: 0.18.3
+          path: build/released-agent-map
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Prove exact released owner revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "17b5ee02a75ac7fa4b5281b85ef78877df2fb8ec"
+
+      - name: Run agent-map plan -> agent-edit (via agent-loop) -> verify -> finish
+        shell: bash
+        env:
+          LOOP_REPO: ${{ github.workspace }}
+          MAP_REPO: ${{ github.workspace }}/build/released-agent-map
+          MAP_VERSION: 0.18.3
+        run: |
+          set -euo pipefail
+          bash tools/installed-edit-lifecycle.sh "${{ matrix.scenario }}" "${RUNNER_TEMP}/agent-loop-installed-edit-${{ matrix.scenario }}"
+
+      - name: Upload installed agent-edit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-edit-lifecycle-${{ matrix.scenario }}-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/resolved-agent-edit.json
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/.agent-loop/edit/DEMO-1/plan.json
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/.agent-loop/edit/DEMO-1/execution.json
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/.agent-loop/edit/DEMO-1/verification-result.json
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/finish.json

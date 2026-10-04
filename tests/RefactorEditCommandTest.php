@@ -8,10 +8,12 @@ use Closure;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use voku\AgentEdit\Apply\RenamePlanApplier;
+use voku\AgentEdit\EditEngine;
 use voku\AgentLoop\Edit\EditCommand;
 use voku\AgentLoop\Edit\EditMutationLock;
 use voku\AgentLoop\Edit\Refactor\RefactorEditCommand;
-use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
+use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
@@ -110,14 +112,18 @@ PHP);
         $applier = new RenamePlanApplier(
             renameOperation: static function (string $from, string $to) use ($state): bool {
                 self::assertTrue($state->insideLock, 'rename-plan publication must stay inside the shared edit mutation lock');
-                if (str_contains($from, '.agent-loop-refactor-plan-stage-')) {
+                if (str_contains($from, '.agent-edit-plan-stage-')) {
                     $state->observedPublication = true;
                 }
 
                 return rename($from, $to);
             },
         );
-        $command = new RefactorEditCommand($this->root, applier: $applier, mutationLock: $lock);
+        $command = new RefactorEditCommand(
+            $this->root,
+            new EditEngine(applierOverrides: [RenamePlanApplier::class => $applier]),
+            $lock,
+        );
 
         ob_start();
         $exit = $command->run([
@@ -132,6 +138,79 @@ PHP);
         self::assertFalse($state->insideLock);
         self::assertStringContainsString('function newName()', (string) file_get_contents($this->root . '/src/Service.php'));
         self::assertSame('runner_succeeded', $this->execution('REFACTOR-LOCK')['status']);
+    }
+
+    public function testMutationIsRefusedBeforeAnySourceChangeWhenTheExecutionContractIsNotReady(): void
+    {
+        $this->bindUnreadyL2Task('REFACTOR-GATE');
+        $before = (string) file_get_contents($this->root . '/src/Service.php');
+
+        ob_start();
+        $exit = (new RefactorEditCommand($this->root))->run([
+            $this->planPath,
+            '--task=REFACTOR-GATE',
+            '--map-index=' . $this->mapPath,
+        ]);
+        ob_end_clean();
+
+        self::assertSame(1, $exit);
+        self::assertSame($before, file_get_contents($this->root . '/src/Service.php'));
+        self::assertFileDoesNotExist($this->root . '/.agent-loop/edit/REFACTOR-GATE/execution.json');
+    }
+
+    public function testDryRunIsNotGatedByTheExecutionContract(): void
+    {
+        $this->bindUnreadyL2Task('REFACTOR-GATE-DRY');
+
+        ob_start();
+        $exit = (new RefactorEditCommand($this->root))->run([
+            $this->planPath,
+            '--task=REFACTOR-GATE-DRY',
+            '--map-index=' . $this->mapPath,
+            '--dry-run',
+        ]);
+        ob_end_clean();
+
+        self::assertSame(0, $exit);
+        self::assertSame('prepared', $this->execution('REFACTOR-GATE-DRY')['status']);
+    }
+
+    public function testRefactorRequiresAnExplicitValidTaskId(): void
+    {
+        $exit = (new RefactorEditCommand($this->root))->run([$this->planPath, '--map-index=' . $this->mapPath]);
+
+        self::assertSame(1, $exit);
+        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/edit');
+    }
+
+    private function bindUnreadyL2Task(string $taskId): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create($taskId, 'Harden the parser.', ['src/Service.php'], [], ['composer ci'], 'lars', tags: [], behaviorAnchors: [], operatingPromptManifest: 'skills/operational-prompting/operating-prompts.json', operatingPrompts: [[
+            'id' => 'coverage-mutation',
+            'arguments' => ['minimum_percentage_points' => 10, 'mutation_command' => 'vendor/bin/infection'],
+        ]]);
+        $contracts->approve($taskId, 'lars');
+        $recall = $this->root . '/.agent-loop/recall/' . $taskId;
+        mkdir($recall, 0o775, true);
+        file_put_contents($recall . '/facts.json', json_encode([
+            'schema_version' => '1.0',
+            'bundle_sha256' => str_repeat('a', 64),
+            'facts' => [[
+                'id' => 'operating-prompt.coverage-mutation',
+                'type' => 'operating_prompt',
+                'authority' => 'approved_contract',
+                'source_ref' => 'skills/operational-prompting/operating-prompts.json#coverage-mutation',
+                'scope' => ['src/Service.php'],
+                'payload' => [
+                    'prompt_id' => 'coverage-mutation',
+                    'level' => 2,
+                    'arguments' => ['minimum_percentage_points' => 10, 'mutation_command' => 'vendor/bin/infection'],
+                    'content' => 'Create a project-specific test-hardening prompt.',
+                    'template_sha256' => str_repeat('c', 64),
+                ],
+            ]],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
     /** @return array<string, mixed> */

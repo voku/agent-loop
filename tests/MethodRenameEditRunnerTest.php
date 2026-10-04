@@ -9,10 +9,11 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentEdit\Apply\RenamePlanApplier;
+use voku\AgentEdit\EditEngine;
 use voku\AgentLoop\Edit\EditExecution;
 use voku\AgentLoop\Edit\EditRequest;
 use voku\AgentLoop\Edit\MethodRenameEditRunner;
-use voku\AgentLoop\Edit\Refactor\RenamePlanApplier;
 use voku\AgentMap\Index\IndexWriter;
 use voku\AgentMap\Rename\MethodRenamePlanner;
 use voku\AgentLoop\Tests\Support\CachedAgentMapBuilder;
@@ -140,13 +141,15 @@ final class MethodRenameEditRunnerTest extends TestCase
         $before = $this->sources();
         $service = $this->root . '/src/Service.php';
         $runner = new MethodRenameEditRunner(
-            renameOperation: static function (string $from, string $to) use ($service): bool {
-                if ($to === $service && str_contains($from, '.agent-loop-refactor-plan-stage-')) {
-                    return false;
-                }
+            engine: new EditEngine(applierOverrides: [RenamePlanApplier::class => new RenamePlanApplier(
+                renameOperation: static function (string $from, string $to) use ($service): bool {
+                    if ($to === $service && str_contains($from, '.agent-edit-plan-stage-')) {
+                        return false;
+                    }
 
-                return rename($from, $to);
-            },
+                    return rename($from, $to);
+                },
+            )]),
         );
 
         $this->expectException(RuntimeException::class);
@@ -163,13 +166,15 @@ final class MethodRenameEditRunnerTest extends TestCase
     {
         $before = $this->sources();
         $runner = new MethodRenameEditRunner(
-            lintOperation: static function (string $path): array {
-                if (str_contains($path, 'Service.php.agent-loop-refactor-plan-stage-')) {
-                    return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'forced parser failure'];
-                }
+            engine: new EditEngine(applierOverrides: [RenamePlanApplier::class => new RenamePlanApplier(
+                lintOperation: static function (string $path): array {
+                    if (str_contains($path, 'Service.php.agent-edit-plan-stage-')) {
+                        return ['exit_code' => 1, 'stdout' => '', 'stderr' => 'forced parser failure'];
+                    }
 
-                return ['exit_code' => 0, 'stdout' => 'No syntax errors detected', 'stderr' => ''];
-            },
+                    return ['exit_code' => 0, 'stdout' => 'No syntax errors detected', 'stderr' => ''];
+                },
+            )]),
         );
 
         $this->expectException(RuntimeException::class);
@@ -226,7 +231,7 @@ final class MethodRenameEditRunnerTest extends TestCase
     /** @return list<string> */
     private function temporaryArtifacts(): array
     {
-        $matches = glob($this->root . '/src/*.agent-loop-refactor-plan-*');
+        $matches = glob($this->root . '/src/*.agent-edit-plan-*');
 
         return is_array($matches) ? $matches : [];
     }
