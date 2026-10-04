@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit\Refactor;
 
 use RuntimeException;
+use voku\AgentMap\Index\AgentMapIndex;
 
 /** Fail-closed wire envelope for agent-map class_constant_removal_plan@1.0. */
-final readonly class ClassConstantRemovalPlanDocument
+final readonly class ClassConstantRemovalPlanDocument implements EditMovePlanEvidence
 {
-    /** @param list<ClassConstantRemovalPlanEditEvidence> $edits */
+    /** @param list<RenamePlanEditEvidence> $edits */
     public function __construct(
         public string $targetId,
-        public ClassConstantRemovalPlanProvenanceEvidence $provenance,
+        public RenamePlanProvenanceEvidence $provenance,
         public array $edits,
     ) {
     }
@@ -34,18 +35,10 @@ final readonly class ClassConstantRemovalPlanDocument
         self::requireEmptyList($data, 'blockers', 'Class-constant removal plan has semantic blockers; no source was changed.');
         self::requireEmptyList($data, 'blind_spots', 'Class-constant removal plan requires explicit review; no source was changed.');
 
-        $notObservable = $data['not_observable'] ?? null;
-        if (!is_array($notObservable) || !array_is_list($notObservable)) {
-            throw new RuntimeException('Class-constant removal plan requires not_observable list evidence.');
-        }
-        foreach ($notObservable as $boundary) {
-            if (!is_string($boundary) || trim($boundary) === '') {
-                throw new RuntimeException('Class-constant removal plan contains invalid not_observable evidence.');
-            }
-        }
+        self::assertNotObservable($data);
 
         $targetId = self::string($data, 'target_id');
-        if (preg_match('/\Aclass_constant:[^:]+::[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*\z/D', $targetId) !== 1) {
+        if (preg_match('/\\Aclass_constant:[^:]+::[A-Za-z_\\x80-\\xff][A-Za-z0-9_\\x80-\\xff]*\\z/D', $targetId) !== 1) {
             throw new RuntimeException('Class-constant removal plan target identity must use class_constant:Class::CONSTANT syntax.');
         }
 
@@ -67,7 +60,16 @@ final readonly class ClassConstantRemovalPlanDocument
             if (!is_array($rawEdit)) {
                 throw new RuntimeException('Class-constant removal plan contains an invalid edit.');
             }
-            $edit = ClassConstantRemovalPlanEditEvidence::fromArray($rawEdit);
+            $edit = RenamePlanEditEvidence::fromArray($rawEdit, true);
+            if ($edit->replacement !== '') {
+                throw new RuntimeException('Class-constant removal edit must use an empty replacement.');
+            }
+            if ($edit->role !== 'class_constant_declaration_removal') {
+                throw new RuntimeException('Class-constant removal edit has an unsupported role.');
+            }
+            if ($edit->resolution !== 'parser_resolved') {
+                throw new RuntimeException('Class-constant removal edit must be parser-resolved.');
+            }
             if ($edit->symbolId !== $targetId) {
                 throw new RuntimeException('Class-constant removal edit is not bound to the declared target identity.');
             }
@@ -76,9 +78,55 @@ final readonly class ClassConstantRemovalPlanDocument
 
         return new self(
             targetId: $targetId,
-            provenance: ClassConstantRemovalPlanProvenanceEvidence::fromArray($rawProvenance),
+            provenance: RenamePlanProvenanceEvidence::fromArray($rawProvenance),
             edits: $edits,
         );
+    }
+
+    public function planType(): string
+    {
+        return 'class_constant_removal_plan';
+    }
+
+    public function targetId(): string
+    {
+        return $this->targetId;
+    }
+
+    public function requiresPhpStan(): bool
+    {
+        return true;
+    }
+
+    /** @return list<RenamePlanEditEvidence> */
+    public function edits(): array
+    {
+        return $this->edits;
+    }
+
+    /** @return list<RenamePlanMoveEvidence> */
+    public function moves(): array
+    {
+        return [];
+    }
+
+    public function assertMatches(AgentMapIndex $map): void
+    {
+        $this->provenance->assertMatches($map, true);
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function assertNotObservable(array $data): void
+    {
+        $notObservable = $data['not_observable'] ?? null;
+        if (!is_array($notObservable) || !array_is_list($notObservable)) {
+            throw new RuntimeException('Class-constant removal plan requires not_observable list evidence.');
+        }
+        foreach ($notObservable as $boundary) {
+            if (!is_string($boundary) || trim($boundary) === '') {
+                throw new RuntimeException('Class-constant removal plan contains invalid not_observable evidence.');
+            }
+        }
     }
 
     /** @param array<string, mixed> $data */
