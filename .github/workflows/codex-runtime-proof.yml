@@ -813,9 +813,8 @@ jobs:
           subagent_hook_port="$(cat "${subagent_hook_port_path}")"
 
           (
-            cd "${hook_root}"
-            CODEX_HOME="${runtime_home}" PATH="${php_wrapper_dir}:${PATH}" \
-              env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+            cd "${PROOF_ROOT}"
+            PATH="${php_wrapper_dir}:${PATH}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
               codex exec --ephemeral --json --dangerously-bypass-hook-trust \
                 -c 'model="proof-model"' \
                 -c 'model_provider="mock"' \
@@ -998,8 +997,9 @@ jobs:
           port="$(cat "${port_path}")"
 
           (
-            cd "${PROOF_ROOT}"
-            PATH="${php_wrapper_dir}:${PATH}" env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+            cd "${hook_root}"
+            CODEX_HOME="${runtime_home}" PATH="${php_wrapper_dir}:${PATH}" \
+              env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
               codex exec --ephemeral --json --dangerously-bypass-hook-trust \
                 -c 'model="proof-model"' \
                 -c 'model_provider="mock"' \
