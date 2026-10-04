@@ -120,7 +120,11 @@ final readonly class HostPolicyProjector
             return ['status' => 'conflict', 'path' => $path, 'detail' => 'agent-loop Codex policy file differs from the managed policy'];
         }
 
-        return ['status' => 'ready', 'path' => $path, 'detail' => 'repository Codex forbidden publication-prefix policy is current; project trust remains host-owned and wrapper/MCP authority routes are separate'];
+        return [
+            'status' => 'ready',
+            'path' => $path,
+            'detail' => 'repository Codex forbidden publication-prefix policy is current; project trust remains host-owned; agent-loop does not project mcp_servers or MCP-specific policy, and its managed PreToolUse matcher covers Bash only',
+        ];
     }
 
     /**
