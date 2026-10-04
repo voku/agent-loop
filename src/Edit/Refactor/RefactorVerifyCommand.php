@@ -177,6 +177,18 @@ final readonly class RefactorVerifyCommand
             $searchCursor = 0;
             $expectedOccurrences = [];
             foreach ($edits as $edit) {
+                $removedLength = $edit->endFilePos - $edit->startFilePos + 1;
+                if ($edit->replacement === '') {
+                    if (str_contains($content, $edit->expected)) {
+                        throw new RuntimeException(sprintf(
+                            'Removed refactor source is still present in %s.',
+                            $finalPath,
+                        ));
+                    }
+                    $offsetDelta -= $removedLength;
+                    continue;
+                }
+
                 $expectedOccurrences[$edit->replacement] = ($expectedOccurrences[$edit->replacement] ?? 0) + 1;
                 $finalStart = max($searchCursor, $edit->startFilePos + $offsetDelta);
                 $found = strpos($content, $edit->replacement, $searchCursor);
@@ -189,7 +201,7 @@ final readonly class RefactorVerifyCommand
                     ));
                 }
                 $searchCursor = $found + strlen($edit->replacement);
-                $offsetDelta += strlen($edit->replacement) - ($edit->endFilePos - $edit->startFilePos + 1);
+                $offsetDelta += strlen($edit->replacement) - $removedLength;
             }
             foreach ($expectedOccurrences as $replacement => $count) {
                 if (substr_count($content, (string) $replacement) < $count) {
