@@ -51,7 +51,7 @@ case "$scenario" in
   class-move)
     plan_command=(class-move-plan 'Fixture\Legacy\Greeter' 'Fixture\Modern\Greeter')
     plan_type=class_move_plan
-    verify_kind=rename_plan_verification
+    verify_kind=class_move_plan_verification
     runner=class-move-plan
     goal='Move Fixture\Legacy\Greeter to Fixture\Modern\Greeter through the released agent-map class move plan.'
     file=src/Legacy/Greeter.php
@@ -63,7 +63,7 @@ case "$scenario" in
   method-move)
     plan_command=(method-move-plan 'Fixture\Source::helper' 'Fixture\Target')
     plan_type=method_move_plan
-    verify_kind=rename_plan_verification
+    verify_kind=method_move_plan_verification
     runner=method-move-plan
     goal='Move the unused private Fixture\Source::helper method into Fixture\Target through the released agent-map method move plan.'
     file=src/Source.php
@@ -197,8 +197,8 @@ jq -e --arg runner "$runner" --argjson changed "$expected_changed" '
 
 build_map
 $loop edit refactor verify --bundle="$bundle" --map-index=.agent-loop/map/php-symbols.json --map-root=.
-jq -e --arg type "$plan_type" '
-  (.status == "passed") and (.plan.type == $type) and (.plan.contract_version == "1.0")
+jq -e --arg type "$plan_type" --arg kind "$verify_kind" '
+  (.kind == $kind) and (.status == "passed") and (.plan.type == $type) and (.plan.contract_version == "1.0")
   and (.checks.execution_binding == "passed") and (.checks.current_map == "passed")
   and (.checks.changed_files == "passed")
 ' "$bundle/verification-result.json" >/dev/null
