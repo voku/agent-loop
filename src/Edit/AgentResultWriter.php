@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Edit;
 
 use JsonException;
 use RuntimeException;
+use voku\AgentEdit\Apply\WorkingTreeSnapshot;
 
 /**
  * Writes `agent-result.json`: the answer sheet a verifier grades against the private key.
