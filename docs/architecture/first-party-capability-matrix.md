@@ -77,10 +77,10 @@ Status meanings are strict:
 | subagent projection | supported | supported | supported | supported | supported | supported | supported |
 | read-only subagent enforcement | degraded | unsupported | unsupported | unsupported | unsupported | unsupported | supported |
 | policy projection | supported | supported | supported | unsupported | unsupported | unsupported | supported |
-| session bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
-| subagent bootstrap | degraded | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
-| pre-tool guardrail | degraded | degraded | unsupported | unsupported | unsupported | unsupported | degraded |
-| repository hooks | degraded | degraded | unsupported | unsupported | unsupported | unsupported | degraded |
+| session bootstrap | supported | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
+| subagent bootstrap | supported | degraded | unsupported | unsupported | unsupported | unsupported | unsupported |
+| pre-tool guardrail | supported | degraded | unsupported | unsupported | unsupported | unsupported | degraded |
+| repository hooks | supported | degraded | unsupported | unsupported | unsupported | unsupported | degraded |
 
 Host-specific policy semantics are intentionally not flattened:
 
@@ -99,6 +99,7 @@ The Codex 0.157.0 boundary is explicit rather than inferred from the shell polic
 
 Source boundary checked against `openai/codex` tag `rust-v0.157.0`: `codex-rs/core/src/tools/handlers/mcp.rs` (hook-facing MCP tool name and PreToolUse payload) and `codex-rs/core/src/mcp_tool_call.rs` (MCP approval modes, permission policy, and annotation handling). This is an inventory of the current authority boundary, not proof that arbitrary third-party MCP annotations are correct or trustworthy.
 - Codex roles with canonical `mutation: read-only` receive native `sandbox_mode = "read-only"`; this proves deterministic repository projection, not runtime enforcement. Real Codex 0.157.0 proof run `36356682049` selected `agent-loop-investigator` and observed both parent and child writes succeed, producing `role_read_only_not_enforced`. The capability therefore remains `degraded` for this runtime boundary. That proof did not exercise explicit parent runtime overrides, hooks, or MCP, so those surfaces remain separate and unclaimed; see PR #645 and `docs/dogfood/2026-09-27-gh-640-real-learning-reflection.md`.
+- Codex hook-backed session bootstrap, subagent bootstrap, pre-tool guardrail, and repository hooks are `supported` because pinned Codex 0.157.0 runtime proofs now observe those exact boundaries: SessionStart execution with project trust plus persisted `trusted_hash` invalidation, SubagentStart execution for a selected managed child, and PreToolUse denial on the canonical `exec_command`/Bash route. This does not widen the claim to MCP, shell-wrapper variants, unrelated tools, explicit parent permission overrides, or the interactive `/hooks` TUI interaction.
 - Claude receives shared-project hard `deny` rules for the canonical direct `git push`, `gh pr create`, and `gh pr merge` command forms. Claude Bash rules match command text rather than establishing a security boundary around the underlying program, so alternate executable paths, git option/config forms, quoted subcommands, shell wrappers, MCP, and other authority routes remain separate and unclaimed; Auto Mode classifier configuration remains user/local/managed scoped.
 - Claude executable hooks are registered granularly inside project `.claude/settings.json`; agent-loop owns only its canonical command handlers and receipt, while unrelated project hook events, matcher groups, and handlers are preserved. Live hook execution remains degraded/unverified.
 - OpenCode receives granular `deny` rules because `--auto` can auto-approve `ask` decisions while explicit denies remain effective.

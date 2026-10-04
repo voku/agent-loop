@@ -21,7 +21,7 @@ final readonly class HostCapabilityMatrix
      *     capability: HostCapability,
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
-     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
+     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-verified'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }>
      */
     public static function forAgent(string $canonicalAgent): array
@@ -51,7 +51,7 @@ final readonly class HostCapabilityMatrix
      * @return array{
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
-     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
+     *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-verified'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }
      */
     public static function describe(string $canonicalAgent, HostCapability $capability): array
@@ -103,6 +103,19 @@ final readonly class HostCapabilityMatrix
                 'status' => HostCapabilityStatus::Unsupported,
                 'mechanism' => 'no agent-loop host policy projector',
                 'evidence' => 'no-agent-loop-projector',
+            ];
+        }
+
+        if ($canonicalAgent === 'codex' && in_array($capability, [
+            HostCapability::SessionBootstrap,
+            HostCapability::SubagentBootstrap,
+            HostCapability::PreToolGuardrail,
+            HostCapability::RepositoryHooks,
+        ], true)) {
+            return [
+                'status' => HostCapabilityStatus::Supported,
+                'mechanism' => self::codexVerifiedHookMechanism($capability),
+                'evidence' => 'adapter-declared;live-runtime-verified',
             ];
         }
 
@@ -160,6 +173,18 @@ final readonly class HostCapabilityMatrix
             'opencode' => 'opencode.json#permission project policy',
             'cursor' => '.cursor/hooks.json beforeShellExecution fail-closed shell authority policy',
             default => throw new InvalidArgumentException('No policy projector for canonical agent: ' . $canonicalAgent),
+        };
+    }
+
+    /** @return non-empty-string */
+    private static function codexVerifiedHookMechanism(HostCapability $capability): string
+    {
+        return match ($capability) {
+            HostCapability::SessionBootstrap => 'Codex hooks.json SessionStart command hook; Codex 0.157.0 project-trust and persisted-hash runtime proofs observed execution',
+            HostCapability::SubagentBootstrap => 'Codex hooks.json SubagentStart command hook; Codex 0.157.0 selected-child runtime proof observed execution',
+            HostCapability::PreToolGuardrail => 'Codex hooks.json PreToolUse ^Bash$ command hook; Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement',
+            HostCapability::RepositoryHooks => 'Codex hooks.json + repository-local command hooks; Codex 0.157.0 runtime proofs observed SessionStart, SubagentStart, and PreToolUse execution',
+            default => throw new InvalidArgumentException('Capability has no verified Codex hook runtime mechanism: ' . $capability->value),
         };
     }
 
