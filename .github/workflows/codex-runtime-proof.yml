@@ -1501,7 +1501,7 @@ jobs:
                   trusted_context_marker_count: $session_start_hook_proof.trusted_context_marker_count,
                   untrusted_context_marker_count: $session_start_hook_proof.untrusted_context_marker_count,
                   status: "observed",
-                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag bypasses persisted per-hook hash review for these package-vetted fixtures; interactive /hooks review and persisted hook-hash trust are not proven. PreToolUse execution remains a separate runtime claim."
+                  boundary: "This proves the projected project SessionStart hook executes for a trusted project and is not consumed for an untrusted project in Codex 0.157.0: the observed marker is a resume-hint line generated at hook runtime from a unique unfinished-run manifest and is absent from static projected skills/instructions. The CI-only --dangerously-bypass-hook-trust flag bypasses persisted per-hook hash review for these package-vetted fixtures; interactive /hooks review and persisted hook-hash trust are not proven. PreToolUse enforcement is recorded separately in pre_tool_use_hook_deny."
                 },
                 subagent_start_hook_execution: {
                   evidence_class: "host_runtime_execution",
@@ -1509,7 +1509,7 @@ jobs:
                   session_start_invocation_count: $subagent_start_hook_proof.session_start_invocation_count,
                   subagent_start_invocation_count: $subagent_start_hook_proof.subagent_start_invocation_count,
                   status: "observed",
-                  boundary: "This proves Codex 0.157.0 invokes the projected context.php command with --event=SubagentStart for the selected agent-loop-investigator child. The observer changes PATH only and execs the same real PHP interpreter with the original arguments; it does not rewrite hooks.json or the projected hook script. Hook-hash review remains bypassed only for the package-vetted CI fixture. PreToolUse remains unproven."
+                  boundary: "This proves Codex 0.157.0 invokes the projected context.php command with --event=SubagentStart for the selected agent-loop-investigator child. The observer changes PATH only and execs the same real PHP interpreter with the original arguments; it does not rewrite hooks.json or the projected hook script. Hook-hash review remains bypassed only for the package-vetted CI fixture. This record does not cover PreToolUse; see pre_tool_use_hook_deny."
                 },
                 pre_tool_use_hook_deny: {
                   evidence_class: "host_runtime_enforcement",
