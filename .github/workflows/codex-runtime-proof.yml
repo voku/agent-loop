@@ -383,18 +383,19 @@ jobs:
           jq -e '.input[]? | select(.type == "function_call_output" and .call_id == "call-project-rule-deny")' \
             "${tool_result_request}" > "${tool_output}"
           grep -Fq 'git push origin HEAD' "${tool_output}"
-          grep -Fq 'rejected: blocked by policy' "${tool_output}"
+          grep -Fq 'Direct git push is forbidden in Codex; publish outside the autonomous Codex path after explicit human authority.' "${tool_output}"
 
           jq -n \
             --arg command "${command}" \
             --arg projected_rule ".codex/rules/agent-loop.rules" \
+            --arg rejection 'Direct git push is forbidden in Codex; publish outside the autonomous Codex path after explicit human authority.' \
             '{
               command: $command,
               projected_rule: $projected_rule,
               explicit_rules_argument: false,
               git_process_invoked: false,
               rejection_observed_in_tool_output: true,
-              rejection: "rejected: blocked by policy"
+              rejection: $rejection
             }' > "${EVIDENCE_ROOT}/project-rule-live-proof.json"
 
       - name: Prove SessionStart project hook trust and execution
