@@ -37,8 +37,22 @@ if (!is_string($rawPayload)) {
 }
 
 try {
+    $output = (new AgentDisciplineHook($repositoryRoot))->preToolUseOutput($rawPayload);
+    $hookOutput = $output['hookSpecificOutput'];
+
+    // Keep policy detection host-neutral, but translate a deny into Codex's
+    // synchronous command-hook blocking contract. Codex 0.157.0 proves the
+    // exec_command/Bash route end-to-end with exit code 2 plus stderr.
+    if (($hookOutput['permissionDecision'] ?? null) === 'deny') {
+        $reason = $hookOutput['permissionDecisionReason'] ?? 'Command denied by agent-loop policy.';
+        $context = $hookOutput['additionalContext'] ?? null;
+
+        fwrite(STDERR, $reason . ($context !== null ? "\n" . $context : '') . "\n");
+        exit(2);
+    }
+
     echo json_encode(
-        (new AgentDisciplineHook($repositoryRoot))->preToolUseOutput($rawPayload),
+        $output,
         JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
     ) . "\n";
 } catch (Throwable $throwable) {
