@@ -24,6 +24,7 @@ final readonly class RefactorEditCommand
         private string $projectRoot,
         private RenamePlanApplier $applier = new RenamePlanApplier(),
         private ClassMovePlanApplier $classMoveApplier = new ClassMovePlanApplier(),
+        private MethodMovePlanApplier $methodMoveApplier = new MethodMovePlanApplier(),
         private MethodRemovalPlanApplier $removalApplier = new MethodRemovalPlanApplier(),
         private PropertyRemovalPlanApplier $propertyRemovalApplier = new PropertyRemovalPlanApplier(),
         private ClassConstantRemovalPlanApplier $classConstantRemovalApplier = new ClassConstantRemovalPlanApplier(),
@@ -62,6 +63,7 @@ final readonly class RefactorEditCommand
                 $mapIndexSha256 = 'sha256:' . $rawMapHash;
                 $applier = match ($plan['type'] ?? null) {
                     'class_move_plan' => $this->classMoveApplier,
+                    'method_move_plan' => $this->methodMoveApplier,
                     'method_removal_plan' => $this->removalApplier,
                     'property_removal_plan' => $this->propertyRemovalApplier,
                     'class_constant_removal_plan' => $this->classConstantRemovalApplier,
@@ -101,6 +103,7 @@ final readonly class RefactorEditCommand
             $executionPath = $request['output_directory'] . '/execution.json';
             $runnerName = match ($plan['type'] ?? null) {
                 'class_move_plan' => 'class-move-plan',
+                'method_move_plan' => 'method-move-plan',
                 'method_removal_plan' => 'method-removal-plan',
                 'property_removal_plan' => 'property-removal-plan',
                 'class_constant_removal_plan' => 'class-constant-removal-plan',
@@ -329,8 +332,9 @@ Usage:
   agent-loop edit refactor PLAN [options]
 
 Consumes one safe versioned agent-map refactor plan through agent-loop's mutation boundary.
-The fixed allowlist covers the six rename-plan contracts, class_move_plan@1.0, plus
-method_removal_plan@1.0, property_removal_plan@1.0, and class_constant_removal_plan@1.0.
+The fixed allowlist covers the six rename-plan contracts, class_move_plan@1.0,
+method_move_plan@1.0, method_removal_plan@1.0, property_removal_plan@1.0,
+and class_constant_removal_plan@1.0.
 Each owner family keeps its own wire decoder and semantic invariants; arbitrary edit plans and Rector
 execution remain rejected.
 

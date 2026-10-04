@@ -85,7 +85,11 @@ final readonly class RefactorVerifyCommand
         }
         $plan = $this->decodePlan($planPath, $planRaw);
         $document = $this->decodeDocument($plan);
-        $expectedRunner = $document->planType() === 'class_move_plan' ? 'class-move-plan' : 'rename-plan';
+        $expectedRunner = match ($document->planType()) {
+            'class_move_plan' => 'class-move-plan',
+            'method_move_plan' => 'method-move-plan',
+            default => 'rename-plan',
+        };
         if (($execution['runner']['name'] ?? null) !== $expectedRunner) {
             throw new RuntimeException('Refactor execution runner identity does not match the loaded plan family.');
         }
@@ -100,10 +104,7 @@ final readonly class RefactorVerifyCommand
         if ($map->staleEntries() !== []) {
             throw new RuntimeException('Current agent-map evidence is stale after refactor execution.');
         }
-        if ($document instanceof RenamePlanDocument
-            && $document->requiresPhpStan()
-            && !str_ends_with($map->backend, '+phpstan')
-        ) {
+        if ($document->requiresPhpStan() && !str_ends_with($map->backend, '+phpstan')) {
             throw new RuntimeException('Current refactor verification requires a PHPStan-backed map for this plan contract.');
         }
 
@@ -176,6 +177,18 @@ final readonly class RefactorVerifyCommand
             $searchCursor = 0;
             $expectedOccurrences = [];
             foreach ($edits as $edit) {
+                $removedLength = $edit->endFilePos - $edit->startFilePos + 1;
+                if ($edit->replacement === '') {
+                    if (str_contains($content, $edit->expected)) {
+                        throw new RuntimeException(sprintf(
+                            'Removed refactor source is still present in %s.',
+                            $finalPath,
+                        ));
+                    }
+                    $offsetDelta -= $removedLength;
+                    continue;
+                }
+
                 $expectedOccurrences[$edit->replacement] = ($expectedOccurrences[$edit->replacement] ?? 0) + 1;
                 $finalStart = max($searchCursor, $edit->startFilePos + $offsetDelta);
                 $found = strpos($content, $edit->replacement, $searchCursor);
@@ -188,7 +201,7 @@ final readonly class RefactorVerifyCommand
                     ));
                 }
                 $searchCursor = $found + strlen($edit->replacement);
-                $offsetDelta += strlen($edit->replacement) - ($edit->endFilePos - $edit->startFilePos + 1);
+                $offsetDelta += strlen($edit->replacement) - $removedLength;
             }
             foreach ($expectedOccurrences as $replacement => $count) {
                 if (substr_count($content, (string) $replacement) < $count) {
@@ -214,9 +227,11 @@ final readonly class RefactorVerifyCommand
 
         return [
             'schema_version' => '1.0',
-            'kind' => $document->planType() === 'class_move_plan'
-                ? 'class_move_plan_verification'
-                : 'rename_plan_verification',
+            'kind' => match ($document->planType()) {
+                'class_move_plan' => 'class_move_plan_verification',
+                'method_move_plan' => 'method_move_plan_verification',
+                default => 'rename_plan_verification',
+            },
             'status' => 'passed',
             'task_id' => $taskId,
             'plan' => [
@@ -243,9 +258,11 @@ final readonly class RefactorVerifyCommand
     /** @param array<string, mixed> $plan */
     private function decodeDocument(array $plan): EditMovePlanEvidence
     {
-        return ($plan['type'] ?? null) === 'class_move_plan'
-            ? ClassMovePlanDocument::fromArray($plan)
-            : RenamePlanDocument::fromArray($plan);
+        return match ($plan['type'] ?? null) {
+            'class_move_plan' => ClassMovePlanDocument::fromArray($plan),
+            'method_move_plan' => MethodMovePlanDocument::fromArray($plan),
+            default => RenamePlanDocument::fromArray($plan),
+        };
     }
 
     /**
