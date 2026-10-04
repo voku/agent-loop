@@ -19,7 +19,7 @@ run; this page is its human projection.
 
 ```json
 {
-  "voku/agent-edit": "^0.1.0",
+  "voku/agent-edit": "^0.2.0",
   "voku/agent-kanban": "^0.4.4",
   "voku/agent-learning": "^0.18.21",
   "voku/agent-map": "^0.17.0",

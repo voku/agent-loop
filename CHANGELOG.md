@@ -1,3 +1,9 @@
+## Unreleased
+
+### Changed
+
+- Require `voku/agent-edit` `^0.2.0`. `agent-loop edit refactor verify` can now report `incomplete` (`scope_unproven`, exit code `3`) when Git is unavailable and only Map-indexed files could be observed; the governed close gate already treats any status other than `passed` as blocking, so such a bundle cannot close. Receipts and results produced with Git are unchanged. A facade test pins `incomplete`/exit 3 for Git-free Map-scoped evidence and the installed lifecycle proof now asserts a `0.2.x` resolution.
+
 ## 0.20.54 - 2026-10-04
 
 ### Fixed
