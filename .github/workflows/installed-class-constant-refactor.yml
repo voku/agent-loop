@@ -279,6 +279,70 @@ jobs:
           vendor/bin/agent-loop finish DEMO-1 --format=json > finish.json
           jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
 
+          # Probe a capability that agent-map advertises but agent-loop does not yet consume.
+          cat > src/MethodSource.php <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class MethodSource
+          {
+              private static function normalize(string $value): string
+              {
+                  return trim($value);
+              }
+          }
+          PHP
+
+          cat > src/MethodDestination.php <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class MethodDestination
+          {
+          }
+          PHP
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --out=.agent-loop/map/php-symbols.json
+
+          vendor/bin/agent-map method-move-plan \
+            'Fixture\\MethodSource::normalize' 'Fixture\\MethodDestination' \
+            --index=.agent-loop/map/php-symbols.json \
+            --format=json > .agent-loop/edit/DEMO-1/method-move-plan.json
+
+          jq -e '
+            (.type == "method_move_plan")
+            and (.contract_version == "1.0")
+            and (.status == "safe")
+            and (.stale_evidence == [])
+            and (.blockers == [])
+            and ((.edits | length) >= 2)
+          ' .agent-loop/edit/DEMO-1/method-move-plan.json >/dev/null
+
+          set +e
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-1/method-move-plan.json \
+            --task=METHOD-MOVE-GAP \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/METHOD-MOVE-GAP \
+            --dry-run \
+            > method-move-gap.stdout \
+            2> method-move-gap.stderr
+          method_move_rc=$?
+          set -e
+
+          test "$method_move_rc" -eq 1
+          grep -Fq 'Unsupported agent-map rename plan type.' method-move-gap.stderr
+
       - name: Upload installed class-constant evidence
         if: always()
         uses: actions/upload-artifact@v4
