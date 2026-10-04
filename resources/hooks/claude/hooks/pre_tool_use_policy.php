@@ -20,7 +20,7 @@ if (!is_string($rawPayload)) {
 
 try {
     echo json_encode(
-        (new AgentDisciplineHook($repositoryRoot))->preToolUseOutput($rawPayload),
+        (new AgentDisciplineHook($repositoryRoot))->claudePreToolUseOutput($rawPayload),
         JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
     ) . "\n";
 } catch (Throwable $throwable) {

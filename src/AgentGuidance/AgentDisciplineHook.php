@@ -125,6 +125,39 @@ final readonly class AgentDisciplineHook
     }
 
     /**
+     * Claude's hard permission rules intentionally cover canonical direct
+     * publication forms. This optional hook adds bounded defense-in-depth for
+     * a few known alternate shell spellings without widening that security claim.
+     *
+     * @return array{
+     *   continue: true,
+     *   hookSpecificOutput: array{
+     *     hookEventName: 'PreToolUse',
+     *     permissionDecision?: 'deny',
+     *     permissionDecisionReason?: non-empty-string,
+     *     additionalContext?: non-empty-string
+     *   }
+     * }
+     */
+    public function claudePreToolUseOutput(string $rawPayload): array
+    {
+        $payload = $this->decodePayload($rawPayload);
+        if (($payload['hook_event_name'] ?? null) !== 'PreToolUse') {
+            throw new UnexpectedValueException('Expected hook_event_name PreToolUse.');
+        }
+
+        $command = $this->extractCommand($payload);
+        if ($this->isAlternateRemotePublicationCommand($command)) {
+            return $this->deny(
+                'Alternate remote publication command is blocked by the Claude workflow guardrail.',
+                'Use the canonical direct publication path only after explicit human authority. Claude permission deny rules remain the hard boundary for the direct command forms; this hook is defense in depth and does not claim universal shell or MCP coverage.',
+            );
+        }
+
+        return $this->preToolUseOutput($rawPayload);
+    }
+
+    /**
      * @return array{hookEventName: 'SessionStart'|'SubagentStart', additionalContext: string}
      */
     private function contextHookSpecificOutput(
@@ -457,6 +490,25 @@ final readonly class AgentDisciplineHook
     private function isInPlaceSedEdit(string $command): bool
     {
         return preg_match('~(?:^|[;&|]\s*)sed\b[^;&|]*(?:\s-i(?:\s|$)|\s--in-place(?:=\S+|\s|$))~i', $command) === 1;
+    }
+
+    private function isAlternateRemotePublicationCommand(string $command): bool
+    {
+        if (preg_match('~^\\s*(?:git\\s+push|gh\\s+pr\\s+(?:create|merge))(?:\\s|$)~i', $command) === 1) {
+            return false;
+        }
+
+        $boundary = '(?:^|(?:&&|\\|\\||[;&|\\r\\n])\\s*)';
+        $wrapper = '(?:(?:sudo|env(?:\\s+[A-Za-z_][A-Za-z0-9_]*=\\S+)*)\\s+)?(?:\\S*/)?';
+
+        return preg_match(
+            '~' . $boundary . $wrapper . 'git(?:\\s+(?:-C\\s+\\S+|-c\\s+\\S+))*\\s+push(?:\\s|$)~i',
+            $command,
+        ) === 1
+            || preg_match(
+                '~' . $boundary . $wrapper . 'gh\\s+pr\\s+(?:create|merge)(?:\\s|$)~i',
+                $command,
+            ) === 1;
     }
 
     /**

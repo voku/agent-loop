@@ -24,5 +24,9 @@ final class ClaudeHookRuntimeSourceTest extends TestCase
             self::assertIsString($content);
             self::assertStringContainsString("require __DIR__ . '/runtime.php'", $content);
         }
+
+        $preToolUse = file_get_contents($root . '/pre_tool_use_policy.php');
+        self::assertIsString($preToolUse);
+        self::assertStringContainsString('->claudePreToolUseOutput($rawPayload)', $preToolUse);
     }
 }
