@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use voku\AgentLoop\Dogfood\AgentEditCandidate;
+
+require dirname(__DIR__) . '/tools/Dogfood/AgentEditCandidate.php';
+
 final readonly class UpgradeCommandResult
 {
     public function __construct(
@@ -286,10 +290,13 @@ final class ReleaseUpgradeDogfood
             'prefer-stable' => true,
         ];
         if ($candidate) {
-            $config['repositories'] = [[
-                'type' => 'package',
-                'package' => $this->candidatePackage(),
-            ]];
+            $config['repositories'] = [
+                $this->candidateAgentEditRepository(),
+                [
+                    'type' => 'package',
+                    'package' => $this->candidatePackage(),
+                ],
+            ];
             $config['minimum-stability'] = 'dev';
         }
         $this->writeJson($scenario->composerRoot . '/composer.json', $config);
@@ -380,6 +387,26 @@ final class ReleaseUpgradeDogfood
             throw new RuntimeException('Candidate archive was not created: ' . $archive);
         }
         $this->candidateArchivePath = $archive;
+    }
+
+    /**
+     * The candidate pins voku/agent-edit in its own composer.json; a consumer needs that same package repository
+     * because nested requirements cannot bring their own repositories.
+     *
+     * @return array<string, mixed>
+     */
+    private function candidateAgentEditRepository(): array
+    {
+        $composer = $this->execute(
+            ['git', '-C', $this->candidateRepositoryRoot, 'show', $this->toRef . ':composer.json'],
+            $this->candidateRepositoryRoot,
+        );
+        $decoded = json_decode($composer->stdout, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Candidate composer.json must decode to an object.');
+        }
+
+        return AgentEditCandidate::repository($decoded);
     }
 
     /** @return array<string, mixed> */

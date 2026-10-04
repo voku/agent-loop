@@ -54,7 +54,7 @@ jobs:
           MAP_VERSION: 0.18.3
         run: |
           set -euo pipefail
-          export AGENT_EDIT_REF="$(jq -er '.require["voku/agent-edit"]' composer.json)"
+          export AGENT_EDIT_REPO="$(jq -c '.repositories[] | select(.type == "package" and .package.name == "voku/agent-edit")' composer.json)"
           bash tools/installed-edit-lifecycle.sh "${{ matrix.scenario }}" "${RUNNER_TEMP}/agent-loop-installed-edit-${{ matrix.scenario }}"
 
       - name: Upload installed agent-edit evidence

@@ -10,8 +10,32 @@
   },
   "repositories": [
     {
-      "type": "vcs",
-      "url": "https://github.com/voku/agent-edit"
+      "type": "package",
+      "package": {
+        "name": "voku/agent-edit",
+        "version": "dev-candidate",
+        "type": "library",
+        "license": "MIT",
+        "description": "Candidate pin until voku/agent-edit has a stable release; replace with a released constraint.",
+        "source": {
+          "type": "git",
+          "url": "https://github.com/voku/agent-edit.git",
+          "reference": "c213b419a749398108a3875a47af99f6f77e8631"
+        },
+        "require": {
+          "php": "^8.3",
+          "helgesverre/toon": "^3.1",
+          "voku/agent-map": "^0.18.3"
+        },
+        "autoload": {
+          "psr-4": {
+            "voku\\AgentEdit\\": "src/"
+          }
+        },
+        "bin": [
+          "bin/agent-edit"
+        ]
+      }
     }
   ],
   "authors": [
@@ -23,7 +47,7 @@
   "require": {
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
-    "voku/agent-edit": "dev-ccr-6f81b111-pl491d#c213b419a749398108a3875a47af99f6f77e8631@dev",
+    "voku/agent-edit": "dev-candidate@dev",
     "voku/agent-kanban": "^0.4.4",
     "voku/agent-learning": "^0.18.25",
     "voku/agent-map": "^0.18.3",

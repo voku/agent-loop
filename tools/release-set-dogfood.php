@@ -13,6 +13,7 @@ declare(strict_types=1);
  * must not change what release set this gate claims to exercise.
  */
 
+use voku\AgentLoop\Dogfood\AgentEditCandidate;
 use voku\AgentLoop\Dogfood\MinimumReleasePin;
 use voku\AgentLoop\Dogfood\ComposerPathRepository;
 use voku\AgentLoop\Dogfood\ReleaseSetCandidateSelection;
@@ -20,6 +21,7 @@ use voku\AgentLoop\Dogfood\ReleaseSetCandidateSelection;
 // Loaded directly rather than through the autoloader, for the same reason as
 // the other candidate runner: these gates run against a checkout whose own
 // dependencies may not be installed.
+require dirname(__DIR__) . '/tools/Dogfood/AgentEditCandidate.php';
 require dirname(__DIR__) . '/tools/Dogfood/MinimumReleasePin.php';
 require dirname(__DIR__) . '/tools/Dogfood/ComposerPathRepository.php';
 require dirname(__DIR__) . '/tools/Dogfood/ReleaseSetCandidateSelection.php';
@@ -868,8 +870,8 @@ final class ReleaseSetDogfood
         $this->mkdir($this->logRoot);
 
         $repositories = [
-            // voku/agent-edit has no stable release yet; agent-loop pins an explicit candidate reference.
-            ['type' => 'vcs', 'url' => 'https://github.com/voku/agent-edit'],
+            // voku/agent-edit has no stable release yet; mount agent-loop's own pinned candidate package.
+            AgentEditCandidate::repositoryFromFile($this->repositoryRoot . '/composer.json'),
             [
                 'type' => 'path',
                 'url' => ComposerPathRepository::url($this->candidateRoot),

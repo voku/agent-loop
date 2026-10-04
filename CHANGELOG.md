@@ -5,7 +5,7 @@
 - Extract the deterministic refactor mutation subsystem into `voku/agent-edit`. `agent-loop edit refactor` and `edit refactor verify` are now thin governance facades: Loop keeps the explicit task id, the `.agent-loop/edit/<task>` bundle and map-index defaults, the `ExecutionContractStore::assertReadyForMutation` gate, the shared project mutation lock and workflow evidence. Plan decoding, provenance validation, preflight, the transactional apply, receipt (`execution.json`) writing and receipt verification (`verification-result.json`) run through the public `voku\AgentEdit\EditEngine` API. The CLI contract, stdout, exit codes and bundle/receipt schema are unchanged.
 - Remove the duplicated implementation under `src/Edit/Refactor` (plan documents, evidence classes, the shared transaction applier, six adapters, four verifiers) and the tests that moved with it; unsupported plan types and contract versions are rejected by `agent-edit`'s capability registry before any source is read.
 - `MethodRenameEditRunner` applies its replanned rename through `EditEngine::apply()`.
-- Require `voku/agent-edit` through an explicit, pinned candidate reference (`dev-<branch>#<commit>`) until the package has a stable release; installed-consumer harnesses mount the same reference from the repository's own `composer.json`.
+- Require `voku/agent-edit` as `dev-candidate@dev` resolved by a `package` repository in `composer.json` that pins one exact commit (`source.reference`) until the package has a stable release; every installed-consumer harness mounts that same entry from the repository's own `composer.json`.
 
 ### Added
 

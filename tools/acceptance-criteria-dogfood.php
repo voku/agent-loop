@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use voku\AgentLoop\Dogfood\AgentEditCandidate;
+
+require dirname(__DIR__) . '/tools/Dogfood/AgentEditCandidate.php';
+
 final class AcceptanceCriteriaDogfoodFailure extends RuntimeException
 {
 }
@@ -236,10 +240,7 @@ final class AcceptanceCriteriaDogfood
                 'voku/agent-recall-compiler' => $recallVersion,
             ],
             'repositories' => [
-                [
-                    'type' => 'vcs',
-                    'url' => 'https://github.com/voku/agent-edit',
-                ],
+                AgentEditCandidate::repositoryFromFile($this->agentLoopRoot . '/composer.json'),
                 [
                     'type' => 'path',
                     'url' => str_replace('\\', '/', $this->agentLoopRoot),

@@ -53,4 +53,28 @@ final class EditRefactorOwnerBoundaryTest extends TestCase
             self::assertArrayNotHasKey('voku/agent-loop', $edit['require'] ?? []);
         }
     }
+
+    public function testAgentEditCandidateIsPinnedToOneExactCommitWithoutACommitRefRequirement(): void
+    {
+        $composer = json_decode((string) file_get_contents(dirname(__DIR__) . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($composer);
+        // `composer validate --strict` rejects commit-refs in require, so the pin lives in the package repository.
+        self::assertStringNotContainsString('#', (string) $composer['require']['voku/agent-edit']);
+
+        $package = null;
+        foreach ($composer['repositories'] as $repository) {
+            if (($repository['package']['name'] ?? null) === 'voku/agent-edit') {
+                $package = $repository['package'];
+            }
+        }
+        self::assertIsArray($package);
+        self::assertMatchesRegularExpression('/\A[0-9a-f]{40}\z/', (string) $package['source']['reference']);
+
+        $installed = dirname(__DIR__) . '/vendor/voku/agent-edit/composer.json';
+        if (is_file($installed)) {
+            $edit = json_decode((string) file_get_contents($installed), true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($edit);
+            self::assertSame($edit['require'], $package['require'], 'The pinned package metadata drifted from agent-edit\'s own composer.json.');
+        }
+    }
 }
