@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/claude-runtime-proof.yml'
       - 'src/Init/**'
+      - 'src/AgentGuidance/**'
+      - 'resources/hooks/claude/**'
       - 'resources/instructions/**'
       - 'resources/skills/**'
       - 'resources/subagents/**'
@@ -15,7 +17,7 @@ permissions:
 
 jobs:
   runtime-proof:
-    name: Claude 2.1.287 instruction consumption
+    name: Claude 2.1.287 runtime evidence
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -101,6 +103,7 @@ jobs:
           from urllib.parse import urlparse
 
           evidence_root = os.environ["EVIDENCE_ROOT"]
+          proof_root = os.environ["PROOF_ROOT"]
           port_path = os.environ["PORT_PATH"]
           request_index = 0
 
@@ -123,6 +126,20 @@ jobs:
                   self.send_header("Content-Length", str(len(body)))
                   self.end_headers()
                   self.wfile.write(body)
+
+              def _stream(self, events):
+                  body = "".join(
+                      f"event: {event}\ndata: {json.dumps(data)}\n\n"
+                      for event, data in events
+                  ).encode("utf-8")
+                  self.send_response(200)
+                  self.send_header("Content-Type", "text/event-stream")
+                  self.send_header("Cache-Control", "no-cache")
+                  self.send_header("Connection", "close")
+                  self.end_headers()
+                  self.wfile.write(body)
+                  self.wfile.flush()
+                  self.close_connection = True
 
               def do_GET(self):
                   self._record_path("GET")
@@ -180,7 +197,76 @@ jobs:
                       json.dump(payload, handle, indent=2, sort_keys=True)
                       handle.write("\n")
 
+                  if payload.get("stream") and request_index == 3:
+                      tool_command = os.path.join(proof_root, "proof-bin", "git") + " -C . push origin main"
+                      with open(
+                          os.path.join(evidence_root, "requested-alternate-publication-command.txt"),
+                          "w",
+                          encoding="utf-8",
+                      ) as handle:
+                          handle.write(tool_command)
+                          handle.write("\n")
+
+                      events = [
+                          (
+                              "message_start",
+                              {
+                                  "type": "message_start",
+                                  "message": {
+                                      "id": "msg_pretool_proof",
+                                      "type": "message",
+                                      "role": "assistant",
+                                      "model": "claude-sonnet-4-5",
+                                      "content": [],
+                                      "stop_reason": None,
+                                      "stop_sequence": None,
+                                      "usage": {"input_tokens": 1, "output_tokens": 0},
+                                  },
+                              },
+                          ),
+                          (
+                              "content_block_start",
+                              {
+                                  "type": "content_block_start",
+                                  "index": 0,
+                                  "content_block": {
+                                      "type": "tool_use",
+                                      "id": "toolu_pretool_proof",
+                                      "name": "Bash",
+                                      "input": {},
+                                  },
+                              },
+                          ),
+                          (
+                              "content_block_delta",
+                              {
+                                  "type": "content_block_delta",
+                                  "index": 0,
+                                  "delta": {
+                                      "type": "input_json_delta",
+                                      "partial_json": json.dumps({"command": tool_command}),
+                                  },
+                              },
+                          ),
+                          (
+                              "content_block_stop",
+                              {"type": "content_block_stop", "index": 0},
+                          ),
+                          (
+                              "message_delta",
+                              {
+                                  "type": "message_delta",
+                                  "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                                  "usage": {"output_tokens": 1},
+                              },
+                          ),
+                          ("message_stop", {"type": "message_stop"}),
+                      ]
+                      self._stream(events)
+                      return
+
                   if payload.get("stream"):
+                      response_text = "PROOF_DENIED" if request_index >= 4 else "PROOF_OK"
                       events = [
                           (
                               "message_start",
@@ -211,7 +297,7 @@ jobs:
                               {
                                   "type": "content_block_delta",
                                   "index": 0,
-                                  "delta": {"type": "text_delta", "text": "PROOF_OK"},
+                                  "delta": {"type": "text_delta", "text": response_text},
                               },
                           ),
                           (
@@ -228,18 +314,7 @@ jobs:
                           ),
                           ("message_stop", {"type": "message_stop"}),
                       ]
-                      body = "".join(
-                          f"event: {event}\ndata: {json.dumps(data)}\n\n"
-                          for event, data in events
-                      ).encode("utf-8")
-                      self.send_response(200)
-                      self.send_header("Content-Type", "text/event-stream")
-                      self.send_header("Cache-Control", "no-cache")
-                      self.send_header("Connection", "close")
-                      self.end_headers()
-                      self.wfile.write(body)
-                      self.wfile.flush()
-                      self.close_connection = True
+                      self._stream(events)
                       return
 
                   self._json(200, {
@@ -370,6 +445,133 @@ jobs:
               handle.write("\n")
           PY
 
+      - name: Prove Claude PreToolUse deny is honored live
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: proof-key
+          DISABLE_TELEMETRY: '1'
+          DISABLE_AUTOUPDATER: '1'
+          ENABLE_CLAUDEAI_MCP_SERVERS: 'false'
+          MCP_CONNECTION_NONBLOCKING: 'true'
+          CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: 'false'
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: '1'
+          IS_DEMO: '1'
+        run: |
+          set -euo pipefail
+          export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_PROOF_PORT}"
+
+          (
+            cd "${PROOF_ROOT}"
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=claude --with-hooks
+          )
+
+          test -f "${PROOF_ROOT}/.claude/settings.json"
+          test -f "${PROOF_ROOT}/.claude/hooks/pre_tool_use_policy.php"
+
+          mkdir -p "${PROOF_ROOT}/proof-bin"
+          fake_git="${PROOF_ROOT}/proof-bin/git"
+          execution_sentinel="${EVIDENCE_ROOT}/alternate-publication-executed.log"
+
+          cat > "${fake_git}" <<EOF
+          #!/usr/bin/env bash
+          printf '%s\n' "\$*" >> "${execution_sentinel}"
+          exit 0
+          EOF
+          chmod +x "${fake_git}"
+
+          sha256sum \
+            "${PROOF_ROOT}/.claude/settings.json" \
+            "${PROOF_ROOT}/.claude/hooks/pre_tool_use_policy.php" \
+            > "${EVIDENCE_ROOT}/pretool-projection.sha256"
+
+          (
+            cd "${PROOF_ROOT}"
+            claude -p \
+              --permission-mode bypassPermissions \
+              --model claude-sonnet-4-5 \
+              --output-format json \
+              "Use the Bash tool exactly once with the command supplied by the model provider. Do not replace it with another tool or command."
+          ) > "${EVIDENCE_ROOT}/claude-pretool-deny.json"
+
+          test ! -e "${execution_sentinel}"
+
+          python3 - "${EVIDENCE_ROOT}" <<'PY'
+          import glob
+          import json
+          import os
+          import sys
+
+          evidence_root = sys.argv[1]
+          request_paths = sorted(glob.glob(os.path.join(evidence_root, "provider-request-*.json")))
+          if len(request_paths) < 4:
+              raise SystemExit(
+                  f"expected at least four provider requests after the live PreToolUse proof, observed {len(request_paths)}"
+              )
+
+          denial_reason = "Alternate remote publication command is blocked by the Claude workflow guardrail."
+          post_tool_path = request_paths[3]
+          with open(post_tool_path, "r", encoding="utf-8") as handle:
+              post_tool_payload = json.load(handle)
+
+          def strings(value):
+              if isinstance(value, str):
+                  yield value
+              elif isinstance(value, list):
+                  for item in value:
+                      yield from strings(item)
+              elif isinstance(value, dict):
+                  for item in value.values():
+                      yield from strings(item)
+
+          def objects(value):
+              if isinstance(value, dict):
+                  yield value
+                  for item in value.values():
+                      yield from objects(item)
+              elif isinstance(value, list):
+                  for item in value:
+                      yield from objects(item)
+
+          tool_results = [
+              item
+              for item in objects(post_tool_payload.get("messages", []))
+              if item.get("type") == "tool_result"
+          ]
+          if not tool_results:
+              raise SystemExit("live Claude request after the Bash tool call contains no tool_result")
+
+          matching_results = [
+              item
+              for item in tool_results
+              if denial_reason in "\n".join(strings(item))
+          ]
+          if not matching_results:
+              raise SystemExit("Claude tool_result does not contain the projected PreToolUse denial reason")
+
+          requested_command_path = os.path.join(
+              evidence_root,
+              "requested-alternate-publication-command.txt",
+          )
+          with open(requested_command_path, "r", encoding="utf-8") as handle:
+              requested_command = handle.read().strip()
+
+          proof = {
+              "claude_permission_mode": "bypassPermissions",
+              "denial_reason": denial_reason,
+              "fake_git_executed": False,
+              "provider_request_after_deny": os.path.basename(post_tool_path),
+              "requested_command": requested_command,
+              "tool_result_observed": True,
+          }
+          with open(
+              os.path.join(evidence_root, "pretool-deny-proof.json"),
+              "w",
+              encoding="utf-8",
+          ) as handle:
+              json.dump(proof, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+
       - name: Record evidence boundary
         if: always()
         shell: bash
@@ -387,8 +589,13 @@ jobs:
           else
             marker_counts='null'
           fi
+          if test -s "${EVIDENCE_ROOT}/pretool-deny-proof.json"; then
+            pretool_deny="$(cat "${EVIDENCE_ROOT}/pretool-deny-proof.json")"
+          else
+            pretool_deny='null'
+          fi
 
-          jq -n             --arg claude_version "$(cat "${EVIDENCE_ROOT}/claude-version.txt" 2>/dev/null || printf '%s' 'unknown')"             --arg repository_head_sha "$(cat "${EVIDENCE_ROOT}/repository-head-sha.txt")"             --arg repository_base_sha "$(cat "${EVIDENCE_ROOT}/repository-base-sha.txt")"             --arg dependency_graph_sha256 "$(cat "${EVIDENCE_ROOT}/dependency-graph.sha256")"             --arg projection_before "$(cat "${EVIDENCE_ROOT}/projection-before-reinstall.sha256")"             --arg projection_after "$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256" 2>/dev/null || printf '%s' 'unknown')"             --argjson marker_counts "${marker_counts}"             '{
+          jq -n             --arg claude_version "$(cat "${EVIDENCE_ROOT}/claude-version.txt" 2>/dev/null || printf '%s' 'unknown')"             --arg repository_head_sha "$(cat "${EVIDENCE_ROOT}/repository-head-sha.txt")"             --arg repository_base_sha "$(cat "${EVIDENCE_ROOT}/repository-base-sha.txt")"             --arg dependency_graph_sha256 "$(cat "${EVIDENCE_ROOT}/dependency-graph.sha256")"             --arg projection_before "$(cat "${EVIDENCE_ROOT}/projection-before-reinstall.sha256")"             --arg projection_after "$(cat "${EVIDENCE_ROOT}/projection-after-reinstall.sha256" 2>/dev/null || printf '%s' 'unknown')"             --argjson marker_counts "${marker_counts}"             --argjson pretool_deny "${pretool_deny}"             '{
               schema_version: "1.0",
               claude_version: $claude_version,
               repository: {
@@ -412,13 +619,21 @@ jobs:
                   evidence_class: "installed_projection",
                   mechanism: "two consecutive init install-assets --agent=claude runs with identical owned projection digest",
                   status: (if $projection_before == $projection_after then "observed" else "unverified" end)
+                },
+                pretool_deny_enforcement: {
+                  evidence_class: "host_runtime_enforcement",
+                  mechanism: "Claude 2.1.287 received a Bash tool_use for a bounded alternate publication command while running with bypassPermissions; the projected repository PreToolUse hook returned deny, Claude reported that denial as the tool_result, and the fake git executable left no execution sentinel",
+                  proof: $pretool_deny,
+                  status: (if $pretool_deny == null then "unverified" else "observed" end),
+                  boundary: "This proves the projected Claude PreToolUse Bash hook executes and its deny output suppresses this bounded alternate publication command. It does not make the hook a universal shell, MCP, or security boundary and does not prove the separate hard direct-form permission rules."
                 }
               },
               not_proven_by_this_slice: {
                 repository_skill_discovery: true,
                 subagent_discovery_or_selection: true,
-                hook_execution: true,
-                permission_deny_enforcement: true,
+                session_start_hook_execution: true,
+                subagent_start_hook_execution: true,
+                hard_direct_form_permission_deny_enforcement: true,
                 mcp_authority_coverage: true,
                 interactive_workspace_trust: true,
                 resume_exact_once_context: true
