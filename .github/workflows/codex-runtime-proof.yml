@@ -648,8 +648,6 @@ jobs:
           EOF
 
           git -C "${trust_root}" rev-parse --show-toplevel > "${trust_git_root}"
-          cp "${runtime_home}/config.toml" "${trust_config}"
-
           cat > "${php_wrapper_dir}/php" <<EOF
           #!/usr/bin/env bash
           set -euo pipefail
@@ -858,6 +856,8 @@ jobs:
 
           test -s "${runtime_home}/config.toml"
           grep -Fq 'trusted_hash' "${runtime_home}/config.toml"
+
+          cp "${runtime_home}/config.toml" "${trust_config}"
 
           run_exec trusted
           trusted_invocations="$(session_start_invocations)"
@@ -2207,7 +2207,7 @@ jobs:
               },
               not_proven_by_this_slice: {
                 parent_runtime_override_interaction: true,
-                interactive_hook_review_persistence: true,
+                interactive_hooks_review_interaction: true,
                 mcp_authority_coverage: true
               }
             }' > "${EVIDENCE_ROOT}/evidence.json"
