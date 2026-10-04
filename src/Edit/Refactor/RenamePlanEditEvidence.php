@@ -25,7 +25,7 @@ final readonly class RenamePlanEditEvidence
     }
 
     /** @param array<string, mixed> $data */
-    public static function fromArray(array $data): self
+    public static function fromArray(array $data, bool $allowEmptyReplacement = false): self
     {
         $edit = new self(
             path: self::string($data, 'path'),
@@ -35,7 +35,7 @@ final readonly class RenamePlanEditEvidence
             lineStart: self::integer($data, 'line_start'),
             lineEnd: self::integer($data, 'line_end'),
             expected: self::string($data, 'expected'),
-            replacement: self::string($data, 'replacement'),
+            replacement: self::string($data, 'replacement', $allowEmptyReplacement),
             role: self::string($data, 'role'),
             symbolId: self::string($data, 'symbol_id'),
             resolution: self::string($data, 'resolution'),
@@ -55,11 +55,11 @@ final readonly class RenamePlanEditEvidence
     }
 
     /** @param array<string, mixed> $data */
-    private static function string(array $data, string $key): string
+    private static function string(array $data, string $key, bool $allowEmpty = false): string
     {
         $value = $data[$key] ?? null;
-        if (!is_string($value) || $value === '') {
-            throw new RuntimeException('Rename plan edit requires non-empty string ' . $key . '.');
+        if (!is_string($value) || (!$allowEmpty && $value === '')) {
+            throw new RuntimeException('Rename plan edit requires ' . ($allowEmpty ? 'string ' : 'non-empty string ') . $key . '.');
         }
 
         return $value;
