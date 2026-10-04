@@ -73,7 +73,10 @@ class Provider:
     def response_for(self, payload: dict[str, Any], request_index: int) -> tuple[str, dict[str, Any] | str]:
         observed = "\n".join(strings(payload))
 
-        if "RUNTIME_PROOF_SUBAGENT_CHILD_" in observed:
+        if (
+            "RUNTIME_PROOF_SUBAGENT_CHILD_" in observed
+            and "RUNTIME_PROOF_SUBAGENT_PARENT_" not in observed
+        ):
             return "text", "SUBAGENT_PROOF_OK"
 
         if "RUNTIME_PROOF_SUBAGENT_PARENT_" in observed:
