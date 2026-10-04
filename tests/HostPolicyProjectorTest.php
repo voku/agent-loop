@@ -120,7 +120,11 @@ final class HostPolicyProjectorTest extends TestCase
 
         $first = $projector->sync('codex');
         self::assertTrue($first['changed']);
-        self::assertSame('ready', $projector->inspect('codex')['status']);
+
+        $status = $projector->inspect('codex');
+        self::assertSame('ready', $status['status']);
+        self::assertStringContainsString('does not project mcp_servers or MCP-specific policy', $status['detail']);
+        self::assertStringContainsString('PreToolUse matcher covers Bash only', $status['detail']);
         self::assertFalse($projector->sync('codex')['changed']);
 
         $path = $this->root . '/.codex/rules/agent-loop.rules';
