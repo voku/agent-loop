@@ -119,6 +119,14 @@ final readonly class HostCapabilityMatrix
             ];
         }
 
+        if ($canonicalAgent === 'claude' && $capability === HostCapability::PreToolGuardrail) {
+            return [
+                'status' => HostCapabilityStatus::Supported,
+                'mechanism' => 'Claude project settings PreToolUse ^Bash$ command hook; Claude Code 2.1.287 installed-candidate runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
+                'evidence' => 'adapter-declared;live-runtime-verified',
+            ];
+        }
+
         if (in_array($canonicalAgent, ['codex', 'claude'], true)
             || ($canonicalAgent === 'cursor' && in_array($capability, [HostCapability::PreToolGuardrail, HostCapability::RepositoryHooks], true))
         ) {
