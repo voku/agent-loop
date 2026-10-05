@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-map
-          ref: 0.18.3
+          ref: 0.18.4
           path: build/released-agent-map
           persist-credentials: false
 
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "17b5ee02a75ac7fa4b5281b85ef78877df2fb8ec"
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "524d3cc377c2894979e1108c348a2b0d189940af"
 
       - name: Run released property-removal plan through governed installed consumer
         shell: bash
@@ -71,7 +71,7 @@ jobs:
                 "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-map": "0.18.3"}
+                  "versions": {"voku/agent-map": "0.18.4"}
                 }
               }
             ],
@@ -113,6 +113,31 @@ jobs:
           }
           PHP
 
+          cat > "$root/src/MetadataGreeter.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          #[\Attribute(\Attribute::TARGET_PROPERTY)]
+          final class MetadataMarker
+          {
+          }
+
+          final class MetadataGreeter
+          {
+              /** @var non-empty-string */
+              #[MetadataMarker]
+              private string $obsolete = 'unused';
+
+              public function greet(string $name): string
+              {
+                  return 'Hello ' . $name;
+              }
+          }
+          PHP
+
           cat > "$root/tests/run.php" <<'PHP'
           <?php
 
@@ -128,7 +153,7 @@ jobs:
           cd "$root"
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           composer show voku/agent-map --format=json > resolved-agent-map.json
-          jq -e '.versions | index("0.18.3") != null' resolved-agent-map.json >/dev/null
+          jq -e '.versions | index("0.18.4") != null' resolved-agent-map.json >/dev/null
 
           git init --initial-branch=main
           git config user.name 'Installed Property Removal Dogfood'
@@ -270,6 +295,64 @@ jobs:
           vendor/bin/agent-loop finish DEMO-1 --format=json > finish.json
           jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
 
+          # Separate metadata case: owned range must include PHPDoc + attributes, but review_required must still fail closed.
+          git add src/Greeter.php
+          git commit -m 'fixture: accept governed property removal'
+
+          vendor/bin/agent-loop workflow plan DEMO-2 \
+            --by installed-property-removal-dogfood \
+            --file src/MetadataGreeter.php \
+            --goal 'Prove parser-owned PHPDoc and attribute range for a private property without bypassing review-required safety.' \
+            --behavior-anchor 'Metadata ownership is exact evidence; review-required property removal never mutates source.' \
+            --validation 'php -l src/MetadataGreeter.php' \
+            --acceptance 'The plan includes PHPDoc and attribute bytes, reports both metadata blind spots, and agent-edit refuses mutation.'
+          vendor/bin/agent-loop workflow approve DEMO-2 --by installed-property-removal-dogfood
+          vendor/bin/agent-loop enter DEMO-2 --format=json --max-lines=40 --max-bytes=4096 > metadata-enter.json
+          jq -e '.mutation_ready == true' metadata-enter.json >/dev/null
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --phpstan-memory-limit=512M \
+            --out=.agent-loop/map/php-symbols.json
+
+          mkdir -p .agent-loop/edit/DEMO-2
+          vendor/bin/agent-map property-removal-plan \
+            'Fixture\MetadataGreeter::$obsolete' \
+            --index=.agent-loop/map/php-symbols.json \
+            --format=json > .agent-loop/edit/DEMO-2/property-removal-plan.json
+
+          jq -e '
+            (.type == "property_removal_plan")
+            and (.contract_version == "1.0")
+            and (.status == "review_required")
+            and (.stale_evidence == [])
+            and (.blockers == [])
+            and (([.blind_spots[].kind] | sort) == ["property_attributes", "property_phpdoc"])
+            and ((.edits | length) == 1)
+            and (.edits[0].replacement == "")
+            and (.edits[0].role == "property_declaration_removal")
+            and (.edits[0].expected | contains("/** @var non-empty-string */"))
+            and (.edits[0].expected | contains("#[MetadataMarker]"))
+            and (.edits[0].expected | contains("private string $obsolete ="))
+          ' .agent-loop/edit/DEMO-2/property-removal-plan.json >/dev/null
+
+          metadata_before="$(sha256sum src/MetadataGreeter.php | cut -d' ' -f1)"
+          set +e
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-2/property-removal-plan.json \
+            --task=DEMO-2 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/DEMO-2 > metadata-refusal.out 2>&1
+          metadata_refusal_rc=$?
+          set -e
+          test "$metadata_refusal_rc" -ne 0
+          test "$(sha256sum src/MetadataGreeter.php | cut -d' ' -f1)" = "$metadata_before"
+          test ! -e .agent-loop/edit/DEMO-2/execution.json
+          grep -F 'Property removal plan is not safe; no source was changed.' metadata-refusal.out >/dev/null
+          grep -F 'review_required' metadata-refusal.out >/dev/null
+
       - name: Upload installed property-removal evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -282,3 +365,5 @@ jobs:
             ${{ runner.temp }}/agent-loop-installed-property-removal/.agent-loop/edit/DEMO-1/execution.json
             ${{ runner.temp }}/agent-loop-installed-property-removal/.agent-loop/edit/DEMO-1/verification-result.json
             ${{ runner.temp }}/agent-loop-installed-property-removal/finish.json
+            ${{ runner.temp }}/agent-loop-installed-property-removal/.agent-loop/edit/DEMO-2/property-removal-plan.json
+            ${{ runner.temp }}/agent-loop-installed-property-removal/metadata-refusal.out
