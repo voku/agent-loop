@@ -1,0 +1,229 @@
+name: Installed agent-edit 0.2.2 stale reverification proof
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-agent-edit-0-2-2-stale-reverify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stale-reverification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout released agent-edit owner
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-edit
+          ref: 0.2.2
+          path: build/released-agent-edit
+          persist-credentials: false
+
+      - name: Checkout released agent-map owner
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-map
+          ref: 0.18.4
+          path: build/released-agent-map
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Prove exact released owner revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/released-agent-edit rev-parse 'HEAD^{commit}')" = "352123a74bce718bcc71e4b8c5ef5a1565ea8e90"
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "524d3cc377c2894979e1108c348a2b0d189940af"
+
+      - name: Prove stale reverification cannot leave a passed verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/agent-loop-installed-agent-edit-0-2-2-reverify"
+          rm -rf "$root"
+          mkdir -p "$root/src"
+
+          cat > "$root/composer.json" <<JSON
+          {
+            "name": "voku/installed-agent-edit-0-2-2-reverify-consumer",
+            "type": "project",
+            "require-dev": {
+              "phpstan/phpstan": "^2.2",
+              "voku/agent-loop": "dev-main"
+            },
+            "repositories": [
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-loop": "dev-main"}
+                }
+              },
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}/build/released-agent-edit",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-edit": "0.2.2"}
+                }
+              },
+              {
+                "type": "path",
+                "url": "${GITHUB_WORKSPACE}/build/released-agent-map",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-map": "0.18.4"}
+                }
+              }
+            ],
+            "autoload": {
+              "psr-4": {"Fixture\\\\": "src/"}
+            },
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+
+          cat > "$root/.gitignore" <<'EOF'
+          /vendor/
+          /.agent-loop/
+          /resolved-agent-edit.json
+          /resolved-agent-map.json
+          /enter.json
+          /stale-reverify.out
+          EOF
+
+          cat > "$root/src/Greeter.php" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Fixture;
+
+          final class Greeter
+          {
+              private function obsolete(): string
+              {
+                  return 'obsolete';
+              }
+
+              public function greet(string $name): string
+              {
+                  return 'Hello ' . $name;
+              }
+          }
+          PHP
+
+          cd "$root"
+          composer update --no-interaction --prefer-dist --no-progress --no-ansi
+          composer show voku/agent-edit --format=json > resolved-agent-edit.json
+          composer show voku/agent-map --format=json > resolved-agent-map.json
+          jq -e '.versions | index("0.2.2") != null' resolved-agent-edit.json >/dev/null
+          jq -e '.versions | index("0.18.4") != null' resolved-agent-map.json >/dev/null
+
+          git init --initial-branch=main
+          git config user.name 'Installed agent-edit reverify proof'
+          git config user.email 'agent-edit-reverify@example.invalid'
+          git add composer.json composer.lock .gitignore src
+          git commit -m 'fixture: initial reverify consumer'
+
+          vendor/bin/agent-loop init scaffold --demo --agent=codex
+          vendor/bin/agent-loop workflow plan DEMO-1 \
+            --by installed-agent-edit-reverify \
+            --file src/Greeter.php \
+            --goal 'Remove the unused private method and prove a failed later reverification cannot leave stale passed evidence.' \
+            --behavior-anchor 'Successful verification is current evidence only; later source drift invalidates that verdict.' \
+            --validation 'php -l src/Greeter.php' \
+            --acceptance 'The initial removal verifies as passed, source drift makes reverification fail, and verification-result.json is absent afterwards.'
+          vendor/bin/agent-loop workflow approve DEMO-1 --by installed-agent-edit-reverify
+          vendor/bin/agent-loop enter DEMO-1 --format=json --max-lines=40 --max-bytes=4096 > enter.json
+          jq -e '.mutation_ready == true' enter.json >/dev/null
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --phpstan-memory-limit=512M \
+            --out=.agent-loop/map/php-symbols.json
+
+          mkdir -p .agent-loop/edit/DEMO-1
+          vendor/bin/agent-map method-removal-plan \
+            'Fixture\Greeter::obsolete' \
+            --index=.agent-loop/map/php-symbols.json \
+            --format=json > .agent-loop/edit/DEMO-1/plan.json
+          jq -e '
+            (.type == "method_removal_plan")
+            and (.contract_version == "1.0")
+            and (.status == "safe")
+            and (.blockers == [])
+            and (.stale_evidence == [])
+          ' .agent-loop/edit/DEMO-1/plan.json >/dev/null
+
+          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-1/plan.json \
+            --task=DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. \
+            --output-dir=.agent-loop/edit/DEMO-1
+
+          vendor/bin/agent-map build \
+            --root=. \
+            --paths=src \
+            --backend=phpstan \
+            --phpstan-memory-limit=512M \
+            --out=.agent-loop/map/php-symbols.json
+
+          vendor/bin/agent-loop edit refactor verify \
+            --bundle=.agent-loop/edit/DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=.
+          jq -e '
+            (.kind == "method_removal_plan_verification")
+            and (.status == "passed")
+          ' .agent-loop/edit/DEMO-1/verification-result.json >/dev/null
+
+          printf '\n// drift after successful verification\n' >> src/Greeter.php
+          set +e
+          vendor/bin/agent-loop edit refactor verify \
+            --bundle=.agent-loop/edit/DEMO-1 \
+            --map-index=.agent-loop/map/php-symbols.json \
+            --map-root=. > stale-reverify.out 2>&1
+          stale_rc=$?
+          set -e
+
+          test "$stale_rc" -ne 0
+          test -f .agent-loop/edit/DEMO-1/execution.json
+          test ! -e .agent-loop/edit/DEMO-1/verification-result.json
+          grep -i 'stale' stale-reverify.out >/dev/null
+
+      - name: Upload stale reverification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-agent-edit-0-2-2-stale-reverify-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/resolved-agent-edit.json
+            ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/resolved-agent-map.json
+            ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/.agent-loop/edit/DEMO-1/plan.json
+            ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/.agent-loop/edit/DEMO-1/execution.json
+            ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/stale-reverify.out
