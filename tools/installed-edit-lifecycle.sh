@@ -91,8 +91,8 @@ case "$scenario" in
     goal='Remove the unused private Fixture\Greeter::obsolete method through the released agent-map method removal plan.'
     file=src/Greeter.php
     expected_changed='["src/Greeter.php"]'
-    php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    private function obsolete(): string\n    {\n        return \'obsolete\';\n    }\n\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
-    post_check() { ! grep -q 'obsolete' src/Greeter.php && grep -q 'public function greet' src/Greeter.php; }
+    php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    /** Owned metadata must leave with the method. */\n    private function obsolete(): string\n    {\n        return \'obsolete\';\n    }\n\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
+    post_check() { ! grep -q 'obsolete' src/Greeter.php && ! grep -q 'Owned metadata must leave' src/Greeter.php && grep -q 'public function greet' src/Greeter.php; }
     ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
