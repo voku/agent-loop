@@ -328,7 +328,13 @@ jobs:
           set -e
           test "$metadata_refusal_rc" -ne 0
           test "$(sha256sum src/MetadataGreeter.php | cut -d' ' -f1)" = "$metadata_before"
-          test ! -e .agent-loop/edit/DEMO-2/execution.json
+          jq -e '
+            (.status == "runner_failed")
+            and (.runner.name == "property-removal-plan")
+            and (.runner.exit_code == 1)
+            and (.runner.dry_run == false)
+            and (.changed_files == [])
+          ' .agent-loop/edit/DEMO-2/execution.json >/dev/null
           grep -F 'Property removal plan is not safe; no source was changed.' metadata-refusal.out >/dev/null
 
       - name: Upload installed property-removal evidence
@@ -344,4 +350,5 @@ jobs:
             ${{ runner.temp }}/agent-loop-installed-property-removal/.agent-loop/edit/DEMO-1/verification-result.json
             ${{ runner.temp }}/agent-loop-installed-property-removal/finish.json
             ${{ runner.temp }}/agent-loop-installed-property-removal/.agent-loop/edit/DEMO-2/property-removal-plan.json
+            ${{ runner.temp }}/agent-loop-installed-property-removal/.agent-loop/edit/DEMO-2/execution.json
             ${{ runner.temp }}/agent-loop-installed-property-removal/metadata-refusal.out
