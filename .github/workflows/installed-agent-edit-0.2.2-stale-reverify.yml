@@ -168,7 +168,7 @@ jobs:
 
           mkdir -p .agent-loop/edit/DEMO-1
           vendor/bin/agent-map method-removal-plan \
-            'Fixture\\Greeter::obsolete' \
+            'Fixture\Greeter::obsolete' \
             --index=.agent-loop/map/php-symbols.json \
             --format=json > .agent-loop/edit/DEMO-1/plan.json
           jq -e '
