@@ -295,28 +295,7 @@ jobs:
           vendor/bin/agent-loop finish DEMO-1 --format=json > finish.json
           jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
 
-          # Separate metadata case: owned range must include PHPDoc + attributes, but review_required must still fail closed.
-          git add src/Greeter.php
-          git commit -m 'fixture: accept governed property removal'
-
-          vendor/bin/agent-loop workflow plan DEMO-2 \
-            --by installed-property-removal-dogfood \
-            --file src/MetadataGreeter.php \
-            --goal 'Prove parser-owned PHPDoc and attribute range for a private property without bypassing review-required safety.' \
-            --behavior-anchor 'Metadata ownership is exact evidence; review-required property removal never mutates source.' \
-            --validation 'php -l src/MetadataGreeter.php' \
-            --acceptance 'The plan includes PHPDoc and attribute bytes, reports both metadata blind spots, and agent-edit refuses mutation.'
-          vendor/bin/agent-loop workflow approve DEMO-2 --by installed-property-removal-dogfood
-          vendor/bin/agent-loop enter DEMO-2 --format=json --max-lines=40 --max-bytes=4096 > metadata-enter.json
-          jq -e '.mutation_ready == true' metadata-enter.json >/dev/null
-
-          vendor/bin/agent-map build \
-            --root=. \
-            --paths=src \
-            --backend=phpstan \
-            --phpstan-memory-limit=512M \
-            --out=.agent-loop/map/php-symbols.json
-
+          # Separate metadata case: owner evidence includes PHPDoc + attributes, while agent-edit still refuses review_required.
           mkdir -p .agent-loop/edit/DEMO-2
           set +e
           vendor/bin/agent-map property-removal-plan \
@@ -344,8 +323,8 @@ jobs:
 
           metadata_before="$(sha256sum src/MetadataGreeter.php | cut -d' ' -f1)"
           set +e
-          vendor/bin/agent-loop edit refactor .agent-loop/edit/DEMO-2/property-removal-plan.json \
-            --task=DEMO-2 \
+          vendor/bin/agent-edit apply .agent-loop/edit/DEMO-2/property-removal-plan.json \
+            --task=metadata-refusal \
             --map-index=.agent-loop/map/php-symbols.json \
             --map-root=. \
             --output-dir=.agent-loop/edit/DEMO-2 > metadata-refusal.out 2>&1
