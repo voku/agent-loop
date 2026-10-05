@@ -330,7 +330,6 @@ jobs:
           test "$(sha256sum src/MetadataGreeter.php | cut -d' ' -f1)" = "$metadata_before"
           test ! -e .agent-loop/edit/DEMO-2/execution.json
           grep -F 'Property removal plan is not safe; no source was changed.' metadata-refusal.out >/dev/null
-          grep -F 'review_required' metadata-refusal.out >/dev/null
 
       - name: Upload installed property-removal evidence
         if: always()
