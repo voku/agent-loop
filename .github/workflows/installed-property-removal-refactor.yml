@@ -318,10 +318,14 @@ jobs:
             --out=.agent-loop/map/php-symbols.json
 
           mkdir -p .agent-loop/edit/DEMO-2
+          set +e
           vendor/bin/agent-map property-removal-plan \
             'Fixture\MetadataGreeter::$obsolete' \
             --index=.agent-loop/map/php-symbols.json \
             --format=json > .agent-loop/edit/DEMO-2/property-removal-plan.json
+          metadata_plan_rc=$?
+          set -e
+          test "$metadata_plan_rc" -ne 0
 
           jq -e '
             (.type == "property_removal_plan")
