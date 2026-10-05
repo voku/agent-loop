@@ -28,6 +28,10 @@ final class InitDoctorHostCapabilityTest extends TestCase
             self::assertSame(0, $exit);
             self::assertStringContainsString('Host capabilities [codex]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertStringContainsString('Host capabilities [claude]: skill-projection=supported, subagent-projection=supported', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[claude\\]: [^\\n]*pre-tool-guardrail=supported/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[claude\\]: [^\\n]*session-bootstrap=degraded/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[claude\\]: [^\\n]*subagent-bootstrap=degraded/', $output);
+            self::assertMatchesRegularExpression('/Host capabilities \\[claude\\]: [^\\n]*repository-hooks=degraded/', $output);
             self::assertStringContainsString('Host capabilities [copilot]: skill-projection=supported, subagent-projection=supported', $output);
             self::assertMatchesRegularExpression('/Host capabilities \[copilot\]: [^\n]*repository-hooks=unsupported/', $output);
             self::assertStringContainsString('Host capabilities [gemini]: skill-projection=supported, subagent-projection=supported', $output);
@@ -50,6 +54,10 @@ final class InitDoctorHostCapabilityTest extends TestCase
             );
             self::assertStringContainsString(
                 'Host capability evidence [claude/session-bootstrap]: mechanism=Claude project settings granular hook registrations + repository-local command hooks; evidence=adapter-declared;live-runtime-unverified',
+                $output,
+            );
+            self::assertStringContainsString(
+                'Host capability evidence [claude/pre-tool-guardrail]: mechanism=Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions; evidence=adapter-declared;live-runtime-verified',
                 $output,
             );
             self::assertStringContainsString(
