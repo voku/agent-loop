@@ -4,7 +4,7 @@
 #   agent-map plan -> agent-loop edit refactor --dry-run -> apply (agent-edit preflight/apply) -> map rebuild
 #   -> agent-loop edit refactor verify (agent-edit verify) -> validation/review/learning evidence -> finish
 #
-# Usage: tools/installed-edit-lifecycle.sh <method-rename|class-rename|class-move|method-move|property-rename|method-removal> <work-dir>
+# Usage: tools/installed-edit-lifecycle.sh <method-rename|method-rename-residue|class-rename|class-move|method-move|property-rename|method-removal> <work-dir>
 # Environment: LOOP (default vendor/bin/agent-loop) and MAP (default vendor/bin/agent-map), resolved inside <work-dir>.
 set -euo pipefail
 
@@ -34,6 +34,22 @@ case "$scenario" in
     expected_changed='["src/Caller.php","src/Greeter.php"]'
     php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
     php_file src/Caller.php 'Fixture' $'final class Caller\n{\n    public function run(Greeter $greeter): string\n    {\n        return $greeter->greet(\'Agent\');\n    }\n}'
+    post_check() { grep -q 'function welcome' src/Greeter.php && grep -q -- '->welcome(' src/Caller.php; }
+    ;;
+  method-rename-residue)
+    # Same rename, but README.md and CHANGELOG.md still mention the old name: the PHP edit is proven, the docs are residue.
+    residue=1
+    plan_command=(rename-plan 'Fixture\Greeter::greet' welcome)
+    plan_type=method_rename_plan
+    verify_kind=rename_plan_verification
+    runner=rename-plan
+    goal='Rename Fixture\Greeter::greet to welcome and close out the Markdown mentions the verified edit leaves behind.'
+    file=src/Greeter.php
+    expected_changed='["src/Caller.php","src/Greeter.php"]'
+    php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
+    php_file src/Caller.php 'Fixture' $'final class Caller\n{\n    public function run(Greeter $greeter): string\n    {\n        return $greeter->greet(\'Agent\');\n    }\n}'
+    printf '# Fixture\n\nCall `Greeter::greet()` to say hello.\n' > README.md
+    printf '# Changelog\n\n- Added `Greeter::greet()`.\n' > CHANGELOG.md
     post_check() { grep -q 'function welcome' src/Greeter.php && grep -q -- '->welcome(' src/Caller.php; }
     ;;
   class-rename)
@@ -153,7 +169,7 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__
     }
 }
 PHP
-printf '/vendor/\n/.agent-loop/\n/composer.lock\n/*.json.bak\n/enter.json\n/status.json\n/finish.json\n/stale.out\n/resolved-agent-edit.json\n' > .gitignore
+printf '/vendor/\n/.agent-loop/\n/composer.lock\n/*.json.bak\n/enter.json\n/status.json\n/finish.json\n/finish-blocked.out\n/stale.out\n/resolved-agent-edit.json\n' > .gitignore
 
 git init -q --initial-branch=main
 git config user.name 'Installed Edit Lifecycle'
@@ -215,12 +231,28 @@ jq -e --arg runner "$runner" --argjson changed "$expected_changed" '
 ' "$bundle/execution.json" >/dev/null
 
 build_map
-$loop edit refactor verify --bundle="$bundle" --map-index=.agent-loop/map/php-symbols.json --map-root=.
-jq -e --arg type "$plan_type" --arg kind "$verify_kind" '
-  (.kind == $kind) and (.status == "passed") and (.plan.type == $type) and (.plan.contract_version == "1.0")
-  and (.checks.execution_binding == "passed") and (.checks.current_map == "passed")
-  and (.checks.changed_files == "passed")
-' "$bundle/verification-result.json" >/dev/null
+if [ "${residue:-0}" = 1 ]; then
+  # The PHP edit passed every check, but non-historical Markdown mentions of the old name remain: incomplete, exit 3.
+  set +e
+  $loop edit refactor verify --bundle="$bundle" --map-index=.agent-loop/map/php-symbols.json --map-root=.
+  residue_rc=$?
+  set -e
+  test "$residue_rc" -eq 3
+  jq -e --arg type "$plan_type" '
+    (.status == "incomplete") and (.plan.type == $type) and (.checks.execution_binding == "passed")
+    and (.checks.current_map == "passed") and (.checks.changed_files == "passed")
+    and (.residue.status == "open") and (.residue.open == 1) and (.residue.historical == 1)
+    and (.residue.references[0].path == "README.md") and (.residue.references[0].line == 3)
+    and (.residue.references[0].confidence == "class_member_qualified")
+  ' "$bundle/verification-result.json" >/dev/null
+else
+  $loop edit refactor verify --bundle="$bundle" --map-index=.agent-loop/map/php-symbols.json --map-root=.
+  jq -e --arg type "$plan_type" --arg kind "$verify_kind" '
+    (.kind == $kind) and (.status == "passed") and (.plan.type == $type) and (.plan.contract_version == "1.0")
+    and (.checks.execution_binding == "passed") and (.checks.current_map == "passed")
+    and (.checks.changed_files == "passed")
+  ' "$bundle/verification-result.json" >/dev/null
+fi
 
 composer test
 $loop session validation record "$task" --contract-revision 1 --command 'composer test' --status passed --exit-code 0 --duration-ms 0 --by "$by"
@@ -237,9 +269,33 @@ $loop review blindspots "$task"
 $loop workflow learn "$task" --status no_durable_learning --by "$by" --reason "The installed $scenario proof added no reusable project-specific guidance."
 $loop verify --task-id="$task"
 
-$loop workflow status "$task" --format=json > status.json
+$loop workflow status "$task" --format=json > status.json || test "${residue:-0}" = 1
 review_sha="$(jq -er '.manifest.references.review.source.sha256' status.json)"
 case "$review_sha" in sha256:*) ;; *) echo 'Missing exact review digest.' >&2; exit 1 ;; esac
+if [ "${residue:-0}" = 1 ]; then
+  # Close acknowledges the review report and then stops at the open residue; it must not succeed.
+  if $loop finish "$task" --reviewed-report-sha256 "$review_sha" --by "$by" > finish-blocked.out 2>&1; then
+    echo 'Close succeeded while residue was open.' >&2
+    exit 1
+  fi
+  # Stage 2: Loop hands the open residue to the host as structured host_work.
+  set +e
+  $loop workflow status "$task" --format=json > status.json
+  set -e
+  jq -e '
+    (.policy.next_action_kind == "host_work") and (.manifest.state == "blocked")
+    and (.manifest.references.verification.gate == "edit_verification")
+    and (.manifest.references.verification.host_work.kind == "edit_residue")
+    and (.manifest.references.verification.host_work.bundles[0].bundle == ".agent-loop/edit/DEMO-1")
+    and (.manifest.references.verification.host_work.bundles[0].references[0].path == "README.md")
+    and (.manifest.references.verification.host_work.bundles[0].references[0].matched == "Greeter::greet")
+    and ([.manifest.references.verification.host_work.bundles[0].completion_paths[].path] == ["fix_and_reverify", "accept_residue"])
+  ' status.json >/dev/null
+  # The host fixes the mention and re-runs verify, which re-scans: residue clear, result passed.
+  sed -i 's/Greeter::greet()/Greeter::welcome()/' README.md
+  $loop edit refactor verify --bundle="$bundle" --map-index=.agent-loop/map/php-symbols.json --map-root=.
+  jq -e '(.status == "passed") and (.residue.status == "clear") and (.residue.open == 0) and (.residue.historical == 1)' "$bundle/verification-result.json" >/dev/null
+fi
 $loop finish "$task" --reviewed-report-sha256 "$review_sha" --by "$by"
 $loop finish "$task" --format=json > finish.json
 jq -e '(.complete == true) and (.next_action == "none")' finish.json >/dev/null
