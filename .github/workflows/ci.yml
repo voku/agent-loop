@@ -148,7 +148,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-skills
-          ref: 4456571e12aa65ab3cbd48160e0f4657913d6627
+          ref: c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8
           path: build/agent-skills-source
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
@@ -338,6 +338,18 @@ jobs:
           test -f .codex/skills/php-static-analysis/SKILL.md
           test -f .codex/skills/linux-strace/SKILL.md
           test -f .codex/skills/operational-prompting/SKILL.md
+          test -f .codex/skills/requirements-interview/SKILL.md
+          test -f .codex/skills/review-feedback-repair/SKILL.md
+          test -f .claude/skills/requirements-interview/SKILL.md
+          test -f .claude/skills/review-feedback-repair/SKILL.md
+          test -f .github/skills/requirements-interview/SKILL.md
+          test -f .github/skills/review-feedback-repair/SKILL.md
+          test -f .agents/skills/requirements-interview/SKILL.md
+          test -f .agents/skills/review-feedback-repair/SKILL.md
+          test -f .cursor/skills/requirements-interview/SKILL.md
+          test -f .cursor/skills/review-feedback-repair/SKILL.md
+          grep -Fq 'name: requirements-interview' .codex/skills/requirements-interview/SKILL.md
+          grep -Fq 'name: review-feedback-repair' .codex/skills/review-feedback-repair/SKILL.md
           test ! -e .codex/skills/php-best-practices/SKILL.md
           test -f .claude/skills/engineering-codelight/SKILL.md
           test -f .github/skills/engineering-codelight/SKILL.md
