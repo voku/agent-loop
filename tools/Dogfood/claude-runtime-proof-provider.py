@@ -75,11 +75,11 @@ class Provider:
         observed = "\n".join(strings(payload))
 
         permission_scenarios = {
-            "RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH": ("git", "git push origin main"),
-            "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE": ("gh", "gh pr create --title proof --body proof"),
-            "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE": ("gh", "gh pr merge 1 --squash"),
+            "RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH": "git push origin main",
+            "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE": "gh pr create --title proof --body proof",
+            "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE": "gh pr merge 1 --squash",
         }
-        for marker, (tool_name, tool_command) in permission_scenarios.items():
+        for marker, tool_command in permission_scenarios.items():
             if marker in observed:
                 if has_block_type(payload.get("messages", []), "tool_result"):
                     return "text", "PROOF_OK"
