@@ -2,7 +2,7 @@
 
 ### Changed
 
-- Require `voku/agent-edit` `^0.3.0` and `voku/agent-map` `^0.20.0`. `agent-loop edit refactor verify` now forwards agent-edit's residue check: after a method rename, class rename or method removal, remaining non-historical Markdown / Twig / Smarty / Blade mentions of the old symbol make the result `incomplete` (CLI exit 3) until they are fixed or accepted with `--accept-residue=REASON`. The workflow close gate names the open mentions and the two ways forward instead of reporting a bare `incomplete`, and the installed-consumer proofs resolve the released agent-map 0.20.0 and agent-edit `^0.3.0`.
+- Require `voku/agent-edit` `^0.3.0`, `voku/agent-map` `^0.20.0` and `voku/agent-recall-compiler` `^0.25.4` (the first Recall release that accepts agent-map 0.20). `agent-loop edit refactor verify` now forwards agent-edit's residue check: after a method rename, class rename or method removal, remaining non-historical Markdown / Twig / Smarty / Blade mentions of the old symbol make the result `incomplete` (CLI exit 3) until they are fixed or accepted with `--accept-residue=REASON`. The workflow close gate names the open mentions and the two ways forward instead of reporting a bare `incomplete`, and the installed-consumer proofs resolve the released agent-map 0.20.0 and agent-edit `^0.3.0`.
 
 ### Added
 
