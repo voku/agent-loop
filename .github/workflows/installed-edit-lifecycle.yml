@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "524d3cc377c2894979e1108c348a2b0d189940af"
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "96bffea331cec063adba37e6659e5f3760202f9b"
 
       - name: Run agent-map plan -> agent-edit (via agent-loop) -> verify -> finish
         shell: bash

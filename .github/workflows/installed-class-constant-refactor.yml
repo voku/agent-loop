@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "17b5ee02a75ac7fa4b5281b85ef78877df2fb8ec"
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "96bffea331cec063adba37e6659e5f3760202f9b"
 
       - name: Run released class-constant plan through governed installed consumer
         shell: bash
