@@ -182,6 +182,22 @@ final readonly class RunPolicyEvaluator
                 'invocation' => null,
             ];
         }
+        $residueWork = $references['verification']['host_work'] ?? null;
+        if (
+            $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'edit_verification'
+            && is_array($residueWork)
+            && ($residueWork['kind'] ?? null) === 'edit_residue'
+        ) {
+            return [
+                'action' => 'resolve the Markdown/template mentions of the old symbol that agent-edit left open ('
+                    . (is_string($residueWork['summary'] ?? null) ? $residueWork['summary'] : 'see the work item')
+                    . '): the files, lines and confidence are in manifest.references.verification.host_work; fix them and re-run '
+                    . '`agent-loop edit refactor verify --bundle=<bundle>`, or accept them with `--accept-residue=<reason>`',
+                'kind' => RunPolicyEvaluation::KIND_HOST_WORK,
+                'invocation' => null,
+            ];
+        }
         if ($this->mutationAllowed($state, $mode, $references, $disagreements)) {
             return [
                 'action' => 'perform the approved host-native implementation for ' . $taskId

@@ -208,6 +208,66 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertSame(0, $acceptedExit, $acceptedOutput);
     }
 
+    public function testOpenResidueIsProjectedAsStructuredHostWork(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/execution.json', '{}');
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/verification-result.json', json_encode([
+            'status' => 'incomplete',
+            'residue' => [
+                'status' => 'open',
+                'open' => 1,
+                'historical' => 2,
+                'truncated' => false,
+                'references' => [[
+                    'kind' => 'markdown_reference', 'confidence' => 'class_member_qualified', 'path' => 'README.md', 'line' => 3,
+                    'start_file_pos' => 5, 'end_file_pos' => 21, 'matched' => 'Service::oldName', 'historical' => false,
+                ]],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        [$exit, $output] = $this->runStatus(['--format=json']);
+        $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(2, $exit);
+        self::assertSame('host_work', $status['policy']['next_action_kind']);
+        self::assertNull($status['policy']['next_action_invocation']);
+        self::assertStringContainsString('manifest.references.verification.host_work', $status['policy']['next_action']);
+
+        $work = $status['manifest']['references']['verification']['host_work'];
+        self::assertSame('edit_residue', $work['kind']);
+        self::assertSame('.agent-loop/edit/ABC-123', $work['bundles'][0]['bundle']);
+        self::assertSame(1, $work['bundles'][0]['open']);
+        self::assertSame(2, $work['bundles'][0]['historical']);
+        self::assertEquals(
+            ['path' => 'README.md', 'line' => 3, 'confidence' => 'class_member_qualified', 'matched' => 'Service::oldName', 'start_file_pos' => 5, 'end_file_pos' => 21],
+            $work['bundles'][0]['references'][0],
+        );
+        $paths = array_column($work['bundles'][0]['completion_paths'], null, 'path');
+        self::assertSame(['edit', 'refactor', 'verify', '--bundle=.agent-loop/edit/ABC-123'], $paths['fix_and_reverify']['invocation']['arguments']);
+        self::assertFalse($paths['fix_and_reverify']['invocation']['template']);
+        self::assertSame('--accept-residue=<reason>', $paths['accept_residue']['invocation']['arguments'][4]);
+        self::assertTrue($paths['accept_residue']['invocation']['template']);
+    }
+
+    public function testAnIncompleteResultWithoutResidueGetsNoResidueHostWork(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/execution.json', '{}');
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/verification-result.json', json_encode([
+            'status' => 'incomplete',
+            'scope' => ['status' => 'scope_unproven'],
+        ], JSON_THROW_ON_ERROR));
+
+        [, $output] = $this->runStatus(['--format=json']);
+        $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertArrayNotHasKey('host_work', $status['manifest']['references']['verification']);
+        self::assertStringNotContainsString('host_work', $status['policy']['next_action']);
+    }
+
     public function testWhitespaceCompilationIdIsNotAcceptedAsIdentifyingACompilation(): void
     {
         $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
