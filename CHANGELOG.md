@@ -6,6 +6,7 @@
 
 ### Added
 
+- Hand open agent-edit residue to the host as structured `host_work`. When an edit bundle is `incomplete` because Markdown/template mentions of the old symbol remain, `workflow status` / the manifest expose `references.verification.host_work` (`kind: edit_residue`) with, per bundle, the file, line, confidence, matched text and byte range of each open mention, the source bundle, and both completion paths (`fix_and_reverify`: fix the mentions and re-run `agent-loop edit refactor verify --bundle=...`; `accept_residue`: `--accept-residue=<reason>`), and `next_action_kind` is `host_work`. Loop only projects the evidence agent-edit already wrote to `verification-result.json`; it does not scan or judge mentions.
 - Broaden the installed agent-edit lifecycle proof (`tools/installed-edit-lifecycle.sh` and the `Installed agent-edit refactor lifecycle` matrix) with `property-rename` (`property_rename_plan@1.0`) and `method-removal` (`method_removal_plan@1.0`): each runs plan, dry run, stale-plan refusal, apply, map rebuild, verify, validation/review/learning evidence and `finish` against the released agent-map and agent-edit.
 
 ## 0.20.55 - 2026-10-04

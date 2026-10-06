@@ -23,6 +23,7 @@ use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\ValidationDiagnosticStore;
+use voku\AgentLoop\Workflow\EditResidueWork;
 use voku\AgentLoop\Workflow\WorkflowCloseReadiness;
 use voku\AgentLoop\Workflow\WorkflowCloseReadinessInspector;
 use voku\AgentLoop\Workflow\WorkflowLearningRoot;
@@ -807,6 +808,12 @@ final class RunManifestProjector
                 'validation_failed' => $readiness->hasFailedValidationEvidence(),
                 'implementation_snapshot' => $readiness->boundary?->implementation->digest,
             ];
+            if (($failure['gate'] ?? null) === 'edit_verification') {
+                $work = EditResidueWork::forTask($this->rootPath, $taskId);
+                if ($work !== null) {
+                    $reference['host_work'] = $work;
+                }
+            }
             if (($failure['gate'] ?? null) === 'learning_decision') {
                 $reference['learning_disposition'] = [
                     'evaluate_reusable_learning' => true,
