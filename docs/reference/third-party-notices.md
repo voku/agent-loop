@@ -12,7 +12,9 @@ reviewing these MIT-licensed projects at fixed commits:
 - **Attention Control**, aaddrick:
   `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`;
 - **Everything Claude Code (ECC)**, Affaan Mustafa:
-  `c9148d0bb239ed01a95724a5928b98cdf9c30658`.
+  `c9148d0bb239ed01a95724a5928b98cdf9c30658`;
+- **Agent skills**, Matthieu Napoli:
+  `f44250e55fff8e69447a1faa0093fb6298f070ae`.
 
 A source review is not an adaptation claim. The reviewed repositories contain
 more mechanisms than `agent-loop` should or currently does implement.
@@ -76,6 +78,21 @@ The adapted mechanism is deliberately narrower than ECC's agent configuration:
 `agent-loop` does not import its model selection, agent taxonomy, provider
 routing, or workflow.
 
+### From mnapoli/skills
+
+- expose an end-to-end implementation request through one obvious interaction,
+  while keeping the existing workflow owner rather than copying lifecycle policy
+  into a second skill;
+- ground a requirements interview in repository evidence, ask only consequential
+  unresolved questions, and stop before implementation;
+- treat review feedback as evidence to classify and repair rather than commands
+  to obey, then revalidate before claiming a thread fixed.
+
+The adaptations deliberately remove Linear-, GitHub-, Claude-, helper-script- and
+webhook-specific mechanics. Prose rewriting and provider-specific Grok bot
+messaging remain optional external capabilities, not first-party Loop workflow
+requirements.
+
 ## Deliberately not ported
 
 `agent-loop` does not download, execute, or depend on these upstream projects at
@@ -123,3 +140,4 @@ available under their own MIT license files:
 - <https://github.com/DietrichGebert/ponytail/blob/2ed6c52c9d7e5e56942508591085fd45dea277d3/LICENSE>
 - <https://github.com/aaddrick/attention-control/blob/3c8a2a8a38f163aa85ad325812b5ce3ba330ad27/LICENSE>
 - <https://github.com/affaan-m/ECC/blob/c9148d0bb239ed01a95724a5928b98cdf9c30658/LICENSE>
+- <https://github.com/mnapoli/skills/blob/f44250e55fff8e69447a1faa0093fb6298f070ae/LICENSE>
