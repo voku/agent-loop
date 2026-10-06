@@ -153,17 +153,20 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
         raise SystemExit("managed router count changed across reinstall")
 
     permission_scenarios = {
-        "git_push": "RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH",
-        "gh_pr_create": "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE",
-        "gh_pr_merge": "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE",
+        "git_push": ("RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH", "git push origin main"),
+        "gh_pr_create": ("RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE", "gh pr create --title proof --body proof"),
+        "gh_pr_merge": ("RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE", "gh pr merge 1 --squash"),
     }
-    for name, marker in permission_scenarios.items():
+    for name, (marker, command) in permission_scenarios.items():
         scenario_requests = phase_requests(records, marker)
         denied = [
             record
             for record in scenario_requests[1:]
             if any(
-                item.get("type") == "tool_result" and item.get("is_error") is True
+                item.get("type") == "tool_result"
+                and item.get("is_error") is True
+                and f"Permission to use Bash with command {command} has been denied."
+                in "\n".join(strings(item))
                 for item in objects(record[1].get("messages", []))
             )
         ]
@@ -178,6 +181,7 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
             "tool_result_observed": True,
             "fake_executable_executed": False,
             "provider_request_after_deny": denied[0][0].name,
+            "command": command,
         }
 
     pretool_marker = "RUNTIME_PROOF_PRETOOL_DENY"
