@@ -4,6 +4,10 @@
 
 - Make `agent-loop-workflow` the explicit end-to-end implementation front door: a user can ask to implement a governed task without learning Loop's internal packages, while the skill still routes only through `enter` / `finish` and the current `next_action`. No parallel `implement` skill or copied lifecycle policy is introduced.
 
+### Added
+
+- Add a provider-free Codex 0.157.0 runtime proof for explicit projected-skill consumption. A paired baseline / `$agent-loop-workflow` run captures the real provider requests and requires the package-owned skill-body marker to be absent from baseline and present exactly once after explicit selection. The evidence class is `host_runtime_skill_consumption`; implicit semantic routing, `voku/agent-skills` interaction-skill invocation, and other hosts remain unclaimed.
+
 - Advance the installed engineering-skill dogfood to immutable `voku/agent-skills`
   commit `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and prove that `requirements-interview` and
   `review-feedback-repair` project into the clean consumer's Codex, Claude,
