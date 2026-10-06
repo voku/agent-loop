@@ -24,6 +24,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Checkout pinned first-party interaction skills
+        uses: actions/checkout@v6
+        with:
+          repository: voku/agent-skills
+          ref: c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8
+          path: build/agent-skills-source
+          persist-credentials: false
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -60,12 +68,20 @@ jobs:
           (
             cd "${proof_root}"
             "${GITHUB_WORKSPACE}/bin/agent-loop" init scaffold --demo --agent=codex
-            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init install-assets --agent=codex \
+              --extra-skills-root="${GITHUB_WORKSPACE}/build/agent-skills-source/skills"
           )
 
-          skill="${proof_root}/.codex/skills/agent-loop-workflow/SKILL.md"
-          test -f "${skill}"
-          grep -Fq 'This is the implementation front door.' "${skill}"
+          workflow_skill="${proof_root}/.codex/skills/agent-loop-workflow/SKILL.md"
+          interview_skill="${proof_root}/.codex/skills/requirements-interview/SKILL.md"
+          repair_skill="${proof_root}/.codex/skills/review-feedback-repair/SKILL.md"
+
+          test -f "${workflow_skill}"
+          test -f "${interview_skill}"
+          test -f "${repair_skill}"
+          grep -Fq 'This is the implementation front door.' "${workflow_skill}"
+          grep -Fq 'Turn an ambiguous feature or engineering request into an implementation-ready contract without starting implementation.' "${interview_skill}"
+          grep -Fq 'Turn current review feedback and failing validation into bounded repair work without surrendering engineering judgment.' "${repair_skill}"
 
           cat > "${runtime_home}/config.toml" <<EOF
           [projects."${proof_root}"]
@@ -73,8 +89,11 @@ jobs:
           EOF
 
           printf '%s\n' "${{ github.event.pull_request.head.sha || github.sha }}" > "${evidence_root}/repository-head-sha.txt"
+          git -C "${GITHUB_WORKSPACE}/build/agent-skills-source" rev-parse HEAD > "${evidence_root}/agent-skills-head-sha.txt"
           sha256sum "${GITHUB_WORKSPACE}/composer.lock" | cut -d' ' -f1 > "${evidence_root}/dependency-graph.sha256"
-          sha256sum "${skill}" | cut -d' ' -f1 > "${evidence_root}/projected-skill.sha256"
+          sha256sum "${workflow_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-agent-loop-workflow.sha256"
+          sha256sum "${interview_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-requirements-interview.sha256"
+          sha256sum "${repair_skill}" | cut -d' ' -f1 > "${evidence_root}/projected-review-feedback-repair.sha256"
 
           echo "PROOF_ROOT=${proof_root}" >> "${GITHUB_ENV}"
           echo "CODEX_HOME=${runtime_home}" >> "${GITHUB_ENV}"
@@ -179,13 +198,36 @@ jobs:
           }
 
           run_arm baseline 'Inspect this repository and report the current branch.'
-          run_arm selected '$agent-loop-workflow Handle governed task PROOF-1.'
+          run_arm workflow '$agent-loop-workflow Handle governed task PROOF-1.'
+          run_arm interview '$requirements-interview Clarify the ambiguous task: Improve the workflow. Do not implement.'
+          run_arm repair '$review-feedback-repair Address current review feedback for governed task PROOF-1.'
 
-          python3 - "${EVIDENCE_ROOT}/baseline-request.json" "${EVIDENCE_ROOT}/selected-request.json" "${EVIDENCE_ROOT}/skill-consumption.json" <<'PY'
+          python3 - \
+            "${EVIDENCE_ROOT}/baseline-request.json" \
+            "${EVIDENCE_ROOT}/workflow-request.json" \
+            "${EVIDENCE_ROOT}/interview-request.json" \
+            "${EVIDENCE_ROOT}/repair-request.json" \
+            "${EVIDENCE_ROOT}/skill-consumption.json" <<'PY'
           import json
           import sys
 
-          marker = "This is the implementation front door."
+          markers = {
+              "agent-loop-workflow": "This is the implementation front door.",
+              "requirements-interview": (
+                  "Turn an ambiguous feature or engineering request into an implementation-ready "
+                  "contract without starting implementation."
+              ),
+              "review-feedback-repair": (
+                  "Turn current review feedback and failing validation into bounded repair work "
+                  "without surrendering engineering judgment."
+              ),
+          }
+          arms = {
+              "baseline": sys.argv[1],
+              "agent-loop-workflow": sys.argv[2],
+              "requirements-interview": sys.argv[3],
+              "review-feedback-repair": sys.argv[4],
+          }
 
           def flatten(value):
               if isinstance(value, str):
@@ -197,35 +239,57 @@ jobs:
                   for item in value.values():
                       yield from flatten(item)
 
-          def count(path):
+          def counts(path):
               with open(path, "r", encoding="utf-8") as handle:
                   payload = json.load(handle)
-              return "\n".join(flatten(payload)).count(marker)
+              text = "\n".join(flatten(payload))
+              return {skill: text.count(marker) for skill, marker in markers.items()}
 
-          baseline = count(sys.argv[1])
-          selected = count(sys.argv[2])
+          observed = {arm: counts(path) for arm, path in arms.items()}
+          expected = {
+              "baseline": {skill: 0 for skill in markers},
+              "agent-loop-workflow": {
+                  "agent-loop-workflow": 1,
+                  "requirements-interview": 0,
+                  "review-feedback-repair": 0,
+              },
+              "requirements-interview": {
+                  "agent-loop-workflow": 0,
+                  "requirements-interview": 1,
+                  "review-feedback-repair": 0,
+              },
+              "review-feedback-repair": {
+                  "agent-loop-workflow": 0,
+                  "requirements-interview": 0,
+                  "review-feedback-repair": 1,
+              },
+          }
+          status = "observed" if observed == expected else "refuted"
           receipt = {
               "evidence_class": "host_runtime_skill_consumption",
-              "skill": "agent-loop-workflow",
-              "selection": "explicit $agent-loop-workflow mention",
-              "marker": marker,
-              "baseline_marker_count": baseline,
-              "selected_marker_count": selected,
-              "status": "observed" if baseline == 0 and selected == 1 else "refuted",
+              "runtime": "Codex 0.157.0",
+              "selection": "explicit $skill mentions",
+              "skills": list(markers),
+              "marker_counts": observed,
+              "expected_marker_counts": expected,
+              "status": status,
               "boundary": (
-                  "Proves Codex 0.157.0 loads the projected agent-loop-workflow "
-                  "SKILL.md body for explicit skill selection. It does not prove "
-                  "implicit semantic routing, other skills, or other hosts."
+                  "Proves Codex 0.157.0 loads each selected projected SKILL.md body into the "
+                  "provider request for explicit skill selection, with no observed cross-loading "
+                  "between these three markers. It does not prove implicit semantic routing, "
+                  "model compliance with the skill body, end-to-end behavioral sequencing, "
+                  "arbitrary skills, or other hosts."
               ),
           }
-          with open(sys.argv[3], "w", encoding="utf-8") as handle:
+          with open(sys.argv[5], "w", encoding="utf-8") as handle:
               json.dump(receipt, handle, indent=2, sort_keys=True)
               handle.write("\n")
 
-          if baseline != 0:
-              raise SystemExit(f"baseline unexpectedly contained skill-body marker {baseline} time(s)")
-          if selected != 1:
-              raise SystemExit(f"selected request expected marker once, observed {selected}")
+          if observed != expected:
+              raise SystemExit(
+                  "skill marker matrix mismatch: "
+                  + json.dumps({"expected": expected, "observed": observed}, sort_keys=True)
+              )
           PY
 
       - name: Record evidence identity
