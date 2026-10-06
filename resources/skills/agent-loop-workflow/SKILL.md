@@ -1,6 +1,6 @@
 ---
 name: agent-loop-workflow
-description: Operate the ordinary governed agent-loop path by routing through enter/finish and obeying the lifecycle kernel's structured next step instead of reproducing workflow policy in host prose.
+description: Operate a governed agent-loop task end to end, including implementation requests, by routing through enter/finish and obeying the lifecycle kernel's structured next step instead of reproducing workflow policy in host prose.
 ---
 
 # Agent Loop Workflow
@@ -17,6 +17,17 @@ vendor/bin/agent-loop enter <task-id> --format=json
 Obey `next_action_kind` / `next_action` from that result. `AGENTS.md` already defines how to treat each kind, so this skill does not restate it: a third copy of a rule the router and the result both carry is a second source of truth that can drift from its authority.
 
 A task router may choose a specialist skill, never a lifecycle phase. Only the current result routes task start/progress, Recall or repair, Learning, review, and close.
+
+## End-to-End Implementation Front Door
+
+When this skill is invoked for an end-to-end implementation request, keep the request ergonomic without creating a second workflow:
+
+- use the supplied stable task id with `enter`; if no stable id exists, obtain one through the repository's task owner rather than inventing lifecycle state in chat;
+- treat the user's request as intent to drive the governed task, not as authority to skip approval, verification, review, Learning, or any other gate the current result requires;
+- do not predeclare a private sequence such as branch -> specs -> code -> PR -> merge; the current lifecycle result decides the next governed action;
+- continue through `enter`, host work, and `finish` until the result reports completion or a real `decision_required` boundary.
+
+This is the implementation front door. Do not add a parallel `implement` skill that copies the same lifecycle semantics.
 
 When host-native mutation is complete, reconcile deterministic close-out through:
 ```bash
