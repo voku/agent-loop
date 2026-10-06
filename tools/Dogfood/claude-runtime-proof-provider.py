@@ -74,6 +74,25 @@ class Provider:
     def response_for(self, payload: dict[str, Any], request_index: int) -> tuple[str, dict[str, Any] | str]:
         observed = "\n".join(strings(payload))
 
+        permission_scenarios = {
+            "RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH": ("git", "git push origin main"),
+            "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE": ("gh", "gh pr create --title proof --body proof"),
+            "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE": ("gh", "gh pr merge 1 --squash"),
+        }
+        for marker, (tool_name, tool_command) in permission_scenarios.items():
+            if marker in observed:
+                if has_block_type(payload.get("messages", []), "tool_result"):
+                    return "text", "PROOF_OK"
+                (self.evidence_root / f"requested-{marker.lower()}.txt").write_text(
+                    tool_command + "\n",
+                    encoding="utf-8",
+                )
+                return "tool", {
+                    "id": f"toolu_permission_{request_index}",
+                    "name": "Bash",
+                    "input": {"command": tool_command},
+                }
+
         if "RUNTIME_PROOF_PRETOOL_DENY" in observed:
             if has_block_type(payload.get("messages", []), "tool_result"):
                 return "text", "PROOF_OK"
