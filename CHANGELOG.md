@@ -4,6 +4,13 @@
 
 - Make `agent-loop-workflow` the explicit end-to-end implementation front door: a user can ask to implement a governed task without learning Loop's internal packages, while the skill still routes only through `enter` / `finish` and the current `next_action`. No parallel `implement` skill or copied lifecycle policy is introduced.
 
+- Advance the installed engineering-skill dogfood to immutable `voku/agent-skills`
+  commit `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and prove that `requirements-interview` and
+  `review-feedback-repair` project into the clean consumer's Codex, Claude,
+  Copilot, OpenCode/agents and Cursor skill roots. Document the corresponding
+  `mnapoli/skills` adaptation and rejection boundaries at fixed upstream commit
+  `f44250e55fff8e69447a1faa0093fb6298f070ae`.
+
 ## 0.20.57 - 2026-10-06
 
 ### Changed

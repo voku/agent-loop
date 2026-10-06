@@ -10,7 +10,8 @@ Reviewed source pins:
 
 - Caveman (`JuliusBrussee/caveman`): `14d4f2e21a16b573373ca24698cd6bd3db75bf52`;
 - Ponytail (`DietrichGebert/ponytail`): `c982cd411abb53323c4baa1baa3c2f020b8d0b08`;
-- Attention Control (`aaddrick/attention-control`): `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`.
+- Attention Control (`aaddrick/attention-control`): `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`;
+- mnapoli Skills (`mnapoli/skills`): `f44250e55fff8e69447a1faa0093fb6298f070ae`.
 
 Decision vocabulary:
 
@@ -22,6 +23,26 @@ Decision vocabulary:
 The adaptation target is not feature parity. The target is a smaller coding-agent
 contract with persisted workflow state, exact evidence, reviewed learning, and
 objective constraints where they can be enforced.
+
+## mnapoli/skills
+
+The comparison target is interaction ergonomics, not feature parity. The reviewed
+repository packages several user-facing skills as direct commands; first-party
+adaptation keeps the useful behavior while preserving Loop and agent-skills owner
+boundaries.
+
+| Upstream mechanism | Decision | First-party equivalent / enforcement |
+| --- | --- | --- |
+| `implement`: one obvious end-to-end implementation action | `ADAPT` | `agent-loop-workflow` is now the explicit implementation front door. It routes through `enter`, the current `next_action`, host work, and `finish`; a second `implement` skill is rejected because it would copy lifecycle policy. |
+| `interview`: inspect repository context, clarify unresolved requirements, stop before coding | `ADAPT` | `voku/agent-skills/requirements-interview` owns the portable clarification behavior. It is tool-neutral and returns an implementation-ready contract without owning Loop lifecycle or mutation authority. |
+| `address-pr-review`: read current feedback/CI, repair valid findings, reply and resolve | `ADAPT` | `voku/agent-skills/review-feedback-repair` owns the portable classify/repair/revalidate discipline. Provider-specific thread IDs, helper scripts and GitHub CLI/API contracts remain host/provider mechanics rather than Loop semantics. |
+| `unslop`: rewrite prose to remove AI-sounding style patterns | `REJECT` | Useful as an optional external writing skill, but not a Loop lifecycle or core engineering-guidance requirement. `code-slop` / `slop-scan` remain code-maintainability mechanisms and are intentionally not claimed as equivalents. |
+| `tell-grokbot`: send conversation context to a provider-specific agent webhook | `REJECT` | External agent messaging, webhook credentials and provider routines are integration concerns, not governed task authority. Loop does not acquire a second agent-to-agent transport merely for convenience. |
+
+The installed release-set proof pins `voku/agent-skills` at
+`c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and proves that both adapted portable interaction skills are
+projected into the clean consumer host roots. Projection remains evidence of
+installation, not proof that a host runtime invoked a skill body.
 
 ## Caveman
 
@@ -58,7 +79,7 @@ Current upstream recheck at `c982cd411abb53323c4baa1baa3c2f020b8d0b08` adds five
 | Upstream mechanism | Decision | First-party equivalent / enforcement |
 | --- | --- | --- |
 | YAGNI / existing code / stdlib / native / installed dependency / minimum code ladder | `ADAPT` | `voku/agent-skills/coding-simplicity` owns the coding-time search order. `agent-loop` routes to it instead of injecting the ladder into every session. |
-| Review-time replacement verification uses repository reuse -> stdlib -> native -> installed dependency | `ADAPT` | `voku/agent-skills/code-review-simplicity` owns the check; agent-loop pins `4456571e12aa65ab3cbd48160e0f4657913d6627` and the installed release-set proof verifies that reviewed skill catalog is projected into the consumer host roots. |
+| Review-time replacement verification uses repository reuse -> stdlib -> native -> installed dependency | `ADAPT` | `voku/agent-skills/code-review-simplicity` owns the check; agent-loop pins `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and the installed release-set proof verifies that reviewed skill catalog is projected into the consumer host roots. |
 | Exact-once host consumption of persisted context | `DEFER` | Repository projection is already owned; real consumption/reinjection semantics must be proven per host in #618, #623 and #611 before any runtime claim changes. |
 | Benchmark-arm isolation from repository instructions, user memory and mutable plugin selection | `ADAPT` | #663/#675 owns this only as experiment provenance: frozen inputs, authority-state observation and dependency-graph identity. It is not session guidance or a product subsystem. |
 | Understand the real flow before choosing the small fix | `ADAPT` | `coding-simplicity` requires task/flow understanding before minimization; `agent-map` remains bounded navigation support, not the semantic owner. |
