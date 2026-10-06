@@ -425,7 +425,6 @@ jobs:
               not_proven_by_this_slice: {
                 session_start_exact_once_context: true,
                 subagent_start_hook_execution: true,
-                hard_direct_form_permission_deny_enforcement: false,
                 subagent_read_only_enforcement: true,
                 mcp_authority_coverage: true,
                 interactive_workspace_trust: true,
