@@ -214,12 +214,17 @@ jobs:
           sha256sum "${PROOF_ROOT}/.claude/settings.json" > "${EVIDENCE_ROOT}/direct-permission-projection.sha256"
 
           wrapper_dir="${PROOF_ROOT}/permission-proof-bin"
+          real_git="$(command -v git)"
           mkdir -p "${wrapper_dir}"
 
           cat > "${wrapper_dir}/git" <<EOF
           #!/usr/bin/env bash
-          printf '%s\n' "\$*" >> "${EVIDENCE_ROOT}/direct-permission-git_push-executed.log"
-          exit 97
+          set -euo pipefail
+          if [[ "\$*" == 'push origin main' ]]; then
+            printf '%s\n' "\$*" >> "${EVIDENCE_ROOT}/direct-permission-git_push-executed.log"
+            exit 97
+          fi
+          exec "${real_git}" "\$@"
           EOF
           cat > "${wrapper_dir}/gh" <<EOF
           #!/usr/bin/env bash
