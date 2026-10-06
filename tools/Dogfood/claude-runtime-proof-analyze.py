@@ -81,6 +81,7 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
         "skill_runtime": {},
         "subagent_runtime": {},
         "pretool_deny_runtime": None,
+        "direct_permission_deny_runtime": {},
     }
 
     for phase in ("before", "after"):
@@ -150,6 +151,34 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
 
     if observations["instruction_consumption"]["before"]["managed_router_count"] != observations["instruction_consumption"]["after"]["managed_router_count"]:
         raise SystemExit("managed router count changed across reinstall")
+
+    permission_scenarios = {
+        "git_push": "RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH",
+        "gh_pr_create": "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE",
+        "gh_pr_merge": "RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE",
+    }
+    for name, marker in permission_scenarios.items():
+        scenario_requests = phase_requests(records, marker)
+        denied = [
+            record
+            for record in scenario_requests[1:]
+            if any(
+                item.get("type") == "tool_result" and item.get("is_error") is True
+                for item in objects(record[1].get("messages", []))
+            )
+        ]
+        if len(denied) != 1:
+            raise SystemExit(
+                f"{marker}: expected exactly one denied Bash tool_result, observed {len(denied)}"
+            )
+        sentinel = evidence_root / f"direct-permission-{name}-executed.log"
+        if sentinel.exists():
+            raise SystemExit(f"{marker}: fake executable ran despite project deny")
+        observations["direct_permission_deny_runtime"][name] = {
+            "tool_result_observed": True,
+            "fake_executable_executed": False,
+            "provider_request_after_deny": denied[0][0].name,
+        }
 
     pretool_marker = "RUNTIME_PROOF_PRETOOL_DENY"
     pretool_requests = phase_requests(records, pretool_marker)
