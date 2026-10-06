@@ -71,6 +71,14 @@ Status meanings are strict:
 
 `init host-status` separately reports whether the current repository projection is present and current. Neither `supported` nor a current projection proves that a running host session consumed it.
 
+A stronger runtime claim requires separate host evidence. PR #727 provides one
+bounded example: Codex 0.157.0 explicitly selecting
+`$agent-loop-workflow` loads that projected `SKILL.md` body into the real
+provider request, while the paired baseline does not. This is evidence for one
+package-owned skill and one explicit-selection path only; it does not promote
+generic skill projection into runtime behavior or prove implicit routing,
+`voku/agent-skills` interaction-skill consumption, or other hosts.
+
 | Capability | Codex | Claude | OpenCode | Copilot | Gemini | Antigravity | Cursor |
 |---|---|---|---|---|---|---|---|
 | skill projection | supported | supported | supported | supported | supported | supported | supported |
