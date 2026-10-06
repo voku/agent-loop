@@ -114,8 +114,12 @@ jobs:
             local server_script="${RUNNER_TEMP}/codex-skill-${arm}-server.py"
             local port_path="${RUNNER_TEMP}/codex-skill-${arm}-port"
             local request_path="${EVIDENCE_ROOT}/${arm}-request.json"
+            local arm_home="${RUNNER_TEMP}/codex-skill-${arm}-home"
 
             rm -f "${port_path}" "${request_path}"
+            rm -rf "${arm_home}"
+            mkdir -p "${arm_home}"
+            cp "${CODEX_HOME}/config.toml" "${arm_home}/config.toml"
 
             cat > "${server_script}" <<'PY'
           import http.server
@@ -184,6 +188,7 @@ jobs:
             (
               cd "${PROOF_ROOT}"
               env -u OPENAI_API_KEY -u CODEX_ACCESS_TOKEN \
+                CODEX_HOME="${arm_home}" \
                 codex exec --ephemeral --json \
                   -c 'model="proof-model"' \
                   -c 'model_provider="mock"' \
