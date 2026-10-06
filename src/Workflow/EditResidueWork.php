@@ -32,12 +32,12 @@ final readonly class EditResidueWork
                 continue;
             }
             try {
-                $result = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                $verification = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
             } catch (JsonException) {
                 continue;
             }
-            $residue = is_array($result) && is_array($result['residue'] ?? null) ? $result['residue'] : null;
-            if ($residue === null || ($residue['status'] ?? null) !== 'open' || ($result['status'] ?? null) === 'passed') {
+            $residue = is_array($verification) && is_array($verification['residue'] ?? null) ? $verification['residue'] : null;
+            if ($residue === null || ($residue['status'] ?? null) !== 'open' || ($verification['status'] ?? null) === 'passed') {
                 continue;
             }
 
