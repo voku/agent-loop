@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [method-rename, class-rename, class-move, method-move, property-rename, method-removal]
+        scenario: [method-rename, method-rename-residue, class-rename, class-move, method-move, property-rename, method-removal]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -68,3 +68,5 @@ jobs:
             ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/.agent-loop/edit/DEMO-1/execution.json
             ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/.agent-loop/edit/DEMO-1/verification-result.json
             ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/finish.json
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/status.json
+            ${{ runner.temp }}/agent-loop-installed-edit-${{ matrix.scenario }}/finish-blocked.out
