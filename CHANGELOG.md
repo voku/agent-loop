@@ -1,3 +1,9 @@
+## Unreleased
+
+### Changed
+
+- Make `agent-loop-workflow` the explicit end-to-end implementation front door: a user can ask to implement a governed task without learning Loop's internal packages, while the skill still routes only through `enter` / `finish` and the current `next_action`. No parallel `implement` skill or copied lifecycle policy is introduced.
+
 ## 0.20.57 - 2026-10-06
 
 ### Changed

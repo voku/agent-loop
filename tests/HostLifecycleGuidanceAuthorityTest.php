@@ -41,6 +41,20 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         self::assertStringContainsString('next_action', $skill);
     }
 
+    public function testWorkflowSkillIsTheImplementationFrontDoorWithoutParallelAlias(): void
+    {
+        $root = dirname(__DIR__);
+        $skill = file_get_contents($root . '/resources/skills/agent-loop-workflow/SKILL.md');
+
+        self::assertIsString($skill);
+        self::assertStringContainsString('end-to-end implementation request', $skill);
+        self::assertStringContainsString('This is the implementation front door.', $skill);
+        self::assertDirectoryDoesNotExist(
+            $root . '/resources/skills/implement',
+            'Implementation UX must reuse the lifecycle owner instead of copying it into an alias skill.',
+        );
+    }
+
     public function testAlwaysOnDisciplineDoesNotRestateTheNextActionKindContract(): void
     {
         $skill = file_get_contents(
