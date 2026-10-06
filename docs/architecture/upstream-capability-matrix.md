@@ -41,8 +41,16 @@ boundaries.
 
 The installed release-set proof pins `voku/agent-skills` at
 `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and proves that both adapted portable interaction skills are
-projected into the clean consumer host roots. Projection remains evidence of
-installation, not proof that a host runtime invoked a skill body.
+projected into the clean consumer host roots. Projection remains installation
+evidence rather than runtime-consumption evidence by itself.
+
+Separately, PR #727 observes `host_runtime_skill_consumption` for the
+package-owned `agent-loop-workflow` skill under Codex 0.157.0: a provider-free
+baseline request contains its unique skill-body marker zero times, while an
+explicit `$agent-loop-workflow` request contains it exactly once. That bounded
+proof does not establish implicit semantic routing, consumption of
+`requirements-interview` / `review-feedback-repair`, arbitrary skill
+invocation, or behavior on any other host.
 
 ## Caveman
 
