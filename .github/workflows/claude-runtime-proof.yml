@@ -239,18 +239,18 @@ jobs:
           chmod +x "${wrapper_dir}/git" "${wrapper_dir}/gh"
 
           run_permission_proof() {
-            label="\$1"
-            marker="\$2"
+            label="$1"
+            marker="$2"
             (
               cd "${PROOF_ROOT}"
-              PATH="${wrapper_dir}:${PATH}" claude -p \\
-                --debug-file "${EVIDENCE_ROOT}/claude-permission-\${label}-debug.log" \\
-                --model claude-sonnet-4-5 \\
-                --output-format json \\
-                "\${marker} Use the Bash tool exactly once with the command supplied by the model provider. Do not replace it with another tool or command."
-            ) > "${EVIDENCE_ROOT}/claude-permission-\${label}.json"
-            jq -e '(.type == "result") and (.subtype == "success") and (.result == "PROOF_OK")' \\
-              "${EVIDENCE_ROOT}/claude-permission-\${label}.json" >/dev/null
+              PATH="${wrapper_dir}:${PATH}" claude -p \
+                --debug-file "${EVIDENCE_ROOT}/claude-permission-${label}-debug.log" \
+                --model claude-sonnet-4-5 \
+                --output-format json \
+                "${marker} Use the Bash tool exactly once with the command supplied by the model provider. Do not replace it with another tool or command."
+            ) > "${EVIDENCE_ROOT}/claude-permission-${label}.json"
+            jq -e '(.type == "result") and (.subtype == "success") and (.result == "PROOF_OK")' \
+              "${EVIDENCE_ROOT}/claude-permission-${label}.json" >/dev/null
           }
 
           run_permission_proof git-push RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH
