@@ -183,6 +183,85 @@ jobs:
 
           run_phase after
 
+      - name: Prove Claude direct-form permission denies are honored live
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: proof-key
+          DISABLE_TELEMETRY: '1'
+          DISABLE_AUTOUPDATER: '1'
+          ENABLE_CLAUDEAI_MCP_SERVERS: 'false'
+          MCP_CONNECTION_NONBLOCKING: 'true'
+          CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: 'false'
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: '1'
+          IS_DEMO: '1'
+        run: |
+          set -euo pipefail
+          export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_PROOF_PORT}"
+
+          (
+            cd "${PROOF_ROOT}"
+            "${GITHUB_WORKSPACE}/bin/agent-loop" init sync-policy --agent=claude
+          )
+
+          test -f "${PROOF_ROOT}/.claude/settings.json"
+          test ! -e "${PROOF_ROOT}/.claude/hooks/pre_tool_use_policy.php"
+          jq -e '
+            .permissions.deny
+            | index("Bash(git push *)") != null
+              and index("Bash(gh pr create *)") != null
+              and index("Bash(gh pr merge *)") != null
+          ' "${PROOF_ROOT}/.claude/settings.json" >/dev/null
+          sha256sum "${PROOF_ROOT}/.claude/settings.json" > "${EVIDENCE_ROOT}/direct-permission-projection.sha256"
+
+          wrapper_dir="${PROOF_ROOT}/permission-proof-bin"
+          mkdir -p "${wrapper_dir}"
+
+          cat > "${wrapper_dir}/git" <<EOF
+          #!/usr/bin/env bash
+          printf '%s\n' "\$*" >> "${EVIDENCE_ROOT}/direct-permission-git_push-executed.log"
+          exit 97
+          EOF
+          cat > "${wrapper_dir}/gh" <<EOF
+          #!/usr/bin/env bash
+          case "\$*" in
+            'pr create --title proof --body proof')
+              printf '%s\n' "\$*" >> "${EVIDENCE_ROOT}/direct-permission-gh_pr_create-executed.log"
+              ;;
+            'pr merge 1 --squash')
+              printf '%s\n' "\$*" >> "${EVIDENCE_ROOT}/direct-permission-gh_pr_merge-executed.log"
+              ;;
+            *)
+              printf '%s\n' "\$*" >> "${EVIDENCE_ROOT}/direct-permission-gh-unexpected-executed.log"
+              ;;
+          esac
+          exit 97
+          EOF
+          chmod +x "${wrapper_dir}/git" "${wrapper_dir}/gh"
+
+          run_permission_proof() {
+            label="\$1"
+            marker="\$2"
+            (
+              cd "${PROOF_ROOT}"
+              PATH="${wrapper_dir}:${PATH}" claude -p \\
+                --debug-file "${EVIDENCE_ROOT}/claude-permission-\${label}-debug.log" \\
+                --model claude-sonnet-4-5 \\
+                --output-format json \\
+                "\${marker} Use the Bash tool exactly once with the command supplied by the model provider. Do not replace it with another tool or command."
+            ) > "${EVIDENCE_ROOT}/claude-permission-\${label}.json"
+            jq -e '(.type == "result") and (.subtype == "success") and (.result == "PROOF_OK")' \\
+              "${EVIDENCE_ROOT}/claude-permission-\${label}.json" >/dev/null
+          }
+
+          run_permission_proof git-push RUNTIME_PROOF_PERMISSION_DENY_GIT_PUSH
+          run_permission_proof gh-pr-create RUNTIME_PROOF_PERMISSION_DENY_GH_PR_CREATE
+          run_permission_proof gh-pr-merge RUNTIME_PROOF_PERMISSION_DENY_GH_PR_MERGE
+
+          test ! -e "${EVIDENCE_ROOT}/direct-permission-git_push-executed.log"
+          test ! -e "${EVIDENCE_ROOT}/direct-permission-gh_pr_create-executed.log"
+          test ! -e "${EVIDENCE_ROOT}/direct-permission-gh_pr_merge-executed.log"
+          test ! -e "${EVIDENCE_ROOT}/direct-permission-gh-unexpected-executed.log"
+
       - name: Prove Claude PreToolUse deny is honored live
         shell: bash
         env:
@@ -328,6 +407,13 @@ jobs:
                   mechanism: "two consecutive init install-assets --agent=claude runs with identical owned projection digest",
                   status: (if $projection_before == $projection_after then "observed" else "unverified" end)
                 },
+                direct_form_permission_deny_enforcement: {
+                  evidence_class: "host_runtime_enforcement",
+                  mechanism: "project .claude/settings.json deny rules plus three scenario-driven Bash tool requests with no repository hooks installed",
+                  observations: ($runtime_observations.direct_permission_deny_runtime // null),
+                  status: (if (($runtime_observations.direct_permission_deny_runtime // {}) | length) == 3 then "observed" else "unverified" end),
+                  boundary: "Proves Claude Code 2.1.287 rejects the three managed canonical direct forms git push, gh pr create, and gh pr merge before the fake executables run. Alternate invocation, hooks, MCP, and other authority routes are separate evidence boundaries."
+                },
                 pretool_deny_enforcement: {
                   evidence_class: "host_runtime_enforcement",
                   mechanism: "installed candidate consumer plus scenario-driven Bash tool_use with bypassPermissions; repository PreToolUse hook denies and the fake git executable remains unexecuted",
@@ -339,7 +425,7 @@ jobs:
               not_proven_by_this_slice: {
                 session_start_exact_once_context: true,
                 subagent_start_hook_execution: true,
-                hard_direct_form_permission_deny_enforcement: true,
+                hard_direct_form_permission_deny_enforcement: false,
                 subagent_read_only_enforcement: true,
                 mcp_authority_coverage: true,
                 interactive_workspace_trust: true,
