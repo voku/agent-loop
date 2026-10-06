@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [method-rename, method-rename-residue, class-rename, class-move, method-move, property-rename, method-removal]
+        scenario: [method-rename, method-rename-residue, class-rename, class-move, method-move, property-rename, method-removal, class-removal]
     steps:
       - uses: actions/checkout@v6
         with:
