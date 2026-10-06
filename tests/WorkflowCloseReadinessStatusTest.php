@@ -175,6 +175,39 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         self::assertStringContainsString('edit verification status incomplete for edit bundle ABC-123', $closeOutput);
     }
 
+    public function testOpenResidueFromAgentEditBlocksCloseAndExplainsTheNextStep(): void
+    {
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        mkdir($this->root . '/.agent-loop/edit/ABC-123', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/execution.json', '{}');
+        // agent-edit 0.3: the PHP edit passed, but docs/templates still mention the old symbol.
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/verification-result.json', json_encode([
+            'status' => 'incomplete',
+            'changed_files' => ['src/Service.php'],
+            'residue' => [
+                'status' => 'open',
+                'open' => 2,
+                'historical' => 1,
+                'references' => [['path' => 'README.md', 'line' => 3, 'confidence' => 'class_member_qualified', 'matched' => 'Service::oldName']],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        [$closeExit, $closeOutput] = $this->runClose();
+
+        self::assertSame(1, $closeExit);
+        self::assertStringContainsString('2 non-historical Markdown/template mention(s) of the old symbol remain', $closeOutput);
+        self::assertStringContainsString('--accept-residue=REASON', $closeOutput);
+
+        // Accepted with a recorded reason: agent-edit reports passed and the gate opens.
+        file_put_contents($this->root . '/.agent-loop/edit/ABC-123/verification-result.json', json_encode([
+            'status' => 'passed',
+            'residue' => ['status' => 'accepted', 'open' => 2, 'historical' => 1, 'disposition' => 'docs follow-up'],
+        ], JSON_THROW_ON_ERROR));
+        [$acceptedExit, $acceptedOutput] = $this->runClose();
+        self::assertStringNotContainsString('edit verification status', $acceptedOutput, $acceptedOutput);
+        self::assertSame(0, $acceptedExit, $acceptedOutput);
+    }
+
     public function testWhitespaceCompilationIdIsNotAcceptedAsIdentifyingACompilation(): void
     {
         $this->prepareGovernedRun(ValidationStatus::PASSED, 0);

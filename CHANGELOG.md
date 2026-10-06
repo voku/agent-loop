@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+- Require `voku/agent-edit` `^0.3.0`, `voku/agent-map` `^0.20.0` and `voku/agent-recall-compiler` `^0.25.4` (the first Recall release that accepts agent-map 0.20). `agent-loop edit refactor verify` now forwards agent-edit's residue check: after a method rename, class rename or method removal, remaining non-historical Markdown / Twig / Smarty / Blade mentions of the old symbol make the result `incomplete` (CLI exit 3) until they are fixed or accepted with `--accept-residue=REASON`. The workflow close gate names the open mentions and the two ways forward instead of reporting a bare `incomplete`, and the installed-consumer proofs resolve the released agent-map 0.20.0 and agent-edit `^0.3.0`.
+
 ### Added
 
 - Broaden the installed agent-edit lifecycle proof (`tools/installed-edit-lifecycle.sh` and the `Installed agent-edit refactor lifecycle` matrix) with `property-rename` (`property_rename_plan@1.0`) and `method-removal` (`method_removal_plan@1.0`): each runs plan, dry run, stale-plan refusal, apply, map rebuild, verify, validation/review/learning evidence and `finish` against the released agent-map and agent-edit.
