@@ -1,4 +1,4 @@
-name: Installed agent-edit stale reverification proof (0.3.0)
+name: Installed agent-edit stale reverification proof (0.4.0)
 
 on:
   pull_request:
@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-edit
-          ref: 0.3.0
+          ref: 0.4.0
           path: build/released-agent-edit
           persist-credentials: false
 
@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-edit rev-parse 'HEAD^{commit}')" = "49cca4c823906115dc3de16e9c69d300a8090018"
+          test "$(git -C build/released-agent-edit rev-parse 'HEAD^{commit}')" = "0c208f4ab8084862ea05fd327c7b7c80fa4d5aa8"
           test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "96bffea331cec063adba37e6659e5f3760202f9b"
 
       - name: Prove stale reverification cannot leave a passed verdict
@@ -80,7 +80,7 @@ jobs:
                 "url": "${GITHUB_WORKSPACE}/build/released-agent-edit",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-edit": "0.3.0"}
+                  "versions": {"voku/agent-edit": "0.4.0"}
                 }
               },
               {
@@ -138,7 +138,7 @@ jobs:
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
           composer show voku/agent-edit --format=json > resolved-agent-edit.json
           composer show voku/agent-map --format=json > resolved-agent-map.json
-          jq -e '.versions | index("0.3.0") != null' resolved-agent-edit.json >/dev/null
+          jq -e '.versions | index("0.4.0") != null' resolved-agent-edit.json >/dev/null
           jq -e '.versions | index("0.20.0") != null' resolved-agent-map.json >/dev/null
 
           git init --initial-branch=main

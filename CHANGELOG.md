@@ -1,3 +1,13 @@
+## Unreleased
+
+### Changed
+
+- Require `voku/agent-edit` `^0.4.0`, the first release that executes `class_removal_plan@1.0`, so `agent-loop edit refactor` applies and verifies a safe agent-map class removal plan for installed consumers. The installed agent-edit proofs now resolve agent-edit 0.4.x.
+
+### Added
+
+- Add the installed `class-removal` lifecycle scenario to the `Installed agent-edit refactor lifecycle` matrix: a real `class_removal_plan@1.0` runs plan, dry run, stale-plan refusal, apply, map rebuild, verify (`verification-result.json` status `passed`, deleted class and file absent), validation/review/learning evidence and `finish`.
+
 ## 0.20.56 - 2026-10-06
 
 ### Changed

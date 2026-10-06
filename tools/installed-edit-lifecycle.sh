@@ -4,7 +4,7 @@
 #   agent-map plan -> agent-loop edit refactor --dry-run -> apply (agent-edit preflight/apply) -> map rebuild
 #   -> agent-loop edit refactor verify (agent-edit verify) -> validation/review/learning evidence -> finish
 #
-# Usage: tools/installed-edit-lifecycle.sh <method-rename|method-rename-residue|class-rename|class-move|method-move|property-rename|method-removal> <work-dir>
+# Usage: tools/installed-edit-lifecycle.sh <method-rename|method-rename-residue|class-rename|class-move|method-move|property-rename|method-removal|class-removal> <work-dir>
 # Environment: LOOP (default vendor/bin/agent-loop) and MAP (default vendor/bin/agent-map), resolved inside <work-dir>.
 set -euo pipefail
 
@@ -110,6 +110,18 @@ case "$scenario" in
     php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    /** Owned metadata must leave with the method. */\n    private function obsolete(): string\n    {\n        return \'obsolete\';\n    }\n\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
     post_check() { ! grep -q 'obsolete' src/Greeter.php && ! grep -q 'Owned metadata must leave' src/Greeter.php && grep -q 'public function greet' src/Greeter.php; }
     ;;
+  class-removal)
+    plan_command=(class-removal-plan 'Fixture\Legacy')
+    plan_type=class_removal_plan
+    verify_kind=class_removal_plan_verification
+    runner=class-removal-plan
+    goal='Remove the unused Fixture\Legacy class and its owned file through the released agent-map class removal plan.'
+    file=src/Legacy.php
+    expected_changed='["src/Legacy.php"]'
+    php_file src/Legacy.php 'Fixture' $'final class Legacy\n{\n}'
+    php_file src/Greeter.php 'Fixture' $'final class Greeter\n{\n    public function greet(string $name): string\n    {\n        return \'Hello \' . $name;\n    }\n}'
+    post_check() { test ! -e src/Legacy.php && test -f src/Greeter.php && ! grep -rq 'class Legacy' src; }
+    ;;
   *) echo "Unknown scenario: $scenario" >&2; exit 2 ;;
 esac
 
@@ -121,7 +133,7 @@ else
 fi
 if [ -n "${LOOP_REPO:-}" ]; then
   # Installed-consumer mode: agent-loop (path) and the released agent-map (path) are installed as a consuming project
-  # would; voku/agent-edit resolves from Packagist through agent-loop's own `^0.3.0` requirement.
+  # would; voku/agent-edit resolves from Packagist through agent-loop's own `^0.4.0` requirement.
   jq -n \
     --argjson psr4 "{${psr4}}" \
     --arg loop "$LOOP_REPO" \
@@ -143,8 +155,8 @@ if [ -n "${LOOP_REPO:-}" ]; then
     }' > composer.json
   composer update --no-interaction --prefer-dist --no-progress --no-ansi
   composer show voku/agent-edit --format=json > resolved-agent-edit.json
-  # Any release inside Loop's own `^0.3.0` constraint proves the Packagist resolution; pinning one patch breaks on every release.
-  jq -e '(.versions | length) == 1 and (.versions[0] | test("^0\\.3\\.[0-9]+$"))' resolved-agent-edit.json >/dev/null
+  # Any release inside Loop's own `^0.4.0` constraint proves the Packagist resolution; pinning one patch breaks on every release.
+  jq -e '(.versions | length) == 1 and (.versions[0] | test("^0\\.4\\.[0-9]+$"))' resolved-agent-edit.json >/dev/null
 else
   cat > composer.json <<JSON
 {
