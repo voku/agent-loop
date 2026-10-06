@@ -42,6 +42,7 @@ final class AgentMapPlanCapabilityContractTest extends TestCase
             'move:class_move_plan@1.0',
             'move:method_move_plan@1.0',
             'removal:class_constant_removal_plan@1.0',
+            'removal:class_removal_plan@1.0',
             'removal:method_removal_plan@1.0',
             'removal:property_removal_plan@1.0',
             'rename:class_constant_rename_plan@1.0',
