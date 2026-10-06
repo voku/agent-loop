@@ -346,6 +346,17 @@ final readonly class WorkflowCloseReadinessInspector
                 return ['detail' => 'verification-result.json without a status for edit bundle ' . $bundleName, 'message' => null];
             }
             if ($result['status'] !== 'passed') {
+                $residue = is_array($result['residue'] ?? null) ? $result['residue'] : [];
+                if (($residue['status'] ?? null) === 'open') {
+                    // agent-edit proved the PHP edit, but Markdown/template text still mentions the old symbol.
+                    return ['detail' => sprintf(
+                        'edit verification status %s for edit bundle %s: %d non-historical Markdown/template mention(s) of the old symbol remain (see residue.references in verification-result.json); fix them and re-run `agent-loop edit refactor verify`, or accept them with --accept-residue=REASON',
+                        $result['status'],
+                        $bundleName,
+                        is_int($residue['open'] ?? null) ? $residue['open'] : 0,
+                    ), 'message' => null];
+                }
+
                 return ['detail' => 'edit verification status ' . $result['status'] . ' for edit bundle ' . $bundleName, 'message' => null];
             }
             $passedNames[] = $bundleName;

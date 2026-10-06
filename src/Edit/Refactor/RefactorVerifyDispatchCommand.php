@@ -41,11 +41,15 @@ final readonly class RefactorVerifyDispatchCommand
     {
         return <<<'TXT'
 Usage:
-  agent-loop edit refactor verify --bundle=.agent-loop/edit/TASK [--map-index PATH] [--map-root PATH]
+  agent-loop edit refactor verify --bundle=.agent-loop/edit/TASK [--map-index PATH] [--map-root PATH] [--accept-residue=REASON]
 
 Read-only verification of one applied refactor bundle, executed by voku/agent-edit from the persisted
 receipt (`execution.json`). It requires independently observed changed-file evidence, binds the plan
 and the refreshed Map, and writes verification-result.json into the bundle.
+
+For rename and method-removal plans it also re-scans Markdown and Twig/Smarty/Blade files for the old symbol. Remaining
+non-historical mentions make the result `incomplete` (and block close) until they are fixed or accepted with
+--accept-residue=REASON, which records the reason in the result.
 
 TXT;
     }
