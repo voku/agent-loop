@@ -16,9 +16,13 @@ final class WorkflowDreamAutoRunTest extends TestCase
     private string $root;
     private string $learningRoot;
     private string $stateFile;
+    private string|false $originalAutorun = false;
 
     protected function setUp(): void
     {
+        // Autorun must be enabled here, whatever the caller exported; the original value comes back in tearDown().
+        $this->originalAutorun = getenv('AGENT_LOOP_DREAM_AUTORUN');
+        putenv('AGENT_LOOP_DREAM_AUTORUN');
         $this->root = sys_get_temp_dir() . '/agent-loop-dream-auto-' . bin2hex(random_bytes(4));
         $layout = new ProjectLayout($this->root);
         $this->learningRoot = $layout->learningRoot();
@@ -33,7 +37,7 @@ final class WorkflowDreamAutoRunTest extends TestCase
 
     protected function tearDown(): void
     {
-        putenv('AGENT_LOOP_DREAM_AUTORUN');
+        putenv($this->originalAutorun === false ? 'AGENT_LOOP_DREAM_AUTORUN' : 'AGENT_LOOP_DREAM_AUTORUN=' . $this->originalAutorun);
         $this->removeTree($this->root);
     }
 

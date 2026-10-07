@@ -11,7 +11,7 @@ Dream is the maintenance step of the Promotion Loop (`Dream -> Proposal -> Human
 
 ## Automatic preview
 
-The SessionStart hook runs the read-only preview itself when it is due (no previous automatic run, the Learning inputs changed by content, or the last run is older than seven days) and shows the numbers under `## Agent Loop Dream`. Treat that section as a finished Review step: report its numbers, do not rerun Dream just to see them. It is an observation, never a decision, and it writes nothing into the Learning root. Everything below still applies to candidates, triage and human handoff. `AGENT_LOOP_DREAM_AUTORUN=0` switches the automatic preview off.
+The SessionStart hook runs the read-only preview itself when it is due (no previous automatic run, the Learning inputs changed by content, or the last run is older than seven days) and shows the numbers under `## Agent Loop Dream`. Treat that section as a finished Review step only when the preview succeeded: report its numbers, and do not rerun Dream just to see them. The section carries no outcome coverage, and on a failure ("the automatic Dream preview failed") it carries no numbers at all; in either case run the manual Review below to get what is missing. It is an observation, never a decision, and it writes nothing into the Learning root. Everything below still applies to candidates, triage and human handoff. `AGENT_LOOP_DREAM_AUTORUN=0` switches the automatic preview off.
 
 ## Run
 
