@@ -30,6 +30,17 @@ Flag semantics (from the Learning CLI): candidates are written only with `--writ
 | Review decisions > 0 | Candidates, not decisions. Present each with its provenance and the guidance it targets. |
 | `CONFLICT` / `REPLACEMENT_CANDIDATE` | Only explicit lineage or exact duplicate wording produces these; different prose is never guessed to conflict. A conflict record uses `NO_DURABLE_LEARNING`, so a human can acknowledge or reject it without a mutation. |
 
+## Review the pending queue
+
+Dream also owes a view of proposals that are already waiting (candidate or approved), not only newly written candidates. Use `learn proposal-queue --probe <repo guidance file>` (repeat `--probe` per guidance file the repository keeps, for example its memory index; add `--format=json` for machine output). It is read-only and states facts only: allowed transitions, lineage (`corrects`, `corrected_by`, `supersedes`), other proposals on the same target, unresolved paths, and how much of the proposed wording already exists in the target or probe files.
+
+Present one table row per proposal: `id | status action | target | signals | take | reason`.
+
+- The **take** is yours: approve, reject, acknowledge or apply, with a one-line reason. It is advice for a named human, never a decision, and the tool does not produce it.
+- Ground every take in a signal. "Already covered" needs an exact or high wording match in a repository file; a memory of the guidance elsewhere is not evidence. "Superseded" needs `corrects` or `corrected_by`. Without a signal, label the take unverified.
+- An approved proposal whose wording is already exact in its target was applied by hand: confirm, then record it with `proposal-mark-applied` instead of writing the guidance again.
+- Run a transition only after the human names the decision, with `--by` and, for reject and acknowledge, a real reason. One proposal per decision; never batch to empty the queue.
+
 ## Write candidates (only on an explicit human ask)
 
 `make agent_learning_dream_write_candidates` (or `learn dream --write-candidates`) writes review records only. Run it once step 1 shows no concurrent diff in the Learning root. Route each record through exactly one of `learn proposal-approve`, `learn proposal-reject` or `learn proposal-acknowledge`, with a named human (`--by`) and, for reject and acknowledge, a real reason. Never approve a candidate because it exists, and never bulk-acknowledge to empty the queue.
