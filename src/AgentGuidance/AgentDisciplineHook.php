@@ -280,8 +280,14 @@ final readonly class AgentDisciplineHook
             $catalog = new LearningCatalog($root);
             $candidates = [];
             $unconsolidated = [];
+            // One batch call: LearningCatalog::finding() validates the whole Learning root on every call,
+            // so looking each attention id up separately cost about 0.2s per finding on a mature root.
+            $findingsById = [];
+            foreach ($catalog->findings() as $projection) {
+                $findingsById[$projection->id] = $projection;
+            }
             foreach ($catalog->overview()->findingAttentionIds as $findingId) {
-                $finding = $catalog->finding($findingId);
+                $finding = $findingsById[$findingId] ?? null;
                 if ($finding === null) {
                     throw new RuntimeException('Learning owner projected missing Finding: ' . $findingId);
                 }

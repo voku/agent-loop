@@ -23,6 +23,18 @@ final class AgentDisciplineHookLearningOwnerBoundaryTest extends TestCase
         self::assertStringNotContainsString("'/findings/validated'", $source);
     }
 
+    public function testLearningBacklogLooksFindingsUpInOneBatchNotPerAttentionId(): void
+    {
+        $source = file_get_contents(dirname(__DIR__) . '/src/AgentGuidance/AgentDisciplineHook.php');
+
+        self::assertIsString($source);
+        // LearningCatalog::finding() validates the whole Learning root on every call. Calling it once per
+        // attention id made SessionStart take about 12s on a root with 56 attention findings; findings()
+        // validates once. The validator is final, so this is guarded at the source level like its siblings.
+        self::assertStringContainsString('$catalog->findings()', $source);
+        self::assertStringNotContainsString('$catalog->finding(', $source);
+    }
+
     public function testMissingLearningTreeStaysSilentThroughOwnerCatalog(): void
     {
         self::assertTrue(class_exists(LearningCatalog::class));
