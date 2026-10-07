@@ -1,6 +1,8 @@
-## Unreleased
+## 0.20.58 - 2026-10-07
 
 ### Added
+
+- Teach the `agent-loop-dream` skill to review proposals that are already waiting (candidate or approved), not only new Dream candidates: present one table row per proposal with a take (approve, reject, acknowledge, apply) and a reason, each take grounded in a deterministic signal from `agent-learning`'s read-only `learn proposal-queue` (lineage, same-target proposals, wording already present in the target or in repository guidance files). The take stays advice for a named human, an "already covered" claim needs a repository wording match instead of recollection, and a transition runs only after the human names the decision. Requires the `proposal-queue` command, which ships in the `voku/agent-learning` release after 0.18.28.
 
 - Run the read-only Dream preview automatically at SessionStart when it is due, so guidance maintenance no longer depends on someone remembering it. `WorkflowDreamAutoRun` decides from facts: no previous automatic run, a changed content fingerprint of the Learning inputs Dream evaluates (`findings/`, `proposals/`, `constraints/active/`, `notes/`; mtimes and outcome history are ignored), or a last run older than seven days. The hook shows the numbers under `## Agent Loop Dream` and keeps reminding while review decisions are pending. The preview writes nothing into the Learning root and only a regenerable `<state>/dream/auto.json`, so writing candidates and every approval stay explicit human decisions. `AGENT_LOOP_DREAM_AUTORUN=0` switches it off, a failing preview is reported instead of failing bootstrap, and SubagentStart never triggers it.
 
