@@ -4,6 +4,8 @@
 
 - Make `agent-loop-workflow` the explicit end-to-end implementation front door: a user can ask to implement a governed task without learning Loop's internal packages, while the skill still routes only through `enter` / `finish` and the current `next_action`. No parallel `implement` skill or copied lifecycle policy is introduced.
 
+- Let the existing `agent-loop-workflow` front door route genuinely ambiguous new/governed work to the portable `requirements-interview` specialist after normal entry, while clear tasks skip it. The specialist remains clarification-only: no card mutation, Contract approval, source mutation, implementation, or lifecycle authority moves out of its existing owners.
+
 - Advance the installed engineering-skill dogfood to immutable `voku/agent-skills`
   commit `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and prove that `requirements-interview` and
   `review-feedback-repair` project into the clean consumer's Codex, Claude,
