@@ -1,3 +1,9 @@
+## Unreleased
+
+### Added
+
+- Teach the `agent-loop-dream` skill to work the finding backlog in the same pass as the proposal queue: consolidate already-decided findings with `learn finding-reconcile`, list the real backlog with the read-only `learn finding-queue --probe`, then present one table per bucket (resolved in code, rule candidate, guidance line batched by owner, no durable learning) with a take and a reason per row. Each take must rest on a signal or an inspected repository fact, low wording overlap is not proof that a lesson is missing, and nothing changes until a named human decides. Requires the `finding-queue` and `finding-reconcile` commands, which ship in `voku/agent-learning` 0.18.30.
+
 ## 0.20.58 - 2026-10-07
 
 ### Added

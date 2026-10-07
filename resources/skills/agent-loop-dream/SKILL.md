@@ -41,6 +41,20 @@ Present one table row per proposal: `id | status action | target | signals | tak
 - An approved proposal whose wording is already exact in its target was applied by hand: confirm, then record it with `proposal-mark-applied` instead of writing the guidance again.
 - Run a transition only after the human names the decision, with `--by` and, for reject and acknowledge, a real reason. One proposal per decision; never batch to empty the queue.
 
+## Triage the finding backlog
+
+A Learning backlog that nobody works grows until the hint is ignored. Work it in the same pass as the proposal queue.
+
+1. `learn finding-reconcile --dry-run`, then with `--by` once the human agrees: it consolidates validated findings whose proposals all reached a terminal decision. Proposal transitions do this themselves now, so a non-empty list means a root decided by an older package. Do this first; it shrinks the backlog without any judgement.
+2. `learn finding-queue --probe <repo guidance file>` lists what is really open. It is read-only and states facts only: proposals citing the finding, unresolved scope paths, how much of the conclusion already exists in the probe files, the transitions the lifecycle accepts.
+3. Present one table per bucket with a take and a reason per row, each take grounded in a signal or an inspected repository fact. The buckets are advice, not a taxonomy the tool enforces:
+   - **resolved in code or tooling**: archive, naming the file that now carries the fix;
+   - **rule candidate**: a defect with a syntactic shape that a PHPStan rule, phpcs sniff or meta-test can detect; say which engine and the false-positive risk;
+   - **guidance line**: name the owning skill, ADR or memory row, and batch rows with one owner into one proposal;
+   - **no durable learning**: taste, one-off or environment-specific facts, archived with a real reason.
+4. Low wording overlap does not prove a lesson is missing: findings are written as observations and guidance as rules. Before a take says "not covered" or "already covered", look for the key identifiers in the repository and label the take unverified when you did not.
+5. Nothing changes until the human names the decision. Then run the transition (`finding-transition`, or a proposal through the existing approve, reject and acknowledge path) with `--by` and, where required, a real reason.
+
 ## Write candidates (only on an explicit human ask)
 
 `make agent_learning_dream_write_candidates` (or `learn dream --write-candidates`) writes review records only. Run it once step 1 shows no concurrent diff in the Learning root. Route each record through exactly one of `learn proposal-approve`, `learn proposal-reject` or `learn proposal-acknowledge`, with a named human (`--by`) and, for reject and acknowledge, a real reason. Never approve a candidate because it exists, and never bulk-acknowledge to empty the queue.
