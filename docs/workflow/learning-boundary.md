@@ -119,6 +119,8 @@ Dream clusters evidence and drafts candidate Proposals:
 - `skill` (workflow procedures or tool instructions);
 - `constraint` (hard semantic invariants).
 
+The read-only Dream preview runs **automatically at session start** when it is due, so it does not depend on anyone remembering it. Due is a fact check: no previous automatic run, the Learning inputs Dream evaluates (`findings/`, `proposals/`, `constraints/active/`, `notes/`) changed by content, or the last run is older than seven days. Outcome history is left out of the fingerprint because it changes with every task; the age limit covers it. The preview writes nothing into the Learning root, so automation stops exactly where authority starts: writing candidate Proposals still needs an explicit human ask (`--write-candidates`), and approval stays human. Set `AGENT_LOOP_DREAM_AUTORUN=0` to switch the automatic preview off.
+
 ### 6. Human approval gate
 
 Proposals are **never auto-promoted**. A human authority explicitly reviews the evidence, candidate diff, and validation case:

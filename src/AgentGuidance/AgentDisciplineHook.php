@@ -12,6 +12,7 @@ use voku\AgentLearning\FindingStatus;
 use voku\AgentLearning\LearningCatalog;
 use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\ProjectLayout;
+use voku\AgentLoop\Workflow\WorkflowDreamAutoRun;
 
 final readonly class AgentDisciplineHook
 {
@@ -182,6 +183,7 @@ final readonly class AgentDisciplineHook
 
         $context = $this->workflowResumeHint()
             . $this->learningBacklogHint()
+            . ($event === 'SessionStart' ? $this->dreamHint() : '')
             . $this->disciplineContext($clientDirectory);
 
         return [
@@ -278,8 +280,14 @@ final readonly class AgentDisciplineHook
             $catalog = new LearningCatalog($root);
             $candidates = [];
             $unconsolidated = [];
+            // One batch call: LearningCatalog::finding() validates the whole Learning root on every call,
+            // so looking each attention id up separately cost about 0.2s per finding on a mature root.
+            $findingsById = [];
+            foreach ($catalog->findings() as $projection) {
+                $findingsById[$projection->id] = $projection;
+            }
             foreach ($catalog->overview()->findingAttentionIds as $findingId) {
-                $finding = $catalog->finding($findingId);
+                $finding = $findingsById[$findingId] ?? null;
                 if ($finding === null) {
                     throw new RuntimeException('Learning owner projected missing Finding: ' . $findingId);
                 }
@@ -340,6 +348,63 @@ final readonly class AgentDisciplineHook
             '',
             '',
         ]);
+    }
+
+    /**
+     * Run the read-only Dream preview when it is due and report its numbers.
+     *
+     * Whether Dream is due is a fact check in WorkflowDreamAutoRun, so this does not rely on
+     * an agent remembering to run it. The preview writes nothing into the Learning root;
+     * candidates and every approval stay explicit human decisions.
+     */
+    private function dreamHint(): string
+    {
+        try {
+            $digest = (new WorkflowDreamAutoRun($this->repositoryRoot))->runIfDue();
+        } catch (Throwable $exception) {
+            // A failing Dream must not break bootstrap, and hiding it would defeat the point.
+            return implode("\n", [
+                '## Agent Loop Dream',
+                '',
+                '- the automatic Dream preview failed: ' . $exception->getMessage(),
+                '- `vendor/bin/agent-loop learn dream --dry-run` reproduces it.',
+                '',
+                '',
+            ]);
+        }
+        if ($digest === null) {
+            return '';
+        }
+
+        $lines = [];
+        if ($digest['ran']) {
+            $lines[] = sprintf(
+                '- ran the read-only Dream preview automatically (%s): %d guidance evaluated, %d warning kind(s)%s, %d review decision(s), %d suppressed.',
+                $digest['reason'],
+                $digest['evaluated'],
+                count($digest['warnings']),
+                $digest['warnings'] === [] ? '' : ' [' . implode(', ', $digest['warnings']) . ']',
+                $digest['reviewDecisions'],
+                $digest['suppressedDecisions'],
+            );
+        }
+        if ($digest['reviewDecisions'] > 0) {
+            $lines[] = sprintf(
+                '- %d Dream review decision(s) are candidates, not decisions: `vendor/bin/agent-loop learn dream --dry-run` shows them, a named human decides.',
+                $digest['reviewDecisions'],
+            );
+        }
+
+        return $lines === []
+            ? ''
+            : implode("\n", [
+                '## Agent Loop Dream',
+                '',
+                ...$lines,
+                '- the preview wrote nothing into the Learning root; this is an observation, not a blocker, and not a next command.',
+                '',
+                '',
+            ]);
     }
 
     private function workflowResumeHint(): string
