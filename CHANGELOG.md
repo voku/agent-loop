@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Added
+
+- Run the read-only Dream preview automatically at SessionStart when it is due, so guidance maintenance no longer depends on someone remembering it. `WorkflowDreamAutoRun` decides from facts: no previous automatic run, a changed content fingerprint of the Learning inputs Dream evaluates (`findings/`, `proposals/`, `constraints/active/`, `notes/`; mtimes and outcome history are ignored), or a last run older than seven days. The hook shows the numbers under `## Agent Loop Dream` and keeps reminding while review decisions are pending. The preview writes nothing into the Learning root and only a regenerable `<state>/dream/auto.json`, so writing candidates and every approval stay explicit human decisions. `AGENT_LOOP_DREAM_AUTORUN=0` switches it off, a failing preview is reported instead of failing bootstrap, and SubagentStart never triggers it.
+
 ### Changed
 
 - Make `agent-loop-workflow` the explicit end-to-end implementation front door: a user can ask to implement a governed task without learning Loop's internal packages, while the skill still routes only through `enter` / `finish` and the current `next_action`. No parallel `implement` skill or copied lifecycle policy is introduced.

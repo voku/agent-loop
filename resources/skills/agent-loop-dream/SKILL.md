@@ -9,6 +9,10 @@ description: Run the Dream maintenance pass over existing Learning guidance, tri
 
 Dream is the maintenance step of the Promotion Loop (`Dream -> Proposal -> Human Approval -> Constraint/Skill -> Enforcement -> Retirement`). Capturing findings and closing a Run stay in `agent-loop-learning-boundary`; changing a skill, doc, or memory file stays with the owner of that file.
 
+## Automatic preview
+
+The SessionStart hook runs the read-only preview itself when it is due (no previous automatic run, the Learning inputs changed by content, or the last run is older than seven days) and shows the numbers under `## Agent Loop Dream`. Treat that section as a finished Review step: report its numbers, do not rerun Dream just to see them. It is an observation, never a decision, and it writes nothing into the Learning root. Everything below still applies to candidates, triage and human handoff. `AGENT_LOOP_DREAM_AUTORUN=0` switches the automatic preview off.
+
 ## Run
 
 1. **Precondition:** `vendor/bin/agent-loop learn validate` passes and the Learning root has no half-written concurrent work (`git status` on the root). A failing validate is invalid local data or a package defect: read the failing package source path to decide, and never weaken local data to get green.

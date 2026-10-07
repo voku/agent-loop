@@ -21,6 +21,18 @@ use PHPUnit\Framework\Attributes\Group;
 #[Group('slow')]
 final class AgentDisciplineHookTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        // These tests assert on discipline and Learning-backlog text, and several point the hook at this
+        // repository's own root. The automatic Dream preview is covered by WorkflowDreamAutoRunTest.
+        putenv('AGENT_LOOP_DREAM_AUTORUN=0');
+    }
+
+    protected function tearDown(): void
+    {
+        putenv('AGENT_LOOP_DREAM_AUTORUN');
+    }
+
     public function testSessionStartInjectsBundledDiscipline(): void
     {
         $output = $this->hook()->contextOutput('SessionStart', $this->json([
