@@ -35,12 +35,18 @@ final readonly class MapRefresher
      */
     public function refresh(VerificationBundle $bundle, string $projectRoot): array
     {
-        $source = $this->indexPath($bundle);
+        $recorded = $this->request($bundle);
+        $source = $this->stringField($recorded, 'map_index');
         if ($source === null || !is_file($source)) {
             return ['available' => false, 'index' => null, 'stale' => [], 'detail' => 'The edit bundle records no map index to refresh.'];
         }
 
         $index = $bundle->directory . '/' . self::FILE_NAME;
+
+        // The scope the edit was compiled against, as recorded in request.json: refreshing outside it
+        // would let an excluded path change symbol resolution.
+        $paths = $this->stringList($recorded, 'map_paths');
+        $excludes = $this->stringList($recorded, 'map_excludes');
 
         try {
             $prepared = $this->maps->prepare(new MapPreparationRequest(
@@ -48,15 +54,15 @@ final readonly class MapRefresher
                 indexPath: $source,
                 outputPath: $index,
                 format: 'json',
-                paths: ['.'],
-                pathsProvided: false,
+                paths: $paths === [] ? ['.'] : $paths,
+                pathsProvided: $paths !== [],
                 scanPaths: [],
                 scanPathsProvided: false,
-                excludes: [],
-                excludesProvided: false,
+                excludes: $excludes,
+                excludesProvided: array_key_exists('map_excludes', $recorded),
                 backend: 'auto',
-                phpStanConfig: null,
-                phpStanMemoryLimit: null,
+                phpStanConfig: $this->stringField($recorded, 'phpstan_configuration'),
+                phpStanMemoryLimit: $this->stringField($recorded, 'phpstan_memory_limit'),
                 artifacts: MapArtifactPaths::forProject($projectRoot),
             ));
 
@@ -71,20 +77,42 @@ final readonly class MapRefresher
         }
     }
 
-    private function indexPath(VerificationBundle $bundle): ?string
+    /** @return array<string, mixed> */
+    private function request(VerificationBundle $bundle): array
     {
         $request = $bundle->directory . '/request.json';
         if (!is_file($request)) {
-            return null;
+            return [];
         }
 
         $decoded = json_decode((string) file_get_contents($request), true);
-        if (!is_array($decoded)) {
-            return null;
+
+        /** @var array<string, mixed> */
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /** @param array<string, mixed> $recorded */
+    private function stringField(array $recorded, string $key): ?string
+    {
+        $value = $recorded[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param array<string, mixed> $recorded
+     *
+     * @return list<string>
+     */
+    private function stringList(array $recorded, string $key): array
+    {
+        $list = [];
+        foreach (is_array($recorded[$key] ?? null) ? $recorded[$key] : [] as $value) {
+            if (is_string($value) && $value !== '') {
+                $list[] = $value;
+            }
         }
 
-        $index = $decoded['map_index'] ?? null;
-
-        return is_string($index) && $index !== '' ? $index : null;
+        return $list;
     }
 }

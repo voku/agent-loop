@@ -124,6 +124,23 @@ final class MapRefresherTest extends TestCase
         self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->indexedPaths($this->sharedIndex()));
     }
 
+    public function testNewFileInAnExcludedDirectoryOfTheRecordedScopeIsNotIndexed(): void
+    {
+        file_put_contents($this->bundle . '/request.json', json_encode([
+            'map_index' => $this->sharedIndex(),
+            'map_paths' => ['src'],
+            'map_excludes' => ['#src/Excluded#'],
+        ], JSON_THROW_ON_ERROR));
+        mkdir($this->root . '/src/Excluded', 0o775, true);
+        $this->write('src/Excluded/Skipped.php', 'Skipped', 'never');
+        $this->write('src/Gamma.php', 'Gamma', 'fire');
+
+        $result = (new MapRefresher())->refresh($this->loadBundle(), $this->root);
+
+        self::assertTrue($result['available'], $result['detail']);
+        self::assertSame(['src/Alpha.php', 'src/Beta.php', 'src/Gamma.php'], $this->indexedPaths($this->bundleIndex()));
+    }
+
     public function testMovedFileIsIndexedUnderItsNewPathAndNotStale(): void
     {
         mkdir($this->root . '/src/Moved', 0o775, true);
