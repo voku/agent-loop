@@ -345,8 +345,8 @@ final readonly class FirstPartyPackageCatalog
     }
 
     /**
-     * Package fragments cannot know where this project keeps its state, so they name it with a placeholder
-     * instead of a literal that is wrong as soon as `.agent-loop/init.json` moves the root.
+     * Package instruction templates resolve state paths from the project configuration.
+     * This keeps generated instructions correct when `.agent-loop/init.json` moves the Learning root.
      */
     public static function resolveProjectPlaceholders(string $text, string $projectRoot): string
     {
