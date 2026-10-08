@@ -345,8 +345,7 @@ final readonly class FirstPartyPackageCatalog
     }
 
     /**
-     * Package instruction templates resolve state paths from the project configuration.
-     * This keeps generated instructions correct when `.agent-loop/init.json` moves the Learning root.
+     * Resolve the configured Learning directory and executable CLI path for package instruction fragments.
      */
     public static function resolveProjectPlaceholders(string $text, string $projectRoot): string
     {
