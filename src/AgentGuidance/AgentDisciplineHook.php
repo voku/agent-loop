@@ -549,12 +549,26 @@ final readonly class AgentDisciplineHook
 
     private function isLegacyRepositorySearch(string $command): bool
     {
-        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $this->withoutQuotedText($command)) === 1;
+        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $this->shellCommandText($command)) === 1;
     }
 
     private function isInPlaceSedEdit(string $command): bool
     {
-        return preg_match('~(?:^|[;&|]\s*)sed\b[^;&|]*(?:\s-i(?:\s|$)|\s--in-place(?:=\S+|\s|$))~i', $this->withoutQuotedText($command)) === 1;
+        return preg_match('~(?:^|[;&|]\s*)sed\b[^;&|]*(?:\s-i(?:\s|$)|\s--in-place(?:=\S+|\s|$))~i', $this->shellCommandText($command)) === 1;
+    }
+
+    private function shellCommandText(string $command): string
+    {
+        $text = $this->withoutQuotedText($command);
+        $withoutSingleQuotedText = preg_replace("~'[^']*'~s", "''", $command) ?? $command;
+        preg_match_all('~(?<!\\\\)(?:\$\(([^()]*)\)|`([^`]*)`)~s', $withoutSingleQuotedText, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $body = $match[1] ?? '';
+            $body = $body !== '' ? $body : ($match[2] ?? '');
+            $text .= '; ' . $this->withoutQuotedText($body);
+        }
+
+        return $text;
     }
 
     /**

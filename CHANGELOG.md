@@ -2,7 +2,7 @@
 
 ### Fixed
 
-- The PreToolUse hook no longer denies a command only because a quoted argument contains a tool name after a boundary character. `rg -n "alpha|find " src` or `echo "a; grep b"` were blocked as legacy searches because the pattern looked at the raw text; the legacy-search and in-place-sed checks now ignore quoted text. Real calls after `&&`, `;` or `|` are still denied. `AgentDisciplineHookTest` covers both directions.
+- The PreToolUse hook no longer denies a command only because a quoted argument contains a tool name after a boundary character. `rg -n "alpha|find " src` or `echo "a; grep b"` were blocked as legacy searches because the pattern looked at the raw text; the legacy-search and in-place-sed checks now ignore literal quoted text while retaining executable command substitutions. Real calls after `&&`, `;` or `|` are still denied. `AgentDisciplineHookTest` covers both directions.
 
 ### Added
 
