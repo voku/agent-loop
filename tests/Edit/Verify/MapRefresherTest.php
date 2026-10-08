@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests\Edit\Verify;
 
+use voku\AgentLoop\ProjectLayout;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
@@ -40,17 +41,6 @@ final class MapRefresherTest extends TestCase
         file_put_contents($this->bundle . '/request.json', json_encode(['map_index' => $this->sharedIndex()], JSON_THROW_ON_ERROR));
     }
 
-    /**
-     * `MapRefresher` copies only `php-symbols.json`, but a real index declares a `php-relations.json`
-     * companion that must travel with it. Behaviour tests seed the complete set so they pin the
-     * refresh/gate semantics; the companion defect has its own test.
-     */
-    private function seedCompleteBundleIndex(): void
-    {
-        copy($this->sharedIndex(), $this->bundleIndex());
-        copy(dirname($this->sharedIndex()) . '/php-relations.json', dirname($this->bundleIndex()) . '/php-relations.json');
-    }
-
     protected function tearDown(): void
     {
         $iterator = new RecursiveIteratorIterator(
@@ -63,13 +53,14 @@ final class MapRefresherTest extends TestCase
         rmdir($this->root);
     }
 
-    /** Characterization of a latent defect: copying the symbols file alone cannot be read back. */
-    public function testIndexWithARelationsCompanionCannotBeRefreshedByASymbolsOnlyCopy(): void
+    /** Regression for the old symbols-only copy: the companion now travels with the bundle index. */
+    public function testIndexWithARelationsCompanionIsMaterializedIntoTheBundleCompleteAndReadable(): void
     {
         $result = (new MapRefresher())->refresh($this->loadBundle(), $this->root);
 
-        self::assertFalse($result['available']);
-        self::assertStringContainsString('php-relations.json', $result['detail']);
+        self::assertTrue($result['available'], $result['detail']);
+        self::assertFileExists(\voku\AgentMap\MapArtifactPaths::relationsFileFor($this->bundleIndex()));
+        self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->indexedPaths($this->bundleIndex()));
     }
 
     public function testBundleWithoutAMapIndexReportsUnavailable(): void
@@ -84,7 +75,6 @@ final class MapRefresherTest extends TestCase
 
     public function testCurrentMapIsCopiedIntoTheBundleAndSharedIndexIsUntouched(): void
     {
-        $this->seedCompleteBundleIndex();
         $before = $this->sharedSnapshot();
 
         $result = (new MapRefresher())->refresh($this->loadBundle(), $this->root);
@@ -98,7 +88,6 @@ final class MapRefresherTest extends TestCase
 
     public function testChangedFileIsRefreshedInTheBundleCopyOnly(): void
     {
-        $this->seedCompleteBundleIndex();
         $before = $this->sharedSnapshot();
         $this->write('src/Alpha.php', 'Alpha', 'runRenamed');
 
@@ -110,43 +99,40 @@ final class MapRefresherTest extends TestCase
         self::assertSame('src/Alpha.php', $this->readIndex($this->bundleIndex())->resolveMethod('Demo\Alpha::runRenamed')->file->path);
     }
 
-    /**
-     * Characterization of the CURRENT behaviour: a deleted file stays stale, so `post_edit_map_fresh`
-     * fails. After the owner-API migration the deleted entry is pruned and this expectation flips;
-     * `target_resolvable` is then the gate that still protects a deleted target.
-     */
-    public function testDeletedFileIsReportedStale(): void
+    /** The Map owner prunes a deleted file instead of reporting it stale. */
+    public function testDeletedFileIsPrunedFromTheBundleIndex(): void
     {
-        $this->seedCompleteBundleIndex();
+        $before = $this->sharedSnapshot();
         unlink($this->root . '/src/Beta.php');
 
         $result = (new MapRefresher())->refresh($this->loadBundle(), $this->root);
 
-        self::assertTrue($result['available']);
-        self::assertSame(['src/Beta.php'], $result['stale']);
+        self::assertTrue($result['available'], $result['detail']);
+        self::assertSame([], $result['stale']);
+        self::assertSame(['src/Alpha.php'], $this->indexedPaths($this->bundleIndex()));
+        self::assertSame($before, $this->sharedSnapshot(), 'the shared index keeps the deleted entry');
     }
 
-    public function testAddedFileIsNotIndexedByTheRefresh(): void
+    public function testAddedFileIsIndexedInTheBundleCopyOnly(): void
     {
-        $this->seedCompleteBundleIndex();
         $this->write('src/Gamma.php', 'Gamma', 'fire');
 
         $result = (new MapRefresher())->refresh($this->loadBundle(), $this->root);
 
         self::assertSame([], $result['stale']);
-        self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->indexedPaths($this->bundleIndex()));
+        self::assertSame(['src/Alpha.php', 'src/Beta.php', 'src/Gamma.php'], $this->indexedPaths($this->bundleIndex()));
+        self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->indexedPaths($this->sharedIndex()));
     }
 
-    public function testMovedFileLeavesItsOldPathStaleAndIsNotIndexedUnderTheNewOne(): void
+    public function testMovedFileIsIndexedUnderItsNewPathAndNotStale(): void
     {
-        $this->seedCompleteBundleIndex();
         mkdir($this->root . '/src/Moved', 0o775, true);
         rename($this->root . '/src/Beta.php', $this->root . '/src/Moved/Beta.php');
 
         $result = (new MapRefresher())->refresh($this->loadBundle(), $this->root);
 
-        self::assertSame(['src/Beta.php'], $result['stale']);
-        self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->indexedPaths($this->bundleIndex()));
+        self::assertSame([], $result['stale']);
+        self::assertSame(['src/Alpha.php', 'src/Moved/Beta.php'], $this->indexedPaths($this->bundleIndex()));
     }
 
     public function testUnreadableIndexReportsUnavailableInsteadOfPassing(): void
@@ -189,16 +175,15 @@ final class MapRefresherTest extends TestCase
     }
 
     /**
-     * Characterization of the CURRENT behaviour, and the reason pruning deleted files is safe: today
-     * the stale entry of a deleted target file is never refreshed, so `target_resolvable` still
-     * reports `passed` and only `post_edit_map_fresh` fails. Once deleted entries are pruned the
-     * target gate fails by itself, so the overall objective gate no longer depends on freshness.
+     * The reason pruning deleted files is safe: with the deleted entry gone, `target_resolvable`
+     * itself fails for a deleted target file. Before the owner migration the stale entry kept the
+     * target resolving and only `post_edit_map_fresh` stood between that edit and a pass.
      */
-    public function testDeletingTheTargetFileFailsFreshnessAndTodayFalselyPassesTargetResolvable(): void
+    public function testDeletingTheTargetFileFailsTargetResolvableByItself(): void
     {
         unlink($this->root . '/src/Alpha.php');
 
-        self::assertSame(['failed', 'passed'], $this->gateStatuses());
+        self::assertSame(['passed', 'failed'], $this->gateStatuses());
     }
 
     public function testRenamingTheTargetMethodFailsTargetResolvable(): void
@@ -208,14 +193,11 @@ final class MapRefresherTest extends TestCase
         self::assertSame(['passed', 'failed'], $this->gateStatuses());
     }
 
-    public function testDeletingAnUnrelatedFileFailsFreshnessTodayAndMustKeepTheTargetGatePassing(): void
+    public function testDeletingAnUnrelatedFileKeepsBothGatesPassing(): void
     {
         unlink($this->root . '/src/Beta.php');
 
-        $statuses = $this->gateStatuses();
-
-        self::assertSame('passed', $statuses[1], 'an unrelated deletion must not affect target resolvability');
-        self::assertSame('failed', $statuses[0], 'current behaviour: deleted indexed files fail post_edit_map_fresh');
+        self::assertSame(['passed', 'passed'], $this->gateStatuses());
     }
 
     public function testGatesReadNotRunWhenNoMapWasProduced(): void
@@ -226,11 +208,8 @@ final class MapRefresherTest extends TestCase
     }
 
     /** @return array{0: string, 1: string} [post_edit_map_fresh, target_resolvable] */
-    private function gateStatuses(bool $seed = true): array
+    private function gateStatuses(): array
     {
-        if ($seed && is_file($this->bundle . '/request.json')) {
-            $this->seedCompleteBundleIndex();
-        }
         $this->writeVerificationArtifacts();
 
         $results = (new ObjectiveGateRunner())->run(VerificationBundle::load($this->bundle), $this->root, false);
@@ -270,7 +249,7 @@ final class MapRefresherTest extends TestCase
 
     private function sharedIndex(): string
     {
-        return $this->root . '/.agent-loop/map/php-symbols.json';
+        return (new ProjectLayout($this->root))->mapIndex();
     }
 
     private function bundleIndex(): string

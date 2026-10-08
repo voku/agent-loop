@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit\Verify;
 
 use Throwable;
-use voku\AgentMap\Index\AgentMapBuilder;
-use voku\AgentMap\Index\IndexReader;
-use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\MapArtifactPaths;
+use voku\AgentMap\Prepare\MapPreparationRequest;
+use voku\AgentMap\Prepare\MapPreparationService;
 
 /**
  * Brings the edit's own map index up to date with the post-edit working tree.
  *
  * Deliberately bundle-local. Refreshing the shared `.agent-loop/map/php-symbols.json` while grading
  * would mutate state the next task reads, which makes verification a side effect rather than an
- * observation. The bundle map is also the narrow one the edit was compiled against, so refreshing
- * it costs the changed files, not the repository.
+ * observation. agent-map reads the shared index and writes the refreshed result, with its
+ * companions, only to the bundle's own output path; what changed, was added or was deleted is
+ * decided by the Map owner, so a deleted file is pruned rather than reported stale and the
+ * `target_resolvable` gate is the one that fails when the edit removed the target.
  *
  * A refresh that cannot run reports itself as unavailable; the gates then read `not_run`, and a
  * required gate that did not run fails the verification. Nothing here is allowed to invent a pass.
@@ -23,6 +25,10 @@ use voku\AgentMap\Index\IndexWriter;
 final readonly class MapRefresher
 {
     public const FILE_NAME = 'post-edit-map.json';
+
+    public function __construct(private MapPreparationService $maps = new MapPreparationService())
+    {
+    }
 
     /**
      * @return array{available: bool, index: ?string, stale: list<string>, detail: string}
@@ -34,34 +40,32 @@ final readonly class MapRefresher
             return ['available' => false, 'index' => null, 'stale' => [], 'detail' => 'The edit bundle records no map index to refresh.'];
         }
 
-        // Copied into the bundle first: an edit run that used the shared default index would
-        // otherwise have verification rewrite the very file the next task reads.
         $index = $bundle->directory . '/' . self::FILE_NAME;
-        if (!is_file($index) && !copy($source, $index)) {
-            return ['available' => false, 'index' => null, 'stale' => [], 'detail' => 'Unable to copy the map index into the bundle: ' . $source];
-        }
 
         try {
-            $previous = (new IndexReader())->read($index);
-            $changed = [];
-            foreach ($previous->staleEntries() as $entry) {
-                if ($entry['reason'] !== 'missing') {
-                    $changed[] = $entry['path'];
-                }
-            }
-
-            if ($changed !== []) {
-                $refreshed = (new AgentMapBuilder())->build($projectRoot, $changed, [], null, null, $previous);
-                (new IndexWriter())->write($refreshed, $index);
-                $previous = $refreshed;
-            }
+            $prepared = $this->maps->prepare(new MapPreparationRequest(
+                root: $projectRoot,
+                indexPath: $source,
+                outputPath: $index,
+                format: 'json',
+                paths: ['.'],
+                pathsProvided: false,
+                scanPaths: [],
+                scanPathsProvided: false,
+                excludes: [],
+                excludesProvided: false,
+                backend: 'auto',
+                phpStanConfig: null,
+                phpStanMemoryLimit: null,
+                artifacts: MapArtifactPaths::forProject($projectRoot),
+            ));
 
             $stale = [];
-            foreach ($previous->staleEntries() as $entry) {
+            foreach ($prepared->index->staleEntries() as $entry) {
                 $stale[] = $entry['path'];
             }
 
-            return ['available' => true, 'index' => $index, 'stale' => $stale, 'detail' => 'Post-edit map refreshed in place.'];
+            return ['available' => true, 'index' => $index, 'stale' => $stale, 'detail' => 'Post-edit map refreshed by agent-map into the bundle.'];
         } catch (Throwable $exception) {
             return ['available' => false, 'index' => null, 'stale' => [], 'detail' => 'Post-edit map refresh failed: ' . $exception->getMessage()];
         }

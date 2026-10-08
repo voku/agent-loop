@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests\Edit;
 
+use voku\AgentLoop\ProjectLayout;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 use RuntimeException;
 use voku\AgentLoop\Edit\EditMapPreparer;
 use voku\AgentLoop\Edit\EditRequest;
@@ -23,9 +22,12 @@ final class EditMapPreparerTest extends TestCase
 {
     private string $root;
 
+    private string $index;
+
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/agent-loop-edit-map-' . bin2hex(random_bytes(6));
+        $this->index = (new ProjectLayout($this->root))->mapIndex();
         mkdir($this->root . '/src', 0o775, true);
         $this->write('src/Alpha.php', 'Alpha', 'run');
         $this->write('src/Beta.php', 'Beta', 'go');
@@ -33,21 +35,14 @@ final class EditMapPreparerTest extends TestCase
 
     protected function tearDown(): void
     {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::CHILD_FIRST,
-        );
-        foreach ($iterator as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-        rmdir($this->root);
+        $this->removeTree($this->root);
     }
 
     public function testMissingIndexIsBuiltAndPublishedWhenRebuildingIsAllowed(): void
     {
         $map = (new EditMapPreparer())->prepare($this->request());
 
-        self::assertFileExists($this->index());
+        self::assertFileExists($this->index);
         self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->paths($map));
         self::assertSame('src/Alpha.php', $map->resolveMethod('Demo\Alpha::run')->file->path);
     }
@@ -61,17 +56,17 @@ final class EditMapPreparerTest extends TestCase
             self::assertStringContainsString('automatic rebuilding is disabled', $exception->getMessage());
         }
 
-        self::assertFileDoesNotExist($this->index());
+        self::assertFileDoesNotExist($this->index);
     }
 
     public function testCurrentIndexIsReusedWithoutRewriting(): void
     {
         (new EditMapPreparer())->prepare($this->request());
-        $before = $this->snapshot($this->index());
+        $before = $this->snapshot($this->index);
 
         $map = (new EditMapPreparer())->prepare($this->request());
 
-        self::assertSame($before, $this->snapshot($this->index()));
+        self::assertSame($before, $this->snapshot($this->index));
         self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->paths($map));
     }
 
@@ -83,14 +78,14 @@ final class EditMapPreparerTest extends TestCase
         $map = (new EditMapPreparer())->prepare($this->request(target: 'Demo\Alpha::runRenamed'));
 
         self::assertSame([], $map->staleEntries());
-        self::assertSame([], (new IndexReader())->read($this->index())->staleEntries(), 'the rebuilt map is published');
+        self::assertSame([], (new IndexReader())->read($this->index)->staleEntries(), 'the rebuilt map is published');
     }
 
     public function testStaleIndexIsRefusedAndLeftUntouchedWhenRebuildingIsForbidden(): void
     {
         (new EditMapPreparer())->prepare($this->request());
         $this->write('src/Alpha.php', 'Alpha', 'runRenamed');
-        $before = $this->snapshot($this->index());
+        $before = $this->snapshot($this->index);
 
         try {
             (new EditMapPreparer())->prepare($this->request(allowRebuild: false));
@@ -100,7 +95,7 @@ final class EditMapPreparerTest extends TestCase
             self::assertStringContainsString('src/Alpha.php', $exception->getMessage());
         }
 
-        self::assertSame($before, $this->snapshot($this->index()));
+        self::assertSame($before, $this->snapshot($this->index));
     }
 
     public function testDeletedFileIsDroppedFromTheRebuiltMap(): void
@@ -143,14 +138,16 @@ final class EditMapPreparerTest extends TestCase
     public function testForcedRebuildRewritesACurrentMapButIsRefusedWhenRebuildingIsForbidden(): void
     {
         (new EditMapPreparer())->prepare($this->request());
-        $before = $this->snapshot($this->index());
+        $before = $this->snapshot($this->index);
 
+        $refused = false;
         try {
             (new EditMapPreparer())->prepare($this->request(forceRebuild: true, allowRebuild: false));
-            self::fail('A forced rebuild must be refused when rebuilding is forbidden.');
         } catch (RuntimeException) {
+            $refused = true;
         }
-        self::assertSame($before, $this->snapshot($this->index()));
+        self::assertTrue($refused, 'A forced rebuild must be refused when rebuilding is forbidden.');
+        self::assertSame($before, $this->snapshot($this->index));
 
         $map = (new EditMapPreparer())->prepare($this->request(forceRebuild: true));
         self::assertSame(['src/Alpha.php', 'src/Beta.php'], $this->paths($map));
@@ -159,7 +156,7 @@ final class EditMapPreparerTest extends TestCase
     public function testRuntimeRootOverridesTheIndexedRootWithoutTouchingThePublishedIndex(): void
     {
         (new EditMapPreparer())->prepare($this->request());
-        $before = $this->snapshot($this->index());
+        $before = $this->snapshot($this->index);
         $runtime = $this->root . '/runtime-view';
         mkdir($runtime . '/src', 0o775, true);
         copy($this->root . '/src/Alpha.php', $runtime . '/src/Alpha.php');
@@ -168,7 +165,7 @@ final class EditMapPreparerTest extends TestCase
         $map = (new EditMapPreparer())->prepare($this->request(mapRoot: $runtime));
 
         self::assertSame($runtime, $map->root);
-        self::assertSame($before, $this->snapshot($this->index()));
+        self::assertSame($before, $this->snapshot($this->index));
     }
 
     public function testTargetThatDoesNotResolveFailsAtTheBoundary(): void
@@ -190,7 +187,7 @@ final class EditMapPreparerTest extends TestCase
             instruction: 'prepare the map',
             projectRoot: $this->root,
             recallRoot: $this->root . '/.agent-loop/recall',
-            mapIndex: $this->index(),
+            mapIndex: $this->index,
             mapRoot: $mapRoot ?? $this->root,
             outputDirectory: $this->root . '/.agent-loop/edit/MAP-PREP',
             mapPaths: ['src'],
@@ -199,27 +196,25 @@ final class EditMapPreparerTest extends TestCase
         );
     }
 
-    private function index(): string
-    {
-        return $this->root . '/.agent-loop/map/php-symbols.json';
-    }
-
     private function write(string $path, string $class, string $method): void
     {
-        file_put_contents($this->root . '/' . $path, <<<PHP
-        <?php
+        file_put_contents($this->root . '/' . $path, sprintf(
+            "<?php\n\ndeclare(strict_types=1);\n\nnamespace Demo;\n\nfinal class %s\n{\n    public function %s(): void\n    {\n    }\n}\n",
+            $class,
+            $method,
+        ));
+    }
 
-        declare(strict_types=1);
-
-        namespace Demo;
-
-        final class {$class}
-        {
-            public function {$method}(): void
-            {
+    private function removeTree(string $path): void
+    {
+        foreach (scandir($path) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
             }
+            $child = $path . '/' . $entry;
+            is_dir($child) ? $this->removeTree($child) : unlink($child);
         }
-        PHP);
+        rmdir($path);
     }
 
     /** @return list<string> */
