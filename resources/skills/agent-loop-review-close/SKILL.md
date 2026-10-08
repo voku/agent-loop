@@ -29,6 +29,7 @@ vendor/bin/agent-loop workflow status <task-id> --format=json
    vendor/bin/agent-loop finish <task-id> [finish inputs from next_action]
    ```
    Obey the returned `next_action` and `next_action_kind` until `next_action == "none"` and `complete == true`.
+   Finish the changes, commits and Learning records before the first `finish`, and acknowledge only the exact report hash it currently names: the blind-spot report is regenerated whenever the implementation or Learning records change, so a hash acknowledged earlier goes stale and the same gate comes back. Read the report before acknowledging it; fix real findings first, then finish.
 
 ## Learning Disposition Inputs
 

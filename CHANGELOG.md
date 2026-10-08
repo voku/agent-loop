@@ -1,3 +1,26 @@
+## 0.20.60 - 2026-10-08
+
+### Fixed
+
+- The PreToolUse hook no longer denies a command only because a quoted argument contains a tool name after a boundary character. `rg -n "alpha|find " src` or `echo "a; grep b"` were blocked as legacy searches because the pattern looked at the raw text; the legacy-search and in-place-sed checks now ignore literal quoted text while retaining executable command substitutions. Real calls after `&&`, `;` or `|` are still denied. `AgentDisciplineHookTest` covers both directions.
+
+### Added
+
+- Require published Learning `^0.18.31` for transition reasons and guidance-consistency, and Recall `^0.25.5` for task-file security warnings and file-pattern scopes.
+
+- Package instruction fragments may name the project's Learning root with `{{learning_root}}`; `FirstPartyPackageCatalog::resolveProjectPlaceholders()` replaces it with the configured `paths.learning_root` (relative to the project, default `.agent-loop/learning`). Needed by `voku/agent-learning` 0.18.31, whose consumer fragment used to hard-code the default and made a host's generated `AGENTS.md` contradict its own `init.json`. `ProjectInstructionPlaceholdersTest` covers the configured, default and no-placeholder cases.
+
+- `workflow plan` warns when a `--validation` entry chains several commands with an unquoted `;`, `&&` or `||` (JSON `warnings`, a `[WARN]` line in text output; the plan is never blocked). `finish` needs passing evidence for every validation entry on its own (`WorkflowCloseReadinessInspector::validationSnapshot()` matches evidence per entry), so a chain is one all-or-nothing obligation that fails late and, in a mature consuming project, 17 of 46 revised Contracts carried one. Commands inside quotes (`php -r 'echo 1;'`), pipes and an escaped `\;` are not chains.
+- The `agent-loop-task-start` skill states the one-command-per-`--validation` rule, and the `agent-loop-review-close` skill tells agents to finish changes, commits and Learning records before the first `finish` and to acknowledge only the exact current report hash, because the blind-spot report is regenerated whenever the implementation or Learning records change.
+- The `agent-loop-dream` skill tells agents to give a `--reason` for every finding archive or supersede. Requires `voku/agent-learning` 0.18.31 (`finding-transition --reason`).
+
+- The `agent-loop-dream` skill gains a "Review the guidance for contradictions" section: run `learn guidance-consistency`, add a topic search for contradicting instructions, present one table with a Vorschlag and an empty Urteil column, and change nothing until the human gives a verdict per row. Requires `voku/agent-learning` 0.18.31.
+- `init validate --kind=skills` warns about a skill directory without `SKILL.md` (it is never loaded); the exit code is unchanged. `InitValidateCommandTest` covers it, and inverting the check fails the test.
+
+### Validation
+
+- `WorkflowPlanChainedValidationTest` (10 tests): chains with `;`, `&&`, `||` and after a quoted part warn and name the entry; plain commands, quoted semicolons, pipes and `find -exec ... \;` do not; the plan still succeeds. Disabling the detector fails five of them. PHPStan clean.
+
 ## 0.20.59 - 2026-10-07
 
 ### Added
