@@ -2,6 +2,8 @@
 
 ### Added
 
+- Package instruction fragments may name the project's Learning root with `{{learning_root}}`; `FirstPartyPackageCatalog::resolveProjectPlaceholders()` replaces it with the configured `paths.learning_root` (relative to the project, default `.agent-loop/learning`). Needed by `voku/agent-learning` 0.18.31, whose consumer fragment used to hard-code the default and made a host's generated `AGENTS.md` contradict its own `init.json`. `ProjectInstructionPlaceholdersTest` covers the configured, default and no-placeholder cases.
+
 - `workflow plan` warns when a `--validation` entry chains several commands with an unquoted `;`, `&&` or `||` (JSON `warnings`, a `[WARN]` line in text output; the plan is never blocked). `finish` needs passing evidence for every validation entry on its own (`WorkflowCloseReadinessInspector::validationSnapshot()` matches evidence per entry), so a chain is one all-or-nothing obligation that fails late and, in a mature consuming project, 17 of 46 revised Contracts carried one. Commands inside quotes (`php -r 'echo 1;'`), pipes and an escaped `\;` are not chains.
 - The `agent-loop-task-start` skill states the one-command-per-`--validation` rule, and the `agent-loop-review-close` skill tells agents to finish changes, commits and Learning records before the first `finish` and to acknowledge only the exact current report hash, because the blind-spot report is regenerated whenever the implementation or Learning records change.
 - The `agent-loop-dream` skill tells agents to give a `--reason` for every finding archive or supersede. Requires `voku/agent-learning` 0.18.31 (`finding-transition --reason`).

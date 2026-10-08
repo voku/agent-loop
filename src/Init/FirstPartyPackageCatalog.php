@@ -10,6 +10,7 @@ use voku\AgentKanban\Cli\CliApplication as KanbanCli;
 use voku\AgentLearning\Cli as LearningCli;
 use voku\AgentLearning\PackageResources as LearningResources;
 use voku\AgentLoop\PackageResources as LoopResources;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentMap\PackageResources as MapResources;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\PackageResources as RecallResources;
@@ -340,10 +341,29 @@ final readonly class FirstPartyPackageCatalog
             }
         }
 
+        return self::resolveProjectPlaceholders($composed, $projectRoot);
+    }
+
+    /**
+     * Package fragments cannot know where this project keeps its state, so they name it with a placeholder
+     * instead of a literal that is wrong as soon as `.agent-loop/init.json` moves the root.
+     */
+    public static function resolveProjectPlaceholders(string $text, string $projectRoot): string
+    {
+        if (str_contains($text, '{{learning_root}}')) {
+            $root = rtrim($projectRoot, '/') . '/';
+            $learningRoot = (new ProjectLayout($projectRoot))->learningRoot();
+            $text = str_replace(
+                '{{learning_root}}',
+                rtrim(str_starts_with($learningRoot, $root) ? substr($learningRoot, strlen($root)) : $learningRoot, '/'),
+                $text,
+            );
+        }
+
         return str_replace(
             '{{agent_loop_cli}}',
             (new RepositoryActivation($projectRoot))->cliPath(),
-            $composed,
+            $text,
         );
     }
 
