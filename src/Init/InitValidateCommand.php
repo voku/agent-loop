@@ -75,6 +75,9 @@ final readonly class InitValidateCommand
     private function validateSkills(AgentAssetSourcePaths $paths): int
     {
         $skillFiles = $this->findSkillFiles($paths->absoluteSkillsRoot());
+        foreach ($this->findDirectoriesWithoutSkillFile($paths->absoluteSkillsRoot()) as $directoryName) {
+            echo '[WARN] validate skills: ' . $paths->skillsRoot() . '/' . $directoryName . ' has no SKILL.md and is never loaded' . "\n";
+        }
         if ($skillFiles === []) {
             echo '[WARN] validate skills: no skills found under ' . $paths->skillsRoot() . '/*/SKILL.md' . "\n";
 
@@ -288,6 +291,21 @@ final readonly class InitValidateCommand
         ksort($files);
 
         return $files;
+    }
+
+    /**
+     * @return list<string> visible directories under the skills root that hold no SKILL.md
+     */
+    private function findDirectoriesWithoutSkillFile(string $skillsRoot): array
+    {
+        $directories = [];
+        foreach (is_dir($skillsRoot) ? (scandir($skillsRoot) ?: []) : [] as $entry) {
+            if (!str_starts_with($entry, '.') && is_dir($skillsRoot . '/' . $entry) && !is_file($skillsRoot . '/' . $entry . '/SKILL.md')) {
+                $directories[] = $entry;
+            }
+        }
+
+        return $directories;
     }
 
     /**

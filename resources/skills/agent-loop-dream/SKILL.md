@@ -55,6 +55,15 @@ A Learning backlog that nobody works grows until the hint is ignored. Work it in
 4. Low wording overlap does not prove a lesson is missing: findings are written as observations and guidance as rules. Before a take says "not covered" or "already covered", look for the key identifiers in the repository and label the take unverified when you did not.
 5. Nothing changes until the human names the decision. Then run the transition (`finding-transition`, or a proposal through the existing approve, reject and acknowledge path) with `--by` and a real reason. `finding-transition <id> <status> --by ACTOR --reason TEXT` stores the reason on the finding with who and when; give one for every archive or supersede, because otherwise the record cannot say why a finding left the backlog.
 
+## Review the guidance for contradictions
+
+Written guidance (AGENTS.md, MEMORY.md, skills, ADRs) drifts apart because each file is edited alone. While a pass has just read several of them, look for instructions that contradict each other, then let the human decide on one shared table.
+
+1. `learn guidance-consistency --source <glob>... --format markdown` (needs `voku/agent-learning` 0.18.31+) lists facts only: a path a file names that does not exist, and wording repeated in two files. These rows are candidates, not contradictions.
+2. Search by topic for what the tool cannot see: the same command, location or owner stated differently (for example which Make target runs a check, where a rule lives, who may commit), a rule that the example next to it breaks, a rule that the code no longer follows. Quote both sides with file and line; a contradiction you cannot quote on both sides is not a row.
+3. Present ONE table in the user's language: `# | Aussage A | Aussage B | Befund | Vorschlag | Urteil`, leaving `Urteil` empty for the human. Each Vorschlag names the surviving wording and the single owning file; duplicates are resolved by pointing to one home, not by editing both copies. Say that coverage is sampled, not exhaustive.
+4. Nothing changes until the human gives a verdict per row. Apply approved rows under a governed task (docs and skills directly, memory rows through their proposal); record a finding only when it changes project code, docs or skills, never one about this process.
+
 ## Write candidates (only on an explicit human ask)
 
 `make agent_learning_dream_write_candidates` (or `learn dream --write-candidates`) writes review records only. Run it once step 1 shows no concurrent diff in the Learning root. Route each record through exactly one of `learn proposal-approve`, `learn proposal-reject` or `learn proposal-acknowledge`, with a named human (`--by`) and, for reject and acknowledge, a real reason. Never approve a candidate because it exists, and never bulk-acknowledge to empty the queue.

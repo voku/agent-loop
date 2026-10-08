@@ -6,6 +6,9 @@
 - The `agent-loop-task-start` skill states the one-command-per-`--validation` rule, and the `agent-loop-review-close` skill tells agents to finish changes, commits and Learning records before the first `finish` and to acknowledge only the exact current report hash, because the blind-spot report is regenerated whenever the implementation or Learning records change.
 - The `agent-loop-dream` skill tells agents to give a `--reason` for every finding archive or supersede. Requires `voku/agent-learning` 0.18.31 (`finding-transition --reason`).
 
+- The `agent-loop-dream` skill gains a "Review the guidance for contradictions" section: run `learn guidance-consistency`, add a topic search for contradicting instructions, present one table with a Vorschlag and an empty Urteil column, and change nothing until the human gives a verdict per row. Requires `voku/agent-learning` 0.18.31.
+- `init validate --kind=skills` warns about a skill directory without `SKILL.md` (it is never loaded); the exit code is unchanged. `InitValidateCommandTest` covers it, and inverting the check fails the test.
+
 ### Validation
 
 - `WorkflowPlanChainedValidationTest` (10 tests): chains with `;`, `&&`, `||` and after a quoted part warn and name the entry; plain commands, quoted semicolons, pipes and `find -exec ... \;` do not; the plan still succeeds. Disabling the detector fails five of them. PHPStan clean.
