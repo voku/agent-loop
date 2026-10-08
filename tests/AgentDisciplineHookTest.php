@@ -511,6 +511,36 @@ final class AgentDisciplineHookTest extends TestCase
         self::assertStringContainsString($expectedContext, $output['hookSpecificOutput']['additionalContext'] ?? '');
     }
 
+    /** @return iterable<string, array{string}> */
+    public static function chainedDiscouragedToolProvider(): iterable
+    {
+        yield 'after &&' => ['cd src && grep -rn Foo .'];
+        yield 'after pipe' => ['git ls-files | grep Foo'];
+        yield 'after semicolon' => ['cd src; find . -name "*.php"'];
+        yield 'quoted argument before the real call' => ['echo "ok" && find . -name "*.php"'];
+    }
+
+    #[DataProvider('chainedDiscouragedToolProvider')]
+    public function testDiscouragedToolAfterACommandBoundaryIsStillDenied(string $command): void
+    {
+        self::assertSame('deny', $this->preTool($command)['hookSpecificOutput']['permissionDecision'] ?? null);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function quotedToolNameProvider(): iterable
+    {
+        yield 'rg alternation naming the tool' => ['rg -n "Legacy|grep|other" src'];
+        yield 'rg alternation naming the other tool' => ["rg -n 'alpha|find ' src"];
+        yield 'echo with a semicolon before the name' => ['echo "first; grep second"'];
+        yield 'in-place option text inside a quoted pattern' => ['rg "x; sed -i y" src'];
+    }
+
+    #[DataProvider('quotedToolNameProvider')]
+    public function testToolNameInsideQuotedTextIsNotACommand(string $command): void
+    {
+        $this->assertPassThrough($command);
+    }
+
     public function testBoundedSedReadRemainsAllowedAfterNavigation(): void
     {
         $this->assertPassThrough('sed -n "120,180p" src/Foo.php');

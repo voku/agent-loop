@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+- The PreToolUse hook no longer denies a command only because a quoted argument contains a tool name after a boundary character. `rg -n "alpha|find " src` or `echo "a; grep b"` were blocked as legacy searches because the pattern looked at the raw text; the legacy-search and in-place-sed checks now ignore quoted text. Real calls after `&&`, `;` or `|` are still denied. `AgentDisciplineHookTest` covers both directions.
+
 ### Added
 
 - Package instruction fragments may name the project's Learning root with `{{learning_root}}`; `FirstPartyPackageCatalog::resolveProjectPlaceholders()` replaces it with the configured `paths.learning_root` (relative to the project, default `.agent-loop/learning`). Needed by `voku/agent-learning` 0.18.31, whose consumer fragment used to hard-code the default and made a host's generated `AGENTS.md` contradict its own `init.json`. `ProjectInstructionPlaceholdersTest` covers the configured, default and no-placeholder cases.

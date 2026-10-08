@@ -549,12 +549,21 @@ final readonly class AgentDisciplineHook
 
     private function isLegacyRepositorySearch(string $command): bool
     {
-        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $command) === 1;
+        return preg_match('~(?:^|[;&|]\s*)(?:grep|find)\b~i', $this->withoutQuotedText($command)) === 1;
     }
 
     private function isInPlaceSedEdit(string $command): bool
     {
-        return preg_match('~(?:^|[;&|]\s*)sed\b[^;&|]*(?:\s-i(?:\s|$)|\s--in-place(?:=\S+|\s|$))~i', $command) === 1;
+        return preg_match('~(?:^|[;&|]\s*)sed\b[^;&|]*(?:\s-i(?:\s|$)|\s--in-place(?:=\S+|\s|$))~i', $this->withoutQuotedText($command)) === 1;
+    }
+
+    /**
+     * A tool name inside a quoted argument (an rg alternation such as "a|find", an echo) is text, not a command:
+     * boundary characters in it must not start a new command for the patterns above.
+     */
+    private function withoutQuotedText(string $command): string
+    {
+        return preg_replace('~"(?:[^"\\\\]|\\\\.)*"|\'[^\']*\'~s', '""', $command) ?? $command;
     }
 
     private function isAlternateRemotePublicationCommand(string $command): bool
