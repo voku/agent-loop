@@ -84,12 +84,12 @@ final class WorkflowDreamAutoRunTest extends TestCase
 
     public function testChangedProjectGuidanceMakesGuidanceReviewDueWithoutChangingLearning(): void
     {
-        file_put_contents($this->root . '/AGENTS.md', "# Guidance\\n\\nKeep changes small.\\n");
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\n\nKeep changes small.\n");
         $autoRun = new WorkflowDreamAutoRun($this->root);
         $before = $this->learningTree();
         $autoRun->runIfDue();
 
-        file_put_contents($this->root . '/AGENTS.md', "# Guidance\\n\\nKeep changes small and verified.\\n");
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\n\nKeep changes small and verified.\n");
         $digest = $autoRun->runIfDue();
 
         self::assertNotNull($digest);
@@ -100,7 +100,7 @@ final class WorkflowDreamAutoRunTest extends TestCase
 
     public function testUnchangedProjectGuidanceDoesNotMakeDreamDueAgain(): void
     {
-        file_put_contents($this->root . '/AGENTS.md', "# Guidance\\n\\nKeep changes small.\\n");
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\n\nKeep changes small.\n");
         $autoRun = new WorkflowDreamAutoRun($this->root);
         $autoRun->runIfDue();
 
@@ -121,6 +121,57 @@ final class WorkflowDreamAutoRunTest extends TestCase
 
         self::assertNotNull($digest);
         self::assertFalse($digest['ran'], 'a checkout rewrites mtimes; only content may trigger Dream');
+    }
+
+    public function testAddingAndRemovingProjectMemoryMakesDreamDue(): void
+    {
+        $autoRun = new WorkflowDreamAutoRun($this->root);
+        $autoRun->runIfDue();
+        $before = $this->learningTree();
+
+        file_put_contents($this->root . '/MEMORY.md', "# Memory\n\nVerify the affected behavior.\n");
+        $added = $autoRun->runIfDue();
+        self::assertNotNull($added);
+        self::assertTrue($added['ran']);
+        self::assertSame('project guidance changed since the last run', $added['reason']);
+
+        unlink($this->root . '/MEMORY.md');
+        $removed = $autoRun->runIfDue();
+        self::assertNotNull($removed);
+        self::assertTrue($removed['ran']);
+        self::assertSame('project guidance changed since the last run', $removed['reason']);
+        self::assertSame($before, $this->learningTree());
+    }
+
+    public function testGuidanceMtimeAndUnrelatedContentDoNotMakeDreamDue(): void
+    {
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\n");
+        $autoRun = new WorkflowDreamAutoRun($this->root);
+        $autoRun->runIfDue();
+
+        touch($this->root . '/AGENTS.md', time() + 100);
+        file_put_contents($this->root . '/src/Example.php', "<?php\n// Changed implementation.\n");
+
+        $digest = $autoRun->runIfDue();
+        self::assertNotNull($digest);
+        self::assertFalse($digest['ran']);
+    }
+
+    public function testLegacyStateWithoutGuidanceFingerprintIsRefreshedOnce(): void
+    {
+        $autoRun = new WorkflowDreamAutoRun($this->root);
+        $autoRun->runIfDue();
+        $state = json_decode((string) file_get_contents($this->stateFile), true, flags: JSON_THROW_ON_ERROR);
+        unset($state['guidance_fingerprint']);
+        file_put_contents($this->stateFile, json_encode($state, JSON_THROW_ON_ERROR));
+
+        $refreshed = $autoRun->runIfDue();
+        self::assertNotNull($refreshed);
+        self::assertTrue($refreshed['ran']);
+        self::assertSame('project guidance changed since the last run', $refreshed['reason']);
+        $unchanged = $autoRun->runIfDue();
+        self::assertNotNull($unchanged);
+        self::assertFalse($unchanged['ran']);
     }
 
     public function testAgeLimitMakesDreamDueEvenWithoutInputChanges(): void

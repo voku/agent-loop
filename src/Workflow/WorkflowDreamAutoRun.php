@@ -16,7 +16,8 @@ use voku\AgentLoop\ProjectLayout;
  *
  * Due is decided from facts, not from an agent's judgement: no previous run, the
  * Learning inputs Dream evaluates changed (content fingerprint, so a checkout that
- * only touches mtimes does not trigger), or the last run is older than
+ * only touches mtimes does not trigger), project AGENTS.md or MEMORY.md changed,
+ * or the last run is older than
  * {@see MAX_AGE_SECONDS}. Outcome history is left out of the fingerprint on
  * purpose: it grows with every task and would make Dream due on every session; the
  * age limit covers it.
@@ -35,6 +36,9 @@ final readonly class WorkflowDreamAutoRun
 
     /** Learning directories whose content Dream evaluates; history/ is excluded on purpose. */
     private const FINGERPRINT_DIRECTORIES = ['findings', 'proposals', 'constraints/active', 'notes'];
+
+    /** Central project guidance only; installed skill copies and other documents are outside this trigger. */
+    private const PROJECT_GUIDANCE_FILES = ['AGENTS.md', 'MEMORY.md'];
 
     /** @param (Closure(): int)|null $clock injectable for tests; defaults to the wall clock */
     public function __construct(
@@ -69,9 +73,10 @@ final readonly class WorkflowDreamAutoRun
         $stateFile = $layout->stateRoot() . '/dream/auto.json';
         $previous = $this->readState($stateFile);
         $fingerprint = $this->fingerprint($learningRoot);
+        $guidanceFingerprint = $this->guidanceFingerprint();
         $now = $this->clock !== null ? ($this->clock)() : time();
 
-        $reason = $this->dueReason($previous, $fingerprint, $now);
+        $reason = $this->dueReason($previous, $fingerprint, $guidanceFingerprint, $now);
         if ($reason === null) {
             // Not due: stay quiet unless the last run left decisions waiting for a human.
             return $previous !== null && $previous['reviewDecisions'] > 0
@@ -82,6 +87,7 @@ final readonly class WorkflowDreamAutoRun
         $outcome = (new WorkflowDreamService($this->rootPath))->preview()->outcome->result;
         $state = [
             'fingerprint' => $fingerprint,
+            'guidance_fingerprint' => $guidanceFingerprint,
             'ran_at' => $now,
             'evaluated' => $outcome->evaluatedGuidanceCount,
             'warnings' => array_values(array_unique(array_map(static fn ($warning) => $warning->code, $outcome->warnings))),
@@ -93,14 +99,17 @@ final readonly class WorkflowDreamAutoRun
         return ['ran' => true, 'reason' => $reason] + $this->digest($state);
     }
 
-    /** @param array{fingerprint: string, ran_at: int}|null $previous */
-    private function dueReason(?array $previous, string $fingerprint, int $now): ?string
+    /** @param array{fingerprint: string, guidance_fingerprint: string|null, ran_at: int}|null $previous */
+    private function dueReason(?array $previous, string $fingerprint, string $guidanceFingerprint, int $now): ?string
     {
         if ($previous === null) {
             return 'no previous automatic run';
         }
         if ($previous['fingerprint'] !== $fingerprint) {
             return 'Learning inputs changed since the last run';
+        }
+        if ($previous['guidance_fingerprint'] !== $guidanceFingerprint) {
+            return 'project guidance changed since the last run';
         }
         if ($now - $previous['ran_at'] >= self::MAX_AGE_SECONDS) {
             return 'last run is older than 7 days';
@@ -131,8 +140,25 @@ final readonly class WorkflowDreamAutoRun
         return hash('sha256', implode("\n", $entries));
     }
 
+    private function guidanceFingerprint(): string
+    {
+        $entries = [];
+        foreach (self::PROJECT_GUIDANCE_FILES as $relativePath) {
+            $path = $this->rootPath . '/' . $relativePath;
+            if (is_file($path)) {
+                $hash = hash_file('sha256', $path);
+                if ($hash === false) {
+                    throw new RuntimeException('Cannot fingerprint project guidance: ' . $path);
+                }
+                $entries[] = $relativePath . "\0" . $hash;
+            }
+        }
+
+        return hash('sha256', implode("\n", $entries));
+    }
+
     /**
-     * @return array{fingerprint: string, ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int}|null
+     * @return array{fingerprint: string, guidance_fingerprint: string|null, ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int}|null
      */
     private function readState(string $file): ?array
     {
@@ -153,6 +179,7 @@ final readonly class WorkflowDreamAutoRun
 
         return [
             'fingerprint' => $data['fingerprint'],
+            'guidance_fingerprint' => is_string($data['guidance_fingerprint'] ?? null) ? $data['guidance_fingerprint'] : null,
             'ran_at' => $data['ran_at'],
             'evaluated' => $data['evaluated'],
             'warnings' => array_values(array_filter($data['warnings'], is_string(...))),
