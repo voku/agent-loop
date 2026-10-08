@@ -1,3 +1,13 @@
+## 0.20.61 - 2026-10-08
+
+### Fixed
+
+- `init sync-skills` now prunes stale managed project skills when the source set becomes empty. Previously the early return left the final removed skill installed. Manual skills and retained package provenance remain untouched; dry runs leave files and the manifest unchanged, and repeated syncs are idempotent.
+
+### Validation
+
+- Regression coverage checks configured and explicit source roots, dry-run behavior, manual-skill preservation, repeated empty syncs, and retained package entries after `init install-assets`.
+
 ## 0.20.60 - 2026-10-08
 
 ### Fixed
