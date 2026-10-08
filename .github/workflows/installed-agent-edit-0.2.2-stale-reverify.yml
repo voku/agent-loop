@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-edit rev-parse 'HEAD^{commit}')" = "0c208f4ab8084862ea05fd327c7b7c80fa4d5aa8"
+          test "$(git -C build/released-agent-edit rev-parse 'HEAD^{commit}')" = "c6df587db343ea0059bdcb1a812cd606de6a20be"
           test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "52c901f42f338bb6c1f29d5512873b05a751cdba"
 
       - name: Prove stale reverification cannot leave a passed verdict
