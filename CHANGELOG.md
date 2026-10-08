@@ -1,3 +1,13 @@
+## 0.20.62 - 2026-10-08
+
+### Fixed
+
+- Changes to project-root `AGENTS.md` or `MEMORY.md` now make the existing read-only Dream autorun due again. Content fingerprints detect edits, additions and removals while mtime-only changes and unrelated implementation edits remain no-ops. Older autorun state without the guidance fingerprint refreshes once. Dream continues to leave Learning records and project guidance unchanged; configurable skill/ADR sources and guidance-consistency orchestration remain follow-up work in #742.
+
+### Validation
+
+- Autorun regression and boundary coverage passes (14 tests, 83 assertions). Full CI passes across PHP 8.3/8.4/8.5, including PHPStan, installed release-set and governed execution-contract dogfood; the PHP 8.4 suite runs 1,489 tests with 10,231 assertions and retains one existing warning, deprecation and skip.
+
 ## 0.20.61 - 2026-10-08
 
 ### Fixed
