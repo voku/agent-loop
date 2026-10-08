@@ -53,7 +53,7 @@ A Learning backlog that nobody works grows until the hint is ignored. Work it in
    - **guidance line**: name the owning skill, ADR or memory row, and batch rows with one owner into one proposal;
    - **no durable learning**: taste, one-off or environment-specific facts, archived with a real reason.
 4. Low wording overlap does not prove a lesson is missing: findings are written as observations and guidance as rules. Before a take says "not covered" or "already covered", look for the key identifiers in the repository and label the take unverified when you did not.
-5. Nothing changes until the human names the decision. Then run the transition (`finding-transition`, or a proposal through the existing approve, reject and acknowledge path) with `--by` and, where required, a real reason.
+5. Nothing changes until the human names the decision. Then run the transition (`finding-transition`, or a proposal through the existing approve, reject and acknowledge path) with `--by` and a real reason. `finding-transition <id> <status> --by ACTOR --reason TEXT` stores the reason on the finding with who and when; give one for every archive or supersede, because otherwise the record cannot say why a finding left the backlog.
 
 ## Write candidates (only on an explicit human ask)
 
