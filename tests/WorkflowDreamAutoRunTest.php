@@ -82,6 +82,35 @@ final class WorkflowDreamAutoRunTest extends TestCase
         self::assertSame('Learning inputs changed since the last run', $digest['reason']);
     }
 
+    public function testChangedProjectGuidanceMakesGuidanceReviewDueWithoutChangingLearning(): void
+    {
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\\n\\nKeep changes small.\\n");
+        $autoRun = new WorkflowDreamAutoRun($this->root);
+        $before = $this->learningTree();
+        $autoRun->runIfDue();
+
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\\n\\nKeep changes small and verified.\\n");
+        $digest = $autoRun->runIfDue();
+
+        self::assertNotNull($digest);
+        self::assertTrue($digest['ran']);
+        self::assertSame('project guidance changed since the last run', $digest['reason']);
+        self::assertSame($before, $this->learningTree(), 'detecting guidance drift must remain read-only');
+    }
+
+    public function testUnchangedProjectGuidanceDoesNotMakeDreamDueAgain(): void
+    {
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\\n\\nKeep changes small.\\n");
+        $autoRun = new WorkflowDreamAutoRun($this->root);
+        $autoRun->runIfDue();
+
+        $digest = $autoRun->runIfDue();
+
+        self::assertNotNull($digest);
+        self::assertFalse($digest['ran']);
+        self::assertSame('pending', $digest['reason']);
+    }
+
     public function testOnlyTouchingMtimesDoesNotMakeDreamDue(): void
     {
         $autoRun = new WorkflowDreamAutoRun($this->root);
