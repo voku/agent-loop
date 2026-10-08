@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLoop\Init\InitSyncHooksCommand;
+use voku\AgentLoop\Init\InitInstallAssetsCommand;
 use voku\AgentLoop\Init\InitSyncSkillsCommand;
 use voku\AgentLoop\Init\InitSyncSubagentsCommand;
 
@@ -103,6 +105,79 @@ final class InitSyncCommandTest extends TestCase
         self::assertSame(0, $result['exit']);
         self::assertStringContainsString('[DRY-RUN] sync skills: install demo-skill', $result['output']);
         self::assertDirectoryDoesNotExist($this->root . '/.codex/skills');
+    }
+
+    /** @param list<string> $tokens */
+    #[DataProvider('emptySkillSourceModes')]
+    public function testSyncSkillsPrunesLastManagedSkillAndPreservesManualSkill(array $tokens): void
+    {
+        mkdir($this->root . '/.agent-loop', 0o775, true);
+        file_put_contents($this->root . '/.agent-loop/init.json', '{"version":1,"package_skills":false}');
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
+        $installed = $this->runSyncSkills($tokens);
+        self::assertSame(0, $installed['exit'], $installed['output']);
+
+        $targetRoot = $this->root . '/.codex/skills';
+        mkdir($targetRoot . '/manual-skill', 0o775, true);
+        file_put_contents($targetRoot . '/manual-skill/SKILL.md', "# Manual\n");
+        $manifestPath = $targetRoot . '/.agent-loop-manifest.json';
+        $manifestBefore = file_get_contents($manifestPath);
+        $this->removeDirectory($this->root . '/resources/skills/demo-skill');
+
+        $dryRun = $this->runSyncSkills([...$tokens, '--dry-run']);
+        self::assertSame(0, $dryRun['exit'], $dryRun['output']);
+        self::assertStringContainsString('remove stale ' . $targetRoot . '/demo-skill', $dryRun['output']);
+        self::assertSame($manifestBefore, file_get_contents($manifestPath));
+        self::assertSame("# Demo\n", file_get_contents($targetRoot . '/demo-skill/SKILL.md'));
+        self::assertSame("# Manual\n", file_get_contents($targetRoot . '/manual-skill/SKILL.md'));
+
+        $synced = $this->runSyncSkills($tokens);
+        self::assertSame(0, $synced['exit'], $synced['output']);
+        self::assertDirectoryDoesNotExist($targetRoot . '/demo-skill');
+        self::assertSame("# Manual\n", file_get_contents($targetRoot . '/manual-skill/SKILL.md'));
+        $manifestAfter = file_get_contents($manifestPath);
+        $manifest = json_decode((string) $manifestAfter, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame([], $manifest['entries']);
+
+        $repeated = $this->runSyncSkills($tokens);
+        self::assertSame(0, $repeated['exit'], $repeated['output']);
+        self::assertSame($manifestAfter, file_get_contents($manifestPath));
+        self::assertSame("# Manual\n", file_get_contents($targetRoot . '/manual-skill/SKILL.md'));
+    }
+
+    /** @return iterable<string, array{list<string>}> */
+    public static function emptySkillSourceModes(): iterable
+    {
+        yield 'configured project root' => [['--agent=codex']];
+        yield 'explicit root' => [['--agent=codex', '--skills-root=resources/skills']];
+    }
+
+    public function testEmptyProjectSkillSyncPrunesStaleProjectSkillAndRetainsPackageProvenance(): void
+    {
+        mkdir($this->root . '/resources/skills/demo-skill', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/demo-skill/SKILL.md', "# Demo\n");
+        ob_start();
+        $exit = (new InitInstallAssetsCommand($this->root))->run(['--agent=codex', '--skip-git-config']);
+        $output = (string) ob_get_clean();
+        self::assertSame(0, $exit, $output);
+        $targetRoot = $this->root . '/.codex/skills';
+        $manifestPath = $targetRoot . '/.agent-loop-manifest.json';
+        $manifestBefore = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+        $expectedEntries = array_values(array_filter(
+            $manifestBefore['entries'],
+            static fn (array $entry): bool => $entry['target'] !== 'demo-skill',
+        ));
+        self::assertNotEmpty($expectedEntries);
+        $packageSkillBefore = file_get_contents($targetRoot . '/agent-loop-workflow/SKILL.md');
+        $this->removeDirectory($this->root . '/resources/skills/demo-skill');
+
+        $synced = $this->runSyncSkills(['--agent=codex']);
+        self::assertSame(0, $synced['exit'], $synced['output']);
+        self::assertDirectoryDoesNotExist($targetRoot . '/demo-skill');
+        $manifestAfter = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame($expectedEntries, $manifestAfter['entries']);
+        self::assertSame($packageSkillBefore, file_get_contents($targetRoot . '/agent-loop-workflow/SKILL.md'));
     }
 
     public function testSyncSkillsRefusesToOverwriteUnmanagedTargetsWithoutForce(): void

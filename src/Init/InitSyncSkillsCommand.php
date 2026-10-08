@@ -181,8 +181,6 @@ final readonly class InitSyncSkillsCommand
     {
         if ($sources === []) {
             echo '[WARN] sync skills: no skills found under ' . implode(', ', array_map($this->displayPath(...), $sourceRoots)) . "\n";
-
-            return 0;
         }
 
         $errors = [];
