@@ -1,3 +1,9 @@
+## 0.20.63 - 2026-10-08
+
+### Changed
+
+- Require `voku/agent-map` `^0.21.0` (adds `agent-map watch`, a long-running refresh that keeps the map current; no plan contract changes), with `voku/agent-edit` `^0.4.1` and `voku/agent-recall-compiler` `^0.25.6`, the first releases that accept agent-map 0.21. The installed release-set workflows now build against the agent-map 0.21.0 tag.
+
 ## 0.20.62 - 2026-10-08
 
 ### Fixed
