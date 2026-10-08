@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-map
-          ref: 0.21.0
+          ref: 0.22.0
           path: build/released-agent-map
           persist-credentials: false
 
@@ -51,7 +51,7 @@ jobs:
         env:
           LOOP_REPO: ${{ github.workspace }}
           MAP_REPO: ${{ github.workspace }}/build/released-agent-map
-          MAP_VERSION: 0.21.0
+          MAP_VERSION: 0.22.0
         run: |
           set -euo pipefail
           bash tools/installed-edit-lifecycle.sh "${{ matrix.scenario }}" "${RUNNER_TEMP}/agent-loop-installed-edit-${{ matrix.scenario }}"
