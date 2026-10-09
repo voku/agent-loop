@@ -1,3 +1,19 @@
+## 0.20.64 - 2026-10-09
+
+### Changed
+
+- Edit map preparation and post-edit verification go through the `voku/agent-map` 0.22.0 owner API: `EditMapPreparer` rebuilds with `MapPreparationService::rebuild()` and `MapRefresher` refreshes the shared index into the verification bundle with `MapPreparationService::prepare()`. Loop no longer constructs `AgentMapBuilder` or `IndexWriter`. Requires `voku/agent-map` `^0.22.0`, `voku/agent-edit` `^0.4.2`, `voku/agent-learning` `^0.18.32` and `voku/agent-recall-compiler` `^0.25.8`, the releases that resolve together.
+- The post-edit map refresh stays inside the `map_paths` / `map_excludes` / PHPStan settings recorded in `request.json`.
+
+### Fixed
+
+- The verification bundle's map copy now carries its relations companion. The previous symbols-only copy could not be read back from a real index, so `post_edit_map_fresh` and `target_resolvable` read `not_run`.
+- A deleted target file now fails `target_resolvable` by itself. Deleted indexed files are pruned from the bundle map instead of reported stale, and added or moved files are indexed under their real path.
+
+### Validation
+
+- 26 characterization and regression tests cover missing, current, stale, added, deleted and moved files, differing runtime roots, bundle-local writes, `allowMapRebuild=false` and both gates. Full CI passes, including the installed release-set dogfood against agent-map 0.22.0.
+
 ## 0.20.63 - 2026-10-08
 
 ### Changed
