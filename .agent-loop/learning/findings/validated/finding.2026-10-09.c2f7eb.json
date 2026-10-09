@@ -1,0 +1,35 @@
+{
+    "id": "finding.2026-10-09.c2f7eb",
+    "task_id": "GH-749-release-pin-check",
+    "session": "2026-10-09-gh-749-release-pin-check-r1-8abd9708",
+    "created_at": "2026-10-09T06:58:17+00:00",
+    "created_by": "moellekenl",
+    "scope": [],
+    "observation": "While adding a CI check that installed-consumer release pins agree, three guards looked finished but would have passed without checking what they claimed: (1) the first scanner was a regex over raw workflow text and silently skipped valid forms (quoted or reordered ref, .yaml files, an assertion that was not a plain version, two checkouts of one owner); (2) the opt-in composer script written as one string '@putenv VAR=1 phpunit ...' exited 0 without running PHPUnit at all; (3) after a re-run, the recorded validation evidence still showed the earlier timestamp and an unchanged report hash. The motivating defect had the same shape: a half-updated pin set only failed in CI, in two separate rounds.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "Mutating the real installed-consumer workflow (owner ref left on the previous release; forgotten resolved-version assertion; quoted ref; stale commit SHA) made the new check fail with the specific message for each; files restored afterwards and the check passes on the real pins and against the remote tags."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "The composer script verify:release-pins, first written as a single @putenv string, printed nothing and exited 0 without running PHPUnit; rewritten as an array it ran 8 tests and then failed on a bad SHA."
+        },
+        {
+            "type": "review_comment",
+            "reference": "https://github.com/voku/agent-loop/pull/752#discussion_r4227371896",
+            "summary": "Review of PR 752 raised four silently-skipped cases against the regex scanner; all fixed by parsing YAML per job and failing closed, with a regression test for each."
+        },
+        {
+            "type": "issue_reference",
+            "issue": "voku/agent-loop#749",
+            "summary": "Hardcoded release pins whose half-updated state only failed in CI, found while landing voku/agent-loop#748."
+        }
+    ],
+    "hypothesis": "A newly added verification step is not evidence until it has been shown to fail on a real, deliberately broken input and shown to execute at all; the absence of a failure from a new guard says nothing about whether it looked.",
+    "validated_conclusion": "When adding or changing a guard: (a) run it against a broken copy of the real input and confirm it fails with the specific message for the mistake it targets, then restore the input; (b) confirm the command really ran the check (test count or expected output, not just exit 0), especially for composer scripts and env-gated tests; (c) make input the guard cannot interpret a violation, never a skip; (d) when recorded evidence must match a head, confirm the record changed after the re-run. Reviewers' 'silently skipped' findings are the same class and are best fixed at the root (parse structure, fail closed) rather than pattern by pattern.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
