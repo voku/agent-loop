@@ -1,3 +1,9 @@
+## Unreleased
+
+### Added
+
+- Add a provider-free Codex 0.157.0 runtime proof for explicit projected-skill consumption. A paired baseline / `$agent-loop-workflow` run captures the real provider requests and requires the package-owned skill-body marker to be absent from baseline and present exactly once after explicit selection. The evidence class is `host_runtime_skill_consumption`; implicit semantic routing, `voku/agent-skills` interaction-skill invocation, and other hosts remain unclaimed.
+
 ## 0.20.64 - 2026-10-09
 
 ### Changed
