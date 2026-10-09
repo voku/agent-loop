@@ -27,6 +27,7 @@
   },
   "require-dev": {
     "brianium/paratest": "^7.8",
+    "composer/semver": "^3.4",
     "friendsofphp/php-cs-fixer": "^3.95",
     "phpstan/phpstan": "^2.1",
     "phpunit/phpunit": "^11.5",
@@ -51,6 +52,10 @@
   "scripts": {
     "test": "phpunit",
     "test:fast": "phpunit --exclude-group slow",
+    "verify:release-pins": [
+      "@putenv AGENT_LOOP_VERIFY_RELEASE_PIN_SHAS=1",
+      "phpunit tests/Ci/ReleasePinConsistencyTest.php"
+    ],
     "test:parallel": "paratest --functional",
     "cs": "php-cs-fixer check --config=.php-cs-fixer.dist.php --diff --show-progress=none",
     "cs:fix": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --show-progress=none",
