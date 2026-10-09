@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Edit;
 
 use RuntimeException;
-use voku\AgentMap\Index\AgentMapBuilder;
 use voku\AgentMap\Index\AgentMapIndex;
 use voku\AgentMap\Index\IndexReader;
-use voku\AgentMap\Index\IndexWriter;
+use voku\AgentMap\MapArtifactPaths;
+use voku\AgentMap\Prepare\MapPreparationException;
+use voku\AgentMap\Prepare\MapPreparationRequest;
+use voku\AgentMap\Prepare\MapPreparationService;
 
 final readonly class EditMapPreparer implements EditMapProvider
 {
     public function __construct(
-        private AgentMapBuilder $builder = new AgentMapBuilder(),
+        private MapPreparationService $maps = new MapPreparationService(),
         private IndexReader $reader = new IndexReader(),
-        private IndexWriter $writer = new IndexWriter(),
     ) {
     }
 
@@ -50,18 +51,32 @@ final readonly class EditMapPreparer implements EditMapProvider
         return $runtimeMap;
     }
 
+    /**
+     * Full rebuild of the requested scope through the Map owner; the shared index is only replaced
+     * after the new map was built completely.
+     */
     private function build(EditRequest $request): AgentMapIndex
     {
-        $map = $this->builder->build(
-            root: $request->mapRoot,
-            paths: $request->mapPaths,
-            excludes: $request->mapExcludes,
-            phpStanConfiguration: $request->phpStanConfiguration,
-            phpStanMemoryLimit: $request->phpStanMemoryLimit,
-        );
-        $this->writer->write($map, $request->mapIndex);
-
-        return $map;
+        try {
+            return $this->maps->rebuild(new MapPreparationRequest(
+                root: $request->mapRoot,
+                indexPath: $request->mapIndex,
+                outputPath: $request->mapIndex,
+                format: str_ends_with(strtolower($request->mapIndex), '.toon') ? 'toon' : 'json',
+                paths: $request->mapPaths,
+                pathsProvided: true,
+                scanPaths: [],
+                scanPathsProvided: false,
+                excludes: $request->mapExcludes,
+                excludesProvided: true,
+                backend: 'auto',
+                phpStanConfig: $request->phpStanConfiguration,
+                phpStanMemoryLimit: $request->phpStanMemoryLimit,
+                artifacts: MapArtifactPaths::forProject($request->mapRoot),
+            ))->index;
+        } catch (MapPreparationException $exception) {
+            throw new RuntimeException($exception->getMessage() . ' Recovery: ' . $exception->recoveryCommand, 0, $exception);
+        }
     }
 
     private function withRuntimeRoot(AgentMapIndex $map, string $root): AgentMapIndex

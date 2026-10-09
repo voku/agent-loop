@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: voku/agent-map
-          ref: 0.21.0
+          ref: 0.22.0
           path: build/released-agent-map
           persist-credentials: false
 
@@ -44,14 +44,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "52c901f42f338bb6c1f29d5512873b05a751cdba"
+          test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "91e631249f3e3bcfd8b5783f600f2a6d8818cab2"
 
       - name: Run agent-map plan -> agent-edit (via agent-loop) -> verify -> finish
         shell: bash
         env:
           LOOP_REPO: ${{ github.workspace }}
           MAP_REPO: ${{ github.workspace }}/build/released-agent-map
-          MAP_VERSION: 0.21.0
+          MAP_VERSION: 0.22.0
         run: |
           set -euo pipefail
           bash tools/installed-edit-lifecycle.sh "${{ matrix.scenario }}" "${RUNNER_TEMP}/agent-loop-installed-edit-${{ matrix.scenario }}"
