@@ -17,19 +17,21 @@
   "require": {
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
-    "voku/agent-edit": "^0.4.0",
+    "voku/agent-edit": "^0.4.2",
     "voku/agent-kanban": "^0.4.4",
-    "voku/agent-learning": "^0.18.25",
-    "voku/agent-map": "^0.20.0",
-    "voku/agent-recall-compiler": "^0.25.4",
+    "voku/agent-learning": "^0.18.32",
+    "voku/agent-map": "^0.22.0",
+    "voku/agent-recall-compiler": "^0.25.8",
     "voku/agent-session": "^0.7.1",
     "voku/portable-utf8": "^6.1"
   },
   "require-dev": {
     "brianium/paratest": "^7.8",
+    "composer/semver": "^3.4",
     "friendsofphp/php-cs-fixer": "^3.95",
     "phpstan/phpstan": "^2.1",
     "phpunit/phpunit": "^11.5",
+    "symfony/yaml": "^7.4",
     "voku/itp-context": "^0.3.0"
   },
   "autoload": {
@@ -51,6 +53,10 @@
   "scripts": {
     "test": "phpunit",
     "test:fast": "phpunit --exclude-group slow",
+    "verify:release-pins": [
+      "@putenv AGENT_LOOP_VERIFY_RELEASE_PIN_SHAS=1",
+      "phpunit tests/Ci/ReleasePinConsistencyTest.php"
+    ],
     "test:parallel": "paratest --functional",
     "cs": "php-cs-fixer check --config=.php-cs-fixer.dist.php --diff --show-progress=none",
     "cs:fix": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --show-progress=none",

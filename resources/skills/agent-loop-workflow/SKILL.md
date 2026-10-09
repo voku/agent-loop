@@ -29,6 +29,19 @@ When this skill is invoked for an end-to-end implementation request, keep the re
 
 This is the implementation front door. Do not add a parallel `implement` skill that copies the same lifecycle semantics.
 
+## Ambiguous New Work Items
+
+A newly created task/card already supplies durable identity; being new does **not** by itself require an interview. After entering through the normal front door, a task router may select the installed `requirements-interview` specialist only when the card plus the smallest relevant repository evidence still leaves consequential behavior, scope, constraints, edge cases, acceptance criteria, or compatibility decisions unresolved.
+
+When that specialist is useful:
+
+- ground the interview in the durable task/card and repository evidence before asking questions;
+- ask only for unresolved decisions that can change implementation or verification;
+- hand the resulting implementation-ready contract back to the normal workflow/Contract owner;
+- skip the specialist when the task is already implementation-ready.
+
+The specialist clarifies intent only. It must not claim or move the card, approve the Contract, mutate source, perform implementation, or invent lifecycle state. Selecting it is specialist routing, not a new lifecycle phase, and it does not replace deterministic repository evidence such as the bounded discovery work owned separately by `agent-map`.
+
 When host-native mutation is complete, reconcile deterministic close-out through:
 ```bash
 vendor/bin/agent-loop finish <task-id> --format=json

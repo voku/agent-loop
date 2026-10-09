@@ -46,6 +46,21 @@ final class InitValidateCommandTest extends TestCase
         self::assertStringContainsString('[OK] validate skills: 1 skill file(s) valid', $result['output']);
     }
 
+    public function testValidateSkillsWarnsAboutADirectoryWithoutSkillFileButStaysGreen(): void
+    {
+        mkdir($this->root . '/resources/skills/valid', 0o775, true);
+        file_put_contents($this->root . '/resources/skills/valid/SKILL.md', "# Skill\n");
+        mkdir($this->root . '/resources/skills/orphan/tools', 0o775, true);
+        mkdir($this->root . '/resources/skills/.cache', 0o775, true);
+
+        $result = $this->runValidate(['--kind=skills']);
+
+        self::assertSame(0, $result['exit']);
+        self::assertStringContainsString('[WARN] validate skills: resources/skills/orphan has no SKILL.md and is never loaded', $result['output']);
+        self::assertStringNotContainsString('.cache', $result['output']);
+        self::assertStringContainsString('[OK] validate skills: 1 skill file(s) valid', $result['output']);
+    }
+
     public function testValidateSkillsFailsForEmptySkill(): void
     {
         mkdir($this->root . '/resources/skills/phpstan-debugging', 0o775, true);

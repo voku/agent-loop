@@ -55,6 +55,26 @@ final class HostLifecycleGuidanceAuthorityTest extends TestCase
         );
     }
 
+    public function testWorkflowUsesRequirementsInterviewOnlyAsOptionalSpecialistRouting(): void
+    {
+        $root = dirname(__DIR__);
+        $workflow = file_get_contents($root . '/resources/skills/agent-loop-workflow/SKILL.md');
+
+        self::assertIsString($workflow);
+        self::assertStringContainsString('being new does **not** by itself require an interview', $workflow);
+        self::assertStringContainsString('requirements-interview', $workflow);
+        self::assertStringContainsString('skip the specialist when the task is already implementation-ready', $workflow);
+        self::assertStringContainsString('Selecting it is specialist routing, not a new lifecycle phase', $workflow);
+        self::assertStringContainsString(
+            'It must not claim or move the card, approve the Contract, mutate source, perform implementation, or invent lifecycle state.',
+            $workflow,
+        );
+        self::assertDirectoryDoesNotExist(
+            $root . '/resources/skills/requirements-interview',
+            'Portable requirements clarification must stay owned by agent-skills instead of becoming a Loop lifecycle skill.',
+        );
+    }
+
     public function testAlwaysOnDisciplineDoesNotRestateTheNextActionKindContract(): void
     {
         $skill = file_get_contents(

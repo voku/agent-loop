@@ -114,6 +114,8 @@ final readonly class WorkflowPlanCommand
             return 1;
         }
 
+        $warnings = self::chainedValidationWarnings($contract->validation);
+
         if ($options['format'] === 'json') {
             echo json_encode([
                 'schema_version' => '1.0',
@@ -125,6 +127,7 @@ final readonly class WorkflowPlanCommand
                 'goal' => $contract->goal,
                 'scope' => $contract->scope,
                 'validation' => $contract->validation,
+                'warnings' => $warnings,
                 'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --by ' . $options['by'],
                 'next_action_kind' => 'decision_required',
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
@@ -136,10 +139,65 @@ final readonly class WorkflowPlanCommand
         echo "[OK] workflow plan: durable source {$contract->path}\n";
         echo "Goal:\n  {$contract->goal}\n";
         echo "Scope:\n  " . implode("\n  ", $contract->scope) . "\n";
+        foreach ($warnings as $warning) {
+            echo '[WARN] workflow plan: ' . $warning . "\n";
+        }
         echo "Next:\n";
         echo '  agent-loop workflow approve ' . $taskId->value . ' --by ' . self::shellArgument($options['by']) . "\n";
 
         return 0;
+    }
+
+    /**
+     * `finish` needs passing evidence for every validation entry on its own, so one entry that chains several
+     * commands (`a; b`, `a && b`) can only be satisfied as a single unit and tends to fail late, at finish, and
+     * force a Contract revision with a new human approval. Commands inside quotes are not chains.
+     *
+     * @param list<string> $validations
+     *
+     * @return list<string>
+     */
+    private static function chainedValidationWarnings(array $validations): array
+    {
+        $warnings = [];
+        foreach ($validations as $index => $validation) {
+            $quote = null;
+            $chained = false;
+            $length = strlen($validation);
+            for ($i = 0; $i < $length; ++$i) {
+                $char = $validation[$i];
+                if ($char === '\\' && $quote !== "'") {
+                    ++$i;
+
+                    continue;
+                }
+                if ($quote !== null) {
+                    $quote = $char === $quote ? null : $quote;
+
+                    continue;
+                }
+                if ($char === "'" || $char === '"') {
+                    $quote = $char;
+
+                    continue;
+                }
+                $pair = substr($validation, $i, 2);
+                if ($char === ';' || $pair === '&&' || $pair === '||') {
+                    $chained = true;
+
+                    break;
+                }
+            }
+            if ($chained) {
+                $warnings[] = sprintf(
+                    'validation #%d chains several commands (; && or ||); finish expects passing evidence per entry, so give each command its own --validation: %s',
+                    $index + 1,
+                    $validation,
+                );
+            }
+        }
+
+        return $warnings;
     }
 
     /** @param list<string> $args */

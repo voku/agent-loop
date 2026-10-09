@@ -1,12 +1,97 @@
 ## Unreleased
 
+### Added
+
+- Add a provider-free Codex 0.157.0 runtime proof for explicit projected-skill consumption. A paired baseline / `$agent-loop-workflow` run captures the real provider requests and requires the package-owned skill-body marker to be absent from baseline and present exactly once after explicit selection. The evidence class is `host_runtime_skill_consumption`; implicit semantic routing, `voku/agent-skills` interaction-skill invocation, and other hosts remain unclaimed.
+
+## 0.20.64 - 2026-10-09
+
+### Changed
+
+- Edit map preparation and post-edit verification go through the `voku/agent-map` 0.22.0 owner API: `EditMapPreparer` rebuilds with `MapPreparationService::rebuild()` and `MapRefresher` refreshes the shared index into the verification bundle with `MapPreparationService::prepare()`. Loop no longer constructs `AgentMapBuilder` or `IndexWriter`. Requires `voku/agent-map` `^0.22.0`, `voku/agent-edit` `^0.4.2`, `voku/agent-learning` `^0.18.32` and `voku/agent-recall-compiler` `^0.25.8`, the releases that resolve together.
+- The post-edit map refresh stays inside the `map_paths` / `map_excludes` / PHPStan settings recorded in `request.json`.
+
+### Fixed
+
+- The verification bundle's map copy now carries its relations companion. The previous symbols-only copy could not be read back from a real index, so `post_edit_map_fresh` and `target_resolvable` read `not_run`.
+- A deleted target file now fails `target_resolvable` by itself. Deleted indexed files are pruned from the bundle map instead of reported stale, and added or moved files are indexed under their real path.
+
+### Validation
+
+- 26 characterization and regression tests cover missing, current, stale, added, deleted and moved files, differing runtime roots, bundle-local writes, `allowMapRebuild=false` and both gates. Full CI passes, including the installed release-set dogfood against agent-map 0.22.0.
+
+## 0.20.63 - 2026-10-08
+
+### Changed
+
+- Require `voku/agent-map` `^0.21.0` (adds `agent-map watch`, a long-running refresh that keeps the map current; no plan contract changes), with `voku/agent-edit` `^0.4.1` and `voku/agent-recall-compiler` `^0.25.6`, the first releases that accept agent-map 0.21. The installed release-set workflows now build against the agent-map 0.21.0 tag.
+
+## 0.20.62 - 2026-10-08
+
+### Fixed
+
+- Changes to project-root `AGENTS.md` or `MEMORY.md` now make the existing read-only Dream autorun due again. Content fingerprints detect edits, additions and removals while mtime-only changes and unrelated implementation edits remain no-ops. Older autorun state without the guidance fingerprint refreshes once. Dream continues to leave Learning records and project guidance unchanged; configurable skill/ADR sources and guidance-consistency orchestration remain follow-up work in #742.
+
+### Validation
+
+- Autorun regression and boundary coverage passes (14 tests, 83 assertions). Full CI passes across PHP 8.3/8.4/8.5, including PHPStan, installed release-set and governed execution-contract dogfood; the PHP 8.4 suite runs 1,489 tests with 10,231 assertions and retains one existing warning, deprecation and skip.
+
+## 0.20.61 - 2026-10-08
+
+### Fixed
+
+- `init sync-skills` now prunes stale managed project skills when the source set becomes empty. Previously the early return left the final removed skill installed. Manual skills and retained package provenance remain untouched; dry runs leave files and the manifest unchanged, and repeated syncs are idempotent.
+
+### Validation
+
+- Regression coverage checks configured and explicit source roots, dry-run behavior, manual-skill preservation, repeated empty syncs, and retained package entries after `init install-assets`.
+
+## 0.20.60 - 2026-10-08
+
+### Fixed
+
+- The PreToolUse hook no longer denies a command only because a quoted argument contains a tool name after a boundary character. `rg -n "alpha|find " src` or `echo "a; grep b"` were blocked as legacy searches because the pattern looked at the raw text; the legacy-search and in-place-sed checks now ignore literal quoted text while retaining executable command substitutions. Real calls after `&&`, `;` or `|` are still denied. `AgentDisciplineHookTest` covers both directions.
+
+### Added
+
+- Require published Learning `^0.18.31` for transition reasons and guidance-consistency, and Recall `^0.25.5` for task-file security warnings and file-pattern scopes.
+
+- Package instruction fragments may name the project's Learning root with `{{learning_root}}`; `FirstPartyPackageCatalog::resolveProjectPlaceholders()` replaces it with the configured `paths.learning_root` (relative to the project, default `.agent-loop/learning`). Needed by `voku/agent-learning` 0.18.31, whose consumer fragment used to hard-code the default and made a host's generated `AGENTS.md` contradict its own `init.json`. `ProjectInstructionPlaceholdersTest` covers the configured, default and no-placeholder cases.
+
+- `workflow plan` warns when a `--validation` entry chains several commands with an unquoted `;`, `&&` or `||` (JSON `warnings`, a `[WARN]` line in text output; the plan is never blocked). `finish` needs passing evidence for every validation entry on its own (`WorkflowCloseReadinessInspector::validationSnapshot()` matches evidence per entry), so a chain is one all-or-nothing obligation that fails late and, in a mature consuming project, 17 of 46 revised Contracts carried one. Commands inside quotes (`php -r 'echo 1;'`), pipes and an escaped `\;` are not chains.
+- The `agent-loop-task-start` skill states the one-command-per-`--validation` rule, and the `agent-loop-review-close` skill tells agents to finish changes, commits and Learning records before the first `finish` and to acknowledge only the exact current report hash, because the blind-spot report is regenerated whenever the implementation or Learning records change.
+- The `agent-loop-dream` skill tells agents to give a `--reason` for every finding archive or supersede. Requires `voku/agent-learning` 0.18.31 (`finding-transition --reason`).
+
+- The `agent-loop-dream` skill gains a "Review the guidance for contradictions" section: run `learn guidance-consistency`, add a topic search for contradicting instructions, present one table with a Vorschlag and an empty Urteil column, and change nothing until the human gives a verdict per row. Requires `voku/agent-learning` 0.18.31.
+- `init validate --kind=skills` warns about a skill directory without `SKILL.md` (it is never loaded); the exit code is unchanged. `InitValidateCommandTest` covers it, and inverting the check fails the test.
+
+### Validation
+
+- `WorkflowPlanChainedValidationTest` (10 tests): chains with `;`, `&&`, `||` and after a quoted part warn and name the entry; plain commands, quoted semicolons, pipes and `find -exec ... \;` do not; the plan still succeeds. Disabling the detector fails five of them. PHPStan clean.
+
+## 0.20.59 - 2026-10-07
+
+### Added
+
+- Teach the `agent-loop-dream` skill to work the finding backlog in the same pass as the proposal queue: consolidate already-decided findings with `learn finding-reconcile`, list the real backlog with the read-only `learn finding-queue --probe`, then present one table per bucket (resolved in code, rule candidate, guidance line batched by owner, no durable learning) with a take and a reason per row. Each take must rest on a signal or an inspected repository fact, low wording overlap is not proof that a lesson is missing, and nothing changes until a named human decides. Requires the `finding-queue` and `finding-reconcile` commands, which ship in `voku/agent-learning` 0.18.30.
+
+## 0.20.58 - 2026-10-07
+
+### Added
+
+- Teach the `agent-loop-dream` skill to review proposals that are already waiting (candidate or approved), not only new Dream candidates: present one table row per proposal with a take (approve, reject, acknowledge, apply) and a reason, each take grounded in a deterministic signal from `agent-learning`'s read-only `learn proposal-queue` (lineage, same-target proposals, wording already present in the target or in repository guidance files). The take stays advice for a named human, an "already covered" claim needs a repository wording match instead of recollection, and a transition runs only after the human names the decision. Requires the `proposal-queue` command, which ships in the `voku/agent-learning` release after 0.18.28.
+
+- Run the read-only Dream preview automatically at SessionStart when it is due, so guidance maintenance no longer depends on someone remembering it. `WorkflowDreamAutoRun` decides from facts: no previous automatic run, a changed content fingerprint of the Learning inputs Dream evaluates (`findings/`, `proposals/`, `constraints/active/`, `notes/`; mtimes and outcome history are ignored), or a last run older than seven days. The hook shows the numbers under `## Agent Loop Dream` and keeps reminding while review decisions are pending. The preview writes nothing into the Learning root and only a regenerable `<state>/dream/auto.json`, so writing candidates and every approval stay explicit human decisions. `AGENT_LOOP_DREAM_AUTORUN=0` switches it off, a failing preview is reported instead of failing bootstrap, and SubagentStart never triggers it.
+
+### Fixed
+
+- Stop the SessionStart hook from validating the whole Learning root once per attention finding. `LearningCatalog::finding()` revalidates the root on every call, so the Learning backlog hint cost about 0.2s per attention finding: 12.6 seconds with 56 of them on a mature root, now 0.4 seconds. The hint looks every finding up in one `findings()` batch and indexes it, and a source-level guard test keeps per-id `finding()` calls out of the hook.
+
 ### Changed
 
 - Make `agent-loop-workflow` the explicit end-to-end implementation front door: a user can ask to implement a governed task without learning Loop's internal packages, while the skill still routes only through `enter` / `finish` and the current `next_action`. No parallel `implement` skill or copied lifecycle policy is introduced.
 
-### Added
-
-- Add a provider-free Codex 0.157.0 runtime proof for explicit projected-skill consumption. A paired baseline / `$agent-loop-workflow` run captures the real provider requests and requires the package-owned skill-body marker to be absent from baseline and present exactly once after explicit selection. The evidence class is `host_runtime_skill_consumption`; implicit semantic routing, `voku/agent-skills` interaction-skill invocation, and other hosts remain unclaimed.
+- Let the existing `agent-loop-workflow` front door route genuinely ambiguous new/governed work to the portable `requirements-interview` specialist after normal entry, while clear tasks skip it. The specialist remains clarification-only: no card mutation, Contract approval, source mutation, implementation, or lifecycle authority moves out of its existing owners.
 
 - Advance the installed engineering-skill dogfood to immutable `voku/agent-skills`
   commit `c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8` and prove that `requirements-interview` and

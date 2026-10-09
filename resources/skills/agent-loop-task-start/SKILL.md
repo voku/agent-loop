@@ -31,7 +31,7 @@ Approval records authority for the exact Contract revision; Run, Session and Rec
 A PLAN must carry enough durable intent that future agents do not need the chat context:
 - **Task ID:** Stable identifier (e.g. `ISSUE-123` or `LOCAL-001`).
 - **Scope (`--file` / `--scope`):** Smallest stable boundary containing the change (single file or cohesive component directory plus tests; never the entire repo root).
-- **Validation (`--validation`):** Real executable command (`composer ci` or focused test).
+- **Validation (`--validation`):** Real executable command (`composer ci` or focused test), one command per flag. `finish` needs passing evidence for each entry on its own, so a `;`, `&&` or `||` chain is a single all-or-nothing obligation that tends to fail late and force a new Contract revision with a new approval; `workflow plan` warns about it.
 - **Acceptance:** Specific outcome criteria that must hold.
 
 ### Bad vs Good Contract Plan
