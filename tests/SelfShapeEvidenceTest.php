@@ -76,6 +76,23 @@ final class SelfShapeEvidenceTest extends TestCase
         $evidence->learningStatus();
     }
 
+    public function testVerifiedReferenceMaintenanceDoesNotPretendToRecordAFinding(): void
+    {
+        $evidence = new SelfShapeEvidence([], true, true);
+
+        self::assertSame('no_durable_learning', $evidence->learningStatus());
+        self::assertSame([], $evidence->recordedFindingIds());
+        self::assertStringContainsString('reanchor proofs', $evidence->learningReason());
+    }
+
+    public function testOrdinaryMemoryMutationStillRequiresAFinding(): void
+    {
+        $evidence = new SelfShapeEvidence(['MEMORY.md'], true, false);
+
+        $this->expectException(RuntimeException::class);
+        $evidence->learningStatus();
+    }
+
     public function testACompleteProjectionHasNoProblems(): void
     {
         $problems = (new RunProjectionAssertion())->beforePrune($this->projection('done'), 'run:X:1', 'findings_recorded');
