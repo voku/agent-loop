@@ -15,7 +15,12 @@ final class MemoryReferenceMaintenanceTest extends TestCase
         [$before, $after, $paths, $oldProofs, $newProofs] = $this->fixture();
 
         self::assertTrue((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
     }
 
@@ -26,7 +31,12 @@ final class MemoryReferenceMaintenanceTest extends TestCase
         $newProofs[$paths[1]]['applied_validation']['target_content_hash'] = hash('sha256', $after);
 
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
     }
 
@@ -37,7 +47,12 @@ final class MemoryReferenceMaintenanceTest extends TestCase
         $newProofs[$paths[1]]['applied_validation']['target_content_hash'] = hash('sha256', $after);
 
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
     }
 
@@ -47,14 +62,24 @@ final class MemoryReferenceMaintenanceTest extends TestCase
         $newProofs[$paths[1]]['applied_validation']['target_content_hash'] = str_repeat('0', 64);
 
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
 
         [$before, $after, $paths, $oldProofs, $newProofs] = $this->fixture();
         $newProofs[$paths[1]]['approved_by'] = 'somebody-else';
 
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
     }
 
@@ -62,12 +87,22 @@ final class MemoryReferenceMaintenanceTest extends TestCase
     {
         [$before, $after, $paths, $oldProofs, $newProofs] = $this->fixture();
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, [], dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            [],
+            dirname(__DIR__),
         ));
 
         $paths[] = 'src/Dispatcher.php';
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
     }
 
@@ -76,14 +111,24 @@ final class MemoryReferenceMaintenanceTest extends TestCase
         [$before, $after, $paths, $oldProofs, $newProofs] = $this->fixture();
         $newProofs[$paths[1]]['applied_validation']['reanchor_reason'] = '';
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
 
         [$before, $after, $paths, $oldProofs, $newProofs] = $this->fixture();
         $after = str_replace(' and the code', ' but not the code', $after);
         $newProofs[$paths[1]]['applied_validation']['target_content_hash'] = hash('sha256', $after);
         self::assertFalse((new MemoryReferenceMaintenance())->isVerified(
-            $before, $after, $paths, $oldProofs, $newProofs, dirname(__DIR__),
+            $before,
+            $after,
+            $paths,
+            $oldProofs,
+            $newProofs,
+            dirname(__DIR__),
         ));
     }
 
