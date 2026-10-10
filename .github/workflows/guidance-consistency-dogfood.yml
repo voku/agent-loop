@@ -12,6 +12,9 @@ jobs:
   guidance-dogfood:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      AGENT_LOOP_DREAM_AUTORUN: '1'
+      AGENT_LOOP_GUIDANCE_SOURCES: '["AGENTS.md","MEMORY.md","resources/skills/*/SKILL.md","docs/workflow/*.md"]'
     steps:
       - uses: actions/checkout@v6
         with:
