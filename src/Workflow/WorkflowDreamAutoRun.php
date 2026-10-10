@@ -244,6 +244,15 @@ final readonly class WorkflowDreamAutoRun
             return null;
         }
 
+        /** @var list<string> $guidanceSources */
+        $guidanceSources = [];
+        foreach ($data['guidance_sources'] as $source) {
+            if (!is_string($source)) {
+                return null;
+            }
+            $guidanceSources[] = $source;
+        }
+
         return [
             'fingerprint' => $data['fingerprint'],
             'guidance_fingerprint' => is_string($data['guidance_fingerprint'] ?? null) ? $data['guidance_fingerprint'] : null,
@@ -253,7 +262,7 @@ final readonly class WorkflowDreamAutoRun
             'reviewDecisions' => $data['reviewDecisions'],
             'suppressedDecisions' => $data['suppressedDecisions'],
             'guidance_candidates_total' => $data['guidance_candidates_total'],
-            'guidance_sources' => $data['guidance_sources'],
+            'guidance_sources' => $guidanceSources,
         ];
     }
 
