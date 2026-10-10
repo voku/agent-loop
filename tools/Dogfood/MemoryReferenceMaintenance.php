@@ -152,7 +152,10 @@ final readonly class MemoryReferenceMaintenance
         return true;
     }
 
-    /** @param array<string, mixed> $before @param array<string, mixed> $after */
+    /**
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     */
     private function sameApprovalWithValidReanchor(array $before, array $after, string $hash): bool
     {
         if (($before['status'] ?? null) !== 'applied' || ($after['status'] ?? null) !== 'applied') {
