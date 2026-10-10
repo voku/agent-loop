@@ -9,6 +9,9 @@ use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use UnexpectedValueException;
+use voku\AgentLearning\GuidanceConsistencyAudit;
+use voku\AgentLearning\GuidanceConsistencyCandidate;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -40,10 +43,19 @@ final readonly class WorkflowDreamAutoRun
     /** Central project guidance only; installed skill copies and other documents are outside this trigger. */
     private const PROJECT_GUIDANCE_FILES = ['AGENTS.md', 'MEMORY.md'];
 
-    /** @param (Closure(): int)|null $clock injectable for tests; defaults to the wall clock */
+    private const MAX_GUIDANCE_CANDIDATES = 25;
+
+    /** JSON list of project-relative guidance globs; unset uses AGENTS.md and MEMORY.md. */
+    private const GUIDANCE_SOURCES_ENV = 'AGENT_LOOP_GUIDANCE_SOURCES';
+
+    /**
+     * @param (Closure(): int)|null $clock injectable for tests; defaults to the wall clock
+     * @param list<string>|null $guidanceSources explicit owner-audit source globs; null reads the optional environment configuration
+     */
     public function __construct(
         private string $rootPath,
         private ?Closure $clock = null,
+        private ?array $guidanceSources = null,
     ) {
     }
 
@@ -56,6 +68,8 @@ final readonly class WorkflowDreamAutoRun
      *     warnings: list<string>,
      *     reviewDecisions: int,
      *     suppressedDecisions: int,
+     *     guidanceSources: list<string>,
+     *     guidanceCandidates: int,
      * }|null null when Dream is switched off, the repository has no Learning root, or nothing is worth saying
      */
     public function runIfDue(): ?array
@@ -73,21 +87,35 @@ final readonly class WorkflowDreamAutoRun
         $stateFile = $layout->stateRoot() . '/dream/auto.json';
         $previous = $this->readState($stateFile);
         $fingerprint = $this->fingerprint($learningRoot);
-        $guidanceFingerprint = $this->guidanceFingerprint();
+        $sources = $this->sources();
+        $guidanceFingerprint = $this->guidanceFingerprint($sources);
         $now = $this->clock !== null ? ($this->clock)() : time();
 
         $reason = $this->dueReason($previous, $fingerprint, $guidanceFingerprint, $now);
         if ($reason === null) {
             // Not due: stay quiet unless the last run left decisions waiting for a human.
-            return $previous !== null && $previous['reviewDecisions'] > 0
+            return $previous !== null && ($previous['reviewDecisions'] > 0 || $previous['guidance_candidates_total'] > 0)
                 ? ['ran' => false, 'reason' => 'pending'] + $this->digest($previous)
                 : null;
         }
 
         $outcome = (new WorkflowDreamService($this->rootPath))->preview()->outcome->result;
+        // Learning owns both the candidates and their meaning. Loop only schedules a read-only snapshot.
+        $candidates = (new GuidanceConsistencyAudit())->audit($this->rootPath, $sources);
         $state = [
             'fingerprint' => $fingerprint,
             'guidance_fingerprint' => $guidanceFingerprint,
+            'guidance_sources' => $sources,
+            'guidance_candidates_total' => count($candidates),
+            'guidance_candidates' => array_map(
+                static fn (GuidanceConsistencyCandidate $candidate): array => [
+                    'kind' => $candidate->kind,
+                    'source_a' => $candidate->sourceA,
+                    'source_b' => $candidate->sourceB,
+                    'evidence' => $candidate->evidence,
+                ],
+                array_slice($candidates, 0, self::MAX_GUIDANCE_CANDIDATES),
+            ),
             'ran_at' => $now,
             'evaluated' => $outcome->evaluatedGuidanceCount,
             'warnings' => array_values(array_unique(array_map(static fn ($warning) => $warning->code, $outcome->warnings))),
@@ -140,25 +168,61 @@ final readonly class WorkflowDreamAutoRun
         return hash('sha256', implode("\n", $entries));
     }
 
-    private function guidanceFingerprint(): string
+    /**
+     * @return list<string>
+     */
+    private function sources(): array
     {
-        $entries = [];
-        foreach (self::PROJECT_GUIDANCE_FILES as $relativePath) {
-            $path = $this->rootPath . '/' . $relativePath;
-            if (is_file($path)) {
+        $configured = $this->guidanceSources;
+        if ($configured === null) {
+            $raw = getenv(self::GUIDANCE_SOURCES_ENV);
+            $configured = $raw === false || $raw === ''
+                ? self::PROJECT_GUIDANCE_FILES
+                : json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
+        }
+        if (!is_array($configured) || !array_is_list($configured)) {
+            throw new UnexpectedValueException('Guidance sources must be a JSON list of project-relative globs.');
+        }
+
+        foreach ($configured as $source) {
+            if (
+                !is_string($source)
+                || $source === ''
+                || str_starts_with($source, '/')
+                || str_contains($source, '\\')
+                || preg_match('~(^|/)\\.\\.(/|$)|[\\x00-\\x1f]~', $source) === 1
+            ) {
+                throw new UnexpectedValueException('Guidance source is not a safe project-relative glob.');
+            }
+        }
+
+        return array_values(array_unique($configured));
+    }
+
+    /** @param list<string> $sources */
+    private function guidanceFingerprint(array $sources): string
+    {
+        $entries = array_map(static fn (string $source): string => 'source' . "\\0" . $source, $sources);
+        $root = rtrim($this->rootPath, '/');
+        foreach ($sources as $source) {
+            foreach (glob($root . '/' . $source, defined('GLOB_BRACE') ? GLOB_BRACE : 0) ?: [] as $path) {
+                if (!is_file($path)) {
+                    continue;
+                }
                 $hash = hash_file('sha256', $path);
                 if ($hash === false) {
                     throw new RuntimeException('Cannot fingerprint project guidance: ' . $path);
                 }
-                $entries[] = $relativePath . "\0" . $hash;
+                $entries[] = substr($path, strlen($root) + 1) . "\\0" . $hash;
             }
         }
+        sort($entries);
 
-        return hash('sha256', implode("\n", $entries));
+        return hash('sha256', implode("\\n", $entries));
     }
 
     /**
-     * @return array{fingerprint: string, guidance_fingerprint: string|null, ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int}|null
+     * @return array{fingerprint: string, guidance_fingerprint: string|null, ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, guidance_sources: list<string>, guidance_candidates_total: int}|null
      */
     private function readState(string $file): ?array
     {
@@ -172,6 +236,9 @@ final readonly class WorkflowDreamAutoRun
             || !is_array($data['warnings'] ?? null)
             || !is_int($data['reviewDecisions'] ?? null)
             || !is_int($data['suppressedDecisions'] ?? null)
+            || !is_array($data['guidance_sources'] ?? null)
+            || !is_int($data['guidance_candidates_total'] ?? null)
+            || !is_array($data['guidance_candidates'] ?? null)
         ) {
             // Unreadable or foreign state is simply "no previous run": Dream runs again and rewrites it.
             return null;
@@ -185,6 +252,10 @@ final readonly class WorkflowDreamAutoRun
             'warnings' => array_values(array_filter($data['warnings'], is_string(...))),
             'reviewDecisions' => $data['reviewDecisions'],
             'suppressedDecisions' => $data['suppressedDecisions'],
+            'guidanceSources' => $data['guidance_sources'],
+            'guidanceCandidates' => $data['guidance_candidates_total'],
+            'guidance_candidates_total' => $data['guidance_candidates_total'],
+            'guidance_sources' => $data['guidance_sources'],
         ];
     }
 
@@ -206,9 +277,9 @@ final readonly class WorkflowDreamAutoRun
     }
 
     /**
-     * @param array{ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, fingerprint?: string} $state
+     * @param array{ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, guidance_sources: list<string>, guidance_candidates_total: int, fingerprint?: string} $state
      *
-     * @return array{ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int}
+     * @return array{ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, guidanceSources: list<string>, guidanceCandidates: int}
      */
     private function digest(array $state): array
     {
@@ -218,6 +289,8 @@ final readonly class WorkflowDreamAutoRun
             'warnings' => $state['warnings'],
             'reviewDecisions' => $state['reviewDecisions'],
             'suppressedDecisions' => $state['suppressedDecisions'],
+            'guidanceSources' => $state['guidance_sources'],
+            'guidanceCandidates' => $state['guidance_candidates_total'],
         ];
     }
 }
