@@ -44,6 +44,11 @@ final readonly class GuidanceConsistencyDogfood
         $layout = new ProjectLayout($this->repositoryRoot);
         $stateFile = $layout->stateRoot() . '/dream/auto.json';
         $before = $this->sourceHashes($layout->learningRoot());
+        // Dogfood needs a fresh observation even when a previous session produced a valid snapshot.
+        // This path is regenerable working state, never the Learning or Guidance owner's data.
+        if (is_file($stateFile) && !unlink($stateFile)) {
+            throw new RuntimeException('Cannot reset regenerable Dream state before the dogfood audit.');
+        }
 
         $session = (new AgentDisciplineHook($this->repositoryRoot))->contextOutput(
             'SessionStart',
