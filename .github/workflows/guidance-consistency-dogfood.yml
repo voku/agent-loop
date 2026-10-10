@@ -29,6 +29,8 @@ jobs:
         run: |
           php -l tools/guidance-consistency-dogfood.php
           php tools/guidance-consistency-dogfood.php
+          # A second full run must work even when the first created a current Dream snapshot.
+          php tools/guidance-consistency-dogfood.php
           jq -e '
             .schema_version == "1.0"
             and .repository == "voku/agent-loop"
