@@ -89,9 +89,26 @@ if ($changedFiles === []) {
     $fail('Self-shape requires at least one changed file between the merge-base and HEAD.');
 }
 
+$memoryChanged = $runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['exit_code'] !== 0;
+$verifiedMaintenance = false;
+if ($memoryChanged) {
+    $previousMemory = $runner->mustRun(['git', 'show', $base . ':MEMORY.md'])['stdout'];
+    $currentMemory = file_get_contents($root . '/MEMORY.md');
+    if (!is_string($currentMemory)) {
+        $fail('Cannot read project MEMORY.md for maintenance classification.');
+    }
+    $verifiedMaintenance = SelfShapeEvidence::hasVerifiedCanonicalHomeReanchor(
+        $previousMemory,
+        $currentMemory,
+        $changedFiles,
+        $root,
+    );
+}
+
 $evidence = new SelfShapeEvidence(
     $lines($git(['diff', '--name-only', '--diff-filter=AR', $base, 'HEAD', '--', '.agent-loop/learning/findings'])),
-    $runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['exit_code'] !== 0,
+    $memoryChanged,
+    $verifiedMaintenance,
 );
 $learningStatus = $evidence->learningStatus();
 
