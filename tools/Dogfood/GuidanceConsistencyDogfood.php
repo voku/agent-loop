@@ -33,10 +33,11 @@ final readonly class GuidanceConsistencyDogfood
 
     public function run(): void
     {
-        if (
-            getenv('AGENT_LOOP_GUIDANCE_SOURCES') !== json_encode(self::SOURCES, JSON_THROW_ON_ERROR)
-            || getenv('AGENT_LOOP_DREAM_AUTORUN') !== '1'
-        ) {
+        $sourcesJson = getenv('AGENT_LOOP_GUIDANCE_SOURCES');
+        $configuredSources = is_string($sourcesJson)
+            ? json_decode($sourcesJson, true, flags: JSON_THROW_ON_ERROR)
+            : null;
+        if ($configuredSources !== self::SOURCES || getenv('AGENT_LOOP_DREAM_AUTORUN') !== '1') {
             throw new RuntimeException('Dogfood needs its exact guidance source configuration and enabled Dream preview.');
         }
 
