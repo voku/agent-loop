@@ -242,6 +242,81 @@ final class WorkflowDreamAutoRunTest extends TestCase
         self::assertStringNotContainsString('## Agent Loop Dream', $subagent['hookSpecificOutput']['additionalContext']);
     }
 
+    public function testGuidanceAuditReportsFactsWithoutMutatingLearningOrGuidance(): void
+    {
+        file_put_contents($this->root . '/AGENTS.md', "# Instructions\\n\\nRefer to `docs/missing-file.md` for the workflow.\\n");
+        file_put_contents($this->root . '/MEMORY.md', "# Notes\\n");
+        $before = $this->learningTree();
+        $guidanceBefore = (string) file_get_contents($this->root . '/AGENTS.md');
+
+        $digest = (new WorkflowDreamAutoRun($this->root))->runIfDue();
+
+        self::assertNotNull($digest);
+        self::assertTrue($digest['ran']);
+        self::assertSame(['AGENTS.md', 'MEMORY.md'], $digest['guidanceSources']);
+        self::assertSame(1, $digest['guidanceCandidates']);
+        $state = json_decode((string) file_get_contents($this->stateFile), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('unresolved_path', $state['guidance_candidates'][0]['kind']);
+        self::assertSame('AGENTS.md:3', $state['guidance_candidates'][0]['source_a']);
+        self::assertSame($before, $this->learningTree());
+        self::assertSame($guidanceBefore, file_get_contents($this->root . '/AGENTS.md'));
+
+        $unchanged = (new WorkflowDreamAutoRun($this->root))->runIfDue();
+        self::assertNotNull($unchanged);
+        self::assertFalse($unchanged['ran']);
+        self::assertSame(1, $unchanged['guidanceCandidates']);
+    }
+
+    public function testExplicitSkillSourceGlobTriggersAgainOnlyWhenItsContentChanges(): void
+    {
+        self::assertTrue(mkdir($this->root . '/docs/skills', 0o775, true));
+        $sources = ['AGENTS.md', 'docs/skills/*.md'];
+        file_put_contents($this->root . '/docs/skills/review.md', "# Skill\\n");
+        $autorun = new WorkflowDreamAutoRun($this->root, guidanceSources: $sources);
+        $first = $autorun->runIfDue();
+        self::assertNotNull($first);
+        self::assertSame(0, $first['guidanceCandidates']);
+
+        file_put_contents($this->root . '/docs/skills/review.md', "# Skill\\n\\nSee `docs/no-such-file.md`.\\n");
+        $changed = $autorun->runIfDue();
+        self::assertNotNull($changed);
+        self::assertTrue($changed['ran']);
+        self::assertSame('project guidance changed since the last run', $changed['reason']);
+        self::assertSame(1, $changed['guidanceCandidates']);
+        self::assertSame($sources, $changed['guidanceSources']);
+
+        unlink($this->root . '/docs/skills/review.md');
+        $removed = $autorun->runIfDue();
+        self::assertNotNull($removed);
+        self::assertTrue($removed['ran']);
+        self::assertSame(0, $removed['guidanceCandidates']);
+    }
+
+    public function testInvalidGuidanceSourceFailsWithoutWritingPreview(): void
+    {
+        $before = $this->learningTree();
+        $this->expectException(\\UnexpectedValueException::class);
+        try {
+            (new WorkflowDreamAutoRun($this->root, guidanceSources: ['../outside/*.md']))->runIfDue();
+        } finally {
+            self::assertFileDoesNotExist($this->stateFile);
+            self::assertSame($before, $this->learningTree());
+        }
+    }
+
+    public function testSessionStartSurfacesConsistencyCandidatesOnlyForHumanReview(): void
+    {
+        file_put_contents($this->root . '/AGENTS.md', "# Instructions\\n\\nSee `docs/missing-file.md`.\\n");
+        $hook = new AgentDisciplineHook($this->root);
+        $session = $hook->contextOutput('SessionStart', json_encode(['hook_event_name' => 'SessionStart'], JSON_THROW_ON_ERROR));
+        $subagent = $hook->contextOutput('SubagentStart', json_encode(['hook_event_name' => 'SubagentStart'], JSON_THROW_ON_ERROR));
+        $context = $session['hookSpecificOutput']['additionalContext'];
+
+        self::assertStringContainsString('1 guidance consistency candidate(s) await semantic review', $context);
+        self::assertStringContainsString('facts, not contradiction verdicts or permission to edit guidance', $context);
+        self::assertStringNotContainsString('guidance consistency candidate(s)', $subagent['hookSpecificOutput']['additionalContext']);
+    }
+
     private function writeFinding(string $id, string $taskId): void
     {
         file_put_contents($this->learningRoot . '/findings/validated/' . $id . '.json', json_encode([
