@@ -21,7 +21,7 @@ jobs:
       TO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
       TO_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
