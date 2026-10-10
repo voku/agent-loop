@@ -388,6 +388,22 @@ final readonly class AgentDisciplineHook
                 $digest['suppressedDecisions'],
             );
         }
+        if ($digest['ran']) {
+            $lines[] = sprintf(
+                '- guidance-consistency inspected %d source glob(s): %d fact candidate(s).',
+                count($digest['guidanceSources']),
+                $digest['guidanceCandidates'],
+            );
+        }
+        if ($digest['guidanceCandidates'] > 0) {
+            $lines[] = sprintf(
+                '- %d guidance consistency candidate(s) await semantic review. Inspect `%s`; these are facts, not contradiction verdicts or permission to edit guidance.',
+                $digest['guidanceCandidates'],
+                (new ProjectLayout($this->repositoryRoot))->display(
+                    (new ProjectLayout($this->repositoryRoot))->stateRoot() . '/dream/auto.json',
+                ),
+            );
+        }
         if ($digest['reviewDecisions'] > 0) {
             $lines[] = sprintf(
                 '- %d Dream review decision(s) are candidates, not decisions: `vendor/bin/agent-loop learn dream --dry-run` shows them, a named human decides.',
