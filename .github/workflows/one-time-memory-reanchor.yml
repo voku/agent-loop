@@ -41,6 +41,10 @@ jobs:
           test -s build/reanchor-evidence/changed-paths.txt
           git diff --binary -- .agent-loop/learning > build/reanchor-evidence/generated.patch
           test -s build/reanchor-evidence/generated.patch
+          git diff --check -- .agent-loop/learning
+          cp .agent-loop/learning/proposals/applied/proposal.2026-08-14.007.json build/reanchor-evidence/applied-007.json
+          cp .agent-loop/learning/proposals/applied/proposal.2026-08-14.013.json build/reanchor-evidence/applied-013.json
+          cp .agent-loop/learning/history/reanchored-proposals.jsonl build/reanchor-evidence/reanchored-proposals.jsonl
           git status --short > build/reanchor-evidence/git-status.txt
           cat build/reanchor-evidence/changed-paths.txt
           sha256sum MEMORY.md > build/reanchor-evidence/memory-sha256.txt
