@@ -244,8 +244,8 @@ final class WorkflowDreamAutoRunTest extends TestCase
 
     public function testGuidanceAuditReportsFactsWithoutMutatingLearningOrGuidance(): void
     {
-        file_put_contents($this->root . '/AGENTS.md', "# Instructions\\n\\nRefer to `docs/missing-file.md` for the workflow.\\n");
-        file_put_contents($this->root . '/MEMORY.md', "# Notes\\n");
+        file_put_contents($this->root . '/AGENTS.md', "# Instructions\n\nRefer to `docs/missing-file.md` for the workflow.\n");
+        file_put_contents($this->root . '/MEMORY.md', "# Notes\n");
         $before = $this->learningTree();
         $guidanceBefore = (string) file_get_contents($this->root . '/AGENTS.md');
 
@@ -271,13 +271,13 @@ final class WorkflowDreamAutoRunTest extends TestCase
     {
         self::assertTrue(mkdir($this->root . '/docs/skills', 0o775, true));
         $sources = ['AGENTS.md', 'docs/skills/*.md'];
-        file_put_contents($this->root . '/docs/skills/review.md', "# Skill\\n");
+        file_put_contents($this->root . '/docs/skills/review.md', "# Skill\n");
         $autorun = new WorkflowDreamAutoRun($this->root, guidanceSources: $sources);
         $first = $autorun->runIfDue();
         self::assertNotNull($first);
         self::assertSame(0, $first['guidanceCandidates']);
 
-        file_put_contents($this->root . '/docs/skills/review.md', "# Skill\\n\\nSee `docs/no-such-file.md`.\\n");
+        file_put_contents($this->root . '/docs/skills/review.md', "# Skill\n\nSee `docs/no-such-file.md`.\n");
         $changed = $autorun->runIfDue();
         self::assertNotNull($changed);
         self::assertTrue($changed['ran']);
@@ -295,7 +295,7 @@ final class WorkflowDreamAutoRunTest extends TestCase
     public function testInvalidGuidanceSourceFailsWithoutWritingPreview(): void
     {
         $before = $this->learningTree();
-        $this->expectException(\\UnexpectedValueException::class);
+        $this->expectException(\UnexpectedValueException::class);
         try {
             (new WorkflowDreamAutoRun($this->root, guidanceSources: ['../outside/*.md']))->runIfDue();
         } finally {
@@ -306,7 +306,7 @@ final class WorkflowDreamAutoRunTest extends TestCase
 
     public function testSessionStartSurfacesConsistencyCandidatesOnlyForHumanReview(): void
     {
-        file_put_contents($this->root . '/AGENTS.md', "# Instructions\\n\\nSee `docs/missing-file.md`.\\n");
+        file_put_contents($this->root . '/AGENTS.md', "# Instructions\n\nSee `docs/missing-file.md`.\n");
         $hook = new AgentDisciplineHook($this->root);
         $session = $hook->contextOutput('SessionStart', json_encode(['hook_event_name' => 'SessionStart'], JSON_THROW_ON_ERROR));
         $subagent = $hook->contextOutput('SubagentStart', json_encode(['hook_event_name' => 'SubagentStart'], JSON_THROW_ON_ERROR));
