@@ -20,12 +20,12 @@ jobs:
       CODEX_VERSION: '0.157.0'
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Checkout pinned first-party interaction skills
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: voku/agent-skills
           ref: c9e3b2966dc462c3ae9e9758f8bd39e0e85e7bf8
