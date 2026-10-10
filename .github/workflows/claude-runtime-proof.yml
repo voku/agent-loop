@@ -446,7 +446,7 @@ jobs:
 
       - name: Upload Claude runtime evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: claude-runtime-proof-${{ github.sha }}
           if-no-files-found: error

@@ -339,7 +339,7 @@ jobs:
 
       - name: Upload installed property-removal evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installed-property-removal-refactor-${{ github.sha }}
           if-no-files-found: warn
