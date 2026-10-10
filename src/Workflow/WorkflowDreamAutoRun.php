@@ -202,7 +202,7 @@ final readonly class WorkflowDreamAutoRun
     /** @param list<string> $sources */
     private function guidanceFingerprint(array $sources): string
     {
-        $entries = array_map(static fn (string $source): string => 'source' . "\\0" . $source, $sources);
+        $entries = array_map(static fn (string $source): string => 'source' . "\0" . $source, $sources);
         $root = rtrim($this->rootPath, '/');
         foreach ($sources as $source) {
             foreach (glob($root . '/' . $source, defined('GLOB_BRACE') ? GLOB_BRACE : 0) ?: [] as $path) {
@@ -213,12 +213,12 @@ final readonly class WorkflowDreamAutoRun
                 if ($hash === false) {
                     throw new RuntimeException('Cannot fingerprint project guidance: ' . $path);
                 }
-                $entries[] = substr($path, strlen($root) + 1) . "\\0" . $hash;
+                $entries[] = substr($path, strlen($root) + 1) . "\0" . $hash;
             }
         }
         sort($entries);
 
-        return hash('sha256', implode("\\n", $entries));
+        return hash('sha256', implode("\n", $entries));
     }
 
     /**
@@ -252,8 +252,6 @@ final readonly class WorkflowDreamAutoRun
             'warnings' => array_values(array_filter($data['warnings'], is_string(...))),
             'reviewDecisions' => $data['reviewDecisions'],
             'suppressedDecisions' => $data['suppressedDecisions'],
-            'guidanceSources' => $data['guidance_sources'],
-            'guidanceCandidates' => $data['guidance_candidates_total'],
             'guidance_candidates_total' => $data['guidance_candidates_total'],
             'guidance_sources' => $data['guidance_sources'],
         ];
