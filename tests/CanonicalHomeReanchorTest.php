@@ -28,14 +28,14 @@ final class CanonicalHomeReanchorTest extends TestCase
 
     protected function tearDown(): void
     {
-        @unlink($this->workspace . '/tools/New.php');
-        @unlink($this->workspace . '/.agent-loop/learning/proposals/applied/proposal.2026-10-10.001.json');
-        @rmdir($this->workspace . '/.agent-loop/learning/proposals/applied');
-        @rmdir($this->workspace . '/.agent-loop/learning/proposals');
-        @rmdir($this->workspace . '/.agent-loop/learning');
-        @rmdir($this->workspace . '/.agent-loop');
-        @rmdir($this->workspace . '/tools');
-        @rmdir($this->workspace);
+        unlink($this->workspace . '/tools/New.php');
+        unlink($this->workspace . '/.agent-loop/learning/proposals/applied/proposal.2026-10-10.001.json');
+        rmdir($this->workspace . '/.agent-loop/learning/proposals/applied');
+        rmdir($this->workspace . '/.agent-loop/learning/proposals');
+        rmdir($this->workspace . '/.agent-loop/learning');
+        rmdir($this->workspace . '/.agent-loop');
+        rmdir($this->workspace . '/tools');
+        rmdir($this->workspace);
 
         parent::tearDown();
     }
