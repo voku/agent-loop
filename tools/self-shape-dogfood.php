@@ -14,6 +14,7 @@ declare(strict_types=1);
  * evidence and reports; anything it decides, it asks a tested class.
  */
 
+use voku\AgentLoop\Dogfood\MemoryReferenceMaintenance;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
@@ -89,10 +90,41 @@ if ($changedFiles === []) {
     $fail('Self-shape requires at least one changed file between the merge-base and HEAD.');
 }
 
-$evidence = new SelfShapeEvidence(
-    $lines($git(['diff', '--name-only', '--diff-filter=AR', $base, 'HEAD', '--', '.agent-loop/learning/findings'])),
-    $runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['exit_code'] !== 0,
-);
+$findingChanges = $lines($git(['diff', '--name-only', '--diff-filter=AR', $base, 'HEAD', '--', '.agent-loop/learning/findings']));
+$memoryChanged = $runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['exit_code'] !== 0;
+$verifiedReferenceMaintenance = false;
+if ($memoryChanged && $findingChanges === []) {
+    $beforeMemory = $runner->mustRun(['git', 'show', $base . ':MEMORY.md'])['stdout'];
+    $afterMemory = file_get_contents($root . '/MEMORY.md');
+    if (!is_string($afterMemory)) {
+        $fail('Cannot read MEMORY.md for reference maintenance verification.');
+    }
+
+    $beforeProposals = [];
+    $afterProposals = [];
+    foreach ($changedFiles as $path) {
+        if (!str_starts_with($path, '.agent-loop/learning/proposals/applied/')) {
+            continue;
+        }
+        $beforeJson = $runner->mustRun(['git', 'show', $base . ':' . $path])['stdout'];
+        $afterJson = file_get_contents($root . '/' . $path);
+        if (!is_string($afterJson)) {
+            $fail('Cannot read changed applied proposal: ' . $path);
+        }
+        $beforeProposals[$path] = json_decode($beforeJson, true, 512, JSON_THROW_ON_ERROR);
+        $afterProposals[$path] = json_decode($afterJson, true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    $verifiedReferenceMaintenance = (new MemoryReferenceMaintenance())->isVerified(
+        $beforeMemory,
+        $afterMemory,
+        $changedFiles,
+        $beforeProposals,
+        $afterProposals,
+        $root,
+    );
+}
+$evidence = new SelfShapeEvidence($findingChanges, $memoryChanged, $verifiedReferenceMaintenance);
 $learningStatus = $evidence->learningStatus();
 
 if (!is_dir($root . '/build') && !mkdir($root . '/build', 0o775, true) && !is_dir($root . '/build')) {
