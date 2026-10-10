@@ -1,0 +1,53 @@
+name: One-time governed MEMORY proof repair
+
+on:
+  push:
+    branches:
+      - docs/guidance-memory-canonical-paths-20261010
+
+permissions:
+  contents: read
+
+jobs:
+  reanchor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Run Learning-owned, target-scoped reanchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          php vendor/bin/agent-learning proposal-reanchor MEMORY.md \
+            --by voku \
+            --reason 'Correct five verified stale canonical references to existing consolidated findings and tools/Dogfood paths; no durable rule text changed (agent-loop #742, #758).'
+          php vendor/bin/agent-learning lineage-rebuild \
+            --root=.agent-loop/learning \
+            --project-root=.
+      - name: Verify and preserve actual generated proof records
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/reanchor-evidence
+          git diff --name-only -- .agent-loop/learning > build/reanchor-evidence/changed-paths.txt
+          test -s build/reanchor-evidence/changed-paths.txt
+          git diff --binary -- .agent-loop/learning > build/reanchor-evidence/generated.patch
+          test -s build/reanchor-evidence/generated.patch
+          git status --short > build/reanchor-evidence/git-status.txt
+          cat build/reanchor-evidence/changed-paths.txt
+          sha256sum MEMORY.md > build/reanchor-evidence/memory-sha256.txt
+      - name: Upload owner-generated evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: one-time-memory-reanchor-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/reanchor-evidence/
