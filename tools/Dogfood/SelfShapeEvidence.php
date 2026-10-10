@@ -29,10 +29,12 @@ final readonly class SelfShapeEvidence
     /**
      * @param list<string> $changedPaths every path added or renamed between base and head
      * @param bool $memoryChanged whether MEMORY.md differs between base and head
+     * @param bool $verifiedMemoryReferenceMaintenance owner-reanchored, reference-only maintenance proven against the Git diff
      */
     public function __construct(
         private array $changedPaths,
         private bool $memoryChanged,
+        private bool $verifiedMemoryReferenceMaintenance = false,
     ) {
     }
 
@@ -75,7 +77,7 @@ final readonly class SelfShapeEvidence
             return 'findings_recorded';
         }
 
-        if ($this->memoryChanged) {
+        if ($this->memoryChanged && !$this->verifiedMemoryReferenceMaintenance) {
             throw new RuntimeException(
                 self::MEMORY_FILE . ' changed but no project finding was recorded; a durable rule needs evidence.',
             );
@@ -86,6 +88,10 @@ final readonly class SelfShapeEvidence
 
     public function learningReason(): string
     {
+        if ($this->memoryChanged && $this->verifiedMemoryReferenceMaintenance && $this->recordedFindingIds() === []) {
+            return 'The PR corrected only canonical-home references in MEMORY.md; all existing applied guidance remains unchanged and Learning-owned reanchor proofs match the target hash. No new durable learning was created.';
+        }
+
         return $this->recordedFindingIds() === []
             ? 'The self-shape gate observed no new reusable guidance beyond the durable changes already represented by this pull request.'
             : 'The pull-request evidence recorded project findings; cite that evidence in the governed Run.';
