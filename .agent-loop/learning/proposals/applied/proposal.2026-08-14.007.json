@@ -43,15 +43,15 @@
         "exit_code": 0,
         "commit": "e05cf7d25261bf629b5ae389418399e9c51c228d",
         "target_source_ref": "MEMORY.md",
-        "target_content_hash": "0f6fc7f561e435f8e9e3e53cf3fc8cc284175ed80b38211880271282c911564a",
+        "target_content_hash": "7a9afab8ec812280ae036e6afd901d6c8d7e0f35bc3439197a547f886926fa0e",
         "summary": "481 tests, PHPStan level 8 clean, nine project rule fixtures asserted out of process, context validate and discipline dogfood. composer review:slop reported 0 new findings and php tools/self-shape-dogfood.php governed this diff to PASSED.",
         "evidence": [
             "composer ci",
             "composer review:slop",
             "php tools/self-shape-dogfood.php"
         ],
-        "reanchored_by": "codex",
-        "reanchored_at": "2026-09-15T06:25:39+00:00",
-        "reanchor_reason": "Added reviewed host guidance ownership and lifecycle routing rules after real consumer validation."
+        "reanchored_by": "voku",
+        "reanchored_at": "2026-10-10T19:33:03+00:00",
+        "reanchor_reason": "Correct five verified stale canonical references to existing consolidated findings and tools/Dogfood paths; no durable rule text changed (agent-loop #742, #758)."
     }
 }
