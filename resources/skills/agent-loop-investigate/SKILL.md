@@ -33,7 +33,7 @@ Read-only: locate and report without editing.
 ```bash
 # Grepping repository repeatedly to find class declaration and callers
 grep -rn "class UserService" src/
-grep -rn "->save(" src/
+grep -rn -e "->save(" src/
 ```
 
 ### Good
