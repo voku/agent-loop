@@ -1,0 +1,46 @@
+name: Real-project guidance consistency dogfood
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guidance-dogfood:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist
+      - name: Run real-project SessionStart guidance review, verify no mutations
+        run: |
+          php -l tools/guidance-consistency-dogfood.php
+          php tools/guidance-consistency-dogfood.php
+          jq -e '
+            .schema_version == "1.0"
+            and .repository == "voku/agent-loop"
+            and .source_bytes_unchanged == true
+            and .learning_bytes_unchanged == true
+            and .second_pass_noop == true
+            and .semantic_verdict == null
+            and .guidance_candidate_total >= .guidance_candidate_shown
+            and (.guidance_candidates | length) == .guidance_candidate_shown
+            and (.guidance_candidates | all(.source_a | type == "string"))
+          ' build/guidance-consistency-dogfood.json >/dev/null
+      - name: Upload real-project guidance candidates for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guidance-consistency-dogfood
+          if-no-files-found: warn
+          path: build/guidance-consistency-dogfood.json
