@@ -129,11 +129,11 @@ final readonly class SelfShapeEvidence
         $hash = hash('sha256', $currentMemory);
         $paths = glob(rtrim($repositoryRoot, '/') . '/.agent-loop/learning/proposals/applied/*.json') ?: [];
         foreach ($paths as $path) {
-            $record = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
-            if (!is_array($record) || ($record['target_type'] ?? null) !== 'memory') {
+            $appliedProposal = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($appliedProposal) || ($appliedProposal['target_type'] ?? null) !== 'memory') {
                 continue;
             }
-            $proof = $record['applied_validation'] ?? null;
+            $proof = $appliedProposal['applied_validation'] ?? null;
             if (!is_array($proof) || ltrim((string) ($proof['target_source_ref'] ?? ''), './') !== 'MEMORY.md') {
                 continue;
             }
