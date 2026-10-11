@@ -178,75 +178,70 @@ not approve, rewrite, or auto-promote durable memory.
 
 ## Existing applied guidance: physical proof is not a review
 
-`voku/agent-learning` owns the read-only, validated physical proof for a
-`MEMORY.md` maintenance diff. `SelfShapeMaintenanceReviewMatcher` compares
-that proof with a human-review **claim** bound to exact base/head commit hashes,
-file content hashes, and complete Git diff hash. The matcher cannot authenticate
-a reviewer, check GitHub permissions or establish semantic equivalence. Its
-`true` result is only an identity match, **not** permission to select
-`no_durable_learning`.
+The Learning owner `voku/agent-learning` supplies typed, validated evidence
+that already-applied guidance still satisfies its own approved proposal and
+that the target's old and new hashes match its explicit reanchor proofs.
+`SelfShapeMaintenanceReviewMatcher` compares that receipt with a claimed
+human review of the **complete exact Git diff**. Hashes validate identity, not
+semantic equivalence or human authority.
 
-The self-shape runner still requires a Finding for changed `MEMORY.md`.
-A later consumer slice must validate a human maintenance review via an
-independent trusted source before allowing an owner-proof-backed exception.
-The current `--approver` fixture never counts as independent human approval.
-Do not change status merely because a matching owner proof exists.
+### Independent GitHub review attribution
 
-The consumer development branch intentionally pins the untagged owner merge
-commit in Composer; replace that pin with a stable owner release before merging
-a production dependency change. This is not a shipping dependency contract.
+`SelfShapeMaintenanceGitHubReader` obtains actual PR metadata and paginated
+PR conversation comments using a read-only GitHub token, never PR-authored JSON.
+It authenticates a non-bot reviewer by GitHub's `OWNER` association for the
+repository owner, or by a separately queried collaborator permission of
+`write`, `maintain` or `admin`. An unavailable API or permission lookup
+fails closed. A token proves GitHub account attribution, not the physical
+identity of the person using the account.
 
-### Review provenance and exact-diff account attribution
+`SelfShapeMaintenanceReviewCommentVerifier` requires an entire literal
+`SELF_SHAPE_MAINTENANCE_V1` comment on the **same PR**. For the frozen #758
+acceptance case, the exact body is:
 
-\`SelfShapeMaintenanceReviewCommentVerifier::fromTrustedGitHubApi()\` admits
-only a full, literal \`SELF_SHAPE_MAINTENANCE_V1\` GitHub issue-comment body
-on the **same pull request**, with a non-bot GitHub user identity and a
-separately API-checked repository collaborator permission of \`write\`,
-\`maintain\` or \`admin\`. The body includes exact Git base/head, old/new
-\`MEMORY.md\` file hashes, complete diff hash, the explicit maintenance
-classification and \`rule_text_changed=yes\` acknowledging the real line-27
-wording correction. Any omitted, edited or cross-PR value fails closed.
-
-An example comment for a human reviewer to fill **after** inspecting the real
-diff, with all hashes derived from Git rather than typed from memory:
-
-\`\`\`text
+```text
 SELF_SHAPE_MAINTENANCE_V1
 source=MEMORY.md
 base=<exact merge-base commit>
 head=<exact PR head commit>
-before_sha256=<hash of base MEMORY.md>
-after_sha256=<hash of head MEMORY.md>
-diff_sha256=<hash of complete scoped diff>
+before_sha256=<base MEMORY.md SHA256>
+after_sha256=<PR head MEMORY.md SHA256>
+diff_sha256=<entire binary git diff SHA256>
 decision=reference-only-maintenance
 rule_text_changed=yes
-\`\`\`
+```
 
-This method is a deterministic **validator**, not a GitHub API client. Its
-caller must fetch the comment and collaborator permission through a trusted
-GitHub API request, never use PR-controlled input JSON, and independently
-confirm the retrieved current head and diff. GitHub attribution cannot prove
-the person behind an API credential or the semantics of the reviewed prose.
-**No** comment automatically authorizes a gate bypass today. The current
-runner still fails changed \`MEMORY.md\` without an actual Finding; a later
-slice must make the complete authentication chain explicit and test it.
+The comment must be written by a real reviewer **after inspecting the diff**.
+The `rule_text_changed=yes` acknowledgement matters for #758: a stale
+`src/Dogfood/` reference is corrected inside rule prose as well as in its
+canonical-home column. The exact values come from Git, not guesses or the
+reanchor actor field. An example or worksheet is **not** an approval. A new
+head or changed diff invalidates the prior exact identity.
 
-### Self-shape runner integration
+### Self-shape integration
 
-On a MEMORY diff without a newly recorded Finding, the runner reads the real
-PR head from the trusted GitHub event, checks it against its checkout (including
-the synthetic pull-request merge parent), and queries the GitHub pull-request
-and **paginated** issue-comment APIs using read-only \`GH_TOKEN\`. For an
-owner-authored comment GitHub must report both a matching account name and
-\`author_association=OWNER\`; non-owners need independently readable
-\`collaborators/{login}/permission\`. A denied permission lookup fails closed.
-The source never accepts locally provided comment JSON as review evidence.
+For changed `MEMORY.md` without a newly recorded Finding, the runner
+compares GitHub's real PR head with the checkout, including the synthetic
+merge-parent case, and obtains all independently attributed matching-head
+review claims. It then checks each candidate against the current exact
+merge-base, full diff SHA256, old/new `MEMORY.md` hashes and owner-validated
+applied proposals. Stale earlier comments must not mask a later valid review.
 
-An admitted review must match the actual base/head, complete binary Git diff
-hash and pre/post MEMORY SHA256, and the only changed files must be the
-MEMORY target plus **exactly** the owner-reanchored applied proposal files.
-The Learning owner inspector independently validates both temporary Git
-worktrees. Only that complete combination lets the Self-Shape runner record
-\`no_durable_learning\` without adding a fake Finding. This is a maintenance
-exception for existing reviewed guidance, never a policy for unreviewed rules.
-The CI approver fixture remains explicitly non-human.
+Only changed `MEMORY.md` plus exactly the owner-reanchored proposal files may
+qualify. The owner inspector validates two isolated Git worktrees. Without
+both valid owner proof and an authenticated, exact-diff reviewer statement, the
+original Finding requirement still fails closed. Real new Findings continue
+to produce `findings_recorded`; verified maintenance without new learning
+may produce `no_durable_learning`. The CI `--approver` fixture never
+counts as an independent human.
+
+The durable policy in `MEMORY.md` must be reconciled through normal human
+review/proposal governance when this exception is released; documentation
+alone cannot silently rewrite a previously approved rule.
+
+### Dependency release boundary
+
+Until `agent-learning` 0.18.33 is separately released, this consumer draft
+uses a development-only pinned owner revision. Replace it with a released
+semver dependency and rerun strict Composer, self-shape and installed-consumer
+CI before merging. Do not fabricate a tag or waive the red release gate.
