@@ -22,7 +22,8 @@ final readonly class SelfShapeMaintenanceGitHubReader
         $this->api = $api ?? new SelfShapeMaintenanceGitHubCli($runner);
     }
 
-    public function find(string $repository, int $prNumber, string $expectedHead): ?SelfShapeMaintenanceReviewCommentEvidence
+    /** @return list<SelfShapeMaintenanceReviewCommentEvidence> */
+    public function findAll(string $repository, int $prNumber, string $expectedHead): array
     {
         if (preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository) !== 1
             || $prNumber < 1 || preg_match('/\A[a-f0-9]{40}\z/', $expectedHead) !== 1) {
@@ -40,6 +41,7 @@ final readonly class SelfShapeMaintenanceGitHubReader
             throw new RuntimeException('Invalid GitHub issue-comments response.');
         }
 
+        $reviews = [];
         foreach ($pages as $page) {
             if (!is_array($page)) {
                 throw new RuntimeException('Invalid GitHub issue-comments page.');
@@ -70,12 +72,12 @@ final readonly class SelfShapeMaintenanceGitHubReader
                 }
                 $evidence = $this->verifier->fromTrustedGitHubApi($comment, $permission, $repository, $prNumber);
                 if ($evidence !== null && $evidence->claim->headCommit === $expectedHead) {
-                    return $evidence;
+                    $reviews[] = $evidence;
                 }
             }
         }
 
-        return null;
+        return $reviews;
     }
 
 }
