@@ -51,7 +51,7 @@
     "bin/agent-loop"
   ],
   "scripts": {
-    "test": "phpunit --display-warnings",
+    "test": "phpunit --display-warnings --fail-on-warning",
     "test:fast": "phpunit --exclude-group slow",
     "verify:release-pins": [
       "@putenv AGENT_LOOP_VERIFY_RELEASE_PIN_SHAS=1",
