@@ -221,7 +221,7 @@ $runner->mustRun([
 // cannot consume repository evidence that appears only after approval. Stable
 // roots keep broad discovery useful while changed PHP outside those roots must
 // be indexed explicitly so approval and the map observe the same governed scope.
-$mapPaths = (new SelfShapeMapScope())->paths($changedFiles);
+$mapPaths = (new SelfShapeMapScope())->paths($changedFiles, $root);
 $loop(['map', 'build', '--paths=' . implode(',', $mapPaths)]);
 $loop(['map', 'search-index', 'build']);
 

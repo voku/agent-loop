@@ -32,6 +32,34 @@ final class SelfShapeMapScopeTest extends TestCase
         ], $paths);
     }
 
+    public function testDeletedPhpOutsideStableRootsIsNotIndexedButExistingPhpIs(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-map-existing-' . bin2hex(random_bytes(8));
+        $hooks = $root . '/resources/hooks';
+
+        self::assertTrue(mkdir($hooks, 0o700, true));
+
+        try {
+            self::assertNotFalse(file_put_contents($hooks . '/live.php', '<?php'));
+            self::assertSame([
+                'src',
+                'tests',
+                'tools',
+                'resources/hooks/live.php',
+            ], (new SelfShapeMapScope())->paths([
+                'resources/hooks/deleted.php',
+                'resources/hooks/live.php',
+                'resources/hooks/renamed-away.php',
+                'tools/deleted.php',
+            ], $root));
+        } finally {
+            unlink($hooks . '/live.php');
+            rmdir($hooks);
+            rmdir($root . '/resources');
+            rmdir($root);
+        }
+    }
+
     public function testDuplicateChangedPhpPathsAreProjectedOnce(): void
     {
         self::assertSame([

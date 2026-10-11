@@ -17,16 +17,18 @@ final readonly class SelfShapeMapScope
     private const array BASE_PATHS = ['src', 'tests', 'tools'];
 
     /**
-     * @param list<string> $changedFiles
+     * @param list<string> $changedFiles All changed paths, including deletions
+     * @param string|null $projectRoot When supplied, index only PHP files still present on the target checkout
      *
      * @return non-empty-list<string>
      */
-    public function paths(array $changedFiles): array
+    public function paths(array $changedFiles, ?string $projectRoot = null): array
     {
         $paths = self::BASE_PATHS;
 
         foreach ($changedFiles as $file) {
-            if (!str_ends_with($file, '.php') || $this->coveredByBasePath($file)) {
+            if (!str_ends_with($file, '.php') || $this->coveredByBasePath($file)
+                || ($projectRoot !== null && !is_file($projectRoot . '/' . $file))) {
                 continue;
             }
 
