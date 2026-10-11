@@ -52,6 +52,6 @@
         ],
         "reanchored_by": "voku",
         "reanchored_at": "2026-10-10T19:33:03+00:00",
-        "reanchor_reason": "Correct five verified stale canonical references to existing consolidated findings and tools/Dogfood paths; no durable rule text changed (agent-loop #742, #758)."
+        "reanchor_reason": "Correct three stale validated/ Finding references and two src/Dogfood/ references to their existing consolidated/ and tools/Dogfood/ paths; one directory reference occurs in durable rule text (agent-loop #742, #758)."
     }
 }
