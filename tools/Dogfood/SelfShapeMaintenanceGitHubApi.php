@@ -10,6 +10,5 @@ namespace voku\AgentLoop\Dogfood;
  */
 interface SelfShapeMaintenanceGitHubApi
 {
-    /** @return mixed */
     public function request(string $endpoint, bool $paginate = false): mixed;
 }
