@@ -23,8 +23,42 @@ final readonly class SelfShapeMaintenanceReviewCommentVerifier
         string $repository,
         int $pullRequestNumber,
     ): ?SelfShapeMaintenanceReviewCommentEvidence {
-        if (!in_array($collaboratorPermission, ['write', 'maintain', 'admin'], true)
-            || $pullRequestNumber < 1
+        if (!in_array($collaboratorPermission, ['write', 'maintain', 'admin'], true)) {
+            return null;
+        }
+
+        return $this->parseCandidate($comment, $repository, $pullRequestNumber);
+    }
+
+    /**
+     * Only screens untrusted marker syntax, source and expected head before
+     * spending a GitHub permission API call. It grants no review authority.
+     *
+     * @param array<string, mixed> $comment
+     */
+    public function isWellFormedCandidate(
+        array $comment,
+        string $repository,
+        int $pullRequestNumber,
+        string $expectedHead,
+    ): bool {
+        $candidate = $this->parseCandidate($comment, $repository, $pullRequestNumber);
+
+        return $candidate !== null && $candidate->claim->headCommit === $expectedHead;
+    }
+
+    /**
+     * Private parse only. The returned object becomes trusted evidence solely
+     * through fromTrustedGitHubApi() after checking real collaborator permission.
+     *
+     * @param array<string, mixed> $comment
+     */
+    private function parseCandidate(
+        array $comment,
+        string $repository,
+        int $pullRequestNumber,
+    ): ?SelfShapeMaintenanceReviewCommentEvidence {
+        if ($pullRequestNumber < 1
             || preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository) !== 1) {
             return null;
         }
