@@ -115,9 +115,10 @@ if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['
     if ($prHead !== $checkoutHead && $prHead !== $secondParent) {
         $fail('PR-head review SHA is not the checked-out direct or merge parent commit.');
     }
-    if ($git(['merge-base', $prHead, 'origin/' . $options['base-ref']]) !== $base) {
-        $fail('Maintenance review base is stale against the real PR head.');
-    }
+    // The checkout may be GitHub's synthetic PR merge commit. Its merge-base
+    // against origin/main is the current main tip, not the PR head's ancestor.
+    // Bind the human review to the actual PR branch diff instead.
+    $reviewBase = $git(['merge-base', $prHead, 'origin/' . $options['base-ref']]);
 
     $reviews = (new SelfShapeMaintenanceGitHubReader($runner))->findAll(
         $repository,
@@ -132,20 +133,20 @@ if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['
         $baseCheckout = $temporary . '/base';
         $headCheckout = $temporary . '/head';
         try {
-            $runner->mustRun(['git', 'worktree', 'add', '--detach', $baseCheckout, $base]);
+            $runner->mustRun(['git', 'worktree', 'add', '--detach', $baseCheckout, $reviewBase]);
             $runner->mustRun(['git', 'worktree', 'add', '--detach', $headCheckout, $prHead]);
             $ownerProof = (new AppliedGuidanceMaintenanceInspector())->inspect(
                 $baseCheckout . '/.agent-loop/learning',
                 $headCheckout . '/.agent-loop/learning',
                 'MEMORY.md',
             );
-            $scope = $lines($git(['diff', '--name-only', '--diff-filter=ACMRTUXB', $base, $prHead, '--']));
+            $scope = $lines($git(['diff', '--name-only', '--diff-filter=ACMRTUXB', $reviewBase, $prHead, '--']));
             $diffHash = hash('sha256', $runner->mustRun([
-                'git', 'diff', '--no-ext-diff', '--binary', $base, $prHead, '--',
+                'git', 'diff', '--no-ext-diff', '--binary', $reviewBase, $prHead, '--',
             ])['stdout']);
             $approvalGate = new SelfShapeMaintenanceApprovalGate();
             foreach ($reviews as $review) {
-                if (!$approvalGate->matches($ownerProof, $review, $base, $prHead, $diffHash, $scope)) {
+                if (!$approvalGate->matches($ownerProof, $review, $reviewBase, $prHead, $diffHash, $scope)) {
                     continue;
                 }
 
