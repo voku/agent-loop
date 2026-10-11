@@ -25,10 +25,10 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$comment]],
         ]);
 
-        $evidence = $reader->find(self::REPO, 758, self::HEAD);
-        self::assertNotNull($evidence);
-        self::assertSame(758123, $evidence->commentId);
-        self::assertSame(self::HEAD, $evidence->claim->headCommit);
+        $reviews = $reader->findAll(self::REPO, 758, self::HEAD);
+        self::assertCount(1, $reviews);
+        self::assertSame(758123, $reviews[0]->commentId);
+        self::assertSame(self::HEAD, $reviews[0]->claim->headCommit);
     }
 
     public function testCollaboratorPermissionMustComeFromIndependentEndpoint(): void
@@ -42,10 +42,10 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$comment]],
             'repos/voku/agent-loop/collaborators/contributor/permission' => ['permission' => 'write'],
         ];
-        self::assertNotNull($this->reader($responses)->find(self::REPO, 758, self::HEAD));
+        self::assertCount(1, $this->reader($responses)->findAll(self::REPO, 758, self::HEAD));
 
         $responses['repos/voku/agent-loop/collaborators/contributor/permission'] = ['permission' => 'read'];
-        self::assertNull($this->reader($responses)->find(self::REPO, 758, self::HEAD));
+        self::assertSame([], $this->reader($responses)->findAll(self::REPO, 758, self::HEAD));
     }
 
     public function testWrongHeadFailsBeforeTrustingAnyReview(): void
@@ -55,7 +55,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         ]);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('head differs');
-        $reader->find(self::REPO, 758, self::HEAD);
+        $reader->findAll(self::REPO, 758, self::HEAD);
     }
 
     public function testNoMatchingReviewDoesNotBecomeApproval(): void
@@ -64,7 +64,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
             'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[], [['body' => 'LGTM']]],
         ]);
-        self::assertNull($reader->find(self::REPO, 758, self::HEAD));
+        self::assertSame([], $reader->findAll(self::REPO, 758, self::HEAD));
     }
 
     public function testMalformedAndStaleMarkersCannotExhaustPermissionReadsBeforeARealReview(): void
@@ -89,10 +89,34 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$malformed, $stale, $valid]],
         ]);
 
-        $evidence = $reader->find(self::REPO, 758, self::HEAD);
+        $evidence = $reader->findAll(self::REPO, 758, self::HEAD);
         self::assertNotNull($evidence);
         self::assertSame('voku', $evidence->githubLogin);
         self::assertSame(758123, $evidence->commentId);
+    }
+
+    public function testOlderStaleCommentCannotHideALaterMatchingExactDiffReview(): void
+    {
+        $stale = $this->comment();
+        $stale['body'] = str_replace(
+            'diff_sha256=' . str_repeat('d', 64),
+            'diff_sha256=' . str_repeat('e', 64),
+            $stale['body'],
+        );
+        $valid = $this->comment();
+        $valid['id'] = 758124;
+        $valid['html_url'] = 'https://github.com/voku/agent-loop/pull/758#issuecomment-758124';
+
+        $reader = $this->reader([
+            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$stale], [$valid]],
+        ]);
+
+        $reviews = $reader->findAll(self::REPO, 758, self::HEAD);
+        self::assertCount(2, $reviews);
+        self::assertSame(758123, $reviews[0]->commentId);
+        self::assertSame(758124, $reviews[1]->commentId);
+        self::assertSame(str_repeat('d', 64), $reviews[1]->claim->diffSha256);
     }
 
     public function testGithubRateLimitFailsClosedRatherThanReturningFalseReview(): void
@@ -102,7 +126,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         ]);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('rate limit exceeded');
-        $reader->find(self::REPO, 758, self::HEAD);
+        $reader->findAll(self::REPO, 758, self::HEAD);
     }
 
     public function testUnexpectedPaginationShapeFailsClosed(): void
@@ -113,7 +137,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         ]);
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Invalid GitHub issue-comments page');
-        $reader->find(self::REPO, 758, self::HEAD);
+        $reader->findAll(self::REPO, 758, self::HEAD);
     }
 
     /** @param array<string, mixed> $responses */
