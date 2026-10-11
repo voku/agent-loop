@@ -28,7 +28,7 @@ jobs:
         run: vendor/bin/phpunit --log-junit=build/phpunit-${{ matrix.php }}.xml
       - name: Upload PHPUnit result
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: phpunit-${{ matrix.php }}-${{ github.sha }}
           if-no-files-found: warn
@@ -38,7 +38,7 @@ jobs:
         run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M --error-format=json > build/phpstan-${{ matrix.php }}.json
       - name: Upload PHPStan result
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: phpstan-${{ matrix.php }}-${{ github.sha }}
           if-no-files-found: warn

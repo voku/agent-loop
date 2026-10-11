@@ -435,7 +435,7 @@ jobs:
 
       - name: Upload installed class-constant evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installed-class-constant-refactor-${{ github.sha }}
           if-no-files-found: warn

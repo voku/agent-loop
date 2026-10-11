@@ -275,7 +275,7 @@ jobs:
 
       - name: Upload installed method-removal evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installed-method-removal-refactor-${{ github.sha }}
           if-no-files-found: warn

@@ -47,7 +47,7 @@ jobs:
 
       - name: Upload acceptance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: acceptance-criteria-candidate-php${{ matrix.php }}-${{ github.sha }}
           if-no-files-found: warn
