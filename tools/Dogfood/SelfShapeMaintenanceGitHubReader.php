@@ -52,6 +52,17 @@ final readonly class SelfShapeMaintenanceGitHubReader
                     continue;
                 }
 
+                // A forged or stale marker must not trigger collaborator-permission
+                // reads (which can consume quota or fail closed before a real review).
+                if (!$this->verifier->isWellFormedCandidate(
+                    $comment,
+                    $repository,
+                    $prNumber,
+                    $expectedHead,
+                )) {
+                    continue;
+                }
+
                 $actor = $comment['user'] ?? null;
                 if (!is_array($actor) || !is_string($actor['login'] ?? null)) {
                     continue;
