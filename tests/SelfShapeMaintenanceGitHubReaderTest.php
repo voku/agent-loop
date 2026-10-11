@@ -67,6 +67,34 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         self::assertNull($reader->find(self::REPO, 758, self::HEAD));
     }
 
+    public function testMalformedAndStaleMarkersCannotExhaustPermissionReadsBeforeARealReview(): void
+    {
+        $malformed = $this->comment();
+        $malformed['user']['login'] = 'outsider';
+        $malformed['author_association'] = 'NONE';
+        $malformed['body'] = "SELF_SHAPE_MAINTENANCE_V1\ninvalid=marker";
+
+        $stale = $this->comment();
+        $stale['user']['login'] = 'outsider';
+        $stale['author_association'] = 'NONE';
+        $stale['body'] = str_replace('head=' . self::HEAD, 'head=' . str_repeat('a', 40), $stale['body']);
+
+        $valid = $this->comment();
+        $valid['author_association'] = 'OWNER';
+
+        // There is deliberately NO collaborator-permission response for outsider.
+        // The old reader tried that API call first and failed before seeing owner.
+        $reader = $this->reader([
+            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$malformed, $stale, $valid]],
+        ]);
+
+        $evidence = $reader->find(self::REPO, 758, self::HEAD);
+        self::assertNotNull($evidence);
+        self::assertSame('voku', $evidence->githubLogin);
+        self::assertSame(758123, $evidence->commentId);
+    }
+
     public function testGithubRateLimitFailsClosedRatherThanReturningFalseReview(): void
     {
         $reader = $this->reader([
