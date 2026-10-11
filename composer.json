@@ -30,7 +30,7 @@
     "composer/semver": "^3.4",
     "friendsofphp/php-cs-fixer": "^3.95",
     "phpstan/phpstan": "^2.1",
-    "phpunit/phpunit": "^11.5",
+    "phpunit/phpunit": "^13.0",
     "symfony/yaml": "^7.4",
     "voku/itp-context": "^0.3.0"
   },
