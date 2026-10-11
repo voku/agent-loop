@@ -175,3 +175,23 @@ not approve, rewrite, or auto-promote durable memory.
 - No automatic generation or approval of project CI rules.
 - No changes to `voku/agent-learning` package behavior.
 - No LLM calls from runtime code.
+
+## Existing applied guidance: physical proof is not a review
+
+`voku/agent-learning` owns the read-only, validated physical proof for a
+`MEMORY.md` maintenance diff. `SelfShapeMaintenanceReviewMatcher` compares
+that proof with a human-review **claim** bound to exact base/head commit hashes,
+file content hashes, and complete Git diff hash. The matcher cannot authenticate
+a reviewer, check GitHub permissions or establish semantic equivalence. Its
+`true` result is only an identity match, **not** permission to select
+`no_durable_learning`.
+
+The self-shape runner still requires a Finding for changed `MEMORY.md`.
+A later consumer slice must validate a human maintenance review via an
+independent trusted source before allowing an owner-proof-backed exception.
+The current `--approver` fixture never counts as independent human approval.
+Do not change status merely because a matching owner proof exists.
+
+The consumer development branch intentionally pins the untagged owner merge
+commit in Composer; replace that pin with a stable owner release before merging
+a production dependency change. This is not a shipping dependency contract.
