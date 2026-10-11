@@ -194,7 +194,9 @@ final class PostExecutionEvidenceStalenessTest extends TestCase
     private function writeReview(string $taskId, array $report): void
     {
         $directory = $this->root . '/.agent-loop/recall/' . $taskId . '/reviews';
-        mkdir($directory, 0o775, true);
+        if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
+            self::fail('Could not create review-fixture directory: ' . $directory);
+        }
         $report += [
             'version' => 2,
             'task_id' => $taskId,
