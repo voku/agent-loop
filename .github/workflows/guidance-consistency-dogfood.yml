@@ -44,7 +44,7 @@ jobs:
           ' build/guidance-consistency-dogfood.json >/dev/null
       - name: Upload real-project guidance candidates for human review
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: guidance-consistency-dogfood
           if-no-files-found: warn
