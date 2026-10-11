@@ -1,0 +1,72 @@
+name: Temporary live #761 maintenance integration proof
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  exact-owner-and-github:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          repository: voku/agent-learning
+          ref: e5fd38ccc32f878b8926a0920c4dd9f109714cef
+          path: build/agent-learning-owner
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - name: Use exact owner in ephemeral Composer test checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/agent-learning-owner rev-parse HEAD)" = e5fd38ccc32f878b8926a0920c4dd9f109714cef
+          php -r '
+            $path = "composer.json";
+            $data = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+            $data["require"]["voku/agent-learning"] = "dev-main";
+            $data["repositories"] = [[
+              "type" => "path",
+              "url" => "build/agent-learning-owner",
+              "options" => ["symlink" => false, "versions" => ["voku/agent-learning" => "dev-main"]],
+            ]];
+            file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+          '
+          composer install --no-interaction --prefer-dist
+      - name: Exercise policy/verifier/runner decision tests
+        run: |
+          vendor/bin/phpunit tests/SelfShapeEvidenceTest.php
+          vendor/bin/phpunit tests/SelfShapeMaintenanceReviewMatcherTest.php
+          vendor/bin/phpunit tests/SelfShapeMaintenanceReviewCommentVerifierTest.php
+          vendor/bin/phpunit tests/SelfShapeMaintenanceApprovalGateTest.php
+      - name: Assert entire PHPStan boundary
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
+      - name: Assert PHP-CS-Fixer contract
+        run: vendor/bin/php-cs-fixer check --config=.php-cs-fixer.dist.php --diff --show-progress=none
+      - name: Check live GitHub API review lookup without claiming approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          php -r '
+            require "vendor/autoload.php";
+            $reader = new \voku\AgentLoop\Dogfood\SelfShapeMaintenanceGitHubReader(
+                new \voku\AgentLoop\Dogfood\ProcessRunner(getcwd())
+            );
+            $review = $reader->find("voku/agent-loop", 758, "f1d1f7b91a7adad974aa88ca5104135894d43196");
+            if ($review !== null) {
+                echo "Found a GitHub-attributed review; exact hash/owner checks still required.\n";
+            } else {
+                echo "PASS: no human maintenance verdict for real #758; fail closed.\n";
+            }
+          '
