@@ -25,7 +25,7 @@ jobs:
       CLAUDE_VERSION: '2.1.287'
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 

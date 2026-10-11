@@ -16,13 +16,13 @@ jobs:
         php: ['8.3', '8.4', '8.5']
     steps:
       - name: Checkout agent-loop candidate
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout minimum agent-recall-compiler release
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: voku/agent-recall-compiler
           ref: 0.25.8

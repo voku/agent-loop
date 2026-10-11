@@ -20,13 +20,13 @@ jobs:
       matrix:
         scenario: [method-rename, method-rename-residue, class-rename, class-move, method-move, property-rename, method-removal, class-removal]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout released agent-map contract owner
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: voku/agent-map
           ref: 0.22.0
