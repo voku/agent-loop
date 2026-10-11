@@ -69,6 +69,7 @@ GITIGNORE;
             [$stateRoot . '/tasks', $this->relative($root, $stateRoot . '/tasks')],
             [$sessionsRoot, $this->relative($root, $sessionsRoot)],
             [$learningRoot, $this->relative($root, $learningRoot)],
+            [$learningRoot . '/findings', $this->relative($root, $learningRoot . '/findings')],
         ] as [$directory, $display]) {
             $this->ensureDirectory($directory, $display, $dryRun);
         }

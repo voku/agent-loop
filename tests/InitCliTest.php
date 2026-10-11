@@ -178,7 +178,7 @@ final class InitCliTest extends TestCase
         self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
         self::assertDirectoryExists($this->root . '/.agent-loop/sessions');
-        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/learning/findings');
+        self::assertDirectoryExists($this->root . '/.agent-loop/learning/findings');
         self::assertFileDoesNotExist(
             $this->root . '/.agent-loop/todo/board.md',
             'Loop must not duplicate agent-kanban metadata beside owner configuration.',
@@ -257,6 +257,41 @@ final class InitCliTest extends TestCase
         ]);
         self::assertSame(0, $close['exit'], $close['output']);
         self::assertFileExists($this->root . '/.agent-loop/runs/DEMO-1/verification.json');
+    }
+
+    public function testFreshScaffoldIsAnOwnerValidLearningRootBeforeFirstFinding(): void
+    {
+        $scaffold = $this->dispatch(['agent-loop', 'init', 'scaffold']);
+        self::assertSame(0, $scaffold['exit'], $scaffold['output']);
+
+        $findingsRoot = $this->root . '/.agent-loop/learning/findings';
+        self::assertDirectoryExists($findingsRoot);
+        self::assertSame([], glob($findingsRoot . '/*') ?: [], 'Scaffolding must not invent Finding records or status directories.');
+
+        $emptyValidation = $this->dispatch(['agent-loop', 'learn', 'validate']);
+        self::assertSame(0, $emptyValidation['exit'], $emptyValidation['output']);
+
+        $findingId = 'finding.2026-10-11.abc123';
+        $capture = $this->dispatch([
+            'agent-loop', 'learn', 'capture',
+            '--id', $findingId,
+            '--task', 'TEST-1',
+            '--by', 'tester',
+            '--scope', 'src/',
+            '--observation', 'Fresh scaffold now passes Learning validation.',
+            '--hypothesis', 'Initializing the recognized root avoids the first-run bootstrap failure.',
+            '--evidence', 'Observed during a fresh project scaffold and owner validation.',
+        ]);
+        self::assertSame(0, $capture['exit'], $capture['output']);
+        self::assertFileExists($findingsRoot . '/candidate/' . $findingId . '.json');
+
+        $populatedValidation = $this->dispatch(['agent-loop', 'learn', 'validate']);
+        self::assertSame(0, $populatedValidation['exit'], $populatedValidation['output']);
+
+        $again = $this->dispatch(['agent-loop', 'init', 'scaffold']);
+        self::assertSame(0, $again['exit'], $again['output']);
+        self::assertStringContainsString('[SKIP] .agent-loop/learning/findings/ already exists', $again['output']);
+        self::assertFileExists($findingsRoot . '/candidate/' . $findingId . '.json');
     }
 
     public function testScaffoldCanProjectHostAssetsBeforeTheNextAgentSession(): void
