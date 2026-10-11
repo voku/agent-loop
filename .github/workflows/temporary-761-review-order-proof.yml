@@ -44,6 +44,18 @@ jobs:
             file_put_contents("composer.json", json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
           '
           composer install --no-interaction --prefer-dist --no-progress
+      - name: Prove actual #758 PR ancestry against GitHub synthetic merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/pull/758/head:refs/remotes/pull/758/head refs/pull/758/merge:refs/remotes/pull/758/merge
+          review_base="$(git merge-base refs/remotes/pull/758/head origin/main)"
+          synthetic_base="$(git merge-base refs/remotes/pull/758/merge origin/main)"
+          test "$review_base" = 622c004e2cc642fce1c06dc63a4f04d4889637e2
+          test "$review_base" != "$synthetic_base"
+          review_hash="$(git diff --no-ext-diff --binary "$review_base" refs/remotes/pull/758/head -- | sha256sum | cut -d' ' -f1)"
+          test "$review_hash" = b44eb7baf127d2b333bb3d75689fb10149d50a4b08d369c7d74af6af4ddef816
+          printf 'actual_review_base=%s\\nsynthetic_ci_base=%s\\nexact_diff_hash=%s\\n' "$review_base" "$synthetic_base" "$review_hash"
       - name: Focused GitHub review provenance regression
         shell: bash
         run: |
