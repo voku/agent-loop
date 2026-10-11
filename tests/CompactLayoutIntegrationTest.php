@@ -37,7 +37,7 @@ final class CompactLayoutIntegrationTest extends TestCase
         self::assertFileExists($this->root . '/.agent-loop/todo/cards/DEMO-1.md');
         self::assertFileExists($this->root . '/.agent-loop/tasks/DEMO-1.md');
         self::assertDirectoryExists($this->root . '/.agent-loop/sessions');
-        self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/learning/findings');
+        self::assertDirectoryExists($this->root . '/.agent-loop/learning/findings');
 
         foreach (['todo', 'tasks', 'session_plan', 'infra/doc/agent-learning', '.agent-map'] as $legacyPath) {
             self::assertFileDoesNotExist($this->root . '/' . $legacyPath);
