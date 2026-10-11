@@ -68,7 +68,10 @@ final class SelfShapeMaintenanceReviewMatcherTest extends TestCase
 
     public function testMissingAppliedProofIsNotReviewed(): void
     {
-        $owner = new AppliedGuidanceMaintenanceEvidence('MEMORY.md', self::BEFORE, self::AFTER, ['proposal.2026-08-14.007'], []);
+        $owner = new AppliedGuidanceMaintenanceEvidence(
+            'MEMORY.md', self::BEFORE, self::AFTER, ['proposal.2026-08-14.007'],
+            ['proposal.2026-08-14.013' => ['actor' => 'maintainer', 'at' => '2026-10-10T20:00:00+00:00', 'reason' => 'other proposal']],
+        );
         self::assertFalse((new SelfShapeMaintenanceReviewMatcher())->matches(
             $owner, $this->review(), self::BASE, self::HEAD, hash('sha256', 'frozen-758-diff'),
         ));
