@@ -195,3 +195,38 @@ Do not change status merely because a matching owner proof exists.
 The consumer development branch intentionally pins the untagged owner merge
 commit in Composer; replace that pin with a stable owner release before merging
 a production dependency change. This is not a shipping dependency contract.
+
+### Review provenance and exact-diff account attribution
+
+\`SelfShapeMaintenanceReviewCommentVerifier::fromTrustedGitHubApi()\` admits
+only a full, literal \`SELF_SHAPE_MAINTENANCE_V1\` GitHub issue-comment body
+on the **same pull request**, with a non-bot GitHub user identity and a
+separately API-checked repository collaborator permission of \`write\`,
+\`maintain\` or \`admin\`. The body includes exact Git base/head, old/new
+\`MEMORY.md\` file hashes, complete diff hash, the explicit maintenance
+classification and \`rule_text_changed=yes\` acknowledging the real line-27
+wording correction. Any omitted, edited or cross-PR value fails closed.
+
+An example comment for a human reviewer to fill **after** inspecting the real
+diff, with all hashes derived from Git rather than typed from memory:
+
+\`\`\`text
+SELF_SHAPE_MAINTENANCE_V1
+source=MEMORY.md
+base=<exact merge-base commit>
+head=<exact PR head commit>
+before_sha256=<hash of base MEMORY.md>
+after_sha256=<hash of head MEMORY.md>
+diff_sha256=<hash of complete scoped diff>
+decision=reference-only-maintenance
+rule_text_changed=yes
+\`\`\`
+
+This method is a deterministic **validator**, not a GitHub API client. Its
+caller must fetch the comment and collaborator permission through a trusted
+GitHub API request, never use PR-controlled input JSON, and independently
+confirm the retrieved current head and diff. GitHub attribution cannot prove
+the person behind an API credential or the semantics of the reviewed prose.
+**No** comment automatically authorizes a gate bypass today. The current
+runner still fails changed \`MEMORY.md\` without an actual Finding; a later
+slice must make the complete authentication chain explicit and test it.
