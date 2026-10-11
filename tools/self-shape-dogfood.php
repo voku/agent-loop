@@ -119,12 +119,12 @@ if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['
         $fail('Maintenance review base is stale against the real PR head.');
     }
 
-    $review = (new SelfShapeMaintenanceGitHubReader($runner))->find(
+    $reviews = (new SelfShapeMaintenanceGitHubReader($runner))->findAll(
         $repository,
         (int) $options['pr-number'],
         $prHead,
     );
-    if ($review !== null) {
+    if ($reviews !== []) {
         $temporary = sys_get_temp_dir() . '/agent-loop-memory-proof-' . bin2hex(random_bytes(8));
         if (!mkdir($temporary, 0o700)) {
             $fail('Unable to allocate independent Learning proof worktrees.');
@@ -143,17 +143,21 @@ if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['
             $diffHash = hash('sha256', $runner->mustRun([
                 'git', 'diff', '--no-ext-diff', '--binary', $base, $prHead, '--',
             ])['stdout']);
-            $verifiedMaintenance = (new SelfShapeMaintenanceApprovalGate())->matches(
-                $ownerProof, $review, $base, $prHead, $diffHash, $scope,
-            );
+            $approvalGate = new SelfShapeMaintenanceApprovalGate();
+            foreach ($reviews as $review) {
+                if (!$approvalGate->matches($ownerProof, $review, $base, $prHead, $diffHash, $scope)) {
+                    continue;
+                }
+
+                $verifiedMaintenance = true;
+                echo '[OK] exact-diff existing-guidance maintenance attributed to GitHub review: '
+                    . $review->commentUrl . PHP_EOL;
+                break;
+            }
         } finally {
             $runner->run(['git', 'worktree', 'remove', '--force', $headCheckout]);
             $runner->run(['git', 'worktree', 'remove', '--force', $baseCheckout]);
             rmdir($temporary);
-        }
-        if ($verifiedMaintenance) {
-            echo '[OK] exact-diff existing-guidance maintenance attributed to GitHub review: '
-                . $review->commentUrl . PHP_EOL;
         }
     }
 }
