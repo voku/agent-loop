@@ -230,3 +230,23 @@ the person behind an API credential or the semantics of the reviewed prose.
 **No** comment automatically authorizes a gate bypass today. The current
 runner still fails changed \`MEMORY.md\` without an actual Finding; a later
 slice must make the complete authentication chain explicit and test it.
+
+### Self-shape runner integration
+
+On a MEMORY diff without a newly recorded Finding, the runner reads the real
+PR head from the trusted GitHub event, checks it against its checkout (including
+the synthetic pull-request merge parent), and queries the GitHub pull-request
+and **paginated** issue-comment APIs using read-only \`GH_TOKEN\`. For an
+owner-authored comment GitHub must report both a matching account name and
+\`author_association=OWNER\`; non-owners need independently readable
+\`collaborators/{login}/permission\`. A denied permission lookup fails closed.
+The source never accepts locally provided comment JSON as review evidence.
+
+An admitted review must match the actual base/head, complete binary Git diff
+hash and pre/post MEMORY SHA256, and the only changed files must be the
+MEMORY target plus **exactly** the owner-reanchored applied proposal files.
+The Learning owner inspector independently validates both temporary Git
+worktrees. Only that complete combination lets the Self-Shape runner record
+\`no_durable_learning\` without adding a fake Finding. This is a maintenance
+exception for existing reviewed guidance, never a policy for unreviewed rules.
+The CI approver fixture remains explicitly non-human.
