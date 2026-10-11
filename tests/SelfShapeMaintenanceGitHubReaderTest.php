@@ -89,10 +89,10 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$malformed, $stale, $valid]],
         ]);
 
-        $evidence = $reader->findAll(self::REPO, 758, self::HEAD);
-        self::assertNotNull($evidence);
-        self::assertSame('voku', $evidence->githubLogin);
-        self::assertSame(758123, $evidence->commentId);
+        $reviews = $reader->findAll(self::REPO, 758, self::HEAD);
+        self::assertCount(1, $reviews);
+        self::assertSame('voku', $reviews[0]->githubLogin);
+        self::assertSame(758123, $reviews[0]->commentId);
     }
 
     public function testOlderStaleCommentCannotHideALaterMatchingExactDiffReview(): void
