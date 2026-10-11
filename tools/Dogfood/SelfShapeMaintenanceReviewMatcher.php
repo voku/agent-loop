@@ -30,7 +30,6 @@ final readonly class SelfShapeMaintenanceReviewMatcher
             || !hash_equals($owner->beforeSha256, $review->beforeSha256)
             || !hash_equals($owner->afterSha256, $review->afterSha256)
             || !hash_equals($review->diffSha256, $diffSha256)
-            || $owner->proposalIds === []
             || count($owner->proposalIds) !== count($owner->reanchors)
         ) {
             return false;
