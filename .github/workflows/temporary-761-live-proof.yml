@@ -54,6 +54,22 @@ jobs:
         run: vendor/bin/phpstan analyse --configuration=phpstan.neon.dist --memory-limit=512M
       - name: Assert PHP-CS-Fixer contract
         run: vendor/bin/php-cs-fixer check --config=.php-cs-fixer.dist.php --diff --show-progress=none
+      - name: Derive real frozen #758 comment identity without GitHub API
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=622c004e2cc642fce1c06dc63a4f04d4889637e2
+          head=f1d1f7b91a7adad974aa88ca5104135894d43196
+          git fetch --no-tags --depth=1 origin "$base"
+          git fetch --no-tags --depth=1 origin "$head"
+          test "$(git rev-parse "$head")" = "$head"
+          echo '--- proposed identity for independent human review (NOT APPROVAL) ---'
+          echo "base=$base"
+          echo "head=$head"
+          echo "before_sha256=$(git show "$base:MEMORY.md" | sha256sum | cut -d' ' -f1)"
+          echo "after_sha256=$(git show "$head:MEMORY.md" | sha256sum | cut -d' ' -f1)"
+          echo "diff_sha256=$(git diff --no-ext-diff --binary "$base" "$head" -- | sha256sum | cut -d' ' -f1)"
+          git diff --name-only --diff-filter=ACMRTUXB "$base" "$head" --
       - name: Check live GitHub API review lookup without claiming approval
         env:
           GH_TOKEN: ${{ github.token }}
