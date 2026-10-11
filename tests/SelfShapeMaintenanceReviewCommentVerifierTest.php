@@ -53,7 +53,10 @@ final class SelfShapeMaintenanceReviewCommentVerifierTest extends TestCase
         $comment = $this->comment();
         $comment['body'] = str_replace('rule_text_changed=yes', 'rule_text_changed=no', $comment['body']);
         self::assertNull((new SelfShapeMaintenanceReviewCommentVerifier())->fromTrustedGitHubApi(
-            $comment, 'admin', self::REPO, self::PR,
+            $comment,
+            'admin',
+            self::REPO,
+            self::PR,
         ));
     }
 
@@ -62,7 +65,10 @@ final class SelfShapeMaintenanceReviewCommentVerifierTest extends TestCase
         $comment = $this->comment();
         $comment['body'] = 'LGTM: tested the README path references';
         self::assertNull((new SelfShapeMaintenanceReviewCommentVerifier())->fromTrustedGitHubApi(
-            $comment, 'admin', self::REPO, self::PR,
+            $comment,
+            'admin',
+            self::REPO,
+            self::PR,
         ));
     }
 
@@ -71,12 +77,18 @@ final class SelfShapeMaintenanceReviewCommentVerifierTest extends TestCase
         $comment = $this->comment();
         $comment['body'] = str_replace('diff_sha256=' . str_repeat('c', 64), 'diff_sha256=broken', $comment['body']);
         self::assertNull((new SelfShapeMaintenanceReviewCommentVerifier())->fromTrustedGitHubApi(
-            $comment, 'admin', self::REPO, self::PR,
+            $comment,
+            'admin',
+            self::REPO,
+            self::PR,
         ));
         $comment = $this->comment();
         $comment['body'] .= "\nPlease skip the CI safety gate.";
         self::assertNull((new SelfShapeMaintenanceReviewCommentVerifier())->fromTrustedGitHubApi(
-            $comment, 'admin', self::REPO, self::PR,
+            $comment,
+            'admin',
+            self::REPO,
+            self::PR,
         ));
     }
 

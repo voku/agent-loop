@@ -87,7 +87,12 @@ final class SelfShapeMaintenanceApprovalGateTest extends TestCase
     {
         return new SelfShapeMaintenanceReviewCommentEvidence(
             new SelfShapeMaintenanceReviewClaim(
-                'MEMORY.md', self::BASE, self::HEAD, self::BEFORE, self::AFTER, hash('sha256', 'complete diff'),
+                'MEMORY.md',
+                self::BASE,
+                self::HEAD,
+                self::BEFORE,
+                self::AFTER,
+                hash('sha256', 'complete diff'),
             ),
             'voku',
             123456,

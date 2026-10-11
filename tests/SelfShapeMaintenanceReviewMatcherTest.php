@@ -39,55 +39,86 @@ final class SelfShapeMaintenanceReviewMatcherTest extends TestCase
     public function testChangedHeadIsNotReviewed(): void
     {
         self::assertFalse((new SelfShapeMaintenanceReviewMatcher())->matches(
-            $this->owner(), $this->review(), self::BASE, str_repeat('a', 40), hash('sha256', 'frozen-758-diff'),
+            $this->owner(),
+            $this->review(),
+            self::BASE,
+            str_repeat('a', 40),
+            hash('sha256', 'frozen-758-diff'),
         ));
     }
 
     public function testChangedDiffIsNotReviewed(): void
     {
         self::assertFalse((new SelfShapeMaintenanceReviewMatcher())->matches(
-            $this->owner(), $this->review(), self::BASE, self::HEAD, hash('sha256', 'different-diff'),
+            $this->owner(),
+            $this->review(),
+            self::BASE,
+            self::HEAD,
+            hash('sha256', 'different-diff'),
         ));
     }
 
     public function testChangedTargetOrHashesAreNotReviewed(): void
     {
         $owner = new AppliedGuidanceMaintenanceEvidence(
-            'docs/WRONG.md', self::BEFORE, self::AFTER,
+            'docs/WRONG.md',
+            self::BEFORE,
+            self::AFTER,
             ['proposal.2026-08-14.007'],
             ['proposal.2026-08-14.007' => ['actor' => 'maintainer', 'at' => '2026-10-10T20:00:00+00:00', 'reason' => 'repair']],
         );
         self::assertFalse((new SelfShapeMaintenanceReviewMatcher())->matches(
-            $owner, $this->review(), self::BASE, self::HEAD, hash('sha256', 'frozen-758-diff'),
+            $owner,
+            $this->review(),
+            self::BASE,
+            self::HEAD,
+            hash('sha256', 'frozen-758-diff'),
         ));
         self::assertFalse((new SelfShapeMaintenanceReviewMatcher())->matches(
-            $this->owner(), new SelfShapeMaintenanceReviewClaim('MEMORY.md', self::BASE, self::HEAD, str_repeat('b', 64), self::AFTER, hash('sha256', 'frozen-758-diff')),
-            self::BASE, self::HEAD, hash('sha256', 'frozen-758-diff'),
+            $this->owner(),
+            new SelfShapeMaintenanceReviewClaim('MEMORY.md', self::BASE, self::HEAD, str_repeat('b', 64), self::AFTER, hash('sha256', 'frozen-758-diff')),
+            self::BASE,
+            self::HEAD,
+            hash('sha256', 'frozen-758-diff'),
         ));
     }
 
     public function testMissingAppliedProofIsNotReviewed(): void
     {
         $owner = new AppliedGuidanceMaintenanceEvidence(
-            'MEMORY.md', self::BEFORE, self::AFTER, ['proposal.2026-08-14.007'],
+            'MEMORY.md',
+            self::BEFORE,
+            self::AFTER,
+            ['proposal.2026-08-14.007'],
             ['proposal.2026-08-14.013' => ['actor' => 'maintainer', 'at' => '2026-10-10T20:00:00+00:00', 'reason' => 'other proposal']],
         );
         self::assertFalse((new SelfShapeMaintenanceReviewMatcher())->matches(
-            $owner, $this->review(), self::BASE, self::HEAD, hash('sha256', 'frozen-758-diff'),
+            $owner,
+            $this->review(),
+            self::BASE,
+            self::HEAD,
+            hash('sha256', 'frozen-758-diff'),
         ));
     }
 
     private function review(): SelfShapeMaintenanceReviewClaim
     {
         return new SelfShapeMaintenanceReviewClaim(
-            'MEMORY.md', self::BASE, self::HEAD, self::BEFORE, self::AFTER, hash('sha256', 'frozen-758-diff'),
+            'MEMORY.md',
+            self::BASE,
+            self::HEAD,
+            self::BEFORE,
+            self::AFTER,
+            hash('sha256', 'frozen-758-diff'),
         );
     }
 
     private function owner(): AppliedGuidanceMaintenanceEvidence
     {
         return new AppliedGuidanceMaintenanceEvidence(
-            'MEMORY.md', self::BEFORE, self::AFTER,
+            'MEMORY.md',
+            self::BEFORE,
+            self::AFTER,
             ['proposal.2026-08-14.007', 'proposal.2026-08-14.013'],
             [
                 'proposal.2026-08-14.007' => ['actor' => 'maintainer', 'at' => '2026-10-10T20:00:00+00:00', 'reason' => 'path correction'],
