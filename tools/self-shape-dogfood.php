@@ -21,6 +21,7 @@ use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
 use voku\AgentLoop\Dogfood\SelfShapeEvidence;
+use voku\AgentLoop\Dogfood\SelfShapeGitChangedPaths;
 use voku\AgentLoop\Dogfood\SelfShapeMapScope;
 use voku\AgentLoop\Dogfood\SelfShapeRunRecovery;
 use voku\AgentLoop\ProjectLayout;
@@ -87,7 +88,7 @@ $base = $git(['merge-base', 'HEAD', 'origin/' . $options['base-ref']]);
 $head = $git(['rev-parse', 'HEAD']);
 
 $lines = static fn (string $output): array => array_values(array_filter(array_map('trim', explode("\n", $output))));
-$changedFiles = $lines($git(['diff', '--name-only', '--diff-filter=ACMRTUXB', $base, 'HEAD', '--']));
+$changedFiles = (new SelfShapeGitChangedPaths($runner))->between($base, 'HEAD');
 if ($changedFiles === []) {
     $fail('Self-shape requires at least one changed file between the merge-base and HEAD.');
 }
@@ -140,7 +141,7 @@ if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['
                 $headCheckout . '/.agent-loop/learning',
                 'MEMORY.md',
             );
-            $scope = $lines($git(['diff', '--name-only', '--diff-filter=ACMRTUXB', $reviewBase, $prHead, '--']));
+            $scope = (new SelfShapeGitChangedPaths($runner))->between($reviewBase, $prHead);
             $diffHash = hash('sha256', $runner->mustRun([
                 'git', 'diff', '--no-ext-diff', '--binary', $reviewBase, $prHead, '--',
             ])['stdout']);

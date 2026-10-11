@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use FilesystemIterator;
 use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use voku\AgentLoop\Dogfood\ProcessRunner;
+use voku\AgentLoop\Dogfood\SelfShapeGitChangedPaths;
 use voku\AgentLearning\AppliedGuidanceMaintenanceEvidence;
 use voku\AgentLoop\Dogfood\SelfShapeMaintenanceApprovalGate;
 use voku\AgentLoop\Dogfood\SelfShapeMaintenanceReviewClaim;
@@ -76,6 +81,67 @@ final class SelfShapeMaintenanceApprovalGateTest extends TestCase
             hash('sha256', 'complete diff'),
             [...$this->expectedPaths(), 'MEMORY.md'],
         ));
+    }
+
+    public function testActualGitDeletionAndRenameCannotDisappearFromScope(): void
+    {
+        $directory = sys_get_temp_dir() . '/self-shape-git-scope-' . bin2hex(random_bytes(8));
+        self::assertTrue(mkdir($directory . '/src', 0700, true));
+        self::assertTrue(mkdir($directory . '/.agent-loop/learning/proposals/applied', 0700, true));
+
+        $runner = new ProcessRunner($directory);
+
+        try {
+            foreach ([...$this->expectedPaths(), 'src/Deleted.php', 'src/Old name .php'] as $path) {
+                self::assertNotFalse(file_put_contents($directory . '/' . $path, 'before'));
+            }
+            $runner->mustRun(['git', 'init', '--quiet']);
+            $runner->mustRun(['git', 'add', '--all']);
+            $runner->mustRun(['git', '-c', 'user.name=Scope Test', '-c', 'user.email=scope@example.invalid', 'commit', '--quiet', '-m', 'baseline']);
+            $base = trim($runner->mustRun(['git', 'rev-parse', 'HEAD'])['stdout']);
+
+            foreach ($this->expectedPaths() as $path) {
+                self::assertNotFalse(file_put_contents($directory . '/' . $path, 'after'));
+            }
+            self::assertTrue(unlink($directory . '/src/Deleted.php'));
+            self::assertTrue(rename($directory . '/src/Old name .php', $directory . '/src/New name .php'));
+            $runner->mustRun(['git', 'add', '--all']);
+            $runner->mustRun(['git', '-c', 'user.name=Scope Test', '-c', 'user.email=scope@example.invalid', 'commit', '--quiet', '-m', 'changes']);
+            $head = trim($runner->mustRun(['git', 'rev-parse', 'HEAD'])['stdout']);
+
+            $scope = (new SelfShapeGitChangedPaths($runner))->between($base, $head);
+
+            $expected = [
+                ...$this->expectedPaths(),
+                'src/Deleted.php',
+                'src/Old name .php',
+                'src/New name .php',
+            ];
+            sort($expected);
+            sort($scope);
+            self::assertSame($expected, $scope);
+            self::assertFalse($this->gate()->matches(
+                $this->owner(),
+                $this->review(),
+                self::BASE,
+                self::HEAD,
+                hash('sha256', 'complete diff'),
+                $scope,
+            ));
+        } finally {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($iterator as $item) {
+                if ($item->isDir() && !$item->isLink()) {
+                    rmdir($item->getPathname());
+                } else {
+                    unlink($item->getPathname());
+                }
+            }
+            rmdir($directory);
+        }
     }
 
     private function gate(): SelfShapeMaintenanceApprovalGate
