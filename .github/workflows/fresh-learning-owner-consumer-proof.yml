@@ -18,12 +18,12 @@ jobs:
       matrix:
         php: ['8.3', '8.4', '8.5']
     env:
-      CANDIDATE_SHA: b8e89458b96d29fb8079c5f0f81a674c6f0fd097
+      CANDIDATE_SHA: 2e6a4d016b261f7b6909767a18f5f2a0d4920f04
     steps:
       - name: Checkout exact candidate without credentials
         uses: actions/checkout@v7
         with:
-          ref: b8e89458b96d29fb8079c5f0f81a674c6f0fd097
+          ref: 2e6a4d016b261f7b6909767a18f5f2a0d4920f04
           persist-credentials: false
       - name: Install PHP
         uses: shivammathur/setup-php@v2
