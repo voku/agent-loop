@@ -1,0 +1,149 @@
+name: Temporary #761 real PR replay (synthetic decision is NOT approval)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  real-owner-diff-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: voku/agent-learning
+          ref: e5fd38ccc32f878b8926a0920c4dd9f109714cef
+          path: build/agent-learning-owner
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Install exact owner via ephemeral path in CI workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/agent-learning-owner rev-parse HEAD)" = e5fd38ccc32f878b8926a0920c4dd9f109714cef
+          php -r '
+            $j = json_decode((string) file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR);
+            $j["require"]["voku/agent-learning"] = "dev-main";
+            $j["repositories"] = [[
+              "type" => "path",
+              "url" => "build/agent-learning-owner",
+              "options" => ["symlink" => false, "versions" => ["voku/agent-learning" => "dev-main"]],
+            ]];
+            file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+          '
+          composer install --no-interaction --prefer-dist
+      - name: Replay actual frozen #758 Git objects as separate validated worktrees
+        shell: bash
+        env:
+          FROZEN_BASE: 622c004e2cc642fce1c06dc63a4f04d4889637e2
+          FROZEN_HEAD: f1d1f7b91a7adad974aa88ca5104135894d43196
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$FROZEN_BASE" "$FROZEN_HEAD"
+          test "$(git rev-parse "$FROZEN_BASE^{commit}")" = "$FROZEN_BASE"
+          test "$(git rev-parse "$FROZEN_HEAD^{commit}")" = "$FROZEN_HEAD"
+          git worktree add --detach build/761-frozen-base "$FROZEN_BASE"
+          git worktree add --detach build/761-frozen-head "$FROZEN_HEAD"
+          git diff --no-ext-diff --binary "$FROZEN_BASE" "$FROZEN_HEAD" -- > build/761-frozen-full.diff
+          git diff --name-only --diff-filter=ACMRTUXB "$FROZEN_BASE" "$FROZEN_HEAD" -- > build/761-frozen-paths.txt
+          cat > build/761-exact-proof.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          require __DIR__ . '/../vendor/autoload.php';
+
+          use voku\AgentLearning\AppliedGuidanceMaintenanceInspector;
+          use voku\AgentLoop\Dogfood\SelfShapeMaintenanceApprovalGate;
+          use voku\AgentLoop\Dogfood\SelfShapeMaintenanceReviewClaim;
+          use voku\AgentLoop\Dogfood\SelfShapeMaintenanceReviewCommentEvidence;
+          use voku\AgentLoop\Dogfood\SelfShapeEvidence;
+
+          $base = (string) getenv('FROZEN_BASE');
+          $head = (string) getenv('FROZEN_HEAD');
+          $beforeRoot = __DIR__ . '/761-frozen-base';
+          $afterRoot = __DIR__ . '/761-frozen-head';
+          $target = 'MEMORY.md';
+          $before = hash_file('sha256', $beforeRoot . '/' . $target);
+          $after = hash_file('sha256', $afterRoot . '/' . $target);
+          $diff = hash_file('sha256', __DIR__ . '/761-frozen-full.diff');
+          if (!is_string($before) || !is_string($after) || !is_string($diff)) {
+              throw new RuntimeException('Could not hash real frozen Git snapshot.');
+          }
+
+          $paths = array_values(array_filter(explode("\n", trim((string) file_get_contents(__DIR__ . '/761-frozen-paths.txt')))));
+          $owner = (new AppliedGuidanceMaintenanceInspector())->inspect(
+              $beforeRoot . '/.agent-loop/learning',
+              $afterRoot . '/.agent-loop/learning',
+              $target,
+          );
+
+          // SYNTHETIC test-only identity. Nothing here is human-authorized, and
+          // this is never read into the actual self-shape runner or GitHub.
+          $synthetic = new SelfShapeMaintenanceReviewCommentEvidence(
+              new SelfShapeMaintenanceReviewClaim($target, $base, $head, $before, $after, $diff),
+              'SYNTHETIC_TEST_FIXTURE_NOT_A_HUMAN',
+              1,
+              'test-fixture://no-human-approval',
+          );
+          $gate = new SelfShapeMaintenanceApprovalGate();
+          $positive = $gate->matches($owner, $synthetic, $base, $head, $diff, $paths);
+          $negativeExtra = $gate->matches($owner, $synthetic, $base, $head, $diff, [...$paths, 'src/Unexpected.php']);
+          $negativeHash = $gate->matches($owner, $synthetic, $base, $head, hash('sha256', 'tampered'), $paths);
+          $negativeHead = $gate->matches($owner, $synthetic, $base, str_repeat('f', 40), $diff, $paths);
+
+          $failClosed = false;
+          try {
+              (new SelfShapeEvidence([], true))->learningStatus();
+          } catch (RuntimeException) {
+              $failClosed = true;
+          }
+
+          $result = [
+              'source' => $target,
+              'base' => $base,
+              'head' => $head,
+              'before_sha256' => $before,
+              'after_sha256' => $after,
+              'full_binary_diff_sha256' => $diff,
+              'owner_proposal_ids' => $owner->proposalIds,
+              'changed_paths' => $paths,
+              'positive_synthetic_identity_match' => $positive,
+              'reject_extra_path' => !$negativeExtra,
+              'reject_modified_diff' => !$negativeHash,
+              'reject_stale_head' => !$negativeHead,
+              'no_review_fails_closed' => $failClosed,
+              'human_approval' => false,
+              'owner_mutated' => false,
+          ];
+
+          file_put_contents(
+              __DIR__ . '/761-real-replay.json',
+              json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+          );
+          echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+          if (!$positive || $negativeExtra || $negativeHash || $negativeHead || !$failClosed
+              || $owner->beforeSha256 !== $before || $owner->afterSha256 !== $after
+              || count($owner->proposalIds) !== 2 || count($paths) !== 3) {
+              throw new RuntimeException('Real frozen #758 replay did not prove the required narrow gate behavior.');
+          }
+          PHP
+          php build/761-exact-proof.php
+          test -z "$(git -C build/761-frozen-base status --porcelain)"
+          test -z "$(git -C build/761-frozen-head status --porcelain)"
+      - name: Upload exact positive/negative physical-proof report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bounded-real-761-replay
+          if-no-files-found: warn
+          path: build/761-real-replay.json
