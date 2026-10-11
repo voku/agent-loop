@@ -42,6 +42,9 @@ final readonly class SelfShapeMaintenanceGitHubReader
         }
 
         $reviews = [];
+        /** @var array<string, string|null> $permissions */
+        $permissions = [];
+        $unverifiablePermission = null;
         foreach ($pages as $page) {
             if (!is_array($page)) {
                 throw new RuntimeException('Invalid GitHub issue-comments page.');
@@ -74,12 +77,28 @@ final readonly class SelfShapeMaintenanceGitHubReader
                     // GitHub API, not from a PR-controlled environment value.
                     $permission = 'admin';
                 } else {
-                    $permissionData = $this->api->request(
-                        'repos/' . $repository . '/collaborators/' . rawurlencode($login) . '/permission',
-                    );
-                    $permission = is_array($permissionData) && is_string($permissionData['permission'] ?? null)
-                        ? $permissionData['permission']
-                        : '';
+                    // A public commenter can post a syntactically valid marker.
+                    // A failing permission lookup for that one account must
+                    // not suppress independently authenticated later reviews.
+                    $key = strtolower($login);
+                    if (!array_key_exists($key, $permissions)) {
+                        try {
+                            $permissionData = $this->api->request(
+                                'repos/' . $repository . '/collaborators/' . rawurlencode($login) . '/permission',
+                            );
+                            $permissions[$key] = is_array($permissionData)
+                                && is_string($permissionData['permission'] ?? null)
+                                ? $permissionData['permission']
+                                : '';
+                        } catch (RuntimeException $exception) {
+                            $unverifiablePermission ??= $exception;
+                            $permissions[$key] = null;
+                        }
+                    }
+                    $permission = $permissions[$key];
+                    if ($permission === null) {
+                        continue;
+                    }
                 }
                 $evidence = $this->verifier->fromTrustedGitHubApi($comment, $permission, $repository, $prNumber);
                 if ($evidence !== null && $evidence->claim->headCommit === $expectedHead) {
@@ -88,7 +107,12 @@ final readonly class SelfShapeMaintenanceGitHubReader
             }
         }
 
+        if ($reviews === [] && $unverifiablePermission !== null) {
+            // No authenticated candidate survived: preserve the actionable
+            // API failure rather than interpreting it as an approval.
+            throw $unverifiablePermission;
+        }
+
         return $reviews;
     }
-
 }

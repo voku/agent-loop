@@ -119,6 +119,45 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         self::assertSame(str_repeat('d', 64), $reviews[1]->claim->diffSha256);
     }
 
+    public function testFailedOutsiderPermissionLookupCannotHideLaterOwnerReview(): void
+    {
+        $outsider = $this->comment();
+        $outsider['user']['login'] = 'outsider';
+        $outsider['author_association'] = 'NONE';
+
+        $owner = $this->comment();
+        $owner['id'] = 758124;
+        $owner['html_url'] = 'https://github.com/voku/agent-loop/pull/758#issuecomment-758124';
+
+        $reader = $this->reader([
+            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$outsider], [$owner]],
+            'repos/voku/agent-loop/collaborators/outsider/permission' => new RuntimeException('GitHub HTTP 403'),
+        ]);
+
+        $reviews = $reader->findAll(self::REPO, 758, self::HEAD);
+        self::assertCount(1, $reviews);
+        self::assertSame('voku', $reviews[0]->githubLogin);
+        self::assertSame(758124, $reviews[0]->commentId);
+    }
+
+    public function testUnavailablePermissionCannotBecomeAnApprovalWithoutAnotherVerifiedReview(): void
+    {
+        $outsider = $this->comment();
+        $outsider['user']['login'] = 'outsider';
+        $outsider['author_association'] = 'NONE';
+
+        $reader = $this->reader([
+            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$outsider]],
+            'repos/voku/agent-loop/collaborators/outsider/permission' => new RuntimeException('GitHub HTTP 403'),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('GitHub HTTP 403');
+        $reader->findAll(self::REPO, 758, self::HEAD);
+    }
+
     public function testGithubRateLimitFailsClosedRatherThanReturningFalseReview(): void
     {
         $reader = $this->reader([
