@@ -18,6 +18,7 @@ use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
 use voku\AgentLoop\Dogfood\SelfShapeEvidence;
+use voku\AgentLoop\Dogfood\SelfShapeGitChangedPaths;
 use voku\AgentLoop\Dogfood\SelfShapeMapScope;
 use voku\AgentLoop\Dogfood\SelfShapeRunRecovery;
 use voku\AgentLoop\ProjectLayout;
@@ -84,7 +85,7 @@ $base = $git(['merge-base', 'HEAD', 'origin/' . $options['base-ref']]);
 $head = $git(['rev-parse', 'HEAD']);
 
 $lines = static fn (string $output): array => array_values(array_filter(array_map('trim', explode("\n", $output))));
-$changedFiles = $lines($git(['diff', '--name-only', '--diff-filter=ACMRTUXB', $base, 'HEAD', '--']));
+$changedFiles = (new SelfShapeGitChangedPaths($runner))->between($base, 'HEAD');
 if ($changedFiles === []) {
     $fail('Self-shape requires at least one changed file between the merge-base and HEAD.');
 }
@@ -151,7 +152,7 @@ $runner->mustRun([
 // cannot consume repository evidence that appears only after approval. Stable
 // roots keep broad discovery useful while changed PHP outside those roots must
 // be indexed explicitly so approval and the map observe the same governed scope.
-$mapPaths = (new SelfShapeMapScope())->paths($changedFiles);
+$mapPaths = (new SelfShapeMapScope())->paths($changedFiles, $root);
 $loop(['map', 'build', '--paths=' . implode(',', $mapPaths)]);
 $loop(['map', 'search-index', 'build']);
 
