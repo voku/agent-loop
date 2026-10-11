@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Dogfood;
 
-use JsonException;
 use RuntimeException;
 
 /**
@@ -13,10 +12,14 @@ use RuntimeException;
  */
 final readonly class SelfShapeMaintenanceGitHubReader
 {
+    private SelfShapeMaintenanceGitHubApi $api;
+
     public function __construct(
-        private ProcessRunner $runner,
+        ProcessRunner $runner,
         private SelfShapeMaintenanceReviewCommentVerifier $verifier = new SelfShapeMaintenanceReviewCommentVerifier(),
+        ?SelfShapeMaintenanceGitHubApi $api = null,
     ) {
+        $this->api = $api ?? new SelfShapeMaintenanceGitHubCli($runner);
     }
 
     public function find(string $repository, int $prNumber, string $expectedHead): ?SelfShapeMaintenanceReviewCommentEvidence
@@ -26,13 +29,13 @@ final readonly class SelfShapeMaintenanceGitHubReader
             throw new RuntimeException('Invalid trusted GitHub PR identity.');
         }
 
-        $pr = $this->api('repos/' . $repository . '/pulls/' . $prNumber);
+        $pr = $this->api->request('repos/' . $repository . '/pulls/' . $prNumber);
         if (!is_array($pr) || !isset($pr['head']) || !is_array($pr['head'])
             || ($pr['head']['sha'] ?? null) !== $expectedHead) {
             throw new RuntimeException('GitHub PR head differs from the exact checkout being reviewed.');
         }
 
-        $pages = $this->api('repos/' . $repository . '/issues/' . $prNumber . '/comments?per_page=100', true);
+        $pages = $this->api->request('repos/' . $repository . '/issues/' . $prNumber . '/comments?per_page=100', true);
         if (!is_array($pages)) {
             throw new RuntimeException('Invalid GitHub issue-comments response.');
         }
@@ -58,7 +61,7 @@ final readonly class SelfShapeMaintenanceGitHubReader
                     // GitHub API, not from a PR-controlled environment value.
                     $permission = 'admin';
                 } else {
-                    $permissionData = $this->api(
+                    $permissionData = $this->api->request(
                         'repos/' . $repository . '/collaborators/' . rawurlencode($login) . '/permission',
                     );
                     $permission = is_array($permissionData) && is_string($permissionData['permission'] ?? null)
@@ -75,24 +78,4 @@ final readonly class SelfShapeMaintenanceGitHubReader
         return null;
     }
 
-    /** @return mixed */
-    private function api(string $endpoint, bool $paginate = false): mixed
-    {
-        // gh reads GH_TOKEN from the runner environment. Never put credentials
-        // on argv, write them to files, or call a shell command string.
-        $args = $paginate
-            ? ['gh', 'api', '--paginate', '--slurp', $endpoint]
-            : ['gh', 'api', $endpoint];
-        $result = $this->runner->run($args);
-        if ($result['exit_code'] !== 0) {
-            throw new RuntimeException('Unable to independently verify GitHub API evidence (' . $endpoint . '): '
-                . trim($result['stderr']));
-        }
-
-        try {
-            return json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('Malformed GitHub API response (' . $endpoint . ').', 0, $exception);
-        }
-    }
 }
