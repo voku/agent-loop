@@ -14,7 +14,6 @@ final readonly class SelfShapeMaintenanceGitHubCli implements SelfShapeMaintenan
     {
     }
 
-    /** @return mixed */
     public function request(string $endpoint, bool $paginate = false): mixed
     {
         $args = $paginate
