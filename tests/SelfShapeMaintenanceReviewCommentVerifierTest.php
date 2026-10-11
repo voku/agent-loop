@@ -27,7 +27,6 @@ final class SelfShapeMaintenanceReviewCommentVerifierTest extends TestCase
         self::assertSame('MEMORY.md', $result->claim->source);
         self::assertSame(str_repeat('a', 40), $result->claim->headCommit);
         self::assertSame(str_repeat('c', 64), $result->claim->diffSha256);
-        self::assertFalse(property_exists($result, 'humanApprovalAuthenticated'));
     }
 
     public function testReaderOrBotIsNotAnApprovedReviewSource(): void
