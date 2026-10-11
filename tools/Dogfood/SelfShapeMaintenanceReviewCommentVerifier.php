@@ -99,7 +99,7 @@ final readonly class SelfShapeMaintenanceReviewCommentVerifier
             . 'diff_sha256=(?<diff>[a-f0-9]{64})\n'
             . 'decision=reference-only-maintenance\n'
             . 'rule_text_changed=yes\z~D';
-        if (preg_match($pattern, trim($body), $matches) !== 1) {
+        if (preg_match($pattern, $body, $matches) !== 1) {
             return null;
         }
 

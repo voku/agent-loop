@@ -92,6 +92,31 @@ final class SelfShapeMaintenanceReviewCommentVerifierTest extends TestCase
         ));
     }
 
+    public function testReviewMarkerMustBeTheCompleteLiteralCommentWithoutWhitespacePadding(): void
+    {
+        $verifier = new SelfShapeMaintenanceReviewCommentVerifier();
+        $original = $this->comment();
+
+        foreach (["\n", " ", "\t", "\n\n"] as $extra) {
+            $padded = $original;
+            $padded['body'] = $extra . $original['body'];
+            self::assertNull(
+                $verifier->fromTrustedGitHubApi($padded, 'admin', self::REPO, self::PR),
+                'The review marker must not accept leading whitespace.',
+            );
+
+            $padded['body'] = $original['body'] . $extra;
+            self::assertNull(
+                $verifier->fromTrustedGitHubApi($padded, 'admin', self::REPO, self::PR),
+                'The review marker must not accept trailing whitespace.',
+            );
+        }
+
+        self::assertNotNull(
+            $verifier->fromTrustedGitHubApi($original, 'admin', self::REPO, self::PR),
+        );
+    }
+
     /** @return array<string, mixed> */
     private function comment(): array
     {
