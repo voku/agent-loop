@@ -3,5 +3,21 @@
   "extends": [
     "config:recommended"
   ],
-  "forkProcessing": "enabled"
+  "forkProcessing": "enabled",
+  "packageRules": [
+    {
+      "description": "Keep symfony/yaml on a PHP 8.3-compatible major until the supported PHP minimum is deliberately raised.",
+      "matchPackageNames": [
+        "symfony/yaml"
+      ],
+      "allowedVersions": "<8.0.0"
+    },
+    {
+      "description": "PHPUnit 13 requires PHP >=8.4.1; keep PHPUnit 12 eligible while CI still supports PHP 8.3.",
+      "matchPackageNames": [
+        "phpunit/phpunit"
+      ],
+      "allowedVersions": "<13.0.0"
+    }
+  ]
 }
