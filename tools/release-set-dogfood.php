@@ -227,6 +227,13 @@ final class ReleaseSetDogfood
         $this->assertFile($this->consumerRoot . '/.agent-loop/todo/cards/DEMO-1.md');
         $this->assertProjectedHostInstructions();
 
+        $learningRoot = $this->consumerRoot . '/.agent-loop/learning';
+        if (!is_dir($learningRoot . '/findings')) {
+            throw new ReleaseSetFailure('Fresh scaffold did not initialize the Learning owner root.');
+        }
+        $this->mustRun(['vendor/bin/agent-learning', 'validate', '--root', $learningRoot]);
+        $this->mustRun(['vendor/bin/agent-loop', 'learn', 'validate']);
+
         $status = $this->status('DEMO-1');
         $this->assertReference($status, 'board', 'linked');
         $this->mustRun([
