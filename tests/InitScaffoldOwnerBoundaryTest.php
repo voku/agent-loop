@@ -22,7 +22,7 @@ final class InitScaffoldOwnerBoundaryTest extends TestCase
         self::assertStringNotContainsString('/todo/cards', $source);
         self::assertStringNotContainsString('/todo/archive', $source);
         self::assertStringNotContainsString('/todo/jira/', $source);
-        self::assertStringNotContainsString("/findings'", $source);
+        self::assertStringNotContainsString('/findings/validated', $source);
         self::assertStringNotContainsString('json_encode(', $source);
     }
 }
