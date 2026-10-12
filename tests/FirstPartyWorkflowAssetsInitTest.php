@@ -60,6 +60,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertArrayHasKey('agent-recall-consumer', $skills);
         self::assertArrayHasKey('agent-loop-discipline', $skills);
         self::assertArrayHasKey('agent-loop-workflow', $skills);
+        self::assertArrayHasKey('agent-loop-dream', $skills);
 
         // Maintainer skills MUST NOT be present
         self::assertArrayNotHasKey('agent-learning-maintainer', $skills);
@@ -176,6 +177,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertContains('agent-learning-consumer', $plannedEntries);
         self::assertContains('agent-recall-consumer', $plannedEntries);
         self::assertContains('agent-loop-workflow', $plannedEntries);
+        self::assertContains('agent-loop-dream', $plannedEntries);
         self::assertContains('agent-loop-discipline', $plannedEntries);
         self::assertContains('AGENTS.md', $plannedEntries);
         self::assertNotContains('agent-learning-maintainer', $plannedEntries);
@@ -189,6 +191,12 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertFileExists($this->root . '/.codex/skills/agent-learning-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-workflow/SKILL.md');
+        self::assertFileExists($this->root . '/.codex/skills/agent-loop-dream/SKILL.md');
+        self::assertSame(
+            file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-dream/SKILL.md'),
+            file_get_contents($this->root . '/.codex/skills/agent-loop-dream/SKILL.md'),
+            'The consumer must receive the canonical cross-host audit contract, not a host-specific fork.',
+        );
         self::assertFileExists($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-learning-maintainer/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-session-maintainer/SKILL.md');
@@ -217,6 +225,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertContains('agent-learning-consumer', $uninstalledEntries);
         self::assertContains('agent-recall-consumer', $uninstalledEntries);
         self::assertContains('agent-loop-workflow', $uninstalledEntries);
+        self::assertContains('agent-loop-dream', $uninstalledEntries);
         self::assertContains('agent-loop-discipline', $uninstalledEntries);
         self::assertContains('AGENTS.md', $uninstalledEntries);
 
@@ -228,6 +237,7 @@ final class FirstPartyWorkflowAssetsInitTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-learning-consumer/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-recall-consumer/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-workflow/SKILL.md');
+        self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-dream/SKILL.md');
         self::assertFileDoesNotExist($this->root . '/.codex/skills/agent-loop-discipline/SKILL.md');
 
         // Verify AGENTS.md retained project-owned content and removed managed block
