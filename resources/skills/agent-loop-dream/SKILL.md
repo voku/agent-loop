@@ -1,11 +1,11 @@
 ---
 name: agent-loop-dream
-description: Run the Dream maintenance pass over existing Learning guidance, triage its warnings and candidate decisions, and hand every decision to a named human without changing active guidance.
+description: Review Dream/Learning guidance candidates and audit stale or conflicting prompts, memory and agent instructions across coding-agent hosts; propose evidence-backed edits without changing durable guidance.
 ---
 
 # Agent Loop Dream
 
-**Trigger Anchor:** Periodic guidance maintenance is due (after several close-outs, after a package bump, or the user says "dream") -> run the read-only review, triage it, and hand each decision to a named human. Dream never approves, applies, retires, deletes, or rewrites guidance.
+**Trigger Anchor:** Dream maintenance is due, or the user requests a prompt, memory, or agent-instruction audit -> inspect repository evidence and propose human-reviewed decisions. Dream never approves, applies, retires, deletes, or rewrites guidance.
 
 Dream is the maintenance step of the Promotion Loop (`Dream -> Proposal -> Human Approval -> Constraint/Skill -> Enforcement -> Retirement`). Capturing findings and closing a Run stay in `agent-loop-learning-boundary`; changing a skill, doc, or memory file stays with the owner of that file.
 
