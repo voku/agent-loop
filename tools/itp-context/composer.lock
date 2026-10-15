@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "85df8811557de7afe2aa5c20a4c1192d",
+    "content-hash": "8bdafac6c747eea1dcbf9779c4940c68",
     "packages": [
         {
             "name": "voku/itp-context",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/itp-context.git",
-                "reference": "785a61d9ec8cb0eb9a868908a97314ec4b69c173"
+                "reference": "80ea5b8288fc5b7f551c54caade93297a75132b1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/itp-context/zipball/785a61d9ec8cb0eb9a868908a97314ec4b69c173",
-                "reference": "785a61d9ec8cb0eb9a868908a97314ec4b69c173",
+                "url": "https://api.github.com/repos/voku/itp-context/zipball/80ea5b8288fc5b7f551c54caade93297a75132b1",
+                "reference": "80ea5b8288fc5b7f551c54caade93297a75132b1",
                 "shasum": ""
             },
             "require": {
@@ -71,7 +71,7 @@
                 "issues": "https://github.com/voku/itp-context/issues",
                 "source": "https://github.com/voku/itp-context"
             },
-            "time": "2026-05-18T10:38:21+00:00"
+            "time": "2026-10-14T21:35:41+00:00"
         }
     ],
     "packages-dev": [],
@@ -85,5 +85,5 @@
     "platform-overrides": {
         "php": "8.3.0"
     },
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
