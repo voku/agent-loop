@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "status": "E1_PILOT_ONE_OF_FOUR_NOT_GENERALIZABLE",
+  "experiment_issue": "https://github.com/voku/agent-loop/issues/779",
+  "case_id": "parser-existing-path-collision-2026-10-04",
+  "task_shape": "real_phpunit_regression",
+  "executor_visible_task": "Investigate a bug where a parser's string entry point behaves unexpectedly when source text resembles an existing file name. Fix behavior with regression coverage; do not assume a root cause before inspecting evidence.",
+  "source_repository": "voku/Simple-PHP-Code-Parser",
+  "pre_fix_base_sha": "25af1a0ea38636e9b250b620f77535f3295d27bb",
+  "fixed_source_sha": "c97aa2be882731f091b65e51989fbfaaf602e89e",
+  "source_issue": "https://github.com/voku/Simple-PHP-Code-Parser/issues/164",
+  "fix_pr": "https://github.com/voku/Simple-PHP-Code-Parser/pull/165",
+  "original_failed_run": "https://github.com/voku/Simple-PHP-Code-Parser/actions/runs/37185207260",
+  "original_failed_job_id": 111385595519,
+  "original_success_run": "https://github.com/voku/Simple-PHP-Code-Parser/actions/runs/37185121088",
+  "input_fixture": "tests/ParserEntryPointsTest.php from exact pre-fix commit, reused byte-for-byte in both checkouts",
+  "test_filter": "testGetFromStringNeverTreatsSourceAsExistingPath",
+  "source_kind": "OPTIONAL_HUMAN_DIAGNOSTIC",
+  "authoritative_validation": "untouched; this is isolated experiment capture, not a governed validation receipt",
+  "expected_result": "pre-fix nonzero, same pre-fix test against fixed source zero",
+  "verifier_only_required_markers": [
+    "Failed asserting that two arrays are not identical.",
+    "testGetFromStringNeverTreatsSourceAsExistingPath"
+  ],
+  "limitations": [
+    "Only PHPUnit case 1 of at least 4; no performance, ranker, or token savings evidence.",
+    "The original PHPStan / CI / runtime candidates are not yet replayed.",
+    "Dependency graph can resolve differently across historical repos; exact lock SHA is recorded.",
+    "No model behavior or autonomous tool-choice proof."
+  ]
+}
