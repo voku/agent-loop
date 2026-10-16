@@ -1,0 +1,215 @@
+name: E1.4 real runtime failure replay
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/context-e1-runtime.yml'
+      - 'tools/Dogfood/ContextSelection/e1-runtime-case.json'
+      - 'tools/Dogfood/ContextSelection/e1-runtime/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-runtime:
+    name: Freeze and replay real PHP runtime fatal
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: mbstring, zip
+          tools: composer:v2
+
+      - name: Resolve case identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/e1-runtime
+          case=tools/Dogfood/ContextSelection/e1-runtime-case.json
+          echo "PRE_SHA=$(jq -r .pre_fix_sha "$case")" >> "$GITHUB_ENV"
+          echo "FIX_SHA=$(jq -r .fixed_sha "$case")" >> "$GITHUB_ENV"
+
+      - name: Checkout exact pre-fix source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/Simple-PHP-Code-Parser
+          ref: ${{ env.PRE_SHA }}
+          path: build/e1-runtime/before
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Checkout exact fixed source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/Simple-PHP-Code-Parser
+          ref: ${{ env.FIX_SHA }}
+          path: build/e1-runtime/after
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify source pair and freeze the identical invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-runtime
+          test "$(git -C before rev-parse HEAD)" = "${PRE_SHA}"
+          test "$(git -C after rev-parse HEAD)" = "${FIX_SHA}"
+          test "$(git -C after rev-parse HEAD^)" = "${PRE_SHA}"
+          cmp before/composer.json after/composer.json
+          diff -rq -x .git before after | sort | tee source-diff.txt || true
+          test "$(grep -c . source-diff.txt)" -eq 4
+          grep -Fq 'CHANGELOG.md' source-diff.txt
+          grep -Fq 'Parsers/Helper/Utils.php' source-diff.txt
+          grep -Fq 'Parsers/Visitors/ASTVisitor.php' source-diff.txt
+          grep -Fq 'tests/CyclicInheritanceTest.php' source-diff.txt
+          cp "${GITHUB_WORKSPACE}/tools/Dogfood/ContextSelection/e1-runtime/repro.php" before/repro.php
+          cp "${GITHUB_WORKSPACE}/tools/Dogfood/ContextSelection/e1-runtime/repro.php" after/repro.php
+          cmp before/repro.php after/repro.php
+          sha256sum before/repro.php | cut -d' ' -f1 > repro.sha256
+          sha256sum before/composer.json | cut -d' ' -f1 > composer-json.sha256
+          php -v | head -1 > php-version.txt
+          composer --version > composer-version.txt
+          grep -E '^(NAME|VERSION)=' /etc/os-release > os.txt
+          echo "ImageVersion=${ImageVersion:-unknown}" >> os.txt
+
+      - name: Install ONE dependency graph, copy it byte-identically to both arms
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-runtime
+          (cd before && composer update --no-dev --prefer-dist --no-interaction --no-progress)
+          cp before/composer.lock after/composer.lock
+          (cd after && composer install --no-dev --prefer-dist --no-interaction --no-progress)
+          cmp before/composer.lock after/composer.lock
+          sha256sum before/composer.lock | cut -d' ' -f1 > dependency-graph.sha256
+
+      - name: Run IDENTICAL runtime command in both arms (stdout and stderr separate, exits are data)
+        shell: bash
+        run: |
+          set -uo pipefail
+          cd build/e1-runtime
+          for arm in before after; do
+            (cd "$arm" && timeout 300 php -d memory_limit=128M -d display_errors=stderr -d log_errors=0 \
+              -d html_errors=0 -d error_reporting=-1 repro.php) \
+              > "${arm}.stdout.txt" 2> "${arm}.stderr.txt"
+            printf '%s\n' "$?" > "${arm}.exit"
+          done
+          echo "REPLAY before exit=$(cat before.exit), after exit=$(cat after.exit)"
+          for arm in before after; do
+            echo "--- ${arm} stdout ---"; cat "${arm}.stdout.txt"
+            echo "--- ${arm} stderr ---"; cat "${arm}.stderr.txt"
+          done
+          exit 0
+
+      - name: Evaluate comparison and write machine receipt (runs even when the proof fails)
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          root = Path("build/e1-runtime")
+          case = json.loads(Path("tools/Dogfood/ContextSelection/e1-runtime-case.json").read_text())
+          def rd(n):
+              p = root / n
+              return p.read_text(errors="replace") if p.exists() else None
+          def stats(n):
+              p = root / n
+              if not p.exists():
+                  return None
+              b = p.read_bytes()
+              return {"sha256": "sha256:" + hashlib.sha256(b).hexdigest(), "bytes": len(b), "lines": b.count(b"\n")}
+          def exit_of(a):
+              t = rd(f"{a}.exit")
+              return int(t.strip()) if t else None
+
+          observed = {}
+          for a in ("before", "after"):
+              observed[a] = {"exit_code": exit_of(a), "stdout": stats(f"{a}.stdout.txt"), "stderr": stats(f"{a}.stderr.txt")}
+
+          bo, be = rd("before.stdout.txt") or "", rd("before.stderr.txt") or ""
+          ao, ae = rd("after.stdout.txt") or "", rd("after.stderr.txt") or ""
+          markers = case["evaluator_only"]["critical_markers"]
+          checks = {
+              "before_exit_nonzero": observed["before"]["exit_code"] not in (None, 0),
+              "before_code_ran_BEGIN_in_stdout": "BEGIN parse" in bo,
+              "before_no_END_in_stdout": "END parse" not in bo,
+              "before_markers_in_stderr": all(m in be for m in markers),
+              "after_exit_zero": observed["after"]["exit_code"] == 0,
+              "after_END_in_stdout": "END parse classes=2" in ao,
+              "after_semantics": "class Cycle\\First interfaces=Cycle\\Marker" in ao and "class Cycle\\Second interfaces=Cycle\\Marker" in ao,
+              "after_no_fatal_in_stderr": "Fatal" not in ae,
+          }
+          def t(n):
+              p = root / n
+              return p.read_text().strip() if p.exists() else None
+          report = {
+              "schema_version": "1.0",
+              "case_id": case["case_id"],
+              "harness_pr_head_sha": os.environ["PROOF_HEAD_SHA"],
+              "pull_request_merge_ref_sha_not_source_under_test": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "source_repository": case["source_repository"],
+              "pre_fix_sha": case["pre_fix_sha"],
+              "fixed_sha": case["fixed_sha"],
+              "command": case["command"],
+              "repro_script_sha256": "sha256:" + (t("repro.sha256") or "missing"),
+              "composer_json_sha256": "sha256:" + (t("composer-json.sha256") or "missing"),
+              "dependency_graph_sha256": "sha256:" + (t("dependency-graph.sha256") or "missing"),
+              "php_version": t("php-version.txt"),
+              "composer_version": t("composer-version.txt"),
+              "os": t("os.txt"),
+              "source_diff": t("source-diff.txt"),
+              "observed": observed,
+              "checks": checks,
+              "comparison_ok": all(checks.values()),
+              "source_kind": case["source_kind"],
+              "workflow_authority_modified": False,
+              "model_invoked": False,
+          }
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "e1-runtime-replay.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+        env:
+          PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Upload immutable replay evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e1-runtime-real-replay-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/e1-runtime/e1-runtime-replay.json
+            build/e1-runtime/before.stdout.txt
+            build/e1-runtime/before.stderr.txt
+            build/e1-runtime/after.stdout.txt
+            build/e1-runtime/after.stderr.txt
+            build/e1-runtime/before.exit
+            build/e1-runtime/after.exit
+            build/e1-runtime/*.sha256
+            build/e1-runtime/source-diff.txt
+            build/e1-runtime/php-version.txt
+            build/e1-runtime/composer-version.txt
+            build/e1-runtime/os.txt
+            build/e1-runtime/before/composer.lock
+
+      - name: Fail unless every comparative assertion held
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(jq -r .comparison_ok build/e1-runtime/e1-runtime-replay.json)" = "true" || {
+            jq .checks build/e1-runtime/e1-runtime-replay.json; exit 1; }

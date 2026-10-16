@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "status": "E1_4_CANDIDATE_PENDING_CI_VERIFICATION",
+  "experiment_issue": "https://github.com/voku/agent-loop/issues/779",
+  "case_id": "parser-cyclic-inheritance-memory-exhaustion-2026-10-01",
+  "task_shape": "real_runtime_fatal_error",
+  "executor_visible_task": "A command-line script that parses a small PHP source string with a project's parser entry point aborts instead of printing a summary. Investigate the process output and exit status and determine why it aborts; do not change the input.",
+  "source_repository": "voku/Simple-PHP-Code-Parser",
+  "pre_fix_sha": "3b45bf114248a6c639e842a234922f36e1b90e50",
+  "fixed_sha": "1e707e8a61b6a575b501c0d9170c1e987eaead56",
+  "fix_commit_message": "fix: guard inheritance traversals against cycles",
+  "pre_fix_is_direct_parent_of_fixed": true,
+  "source_diff_scope": [
+    "CHANGELOG.md",
+    "src/voku/SimplePhpParser/Parsers/Helper/Utils.php",
+    "src/voku/SimplePhpParser/Parsers/Visitors/ASTVisitor.php",
+    "tests/CyclicInheritanceTest.php"
+  ],
+  "fixture": {
+    "harness_script": "e1-runtime/repro.php",
+    "input_source": "classes First and Second extend each other (fixture taken from the fix commit's own regression test testClassesExtendingEachOtherAreParsedWithTheirInterfaces)",
+    "independence": "repro.php is a new script, not PHPUnit; it calls the public PhpCodeParser::getPhpFiles() entry point only and is copied byte-identically into both checkouts"
+  },
+  "command": "php -d memory_limit=128M -d display_errors=stderr -d log_errors=0 -d html_errors=0 -d error_reporting=-1 repro.php",
+  "environment": {
+    "php": "8.3 via shivammathur/setup-php@v2",
+    "dependency_policy": "composer update --no-dev once on the pre-fix checkout; composer.lock copied byte-identically to the fixed checkout and installed with composer install --no-dev",
+    "composer_json_identical_across_revisions": true
+  },
+  "source_kind": "OPTIONAL_HUMAN_DIAGNOSTIC",
+  "authoritative_validation": "untouched; isolated experiment capture, not a governed validation receipt",
+  "evaluator_only": {
+    "root_cause": "ASTVisitor::combineImplementedInterfaces() recurses along the parentClass chain without tracking visited classes; two classes extending each other recurse until PHP exhausts memory.",
+    "fix": "Track visited classes in collectImplementedInterfaces()/collectParentInterfaces() and stop at cycles.",
+    "critical_markers": [
+      "Allowed memory size of 134217728 bytes exhausted",
+      "ASTVisitor.php"
+    ]
+  },
+  "expected_result": "pre-fix: nonzero exit (PHP fatal, normally 255), stdout has BEGIN but not END, stderr has the memory-exhaustion fatal in ASTVisitor.php; fixed: exit 0, stdout has END and both classes with interface Cycle\\Marker, stderr has no fatal",
+  "rejected_candidates": [
+    {"id": "voku/portable-utf8 d9ad1d3 (html_entity_decode ValueError)", "reason": "The regression inputs from the fix's own test do not raise on pre-fix code under PHP 8.3 (checked locally on the pre-fix parent); the failure is PHP-version dependent and not reproducible on this runner."},
+    {"id": "voku/simple_html_dom e47e411 (mb_decode_numericentity ValueError)", "reason": "Same dependency on a PHP-version-specific ValueError, no dependable trigger input in the fix commit, and the fix is a bot-authored catch-all."}
+  ],
+  "limitations": [
+    "A PHP memory-exhaustion fatal prints one line without a stack trace, so the diagnostic is short; this case adds a runtime fatal shape, not log volume.",
+    "The 'tried to allocate' byte count and file line depend on the PHP build and may drift.",
+    "The input is taken from the fix commit's regression test; the repro script itself was written for this experiment and was not part of the project history.",
+    "No model, token or ranking claim."
+  ]
+}
