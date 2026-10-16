@@ -87,6 +87,12 @@ jobs:
           printf '%s\n' "${before_rc}" > "${report}/before.exit"
           printf '%s\n' "${after_rc}" > "${report}/after.exit"
 
+          echo "REPLAY before exit=${before_rc}, after exit=${after_rc}"
+          echo '--- before PHPUnit diagnostic (bounded) ---'
+          tail -n 28 "${report}/before.stdout.txt"
+          echo '--- after PHPUnit diagnostic (bounded) ---'
+          tail -n 28 "${report}/after.stdout.txt"
+
           test "${before_rc}" -ne 0
           test "${after_rc}" -eq 0
           grep -Fq 'Failed asserting that two arrays are not identical.' "${report}/before.stdout.txt"
