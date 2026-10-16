@@ -170,7 +170,10 @@ def run_codex_arm(workspace: Path, arm: str, command: str, source_marker: str) -
         raise RuntimeError(f"{arm}: expected exactly one observed exec_command output; got {len(responses)}")
     output = json.dumps(responses[0], sort_keys=True, ensure_ascii=False)
     if source_marker not in output:
-        raise RuntimeError(f"{arm}: PHPStan diagnostic marker missing from actual Codex tool output")
+        raise RuntimeError(
+            f"{arm}: PHPStan diagnostic marker missing from actual Codex tool output; "
+            f"observed envelope tail={output[-1100:]!r}"
+        )
     return {
         "command": command,
         "host": check(["codex", "--version"], cwd=workspace).stdout.strip(),
