@@ -1,0 +1,76 @@
+name: Context diagnostic opt-in host proof
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/context-diagnostic-opt-in-proof.yml'
+      - 'tools/Dogfood/ContextSelection/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codex-diagnostic-opt-in:
+    name: Installed Codex diagnostic tool-output transport
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install declared PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install fixed Codex runtime
+        env:
+          CODEX_VERSION: '0.157.0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CODEX_NON_INTERACTIVE=1
+          export CODEX_INSTALL_DIR="${RUNNER_TEMP}/context-proof-codex"
+          export CODEX_HOME="${RUNNER_TEMP}/context-proof-install"
+          curl -fsSL https://chatgpt.com/codex/install.sh |
+            sh -s -- --release "${CODEX_VERSION}"
+          echo "${CODEX_INSTALL_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Confirm isolated proof script syntax
+        run: python3 -m py_compile tools/Dogfood/ContextSelection/codex_diagnostic_opt_in_proof.py
+
+      - name: Run real Codex tool-output opt-in proof (mock provider, no credentials)
+        env:
+          PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+          ANTHROPIC_API_KEY: ''
+        run: python3 tools/Dogfood/ContextSelection/codex_diagnostic_opt_in_proof.py
+
+      - name: Assert machine-readable proof and nonclaims
+        run: |
+          jq -e '
+            .schema_version == "1.0"
+            and .classification == "OPTIONAL_HUMAN_DIAGNOSTIC"
+            and .source.producer_exit_code != 0
+            and .source.source_bytes > 0
+            and .raw.host_tool_output_observed == true
+            and .explicit_native_opt_in.host_tool_output_observed == true
+            and .governed_validation_untouched == true
+            and .completion_envelope_untouched == true
+            and (.does_not_prove | index("autonomous_model_tool_selection")) != null
+          ' build/context-selection-host-proof.json >/dev/null
+
+      - name: Upload exact-head transport evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: context-diagnostic-opt-in-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/context-selection-host-proof.json
