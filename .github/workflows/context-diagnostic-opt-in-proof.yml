@@ -18,6 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
@@ -44,6 +45,18 @@ jobs:
 
       - name: Confirm isolated proof script syntax
         run: python3 -m py_compile tools/Dogfood/ContextSelection/codex_diagnostic_opt_in_proof.py
+
+      - name: Prepare user-namespace sandbox on isolated GitHub-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sysctl -n kernel.apparmor_restrict_unprivileged_userns
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = '0'
+          else
+            echo 'AppArmor userns setting unavailable; Codex sandbox will be tested unchanged.'
+          fi
 
       - name: Run real Codex tool-output opt-in proof (mock provider, no credentials)
         env:
