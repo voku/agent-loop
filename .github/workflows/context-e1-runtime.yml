@@ -95,6 +95,7 @@ jobs:
       - name: Run IDENTICAL runtime command in both arms (stdout and stderr separate, exits are data)
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           cd build/e1-runtime
           for arm in before after; do
