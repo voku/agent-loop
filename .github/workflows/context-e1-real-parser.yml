@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/Simple-PHP-Code-Parser
-          ref: 25af1a0ea38636e9b250b620f77535f3295d27bb
+          ref: e43f4d9eddb0d72f5aa69e88ceed4e5fba4d1e85
           path: build/context-e1/before
           persist-credentials: false
 
@@ -67,7 +67,8 @@ jobs:
           after="build/context-e1/after"
           report="build/context-e1"
 
-          # The old test fails on BOTH revisions; use the corrected regression from the fix PR identically on both.
+          # Use the corrected test from the fix PR identically on real PR base and fixed source.
+          # A preliminary commit already contained the fix; it is not a valid negative case.
           cp "${after}/tests/ParserEntryPointsTest.php" "${before}/tests/ParserEntryPointsTest.php"
           cmp "${before}/tests/ParserEntryPointsTest.php" "${after}/tests/ParserEntryPointsTest.php"
           sha256sum "${before}/tests/ParserEntryPointsTest.php" |
