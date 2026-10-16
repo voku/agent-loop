@@ -59,7 +59,7 @@ jobs:
             )
           done
 
-      - name: Replay IDENTICAL original regression test against pre-fix and fixed code
+      - name: Replay IDENTICAL corrected regression test against pre-fix and fixed code
         shell: bash
         run: |
           set -euo pipefail
@@ -132,7 +132,7 @@ jobs:
                       "output_sha256": sha(root / f"{a}.stdout.txt"),
                       "output_bytes": (root / f"{a}.stdout.txt").stat().st_size,
                       "critical_failure_marker": (
-                          "Failed asserting that two arrays are not identical."
+                          "FAILURES!"
                           in (root / f"{a}.stdout.txt").read_text()
                       ),
                   }
