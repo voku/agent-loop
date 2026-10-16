@@ -1,0 +1,41 @@
+191-2026-10-10T11:24:56.8562012Z shell: /usr/bin/bash -e {0}
+192-2026-10-10T11:24:56.8562375Z env:
+193-2026-10-10T11:24:56.8562618Z   COMPOSER_PROCESS_TIMEOUT: 0
+194-2026-10-10T11:24:56.8563226Z   COMPOSER_NO_INTERACTION: 1
+195-2026-10-10T11:24:56.8563503Z   COMPOSER_NO_AUDIT: 1
+196-2026-10-10T11:24:56.8563756Z ##[endgroup]
+197-2026-10-10T11:24:56.9712832Z ./composer.json is valid
+198-2026-10-10T11:24:57.0834569Z Loading composer repositories with package information
+199-2026-10-10T11:24:57.5505357Z Updating dependencies
+200-2026-10-10T11:24:57.6219424Z Your requirements could not be resolved to an installable set of packages.
+201:2026-10-10T11:24:57.6244468Z ##[error]Your requirements could not be resolved to an installable set of packages.
+202-
+203-  Problem 1
+204-    - phpunit/phpunit[8.5.0, ..., 8.5.11] require php ^7.2 -> your php version (7.1.33) does not satisfy that requirement.
+205-    - phpunit/phpunit[8.5.12, ..., 8.5.56] require php >=7.2 -> your php version (7.1.33) does not satisfy that requirement.
+206-    - phpunit/phpunit[9.6.0, ..., 9.6.38] require php >=7.3 -> your php version (7.1.33) does not satisfy that requirement.
+207-    - phpunit/phpunit[10.5.0, ..., 10.5.66] require php >=8.1 -> your php version (7.1.33) does not satisfy that requirement.
+208-    - phpunit/phpunit[11.5.0, ..., 11.5.57] require php >=8.2 -> your php version (7.1.33) does not satisfy that requirement.
+209-    - Root composer.json requires phpunit/phpunit ~8.5 || ~9.6 || ~10.5 || ~11.5 -> satisfiable by phpunit/phpunit[8.5.0, ..., 8.5.56, 9.6.0, ..., 9.6.38, 10.5.0, ..., 10.5.66, 11.5.0, ..., 11.5.57].
+210-
+211-2026-10-10T11:24:57.6253848Z 
+212-2026-10-10T11:24:57.6254024Z   Problem 1
+213-2026-10-10T11:24:57.6254531Z     - phpunit/phpunit[8.5.0, ..., 8.5.11] require php ^7.2 -> your php version (7.1.33) does not satisfy that requirement.
+214-2026-10-10T11:24:57.6255240Z     - phpunit/phpunit[8.5.12, ..., 8.5.56] require php >=7.2 -> your php version (7.1.33) does not satisfy that requirement.
+215-2026-10-10T11:24:57.6255901Z     - phpunit/phpunit[9.6.0, ..., 9.6.38] require php >=7.3 -> your php version (7.1.33) does not satisfy that requirement.
+216-2026-10-10T11:24:57.6256570Z     - phpunit/phpunit[10.5.0, ..., 10.5.66] require php >=8.1 -> your php version (7.1.33) does not satisfy that requirement.
+217-2026-10-10T11:24:57.6257433Z     - phpunit/phpunit[11.5.0, ..., 11.5.57] require php >=8.2 -> your php version (7.1.33) does not satisfy that requirement.
+218-2026-10-10T11:24:57.6258276Z     - Root composer.json requires phpunit/phpunit ~8.5 || ~9.6 || ~10.5 || ~11.5 -> satisfiable by phpunit/phpunit[8.5.0, ..., 8.5.56, 9.6.0, ..., 9.6.38, 10.5.0, ..., 10.5.66, 11.5.0, ..., 11.5.57].
+219-2026-10-10T11:24:57.6258823Z 
+220-2026-10-10T11:24:57.6259382Z Running update with --no-dev does not mean require-dev is ignored, it just means the packages will not be installed. If dev requirements are blocking the update you have to resolve those problems.
+221:2026-10-10T11:24:57.6361842Z ##[error]Process completed with exit code 2.
+222-2026-10-10T11:24:57.6508165Z Post job cleanup.
+223-2026-10-10T11:24:57.7326160Z [command]/usr/bin/git version
+224-2026-10-10T11:24:57.7360294Z git version 2.55.0
+225-2026-10-10T11:24:57.7393396Z Temporarily overriding HOME='/home/runner/work/_temp/52cd3bb2-3e61-4ebc-8b0c-75a75a305368' before making global git config changes
+226-2026-10-10T11:24:57.7395369Z Adding repository directory to the temporary git global config as a safe directory
+227-2026-10-10T11:24:57.7399716Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/portable-ascii/portable-ascii
+228-2026-10-10T11:24:57.7428022Z Removing SSH command configuration
+229-2026-10-10T11:24:57.7434464Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+230-2026-10-10T11:24:57.7465689Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+231-2026-10-10T11:24:57.7641108Z Removing HTTP extra header

@@ -1,0 +1,44 @@
+… 4 lines …
+2026-10-10T11:24:46.6438038Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+2026-10-10T11:24:46.6438763Z Build Date: 2026-10-02T22:28:27Z
+2026-10-10T11:24:46.6439446Z Worker ID: {a6ac77de-9464-4ae5-909c-dc6d687df98a}
+… 21 lines …
+2026-10-10T11:24:46.6887359Z Prepare all required actions
+2026-10-10T11:24:46.6935935Z Getting action download info
+2026-10-10T11:24:46.9817390Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-10T11:24:47.0958881Z Download action repository 'shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240' (SHA:f3e473d116dcccaddc5834248c87452386958240)
+2026-10-10T11:24:47.5767354Z Complete job name: PHP 7.1 declared-floor smoke (no dev PHPUnit)
+2026-10-10T11:24:47.6581453Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-10T11:24:47.6582388Z with:
+… 148 lines …
+2026-10-10T11:24:56.8202575Z 
+2026-10-10T11:24:56.8202765Z [90;1m==> [0m[37;1mSponsor setup-php[0m
+2026-10-10T11:24:56.8318676Z [32;1m✓ [0m[34;1msetup-php [0m[90;1mhttps://setup-php.com/sponsor[0m
+2026-10-10T11:24:56.8388523Z ##[group]Run composer validate --strict --no-check-publish
+2026-10-10T11:24:56.8389062Z [36;1mcomposer validate --strict --no-check-publish[0m
+2026-10-10T11:24:56.8389665Z [36;1mcomposer update --no-dev --no-install --prefer-dist --no-interaction --no-progress[0m
+2026-10-10T11:24:56.8390374Z [36;1mcomposer install --no-dev --prefer-dist --no-interaction --no-progress[0m
+2026-10-10T11:24:56.8562012Z shell: /usr/bin/bash -e {0}
+2026-10-10T11:24:56.8562375Z env:
+2026-10-10T11:24:56.8562618Z   COMPOSER_PROCESS_TIMEOUT: 0
+2026-10-10T11:24:56.8563226Z   COMPOSER_NO_INTERACTION: 1
+2026-10-10T11:24:56.8563503Z   COMPOSER_NO_AUDIT: 1
+2026-10-10T11:24:56.8563756Z ##[endgroup]
+2026-10-10T11:24:56.9712832Z ./composer.json is valid
+2026-10-10T11:24:57.0834569Z Loading composer repositories with package information
+2026-10-10T11:24:57.5505357Z Updating dependencies
+2026-10-10T11:24:57.6219424Z Your requirements could not be resolved to an installable set of packages.
+2026-10-10T11:24:57.6244468Z ##[error]Your requirements could not be resolved to an installable set of packages.
+
+  Problem 1
+… 4 lines …
+    - phpunit/phpunit[11.5.0, ..., 11.5.57] require php >=8.2 -> your php version (7.1.33) does not satisfy that requirement.
+    - Root composer.json requires phpunit/phpunit ~8.5 || ~9.6 || ~10.5 || ~11.5 -> satisfiable by phpunit/phpunit[8.5.0, ..., 8.5.56, 9.6.0, ..., 9.6.38, 10.5.0, ..., 10.5.66, 11.5.0, ..., 11.5.57].
+
+… 6 lines …
+2026-10-10T11:24:57.6257433Z     - phpunit/phpunit[11.5.0, ..., 11.5.57] require php >=8.2 -> your php version (7.1.33) does not satisfy that requirement.
+2026-10-10T11:24:57.6258276Z     - Root composer.json requires phpunit/phpunit ~8.5 || ~9.6 || ~10.5 || ~11.5 -> satisfiable by phpunit/phpunit[8.5.0, ..., 8.5.56, 9.6.0, ..., 9.6.38, 10.5.0, ..., 10.5.66, 11.5.0, ..., 11.5.57].
+2026-10-10T11:24:57.6258823Z 
+2026-10-10T11:24:57.6259382Z Running update with --no-dev does not mean require-dev is ignored, it just means the packages will not be installed. If dev requirements are blocking the update you have to resolve those problems.
+2026-10-10T11:24:57.6361842Z ##[error]Process completed with exit code 2.
+… 16 lines …

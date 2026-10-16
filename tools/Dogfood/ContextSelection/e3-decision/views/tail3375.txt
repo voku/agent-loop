@@ -1,0 +1,29 @@
+hpunit/phpunit ~8.5 || ~9.6 || ~10.5 || ~11.5 -> satisfiable by phpunit/phpunit[8.5.0, ..., 8.5.56, 9.6.0, ..., 9.6.38, 10.5.0, ..., 10.5.66, 11.5.0, ..., 11.5.57].
+
+2026-10-10T11:24:57.6253848Z 
+2026-10-10T11:24:57.6254024Z   Problem 1
+2026-10-10T11:24:57.6254531Z     - phpunit/phpunit[8.5.0, ..., 8.5.11] require php ^7.2 -> your php version (7.1.33) does not satisfy that requirement.
+2026-10-10T11:24:57.6255240Z     - phpunit/phpunit[8.5.12, ..., 8.5.56] require php >=7.2 -> your php version (7.1.33) does not satisfy that requirement.
+2026-10-10T11:24:57.6255901Z     - phpunit/phpunit[9.6.0, ..., 9.6.38] require php >=7.3 -> your php version (7.1.33) does not satisfy that requirement.
+2026-10-10T11:24:57.6256570Z     - phpunit/phpunit[10.5.0, ..., 10.5.66] require php >=8.1 -> your php version (7.1.33) does not satisfy that requirement.
+2026-10-10T11:24:57.6257433Z     - phpunit/phpunit[11.5.0, ..., 11.5.57] require php >=8.2 -> your php version (7.1.33) does not satisfy that requirement.
+2026-10-10T11:24:57.6258276Z     - Root composer.json requires phpunit/phpunit ~8.5 || ~9.6 || ~10.5 || ~11.5 -> satisfiable by phpunit/phpunit[8.5.0, ..., 8.5.56, 9.6.0, ..., 9.6.38, 10.5.0, ..., 10.5.66, 11.5.0, ..., 11.5.57].
+2026-10-10T11:24:57.6258823Z 
+2026-10-10T11:24:57.6259382Z Running update with --no-dev does not mean require-dev is ignored, it just means the packages will not be installed. If dev requirements are blocking the update you have to resolve those problems.
+2026-10-10T11:24:57.6361842Z ##[error]Process completed with exit code 2.
+2026-10-10T11:24:57.6508165Z Post job cleanup.
+2026-10-10T11:24:57.7326160Z [command]/usr/bin/git version
+2026-10-10T11:24:57.7360294Z git version 2.55.0
+2026-10-10T11:24:57.7393396Z Temporarily overriding HOME='/home/runner/work/_temp/52cd3bb2-3e61-4ebc-8b0c-75a75a305368' before making global git config changes
+2026-10-10T11:24:57.7395369Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-10T11:24:57.7399716Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/portable-ascii/portable-ascii
+2026-10-10T11:24:57.7428022Z Removing SSH command configuration
+2026-10-10T11:24:57.7434464Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-10T11:24:57.7465689Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-10T11:24:57.7641108Z Removing HTTP extra header
+2026-10-10T11:24:57.7646275Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-10T11:24:57.7674284Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-10T11:24:57.7845756Z Removing includeIf entries pointing to credentials config files
+2026-10-10T11:24:57.7851874Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-10T11:24:57.7878845Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-10T11:24:57.8208575Z Cleaning up orphan processes

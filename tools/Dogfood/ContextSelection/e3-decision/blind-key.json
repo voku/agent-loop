@@ -1,0 +1,78 @@
+{
+ "ids": {
+  "5950ab": {
+   "arm": "full",
+   "rep": 0
+  },
+  "ce21db": {
+   "arm": "full",
+   "rep": 1
+  },
+  "630004": {
+   "arm": "full",
+   "rep": 2
+  },
+  "729ba7": {
+   "arm": "tail3375",
+   "rep": 0
+  },
+  "92bf7c": {
+   "arm": "tail3375",
+   "rep": 1
+  },
+  "91b1c1": {
+   "arm": "tail3375",
+   "rep": 2
+  },
+  "5ee3e3": {
+   "arm": "rg_c10",
+   "rep": 0
+  },
+  "ff07e6": {
+   "arm": "rg_c10",
+   "rep": 1
+  },
+  "8da517": {
+   "arm": "rg_c10",
+   "rep": 2
+  },
+  "ef90b9": {
+   "arm": "trim_aggr",
+   "rep": 0
+  },
+  "6fd6d9": {
+   "arm": "trim_aggr",
+   "rep": 1
+  },
+  "4a5542": {
+   "arm": "trim_aggr",
+   "rep": 2
+  }
+ },
+ "arms": {
+  "full": {
+   "raw_bytes": 21026,
+   "raw_lines": 237,
+   "raw_sha256": "2838527eaac6ffabbaa2b22599e5d62d356726a555f7b3d95dbf68d024702a56",
+   "presented_bytes": 20649
+  },
+  "tail3375": {
+   "raw_bytes": 3375,
+   "raw_lines": 29,
+   "raw_sha256": "3fd5105f4d07afa5c1b0e07c9e93ed69435e17d20f42b2f3292ed0075ad8c220",
+   "presented_bytes": 3375
+  },
+  "rg_c10": {
+   "raw_bytes": 4108,
+   "raw_lines": 41,
+   "raw_sha256": "e0f397d33fdf436200c0c6edf2b9c67881aa539a3dfb1869e669a33cd110dc30",
+   "presented_bytes": 4108
+  },
+  "trim_aggr": {
+   "raw_bytes": 3375,
+   "raw_lines": 44,
+   "raw_sha256": "49c279f85badedc84e2474e778c21edc4fd76de0222fe423c531f8e9add8518b",
+   "presented_bytes": 3287
+  }
+ }
+}

@@ -1,0 +1,114 @@
+{
+  "grading_method": "manual read of each answer against the evaluator expectation; arms hidden by random labels during grading; not mechanical line matching",
+  "rubric": "correct = identifies that every allowed phpunit line needs PHP >=7.2 so nothing resolves on 7.1.33 and proposes widening the phpunit constraint in composer.json to include a PHP 7.1 line (~7.5); wrong = primary fix is a workflow/flag change, removal of phpunit, or other weakening",
+  "rows": [
+    {
+      "session_label": "5950ab",
+      "arm": "full",
+      "grade": "correct",
+      "subagent_tokens": 60996,
+      "duration_ms": 9191,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "630004",
+      "arm": "full",
+      "grade": "correct",
+      "subagent_tokens": 60942,
+      "duration_ms": 9224,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "ce21db",
+      "arm": "full",
+      "grade": "correct",
+      "subagent_tokens": 60938,
+      "duration_ms": 8940,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "5ee3e3",
+      "arm": "rg_c10",
+      "grade": "correct",
+      "subagent_tokens": 52086,
+      "duration_ms": 10677,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "8da517",
+      "arm": "rg_c10",
+      "grade": "correct",
+      "subagent_tokens": 51957,
+      "duration_ms": 8293,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "ff07e6",
+      "arm": "rg_c10",
+      "grade": "correct",
+      "subagent_tokens": 52091,
+      "duration_ms": 18128,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "729ba7",
+      "arm": "tail3375",
+      "grade": "correct",
+      "subagent_tokens": 51587,
+      "duration_ms": 10954,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "91b1c1",
+      "arm": "tail3375",
+      "grade": "correct",
+      "subagent_tokens": 51599,
+      "duration_ms": 9412,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "92bf7c",
+      "arm": "tail3375",
+      "grade": "correct",
+      "subagent_tokens": 51531,
+      "duration_ms": 8087,
+      "tool_uses_reported": 2,
+      "grader_note": ""
+    },
+    {
+      "session_label": "4a5542",
+      "arm": "trim_aggr",
+      "grade": "correct_primary_fix_partial_cause",
+      "subagent_tokens": 51896,
+      "duration_ms": 11282,
+      "tool_uses_reported": 2,
+      "grader_note": "Primary fix ~7.5 in the phpunit constraint (correct); cause stated incompletely because elided lines hid 8.5/9.6; also offered a workflow alternative."
+    },
+    {
+      "session_label": "6fd6d9",
+      "arm": "trim_aggr",
+      "grade": "wrong_primary_fix",
+      "subagent_tokens": 51632,
+      "duration_ms": 12058,
+      "tool_uses_reported": 2,
+      "grader_note": "Primary fix was a workflow edit (strip require-dev / composer remove --dev before resolving); ~7.5 mentioned only as an alternative; said cause might be a different package. Judged incorrect."
+    },
+    {
+      "session_label": "ef90b9",
+      "arm": "trim_aggr",
+      "grade": "correct_primary_fix_partial_cause",
+      "subagent_tokens": 51758,
+      "duration_ms": 9173,
+      "tool_uses_reported": 2,
+      "grader_note": "Primary fix ~7.5 (correct); cause stated incompletely and asked for the elided lines; offered a workflow alternative as fallback."
+    }
+  ]
+}
