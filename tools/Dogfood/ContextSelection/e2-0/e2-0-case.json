@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "stage": "E2.0",
+  "status": "SINGLE_CASE_NATIVE_BASELINE_FEASIBILITY",
+  "experiment_issue": "https://github.com/voku/agent-loop/issues/779",
+  "authorization_basis": "Direct owner instruction in the working session (repository owner voku); the issue comment 6209984362 is a recommendation, not an approval, and is not relied on as one.",
+  "source": {
+    "origin": "E1.3 (PR #785, exact head e12a8e6c3852f38df6b5253626a3d81c493aa305)",
+    "path": "source/pre-fix-job-114202180131.log",
+    "historical_job": "https://github.com/voku/portable-ascii/actions/runs/38048304080/job/114202180131",
+    "source_commit": "6251f5473db5f898ca41f4634eca79a77a114522",
+    "bytes": 21026,
+    "lines": 237,
+    "sha256": "2838527eaac6ffabbaa2b22599e5d62d356726a555f7b3d95dbf68d024702a56",
+    "recoverable_from": "git commit e12a8e6c3852f38df6b5253626a3d81c493aa305 (reachable via refs/pull/785/head) and, verbatim, from this run's artifact",
+    "redaction": "none applied by this experiment; GitHub-masked values appear as ***",
+    "classification": "OPTIONAL_HUMAN_DIAGNOSTIC (not a governed validation receipt)"
+  },
+  "executor_visible_question": "A PHP 7.1 declared-floor CI job fails during Composer dependency resolution. Identify the smallest valid change that would restore the build without disabling or weakening its check.",
+  "budgets_bytes": [
+    4096,
+    8192
+  ],
+  "strategies": {
+    "full": {
+      "kind": "full",
+      "description": "unbounded reference, cat of the original bytes"
+    },
+    "tail_c": {
+      "kind": "tail",
+      "description": "tail -c <budget>; may begin mid-line (reported, never repaired)"
+    },
+    "rg_generic": {
+      "kind": "rg",
+      "description": "task-agnostic failure-marker regex with symmetric context, line-numbered",
+      "pattern": "error|fail|fatal|exception|exit code|cannot|could not",
+      "context_lines": [
+        2,
+        5,
+        10
+      ],
+      "ignore_case": true
+    },
+    "rg_actions_annotation": {
+      "kind": "rg",
+      "description": "GitHub Actions' own error-annotation marker with symmetric context, line-numbered",
+      "pattern": "##\\[error\\]",
+      "context_lines": [
+        2,
+        5,
+        10
+      ],
+      "ignore_case": false
+    }
+  },
+  "predeclaration": "Patterns, context sizes and budgets were fixed before any strategy output was measured and are not tuned afterwards. Strategy commands never read the evaluator file.",
+  "existing_formatter_assessment": {
+    "status": "NOT_APPLICABLE_IN_CI",
+    "reasons": [
+      "PHPStan --error-format=agent formats PHPStan results only, not a GitHub job log.",
+      "gh run view --log-failed filters a live Actions API log of a run the CI token cannot read (another repository) and not the preserved immutable bytes; it is recorded only as a local informational observation, outside the CI proof."
+    ]
+  },
+  "disposition_rule": {
+    "NATIVE_FILTER_SUFFICIENT_FOR_THIS_CASE": "at least one native strategy is within the 8192-byte budget (no OVER_BUDGET) and retains every required critical item; the smallest budget at which this holds is reported",
+    "NATIVE_FILTER_INSUFFICIENT": "no native strategy is within 8192 bytes while retaining every required critical item",
+    "INCONCLUSIVE": "harness invariants (hash match, determinism, complete report) fail"
+  },
+  "limitations": [
+    "One case; a mechanical line-presence rubric, not a human or model judgement of sufficiency.",
+    "The critical span sits at the end of this log, so a plain tail is expected to be favourable; the case cannot discriminate position-agnostic selectors.",
+    "No model was run; no token, cost or task-success claim.",
+    "Original job log bytes include GitHub's log representation (BOM, ANSI escapes, timestamps)."
+  ]
+}

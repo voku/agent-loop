@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "note": "Evaluator-only. Strategy commands never read this file; it is loaded only after all outputs exist.",
+  "expected_root_cause": "Composer cannot resolve the child package's require-dev phpunit/phpunit constraint on PHP 7.1.33 because every allowed phpunit branch (~8.5 and newer) requires PHP >= 7.2; --no-dev does not skip require-dev resolution.",
+  "expected_fix": "Add ~7.5 to the phpunit constraint in packages/transliterator-polyfill/composer.json (portable-ascii 2aa2def).",
+  "items": {
+    "C1_headline": {"required": true, "alternatives": [[200], [201]], "meaning": "resolution failure statement"},
+    "C2_problem_block_with_root_constraint": {"required": true, "alternatives": [[203, 204, 205, 206, 207, 208, 209], [212, 213, 214, 215, 216, 217, 218]], "meaning": "php-version mismatches plus the root composer.json constraint, one complete copy"},
+    "C3_exit_status": {"required": true, "alternatives": [[221]], "meaning": "process exit code 2"},
+    "P1_dev_requirement_hint": {"required": false, "alternatives": [[220]], "meaning": "--no-dev does not mean require-dev is ignored"},
+    "P2_failing_step_commands": {"required": false, "alternatives": [[187, 188, 189, 190]], "meaning": "step command identity"},
+    "P3_php_version_setup": {"required": false, "alternatives": [[172]], "meaning": "PHP 7.1.33 installed"},
+    "P4_composer_version_setup": {"required": false, "alternatives": [[180]], "meaning": "Composer 2.2.30 installed"}
+  },
+  "root_cause_identifiable_requires": ["C2_problem_block_with_root_constraint"],
+  "complete_diagnosis_requires": ["C1_headline", "C2_problem_block_with_root_constraint", "C3_exit_status"]
+}
