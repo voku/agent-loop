@@ -1,0 +1,184 @@
+name: E1.2 real PHPStan regression replay
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/context-e1-phpstan.yml'
+      - 'tools/Dogfood/ContextSelection/e1-phpstan-case.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-phpstan:
+    name: Freeze and replay real PHPStan red/green pair
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: zip
+          tools: composer:v2
+
+      - name: Resolve case identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/e1-phpstan
+          jq -r .pre_fix_sha tools/Dogfood/ContextSelection/e1-phpstan-case.json > build/e1-phpstan/pre.sha
+          jq -r .fixed_sha tools/Dogfood/ContextSelection/e1-phpstan-case.json > build/e1-phpstan/fix.sha
+          echo "PRE_SHA=$(cat build/e1-phpstan/pre.sha)" >> "$GITHUB_ENV"
+          echo "FIX_SHA=$(cat build/e1-phpstan/fix.sha)" >> "$GITHUB_ENV"
+
+      - name: Checkout exact pre-fix source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/Simple-PHP-Code-Parser
+          ref: ${{ env.PRE_SHA }}
+          path: build/e1-phpstan/before
+          persist-credentials: false
+
+      - name: Checkout exact fixed source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/Simple-PHP-Code-Parser
+          ref: ${{ env.FIX_SHA }}
+          path: build/e1-phpstan/after
+          persist-credentials: false
+
+      - name: Verify source pair and analyzer assumptions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-phpstan
+          test "$(git -C before rev-parse HEAD)" = "${PRE_SHA}"
+          test "$(git -C after rev-parse HEAD)" = "${FIX_SHA}"
+          cmp before/phpstan.neon after/phpstan.neon
+          cmp before/composer.json after/composer.json
+          diff -rq -x .git before after | tee source-diff.txt || true
+          # Only the single declared source file may differ between the arms.
+          test "$(grep -c . source-diff.txt)" -eq 1
+          grep -Fq 'src/voku/SimplePhpParser/Model/PHPEnum.php' source-diff.txt
+          sha256sum before/phpstan.neon | cut -d' ' -f1 > phpstan-config.sha256
+          sha256sum before/composer.json | cut -d' ' -f1 > composer-json.sha256
+
+      - name: Install ONE dependency graph, copy it byte-identically to both arms
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-phpstan
+          (cd before && composer update --prefer-dist --no-interaction --no-progress && composer dump-autoload -o)
+          cp before/composer.lock after/composer.lock
+          (cd after && composer install --prefer-dist --no-interaction --no-progress && composer dump-autoload -o)
+          cmp before/composer.lock after/composer.lock
+          sha256sum before/composer.lock | cut -d' ' -f1 > before-dependency-graph.sha256
+          sha256sum after/composer.lock | cut -d' ' -f1 > after-dependency-graph.sha256
+          php -v | head -1 > php-version.txt
+          (cd before && php vendor/bin/phpstan --version) > phpstan-version.txt
+
+      - name: Run IDENTICAL PHPStan command against pre-fix and fixed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-phpstan
+          set +e
+          (cd before && php vendor/bin/phpstan analyse --no-progress --error-format=raw) > before.stdout.txt 2>&1
+          before_rc=$?
+          (cd after && php vendor/bin/phpstan analyse --no-progress --error-format=raw) > after.stdout.txt 2>&1
+          after_rc=$?
+          set -e
+          printf '%s\n' "${before_rc}" > before.exit
+          printf '%s\n' "${after_rc}" > after.exit
+          echo "REPLAY before exit=${before_rc}, after exit=${after_rc}"
+          echo '--- before PHPStan output (full) ---'
+          cat before.stdout.txt
+          echo '--- after PHPStan output (full) ---'
+          cat after.stdout.txt
+          test "${before_rc}" -ne 0
+          test "${after_rc}" -eq 0
+          # Every pre-fix diagnostic must be in the one changed file, with no inherited errors elsewhere.
+          grep -Fq 'PHPEnum.php' before.stdout.txt
+          grep -Fq 'ReflectionEnum' before.stdout.txt
+          test "$(grep -c 'PHPEnum.php' before.stdout.txt)" -eq "$(grep -c '^/\|^src/\|\.php:[0-9]' before.stdout.txt)"
+          test ! -s after.stdout.txt || ! grep -q '\.php:[0-9]' after.stdout.txt
+
+      - name: Write source-bound machine receipt, never replace original logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          root = Path("build/e1-phpstan")
+          case = json.loads(Path("tools/Dogfood/ContextSelection/e1-phpstan-case.json").read_text())
+          def sha(p): return "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest()
+          def txt(p): return p.read_text().strip()
+          arms = ("before", "after")
+          report = {
+              "schema_version": "1.0",
+              "case_id": case["case_id"],
+              "experiment_head_sha": os.environ["GITHUB_SHA"],
+              "head_under_test": os.environ["PROOF_HEAD_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "source_repository": case["source_repository"],
+              "pre_fix_sha": case["pre_fix_sha"],
+              "fixed_sha": case["fixed_sha"],
+              "php_version": txt(root / "php-version.txt"),
+              "phpstan_version": txt(root / "phpstan-version.txt"),
+              "command": case["analyzer"]["command"],
+              "phpstan_config_sha256": "sha256:" + txt(root / "phpstan-config.sha256"),
+              "composer_json_sha256": "sha256:" + txt(root / "composer-json.sha256"),
+              "dependency_graphs": {a: "sha256:" + txt(root / f"{a}-dependency-graph.sha256") for a in arms},
+              "source_diff": txt(root / "source-diff.txt"),
+              "observed": {
+                  a: {
+                      "exit_code": int(txt(root / f"{a}.exit")),
+                      "output_sha256": sha(root / f"{a}.stdout.txt"),
+                      "output_bytes": (root / f"{a}.stdout.txt").stat().st_size,
+                      "mentions_PHPEnum_php": "PHPEnum.php" in (root / f"{a}.stdout.txt").read_text(),
+                      "mentions_ReflectionEnum": "ReflectionEnum" in (root / f"{a}.stdout.txt").read_text(),
+                  }
+                  for a in arms
+              },
+              "source_kind": case["source_kind"],
+              "workflow_authority_modified": False,
+              "model_invoked": False,
+              "case_completeness": "TWO_REAL_REPLAYS_OF_FOUR_PLANNED_IF_VERIFIED",
+          }
+          assert report["observed"]["before"]["exit_code"] != 0
+          assert report["observed"]["after"]["exit_code"] == 0
+          assert report["observed"]["before"]["mentions_PHPEnum_php"]
+          assert report["dependency_graphs"]["before"] == report["dependency_graphs"]["after"]
+          (root / "e1-phpstan-replay.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+        env:
+          PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Upload immutable replay evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e1-phpstan-real-replay-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/e1-phpstan/e1-phpstan-replay.json
+            build/e1-phpstan/before.stdout.txt
+            build/e1-phpstan/after.stdout.txt
+            build/e1-phpstan/before.exit
+            build/e1-phpstan/after.exit
+            build/e1-phpstan/*-dependency-graph.sha256
+            build/e1-phpstan/*.sha256
+            build/e1-phpstan/source-diff.txt
+            build/e1-phpstan/php-version.txt
+            build/e1-phpstan/phpstan-version.txt
+            build/e1-phpstan/before/composer.lock

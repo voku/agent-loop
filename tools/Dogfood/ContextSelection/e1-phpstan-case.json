@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "status": "E1_2_CANDIDATE_PENDING_CI_VERIFICATION",
+  "experiment_issue": "https://github.com/voku/agent-loop/issues/779",
+  "case_id": "parser-enum-reflection-class-string-2026-08-05",
+  "task_shape": "real_phpstan_regression",
+  "executor_visible_task": "Static analysis on a parser model that builds a ReflectionEnum from a reflected class name reports an error. Make the analysis pass without changing runtime behavior or weakening the analyzer configuration.",
+  "source_repository": "voku/Simple-PHP-Code-Parser",
+  "pre_fix_sha": "694b39ddea82b8a9da5d631cd032f10c412e9b70",
+  "fixed_sha": "cf3f4c8e3a6679c2ef6529109d7f4f0492a4bfdf",
+  "fix_commit_message": "Narrow enum reflection class-string for PHPStan",
+  "pre_fix_is_direct_parent_of_fixed": true,
+  "source_diff_scope": ["src/voku/SimplePhpParser/Model/PHPEnum.php"],
+  "analyzer": {
+    "command": "php vendor/bin/phpstan analyse --no-progress --error-format=raw",
+    "config_file": "phpstan.neon",
+    "config_identical_across_revisions": true,
+    "composer_json_identical_across_revisions": true,
+    "dependency_policy": "composer update once on the pre-fix checkout; the resulting composer.lock is copied byte-identically into the fixed checkout and installed with composer install"
+  },
+  "php_version": "8.3",
+  "source_kind": "OPTIONAL_HUMAN_DIAGNOSTIC",
+  "authoritative_validation": "untouched; isolated experiment capture, not a governed validation receipt",
+  "expected_result": "pre-fix PHPStan exit nonzero with all errors confined to PHPEnum.php; fixed PHPStan exit 0 with no errors, same analyzer, config and lock",
+  "verifier_only_required_markers": ["PHPEnum.php", "ReflectionEnum"],
+  "limitations": [
+    "The fix is a one-line @var narrowing in the same commit window as a feature PR (voku/Simple-PHP-Code-Parser#99); the pre-fix commit is a PR-internal commit, not a released version.",
+    "The original CI run for 694b39d was not inspected; the red/green claim rests solely on this replay's observed exit codes.",
+    "Dependencies resolve at replay time (no historical lock exists), so the PHPStan version is newer than the one the author used; it is recorded and held identical across both arms.",
+    "Only PHPStan case 2 of at least 4; no ranker, token or model-behavior evidence."
+  ]
+}
