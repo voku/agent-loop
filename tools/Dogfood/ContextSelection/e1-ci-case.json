@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "status": "E1_3_CANDIDATE_PENDING_CI_VERIFICATION",
+  "experiment_issue": "https://github.com/voku/agent-loop/issues/779",
+  "case_id": "composer-php71-floor-resolution-2026-10-10",
+  "task_shape": "real_ci_build_install_failure",
+  "executor_visible_task": "A CI job that installs a package's production dependencies on its declared minimum PHP version fails during dependency resolution. Investigate the job output and determine what must change for the job to pass; do not weaken or remove the job.",
+  "source_repository": "voku/portable-ascii",
+  "source_subdirectory": "packages/transliterator-polyfill",
+  "pre_fix_sha": "6251f5473db5f898ca41f4634eca79a77a114522",
+  "fixed_sha": "2aa2def5f29d0aee715fa62189d9ebaa95f35662",
+  "pre_fix_is_direct_parent_of_fixed": true,
+  "workflow_file_identical_across_revisions": ".github/workflows/transliterator-polyfill.yml",
+  "ci_job_name": "PHP 7.1 declared-floor smoke (no dev PHPUnit)",
+  "historical": {
+    "pre_fix_run": "https://github.com/voku/portable-ascii/actions/runs/38048304080",
+    "pre_fix_job_id": 114202180131,
+    "pre_fix_conclusion": "failure",
+    "fixed_run": "https://github.com/voku/portable-ascii/actions/runs/38048394527",
+    "fixed_job_id": 114202437700,
+    "fixed_conclusion": "success",
+    "runner_image": "ubuntu-24.04 20261004.327.1",
+    "original_logs": {
+      "pre_fix": {"path": "e1-ci-historical/pre-fix-job-114202180131.log", "sha256": "2838527eaac6ffabbaa2b22599e5d62d356726a555f7b3d95dbf68d024702a56", "lines": 237, "bytes": 21026},
+      "fixed": {"path": "e1-ci-historical/fixed-job-114202437700.log", "sha256": "c940d1d567c74f5da141f84d0d4d38cc3dc4e4a264a9699557ce34342911fe65", "lines": 264, "bytes": 22525}
+    },
+    "redaction": "none applied by this experiment; GitHub-masked secrets appear as ***"
+  },
+  "check": {
+    "working_directory": "packages/transliterator-polyfill",
+    "commands_verbatim_from_workflow": [
+      "composer validate --strict --no-check-publish",
+      "composer update --no-dev --no-install --prefer-dist --no-interaction --no-progress",
+      "composer install --no-dev --prefer-dist --no-interaction --no-progress"
+    ],
+    "environment": {
+      "php": "7.1 (setup-php shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240, extensions intl, mbstring, zip, coverage none)",
+      "composer": "2.2 via setup-php tools: composer:v2.2",
+      "env": {"COMPOSER_PROCESS_TIMEOUT": "0", "COMPOSER_NO_INTERACTION": "1", "COMPOSER_NO_AUDIT": "1"}
+    }
+  },
+  "source_kind": "OPTIONAL_HUMAN_DIAGNOSTIC",
+  "authoritative_validation": "untouched; isolated experiment capture, not a governed validation receipt",
+  "evaluator_only": {
+    "root_cause": "The child package's require-dev phpunit constraint lists only ~8.5 or newer, none of which install on PHP 7.1, so Composer cannot resolve require-dev even with --no-dev --no-install.",
+    "fix": "packages/transliterator-polyfill/composer.json: add ~7.5 to the phpunit constraint.",
+    "critical_markers": [
+      "Your requirements could not be resolved to an installable set of packages.",
+      "your php version (7.1.33) does not satisfy that requirement"
+    ],
+    "critical_span_lines_in_original_pre_fix_log": "200-221"
+  },
+  "expected_result": "pre-fix: composer update exits nonzero with the resolution markers; fixed: all three commands exit 0 and the runtime smoke passes; same workflow, command text, PHP and Composer version",
+  "rejected_candidates": [
+    {"id": "portable-ascii 2aa2def -> fbe2986 (mbstring-free extension modes)", "reason": "The fix rewrites the workflow check itself (17 added lines), so the invariant is not identical across arms. Kept as a possible later workflow-definition case."},
+    {"id": "portable-ascii Infection vs PHPStan 2.2.8 pin (#160/#163)", "reason": "Failure depends on an upstream PHPStan release that has since changed; not reproducible on current Packagist."},
+    {"id": "Simple-PHP-Code-Parser style/release-contract CI commits", "reason": "Failures are PHPUnit or php-cs-fixer output wrapped in CI, not a distinct build diagnostic."}
+  ],
+  "limitations": [
+    "Composer resolves against live Packagist, so the listed phpunit version ranges in the replay may differ from the historical log; the structural markers are what is compared.",
+    "The fix is a one-line version-constraint change; output is about 20 lines, so this case says little about compression value.",
+    "No model, token or ranking claim."
+  ]
+}

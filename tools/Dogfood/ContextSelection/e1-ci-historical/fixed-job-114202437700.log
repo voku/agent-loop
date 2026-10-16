@@ -1,0 +1,264 @@
+﻿2026-10-10T11:26:26.1984849Z Current runner version: '2.337.0'
+2026-10-10T11:26:26.2010724Z ##[group]Runner Image Provisioner
+2026-10-10T11:26:26.2011746Z Hosted Compute Agent
+2026-10-10T11:26:26.2012380Z Version: 20261002.596
+2026-10-10T11:26:26.2013407Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+2026-10-10T11:26:26.2014288Z Build Date: 2026-10-02T22:28:27Z
+2026-10-10T11:26:26.2015083Z Worker ID: {cd7416dc-9218-4760-8a83-06eb13d61336}
+2026-10-10T11:26:26.2015866Z Region: westcentralus
+2026-10-10T11:26:26.2016473Z Cloud: Azure
+2026-10-10T11:26:26.2017031Z ##[endgroup]
+2026-10-10T11:26:26.2018972Z ##[group]Operating System
+2026-10-10T11:26:26.2019670Z Ubuntu
+2026-10-10T11:26:26.2020281Z 24.04.5
+2026-10-10T11:26:26.2020852Z LTS
+2026-10-10T11:26:26.2021410Z ##[endgroup]
+2026-10-10T11:26:26.2022058Z ##[group]Runner Image
+2026-10-10T11:26:26.2022789Z Image: ubuntu-24.04
+2026-10-10T11:26:26.2023650Z Version: 20261004.327.1
+2026-10-10T11:26:26.2025006Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-10T11:26:26.2026588Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+2026-10-10T11:26:26.2027685Z ##[endgroup]
+2026-10-10T11:26:26.2028871Z ##[group]GITHUB_TOKEN Permissions
+2026-10-10T11:26:26.2030832Z Contents: read
+2026-10-10T11:26:26.2031541Z Metadata: read
+2026-10-10T11:26:26.2032153Z ##[endgroup]
+2026-10-10T11:26:26.2034654Z Secret source: Actions
+2026-10-10T11:26:26.2035789Z Cache mode: write
+2026-10-10T11:26:26.2036510Z Prepare workflow directory
+2026-10-10T11:26:26.2444974Z Prepare all required actions
+2026-10-10T11:26:26.2493978Z Getting action download info
+2026-10-10T11:26:26.5270862Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-10T11:26:26.6086454Z Download action repository 'shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240' (SHA:f3e473d116dcccaddc5834248c87452386958240)
+2026-10-10T11:26:27.1180929Z Complete job name: PHP 7.1 declared-floor smoke (no dev PHPUnit)
+2026-10-10T11:26:27.1934131Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-10T11:26:27.1935190Z with:
+2026-10-10T11:26:27.1935632Z   persist-credentials: false
+2026-10-10T11:26:27.1936181Z   repository: voku/portable-ascii
+2026-10-10T11:26:27.1939971Z   token: ***
+2026-10-10T11:26:27.1940414Z   ssh-strict: true
+2026-10-10T11:26:27.1940859Z   ssh-user: git
+2026-10-10T11:26:27.1941286Z   clean: true
+2026-10-10T11:26:27.1941732Z   sparse-checkout-cone-mode: true
+2026-10-10T11:26:27.1942258Z   fetch-depth: 1
+2026-10-10T11:26:27.1942692Z   fetch-tags: false
+2026-10-10T11:26:27.1943519Z   show-progress: true
+2026-10-10T11:26:27.1943978Z   lfs: false
+2026-10-10T11:26:27.1944394Z   submodules: false
+2026-10-10T11:26:27.1944841Z   set-safe-directory: true
+2026-10-10T11:26:27.1945344Z   allow-unsafe-pr-checkout: false
+2026-10-10T11:26:27.1946114Z ##[endgroup]
+2026-10-10T11:26:27.3002394Z Syncing repository: voku/portable-ascii
+2026-10-10T11:26:27.3004849Z ##[group]Getting Git version info
+2026-10-10T11:26:27.3005643Z Working directory is '/home/runner/work/portable-ascii/portable-ascii'
+2026-10-10T11:26:27.3006711Z [command]/usr/bin/git version
+2026-10-10T11:26:27.3049332Z git version 2.55.0
+2026-10-10T11:26:27.3068760Z ##[endgroup]
+2026-10-10T11:26:27.3080341Z Temporarily overriding HOME='/home/runner/work/_temp/6eebc251-111d-4b94-a47b-609e4422190f' before making global git config changes
+2026-10-10T11:26:27.3082554Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-10T11:26:27.3086775Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/portable-ascii/portable-ascii
+2026-10-10T11:26:27.3129254Z Deleting the contents of '/home/runner/work/portable-ascii/portable-ascii'
+2026-10-10T11:26:27.3133304Z ##[group]Determining repository object format
+2026-10-10T11:26:27.3134801Z ##[endgroup]
+2026-10-10T11:26:27.3135943Z ##[group]Initializing the repository
+2026-10-10T11:26:27.3139956Z [command]/usr/bin/git init /home/runner/work/portable-ascii/portable-ascii
+2026-10-10T11:26:27.3211445Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-10T11:26:27.3213388Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-10T11:26:27.3214676Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-10T11:26:27.3216085Z hint: call:
+2026-10-10T11:26:27.3216904Z hint:
+2026-10-10T11:26:27.3217852Z hint: 	git config --global init.defaultBranch <name>
+2026-10-10T11:26:27.3219061Z hint:
+2026-10-10T11:26:27.3220094Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-10T11:26:27.3221669Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-10T11:26:27.3223177Z hint:
+2026-10-10T11:26:27.3224055Z hint: 	git branch -m <name>
+2026-10-10T11:26:27.3224982Z hint:
+2026-10-10T11:26:27.3226089Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-10T11:26:27.3227956Z Initialized empty Git repository in /home/runner/work/portable-ascii/portable-ascii/.git/
+2026-10-10T11:26:27.3230844Z [command]/usr/bin/git remote add origin https://github.com/voku/portable-ascii
+2026-10-10T11:26:27.3267715Z ##[endgroup]
+2026-10-10T11:26:27.3268920Z ##[group]Disabling automatic garbage collection
+2026-10-10T11:26:27.3271514Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-10T11:26:27.3302886Z ##[endgroup]
+2026-10-10T11:26:27.3305795Z ##[group]Setting up auth
+2026-10-10T11:26:27.3306695Z Removing SSH command configuration
+2026-10-10T11:26:27.3309453Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-10T11:26:27.3342642Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-10T11:26:27.3651416Z Removing HTTP extra header
+2026-10-10T11:26:27.3657757Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-10T11:26:27.3690151Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-10T11:26:27.3921809Z Removing includeIf entries pointing to credentials config files
+2026-10-10T11:26:27.3926980Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-10T11:26:27.3960730Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-10T11:26:27.4195562Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-10T11:26:27.4232559Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git.path /home/runner/work/_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:27.4265278Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:27.4301510Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:27.4346362Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:27.4367862Z ##[endgroup]
+2026-10-10T11:26:27.4368699Z ##[group]Fetching the repository
+2026-10-10T11:26:27.4374644Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +e71eadb3a336726cc58de10233644b7a2b936304:refs/remotes/pull/167/merge
+2026-10-10T11:26:27.9715747Z From https://github.com/voku/portable-ascii
+2026-10-10T11:26:27.9717638Z  * [new ref]         e71eadb3a336726cc58de10233644b7a2b936304 -> pull/167/merge
+2026-10-10T11:26:27.9744947Z ##[endgroup]
+2026-10-10T11:26:27.9775158Z ##[group]Determining the checkout info
+2026-10-10T11:26:27.9776607Z ##[endgroup]
+2026-10-10T11:26:27.9777399Z [command]/usr/bin/git sparse-checkout disable
+2026-10-10T11:26:27.9779518Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-10T11:26:27.9809533Z ##[group]Checking out the ref
+2026-10-10T11:26:27.9814349Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/167/merge
+2026-10-10T11:26:27.9977464Z Note: switching to 'refs/remotes/pull/167/merge'.
+2026-10-10T11:26:27.9978566Z 
+2026-10-10T11:26:27.9979355Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-10T11:26:27.9980909Z changes and commit them, and you can discard any commits you make in this
+2026-10-10T11:26:27.9982328Z state without impacting any branches by switching back to a branch.
+2026-10-10T11:26:27.9983255Z 
+2026-10-10T11:26:27.9983848Z If you want to create a new branch to retain commits you create, you may
+2026-10-10T11:26:27.9985091Z do so (now or later) by using -c with the switch command. Example:
+2026-10-10T11:26:27.9985858Z 
+2026-10-10T11:26:27.9986239Z   git switch -c <new-branch-name>
+2026-10-10T11:26:27.9986836Z 
+2026-10-10T11:26:27.9987204Z Or undo this operation with:
+2026-10-10T11:26:27.9987778Z 
+2026-10-10T11:26:27.9988131Z   git switch -
+2026-10-10T11:26:27.9988616Z 
+2026-10-10T11:26:27.9989329Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-10T11:26:27.9990314Z 
+2026-10-10T11:26:27.9991582Z HEAD is now at e71eadb Merge 2aa2def5f29d0aee715fa62189d9ebaa95f35662 into 180a8d12055eb350859b628c64066a90a895bd10
+2026-10-10T11:26:27.9996097Z ##[endgroup]
+2026-10-10T11:26:28.0036993Z [command]/usr/bin/git log -1 --format=%H
+2026-10-10T11:26:28.0062708Z e71eadb3a336726cc58de10233644b7a2b936304
+2026-10-10T11:26:28.0073177Z ##[group]Removing auth
+2026-10-10T11:26:28.0074224Z Removing SSH command configuration
+2026-10-10T11:26:28.0076492Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-10T11:26:28.0110954Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-10T11:26:28.0344125Z Removing HTTP extra header
+2026-10-10T11:26:28.0347407Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-10T11:26:28.0385132Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-10T11:26:28.0616111Z Removing includeIf entries pointing to credentials config files
+2026-10-10T11:26:28.0618910Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-10T11:26:28.0649351Z includeif.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git.path
+2026-10-10T11:26:28.0653198Z includeif.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git/worktrees/*.path
+2026-10-10T11:26:28.0656356Z includeif.gitdir:/github/workspace/.git.path
+2026-10-10T11:26:28.0658812Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-10T11:26:28.0665184Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git.path
+2026-10-10T11:26:28.0684458Z /home/runner/work/_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:28.0695069Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-bccaebe1\-d3cc\-4539\-bfc4\-a471c2bba4a5\.config
+2026-10-10T11:26:28.0729459Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git/worktrees/*.path
+2026-10-10T11:26:28.0751864Z /home/runner/work/_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:28.0761314Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/portable-ascii/portable-ascii/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-bccaebe1\-d3cc\-4539\-bfc4\-a471c2bba4a5\.config
+2026-10-10T11:26:28.0792378Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-10T11:26:28.0815370Z /github/runner_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:28.0824830Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-bccaebe1\-d3cc\-4539\-bfc4\-a471c2bba4a5\.config
+2026-10-10T11:26:28.0859947Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-10T11:26:28.0884700Z /github/runner_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config
+2026-10-10T11:26:28.0897222Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-bccaebe1\-d3cc\-4539\-bfc4\-a471c2bba4a5\.config
+2026-10-10T11:26:28.0947447Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-10T11:26:28.1214425Z Removing credentials config '/home/runner/work/_temp/git-credentials-bccaebe1-d3cc-4539-bfc4-a471c2bba4a5.config'
+2026-10-10T11:26:28.1222074Z ##[endgroup]
+2026-10-10T11:26:28.1598791Z ##[group]Run shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+2026-10-10T11:26:28.1600415Z with:
+2026-10-10T11:26:28.1601253Z   php-version: 7.1
+2026-10-10T11:26:28.1602149Z   coverage: none
+2026-10-10T11:26:28.1603213Z   extensions: intl, mbstring, zip
+2026-10-10T11:26:28.1604317Z   tools: composer:v2.2
+2026-10-10T11:26:28.1605279Z   ini-file: production
+2026-10-10T11:26:28.1613961Z   github-token: ***
+2026-10-10T11:26:28.1614875Z ##[endgroup]
+2026-10-10T11:26:28.7075673Z [command]/usr/bin/bash /home/runner/work/_actions/shivammathur/setup-php/f3e473d116dcccaddc5834248c87452386958240/src/scripts/run.sh
+2026-10-10T11:26:28.7532194Z 
+2026-10-10T11:26:28.7533724Z [90;1m==> [0m[37;1mSetup PHP[0m
+2026-10-10T11:26:33.1834368Z [32;1m✓ [0m[34;1mPHP [0m[90;1mInstalled PHP 7.1.33[0m
+2026-10-10T11:26:33.1835133Z 
+2026-10-10T11:26:33.1835455Z [90;1m==> [0m[37;1mSetup Extensions[0m
+2026-10-10T11:26:33.2288134Z [32;1m✓ [0m[34;1mintl [0m[90;1mEnabled[0m
+2026-10-10T11:26:33.2321897Z [32;1m✓ [0m[34;1mmbstring [0m[90;1mEnabled[0m
+2026-10-10T11:26:33.2352187Z [32;1m✓ [0m[34;1mzip [0m[90;1mEnabled[0m
+2026-10-10T11:26:33.2352678Z 
+2026-10-10T11:26:33.2354131Z [90;1m==> [0m[37;1mSetup Tools[0m
+2026-10-10T11:26:33.8070312Z [32;1m✓ [0m[34;1mcomposer [0m[90;1mAdded composer 2.2.30[0m
+2026-10-10T11:26:33.8071394Z 
+2026-10-10T11:26:33.8072087Z [90;1m==> [0m[37;1mSetup Coverage[0m
+2026-10-10T11:26:34.0278529Z [32;1m✓ [0m[34;1mnone [0m[90;1mDisabled Xdebug and PCOV[0m
+2026-10-10T11:26:34.0279073Z 
+2026-10-10T11:26:34.0279305Z [90;1m==> [0m[37;1mSponsor setup-php[0m
+2026-10-10T11:26:34.0280323Z [32;1m✓ [0m[34;1msetup-php [0m[90;1mhttps://setup-php.com/sponsor[0m
+2026-10-10T11:26:34.0516680Z ##[group]Run composer validate --strict --no-check-publish
+2026-10-10T11:26:34.0517229Z [36;1mcomposer validate --strict --no-check-publish[0m
+2026-10-10T11:26:34.0517845Z [36;1mcomposer update --no-dev --no-install --prefer-dist --no-interaction --no-progress[0m
+2026-10-10T11:26:34.0518557Z [36;1mcomposer install --no-dev --prefer-dist --no-interaction --no-progress[0m
+2026-10-10T11:26:34.0751224Z shell: /usr/bin/bash -e {0}
+2026-10-10T11:26:34.0751565Z env:
+2026-10-10T11:26:34.0751801Z   COMPOSER_PROCESS_TIMEOUT: 0
+2026-10-10T11:26:34.0752388Z   COMPOSER_NO_INTERACTION: 1
+2026-10-10T11:26:34.0752638Z   COMPOSER_NO_AUDIT: 1
+2026-10-10T11:26:34.0752873Z ##[endgroup]
+2026-10-10T11:26:34.2134826Z ./composer.json is valid
+2026-10-10T11:26:34.3495145Z Loading composer repositories with package information
+2026-10-10T11:26:34.8806640Z Updating dependencies
+2026-10-10T11:26:34.9039317Z Lock file operations: 29 installs, 0 updates, 0 removals
+2026-10-10T11:26:34.9040151Z   - Locking doctrine/instantiator (1.5.0)
+2026-10-10T11:26:34.9040662Z   - Locking myclabs/deep-copy (1.13.4)
+2026-10-10T11:26:34.9041116Z   - Locking phar-io/manifest (1.0.3)
+2026-10-10T11:26:34.9041570Z   - Locking phar-io/version (2.0.1)
+2026-10-10T11:26:34.9042058Z   - Locking phpdocumentor/reflection-common (2.1.0)
+2026-10-10T11:26:34.9042659Z   - Locking phpdocumentor/reflection-docblock (4.3.4)
+2026-10-10T11:26:34.9043399Z   - Locking phpdocumentor/type-resolver (1.0.1)
+2026-10-10T11:26:34.9043947Z   - Locking phpspec/prophecy (v1.10.3)
+2026-10-10T11:26:34.9044460Z   - Locking phpunit/php-code-coverage (6.1.4)
+2026-10-10T11:26:34.9044961Z   - Locking phpunit/php-file-iterator (2.0.6)
+2026-10-10T11:26:34.9045486Z   - Locking phpunit/php-text-template (1.2.1)
+2026-10-10T11:26:34.9045926Z   - Locking phpunit/php-timer (2.1.4)
+2026-10-10T11:26:34.9046235Z   - Locking phpunit/php-token-stream (3.1.3)
+2026-10-10T11:26:34.9046542Z   - Locking phpunit/phpunit (7.5.20)
+2026-10-10T11:26:34.9046885Z   - Locking sebastian/code-unit-reverse-lookup (1.0.3)
+2026-10-10T11:26:34.9047240Z   - Locking sebastian/comparator (3.0.7)
+2026-10-10T11:26:34.9047538Z   - Locking sebastian/diff (3.0.6)
+2026-10-10T11:26:34.9047829Z   - Locking sebastian/environment (4.2.5)
+2026-10-10T11:26:34.9048153Z   - Locking sebastian/exporter (3.1.5)
+2026-10-10T11:26:34.9048471Z   - Locking sebastian/global-state (2.0.0)
+2026-10-10T11:26:34.9048820Z   - Locking sebastian/object-enumerator (3.0.5)
+2026-10-10T11:26:34.9049169Z   - Locking sebastian/object-reflector (1.1.3)
+2026-10-10T11:26:34.9049507Z   - Locking sebastian/recursion-context (3.0.4)
+2026-10-10T11:26:34.9049871Z   - Locking sebastian/resource-operations (2.0.3)
+2026-10-10T11:26:34.9050218Z   - Locking sebastian/version (2.0.1)
+2026-10-10T11:26:34.9050561Z   - Locking symfony/polyfill-ctype (v1.30.0)
+2026-10-10T11:26:34.9050885Z   - Locking theseer/tokenizer (1.1.3)
+2026-10-10T11:26:34.9051175Z   - Locking voku/portable-ascii (2.1.1)
+2026-10-10T11:26:34.9051475Z   - Locking webmozart/assert (1.9.1)
+2026-10-10T11:26:34.9055191Z Writing lock file
+2026-10-10T11:26:34.9076163Z 4 package suggestions were added by new dependencies, use `composer suggest` to see details.
+2026-10-10T11:26:35.0353977Z Installing dependencies from lock file
+2026-10-10T11:26:35.0354824Z Verifying lock file contents can be installed on current platform.
+2026-10-10T11:26:35.0443669Z Package operations: 1 install, 0 updates, 0 removals
+2026-10-10T11:26:35.0452241Z   - Downloading voku/portable-ascii (2.1.1)
+2026-10-10T11:26:35.6788355Z   - Installing voku/portable-ascii (2.1.1): Extracting archive
+2026-10-10T11:26:35.9974140Z Generating autoload files
+2026-10-10T11:26:35.9988812Z 1 package you are using is looking for funding.
+2026-10-10T11:26:35.9989312Z Use the `composer fund` command to find out more!
+2026-10-10T11:26:36.0206635Z ##[group]Run php -r 'require "vendor/autoload.php"; $result = \Voku\Transliterator\TransliteratorPolyfill::transliterate("Latin-ASCII", "café"); if ($result !== "cafe") { fwrite(STDERR, "PHP 7.1 transliteration smoke failed\n"); exit(1); } echo "PHP 7.1 runtime smoke passed\n";'
+2026-10-10T11:26:36.0208761Z [36;1mphp -r 'require "vendor/autoload.php"; $result = \Voku\Transliterator\TransliteratorPolyfill::transliterate("Latin-ASCII", "café"); if ($result !== "cafe") { fwrite(STDERR, "PHP 7.1 transliteration smoke failed\n"); exit(1); } echo "PHP 7.1 runtime smoke passed\n";'[0m
+2026-10-10T11:26:36.0281664Z shell: /usr/bin/bash -e {0}
+2026-10-10T11:26:36.0281953Z env:
+2026-10-10T11:26:36.0282169Z   COMPOSER_PROCESS_TIMEOUT: 0
+2026-10-10T11:26:36.0282633Z   COMPOSER_NO_INTERACTION: 1
+2026-10-10T11:26:36.0282890Z   COMPOSER_NO_AUDIT: 1
+2026-10-10T11:26:36.0283279Z ##[endgroup]
+2026-10-10T11:26:36.0730080Z PHP 7.1 runtime smoke passed
+2026-10-10T11:26:36.0935224Z Post job cleanup.
+2026-10-10T11:26:36.1754491Z [command]/usr/bin/git version
+2026-10-10T11:26:36.1791878Z git version 2.55.0
+2026-10-10T11:26:36.1826580Z Temporarily overriding HOME='/home/runner/work/_temp/65ce8f90-47f8-43cc-995a-402f29b66032' before making global git config changes
+2026-10-10T11:26:36.1828358Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-10T11:26:36.1832305Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/portable-ascii/portable-ascii
+2026-10-10T11:26:36.1862546Z Removing SSH command configuration
+2026-10-10T11:26:36.1868756Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-10T11:26:36.1902903Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-10T11:26:36.2132853Z Removing HTTP extra header
+2026-10-10T11:26:36.2137696Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-10T11:26:36.2170157Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-10T11:26:36.2396873Z Removing includeIf entries pointing to credentials config files
+2026-10-10T11:26:36.2403161Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-10T11:26:36.2433279Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-10T11:26:36.2799943Z Cleaning up orphan processes

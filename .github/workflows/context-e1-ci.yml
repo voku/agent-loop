@@ -1,0 +1,207 @@
+name: E1.3 real CI build-log replay
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/context-e1-ci.yml'
+      - 'tools/Dogfood/ContextSelection/e1-ci-case.json'
+      - 'tools/Dogfood/ContextSelection/e1-ci-historical/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-ci:
+    name: Freeze and replay real Composer resolution failure
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSER_PROCESS_TIMEOUT: '0'
+      COMPOSER_NO_INTERACTION: '1'
+      COMPOSER_NO_AUDIT: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Resolve case identities and verify preserved historical logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          case=tools/Dogfood/ContextSelection/e1-ci-case.json
+          mkdir -p build/e1-ci
+          echo "PRE_SHA=$(jq -r .pre_fix_sha "$case")" >> "$GITHUB_ENV"
+          echo "FIX_SHA=$(jq -r .fixed_sha "$case")" >> "$GITHUB_ENV"
+          for arm in pre_fix fixed; do
+            path="tools/Dogfood/ContextSelection/$(jq -r ".historical.original_logs.${arm}.path" "$case")"
+            want="$(jq -r ".historical.original_logs.${arm}.sha256" "$case")"
+            test "$(sha256sum "$path" | cut -d' ' -f1)" = "$want"
+            test "$(wc -l < "$path")" -eq "$(jq -r ".historical.original_logs.${arm}.lines" "$case")"
+          done
+
+      - name: Checkout exact pre-fix source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/portable-ascii
+          ref: ${{ env.PRE_SHA }}
+          path: build/e1-ci/before
+          persist-credentials: false
+
+      - name: Checkout exact fixed source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/portable-ascii
+          ref: ${{ env.FIX_SHA }}
+          path: build/e1-ci/after
+          persist-credentials: false
+
+      - name: Setup PHP 7.1 and compatible Composer (same pinned action and inputs as the historical job)
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '7.1'
+          coverage: none
+          extensions: intl, mbstring, zip
+          tools: composer:v2.2
+
+      - name: Verify source pair, identical workflow and check commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-ci
+          test "$(git -C before rev-parse HEAD)" = "${PRE_SHA}"
+          test "$(git -C after rev-parse HEAD)" = "${FIX_SHA}"
+          diff -rq -x .git before after | tee source-diff.txt || true
+          test "$(grep -c . source-diff.txt)" -eq 1
+          grep -Fq 'packages/transliterator-polyfill/composer.json' source-diff.txt
+          cmp before/.github/workflows/transliterator-polyfill.yml after/.github/workflows/transliterator-polyfill.yml
+          # No lock file in either arm: both resolve from composer.json alone.
+          test ! -e before/packages/transliterator-polyfill/composer.lock
+          test ! -e after/packages/transliterator-polyfill/composer.lock
+          # The replayed commands must appear verbatim in the historical workflow in both arms.
+          cat > check.sh <<'SH'
+          composer validate --strict --no-check-publish
+          composer update --no-dev --no-install --prefer-dist --no-interaction --no-progress
+          composer install --no-dev --prefer-dist --no-interaction --no-progress
+          php -r 'require "vendor/autoload.php"; $result = \Voku\Transliterator\TransliteratorPolyfill::transliterate("Latin-ASCII", "café"); if ($result !== "cafe") { fwrite(STDERR, "PHP 7.1 transliteration smoke failed\n"); exit(1); } echo "PHP 7.1 runtime smoke passed\n";'
+          SH
+          sed -i 's/^          //' check.sh
+          while IFS= read -r line; do
+            grep -Fq -- "$line" before/.github/workflows/transliterator-polyfill.yml
+            grep -Fq -- "$line" after/.github/workflows/transliterator-polyfill.yml
+          done < check.sh
+          sha256sum check.sh | cut -d' ' -f1 > check-script.sha256
+          sha256sum before/packages/transliterator-polyfill/composer.json | cut -d' ' -f1 > before-composer-json.sha256
+          sha256sum after/packages/transliterator-polyfill/composer.json | cut -d' ' -f1 > after-composer-json.sha256
+          php -v | head -1 > php-version.txt
+          composer --version > composer-version.txt
+          cat /etc/os-release | grep -E '^(NAME|VERSION)=' > os.txt
+          echo "ImageVersion=${ImageVersion:-unknown}" >> os.txt
+
+      - name: Run IDENTICAL check script in both arms (observed exit codes are data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/e1-ci
+          set +e
+          (cd before/packages/transliterator-polyfill && bash -e ../../../check.sh) > before.stdout.txt 2>&1
+          before_rc=$?
+          (cd after/packages/transliterator-polyfill && bash -e ../../../check.sh) > after.stdout.txt 2>&1
+          after_rc=$?
+          set -e
+          printf '%s\n' "${before_rc}" > before.exit
+          printf '%s\n' "${after_rc}" > after.exit
+          echo "REPLAY before exit=${before_rc}, after exit=${after_rc}"
+          echo '--- before output (full) ---'; cat before.stdout.txt
+          echo '--- after output (tail 15) ---'; tail -n 15 after.stdout.txt
+          test "${before_rc}" -ne 0
+          test "${after_rc}" -eq 0
+          # Both arms must have really executed the intended check, not skipped it.
+          grep -Fq './composer.json is valid' before.stdout.txt
+          grep -Fq 'Updating dependencies' before.stdout.txt
+          grep -Fq 'Your requirements could not be resolved to an installable set of packages.' before.stdout.txt
+          grep -Fq 'your php version (7.1.33) does not satisfy that requirement' before.stdout.txt
+          if grep -Fq 'PHP 7.1 runtime smoke passed' before.stdout.txt; then echo 'smoke unexpectedly passed before'; exit 1; fi
+          grep -Fq './composer.json is valid' after.stdout.txt
+          grep -Fq 'Updating dependencies' after.stdout.txt
+          grep -Fq 'Locking phpunit/phpunit (7.5' after.stdout.txt
+          grep -Fq 'PHP 7.1 runtime smoke passed' after.stdout.txt
+          if grep -Fq 'could not be resolved' after.stdout.txt; then echo 'resolution failure present after'; exit 1; fi
+
+      - name: Write source-bound machine receipt, never replace original logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          root = Path("build/e1-ci")
+          case = json.loads(Path("tools/Dogfood/ContextSelection/e1-ci-case.json").read_text())
+          def sha(p): return "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest()
+          def txt(p): return p.read_text().strip()
+          arms = ("before", "after")
+          def stats(p):
+              b = p.read_bytes()
+              return {"output_sha256": "sha256:" + hashlib.sha256(b).hexdigest(), "output_bytes": len(b), "output_lines": b.count(b"\n")}
+          report = {
+              "schema_version": "1.0",
+              "case_id": case["case_id"],
+              "harness_pr_head_sha": os.environ["PROOF_HEAD_SHA"],
+              "pull_request_merge_ref_sha_not_source_under_test": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "source_repository": case["source_repository"],
+              "pre_fix_sha": case["pre_fix_sha"],
+              "fixed_sha": case["fixed_sha"],
+              "ci_job_name": case["ci_job_name"],
+              "replayed_check_script_sha256": "sha256:" + txt(root / "check-script.sha256"),
+              "php_version": txt(root / "php-version.txt"),
+              "composer_version": txt(root / "composer-version.txt"),
+              "os": txt(root / "os.txt"),
+              "composer_json_sha256": {
+                  "before": "sha256:" + txt(root / "before-composer-json.sha256"),
+                  "after": "sha256:" + txt(root / "after-composer-json.sha256"),
+              },
+              "source_diff": txt(root / "source-diff.txt"),
+              "historical_original_logs": case["historical"]["original_logs"],
+              "observed": {
+                  a: dict(exit_code=int(txt(root / f"{a}.exit")), **stats(root / f"{a}.stdout.txt"))
+                  for a in arms
+              },
+              "markers_found_in_before": [
+                  m for m in case["evaluator_only"]["critical_markers"]
+                  if m in (root / "before.stdout.txt").read_text()
+              ],
+              "source_kind": case["source_kind"],
+              "workflow_authority_modified": False,
+              "model_invoked": False,
+          }
+          assert report["observed"]["before"]["exit_code"] != 0
+          assert report["observed"]["after"]["exit_code"] == 0
+          assert len(report["markers_found_in_before"]) == len(case["evaluator_only"]["critical_markers"])
+          assert report["composer_json_sha256"]["before"] != report["composer_json_sha256"]["after"]
+          (root / "e1-ci-replay.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+        env:
+          PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Upload immutable replay evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e1-ci-real-replay-${{ github.event.pull_request.head.sha || github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/e1-ci/e1-ci-replay.json
+            build/e1-ci/before.stdout.txt
+            build/e1-ci/after.stdout.txt
+            build/e1-ci/before.exit
+            build/e1-ci/after.exit
+            build/e1-ci/*.sha256
+            build/e1-ci/source-diff.txt
+            build/e1-ci/php-version.txt
+            build/e1-ci/composer-version.txt
+            build/e1-ci/os.txt
+            build/e1-ci/check.sh
