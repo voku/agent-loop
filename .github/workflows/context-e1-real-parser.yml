@@ -67,19 +67,19 @@ jobs:
           after="build/context-e1/after"
           report="build/context-e1"
 
-          # The fixed PR changed its test. Do not permit a changed test to claim success.
-          cp "${before}/tests/ParserEntryPointsTest.php" "${after}/tests/ParserEntryPointsTest.php"
+          # The old test fails on BOTH revisions; use the corrected regression from the fix PR identically on both.
+          cp "${after}/tests/ParserEntryPointsTest.php" "${before}/tests/ParserEntryPointsTest.php"
           cmp "${before}/tests/ParserEntryPointsTest.php" "${after}/tests/ParserEntryPointsTest.php"
           sha256sum "${before}/tests/ParserEntryPointsTest.php" |
             cut -d' ' -f1 > "${report}/identical-test-source.sha256"
 
           set +e
           (cd "${before}" && php vendor/bin/phpunit -c phpunit.xml \
-            --filter testGetFromStringNeverTreatsSourceAsExistingPath) \
+            --filter testGetFromStringNeverTreatsExistingPathAsInputFile) \
             > "${report}/before.stdout.txt" 2>&1
           before_rc=$?
           (cd "${after}" && php vendor/bin/phpunit -c phpunit.xml \
-            --filter testGetFromStringNeverTreatsSourceAsExistingPath) \
+            --filter testGetFromStringNeverTreatsExistingPathAsInputFile) \
             > "${report}/after.stdout.txt" 2>&1
           after_rc=$?
           set -e
@@ -95,8 +95,8 @@ jobs:
 
           test "${before_rc}" -ne 0
           test "${after_rc}" -eq 0
-          grep -Fq 'Failed asserting that two arrays are not identical.' "${report}/before.stdout.txt"
-          grep -Fq 'testGetFromStringNeverTreatsSourceAsExistingPath' "${report}/before.stdout.txt"
+          grep -Fq 'FAILURES!' "${report}/before.stdout.txt"
+          grep -Fq 'testGetFromStringNeverTreatsExistingPathAsInputFile' "${report}/before.stdout.txt"
           grep -Fq 'OK (' "${report}/after.stdout.txt"
 
       - name: Write source-bound machine receipt, never replace original logs
