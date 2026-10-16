@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use InvalidArgumentException;
+use voku\AgentLoop\GitHooks\CommitMessageExamples;
+use voku\AgentLoop\GitHooks\GitHookConfig;
 use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\PackageResources;
 use voku\AgentLoop\PathResolver;
@@ -131,6 +134,11 @@ final readonly class RepositoryActivation
         $results = [];
         if ($this->declaresGitHookPolicy()) {
             $results[] = $this->hookPathCheck();
+
+            $examplesCheck = $this->commitMessageExamplesCheck();
+            if ($examplesCheck !== null) {
+                $results[] = $examplesCheck;
+            }
         }
 
         if ($this->declaresCommitTemplate()) {
@@ -151,6 +159,36 @@ final readonly class RepositoryActivation
         }
 
         return $results;
+    }
+
+    /**
+     * Installed and current hooks can still enforce the wrong rules; the examples declared next to the rules
+     * prove the opposite. Nothing is reported for a project that declares none.
+     */
+    private function commitMessageExamplesCheck(): ?InitCheckResult
+    {
+        try {
+            $examples = new CommitMessageExamples(GitHookConfig::load($this->absolute('')));
+        } catch (InvalidArgumentException $exception) {
+            return InitCheckResult::warn('Git hook rules: ' . $exception->getMessage());
+        }
+
+        if (!$examples->declared()) {
+            return null;
+        }
+
+        $problems = $examples->problems();
+        if ($problems === []) {
+            return InitCheckResult::ok(
+                'Git hook rules: ' . $examples->passCount() . ' pass and ' . $examples->failCount()
+                . ' fail example(s) behave as declared',
+            );
+        }
+
+        return InitCheckResult::warn(
+            'Git hook rules: ' . count($problems) . ' example(s) do not behave as declared (first: ' . $problems[0]
+            . '); run ' . $this->cliPath() . ' githooks verify',
+        );
     }
 
     private function hookPathCheck(): InitCheckResult

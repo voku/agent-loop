@@ -318,6 +318,7 @@ Start here:
 - [Your first governed task](docs/quick-start.md)
 - [Cross-package lifecycle and ownership](docs/workflow/lifecycle.md)
 - [Agent assets and host integration](docs/reference/agent-assets.md)
+- [Git hooks: where the commit rules live](docs/reference/git-hooks.md)
 - [Learning and durable-memory boundary](docs/workflow/learning-boundary.md)
 - [Pre-1.0 compatibility and durable-state contract](docs/compatibility.md)
 

@@ -24,6 +24,7 @@ final readonly class GitHookConfig
      * @param list<array{name: string, command: string, optional: bool, per_file: bool}> $checks
      * @param list<array{pattern: string, message: string}>                $forbiddenPatterns
      * @param list<string>                                                 $vaguePhrases
+     * @param array{pass: list<string>, fail: list<string>}                $commitMessageExamples
      * @param int<1, max>                                                  $batchSize
      */
     private function __construct(
@@ -39,6 +40,7 @@ final readonly class GitHookConfig
         public ?string $requiredSection,
         public array $vaguePhrases,
         public int $vagueWordThreshold,
+        public array $commitMessageExamples,
     ) {
     }
 
@@ -85,6 +87,7 @@ final readonly class GitHookConfig
             is_string($commitMessage['required_section'] ?? null) ? $commitMessage['required_section'] : null,
             self::stringList($commitMessage['vague_phrases'] ?? []),
             max(0, (int) ($commitMessage['vague_word_threshold'] ?? 8)),
+            self::commitMessageExamples($commitMessage['examples'] ?? []),
         );
     }
 
@@ -135,6 +138,24 @@ final readonly class GitHookConfig
         }
 
         return $checks;
+    }
+
+    /**
+     * Messages the commit convention must accept (`pass`) and reject (`fail`), kept next to the rules
+     * so that `githooks verify` can prove the rules still do what the project says they do.
+     *
+     * @return array{pass: list<string>, fail: list<string>}
+     */
+    private static function commitMessageExamples(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return ['pass' => [], 'fail' => []];
+        }
+
+        return [
+            'pass' => self::stringList($value['pass'] ?? []),
+            'fail' => self::stringList($value['fail'] ?? []),
+        ];
     }
 
     /**
