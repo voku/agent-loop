@@ -1,0 +1,163 @@
+name: E1 real PHP regression replay
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/context-e1-real-parser.yml'
+      - 'tools/Dogfood/ContextSelection/e1-parser-case.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-phpunit:
+    name: Freeze and replay real pre-fix PHPUnit failure
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: zip
+          tools: composer:v2
+
+      - name: Checkout exact real pre-fix source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/Simple-PHP-Code-Parser
+          ref: 25af1a0ea38636e9b250b620f77535f3295d27bb
+          path: build/context-e1/before
+          persist-credentials: false
+
+      - name: Checkout exact real fixed source
+        uses: actions/checkout@v7
+        with:
+          repository: voku/Simple-PHP-Code-Parser
+          ref: c97aa2be882731f091b65e51989fbfaaf602e89e
+          path: build/context-e1/after
+          persist-credentials: false
+
+      - name: Install historical matrix-equivalent dependencies in both checkouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arm in before after; do
+            (
+              cd "build/context-e1/${arm}"
+              composer update --prefer-dist --no-interaction --no-progress \
+                --with 'nikic/php-parser:^4.18' \
+                --with 'phpunit/phpunit:^9.6'
+              composer dump-autoload -o
+              sha256sum composer.lock | cut -d' ' -f1 > "../${arm}-dependency-graph.sha256"
+            )
+          done
+
+      - name: Replay IDENTICAL original regression test against pre-fix and fixed code
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="build/context-e1/before"
+          after="build/context-e1/after"
+          report="build/context-e1"
+
+          # The fixed PR changed its test. Do not permit a changed test to claim success.
+          cp "${before}/tests/ParserEntryPointsTest.php" "${after}/tests/ParserEntryPointsTest.php"
+          cmp "${before}/tests/ParserEntryPointsTest.php" "${after}/tests/ParserEntryPointsTest.php"
+          sha256sum "${before}/tests/ParserEntryPointsTest.php" |
+            cut -d' ' -f1 > "${report}/identical-test-source.sha256"
+
+          set +e
+          (cd "${before}" && php vendor/bin/phpunit -c phpunit.xml \
+            --filter testGetFromStringNeverTreatsSourceAsExistingPath) \
+            > "${report}/before.stdout.txt" 2>&1
+          before_rc=$?
+          (cd "${after}" && php vendor/bin/phpunit -c phpunit.xml \
+            --filter testGetFromStringNeverTreatsSourceAsExistingPath) \
+            > "${report}/after.stdout.txt" 2>&1
+          after_rc=$?
+          set -e
+
+          printf '%s\n' "${before_rc}" > "${report}/before.exit"
+          printf '%s\n' "${after_rc}" > "${report}/after.exit"
+
+          test "${before_rc}" -ne 0
+          test "${after_rc}" -eq 0
+          grep -Fq 'Failed asserting that two arrays are not identical.' "${report}/before.stdout.txt"
+          grep -Fq 'testGetFromStringNeverTreatsSourceAsExistingPath' "${report}/before.stdout.txt"
+          grep -Fq 'OK (' "${report}/after.stdout.txt"
+
+      - name: Write source-bound machine receipt, never replace original logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("build/context-e1")
+          source = json.loads(Path("tools/Dogfood/ContextSelection/e1-parser-case.json").read_text())
+          def sha(path):
+              return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+          report = {
+              "schema_version": "1.0",
+              "case_id": source["case_id"],
+              "experiment_head_sha": os.environ["GITHUB_SHA"],
+              "head_under_test": os.environ["PROOF_HEAD_SHA"],
+              "original_failed_job_id": source["original_failed_job_id"],
+              "pre_fix_base_sha": source["pre_fix_base_sha"],
+              "fixed_source_sha": source["fixed_source_sha"],
+              "test_source_sha256": "sha256:" + (root / "identical-test-source.sha256").read_text().strip(),
+              "dependency_graphs": {
+                  a: "sha256:" + (root / f"{a}-dependency-graph.sha256").read_text().strip()
+                  for a in ("before", "after")
+              },
+              "observed": {
+                  a: {
+                      "exit_code": int((root / f"{a}.exit").read_text()),
+                      "output_sha256": sha(root / f"{a}.stdout.txt"),
+                      "output_bytes": (root / f"{a}.stdout.txt").stat().st_size,
+                      "critical_failure_marker": (
+                          "Failed asserting that two arrays are not identical."
+                          in (root / f"{a}.stdout.txt").read_text()
+                      ),
+                  }
+                  for a in ("before", "after")
+              },
+              "test_identity_equal": True,
+              "workflow_authority_modified": False,
+              "model_invoked": False,
+              "case_completeness": "ONE_REAL_REPLAY_OF_FOUR_PLANNED",
+          }
+          assert report["observed"]["before"]["exit_code"] != 0
+          assert report["observed"]["after"]["exit_code"] == 0
+          assert report["observed"]["before"]["critical_failure_marker"]
+          assert not report["observed"]["after"]["critical_failure_marker"]
+          (root / "e1-parser-replay.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+        env:
+          PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Upload immutable replay evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e1-phpunit-real-replay-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/context-e1/e1-parser-replay.json
+            build/context-e1/before.stdout.txt
+            build/context-e1/after.stdout.txt
+            build/context-e1/before.exit
+            build/context-e1/after.exit
+            build/context-e1/*-dependency-graph.sha256
+            build/context-e1/identical-test-source.sha256
