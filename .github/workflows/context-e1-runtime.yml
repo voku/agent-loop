@@ -70,7 +70,7 @@ jobs:
           grep -Fq 'CHANGELOG.md' source-diff.txt
           grep -Fq 'Parsers/Helper/Utils.php' source-diff.txt
           grep -Fq 'Parsers/Visitors/ASTVisitor.php' source-diff.txt
-          grep -Fq 'tests/CyclicInheritanceTest.php' source-diff.txt
+          grep -Fq 'Only in after/tests: CyclicInheritanceTest.php' source-diff.txt
           cp "${GITHUB_WORKSPACE}/tools/Dogfood/ContextSelection/e1-runtime/repro.php" before/repro.php
           cp "${GITHUB_WORKSPACE}/tools/Dogfood/ContextSelection/e1-runtime/repro.php" after/repro.php
           cmp before/repro.php after/repro.php
