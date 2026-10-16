@@ -13,16 +13,17 @@
   "original_failed_run": "https://github.com/voku/Simple-PHP-Code-Parser/actions/runs/37185207260",
   "original_failed_job_id": 111385595519,
   "original_success_run": "https://github.com/voku/Simple-PHP-Code-Parser/actions/runs/37185121088",
-  "input_fixture": "tests/ParserEntryPointsTest.php from exact pre-fix commit, reused byte-for-byte in both checkouts",
-  "test_filter": "testGetFromStringNeverTreatsSourceAsExistingPath",
+  "input_fixture": "tests/ParserEntryPointsTest.php from exact FIXED commit, reused byte-for-byte in both checkouts (old pre-fix test was independently observed to fail on both revisions)",
+  "test_filter": "testGetFromStringNeverTreatsExistingPathAsInputFile",
   "source_kind": "OPTIONAL_HUMAN_DIAGNOSTIC",
   "authoritative_validation": "untouched; this is isolated experiment capture, not a governed validation receipt",
   "expected_result": "pre-fix nonzero, same pre-fix test against fixed source zero",
   "verifier_only_required_markers": [
-    "Failed asserting that two arrays are not identical.",
-    "testGetFromStringNeverTreatsSourceAsExistingPath"
+    "testGetFromStringNeverTreatsExistingPathAsInputFile",
+    "FAILURES!"
   ],
   "limitations": [
+    "The original test asserted a parse error and fails even on the fixed source; it was rejected as an oracle. The corrected regression assertion from the fix PR is held IDENTICAL across both implementations.",
     "Only PHPUnit case 1 of at least 4; no performance, ranker, or token savings evidence.",
     "The original PHPStan / CI / runtime candidates are not yet replayed.",
     "Dependency graph can resolve differently across historical repos; exact lock SHA is recorded.",
