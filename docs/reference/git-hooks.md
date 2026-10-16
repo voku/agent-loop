@@ -34,6 +34,7 @@ Without `.agent-loop/githooks.json` both hooks do nothing.
 | `header_hint` | string | Shown after a header violation, for example `type(scope): subject`. |
 | `trivial_header_pattern` | PCRE string | Headers that match are exempt from the required section. Forbidden patterns still apply. |
 | `forbidden_patterns` | list of `{pattern, message}` | Every pattern is matched against the whole message Git will store. A match blocks the commit and prints `message`. |
+| `examples` | `{pass: [...], fail: [...]}` | Messages the convention must accept (`pass`) and must reject (`fail`). `githooks verify` and `init doctor` run them through the same validator, see [Prove the rules still work](#prove-the-rules-still-work). |
 | `required_section` | string | Name of a section (`WHY` matches `WHY:` at line start) that non-trivial commits must contain with real content. |
 | `vague_phrases` | list of strings | Phrases that make a short section count as vague. |
 | `vague_word_threshold` | int | A section with this many words or more is never called vague (default 8). |
@@ -106,6 +107,36 @@ contain" into "must not lack":
   "message": "Add a footer line such as `Refs: PROJ-123`."
 }
 ```
+
+## Prove the rules still work
+
+An installed, current hook can still enforce the wrong thing: a pattern that never matches, or a backslash lost on
+the way into JSON. `init doctor` already checks that the hooks are active and current; it cannot know what the rules
+are meant to do. Declare that next to the rules:
+
+```json
+{
+  "commit_msg": {
+    "required_section": "WHY",
+    "forbidden_patterns": [
+      {"pattern": "/^\\s*Co-Authored-By:.*assistant/im", "message": "Remove the assistant trailer."}
+    ],
+    "examples": {
+      "pass": ["fix(parser): reject empty input\n\nWHY:\n- Empty input crashed the tokenizer.\n"],
+      "fail": ["fix(parser): reject empty input\n\nWHY:\n- Empty input crashed the tokenizer.\n\nCo-Authored-By: Some Assistant <noreply@example.test>\n"]
+    }
+  }
+}
+```
+
+```bash
+vendor/bin/agent-loop githooks verify
+```
+
+`verify` prints `Commit message examples verified: 1 pass, 1 fail.` and exits 0. It exits 1 and names the example when a
+`pass` message is rejected or a `fail` message is accepted. `init doctor` and `init status` show the same result as a
+`Git hook rules:` line (`[OK]`, or `[WARN]` with the first mismatch); a project without `examples` gets no line. Keep
+one `fail` example per `forbidden_patterns` entry so that a rule that stopped matching turns the check red.
 
 ## How the examples were checked
 
