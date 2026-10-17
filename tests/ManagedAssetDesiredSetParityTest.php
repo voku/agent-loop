@@ -98,6 +98,12 @@ final class ManagedAssetDesiredSetParityTest extends TestCase
 
         self::assertContains('agent-loop-workflow', $desired);
         self::assertFileExists($this->root . '/.claude/skills/agent-loop-workflow/SKILL.md');
+        self::assertContains('agent-loop-dream', $desired);
+        self::assertSame(
+            file_get_contents(dirname(__DIR__) . '/resources/skills/agent-loop-dream/SKILL.md'),
+            file_get_contents($this->root . '/.claude/skills/agent-loop-dream/SKILL.md'),
+            'Claude must receive the identical canonical Dream audit skill as Codex.',
+        );
         foreach (['agent-guidance-maintenance', 'agent-learning', 'agent-loop-dogfood'] as $maintainerSkill) {
             self::assertNotContains($maintainerSkill, $desired);
             self::assertDirectoryDoesNotExist($this->root . '/.claude/skills/' . $maintainerSkill);
