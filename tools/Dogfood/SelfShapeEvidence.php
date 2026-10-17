@@ -69,10 +69,14 @@ final readonly class SelfShapeEvidence
      * is not a status to be selected around: the repository's promotion rule
      * says a durable rule needs evidence, so it fails here instead.
      */
-    public function learningStatus(): string
+    public function learningStatus(bool $verifiedExistingGuidanceMaintenance = false): string
     {
         if ($this->recordedFindingIds() !== []) {
             return 'findings_recorded';
+        }
+
+        if ($this->memoryChanged && $verifiedExistingGuidanceMaintenance) {
+            return 'no_durable_learning';
         }
 
         if ($this->memoryChanged) {
