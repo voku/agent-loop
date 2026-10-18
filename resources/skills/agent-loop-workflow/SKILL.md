@@ -78,7 +78,7 @@ Before asking for any `decision_required` action, surface the smallest complete 
 Future-work reflection is allowed only after the current task is already `complete` (or explicitly `ready_to_close` for manual reflection). Apply `future_work.mode` exactly:
 - `focus` — stop. Do not proactively search for adjacent future work.
 - `discover` — run one bounded project reflection with `vendor/bin/agent-loop workflow reflect <task-id> --scope project`, report the strongest evidence-backed direction (or explicitly report that no worthwhile investment direction was found), and do not prepare or execute follow-up work.
-- `invest` — run the same bounded project reflection. When it identifies an evidence-backed direction worth preparing, use the repository's existing task/Kanban owner to prepare at most `future_work.max_follow_up_slices` independent follow-up candidates. Do not approve or execute them automatically.
+- `invest` — run the same bounded project reflection. When it identifies an evidence-backed direction worth preparing, use the repository's existing task/Kanban owner to prepare at most `future_work.max_follow_up_slices` independent follow-up candidates. Take each candidate's identity from the owner, exactly as projected in `future_work.follow_up_task_identity` (`agent-loop board card create --generate-id ...`), and use the returned card ID unchanged as its task id; never pick "highest number + 1", which independent branches compute identically. Do not approve or execute them automatically.
 
 Follow-up execution requires its own normal governance/approval.
 

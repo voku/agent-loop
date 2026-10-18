@@ -147,10 +147,41 @@ final class WorkflowContextCommandTest extends TestCase
             'max_follow_up_slices' => 2,
             'current_contract_scope_expansion' => 'forbidden',
             'follow_up_authority' => 'separate_contract_required',
+            'follow_up_task_identity' => [
+                'source' => 'card_owner',
+                'command' => 'agent-loop board card create --generate-id --title <title> --format=json',
+                'rule' => 'use the card ID in the create result unchanged as the follow-up task id; never derive it from the board maximum',
+            ],
         ], $context['future_work']);
         self::assertStringContainsString(
-            'Future work: invest; after the current task completes, permit bounded future-work reflection and preparation of up to 2 separate follow-up candidate slice(s). Never widen the current Contract; follow-up execution requires separate Contract authority.',
+            'Future work: invest; after the current task completes, permit bounded future-work reflection and preparation of up to 2 separate follow-up candidate slice(s). Never widen the current Contract; follow-up execution requires separate Contract authority. Create each candidate\'s card with `agent-loop board card create --generate-id --title <title> --format=json` and use the returned card ID unchanged as its task id; never derive an ID from the board\'s highest number.',
             $rendered,
+        );
+    }
+
+    public function testOnlyInvestModeProjectsTheOwnerGeneratedFollowUpIdentity(): void
+    {
+        foreach (['focus', 'discover'] as $mode) {
+            file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+                'workflow' => ['future_work' => ['mode' => $mode, 'max_follow_up_slices' => 2]],
+            ], JSON_THROW_ON_ERROR));
+
+            $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+
+            self::assertArrayNotHasKey('follow_up_task_identity', $context['future_work'], $mode);
+            self::assertStringNotContainsString('--generate-id', implode("\n", $context['lines']), $mode);
+        }
+    }
+
+    /**
+     * Release gate: the projected command is only truthful once the installed agent-kanban ships the generator.
+     * Red until composer.json requires a release that contains it.
+     */
+    public function testInstalledKanbanProvidesTheGeneratorTheInvestProjectionNames(): void
+    {
+        self::assertTrue(
+            class_exists(\voku\AgentKanban\Domain\CardIdGenerator::class),
+            'future_work.follow_up_task_identity names `board card create --generate-id`; require the agent-kanban release that provides CardIdGenerator.',
         );
     }
 

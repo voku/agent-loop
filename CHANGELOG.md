@@ -5,6 +5,11 @@
 - `workflow plan --by <planner>` no longer projects a ready-made approval command that names the planner as the approver. The text `Next:` line and the JSON `next_action` now use the same explicit-human-actor form as `enter` (`agent-loop workflow approve <task> --by <named-actor>`); the planner stays recorded as `planned_by` provenance. Planning and approval are separate authorities; no actor string is inspected. Fixes #795.
 - After `workflow plan --supersede` over a Run bound to an older revision, `enter`/`finish` now route to the human approval of the new Contract revision (`decision_required`, `workflow approve <task> --by <named-actor>`) instead of telling the host to "repair the agent-loop artifact" for `run.contract_revision_mismatch`, which it could never do. The mismatch is still reported, the manifest stays `blocked`, and mutation stays disallowed; a Run that is ahead of its Contract still routes to repair. Reproduces validated `finding.2026-09-15.dd4221`.
 
+### Changed
+
+- Require `voku/agent-kanban` `^0.4.5`, which provides `card create --generate-id` (collision-resistant card IDs) used by the follow-up identity projection below.
+- In `future_work.mode=invest`, `workflow context` now projects `future_work.follow_up_task_identity` and the context text names how a follow-up gets its identity: create the card with `agent-loop board card create --generate-id --title <title> --format=json` (agent-kanban `CardIdGenerator`) and use the returned card ID unchanged as the follow-up's task id, instead of a host-chosen "highest number + 1" that independent Git branches compute identically. The workflow skill and `docs/future-work-policy.md` say the same. Requires the agent-kanban release that contains `CardIdGenerator`; a test fails until `composer.json` requires it.
+
 ### Added
 
 - `workflow approve` of a fresh Contract now prints a `[NOTE]` (and a JSON `notes` array) saying the execution profile is still selectable, names the currently resolved profile and the `workflow execution-profile <task> --profile ... --by <actor>` command, and that the first `enter` fixes it. No note once the Contract was already approved or a governed Run exists; `next_action` stays `enter`. Fixes #796.
