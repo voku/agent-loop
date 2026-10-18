@@ -16,30 +16,18 @@ use voku\AgentSession\SessionStore;
 final class WorkflowPlanNextCommandTest extends TestCase
 {
     /**
-     * @return iterable<string, array{actor: string, rendered: string}>
+     * @return iterable<string, array{actor: string}>
      */
     public static function actorProvider(): iterable
     {
-        yield 'simple value stays readable' => [
-            'actor' => 'lars',
-            'rendered' => 'lars',
-        ];
-        yield 'whitespace and parentheses' => [
-            'actor' => 'Claude (Opus)',
-            'rendered' => "'Claude (Opus)'",
-        ];
-        yield 'single quote' => [
-            'actor' => "O'Reilly",
-            'rendered' => "'O'\"'\"'Reilly'",
-        ];
-        yield 'shell metacharacters' => [
-            'actor' => '$(printf injected); echo nope',
-            'rendered' => "'$(printf injected); echo nope'",
-        ];
+        yield 'simple value' => ['actor' => 'lars'];
+        yield 'whitespace and parentheses' => ['actor' => 'Claude (Opus)'];
+        yield 'single quote' => ['actor' => "O'Reilly"];
+        yield 'shell metacharacters' => ['actor' => '$(printf injected); echo nope'];
     }
 
     #[DataProvider('actorProvider')]
-    public function testPlanPrintsCopyPasteSafeActorThatRoundTripsThroughPosixShell(string $actor, string $rendered): void
+    public function testPlanNeverProjectsThePlannerAsTheApprover(string $actor): void
     {
         $root = sys_get_temp_dir() . '/agent-loop-next-command-' . bin2hex(random_bytes(6));
         mkdir($root, 0o775, true);
@@ -50,15 +38,18 @@ final class WorkflowPlanNextCommandTest extends TestCase
                 'ABC-123',
                 '--by', $actor,
                 '--file', 'src/Foo.php',
-                '--goal', 'Keep the next command executable.',
+                '--goal', 'Planning and approval are separate authorities.',
                 '--validation', 'vendor/bin/phpunit',
             ]);
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit, $output);
-            $expected = 'agent-loop workflow approve ABC-123 --by ' . $rendered;
-            self::assertStringContainsString($expected, $output);
-            self::assertSame($actor, $this->roundTripShellArgument($rendered));
+            self::assertStringContainsString("Next:\n  agent-loop workflow approve ABC-123 --by <named-actor>\n", $output);
+            self::assertStringNotContainsString($actor, substr($output, (int) strpos($output, 'Next:')));
+
+            $contract = (new TaskContractStore($root))->load('ABC-123');
+            self::assertSame($actor, $contract->plannedBy, 'The planner stays recorded as provenance.');
+            self::assertNull($contract->approvedBy);
         } finally {
             $this->removeDirectory($root);
         }
@@ -98,16 +89,6 @@ final class WorkflowPlanNextCommandTest extends TestCase
         } finally {
             $this->removeDirectory($root);
         }
-    }
-
-    private function roundTripShellArgument(string $rendered): string
-    {
-        $result = $this->runProcess(['sh', '-c', 'set -- ' . $rendered . '; printf %s "$1"']);
-        if ($result['exit'] !== 0) {
-            throw new RuntimeException('POSIX shell probe failed: ' . $result['stderr']);
-        }
-
-        return $result['stdout'];
     }
 
     /**

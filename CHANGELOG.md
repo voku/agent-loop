@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- `workflow plan --by <planner>` no longer projects a ready-made approval command that names the planner as the approver. The text `Next:` line and the JSON `next_action` now use the same explicit-human-actor form as `enter` (`agent-loop workflow approve <task> --by <named-actor>`); the planner stays recorded as `planned_by` provenance. Planning and approval are separate authorities; no actor string is inspected. Fixes #795.
 - After `workflow plan --supersede` over a Run bound to an older revision, `enter`/`finish` now route to the human approval of the new Contract revision (`decision_required`, `workflow approve <task> --by <named-actor>`) instead of telling the host to "repair the agent-loop artifact" for `run.contract_revision_mismatch`, which it could never do. The mismatch is still reported, the manifest stays `blocked`, and mutation stays disallowed; a Run that is ahead of its Contract still routes to repair. Reproduces validated `finding.2026-09-15.dd4221`.
 
 ### Added
