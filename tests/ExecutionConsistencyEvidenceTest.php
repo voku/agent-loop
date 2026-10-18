@@ -173,6 +173,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
         return [$plan, $state];
     }
 
+    /** @return non-empty-string */
     private function record(ExecutionPlan $plan, ExecutionState $state, ExecutionEvidenceKind $kind): string
     {
         return (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
