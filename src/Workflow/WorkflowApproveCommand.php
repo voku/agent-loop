@@ -7,7 +7,9 @@ namespace voku\AgentLoop\Workflow;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
 use voku\AgentLoop\Init\RepositoryActivation;
+use voku\AgentLoop\Run\GovernedRunStore;
 
 final readonly class WorkflowApproveCommand
 {
@@ -27,6 +29,7 @@ final readonly class WorkflowApproveCommand
             $contract = $contracts->load($taskId->value);
 
             $status = 'approved';
+            $notes = [];
             if ($contract->status !== TaskContract::APPROVED) {
                 // Approval records authority and nothing else. Map discovery is
                 // deterministic preparation, so `enter` reconciles it rather
@@ -34,6 +37,10 @@ final readonly class WorkflowApproveCommand
                 $contract = $contracts->approve($taskId->value, $options['by']);
                 (new WorkflowHookRunner($this->rootPath))->run('approve', $taskId->value);
                 $msg = "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
+                $note = $this->profileNote($contract, $taskId->value);
+                if ($note !== null) {
+                    $notes[] = $note;
+                }
             } else {
                 $status = 'already_approved';
                 $msg = "[OK] workflow approve: current Contract revision is already approved\n";
@@ -42,7 +49,7 @@ final readonly class WorkflowApproveCommand
             $cli = (new RepositoryActivation($this->rootPath))->cliPath();
             if ($options['format'] === 'json') {
                 $nextAction = $cli . ' enter ' . $taskId->value . ' --format=json';
-                echo json_encode([
+                $payload = [
                     'schema_version' => '1.0',
                     'command' => 'workflow approve',
                     'task_id' => $taskId->value,
@@ -50,12 +57,19 @@ final readonly class WorkflowApproveCommand
                     'revision' => $contract->revision,
                     'next_action' => $nextAction,
                     'next_action_kind' => 'command',
-                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+                ];
+                if ($notes !== []) {
+                    $payload['notes'] = $notes;
+                }
+                echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
                 return 0;
             }
 
             echo $msg;
+            foreach ($notes as $line) {
+                echo "[NOTE] {$line}\n";
+            }
             echo "[NEXT] {$cli} enter {$taskId->value}\n";
 
             return 0;
@@ -89,6 +103,21 @@ final readonly class WorkflowApproveCommand
 
             return 1;
         }
+    }
+
+    /**
+     * Informational only: the profile stays selectable until the first `enter`
+     * prepares the governed Run. It never changes the canonical next action.
+     */
+    private function profileNote(TaskContract $contract, string $taskId): ?string
+    {
+        if ((new GovernedRunStore($this->rootPath))->findForContract($contract) !== null) {
+            return null;
+        }
+        $profile = (new ExecutionProfileSelectionStore($this->rootPath))->resolve($contract)->value;
+
+        return "Execution profile is {$profile} and is fixed by the first enter. To choose another, run first: "
+            . "workflow execution-profile {$taskId} --profile <manual|surgical|standard|hardened> --by <actor>";
     }
 
     /** @param list<string> $args */
