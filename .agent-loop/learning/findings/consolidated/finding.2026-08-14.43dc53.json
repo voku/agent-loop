@@ -29,6 +29,15 @@
     "validated_conclusion": "Coverage of a decision must follow its branches, not its call sites. The host-asset gate exercised four resolvers through their default branch, which is exactly the branch on which the copies could not disagree, so a duplicated decision passed every gate for as long as it existed while being wrong on the override branch. When a duplicated decision is collapsed onto its owner, the regression that proves the collapse belongs on the branch the old gate never reached - here the environment-variable override - or the collapse is asserted only where the duplicates already matched.",
     "confidence": "high",
     "validation_status": "validated",
-    "status": "validated",
-    "sensitivity": "public"
+    "status": "consolidated",
+    "sensitivity": "public",
+    "classification": "ADD_LEARNING_NOTE",
+    "pattern_key": "test.duplicated-decision.branch-coverage",
+    "validation_case": {
+        "given": "a decision implemented in several private copies, gated only through the default configuration",
+        "when": "the copies are collapsed onto one owner",
+        "then": "the regression that proves the collapse exercises the override branch where the copies disagreed, not only the default branch"
+    },
+    "validated_by": "voku",
+    "validated_at": "2026-10-17T19:53:43+00:00"
 }

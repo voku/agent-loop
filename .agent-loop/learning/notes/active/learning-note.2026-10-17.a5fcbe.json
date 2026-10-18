@@ -1,0 +1,56 @@
+{
+    "schema_version": "1.0",
+    "id": "learning-note.2026-10-17.a5fcbe",
+    "pattern_key": "test.duplicated-decision.branch-coverage",
+    "status": "active",
+    "scope": [
+        ".github/workflows/ci.yml",
+        "src/Init/InitStatusCommand.php",
+        "src/Init/InitSyncHooksCommand.php"
+    ],
+    "tags": [
+        "init",
+        "ownership",
+        "testing"
+    ],
+    "source_findings": [
+        "finding.2026-08-14.43dc53"
+    ],
+    "source_proposals": [],
+    "validation_case": {
+        "given": "a decision implemented in several private copies, gated only through the default configuration",
+        "when": "the copies are collapsed onto one owner",
+        "then": "the regression that proves the collapse exercises the override branch where the copies disagreed, not only the default branch"
+    },
+    "repository_evidence": [
+        {
+            "source_ref": "src/Init/ManagedAssetTargetCatalog.php",
+            "sha256": "6c9d460007dcc1b975cebcbd355133b7dac3ecadec2e0f180510fdd4a30dcc9e"
+        },
+        {
+            "source_ref": "tests/HostAssetPathOwnershipTest.php",
+            "sha256": "8631d425126ce22b4db2a408fd755779718bc1f11ca8535e4fec618bc69f488f"
+        }
+    ],
+    "content": {
+        "title": "Cover a collapsed duplicated decision on its override branch",
+        "context": "Four private copies of one path-resolution decision agreed on the default branch and disagreed when an environment variable overrode the target root, so every gate stayed green while init status and init sync-hooks pointed at different places.",
+        "guidance": "When collapsing a duplicated decision onto its owner, put the regression on the branch the old gate never exercised (for example an environment-variable override), not only on the default branch where the copies already agreed.",
+        "why_it_works": "Duplicates drift on the branches no gate exercises, because agreement on the covered branch is continuously proved and everywhere else only assumed.",
+        "when_to_apply": "Use when a refactor removes several private implementations of one decision in favour of a single owner.",
+        "when_not_to_apply": "Do not require branch-level coverage of every code path, or when the decision already has one implementation.",
+        "verification": "Run vendor/bin/phpunit --filter HostAssetPathOwnershipTest. Corroborating repository evidence: PR #612 made ManagedAssetTargetCatalog the sync-path owner and added regressions on the CLAUDE_SKILLS_DIR / CLAUDE_AGENTS_DIR override branches; it predates this note, so it corroborates the pattern but does not show the note changed that decision.",
+        "symptoms": null,
+        "failed_approaches": [
+            "Asserting the collapse only through the default target root, where all copies already matched."
+        ],
+        "root_cause": null,
+        "examples": [
+            "tests/HostAssetPathOwnershipTest.php",
+            "voku/agent-loop#612"
+        ]
+    },
+    "created_at": "2026-10-17T19:53:37+00:00",
+    "updated_at": "2026-10-17T19:53:37+00:00",
+    "retired_reason": null
+}
