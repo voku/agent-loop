@@ -1,0 +1,21 @@
+{
+    "id": "finding.2026-10-18.d56b74",
+    "task_id": "ARRAYY-194",
+    "session": "2026-10-18-arrayy-194-r1-cf089d5b",
+    "created_at": "2026-10-18T18:51:38+00:00",
+    "created_by": "claude",
+    "scope": [],
+    "observation": "Arrayy\\create($data) was typed @param mixed with a fixed @return Arrayy<int|string,mixed,array<int|string,mixed>>, so array inputs lost their key and value types. A function-level template bound to the mixed parameter with a conditional @phpstan-return recovered them: Arrayy<(T is array<array-key,mixed> ? key-of<T> : int|string),(T is array<array-key,mixed> ? value-of<T> : mixed),(T is array<array-key,mixed> ? T : array<int|string,mixed>)>. Map, list and array-shape inputs kept precise types; Traversable, callable, scalar, null and object inputs kept the old fallback; mixed collapsed to an equivalent type. The inner @var cast had to restate the same conditional type to satisfy return.type.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "voku/Arrayy PR #195 (head 0e6c394): tests/PHPStan/CreateFactoryInference.php fails 11 ways on base de7df89 (including the legacy Arrayy<int,string> consumer) and passes with the change; PHPUnit 1391 tests, PHPStan level 8, Legacy fixture and negative fixture unchanged; CI green on PHP 8.0-8.5 and Infection on the exact head."
+        }
+    ],
+    "hypothesis": "When a PHP factory must keep accepting every runtime input, a union such as array<K,V>|mixed collapses to mixed and swallows the template, whereas binding the whole parameter to a template and branching in the return type keeps array inputs precise without narrowing accepted inputs.",
+    "validated_conclusion": "For typed-factory inference on a PHPStan version that supports conditional return types over templates, prefer a template on the whole parameter plus a conditional @phpstan-return with key-of/value-of over narrowing @phpstan-param or overloads; keep the native @return as the documented fallback, restate the conditional in the body @var, prove it with an assertType fixture that is red on the base commit and green on the change, and include a legacy two-template consumer in that fixture. Callable-typed method fixtures must give an optional key parameter when the signature declares one optional.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
