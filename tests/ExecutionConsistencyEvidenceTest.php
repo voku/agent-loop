@@ -86,6 +86,37 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
         );
     }
 
+    public function testDeterministicPassCannotMixConsistencyWithCandidateValidationEvidence(): void
+    {
+        [$plan, $state] = $this->context();
+        $consistency = $this->record($plan, $state, ExecutionEvidenceKind::CONSISTENCY);
+        $validation = $this->record($plan, $state, ExecutionEvidenceKind::VALIDATION);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('EVIDENCE_MISMATCH: deterministic consistency checks cannot claim candidate validation');
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $plan->stage('verify'),
+            $this->result($plan, $state, [$validation], [$consistency]),
+        );
+    }
+
+    public function testDeterministicPassRejectsDuplicateConsistencyReferences(): void
+    {
+        [$plan, $state] = $this->context();
+        $reference = $this->record($plan, $state, ExecutionEvidenceKind::CONSISTENCY);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('MISSING_EVIDENCE: deterministic verification requires one current owner consistency receipt');
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $plan->stage('verify'),
+            $this->result($plan, $state, [], [$reference, $reference]),
+        );
+    }
+
     public function testConsistencyReceiptFromAnotherAttemptFailsClosed(): void
     {
         [$plan, $state] = $this->context();
