@@ -142,7 +142,8 @@ final readonly class RunPolicyEvaluator
         // naming a command that cannot change anything.
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
-            static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
+            fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete'
+                && !$this->isPendingSupersession($d, $references),
         ));
         if ($blockingDisagreements !== []) {
             foreach ($blockingDisagreements as $disagreement) {
@@ -555,6 +556,28 @@ final readonly class RunPolicyEvaluator
         }
 
         return is_int($runRevision) && $runRevision === $contractRevision;
+    }
+
+    /**
+     * A newer Contract revision that still awaits approval, over a Run bound to an older revision, is the
+     * supersession the workflow itself asks for (`workflow plan --supersede`). The mismatch stays visible and
+     * blocks mutation, but its resolution is the human approval decision, not host repair work. A Run that is
+     * ahead of its Contract is a different, genuinely inconsistent state and keeps routing to repair.
+     *
+     * @param array{code: string, owner: string, message: string} $disagreement
+     * @param array<string, array<string, mixed>> $references
+     */
+    private function isPendingSupersession(array $disagreement, array $references): bool
+    {
+        $contractRevision = $references['contract']['revision'] ?? null;
+        $runRevision = $references['contract']['run_revision'] ?? null;
+
+        return $disagreement['code'] === 'run.contract_revision_mismatch'
+            && is_int($contractRevision)
+            && is_int($runRevision)
+            && $runRevision < $contractRevision
+            && $this->referenceState($references, 'contract') !== 'approved'
+            && $this->referenceState($references, 'approval') === 'missing';
     }
 
     /** @param array<string, array<string, mixed>> $references */
