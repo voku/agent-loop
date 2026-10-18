@@ -444,6 +444,7 @@ final readonly class ExecutionStateStore
             array_key_exists('context_id', $data)
                 ? $this->requiredString($data, 'context_id', $path)
                 : null,
+            ExecutionArtifactValue::stringList($data['consistency_references'] ?? [], $path . '#consistency_references'),
         );
     }
 

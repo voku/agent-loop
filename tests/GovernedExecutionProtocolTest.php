@@ -272,7 +272,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         }
     }
 
-    public function testMissingOwnerValidationEvidenceFailsClosedAtDeterministicVerify(): void
+    public function testMissingOwnerConsistencyEvidenceFailsClosedAtDeterministicVerify(): void
     {
         $this->prepareSurgicalRun();
         $gateway = new ExecutionGateway($this->root);

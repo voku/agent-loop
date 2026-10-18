@@ -137,7 +137,7 @@ final readonly class ExecutionGateway
         }
 
         $command = 'agent-loop verify --task-id=' . $taskId;
-        $validationReference = (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
+        $consistencyReference = (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
             $bundle->taskId,
             $bundle->runId,
             $bundle->contractRevision,
@@ -145,7 +145,7 @@ final readonly class ExecutionGateway
             $bundle->stageId,
             $bundle->attempt,
             $bundle->candidateRevision,
-            ExecutionEvidenceKind::VALIDATION,
+            ExecutionEvidenceKind::CONSISTENCY,
             $command,
             'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
         ));
@@ -161,8 +161,10 @@ final readonly class ExecutionGateway
             $exit === 0 ? StageOutcome::PASS : StageOutcome::FAILED,
             $bundle->candidateRevision,
             [],
-            [$validationReference],
+            [],
             trim($output),
+            null,
+            [$consistencyReference],
         ));
     }
 
