@@ -51,7 +51,12 @@ read-only by default. Independent review stages additionally declare
 context identity that differs from their direct agent predecessor(s). This keeps
 "read-only" and "independent context" as separate invariants. The deterministic
 final `verify` stage remains an `agent-loop` operation rather than an LLM
-claim.
+claim. It is a project/Run consistency check, not an execution of the Contract's
+validation commands against the candidate worktree. Successful checks emit one
+owner-bound `consistency` receipt in `consistency_references`, never
+`VALIDATION` evidence. A deterministic PASS without that receipt is rejected.
+A complete execution plan therefore does not assert that the candidate passed
+Contract validation; `finish` remains the task-level validation gate.
 
 ## Typed consumer API
 

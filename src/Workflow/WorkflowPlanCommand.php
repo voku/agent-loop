@@ -128,7 +128,7 @@ final readonly class WorkflowPlanCommand
                 'scope' => $contract->scope,
                 'validation' => $contract->validation,
                 'warnings' => $warnings,
-                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --by ' . $options['by'],
+                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --by <named-actor>',
                 'next_action_kind' => 'decision_required',
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
@@ -143,7 +143,7 @@ final readonly class WorkflowPlanCommand
             echo '[WARN] workflow plan: ' . $warning . "\n";
         }
         echo "Next:\n";
-        echo '  agent-loop workflow approve ' . $taskId->value . ' --by ' . self::shellArgument($options['by']) . "\n";
+        echo '  agent-loop workflow approve ' . $taskId->value . " --by <named-actor>\n";
 
         return 0;
     }
@@ -230,18 +230,6 @@ final readonly class WorkflowPlanCommand
         }
 
         return $matches[0] ?? null;
-    }
-
-    /**
-     * Render one POSIX-shell argument without obscuring already-safe values.
-     */
-    private static function shellArgument(string $value): string
-    {
-        if (preg_match('~\A[A-Za-z0-9_@%+=:,./-]+\z~', $value) === 1) {
-            return $value;
-        }
-
-        return "'" . str_replace("'", "'\"'\"'", $value) . "'";
     }
 
     /**

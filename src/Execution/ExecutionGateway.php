@@ -136,19 +136,22 @@ final readonly class ExecutionGateway
             $output = (string) ob_get_clean();
         }
 
-        $command = 'agent-loop verify --task-id=' . $taskId;
-        $validationReference = (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
-            $bundle->taskId,
-            $bundle->runId,
-            $bundle->contractRevision,
-            $bundle->executionPlanDigest,
-            $bundle->stageId,
-            $bundle->attempt,
-            $bundle->candidateRevision,
-            ExecutionEvidenceKind::VALIDATION,
-            $command,
-            'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
-        ));
+        $consistencyReferences = [];
+        if ($exit === 0) {
+            $command = 'agent-loop verify --task-id=' . $taskId;
+            $consistencyReferences[] = (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
+                $bundle->taskId,
+                $bundle->runId,
+                $bundle->contractRevision,
+                $bundle->executionPlanDigest,
+                $bundle->stageId,
+                $bundle->attempt,
+                $bundle->candidateRevision,
+                ExecutionEvidenceKind::CONSISTENCY,
+                $command,
+                'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
+            ));
+        }
 
         return $this->submitStageResult(new StageResult(
             $this->deterministicSubmissionId($bundle),
@@ -161,8 +164,10 @@ final readonly class ExecutionGateway
             $exit === 0 ? StageOutcome::PASS : StageOutcome::FAILED,
             $bundle->candidateRevision,
             [],
-            [$validationReference],
+            [],
             trim($output),
+            null,
+            $consistencyReferences,
         ));
     }
 
