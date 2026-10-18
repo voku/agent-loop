@@ -51,7 +51,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
             $plan,
             $state,
             $plan->stage('verify'),
-            $this->result($plan, $state),
+            $this->stageResult($plan, $state),
         );
     }
 
@@ -59,7 +59,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
     {
         [$plan, $state] = $this->context();
         $reference = $this->record($plan, $state, ExecutionEvidenceKind::CONSISTENCY);
-        $result = $this->result($plan, $state, [], [$reference]);
+        $result = $this->stageResult($plan, $state, [], [$reference]);
 
         (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
             $plan,
@@ -82,7 +82,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
             $plan,
             $state,
             $plan->stage('verify'),
-            $this->result($plan, $state, [$reference]),
+            $this->stageResult($plan, $state, [$reference]),
         );
     }
 
@@ -109,7 +109,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
             $plan,
             $state,
             $plan->stage('verify'),
-            $this->result($plan, $state, [], [$reference]),
+            $this->stageResult($plan, $state, [], [$reference]),
         );
     }
 
@@ -162,7 +162,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
      * @param list<non-empty-string> $validations
      * @param list<non-empty-string> $consistency
      */
-    private function result(ExecutionPlan $plan, ExecutionState $state, array $validations = [], array $consistency = []): StageResult
+    private function stageResult(ExecutionPlan $plan, ExecutionState $state, array $validations = [], array $consistency = []): StageResult
     {
         return new StageResult(
             'submission:verify',
