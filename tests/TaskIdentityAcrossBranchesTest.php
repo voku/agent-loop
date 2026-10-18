@@ -10,8 +10,9 @@ use voku\AgentLoop\Run\RunManifestProjector;
 /**
  * Task identity is whatever string a card, Contract and Run share. Follow-ups created on independent
  * branches carry collision-resistant 63-bit card numbers (agent-kanban `card create --generate-id`);
- * Loop must keep each one linked to its own card and must not conflate it with an existing numeric ID
- * or with a free-form ID that is not a card at all.
+ * the projected task/card identity must keep each one linked to its own card and must not conflate it with
+ * an existing numeric ID or with a free-form ID that is not a card at all. This pins the projection only;
+ * it does not create Governed Runs (the two-worktree dogfood is the Governed Run evidence).
  */
 final class TaskIdentityAcrossBranchesTest extends TestCase
 {
@@ -49,7 +50,7 @@ MD
         $this->removeDirectory($this->root);
     }
 
-    public function testIndependentFollowUpsStayLinkedToTheirOwnCardAndRun(): void
+    public function testIndependentFollowUpsProjectDistinctTaskAndCardIdentity(): void
     {
         $projector = new RunManifestProjector($this->root);
         $a = $projector->project(self::BRANCH_A_ID);
@@ -61,7 +62,7 @@ MD
             self::assertSame('.agent-loop/todo/cards/' . $id . '.md', $manifest->references['board']['source']['path']);
             self::assertSame($id, $manifest->taskId);
         }
-        self::assertNotSame($a->runId, $b->runId, 'Distinct task IDs must never share a Run identity.');
+        self::assertNotSame($a->runId, $b->runId, 'Distinct task IDs must never project the same task/card-derived identifier.');
     }
 
     public function testExistingNumericTaskIdsKeepWorking(): void
