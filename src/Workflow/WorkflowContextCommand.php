@@ -32,6 +32,15 @@ use voku\AgentSession\SessionStore;
  */
 final readonly class WorkflowContextCommand
 {
+    private const string FOLLOW_UP_CARD_COMMAND = 'agent-loop board card create --generate-id --title <title> --format=json';
+
+    /** Identity of a prepared follow-up comes from the board owner, not from the host (agent-kanban CardIdGenerator). */
+    private const array FOLLOW_UP_TASK_IDENTITY = [
+        'source' => 'card_owner',
+        'command' => self::FOLLOW_UP_CARD_COMMAND,
+        'rule' => 'use the card ID in the create result unchanged as the follow-up task id; never derive it from the board maximum',
+    ];
+
     public const int DEFAULT_MAX_LINES = 120;
     public const int DEFAULT_MAX_BYTES = 12000;
 
@@ -154,7 +163,8 @@ final readonly class WorkflowContextCommand
      *         mode: 'focus'|'discover'|'invest',
      *         max_follow_up_slices: int,
      *         current_contract_scope_expansion: 'forbidden',
-     *         follow_up_authority: 'separate_contract_required'
+     *         follow_up_authority: 'separate_contract_required',
+     *         follow_up_task_identity?: array{source: 'card_owner', command: string, rule: string}
      *     },
      *     lines: list<string>,
      *     omitted: array<string, int>,
@@ -263,7 +273,7 @@ final readonly class WorkflowContextCommand
                 'max_follow_up_slices' => $maxFollowUpSlices,
                 'current_contract_scope_expansion' => 'forbidden',
                 'follow_up_authority' => 'separate_contract_required',
-            ],
+            ] + ($futureWorkMode === FutureWorkMode::INVEST ? ['follow_up_task_identity' => self::FOLLOW_UP_TASK_IDENTITY] : []),
             'lines' => $budget->lines(),
             'omitted' => $budget->omitted(),
             'skipped' => $budget->skipped(),
@@ -308,8 +318,12 @@ final readonly class WorkflowContextCommand
             FutureWorkMode::INVEST => 'after the current task completes, permit bounded future-work reflection and preparation of up to ' . $maxFollowUpSlices . ' separate follow-up candidate slice(s)',
         };
 
+        $identity = $mode === FutureWorkMode::INVEST
+            ? ' Create each candidate\'s card with `' . self::FOLLOW_UP_CARD_COMMAND . '` and use the returned card ID unchanged as its task id; never derive an ID from the board\'s highest number.'
+            : '';
+
         return 'Future work: ' . $mode->value . '; ' . $behavior
-            . '. Never widen the current Contract; follow-up execution requires separate Contract authority.';
+            . '. Never widen the current Contract; follow-up execution requires separate Contract authority.' . $identity;
     }
 
     private function addLifecycleAuthority(WorkflowContextBudget $budget, string $taskId): void

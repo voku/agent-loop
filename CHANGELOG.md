@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+- In `future_work.mode=invest`, `workflow context` now projects `future_work.follow_up_task_identity` and the context text names how a follow-up gets its identity: create the card with `agent-loop board card create --generate-id --title <title> --format=json` (agent-kanban `CardIdGenerator`) and use the returned card ID unchanged as the follow-up's task id, instead of a host-chosen "highest number + 1" that independent Git branches compute identically. The workflow skill and `docs/future-work-policy.md` say the same. Requires the agent-kanban release that contains `CardIdGenerator`; a test fails until `composer.json` requires it.
+
 ### Added
 
 - `commit_msg.examples` in `.agent-loop/githooks.json` declares messages the commit convention must accept (`pass`) and must reject (`fail`). The new `agent-loop githooks verify [--config=PATH]` runs them through the same `CommitMessageValidator` as the `commit-msg` hook (exit 1 and the offending example on a mismatch), and `init doctor` / `init status` report the result as a `Git hook rules:` line. `init doctor` already proved that the hooks are active and current, but not that the rules do what the project says; a forbidden pattern that stopped matching now turns red instead of passing silently. Projects without `examples` see no new line. New `docs/reference/git-hooks.md` explains where commit-message rules are configured, lists every `commit_msg` key and gives generic examples.

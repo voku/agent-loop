@@ -35,6 +35,8 @@ After the current task is complete, run the same bounded project-level reflectio
 
 Preparation is not approval. The completed Contract stays closed, and every follow-up execution still requires its own normal governed Contract/approval.
 
+Identity comes from the Kanban owner, not from the host. A follow-up candidate is created with `agent-loop board card create --generate-id --title <title> --format=json`; the card ID in the result is then used unchanged as the follow-up's task id (`workflow plan <that ID>`), so card, Contract, Run, Session and Learning provenance share one stable identity. Do not compute "highest number + 1": independent Git branches created from the same base compute the same value, collide on the card file and leave every task-keyed record pointing at the wrong task. The projection `future_work.follow_up_task_identity` carries the command and rule so hosts do not rely on remembering this. Task ids that are not cards remain valid `ad_hoc_task`s and are never linked to a card.
+
 This fits fast-moving libraries and active open-source projects where hot context can make one or two adjacent follow-ups unusually cheap to discover or prepare.
 
 ## Invariants
