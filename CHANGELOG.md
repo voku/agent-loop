@@ -1,7 +1,12 @@
 ## Unreleased
 
+### Fixed
+
+- After `workflow plan --supersede` over a Run bound to an older revision, `enter`/`finish` now route to the human approval of the new Contract revision (`decision_required`, `workflow approve <task> --by <named-actor>`) instead of telling the host to "repair the agent-loop artifact" for `run.contract_revision_mismatch`, which it could never do. The mismatch is still reported, the manifest stays `blocked`, and mutation stays disallowed; a Run that is ahead of its Contract still routes to repair. Reproduces validated `finding.2026-09-15.dd4221`.
+
 ### Changed
 
+- Require `voku/agent-kanban` `^0.4.5`, which provides `card create --generate-id` (collision-resistant card IDs) used by the follow-up identity projection below.
 - In `future_work.mode=invest`, `workflow context` now projects `future_work.follow_up_task_identity` and the context text names how a follow-up gets its identity: create the card with `agent-loop board card create --generate-id --title <title> --format=json` (agent-kanban `CardIdGenerator`) and use the returned card ID unchanged as the follow-up's task id, instead of a host-chosen "highest number + 1" that independent Git branches compute identically. The workflow skill and `docs/future-work-policy.md` say the same. Requires the agent-kanban release that contains `CardIdGenerator`; a test fails until `composer.json` requires it.
 
 ### Added

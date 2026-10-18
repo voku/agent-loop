@@ -378,11 +378,30 @@ MD,
         self::assertSame('blocked', $manifest->state);
         self::assertSame('candidate', $manifest->references['contract']['state']);
         self::assertSame('run.contract_revision_mismatch', $manifest->disagreements[0]['code']);
-        // Fails closed with the same observable blocker, but the canonical step
-        // is no longer the read-only inspection command that could never repair it.
+        // Fails closed with the same observable blocker. The unapproved newer revision is the pending
+        // supersession itself, so the canonical step is its human approval; telling the host to "repair"
+        // the mismatch named work it can never do (finding.2026-09-15.dd4221).
         self::assertStringNotContainsString('workflow manifest', $manifest->nextAction);
-        self::assertStringContainsString('run.contract_revision_mismatch', $manifest->nextAction);
-        self::assertSame('host_work', $manifest->nextActionKind);
+        self::assertStringContainsString('workflow approve ABC-123', $manifest->nextAction);
+        self::assertSame('decision_required', $manifest->nextActionKind);
+    }
+
+    public function testRunNewerThanTheContractStillRoutesToRepairNotApproval(): void
+    {
+        $this->preparedRun('ok', withReceipt: false);
+        $contracts = new TaskContractStore($this->root);
+        $current = $contracts->load('ABC-123');
+        $contracts->revise('ABC-123', 'Changed after Run preparation.', $current->scope, $current->nonGoals, $current->validation, 'lars');
+        $runPath = (new GovernedRunStore($this->root))->path('ABC-123');
+        $run = json_decode((string) file_get_contents($runPath), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($run);
+        $run['contract_revision'] = 9;
+        file_put_contents($runPath, json_encode($run, JSON_THROW_ON_ERROR));
+
+        $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
+
+        self::assertSame('run.contract_revision_mismatch', $manifest->disagreements[0]['code']);
+        self::assertSame('host_work', $manifest->nextActionKind, 'A Run ahead of its Contract is corruption, not a pending approval.');
     }
 
     /** @param array<string, mixed> $config */
