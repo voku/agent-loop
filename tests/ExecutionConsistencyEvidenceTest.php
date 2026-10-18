@@ -98,7 +98,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
             $plan,
             $state,
             $plan->stage('verify'),
-            $this->result($plan, $state, [$validation], [$consistency]),
+            $this->stageResult($plan, $state, [$validation], [$consistency]),
         );
     }
 
@@ -113,7 +113,7 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
             $plan,
             $state,
             $plan->stage('verify'),
-            $this->result($plan, $state, [], [$reference, $reference]),
+            $this->stageResult($plan, $state, [], [$reference, $reference]),
         );
     }
 
