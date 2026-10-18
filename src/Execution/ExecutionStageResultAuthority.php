@@ -43,10 +43,26 @@ final readonly class ExecutionStageResultAuthority
             );
         }
 
-        if ($stage->kind === ExecutionStageKind::DETERMINISTIC
-            && $result->outcome === StageOutcome::PASS
-            && $result->validationReferences === []) {
-            throw new RuntimeException('MISSING_EVIDENCE: deterministic verification requires current owner validation evidence.');
+        foreach ($result->consistencyReferences as $reference) {
+            $evidence->assertCurrent(
+                $reference,
+                ExecutionEvidenceKind::CONSISTENCY,
+                $plan,
+                $result->stageId,
+                $result->attempt,
+                $result->candidateRevision,
+            );
+        }
+
+        if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
+            if ($result->validationReferences !== [] || $result->artifactReferences !== []) {
+                throw new RuntimeException('EVIDENCE_MISMATCH: deterministic consistency checks cannot claim candidate validation or artifacts.');
+            }
+            if ($result->outcome === StageOutcome::PASS && count($result->consistencyReferences) !== 1) {
+                throw new RuntimeException('MISSING_EVIDENCE: deterministic verification requires one current owner consistency receipt.');
+            }
+        } elseif ($result->consistencyReferences !== []) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: only deterministic stages may submit consistency receipts.');
         }
     }
 
