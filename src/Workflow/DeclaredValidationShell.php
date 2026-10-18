@@ -34,7 +34,25 @@ final readonly class DeclaredValidationShell
             throw new RuntimeException('Unable to execute declared validation command: ' . $command);
         }
 
-        /** @var array<int, resource> $openPipes */
+        $output = trim($this->drain($this->nonBlockingOutputPipes($pipes)));
+
+        $exitCode = proc_close($process);
+        if ($exitCode < 0) {
+            throw new RuntimeException('Declared validation command terminated without an observable exit code: ' . $command);
+        }
+
+        return [
+            'exitCode' => $exitCode,
+            'output' => $output,
+        ];
+    }
+
+    /**
+     * @param array<int, resource> $pipes
+     * @return array<int, resource>
+     */
+    private function nonBlockingOutputPipes(array $pipes): array
+    {
         $openPipes = [];
         foreach ([1, 2] as $index) {
             if (isset($pipes[$index]) && is_resource($pipes[$index])) {
@@ -43,27 +61,28 @@ final readonly class DeclaredValidationShell
             }
         }
 
-        $buffers = [1 => '', 2 => ''];
+        return $openPipes;
+    }
 
+    /**
+     * Reads stdout and stderr until both are closed, so neither pipe can fill up and stall the command, and returns
+     * stdout followed by stderr.
+     *
+     * @param array<int, resource> $openPipes
+     */
+    private function drain(array $openPipes): string
+    {
+        $buffers = [1 => '', 2 => ''];
         while ($openPipes !== []) {
             $read = array_values($openPipes);
             $write = null;
             $except = null;
-            $selected = stream_select($read, $write, $except, 0, 200000);
-            if ($selected === false) {
+            if (stream_select($read, $write, $except, 0, 200000) === false) {
                 break;
             }
-
             foreach ($read as $stream) {
                 $index = array_search($stream, $openPipes, true);
-                if (!is_int($index)) {
-                    continue;
-                }
-                $chunk = fread($stream, 8192);
-                if (is_string($chunk) && $chunk !== '') {
-                    $buffers[$index] .= $chunk;
-                }
-                if (($chunk === false || $chunk === '') && feof($stream)) {
+                if (is_int($index) && $this->readChunk($stream, $buffers[$index])) {
                     fclose($stream);
                     unset($openPipes[$index]);
                 }
@@ -71,21 +90,25 @@ final readonly class DeclaredValidationShell
         }
 
         foreach ($openPipes as $pipe) {
-            if (is_resource($pipe)) {
-                fclose($pipe);
-            }
+            fclose($pipe);
         }
 
-        $exitCode = proc_close($process);
-        if ($exitCode < 0) {
-            throw new RuntimeException('Declared validation command terminated without an observable exit code: ' . $command);
+        return ($buffers[1] ?? '') . "\n" . ($buffers[2] ?? '');
+    }
+
+    /**
+     * @param resource $stream
+     * @return bool true once the stream is exhausted
+     */
+    private function readChunk($stream, string &$buffer): bool
+    {
+        $chunk = fread($stream, 8192);
+        if (is_string($chunk) && $chunk !== '') {
+            $buffer .= $chunk;
+
+            return false;
         }
 
-        $output = trim($buffers[1] . "\n" . $buffers[2]);
-
-        return [
-            'exitCode' => $exitCode,
-            'output' => $output,
-        ];
+        return feof($stream);
     }
 }

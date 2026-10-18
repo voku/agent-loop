@@ -139,29 +139,10 @@ final readonly class ExecutionGateway
             throw new RuntimeException('Only the governed deterministic verify stage is executable by this gateway.');
         }
 
-        $workspace = realpath($candidateWorkspace ?? $this->rootPath);
-        if (!is_string($workspace) || !is_dir($workspace)) {
-            throw new RuntimeException('CANDIDATE_MISMATCH: verify workspace does not exist: ' . ($candidateWorkspace ?? $this->rootPath));
-        }
+        $workspace = $this->verifyWorkspace($candidateWorkspace);
         $identity = new CandidateWorkspaceIdentity();
         $statePath = $this->relativeStateRoot();
         $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
-
-        $evidence = new ExecutionEvidenceStore($this->rootPath);
-        $recordValidation = function (string $command, int $exit, string $output) use ($bundle, $evidence): string {
-            return $evidence->record(new ExecutionEvidenceClaim(
-                $bundle->taskId,
-                $bundle->runId,
-                $bundle->contractRevision,
-                $bundle->executionPlanDigest,
-                $bundle->stageId,
-                $bundle->attempt,
-                $bundle->candidateRevision,
-                ExecutionEvidenceKind::VALIDATION,
-                $command,
-                'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
-            ));
-        };
 
         ob_start();
         try {
@@ -169,27 +150,17 @@ final readonly class ExecutionGateway
         } finally {
             $output = (string) ob_get_clean();
         }
-        $validationReferences = [$recordValidation('agent-loop verify --task-id=' . $taskId, $exit, $output)];
-        $summary = [trim($output)];
-        $passed = $exit === 0;
-
-        $shell = new DeclaredValidationShell();
-        foreach ($bundle->requiredValidation as $command) {
-            $result = $shell->executeDeclaredValidationShell($command, $workspace);
-            $validationReferences[] = $recordValidation($command, $result['exitCode'], $result['output']);
-            if ($result['exitCode'] !== 0) {
-                $passed = false;
-                $summary[] = sprintf("[FAIL] %s (exit %d)\n%s", $command, $result['exitCode'], substr($result['output'], -2000));
-                break;
-            }
-            $summary[] = '[OK] ' . $command;
-        }
+        $contract = $this->runContractValidation($bundle, $workspace);
 
         try {
             $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
         } catch (RuntimeException $exception) {
             throw new RuntimeException('CANDIDATE_MISMATCH: a declared validation command changed the governed candidate while it was being verified. ' . $exception->getMessage(), 0, $exception);
         }
+
+        $validationReferences = [$this->recordVerifyEvidence($bundle, 'agent-loop verify --task-id=' . $taskId, $exit, $output), ...$contract['references']];
+        $passed = $exit === 0 && $contract['passed'];
+        $summary = [trim($output), ...$contract['summary']];
 
         return $this->submitStageResult(new StageResult(
             $this->deterministicSubmissionId($bundle),
@@ -204,6 +175,57 @@ final readonly class ExecutionGateway
             [],
             $validationReferences,
             implode("\n\n", $summary),
+        ));
+    }
+
+    private function verifyWorkspace(?string $candidateWorkspace): string
+    {
+        $workspace = realpath($candidateWorkspace ?? $this->rootPath);
+        if (!is_string($workspace) || !is_dir($workspace)) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: verify workspace does not exist: ' . ($candidateWorkspace ?? $this->rootPath));
+        }
+
+        return $workspace;
+    }
+
+    /**
+     * Executes the approved Contract's validation commands in the candidate workspace, stopping at the first failure.
+     *
+     * @return array{passed: bool, references: list<non-empty-string>, summary: list<string>}
+     */
+    private function runContractValidation(StageExecutionBundle $bundle, string $workspace): array
+    {
+        $shell = new DeclaredValidationShell();
+        $references = [];
+        $summary = [];
+        foreach ($bundle->requiredValidation as $command) {
+            $result = $shell->executeDeclaredValidationShell($command, $workspace);
+            $references[] = $this->recordVerifyEvidence($bundle, $command, $result['exitCode'], $result['output']);
+            if ($result['exitCode'] !== 0) {
+                $summary[] = sprintf("[FAIL] %s (exit %d)\n%s", $command, $result['exitCode'], substr($result['output'], -2000));
+
+                return ['passed' => false, 'references' => $references, 'summary' => $summary];
+            }
+            $summary[] = '[OK] ' . $command;
+        }
+
+        return ['passed' => true, 'references' => $references, 'summary' => $summary];
+    }
+
+    /** @return non-empty-string */
+    private function recordVerifyEvidence(StageExecutionBundle $bundle, string $command, int $exit, string $output): string
+    {
+        return (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $bundle->candidateRevision,
+            ExecutionEvidenceKind::VALIDATION,
+            $command,
+            'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
         ));
     }
 

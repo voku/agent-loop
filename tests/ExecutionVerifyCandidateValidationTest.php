@@ -27,9 +27,9 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
 
     protected function setUp(): void
     {
-        $id = bin2hex(random_bytes(5));
-        $this->root = sys_get_temp_dir() . '/agent-loop-verify-' . $id;
-        $this->workspace = sys_get_temp_dir() . '/agent-loop-verify-ws-' . $id;
+        $suffix = bin2hex(random_bytes(5));
+        $this->root = sys_get_temp_dir() . '/agent-loop-verify-' . $suffix;
+        $this->workspace = sys_get_temp_dir() . '/agent-loop-verify-ws-' . $suffix;
     }
 
     protected function tearDown(): void
@@ -161,8 +161,8 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
     {
         $index = sys_get_temp_dir() . '/agent-loop-verify-test-index-' . bin2hex(random_bytes(4));
         $env = 'GIT_INDEX_FILE=' . escapeshellarg($index) . ' ';
-        $cd = 'cd ' . escapeshellarg($this->workspace) . ' && ';
-        exec($cd . $env . 'git read-tree ' . escapeshellarg($this->base) . ' && ' . $env . 'git add -A -- . && ' . $env . 'git write-tree', $out, $exit);
+        $inWorkspace = 'cd ' . escapeshellarg($this->workspace) . ' && ';
+        exec($inWorkspace . $env . 'git read-tree ' . escapeshellarg($this->base) . ' && ' . $env . 'git add -A -- . && ' . $env . 'git write-tree', $out, $exit);
         @unlink($index);
         self::assertSame(0, $exit);
 
