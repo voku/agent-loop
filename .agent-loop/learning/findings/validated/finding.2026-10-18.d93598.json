@@ -1,0 +1,21 @@
+{
+    "id": "finding.2026-10-18.d93598",
+    "task_id": "ARRAYY-194",
+    "session": "2026-10-18-arrayy-194-r1-cf089d5b",
+    "created_at": "2026-10-18T18:51:38+00:00",
+    "created_by": "claude",
+    "scope": [],
+    "observation": "On the first external dogfood task (voku/Arrayy#194) the Contract declared five validation commands and was approved by the human. One of them, Infection, could not run on the executing host because no PHP coverage driver (pcov, Xdebug, phpdbg) was installed. Only the download of the Infection phar had been checked beforehand. The gap surfaced only at 'finish', after implementation and after the PR was opened, and left verification blocked while the work itself was done.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "voku/Arrayy#194 / PR voku/Arrayy#195 (head 0e6c394, base de7df89): Infection 0.32.7 exited 1 locally with CoverageChecker \"no code coverage generator has been detected\"; agent-loop finish arrayy-194 then reported verification blocked on that exact command. The same Infection job succeeded in CI on the identical head, so the limit was the host, not the change."
+        }
+    ],
+    "hypothesis": "A pre-approval check that stops at 'the tool is obtainable' misses 'the tool can execute here'. Prerequisites such as coverage drivers, extensions, network access or credentials are only discovered when the declared command actually runs.",
+    "validated_conclusion": "Before a Contract's validation commands are approved, each one should be exercised or probed on the executing host in a form that proves it can run (for example a --version or dry invocation that reaches its real prerequisites), not merely that its binary is available. A command that cannot run on the host should be declared as host-limited with a named alternative evidence source (for example exact-head CI) in the Contract revision the human approves, so Loop's own verification never stays blocked on an environment limit that was knowable in advance.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
