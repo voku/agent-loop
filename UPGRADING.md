@@ -15,6 +15,25 @@ Do not hardcode `.agent-loop/` anywhere. It is the default, not the contract.
 
 ---
 
+## Deterministic `verify` validates the candidate (#799)
+
+The `verify` stage of every execution profile now runs the approved Contract's
+validation commands against the governed candidate. An execution consumer that
+holds the candidate outside the project checkout must pass that workspace:
+
+```php
+$gateway->runDeterministicStage($taskId, 'verify', $runWorktreePath);
+```
+
+Without it, `verify` checks the project checkout, and refuses with
+`CANDIDATE_MISMATCH` when the checkout does not hold the candidate. That is the
+case for `voku/agent-loop-runner` releases that predate this change: upgrade
+Runner together with Loop. Contract validation commands must also be runnable in
+that workspace; a command that only works in the user's checkout now fails
+`verify` instead of being skipped.
+
+---
+
 ## Package assets moved to `resources/`
 
 `docs/` is human explanation. `resources/` is what the package ships. Every
