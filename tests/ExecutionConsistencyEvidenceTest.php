@@ -48,7 +48,10 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('MISSING_EVIDENCE');
         (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
-            $plan, $state, $plan->stage('verify'), $this->result($plan, $state),
+            $plan,
+            $state,
+            $plan->stage('verify'),
+            $this->result($plan, $state),
         );
     }
 
@@ -59,7 +62,10 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
         $result = $this->result($plan, $state, [], [$reference]);
 
         (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
-            $plan, $state, $plan->stage('verify'), $result,
+            $plan,
+            $state,
+            $plan->stage('verify'),
+            $result,
         );
         self::assertSame([], $result->validationReferences);
         self::assertSame([$reference], $result->toArray()['consistency_references']);
@@ -73,7 +79,10 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('EVIDENCE_MISMATCH');
         (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
-            $plan, $state, $plan->stage('verify'), $this->result($plan, $state, [$reference]),
+            $plan,
+            $state,
+            $plan->stage('verify'),
+            $this->result($plan, $state, [$reference]),
         );
     }
 
@@ -81,16 +90,26 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
     {
         [$plan, $state] = $this->context();
         $claim = new ExecutionEvidenceClaim(
-            $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(),
-            'verify', 2, $state->candidateRevision, ExecutionEvidenceKind::CONSISTENCY,
-            'agent-loop verify --task-id=' . $plan->taskId, 'sha256:' . hash('sha256', 'stale'),
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'verify',
+            2,
+            $state->candidateRevision,
+            ExecutionEvidenceKind::CONSISTENCY,
+            'agent-loop verify --task-id=' . $plan->taskId,
+            'sha256:' . hash('sha256', 'stale'),
         );
         $reference = (new ExecutionEvidenceStore($this->root))->record($claim);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('STALE_EVIDENCE');
         (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
-            $plan, $state, $plan->stage('verify'), $this->result($plan, $state, [], [$reference]),
+            $plan,
+            $state,
+            $plan->stage('verify'),
+            $this->result($plan, $state, [], [$reference]),
         );
     }
 
@@ -98,15 +117,26 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
     private function context(): array
     {
         $plan = new ExecutionPlan(
-            'TEST-799', 'run:TEST-799', 1,
+            'TEST-799',
+            'run:TEST-799',
+            1,
             ['path' => '.agent-loop/contracts/TEST-799.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
-            str_repeat('2', 40), ExecutionProfileName::SURGICAL, [],
+            str_repeat('2', 40),
+            ExecutionProfileName::SURGICAL,
+            [],
             [new ExecutionStage('verify', ExecutionStageKind::DETERMINISTIC, null, false, [], [StageOutcome::PASS->value => null])],
             '2026-10-18T00:00:00+00:00',
         );
         $state = new ExecutionState(
-            $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(),
-            'verify', 1, (string) $plan->baseCommit, null, [],
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'verify',
+            1,
+            (string) $plan->baseCommit,
+            null,
+            [],
         );
 
         return [$plan, $state];
@@ -115,9 +145,16 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
     private function record(ExecutionPlan $plan, ExecutionState $state, ExecutionEvidenceKind $kind): string
     {
         return (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
-            $plan->taskId, $plan->runId, $plan->contractRevision, $plan->digest(),
-            'verify', 1, $state->candidateRevision, $kind,
-            'agent-loop verify --task-id=' . $plan->taskId, 'sha256:' . hash('sha256', 'observed'),
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'verify',
+            1,
+            $state->candidateRevision,
+            $kind,
+            'agent-loop verify --task-id=' . $plan->taskId,
+            'sha256:' . hash('sha256', 'observed'),
         ));
     }
 
@@ -128,9 +165,20 @@ final class ExecutionConsistencyEvidenceTest extends TestCase
     private function result(ExecutionPlan $plan, ExecutionState $state, array $validations = [], array $consistency = []): StageResult
     {
         return new StageResult(
-            'submission:verify', $plan->taskId, $plan->runId, $plan->contractRevision,
-            $plan->digest(), 'verify', 1, StageOutcome::PASS, $state->candidateRevision,
-            [], $validations, 'Owner consistency check passed.', null, $consistency,
+            'submission:verify',
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'verify',
+            1,
+            StageOutcome::PASS,
+            $state->candidateRevision,
+            [],
+            $validations,
+            'Owner consistency check passed.',
+            null,
+            $consistency,
         );
     }
 }
