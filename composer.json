@@ -19,7 +19,7 @@
     "helgesverre/toon": "^3.1",
     "voku/agent-edit": "^0.4.2",
     "voku/agent-kanban": "^0.4.4",
-    "voku/agent-learning": "dev-main#e5fd38ccc32f878b8926a0920c4dd9f109714cef",
+    "voku/agent-learning": "^0.18.33",
     "voku/agent-map": "^0.22.0",
     "voku/agent-recall-compiler": "^0.25.8",
     "voku/agent-session": "^0.7.1",
@@ -108,12 +108,6 @@
     {
       "type": "github",
       "url": "https://github.com/voku"
-    }
-  ],
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "https://github.com/voku/agent-learning.git"
     }
   ]
 }
