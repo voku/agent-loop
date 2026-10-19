@@ -11,6 +11,7 @@ Reviewed source pins:
 - Caveman (`JuliusBrussee/caveman`): `14d4f2e21a16b573373ca24698cd6bd3db75bf52`;
 - Ponytail (`DietrichGebert/ponytail`): `c982cd411abb53323c4baa1baa3c2f020b8d0b08`;
 - Attention Control (`aaddrick/attention-control`): `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`;
+- Everything Claude Code (`affaan-m/ECC`): `c9148d0bb239ed01a95724a5928b98cdf9c30658`;
 - mnapoli Skills (`mnapoli/skills`): `f44250e55fff8e69447a1faa0093fb6298f070ae`.
 
 Bounded history recheck on 2026-10-19 (not a replacement full-source audit):
