@@ -24,13 +24,13 @@ final readonly class HostCapabilityMatrix
      *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-verified'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }>
      */
-    public static function forAgent(string $canonicalAgent): array
+    public static function forAgent(string $canonicalAgent, ?string $runtimeVersion = null): array
     {
         self::assertCanonicalAgent($canonicalAgent);
 
         $rows = [];
         foreach (HostCapability::cases() as $capability) {
-            $description = self::describe($canonicalAgent, $capability);
+            $description = self::describe($canonicalAgent, $capability, $runtimeVersion);
             $rows[] = [
                 'capability' => $capability,
                 'status' => $description['status'],
@@ -42,9 +42,12 @@ final readonly class HostCapabilityMatrix
         return $rows;
     }
 
-    public static function status(string $canonicalAgent, HostCapability $capability): HostCapabilityStatus
-    {
-        return self::describe($canonicalAgent, $capability)['status'];
+    public static function status(
+        string $canonicalAgent,
+        HostCapability $capability,
+        ?string $runtimeVersion = null,
+    ): HostCapabilityStatus {
+        return self::describe($canonicalAgent, $capability, $runtimeVersion)['status'];
     }
 
     /**
@@ -54,8 +57,11 @@ final readonly class HostCapabilityMatrix
      *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-verified'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }
      */
-    public static function describe(string $canonicalAgent, HostCapability $capability): array
-    {
+    public static function describe(
+        string $canonicalAgent,
+        HostCapability $capability,
+        ?string $runtimeVersion = null,
+    ): array {
         self::assertCanonicalAgent($canonicalAgent);
 
         if (in_array($capability, [HostCapability::SkillProjection, HostCapability::SubagentProjection], true)) {
@@ -112,18 +118,38 @@ final readonly class HostCapabilityMatrix
             HostCapability::PreToolGuardrail,
             HostCapability::RepositoryHooks,
         ], true)) {
+            $testedVersion = '0.157.0';
+            $verified = $runtimeVersion === $testedVersion;
+
             return [
-                'status' => HostCapabilityStatus::Supported,
-                'mechanism' => self::codexVerifiedHookMechanism($capability),
-                'evidence' => 'adapter-declared;live-runtime-verified',
+                'status' => $verified ? HostCapabilityStatus::Supported : HostCapabilityStatus::Degraded,
+                'mechanism' => self::runtimeVersionMechanism(
+                    self::codexVerifiedHookMechanism($capability),
+                    $testedVersion,
+                    $runtimeVersion,
+                    $verified,
+                ),
+                'evidence' => $verified
+                    ? 'adapter-declared;live-runtime-verified'
+                    : 'adapter-declared;live-runtime-unverified',
             ];
         }
 
         if ($canonicalAgent === 'claude' && $capability === HostCapability::PreToolGuardrail) {
+            $testedVersion = '2.1.287';
+            $verified = $runtimeVersion === $testedVersion;
+
             return [
-                'status' => HostCapabilityStatus::Supported,
-                'mechanism' => 'Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
-                'evidence' => 'adapter-declared;live-runtime-verified',
+                'status' => $verified ? HostCapabilityStatus::Supported : HostCapabilityStatus::Degraded,
+                'mechanism' => self::runtimeVersionMechanism(
+                    'Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
+                    $testedVersion,
+                    $runtimeVersion,
+                    $verified,
+                ),
+                'evidence' => $verified
+                    ? 'adapter-declared;live-runtime-verified'
+                    : 'adapter-declared;live-runtime-unverified',
             ];
         }
 
@@ -205,6 +231,24 @@ final readonly class HostCapabilityMatrix
             'cursor' => 'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed shell authority guard',
             default => throw new InvalidArgumentException('No hook projector for canonical agent: ' . $canonicalAgent),
         };
+    }
+
+    /**
+     * @param non-empty-string $mechanism
+     * @return non-empty-string
+     */
+    private static function runtimeVersionMechanism(
+        string $mechanism,
+        string $testedVersion,
+        ?string $runtimeVersion,
+        bool $verified,
+    ): string {
+        if ($verified) {
+            return $mechanism;
+        }
+
+        return $mechanism . '; live-runtime evidence unverified (tested=' . $testedVersion
+            . ', current=' . ($runtimeVersion ?? 'unknown') . ')';
     }
 
     private static function assertCanonicalAgent(string $canonicalAgent): void

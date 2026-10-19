@@ -8,6 +8,10 @@ use InvalidArgumentException;
 
 final readonly class HostRuntimeProbe
 {
+    private const float VERSION_PROBE_TIMEOUT_SECONDS = 2.0;
+
+    private const int VERSION_PROBE_MAX_OUTPUT_BYTES = 8192;
+
     /**
      * @var array<string, non-empty-string|null>
      */
@@ -58,6 +62,93 @@ final readonly class HostRuntimeProbe
         ];
     }
 
+    /**
+     * @return array{status: 'available'|'unavailable'|'unprobed', version: non-empty-string|null}
+     */
+    public function probeVersion(string $canonicalAgent, ?string $executablePath): array
+    {
+        if (!array_key_exists($canonicalAgent, self::COMMANDS)) {
+            throw new InvalidArgumentException('Unknown canonical agent: ' . $canonicalAgent);
+        }
+
+        if (!in_array($canonicalAgent, ['codex', 'claude'], true)) {
+            return ['status' => 'unprobed', 'version' => null];
+        }
+        if ($executablePath === null) {
+            return ['status' => 'unavailable', 'version' => null];
+        }
+        if (!function_exists('proc_open')) {
+            return ['status' => 'unavailable', 'version' => null];
+        }
+
+        $pipes = [];
+        $process = @proc_open(
+            [$executablePath, '--version'],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            null,
+            null,
+            ['bypass_shell' => true],
+        );
+        if (!is_resource($process)) {
+            return ['status' => 'unavailable', 'version' => null];
+        }
+
+        fclose($pipes[0]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $output = '';
+        $errorOutput = '';
+        $deadline = microtime(true) + self::VERSION_PROBE_TIMEOUT_SECONDS;
+        $processExitCode = null;
+
+        do {
+            $output .= self::readAvailableOutput($pipes[1]);
+            $errorOutput .= self::readAvailableOutput($pipes[2]);
+            if (strlen($output) + strlen($errorOutput) > self::VERSION_PROBE_MAX_OUTPUT_BYTES) {
+                proc_terminate($process);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+
+                return ['status' => 'unavailable', 'version' => null];
+            }
+
+            $processStatus = proc_get_status($process);
+            if (!$processStatus['running']) {
+                $processExitCode = $processStatus['exitcode'];
+                break;
+            }
+            if (microtime(true) >= $deadline) {
+                proc_terminate($process);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+
+                return ['status' => 'unavailable', 'version' => null];
+            }
+
+            usleep(10_000);
+        } while (true);
+
+        $output .= self::readAvailableOutput($pipes[1]);
+        $errorOutput .= self::readAvailableOutput($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $closeExitCode = proc_close($process);
+        if (strlen($output) + strlen($errorOutput) > self::VERSION_PROBE_MAX_OUTPUT_BYTES
+            || ($closeExitCode !== 0 && $processExitCode !== 0)
+        ) {
+            return ['status' => 'unavailable', 'version' => null];
+        }
+
+        $version = self::parseVersionOutput($canonicalAgent, $output . "\n" . $errorOutput);
+
+        return $version === null
+            ? ['status' => 'unavailable', 'version' => null]
+            : ['status' => 'available', 'version' => $version];
+    }
+
     /** @return non-empty-string|null */
     private function resolveExecutable(string $command): ?string
     {
@@ -92,5 +183,31 @@ final readonly class HostRuntimeProbe
         }
 
         return null;
+    }
+
+    /** Read currently available bytes from a non-blocking process pipe. */
+    private static function readAvailableOutput(mixed $pipe): string
+    {
+        $output = '';
+        while (is_resource($pipe) && ($chunk = fread($pipe, 4096)) !== false && $chunk !== '') {
+            $output .= $chunk;
+        }
+
+        return $output;
+    }
+
+    /** @return non-empty-string|null */
+    private static function parseVersionOutput(string $canonicalAgent, string $output): ?string
+    {
+        $pattern = match ($canonicalAgent) {
+            'codex' => '/^\s*codex(?:-cli)?\s+v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\s*$/im',
+            'claude' => '/^(?=.*(?:Claude Code|\(Claude Code\)))\s*(?:Claude Code\s+)?v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:\s+\(Claude Code\))?\s*$/im',
+            default => null,
+        };
+        if ($pattern === null || preg_match($pattern, $output, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
     }
 }
