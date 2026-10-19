@@ -211,6 +211,19 @@ decision=reference-only-maintenance
 rule_text_changed=yes
 ```
 
+Compute `diff_sha256` from the repository checkout with the exact review base and PR head:
+
+```bash
+git -c diff.noprefix=false -c diff.mnemonicPrefix=false diff \
+  --no-ext-diff --no-textconv --no-color --no-renames \
+  --diff-algorithm=myers --binary "$REVIEW_BASE" "$PR_HEAD" -- \
+  | sha256sum
+```
+
+The review gate hashes the raw Git stdout bytes; `sha256sum` must not include
+shell diagnostics or other output. The two Git commit identities must refer to
+the actual PR branch, not a GitHub synthetic merge commit.
+
 The comment must be written by a real reviewer **after inspecting the diff**.
 The `rule_text_changed=yes` acknowledgement matters for #758: a stale
 `src/Dogfood/` reference is corrected inside rule prose as well as in its
