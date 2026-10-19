@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
+target_dir=${AGENT_LOOP_TARGET:-$PWD}
+target_dir=$(CDPATH= cd -- "$target_dir" && pwd)
+
+export AGENT_LOOP_TARGET="$target_dir"
+export AGENT_LOOP_UID=${AGENT_LOOP_UID:-$(id -u)}
+export AGENT_LOOP_GID=${AGENT_LOOP_GID:-$(id -g)}
+
+exec docker compose \
+    --progress=quiet \
+    --project-directory "$project_dir" \
+    --file "$project_dir/compose.yaml" \
+    run --rm --build agent-loop "$@"
