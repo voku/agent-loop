@@ -143,7 +143,9 @@ if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['
             );
             $scope = (new SelfShapeGitChangedPaths($runner))->between($reviewBase, $prHead);
             $diffHash = hash('sha256', $runner->mustRun([
-                'git', 'diff', '--no-ext-diff', '--binary', $reviewBase, $prHead, '--',
+                'git', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false',
+                'diff', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames',
+                '--diff-algorithm=myers', '--binary', $reviewBase, $prHead, '--',
             ])['stdout']);
             $approvalGate = new SelfShapeMaintenanceApprovalGate();
             foreach ($reviews as $review) {
