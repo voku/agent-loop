@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [0.20.65] - 2026-10-19
+
 ### Fixed
 
 - The deterministic `verify` stage now validates the governed candidate instead of only checking cross-package consistency. `ExecutionGateway::runDeterministicStage()` accepts the workspace holding the candidate (an execution consumer's Run worktree; default: the project root), recomputes its `git-tree-v1` identity itself and fails closed with `CANDIDATE_MISMATCH` unless it is the candidate the Run accepted, then executes the approved Contract's validation commands there and records one `VALIDATION` evidence per executed command beside the consistency check's own `consistency` receipt (#801). `PASS` needs that receipt, every declared command to exit 0 and the candidate to be unchanged afterwards; a failing command opens Attention whose message names it and carries its output tail. Before, a candidate that failed its declared validation still completed the plan with a `pass`, because verify never executed the Contract commands; deterministic stages may now carry `VALIDATION` references for exactly those commands, and still never artifacts. Loop's own state root is excluded from the identity. Finish-owned validation shares the same `DeclaredValidationShell`. Fixes #799.
@@ -20,6 +22,10 @@
 - Run the Learning-owned read-only `GuidanceConsistencyAudit` alongside the due SessionStart Dream preview, storing bounded source-backed fact candidates only in regenerable `dream/auto.json`. The default sources are `AGENTS.md` and `MEMORY.md`; `AGENT_LOOP_GUIDANCE_SOURCES` accepts a JSON list of project-relative globs for skills/ADRs. Content changes to those selected files make the review due again. The SessionStart hint distinguishes machine-detected candidates from human semantic verdicts; no Learning records or durable guidance are created, approved, or edited automatically. Covers #742's first non-mutating orchestration slice.
 
 - Add a provider-free Codex 0.157.0 runtime proof for explicit projected-skill consumption. A paired baseline / `$agent-loop-workflow` run captures the real provider requests and requires the package-owned skill-body marker to be absent from baseline and present exactly once after explicit selection. The evidence class is `host_runtime_skill_consumption`; implicit semantic routing, `voku/agent-skills` interaction-skill invocation, and other hosts remain unclaimed.
+
+### Validation
+
+- `composer ci` passes on the merged release candidate; GitHub CI passes on PHP 8.3, 8.4 and 8.5, including installed release-set, governed execution-contract and agent-loop self-shape dogfood.
 
 ## 0.20.64 - 2026-10-09
 
