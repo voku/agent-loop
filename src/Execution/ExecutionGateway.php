@@ -160,7 +160,7 @@ final readonly class ExecutionGateway
 
         // The consistency check is a receipt of its own kind; only the Contract commands executed on the candidate
         // are candidate validation evidence.
-        $consistencyReferences = $exit === 0
+        $receipts = $exit === 0
             ? [$this->recordVerifyEvidence($bundle, ExecutionEvidenceKind::CONSISTENCY, 'agent-loop verify --task-id=' . $taskId, $exit, $output)]
             : [];
         $passed = $exit === 0 && $contract['passed'];
@@ -180,7 +180,7 @@ final readonly class ExecutionGateway
             $contract['references'],
             implode("\n\n", $summary),
             null,
-            $consistencyReferences,
+            $receipts,
         ));
     }
 
