@@ -28,15 +28,17 @@ final readonly class ProcessRunner
 
     /**
      * @param non-empty-list<string> $command
+     * @param array<string, string>|null $environment
      * @return array{exit_code: int, stdout: string, stderr: string}
      */
-    public function run(array $command): array
+    public function run(array $command, ?array $environment = null): array
     {
         $process = proc_open(
             $command,
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             $this->workingDirectory,
+            $environment,
         );
         if (!is_resource($process)) {
             throw new RuntimeException('Unable to start: ' . implode(' ', $command));
@@ -58,11 +60,12 @@ final readonly class ProcessRunner
 
     /**
      * @param non-empty-list<string> $command
+     * @param array<string, string>|null $environment
      * @return array{exit_code: int, stdout: string, stderr: string}
      */
-    public function mustRun(array $command): array
+    public function mustRun(array $command, ?array $environment = null): array
     {
-        $result = $this->run($command);
+        $result = $this->run($command, $environment);
         if ($result['exit_code'] !== 0) {
             throw new RuntimeException(sprintf(
                 "Command failed with exit %d: %s\n%s",
