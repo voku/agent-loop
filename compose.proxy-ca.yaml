@@ -5,6 +5,12 @@ services:
         - proxy_ca
     secrets:
       - proxy_ca
+  agent-ui:
+    build:
+      secrets:
+        - proxy_ca
+    secrets:
+      - proxy_ca
 
 secrets:
   proxy_ca:

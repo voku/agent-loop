@@ -17,6 +17,7 @@
 composer.lock
 !/composer.lock
 !/tools/*/composer.lock
+!/docker/agent-ui/composer.lock
 /.agent-loop/learning/history/
 /.agent-loop/learning/.derived/
 /tools/*/vendor/

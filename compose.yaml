@@ -11,3 +11,23 @@ services:
       - type: bind
         source: ${AGENT_LOOP_TARGET:-.}
         target: /workspace/target
+
+  agent-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent-ui
+    image: agent-ui:local
+    init: true
+    user: "${AGENT_LOOP_UID:-1000}:${AGENT_LOOP_GID:-1000}"
+    working_dir: /workspace/target
+    command:
+      - serve
+      - --host=0.0.0.0
+      - --port=8088
+      - --root=/workspace/target
+    ports:
+      - "127.0.0.1:${AGENT_UI_PORT:-8088}:8088"
+    volumes:
+      - type: bind
+        source: ${AGENT_LOOP_TARGET:-.}
+        target: /workspace/target

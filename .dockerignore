@@ -1,5 +1,6 @@
 **
 !Dockerfile
+!Dockerfile.agent-ui
 !composer.json
 !composer.lock
 !bin/
@@ -10,3 +11,5 @@
 !resources/**
 !docker/
 !docker/entrypoint.sh
+!docker/agent-ui/
+!docker/agent-ui/**
