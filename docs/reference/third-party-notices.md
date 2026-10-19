@@ -29,6 +29,7 @@ the reviewed pin. Those heads are evidence locations for the bounded recheck,
 not replacement full-source audit pins. The recheck produced one new first-party
 question, version/freshness-bound host runtime evidence (#805); the other observed
 changes reinforce existing boundaries.
+
 `UPSTREAM_CAPABILITY_MATRIX.md` is the explicit row-by-row inventory of what is
 already represented, what this repository adapted, what is deferred behind a
 missing typed contract, and what is deliberately rejected.
