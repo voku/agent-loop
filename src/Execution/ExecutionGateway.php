@@ -202,7 +202,9 @@ final readonly class ExecutionGateway
             $result = $shell->executeDeclaredValidationShell($command, $workspace);
             $references[] = $this->recordVerifyEvidence($bundle, $command, $result['exitCode'], $result['output']);
             if ($result['exitCode'] !== 0) {
-                $summary[] = sprintf("[FAIL] %s (exit %d)\n%s", $command, $result['exitCode'], substr($result['output'], -2000));
+                $output = mb_scrub($result['output'], 'UTF-8');
+                $tail = mb_strcut($output, max(0, strlen($output) - 2000), null, 'UTF-8');
+                $summary[] = sprintf("[FAIL] %s (exit %d)\n%s", $command, $result['exitCode'], $tail);
 
                 return ['passed' => false, 'references' => $references, 'summary' => $summary];
             }

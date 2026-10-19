@@ -86,25 +86,57 @@ final readonly class CandidateWorkspaceIdentity
     private function git(string $workspace, array $arguments, array $environment = []): string
     {
         $pipes = [];
+        $stderr = tmpfile();
+        if ($stderr === false) {
+            throw new RuntimeException('Unable to inspect the verify workspace with git.');
+        }
+
         $process = proc_open(
             ['git', ...$arguments],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => $stderr],
             $pipes,
             $workspace,
-            $environment === [] ? null : array_merge(getenv(), $environment),
+            $this->childEnvironment($environment),
         );
         if (!is_resource($process)) {
+            fclose($stderr);
             throw new RuntimeException('Unable to inspect the verify workspace with git.');
         }
         fclose($pipes[0]);
         $stdout = (string) stream_get_contents($pipes[1]);
-        $stderr = (string) stream_get_contents($pipes[2]);
         fclose($pipes[1]);
-        fclose($pipes[2]);
-        if (proc_close($process) !== 0) {
-            throw new RuntimeException('STALE_CANDIDATE: git ' . $arguments[0] . ' failed in the verify workspace: ' . trim($stderr));
+        $exitCode = proc_close($process);
+        rewind($stderr);
+        $errorOutput = (string) stream_get_contents($stderr);
+        fclose($stderr);
+        if ($exitCode !== 0) {
+            throw new RuntimeException('STALE_CANDIDATE: git ' . $arguments[0] . ' failed in the verify workspace: ' . trim($errorOutput));
         }
 
         return trim($stdout);
+    }
+
+    /**
+     * @param array<string, string> $overrides
+     * @return array<string, string>
+     */
+    private function childEnvironment(array $overrides): array
+    {
+        $environment = getenv();
+        foreach ([
+            'GIT_DIR',
+            'GIT_WORK_TREE',
+            'GIT_INDEX_FILE',
+            'GIT_COMMON_DIR',
+            'GIT_OBJECT_DIRECTORY',
+            'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+            'GIT_PREFIX',
+            'GIT_NAMESPACE',
+            'GIT_CEILING_DIRECTORIES',
+        ] as $key) {
+            unset($environment[$key]);
+        }
+
+        return array_merge($environment, $overrides);
     }
 }

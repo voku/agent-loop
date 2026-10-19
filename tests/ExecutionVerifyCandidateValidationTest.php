@@ -69,6 +69,38 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
         (new ExecutionGateway($this->root))->runDeterministicStage('VER-1', 'verify');
     }
 
+    public function testInheritedGitLocationEnvironmentCannotRedirectCandidateIdentity(): void
+    {
+        $this->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n");
+        $otherRepository = $this->root . '/other-repository';
+        mkdir($otherRepository);
+        $this->git($otherRepository, 'init', '-q');
+
+        putenv('GIT_DIR=' . $otherRepository . '/.git');
+        putenv('GIT_WORK_TREE=' . $otherRepository);
+        putenv('GIT_INDEX_FILE=' . $otherRepository . '/index');
+        try {
+            $projection = (new ExecutionGateway($this->root))->runDeterministicStage('VER-1', 'verify', $this->workspace);
+        } finally {
+            putenv('GIT_DIR');
+            putenv('GIT_WORK_TREE');
+            putenv('GIT_INDEX_FILE');
+        }
+
+        self::assertTrue($projection->complete());
+    }
+
+    public function testFailedValidationSummaryKeepsAValidUtf8Tail(): void
+    {
+        $this->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", 'php -r "echo str_repeat(\'a\', 1998) . \'🙂\'; exit(1);"');
+
+        $projection = (new ExecutionGateway($this->root))->runDeterministicStage('VER-1', 'verify', $this->workspace);
+
+        self::assertNotNull($projection->attention);
+        self::assertStringContainsString('🙂', $projection->attention->message);
+        self::assertNotFalse(json_encode($projection->attention->message, JSON_THROW_ON_ERROR));
+    }
+
     public function testValidationThatChangesTheCandidateIsRefused(): void
     {
         $this->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", 'php -r "file_put_contents(\'side-effect.txt\', \'x\');"');
