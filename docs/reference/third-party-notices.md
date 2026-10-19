@@ -18,6 +18,17 @@ reviewing these MIT-licensed projects at fixed commits:
 
 A source review is not an adaptation claim. The reviewed repositories contain
 more mechanisms than `agent-loop` should or currently does implement.
+
+A bounded history recheck on 2026-10-19 additionally inspected current heads for
+mechanisms that could change existing decisions: Caveman
+`bad48a0e1df55e05e3f52249afa35ecc1909ee76`, Ponytail
+`09c434ab73ca43761c5d8b0c5d341926c2fba710`, ECC
+`76aaa77df6adc5b889e689007bf99b9a4f74af34`, and mnapoli Skills
+`036f32c6ce2b4754c73f8c9b39cac5c46ef2f8b5`; Attention Control remained at
+the reviewed pin. Those heads are evidence locations for the bounded recheck,
+not replacement full-source audit pins. The recheck produced one new first-party
+question, version/freshness-bound host runtime evidence (#805); the other observed
+changes reinforce existing boundaries.
 `UPSTREAM_CAPABILITY_MATRIX.md` is the explicit row-by-row inventory of what is
 already represented, what this repository adapted, what is deferred behind a
 missing typed contract, and what is deliberately rejected.
