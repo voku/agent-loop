@@ -55,8 +55,10 @@ final readonly class ExecutionStageResultAuthority
         }
 
         if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
-            if ($result->validationReferences !== [] || $result->artifactReferences !== []) {
-                throw new RuntimeException('EVIDENCE_MISMATCH: deterministic consistency checks cannot claim candidate validation or artifacts.');
+            // Validation references are the Contract commands verify executed on the candidate (each asserted current
+            // above); the consistency check itself is never one of them, and verify produces no artifacts.
+            if ($result->artifactReferences !== []) {
+                throw new RuntimeException('EVIDENCE_MISMATCH: deterministic verification cannot claim artifacts.');
             }
             if ($result->outcome === StageOutcome::PASS && count($result->consistencyReferences) !== 1) {
                 throw new RuntimeException('MISSING_EVIDENCE: deterministic verification requires one current owner consistency receipt.');

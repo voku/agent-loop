@@ -20,9 +20,8 @@ use voku\AgentLoop\Workflow\WorkflowPlanCommand;
 
 final class WorkflowPipelineCommandTest extends TestCase
 {
-    private const string BASE_COMMIT = "1111111111111111111111111111111111111111";
-
     private string $root;
+    private string $baseCommit;
 
     protected function setUp(): void
     {
@@ -30,6 +29,12 @@ final class WorkflowPipelineCommandTest extends TestCase
         mkdir($this->root . "/.agent-loop/learning", 0o775, true);
         mkdir($this->root . "/src", 0o775, true);
         file_put_contents($this->root . "/src/Foo.php", "<?php\nfinal class Foo {}\n");
+        // A real base commit: the deterministic verify stage validates the governed candidate held by the checkout.
+        file_put_contents($this->root . "/.gitignore", "/.agent-loop/\n");
+        $git = "git -C " . escapeshellarg($this->root);
+        exec("$git init -q && $git config user.email x@y.test && $git config user.name X && $git add . && $git commit -qm base", $output, $exit);
+        self::assertSame(0, $exit, implode("\n", $output));
+        $this->baseCommit = trim((string) shell_exec("$git rev-parse HEAD"));
     }
 
     protected function tearDown(): void
@@ -238,7 +243,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             "--file", "src/Foo.php",
             "--goal", "Pipeline execution test.",
             "--validation", "php -l src/Foo.php",
-            "--base-commit", self::BASE_COMMIT,
+            "--base-commit", $this->baseCommit,
         ]);
         (new WorkflowApproveCommand($this->root))->run([$taskId, "--by", "lars"]);
         (new WorkflowExecutionProfileCommand($this->root))->run([$taskId, "--profile", "surgical", "--by", "lars"]);

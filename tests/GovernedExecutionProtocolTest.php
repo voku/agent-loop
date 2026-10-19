@@ -272,7 +272,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         }
     }
 
-    public function testDeterministicVerifyRequiresConsistencyAndDoesNotClaimCandidateValidation(): void
+    public function testDeterministicVerifyPassRequiresAnOwnerConsistencyReceipt(): void
     {
         $this->prepareSurgicalRun('php -l src/Foo.php');
         $gateway = new ExecutionGateway($this->root);
@@ -348,18 +348,6 @@ final class GovernedExecutionProtocolTest extends TestCase
         } catch (RuntimeException $exception) {
             self::assertStringContainsString('MISSING_EVIDENCE', $exception->getMessage());
         }
-
-        $invalidPhp = "<?php\nthis is not valid PHP\n";
-        self::assertSame(strlen($invalidPhp), file_put_contents($this->root . '/src/Foo.php', $invalidPhp));
-        $projection = $gateway->runDeterministicStage('ABC-123', 'verify');
-        self::assertTrue($projection->complete());
-
-        $state = (new ExecutionStateStore($this->root))->find('ABC-123');
-        self::assertNotNull($state);
-        $lastResult = $state->history[count($state->history) - 1]->result;
-        self::assertSame(StageOutcome::PASS, $lastResult->outcome);
-        self::assertSame([], $lastResult->validationReferences);
-        self::assertCount(1, $lastResult->consistencyReferences);
     }
 
     public function testClarificationRequiresAuthoritativeHumanResolutionBeforeResume(): void
