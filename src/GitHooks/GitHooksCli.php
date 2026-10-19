@@ -28,6 +28,7 @@ final readonly class GitHooksCli
             return match ($command) {
                 'pre-commit' => $this->runPreCommit($rest),
                 'commit-msg' => $this->runCommitMessage($rest),
+                'verify' => $this->runVerify($rest),
                 'help', '--help', '-h', '' => $this->printUsage(0),
                 default => $this->printUsage(1, $command),
             };
@@ -106,6 +107,35 @@ final readonly class GitHooksCli
         return 1;
     }
 
+    /**
+     * @param list<string> $tokens
+     */
+    private function runVerify(array $tokens): int
+    {
+        $config = GitHookConfig::load($this->rootPath, OptionTokens::value($tokens, 'config'));
+        $examples = new CommitMessageExamples($config);
+
+        if (!$examples->declared()) {
+            echo "No commit_msg.examples declared; nothing to verify.\n";
+
+            return 0;
+        }
+
+        $problems = $examples->problems();
+        if ($problems === []) {
+            echo 'Commit message examples verified: ' . $examples->passCount() . ' pass, ' . $examples->failCount() . " fail.\n";
+
+            return 0;
+        }
+
+        echo "Commit message examples do not behave as declared:\n";
+        foreach ($problems as $problem) {
+            echo '  - ' . $problem . "\n";
+        }
+
+        return 1;
+    }
+
     private function printUsage(int $exitCode, string $unknownCommand = ''): int
     {
         $usage = <<<'TXT'
@@ -114,10 +144,14 @@ final readonly class GitHooksCli
         Usage:
           agent-loop githooks pre-commit [--config=PATH]
           agent-loop githooks commit-msg <message-file> [--config=PATH]
+          agent-loop githooks verify [--config=PATH]
 
         Both read their rules from .agent-loop/githooks.json: the staged-file
         filters and check commands for pre-commit, the commit convention for
         commit-msg. Without that file the hooks are a no-op.
+
+        verify runs the commit_msg.examples (messages that must pass and must fail)
+        through the same validator and exits non-zero when one behaves differently.
         TXT;
 
         if ($unknownCommand === '') {

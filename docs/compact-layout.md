@@ -26,6 +26,7 @@ This creates the workflow-state tree:
   sessions/
   recall/
   learning/
+    findings/     # empty root recognized by agent-learning before the first Finding
   map/
   runs/
   edit/

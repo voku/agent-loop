@@ -1,0 +1,29 @@
+name: Renovate config
+
+on:
+  pull_request:
+    paths:
+      - renovate.json
+      - .github/workflows/renovate-config.yml
+  push:
+    branches: [main]
+    paths:
+      - renovate.json
+      - .github/workflows/renovate-config.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Validate Renovate config including unsupported majors
+        run: npx --yes --package renovate -- renovate-config-validator --strict renovate.json

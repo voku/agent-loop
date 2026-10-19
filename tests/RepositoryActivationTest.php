@@ -202,6 +202,55 @@ final class RepositoryActivationTest extends TestCase
         self::assertSame('', $this->renderedChecks(new RepositoryActivation($this->root)));
     }
 
+    public function testCommitRuleExamplesThatBehaveAsDeclaredAreReportedAsOk(): void
+    {
+        $this->gitRepositoryWithHookPolicy();
+        $this->writeCommitRules(['Fixed things'], ["fix: add a check\n\nWHY:\n- A concrete reason for the change.\n"]);
+
+        self::assertStringContainsString(
+            '[OK] Git hook rules: 1 pass and 1 fail example(s) behave as declared',
+            $this->renderedChecks(new RepositoryActivation($this->root)),
+        );
+    }
+
+    public function testCommitRuleExamplesThatDriftAreReportedWithTheVerifyCommand(): void
+    {
+        $this->gitRepositoryWithHookPolicy();
+        // A valid message listed as one the rules must reject: the rules and their example disagree.
+        $this->writeCommitRules(["fix: add a check\n\nWHY:\n- A concrete reason for the change.\n"], []);
+
+        $rendered = $this->renderedChecks(new RepositoryActivation($this->root));
+
+        self::assertStringContainsString('[WARN] Git hook rules: 1 example(s) do not behave as declared', $rendered);
+        self::assertStringContainsString('fail example #1 is accepted: "fix: add a check"', $rendered);
+        self::assertStringContainsString('vendor/bin/agent-loop githooks verify', $rendered);
+    }
+
+    public function testCommitRulesWithoutExamplesAddNoRuleLine(): void
+    {
+        $this->gitRepositoryWithHookPolicy();
+
+        self::assertStringNotContainsString('Git hook rules:', $this->renderedChecks(new RepositoryActivation($this->root)));
+    }
+
+    /**
+     * @param list<string> $fail messages the rules must reject
+     * @param list<string> $pass messages the rules must accept
+     */
+    private function writeCommitRules(array $fail, array $pass): void
+    {
+        file_put_contents(
+            $this->root . '/.agent-loop/githooks.json',
+            json_encode([
+                'commit_msg' => [
+                    'header_pattern' => '/^(feat|fix): .+$/',
+                    'required_section' => 'WHY',
+                    'examples' => ['pass' => $pass, 'fail' => $fail],
+                ],
+            ], \JSON_THROW_ON_ERROR),
+        );
+    }
+
     private function gitRepositoryWithHookPolicy(): ProcessRunner
     {
         $runner = new ProcessRunner($this->root);

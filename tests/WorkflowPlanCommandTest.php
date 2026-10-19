@@ -448,7 +448,7 @@ CARD,
             self::assertSame('created', $decoded['action']);
             self::assertSame('Structured plan test.', $decoded['goal']);
             self::assertSame('decision_required', $decoded['next_action_kind']);
-            self::assertStringContainsString('agent-loop workflow approve ABC-JSON --by lars', $decoded['next_action']);
+            self::assertSame('agent-loop workflow approve ABC-JSON --by <named-actor>', $decoded['next_action']);
         } finally {
             $this->removeDirectory($root);
         }

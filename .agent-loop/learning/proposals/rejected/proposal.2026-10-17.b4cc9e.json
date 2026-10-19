@@ -1,0 +1,37 @@
+{
+    "id": "proposal.2026-10-17.b4cc9e",
+    "created_at": "2026-10-17T19:45:01+00:00",
+    "action": "ADD",
+    "source_findings": [
+        "finding.2026-08-14.43dc53"
+    ],
+    "reason": "Do not approve as new Memory guidance. Finding 2026-08-14.43dc53 is validated and PR #612 corroborates the pattern, but evidence supports the ADD_LEARNING_NOTE classification more than active Memory promotion: MEMORY.md already carries the broader rule under 'Blind-spot review of a diff', and the concrete invariant is executable in HostAssetPathOwnershipTest. #612 predates the precedent, so it is corroboration, not evidence that durable learning changed a later decision. Preserved as LearningNote test.duplicated-decision.branch-coverage. Reconsider Memory promotion after independent recurrence or demonstrated decision impact. Recorded by Claude Code on the owner's stated review decision.",
+    "remaining_uncertainty": [
+        "Single source Finding; recurrence is evidenced only by a later refactor applying the same rule, not by a second independent Finding.",
+        "Not shown that surfacing this row changes agent behaviour; MEMORY.md is already injected unconditionally and is about half of each briefing, so adding a row has a context cost that this Proposal does not measure."
+    ],
+    "status": "rejected",
+    "proposed_by": "consolidation",
+    "approved_by": null,
+    "approved_at": null,
+    "target_type": "memory",
+    "target": "Duplicated-decision coverage",
+    "scope": [
+        "src/Init/",
+        "tests/HostAssetPathOwnershipTest.php"
+    ],
+    "old": null,
+    "new": "When a decision implemented in several private copies is collapsed onto one owner, put the regression on the branch the old gate never exercised (for example an environment-variable override), not on the default branch where the copies already agreed.",
+    "boundary": "Applies when collapsing duplicated decisions onto an owner. It does not require branch-level coverage of every code path.",
+    "validation": [
+        "vendor/bin/phpunit --filter HostAssetPathOwnershipTest"
+    ],
+    "scope_justification": "A validated Finding with a reproduced DISAGREE probe has no Recall-readable form: Recall selects only applied/approved Proposals, constraints, LearningNotes and MEMORY.md, so a later refactor that collapses a duplicated decision onto its owner (e.g. making ManagedAssetTargetCatalog the sync-path owner) is not shown the rule that the regression must target the branch the old gate never exercised. The same lesson was re-learned in later work, which adds the missing override-branch regression.",
+    "learning_decision": "ADD_LEARNING_NOTE",
+    "pattern_key": "test.duplicated-decision.branch-coverage",
+    "validation_case": {
+        "given": "a decision implemented in several private copies, gated only through the default configuration",
+        "when": "the copies are collapsed onto one owner",
+        "then": "the regression that proves the collapse exercises the override branch where the copies disagreed, not only the default branch where they already matched"
+    }
+}

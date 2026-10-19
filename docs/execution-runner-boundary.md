@@ -51,7 +51,18 @@ read-only by default. Independent review stages additionally declare
 context identity that differs from their direct agent predecessor(s). This keeps
 "read-only" and "independent context" as separate invariants. The deterministic
 final `verify` stage remains an `agent-loop` operation rather than an LLM
-claim.
+claim. It runs in the workspace that holds the governed candidate (the execution
+consumer passes its Run worktree; the default is the project root). Loop first
+recomputes that workspace's `git-tree-v1` identity and refuses it with
+`CANDIDATE_MISMATCH` unless it is the accepted candidate. It then runs the
+project/Run consistency check, which emits one owner-bound `consistency` receipt
+in `consistency_references` and is never `VALIDATION` evidence, and executes the
+approved Contract's validation commands in that workspace, recording one
+`VALIDATION` evidence per executed command. PASS requires the consistency
+receipt, every declared command to exit 0, and the candidate to be unchanged
+afterwards; a failing command opens Attention. A deterministic PASS without the
+consistency receipt is rejected. `finish` remains the task-level validation gate
+for the work the host adopts into the checkout.
 
 ## Typed consumer API
 

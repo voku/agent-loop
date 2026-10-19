@@ -1,10 +1,31 @@
 ## Unreleased
 
+## [0.20.65] - 2026-10-19
+
+### Fixed
+
+- The deterministic `verify` stage now validates the governed candidate instead of only checking cross-package consistency. `ExecutionGateway::runDeterministicStage()` accepts the workspace holding the candidate (an execution consumer's Run worktree; default: the project root), recomputes its `git-tree-v1` identity itself and fails closed with `CANDIDATE_MISMATCH` unless it is the candidate the Run accepted, then executes the approved Contract's validation commands there and records one `VALIDATION` evidence per executed command beside the consistency check's own `consistency` receipt (#801). `PASS` needs that receipt, every declared command to exit 0 and the candidate to be unchanged afterwards; a failing command opens Attention whose message names it and carries its output tail. Before, a candidate that failed its declared validation still completed the plan with a `pass`, because verify never executed the Contract commands; deterministic stages may now carry `VALIDATION` references for exactly those commands, and still never artifacts. Loop's own state root is excluded from the identity. Finish-owned validation shares the same `DeclaredValidationShell`. Fixes #799.
+- `workflow plan --by <planner>` no longer projects a ready-made approval command that names the planner as the approver. The text `Next:` line and the JSON `next_action` now use the same explicit-human-actor form as `enter` (`agent-loop workflow approve <task> --by <named-actor>`); the planner stays recorded as `planned_by` provenance. Planning and approval are separate authorities; no actor string is inspected. Fixes #795.
+- After `workflow plan --supersede` over a Run bound to an older revision, `enter`/`finish` now route to the human approval of the new Contract revision (`decision_required`, `workflow approve <task> --by <named-actor>`) instead of telling the host to "repair the agent-loop artifact" for `run.contract_revision_mismatch`, which it could never do. The mismatch is still reported, the manifest stays `blocked`, and mutation stays disallowed; a Run that is ahead of its Contract still routes to repair. Reproduces validated `finding.2026-09-15.dd4221`.
+
+### Changed
+
+- Require `voku/agent-kanban` `^0.4.5`, which provides `card create --generate-id` (collision-resistant card IDs) used by the follow-up identity projection below.
+- In `future_work.mode=invest`, `workflow context` now projects `future_work.follow_up_task_identity` and the context text names how a follow-up gets its identity: create the card with `agent-loop board card create --generate-id --title <title> --format=json` (agent-kanban `CardIdGenerator`) and use the returned card ID unchanged as the follow-up's task id, instead of a host-chosen "highest number + 1" that independent Git branches compute identically. The workflow skill and `docs/future-work-policy.md` say the same. Requires the agent-kanban release that contains `CardIdGenerator`; a test fails until `composer.json` requires it.
+
 ### Added
+
+- `workflow approve` of a fresh Contract now prints a `[NOTE]` (and a JSON `notes` array) saying the execution profile is still selectable, names the currently resolved profile and the `workflow execution-profile <task> --profile ... --by <actor>` command, and that the first `enter` fixes it. No note once the Contract was already approved or a governed Run exists; `next_action` stays `enter`. Fixes #796.
+
+- `commit_msg.examples` in `.agent-loop/githooks.json` declares messages the commit convention must accept (`pass`) and must reject (`fail`). The new `agent-loop githooks verify [--config=PATH]` runs them through the same `CommitMessageValidator` as the `commit-msg` hook (exit 1 and the offending example on a mismatch), and `init doctor` / `init status` report the result as a `Git hook rules:` line. `init doctor` already proved that the hooks are active and current, but not that the rules do what the project says; a forbidden pattern that stopped matching now turns red instead of passing silently. Projects without `examples` see no new line. New `docs/reference/git-hooks.md` explains where commit-message rules are configured, lists every `commit_msg` key and gives generic examples.
 
 - Run the Learning-owned read-only `GuidanceConsistencyAudit` alongside the due SessionStart Dream preview, storing bounded source-backed fact candidates only in regenerable `dream/auto.json`. The default sources are `AGENTS.md` and `MEMORY.md`; `AGENT_LOOP_GUIDANCE_SOURCES` accepts a JSON list of project-relative globs for skills/ADRs. Content changes to those selected files make the review due again. The SessionStart hint distinguishes machine-detected candidates from human semantic verdicts; no Learning records or durable guidance are created, approved, or edited automatically. Covers #742's first non-mutating orchestration slice.
 
 - Add a provider-free Codex 0.157.0 runtime proof for explicit projected-skill consumption. A paired baseline / `$agent-loop-workflow` run captures the real provider requests and requires the package-owned skill-body marker to be absent from baseline and present exactly once after explicit selection. The evidence class is `host_runtime_skill_consumption`; implicit semantic routing, `voku/agent-skills` interaction-skill invocation, and other hosts remain unclaimed.
+
+### Validation
+
+- `composer ci` passes on the merged release candidate; GitHub CI passes on PHP 8.3, 8.4 and 8.5, including installed release-set, governed execution-contract and agent-loop self-shape dogfood.
 
 ## 0.20.64 - 2026-10-09
 

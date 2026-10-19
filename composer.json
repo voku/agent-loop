@@ -18,7 +18,7 @@
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
     "voku/agent-edit": "^0.4.2",
-    "voku/agent-kanban": "^0.4.4",
+    "voku/agent-kanban": "^0.4.5",
     "voku/agent-learning": "^0.18.33",
     "voku/agent-map": "^0.22.0",
     "voku/agent-recall-compiler": "^0.25.8",
@@ -30,9 +30,9 @@
     "composer/semver": "^3.4",
     "friendsofphp/php-cs-fixer": "^3.95",
     "phpstan/phpstan": "^2.1",
-    "phpunit/phpunit": "^11.5",
+    "phpunit/phpunit": "^12.0.1",
     "symfony/yaml": "^7.4",
-    "voku/itp-context": "^0.3.0"
+    "voku/itp-context": "^0.4.0"
   },
   "autoload": {
     "psr-4": {
@@ -51,7 +51,7 @@
     "bin/agent-loop"
   ],
   "scripts": {
-    "test": "phpunit",
+    "test": "phpunit --display-warnings --fail-on-warning",
     "test:fast": "phpunit --exclude-group slow",
     "verify:release-pins": [
       "@putenv AGENT_LOOP_VERIFY_RELEASE_PIN_SHAS=1",

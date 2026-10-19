@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use JsonException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\PackageResources;
@@ -12,9 +13,7 @@ use voku\AgentLoop\PackageResources;
 /** @internal */
 final class CursorAuthorityHookTest extends TestCase
 {
-    /**
-     * @dataProvider deniedCommandProvider
-     */
+    #[DataProvider('deniedCommandProvider')]
     public function testAuthorityBearingRemoteMutationsAreDenied(string $command, string $label): void
     {
         $result = $this->runHook(['command' => $command, 'cwd' => '/repo', 'sandbox' => false]);

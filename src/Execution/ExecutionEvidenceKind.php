@@ -9,4 +9,5 @@ enum ExecutionEvidenceKind: string
     case ARTIFACT = 'artifact';
     case CANDIDATE = 'candidate';
     case VALIDATION = 'validation';
+    case CONSISTENCY = 'consistency';
 }

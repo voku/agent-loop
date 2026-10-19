@@ -10,6 +10,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Workflow\DeclaredValidationShell;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
@@ -122,12 +123,26 @@ final readonly class ExecutionGateway
         return (new ExecutionStateStore($this->rootPath))->resolveAttention($plan, $attentionId);
     }
 
-    public function runDeterministicStage(string $taskId, string $stageId): ExecutionProjection
+    /**
+     * Runs the governed deterministic verify stage against the candidate the Run accepted.
+     *
+     * `$candidateWorkspace` is where an execution consumer holds that candidate (for example a Runner worktree);
+     * it defaults to the project root, which is where host-native work lives. Loop recomputes the workspace's
+     * candidate identity itself and refuses a workspace that does not hold the governed candidate, then executes
+     * the approved Contract's validation commands there. PASS requires the consistency check and every declared
+     * command to exit 0, and the candidate to be unchanged afterwards.
+     */
+    public function runDeterministicStage(string $taskId, string $stageId, ?string $candidateWorkspace = null): ExecutionProjection
     {
         $bundle = $this->prepareStage($taskId, $stageId);
         if ($bundle->kind !== ExecutionStageKind::DETERMINISTIC || $stageId !== 'verify') {
             throw new RuntimeException('Only the governed deterministic verify stage is executable by this gateway.');
         }
+
+        $workspace = $this->verifyWorkspace($candidateWorkspace);
+        $identity = new CandidateWorkspaceIdentity();
+        $statePath = $this->relativeStateRoot();
+        $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
 
         ob_start();
         try {
@@ -135,20 +150,21 @@ final readonly class ExecutionGateway
         } finally {
             $output = (string) ob_get_clean();
         }
+        $contract = $this->runContractValidation($bundle, $workspace);
 
-        $command = 'agent-loop verify --task-id=' . $taskId;
-        $validationReference = (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
-            $bundle->taskId,
-            $bundle->runId,
-            $bundle->contractRevision,
-            $bundle->executionPlanDigest,
-            $bundle->stageId,
-            $bundle->attempt,
-            $bundle->candidateRevision,
-            ExecutionEvidenceKind::VALIDATION,
-            $command,
-            'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
-        ));
+        try {
+            $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
+        } catch (RuntimeException $exception) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: a declared validation command changed the governed candidate while it was being verified. ' . $exception->getMessage(), 0, $exception);
+        }
+
+        // The consistency check is a receipt of its own kind; only the Contract commands executed on the candidate
+        // are candidate validation evidence.
+        $receipts = $exit === 0
+            ? [$this->recordVerifyEvidence($bundle, ExecutionEvidenceKind::CONSISTENCY, 'agent-loop verify --task-id=' . $taskId, $exit, $output)]
+            : [];
+        $passed = $exit === 0 && $contract['passed'];
+        $summary = [trim($output), ...$contract['summary']];
 
         return $this->submitStageResult(new StageResult(
             $this->deterministicSubmissionId($bundle),
@@ -158,12 +174,79 @@ final readonly class ExecutionGateway
             $bundle->executionPlanDigest,
             $bundle->stageId,
             $bundle->attempt,
-            $exit === 0 ? StageOutcome::PASS : StageOutcome::FAILED,
+            $passed ? StageOutcome::PASS : StageOutcome::FAILED,
             $bundle->candidateRevision,
             [],
-            [$validationReference],
-            trim($output),
+            $contract['references'],
+            implode("\n\n", $summary),
+            null,
+            $receipts,
         ));
+    }
+
+    private function verifyWorkspace(?string $candidateWorkspace): string
+    {
+        $workspace = realpath($candidateWorkspace ?? $this->rootPath);
+        if (!is_string($workspace) || !is_dir($workspace)) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: verify workspace does not exist: ' . ($candidateWorkspace ?? $this->rootPath));
+        }
+
+        return $workspace;
+    }
+
+    /**
+     * Executes the approved Contract's validation commands in the candidate workspace, stopping at the first failure.
+     *
+     * @return array{passed: bool, references: list<non-empty-string>, summary: list<string>}
+     */
+    private function runContractValidation(StageExecutionBundle $bundle, string $workspace): array
+    {
+        $shell = new DeclaredValidationShell();
+        $references = [];
+        $summary = [];
+        foreach ($bundle->requiredValidation as $command) {
+            $result = $shell->executeDeclaredValidationShell($command, $workspace);
+            $references[] = $this->recordVerifyEvidence($bundle, ExecutionEvidenceKind::VALIDATION, $command, $result['exitCode'], $result['output']);
+            if ($result['exitCode'] !== 0) {
+                $output = mb_scrub($result['output'], 'UTF-8');
+                $tail = mb_strcut($output, max(0, strlen($output) - 2000), null, 'UTF-8');
+                $summary[] = sprintf("[FAIL] %s (exit %d)\n%s", $command, $result['exitCode'], $tail);
+
+                return ['passed' => false, 'references' => $references, 'summary' => $summary];
+            }
+            $summary[] = '[OK] ' . $command;
+        }
+
+        return ['passed' => true, 'references' => $references, 'summary' => $summary];
+    }
+
+    /** @return non-empty-string */
+    private function recordVerifyEvidence(StageExecutionBundle $bundle, ExecutionEvidenceKind $kind, string $command, int $exit, string $output): string
+    {
+        return (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $bundle->candidateRevision,
+            $kind,
+            $command,
+            'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
+        ));
+    }
+
+    /** Loop's state root relative to the project, so candidate identity ignores the governance state Loop writes itself. */
+    private function relativeStateRoot(): ?string
+    {
+        $root = realpath($this->rootPath);
+        $state = realpath((new ProjectLayout($this->rootPath))->stateRoot());
+        if (!is_string($root) || !is_string($state) || !str_starts_with($state, $root . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return substr($state, strlen($root) + 1);
     }
 
     private function prepareStageBundle(
