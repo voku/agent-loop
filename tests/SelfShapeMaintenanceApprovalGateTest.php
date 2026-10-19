@@ -90,24 +90,27 @@ final class SelfShapeMaintenanceApprovalGateTest extends TestCase
         self::assertTrue(mkdir($directory . '/.agent-loop/learning/proposals/applied', 0700, true));
 
         $runner = new ProcessRunner($directory);
+        $gitEnvironment = array_filter(getenv(), static fn (string $key): bool => !str_starts_with($key, 'GIT_'), ARRAY_FILTER_USE_KEY);
+        $gitEnvironment['GIT_CONFIG_NOSYSTEM'] = '1';
+        $gitEnvironment['GIT_CONFIG_GLOBAL'] = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
 
         try {
             foreach ([...$this->expectedPaths(), 'src/Deleted.php', 'src/Old name .php'] as $path) {
                 self::assertNotFalse(file_put_contents($directory . '/' . $path, 'before'));
             }
-            $runner->mustRun(['git', 'init', '--quiet']);
-            $runner->mustRun(['git', 'add', '--all']);
-            $runner->mustRun(['git', '-c', 'user.name=Scope Test', '-c', 'user.email=scope@example.invalid', 'commit', '--quiet', '-m', 'baseline']);
-            $base = trim($runner->mustRun(['git', 'rev-parse', 'HEAD'])['stdout']);
+            $runner->mustRun(['git', 'init', '--quiet'], $gitEnvironment);
+            $runner->mustRun(['git', 'add', '--all'], $gitEnvironment);
+            $runner->mustRun(['git', '-c', 'user.name=Scope Test', '-c', 'user.email=scope@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'baseline'], $gitEnvironment);
+            $base = trim($runner->mustRun(['git', 'rev-parse', 'HEAD'], $gitEnvironment)['stdout']);
 
             foreach ($this->expectedPaths() as $path) {
                 self::assertNotFalse(file_put_contents($directory . '/' . $path, 'after'));
             }
             self::assertTrue(unlink($directory . '/src/Deleted.php'));
             self::assertTrue(rename($directory . '/src/Old name .php', $directory . '/src/New name .php'));
-            $runner->mustRun(['git', 'add', '--all']);
-            $runner->mustRun(['git', '-c', 'user.name=Scope Test', '-c', 'user.email=scope@example.invalid', 'commit', '--quiet', '-m', 'changes']);
-            $head = trim($runner->mustRun(['git', 'rev-parse', 'HEAD'])['stdout']);
+            $runner->mustRun(['git', 'add', '--all'], $gitEnvironment);
+            $runner->mustRun(['git', '-c', 'user.name=Scope Test', '-c', 'user.email=scope@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'changes'], $gitEnvironment);
+            $head = trim($runner->mustRun(['git', 'rev-parse', 'HEAD'], $gitEnvironment)['stdout']);
 
             $scope = (new SelfShapeGitChangedPaths($runner))->between($base, $head);
 
