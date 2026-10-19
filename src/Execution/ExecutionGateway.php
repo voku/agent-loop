@@ -158,7 +158,11 @@ final readonly class ExecutionGateway
             throw new RuntimeException('CANDIDATE_MISMATCH: a declared validation command changed the governed candidate while it was being verified. ' . $exception->getMessage(), 0, $exception);
         }
 
-        $validationReferences = [$this->recordVerifyEvidence($bundle, 'agent-loop verify --task-id=' . $taskId, $exit, $output), ...$contract['references']];
+        // The consistency check is a receipt of its own kind; only the Contract commands executed on the candidate
+        // are candidate validation evidence.
+        $consistencyReferences = $exit === 0
+            ? [$this->recordVerifyEvidence($bundle, ExecutionEvidenceKind::CONSISTENCY, 'agent-loop verify --task-id=' . $taskId, $exit, $output)]
+            : [];
         $passed = $exit === 0 && $contract['passed'];
         $summary = [trim($output), ...$contract['summary']];
 
@@ -173,8 +177,10 @@ final readonly class ExecutionGateway
             $passed ? StageOutcome::PASS : StageOutcome::FAILED,
             $bundle->candidateRevision,
             [],
-            $validationReferences,
+            $contract['references'],
             implode("\n\n", $summary),
+            null,
+            $consistencyReferences,
         ));
     }
 
@@ -200,7 +206,7 @@ final readonly class ExecutionGateway
         $summary = [];
         foreach ($bundle->requiredValidation as $command) {
             $result = $shell->executeDeclaredValidationShell($command, $workspace);
-            $references[] = $this->recordVerifyEvidence($bundle, $command, $result['exitCode'], $result['output']);
+            $references[] = $this->recordVerifyEvidence($bundle, ExecutionEvidenceKind::VALIDATION, $command, $result['exitCode'], $result['output']);
             if ($result['exitCode'] !== 0) {
                 $output = mb_scrub($result['output'], 'UTF-8');
                 $tail = mb_strcut($output, max(0, strlen($output) - 2000), null, 'UTF-8');
@@ -215,7 +221,7 @@ final readonly class ExecutionGateway
     }
 
     /** @return non-empty-string */
-    private function recordVerifyEvidence(StageExecutionBundle $bundle, string $command, int $exit, string $output): string
+    private function recordVerifyEvidence(StageExecutionBundle $bundle, ExecutionEvidenceKind $kind, string $command, int $exit, string $output): string
     {
         return (new ExecutionEvidenceStore($this->rootPath))->record(new ExecutionEvidenceClaim(
             $bundle->taskId,
@@ -225,7 +231,7 @@ final readonly class ExecutionGateway
             $bundle->stageId,
             $bundle->attempt,
             $bundle->candidateRevision,
-            ExecutionEvidenceKind::VALIDATION,
+            $kind,
             $command,
             'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
         ));

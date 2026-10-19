@@ -21,12 +21,16 @@ final readonly class StageResult
     /** @var list<non-empty-string> */
     public array $validationReferences;
 
+    /** @var list<non-empty-string> */
+    public array $consistencyReferences;
+
     public string $summary;
     public ?string $contextId;
 
     /**
      * @param list<non-empty-string> $artifactReferences
      * @param list<non-empty-string> $validationReferences
+     * @param list<non-empty-string> $consistencyReferences
      */
     public function __construct(
         string $submissionId,
@@ -42,6 +46,7 @@ final readonly class StageResult
         array $validationReferences,
         string $summary,
         ?string $contextId = null,
+        array $consistencyReferences = [],
     ) {
         $this->submissionId = trim($submissionId);
         $this->taskId = trim($taskId);
@@ -51,6 +56,7 @@ final readonly class StageResult
         $this->candidateRevision = trim($candidateRevision);
         $this->artifactReferences = self::normalizeReferences($artifactReferences, 'artifact');
         $this->validationReferences = self::normalizeReferences($validationReferences, 'validation');
+        $this->consistencyReferences = self::normalizeReferences($consistencyReferences, 'consistency');
         $this->summary = trim($summary);
         $this->contextId = $contextId === null ? null : trim($contextId);
 
@@ -92,6 +98,9 @@ final readonly class StageResult
 
         if ($this->contextId !== null) {
             $payload['context_id'] = $this->contextId;
+        }
+        if ($this->consistencyReferences !== []) {
+            $payload['consistency_references'] = $this->consistencyReferences;
         }
 
         return $payload;

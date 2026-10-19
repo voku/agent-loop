@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\StageCandidateObservation;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
@@ -57,6 +58,15 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
 
         self::assertTrue($projection->complete());
         self::assertNull($projection->attention);
+
+        // The consistency check stays a receipt of its own kind; the Contract command executed on the candidate is the
+        // only validation evidence verify claims.
+        $state = (new ExecutionStateStore($this->root))->find('VER-1');
+        self::assertNotNull($state);
+        $verify = $state->history[count($state->history) - 1]->result;
+        self::assertSame(StageOutcome::PASS, $verify->outcome);
+        self::assertCount(1, $verify->consistencyReferences);
+        self::assertCount(1, $verify->validationReferences);
     }
 
     public function testWorkspaceThatDoesNotHoldTheGovernedCandidateIsRefused(): void

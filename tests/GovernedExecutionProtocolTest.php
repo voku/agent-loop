@@ -272,9 +272,9 @@ final class GovernedExecutionProtocolTest extends TestCase
         }
     }
 
-    public function testMissingOwnerValidationEvidenceFailsClosedAtDeterministicVerify(): void
+    public function testDeterministicVerifyPassRequiresAnOwnerConsistencyReceipt(): void
     {
-        $this->prepareSurgicalRun();
+        $this->prepareSurgicalRun('php -l src/Foo.php');
         $gateway = new ExecutionGateway($this->root);
 
         $investigate = $gateway->prepareStage('ABC-123', 'investigate');
@@ -329,22 +329,25 @@ final class GovernedExecutionProtocolTest extends TestCase
         ));
 
         $verify = $gateway->prepareStage('ABC-123', 'verify');
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('MISSING_EVIDENCE');
-        $gateway->submitStageResult(new StageResult(
-            'submission:verify-without-evidence',
-            $verify->taskId,
-            $verify->runId,
-            $verify->contractRevision,
-            $verify->executionPlanDigest,
-            $verify->stageId,
-            $verify->attempt,
-            StageOutcome::PASS,
-            $candidate,
-            [],
-            [],
-            'Verify passed without owner evidence.',
-        ));
+        try {
+            $gateway->submitStageResult(new StageResult(
+                'submission:verify-without-evidence',
+                $verify->taskId,
+                $verify->runId,
+                $verify->contractRevision,
+                $verify->executionPlanDigest,
+                $verify->stageId,
+                $verify->attempt,
+                StageOutcome::PASS,
+                $candidate,
+                [],
+                [],
+                'Verify passed without owner evidence.',
+            ));
+            self::fail('Deterministic PASS without owner consistency evidence must fail closed.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('MISSING_EVIDENCE', $exception->getMessage());
+        }
     }
 
     public function testClarificationRequiresAuthoritativeHumanResolutionBeforeResume(): void
@@ -451,9 +454,9 @@ final class GovernedExecutionProtocolTest extends TestCase
         $this->enter();
     }
 
-    private function prepareSurgicalRun(): void
+    private function prepareSurgicalRun(string $validation = 'vendor/bin/phpunit'): void
     {
-        $this->planAndApprove();
+        $this->planAndApprove($validation);
         ob_start();
         self::assertSame(0, (new WorkflowExecutionProfileCommand($this->root))->run([
             'ABC-123', '--profile', 'surgical', '--by', 'lars',
@@ -462,7 +465,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         $this->enter();
     }
 
-    private function planAndApprove(): void
+    private function planAndApprove(string $validation = 'vendor/bin/phpunit'): void
     {
         ob_start();
         self::assertSame(0, (new WorkflowPlanCommand($this->root))->run([
@@ -470,7 +473,7 @@ final class GovernedExecutionProtocolTest extends TestCase
             '--by', 'lars',
             '--file', 'src/Foo.php',
             '--goal', 'Prove governed external stage execution.',
-            '--validation', 'vendor/bin/phpunit',
+            '--validation', $validation,
             '--base-commit', self::BASE_COMMIT,
         ]));
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
