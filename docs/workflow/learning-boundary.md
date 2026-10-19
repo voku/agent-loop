@@ -241,7 +241,9 @@ alone cannot silently rewrite a previously approved rule.
 
 ### Dependency release boundary
 
-Until `agent-learning` 0.18.33 is separately released, this consumer draft
-uses a development-only pinned owner revision. Replace it with a released
-semver dependency and rerun strict Composer, self-shape and installed-consumer
-CI before merging. Do not fabricate a tag or waive the red release gate.
+The independently published `agent-learning` 0.18.33 annotated tag points to
+owner commit `0995ce4fb26329088883c8b52259f5ed48875e05`. This consumer
+requires released `^0.18.33` via Composer without a development VCS override.
+Exact-head strict Composer, self-shape and installed-consumer CI must pass
+before merging. Tag existence alone is not consumer validation, and the
+separate human semantic-review requirement for #758 remains unchanged.
