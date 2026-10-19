@@ -99,6 +99,7 @@ final readonly class SelfShapeMaintenanceReviewCommentVerifier
             . 'diff_sha256=(?<diff>[a-f0-9]{64})\n'
             . 'decision=reference-only-maintenance\n'
             . 'rule_text_changed=yes\z~D';
+        $body = str_replace("\r\n", "\n", $body);
         if (preg_match($pattern, $body, $matches) !== 1) {
             return null;
         }
