@@ -29,6 +29,18 @@ final class SelfShapeMaintenanceReviewCommentVerifierTest extends TestCase
         self::assertSame(str_repeat('c', 64), $result->claim->diffSha256);
     }
 
+    public function testCrLfMarkerIsAcceptedWithoutRelaxingTheExactBody(): void
+    {
+        $comment = $this->comment();
+        $comment['body'] = str_replace("\n", "\r\n", $comment['body']);
+
+        $verifier = new SelfShapeMaintenanceReviewCommentVerifier();
+        self::assertNotNull($verifier->fromTrustedGitHubApi($comment, 'admin', self::REPO, self::PR));
+
+        $comment['body'] .= "\r\n";
+        self::assertNull($verifier->fromTrustedGitHubApi($comment, 'admin', self::REPO, self::PR));
+    }
+
     public function testReaderOrBotIsNotAnApprovedReviewSource(): void
     {
         $v = new SelfShapeMaintenanceReviewCommentVerifier();
