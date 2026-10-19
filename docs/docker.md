@@ -10,6 +10,10 @@ mounted project remains on the host and is the working directory for every CLI
 command. The image does not contain or launch a coding-agent host such as Codex,
 Claude Code or Cursor; run that host as usual and use this wrapper when a
 workflow command needs PHP.
+The image build context is allow-listed to the Docker inputs, `composer.json`,
+`composer.lock`, `bin/`, `src/`, `resources/` and `docker/entrypoint.sh`, so Git
+history, local workflow state and development dependencies are not sent to the
+builder. This does not limit the separate project bind mount.
 
 ## Build and run against this checkout
 
@@ -55,6 +59,21 @@ before building.
 
 The wrapper forwards all arguments to `agent-loop`, so any supported command is
 available, for example `./docker/agent-loop workflow status MY-123 --format=json`.
+It also runs project commands inside the same container with `--exec`, which is
+useful for validation when PHP and Composer are not installed on the host:
+
+```sh
+./docker/agent-loop --exec composer ci
+./docker/agent-loop --exec php -v
+```
+
+The default Composer cache is created at runtime under the container's current
+UID, so the wrapper works with different host user IDs. Runtime Composer
+commands use the configured CA bundle from the read-only Compose secret; the
+bundle is combined with the image's standard CA roots in `/tmp` and is not
+stored in the image or target project. Dependency resolution in the image build
+uses the committed `composer.lock`; update that lock when intentionally changing
+the packaged runtime dependency graph.
 
 ## Build directly with Compose
 

@@ -1,0 +1,12 @@
+**
+!Dockerfile
+!composer.json
+!composer.lock
+!bin/
+!bin/**
+!src/
+!src/**
+!resources/
+!resources/**
+!docker/
+!docker/entrypoint.sh

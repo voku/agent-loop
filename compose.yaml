@@ -8,6 +8,8 @@ services:
     image: agent-loop:local
     init: true
     user: "${AGENT_LOOP_UID:-1000}:${AGENT_LOOP_GID:-1000}"
+    secrets:
+      - proxy_ca
     working_dir: /workspace/target
     volumes:
       - type: bind
