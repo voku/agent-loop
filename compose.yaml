@@ -3,19 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      secrets:
-        - proxy_ca
     image: agent-loop:local
     init: true
     user: "${AGENT_LOOP_UID:-1000}:${AGENT_LOOP_GID:-1000}"
-    secrets:
-      - proxy_ca
     working_dir: /workspace/target
     volumes:
       - type: bind
         source: ${AGENT_LOOP_TARGET:-.}
         target: /workspace/target
-
-secrets:
-  proxy_ca:
-    file: ${CODEX_PROXY_CERT:-/etc/ssl/certs/ca-certificates.crt}

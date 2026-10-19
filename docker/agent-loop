@@ -11,6 +11,15 @@ export AGENT_LOOP_TARGET="$target_dir"
 export AGENT_LOOP_UID=${AGENT_LOOP_UID:-$(id -u)}
 export AGENT_LOOP_GID=${AGENT_LOOP_GID:-$(id -g)}
 
+if [ -n "${CODEX_PROXY_CERT:-}" ]; then
+    exec docker compose \
+        --progress=quiet \
+        --project-directory "$project_dir" \
+        --file "$project_dir/compose.yaml" \
+        --file "$project_dir/compose.proxy-ca.yaml" \
+        run --rm --build agent-loop "$@"
+fi
+
 exec docker compose \
     --progress=quiet \
     --project-directory "$project_dir" \

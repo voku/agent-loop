@@ -15,6 +15,7 @@
 !/.agent-loop/learning/findings/validated/*.json
 .DS_Store
 composer.lock
+!/composer.lock
 !/tools/*/composer.lock
 /.agent-loop/learning/history/
 /.agent-loop/learning/.derived/

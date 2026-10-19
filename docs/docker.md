@@ -51,11 +51,16 @@ if your workflow needs it. For a different numeric host identity, set
 `AGENT_LOOP_UID` and `AGENT_LOOP_GID`; `AGENT_LOOP_TARGET` may also be set once
 in the shell environment.
 
-Compose supplies the host CA bundle to the dependency-install build step as a
-temporary BuildKit secret, so TLS verification stays enabled and the bundle is
-not stored in the image. The default bundle path is for Linux. On macOS or when
-using a custom proxy CA, set `CODEX_PROXY_CERT` to the path of the host CA bundle
-before building.
+By default, the image uses its standard CA certificates and does not require a
+host CA path. If Composer must trust a custom proxy CA, set `CODEX_PROXY_CERT`
+to a CA bundle file. The wrapper then adds `compose.proxy-ca.yaml` and supplies
+the bundle as a temporary BuildKit and runtime secret; it is not stored in the
+image. For direct Compose use, include the override explicitly:
+
+```sh
+CODEX_PROXY_CERT=/path/to/ca-bundle.pem \
+docker compose -f compose.yaml -f compose.proxy-ca.yaml build agent-loop
+```
 
 The wrapper forwards all arguments to `agent-loop`, so any supported command is
 available, for example `./docker/agent-loop workflow status MY-123 --format=json`.
@@ -68,12 +73,13 @@ useful for validation when PHP and Composer are not installed on the host:
 ```
 
 The default Composer cache is created at runtime under the container's current
-UID, so the wrapper works with different host user IDs. Runtime Composer
-commands use the configured CA bundle from the read-only Compose secret; the
-bundle is combined with the image's standard CA roots in `/tmp` and is not
-stored in the image or target project. Dependency resolution in the image build
-uses the committed `composer.lock`; update that lock when intentionally changing
-the packaged runtime dependency graph.
+UID, so the wrapper works with different host user IDs. When a proxy CA is
+configured, runtime Composer commands use it from the read-only Compose secret;
+the bundle is combined with the image's standard CA roots in `/tmp` and is not
+stored in the image or target project. Dependency resolution uses the committed
+`composer.lock`, resolved against PHP 8.3, the project's minimum supported
+version. Update that lock when intentionally changing the packaged runtime
+dependency graph.
 
 ## Build directly with Compose
 
@@ -92,3 +98,6 @@ AGENT_LOOP_UID="$(id -u)" \
 AGENT_LOOP_GID="$(id -g)" \
 docker compose run --rm --build agent-loop init host-status --agent=codex --format=json
 ```
+
+For a custom proxy CA, add `-f compose.proxy-ca.yaml` to the Compose command and
+set `CODEX_PROXY_CERT` to the CA bundle path.
