@@ -1,0 +1,17 @@
+{
+  "name": "voku/agent-ui-docker-runtime",
+  "description": "Locked production runtime dependencies for the agent-ui Docker service.",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": "^8.3",
+    "voku/agent-ui": "^0.18.15"
+  },
+  "config": {
+    "allow-plugins": false,
+    "platform": {
+      "php": "8.3.0"
+    },
+    "sort-packages": true
+  }
+}

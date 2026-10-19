@@ -1,0 +1,17 @@
+services:
+  agent-loop:
+    build:
+      secrets:
+        - proxy_ca
+    secrets:
+      - proxy_ca
+  agent-ui:
+    build:
+      secrets:
+        - proxy_ca
+    secrets:
+      - proxy_ca
+
+secrets:
+  proxy_ca:
+    file: ${CODEX_PROXY_CERT:?Set CODEX_PROXY_CERT to a CA bundle file before using this override}

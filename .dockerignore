@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!Dockerfile.agent-ui
+!composer.json
+!composer.lock
+!bin/
+!bin/**
+!src/
+!src/**
+!resources/
+!resources/**
+!docker/
+!docker/entrypoint.sh
+!docker/agent-ui/
+!docker/agent-ui/**

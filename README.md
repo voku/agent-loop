@@ -139,6 +139,9 @@ remain explicit.
 
 ## The two lifecycle commands
 
+If PHP or Composer is not installed on the host, the [Docker setup](docs/docker.md)
+provides the `agent-loop` runtime and mounts the project being worked on.
+
 For everyday use, the workflow stays deliberately small:
 
 ```text
