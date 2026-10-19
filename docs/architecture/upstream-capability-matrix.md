@@ -13,6 +13,20 @@ Reviewed source pins:
 - Attention Control (`aaddrick/attention-control`): `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`;
 - mnapoli Skills (`mnapoli/skills`): `f44250e55fff8e69447a1faa0093fb6298f070ae`.
 
+Bounded history recheck on 2026-10-19 (not a replacement full-source audit):
+
+- Caveman current head observed: `bad48a0e1df55e05e3f52249afa35ecc1909ee76`;
+- Ponytail current head observed: `09c434ab73ca43761c5d8b0c5d341926c2fba710`;
+- Attention Control is unchanged at the reviewed pin;
+- Everything Claude Code (ECC) current head observed: `76aaa77df6adc5b889e689007bf99b9a4f74af34`;
+- mnapoli Skills current head observed: `036f32c6ce2b4754c73f8c9b39cac5c46ef2f8b5` (two post-pin commits, README/art only).
+
+This bounded recheck inspected mechanisms most likely to change existing
+`ALREADY`/`ADAPT`/`DEFER`/`REJECT` decisions. It does not claim exhaustive
+feature parity across the moved repositories. The only new first-party product
+gap identified is version/freshness-bound real-host runtime evidence; #805 owns
+that question.
+
 Decision vocabulary:
 
 - `ALREADY`: the mechanism has an intentional `agent-loop` equivalent;
@@ -70,6 +84,14 @@ invocation, or behavior on any other host.
 | Persistent user-selectable caveman intensity modes | `REJECT` | Workflow invariants are not a persona mode. No hidden flag decides whether correctness/evidence rules apply. |
 | Model overrides per subagent | `REJECT` | Model/provider selection remains a host concern. Package-owned roles define behavior, not model routing. |
 | Remote installer, marketplace, status line | `REJECT` | `init install-assets` installs reviewed local Composer-package assets only. |
+| Version/freshness-bound real-host compatibility evidence | `DEFER` | Caveman now binds tested host versions to dated, method-specific real probes and treats newer versions as drift rather than silently inheriting old proof. agent-loop already separates projection from runtime evidence; #805 owns the smallest typed version/freshness extension rather than importing Caveman's registry/proxy stack. |
+
+The 2026-10-19 bounded Caveman recheck also reinforces existing evidence rules:
+its accounting layer distinguishes measured, inferred, provider-reported,
+observed and verified values instead of silently changing basis, and its Pi
+runtime warning was corrected from a definite claim to "may be off" when one
+empty reply could merely be a timeout (`518a8242`). These are `ALREADY` in
+agent-loop's evidence/uncertainty discipline and justify no new subsystem.
 
 ## Ponytail
 
@@ -82,6 +104,16 @@ Current upstream recheck at `c982cd411abb53323c4baa1baa3c2f020b8d0b08` adds five
 - Its review/audit skills added repository-reuse verification before accepting replacement findings (`446e4ad4`). The first-party semantic owner is `voku/agent-skills` `code-review-simplicity` (PR voku/agent-skills#67), not `agent-loop-discipline`.
 - Its audit now requires whole-tree caller evidence before a delete finding (`6f7a570e`). `agent-loop` keeps caller/source evidence in the review skill boundary and the simplify-audit wrapper; no new lifecycle state is justified.
 - Ponytail now requires benchmark evidence for ruleset changes (`b432558e`). We do not adopt that as a blanket package rule: always-on guidance changes need behavior evidence proportionate to their runtime reach, as #663 does, while ordinary adapter/docs fixes remain under their existing deterministic tests.
+
+A later bounded history recheck at current head `09c434ab73ca43761c5d8b0c5d341926c2fba710`
+strengthens rather than reverses those decisions. Ponytail fixed persisted-mode
+state across compaction (`70d0065e`), project/session collisions and session
+switches, bounded slow hook startup, and SessionStart map input that could include
+repository-controlled text or symlinks (`5c5ad8a0`). Its benchmark completeness
+judge was also corrected to score what the agent actually delivered
+(`88cedebb`). These repairs reinforce the existing `REJECT` for persistent
+persona/intensity state and the existing experiment-provenance boundary; they do
+not justify importing Ponytail mode state into Loop.
 
 
 | Upstream mechanism | Decision | First-party equivalent / enforcement |
@@ -105,6 +137,33 @@ Current upstream recheck at `c982cd411abb53323c4baa1baa3c2f020b8d0b08` adds five
 | Host-specific status line and plugin surfaces | `REJECT` | Not required for deterministic workflow state; `workflow status` and the run manifest are the product state surfaces. |
 
 This boundary is deliberate: a separate loadable coding skill is useful precisely because it can be active for implementation work without making unrelated planning, research, review orchestration, or session bootstrap inherit a coding persona.
+
+## Everything Claude Code (ECC)
+
+The original reviewed source pin is `c9148d0bb239ed01a95724a5928b98cdf9c30658`.
+A bounded 2026-10-19 history recheck inspected current head
+`76aaa77df6adc5b889e689007bf99b9a4f74af34` only for mechanisms relevant to
+existing Loop boundaries; it is not a full ECC feature audit.
+
+| Upstream mechanism | Decision | `agent-loop` equivalent / enforcement |
+| --- | --- | --- |
+| Canonical read-only role intent projected to host-native representation | `ADAPT` | `SubagentDefinition` keeps portable mutation intent and host renderers project only capabilities the host can represent. Projection remains distinct from observed runtime enforcement. |
+| Context-profile proposal kept separate from installation, runtime authority, tool permissions and native certification | `ALREADY` | Loop/Recall/skills already separate bounded context selection from lifecycle and mutation authority. Repository projection or a generated context artifact is never promoted into runtime-consumption proof. |
+| Reject a host adaptation before writes when a source deny-all tool policy cannot be represented safely | `ALREADY` | Host capability/projector code is allowed to report unsupported/degraded rather than broadening authority. The same fail-closed principle is used by Runner's Contract-bound validation permissions when an exact permission cannot be represented. |
+| Credit only evidence/searches that could actually have observed the target | `ALREADY` | Evidence eligibility is tied to owned source/Run/Contract identities; Loop does not award generic "searched" credit merely because a command ran. ECC's GateGuard implementation remains product-specific. |
+| Validate execution/failure records before durable storage | `ALREADY` | Session/Learning/Run records are schema-validated before they can become governed evidence; malformed model prose is not durable truth. |
+| Transactional work-item claims that preserve the first owner and make same-owner retries idempotent | `REJECT` | Useful state-store behavior, but work-item ownership belongs to `agent-kanban`/task owners rather than Loop's lifecycle contract. Do not import ECC's state store into the umbrella package. |
+| Composite harness-audit score and harness optimizer | `REJECT` | Deterministic checks and bounded contrastive experiments are useful; one aggregate harness score is not correctness authority and does not justify automatic optimization. |
+| Frozen evaluation inputs and cleanup limited to state actually owned by the trial | `ADAPT` | Existing dogfood/benchmark work freezes task inputs and authority state and does not delete or rewrite unrelated host/session state. ECC's `19a1b62f` independently reinforces that experiment-ownership boundary. |
+
+The recheck found three especially useful negative lessons. ECC's Qwen adapter
+rejects an explicitly empty/null tool list before installation because the native
+host would interpret it as inherited/broader authority (`fa26ba06`); GateGuard
+stopped crediting searches that could not have seen the target (`64d8971a`); and
+skill execution now validates failure reasons before writing the record
+(`3ac34cfc`). All three reinforce the first-party rule that a representation or
+observation must not be promoted into stronger authority/evidence than its owner
+can actually prove.
 
 ## Attention Control
 
