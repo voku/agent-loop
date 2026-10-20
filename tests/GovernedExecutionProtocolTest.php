@@ -332,6 +332,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         ));
 
         $verify = $gateway->prepareStage('ABC-123', 'verify');
+        self::assertStringNotContainsString('Required validation is executed by the deterministic verify stage on this exact candidate after this stage', $verify->prompt);
         try {
             $gateway->submitStageResult(new StageResult(
                 'submission:verify-without-evidence',
