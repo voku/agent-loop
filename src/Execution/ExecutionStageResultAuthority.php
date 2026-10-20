@@ -181,7 +181,7 @@ final readonly class ExecutionStageResultAuthority
         if (!in_array($result->outcome, [StageOutcome::PASS, StageOutcome::CHANGES_REQUIRED], true)) {
             return;
         }
-        if ($artifactClaims === []) {
+        if ($result->outcome === StageOutcome::CHANGES_REQUIRED && $artifactClaims === []) {
             throw new RuntimeException(
                 'MISSING_EVIDENCE: review stage ' . $stage->id
                 . ' must cite current candidate files before returning ' . $result->outcome->value . '.',
