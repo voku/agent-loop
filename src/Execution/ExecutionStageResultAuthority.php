@@ -378,6 +378,7 @@ final readonly class ExecutionStageResultAuthority
     {
         $workspacePrefix = 'workspace-file:';
         $basePrefix = 'git-base-file:';
+        $candidateTree = null;
         if (str_starts_with($claim->sourceReference, $workspacePrefix)) {
             $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
             $relativePath = substr($claim->sourceReference, strlen($workspacePrefix));
@@ -389,6 +390,7 @@ final readonly class ExecutionStageResultAuthority
             }
             $treeish = $plan->baseCommit
                 ?? throw new RuntimeException('STALE_EVIDENCE: deleted-file evidence has no governed Git base.');
+            $candidateTree = $this->candidateTreeish($plan, $claim->candidateRevision);
             $relativePath = substr($claim->sourceReference, strlen($basePrefix));
         } else {
             throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a candidate or deleted base file.');
@@ -411,6 +413,9 @@ final readonly class ExecutionStageResultAuthority
         $root = realpath($this->rootPath);
         if (!is_string($root)) {
             throw new RuntimeException('STALE_EVIDENCE: repository root cannot be resolved for artifact verification.');
+        }
+        if ($candidateTree !== null) {
+            $this->assertPathAbsentFromCandidate($candidateTree, $relativePath, $root);
         }
         $process = proc_open(
             ['git', 'cat-file', 'blob', $treeish . ':' . $relativePath],
@@ -448,6 +453,32 @@ final readonly class ExecutionStageResultAuthority
         $actualDigest = 'sha256:' . hash_final($hash);
         if (!hash_equals($actualDigest, $claim->sourceDigest)) {
             throw new RuntimeException('EVIDENCE_MISMATCH: artifact digest does not match the governed candidate content.');
+        }
+    }
+
+    private function assertPathAbsentFromCandidate(string $candidateTree, string $relativePath, string $root): void
+    {
+        $process = proc_open(
+            ['git', 'cat-file', '-e', $candidateTree . ':' . $relativePath],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('MISSING_EVIDENCE: unable to verify deleted-file evidence against the candidate.');
+        }
+        fclose($pipes[0]);
+        stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit === 0) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: git-base-file evidence is valid only when the path is absent from the candidate.');
         }
     }
 
