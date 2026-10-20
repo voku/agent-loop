@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Tests\Support;
 
 use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionGateway;
+use voku\AgentLoop\Execution\StageArtifactObservation;
 use voku\AgentLoop\Execution\StageCandidateObservation;
 use voku\AgentLoop\Execution\StageExecutionBundle;
 use voku\AgentLoop\Execution\StageOutcome;
@@ -112,6 +113,25 @@ final class VerifyStageRunFixture
 
     private function submit(ExecutionGateway $gateway, StageExecutionBundle $bundle, StageOutcome $outcome, string $candidate, ?string $contextId = null): void
     {
+        $artifactReferences = [];
+        if ($bundle->stageId === 'review' && in_array($outcome, [StageOutcome::PASS, StageOutcome::CHANGES_REQUIRED], true)) {
+            $source = file_get_contents($this->workspace . '/src/Foo.php');
+            if (!is_string($source)) {
+                throw new RuntimeException('Unable to read the candidate file for review evidence.');
+            }
+            $artifactReferences[] = $gateway->recordStageArtifact(new StageArtifactObservation(
+                $bundle->taskId,
+                $bundle->runId,
+                $bundle->contractRevision,
+                $bundle->executionPlanDigest,
+                $bundle->stageId,
+                $bundle->attempt,
+                $candidate,
+                'workspace-file:src/Foo.php',
+                'sha256:' . hash('sha256', $source),
+            ));
+        }
+
         $gateway->submitStageResult(new StageResult(
             'submission:' . $bundle->stageId,
             $bundle->taskId,
@@ -122,7 +142,7 @@ final class VerifyStageRunFixture
             $bundle->attempt,
             $outcome,
             $candidate,
-            [],
+            $artifactReferences,
             [],
             'fixture ' . $bundle->stageId,
             $contextId,
