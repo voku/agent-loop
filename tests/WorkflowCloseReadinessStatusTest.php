@@ -574,10 +574,10 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             $exit,
         );
         if ($exit !== 0) {
-            throw new \\RuntimeException('git ' . implode(' ', $arguments) . ' failed: ' . implode("\\n", $output));
+            throw new RuntimeException('git ' . implode(' ', $arguments) . ' failed: ' . implode(PHP_EOL, $output));
         }
 
-        return trim(implode("\\n", $output));
+        return trim(implode(PHP_EOL, $output));
     }
 
     private function rm(string $dir): void
