@@ -3,6 +3,7 @@
 ### Fixed
 
 - Bind existing Codex/Claude runtime claims, including negative observations, to typed tested-version, verification-time and proof-run provenance. Unknown or different runtimes remain unverified while repository projection stays independent. Version observation accepts only a complete unambiguous host-specific response and bounds both pipe reads and termination, including children that ignore SIGTERM. Relative PATH matches stay presence-only; completed-output files avoid blocking Windows pipes; historical refutation text is explicitly version-qualified (#805, follow-up to #807). Unit fixtures prove classification and probing, not new host compatibility.
+- Run the existing read-only Learning-owned guidance audit for fresh consumers with selected project guidance even when no Learning root exists. Keep Dream skipped, preserve no-input/opt-out behavior, and create only regenerable audit state; candidates still require semantic review and governed authority (#742).
 
 ## [0.20.65] - 2026-10-19
 

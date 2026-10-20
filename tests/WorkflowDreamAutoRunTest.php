@@ -228,6 +228,80 @@ final class WorkflowDreamAutoRunTest extends TestCase
         }
     }
 
+    public function testFreshConsumerAuditsGuidanceWithoutCreatingLearningAndRefreshesOnChanges(): void
+    {
+        $this->removeTree($this->learningRoot);
+        $guidance = "# Instructions\n\nRefer to `docs/missing-file.md`.\n";
+        file_put_contents($this->root . '/AGENTS.md', $guidance);
+
+        putenv('AGENT_LOOP_DREAM_AUTORUN=0');
+        self::assertNull((new WorkflowDreamAutoRun($this->root))->runIfDue());
+        self::assertFileDoesNotExist($this->stateFile);
+        putenv('AGENT_LOOP_DREAM_AUTORUN');
+
+        $first = (new WorkflowDreamAutoRun($this->root))->runIfDue();
+        self::assertNotNull($first);
+        self::assertTrue($first['ran']);
+        self::assertSame(1, $first['guidanceCandidates']);
+        self::assertFalse($first['dreamPreviewRan']);
+        self::assertSame(0, $first['evaluated']);
+        self::assertSame([], $first['warnings']);
+        self::assertSame(0, $first['reviewDecisions']);
+        self::assertSame($guidance, file_get_contents($this->root . '/AGENTS.md'));
+        self::assertDirectoryDoesNotExist($this->learningRoot);
+        $state = json_decode((string) file_get_contents($this->stateFile), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('AGENTS.md:3', $state['guidance_candidates'][0]['source_a']);
+        $pendingAutorun = new WorkflowDreamAutoRun($this->root);
+        $pending = $pendingAutorun->runIfDue();
+        self::assertNotNull($pending);
+        self::assertSame('pending', $pending['reason']);
+
+        unlink($this->root . '/AGENTS.md');
+        $removedAutorun = new WorkflowDreamAutoRun($this->root);
+        $removed = $removedAutorun->runIfDue();
+        self::assertNotNull($removed);
+        self::assertSame('project guidance changed since the last run', $removed['reason']);
+        self::assertSame(0, $removed['guidanceCandidates']);
+        self::assertNull((new WorkflowDreamAutoRun($this->root))->runIfDue());
+        self::assertDirectoryDoesNotExist($this->learningRoot);
+
+        self::assertTrue(mkdir($this->learningRoot . '/findings/validated', 0o775, true));
+        $withLearning = (new WorkflowDreamAutoRun($this->root))->runIfDue();
+        self::assertNotNull($withLearning);
+        self::assertSame('Learning inputs changed since the last run', $withLearning['reason']);
+        self::assertTrue($withLearning['dreamPreviewRan']);
+    }
+
+    public function testFreshConsumerSessionHintDoesNotClaimDreamRan(): void
+    {
+        $this->removeTree($this->learningRoot);
+        file_put_contents($this->root . '/AGENTS.md', "# Instructions\n\nSee `docs/missing-file.md`.\n");
+        $hook = new AgentDisciplineHook($this->root);
+        $session = $hook->contextOutput('SessionStart', json_encode(['hook_event_name' => 'SessionStart'], JSON_THROW_ON_ERROR));
+        $context = $session['hookSpecificOutput']['additionalContext'];
+
+        self::assertStringContainsString('ran the read-only guidance audit automatically', $context);
+        self::assertStringContainsString('Dream preview skipped because no Learning root exists', $context);
+        self::assertStringContainsString('1 guidance consistency candidate(s) await semantic review', $context);
+        self::assertStringNotContainsString('ran the read-only Dream preview', $context);
+        self::assertDirectoryDoesNotExist($this->learningRoot);
+    }
+
+    public function testFreshConsumerAuditsConfiguredSourcesWithoutLearningRoot(): void
+    {
+        $this->removeTree($this->learningRoot);
+        self::assertTrue(mkdir($this->root . '/docs', 0o775, true));
+        $guidance = "# Instructions\n\nSee `docs/missing-file.md`.\n";
+        file_put_contents($this->root . '/docs/GUIDANCE.md', $guidance);
+        $digest = (new WorkflowDreamAutoRun($this->root, guidanceSources: ['docs/*.md']))->runIfDue();
+
+        self::assertNotNull($digest);
+        self::assertSame(['docs/*.md'], $digest['guidanceSources']);
+        self::assertSame(1, $digest['guidanceCandidates']);
+        self::assertSame($guidance, file_get_contents($this->root . '/docs/GUIDANCE.md'));
+        self::assertDirectoryDoesNotExist($this->learningRoot);
+    }
+
     public function testSessionStartReportsTheAutomaticRunAndSubagentStartDoesNot(): void
     {
         $hook = new AgentDisciplineHook($this->root);
