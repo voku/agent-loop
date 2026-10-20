@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Init\HostRuntimeProbe;
@@ -149,6 +150,85 @@ final class HostRuntimeProbeTest extends TestCase
             ['status' => 'unavailable', 'version' => null],
             $probe->probeVersion('claude', $this->executablePath('claude')),
         );
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function ambiguousVersionOutputs(): iterable
+    {
+        yield 'conflicting Codex versions' => ['codex', "codex-cli 0.157.0\ncodex-cli 0.158.0"];
+        yield 'malformed surrounding output' => ['codex', "garbage\ncodex-cli 0.157.0\nmalformed"];
+        yield 'conflicting Claude versions' => ['claude', "2.1.287 (Claude Code)\n2.1.288 (Claude Code)"];
+    }
+
+    #[DataProvider('ambiguousVersionOutputs')]
+    public function testVersionProbeRejectsTheWholeAmbiguousResponse(string $host, string $output): void
+    {
+        $this->createExecutableWithOutput($host, "#!/bin/sh\nprintf '%s\\n' " . escapeshellarg($output) . "\n");
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+
+        self::assertSame(
+            ['status' => 'unavailable', 'version' => null],
+            $probe->probeVersion($host, $this->executablePath($host)),
+        );
+    }
+
+    public function testVersionProbeRejectsContradictoryStandardError(): void
+    {
+        $this->createExecutableWithOutput('codex', "#!/bin/sh\nprintf 'codex-cli 0.157.0\\n'\nprintf 'codex-cli 0.158.0\\n' >&2\n");
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+
+        self::assertSame(
+            ['status' => 'unavailable', 'version' => null],
+            $probe->probeVersion('codex', $this->executablePath('codex')),
+        );
+    }
+
+    public function testVersionProbeDoesNotStripMalformedControlBytes(): void
+    {
+        $this->createExecutableWithOutput('codex', "#!/bin/sh\nprintf 'codex-cli 0.157.0\\000'\n");
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+
+        self::assertSame(
+            ['status' => 'unavailable', 'version' => null],
+            $probe->probeVersion('codex', $this->executablePath('codex')),
+        );
+    }
+
+    public function testPresenceProbeDoesNotExecuteTheHost(): void
+    {
+        $marker = $this->binRoot . '/executed';
+        $this->createExecutableWithOutput('codex', "#!/bin/sh\ntouch " . escapeshellarg($marker) . "\n");
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+
+        self::assertSame('available', $probe->probe('codex')['status']);
+        self::assertFileDoesNotExist($marker);
+    }
+
+    public function testVersionProbeKillsAHostThatIgnoresTermination(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX signal fixture.');
+        }
+        $this->createExecutableWithOutput('codex', "#!/bin/sh\ntrap '' TERM\nwhile :; do sleep 1; done\n");
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+        $start = hrtime(true);
+        $result = $probe->probeVersion('codex', $this->executablePath('codex'));
+
+        self::assertSame(['status' => 'unavailable', 'version' => null], $result);
+        self::assertLessThan(4.0, (hrtime(true) - $start) / 1_000_000_000);
+    }
+
+    public function testVersionProbeBoundsContinuouslyWrittenOutput(): void
+    {
+        $this->createExecutableWithOutput('codex', "#!/bin/sh\nwhile :; do printf 'codex-cli 0.157.0\\n'; done\n");
+        $probe = new HostRuntimeProbe($this->binRoot, self::pathExt());
+        $start = hrtime(true);
+
+        self::assertSame(
+            ['status' => 'unavailable', 'version' => null],
+            $probe->probeVersion('codex', $this->executablePath('codex')),
+        );
+        self::assertLessThan(4.0, (hrtime(true) - $start) / 1_000_000_000);
     }
 
     private function createExecutable(string $name): void

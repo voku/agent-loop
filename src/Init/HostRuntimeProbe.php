@@ -99,14 +99,14 @@ final readonly class HostRuntimeProbe
         stream_set_blocking($pipes[2], false);
         $output = '';
         $errorOutput = '';
-        $deadline = microtime(true) + self::VERSION_PROBE_TIMEOUT_SECONDS;
+        $deadline = hrtime(true) + (int) (self::VERSION_PROBE_TIMEOUT_SECONDS * 1_000_000_000);
         $processExitCode = null;
 
         do {
             $output .= self::readAvailableOutput($pipes[1]);
             $errorOutput .= self::readAvailableOutput($pipes[2]);
             if (strlen($output) + strlen($errorOutput) > self::VERSION_PROBE_MAX_OUTPUT_BYTES) {
-                proc_terminate($process);
+                proc_terminate($process, 9);
                 fclose($pipes[1]);
                 fclose($pipes[2]);
                 proc_close($process);
@@ -119,8 +119,8 @@ final readonly class HostRuntimeProbe
                 $processExitCode = $processStatus['exitcode'];
                 break;
             }
-            if (microtime(true) >= $deadline) {
-                proc_terminate($process);
+            if (hrtime(true) >= $deadline) {
+                proc_terminate($process, 9);
                 fclose($pipes[1]);
                 fclose($pipes[2]);
                 proc_close($process);
@@ -188,23 +188,22 @@ final readonly class HostRuntimeProbe
     /** Read currently available bytes from a non-blocking process pipe. */
     private static function readAvailableOutput(mixed $pipe): string
     {
-        $output = '';
-        while (is_resource($pipe) && ($chunk = fread($pipe, 4096)) !== false && $chunk !== '') {
-            $output .= $chunk;
-        }
+        // One bounded read per poll: a continuously writing child must not keep
+        // us inside a drain loop past either the byte or monotonic time budget.
+        $chunk = fread($pipe, self::VERSION_PROBE_MAX_OUTPUT_BYTES + 1);
 
-        return $output;
+        return $chunk === false ? '' : $chunk;
     }
 
     /** @return non-empty-string|null */
     private static function parseVersionOutput(string $canonicalAgent, string $output): ?string
     {
         $pattern = match ($canonicalAgent) {
-            'codex' => '/^\s*codex(?:-cli)?\s+v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\s*$/im',
-            'claude' => '/^(?=.*(?:Claude Code|\(Claude Code\)))\s*(?:Claude Code\s+)?v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:\s+\(Claude Code\))?\s*$/im',
+            'codex' => '/\Acodex(?:-cli)?[ \t]+v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\z/i',
+            'claude' => '/\A(?=[^\r\n]*Claude Code)(?:Claude Code[ \t]+)?v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)(?:[ \t]+\(Claude Code\))?\z/i',
             default => null,
         };
-        if ($pattern === null || preg_match($pattern, $output, $matches) !== 1) {
+        if ($pattern === null || preg_match($pattern, trim($output, " \t\r\n"), $matches) !== 1) {
             return null;
         }
 

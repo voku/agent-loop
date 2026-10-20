@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+- Bind existing Codex/Claude runtime claims, including negative observations, to typed tested-version, verification-time and proof-run provenance. Unknown or different runtimes remain unverified while repository projection stays independent. Version observation accepts only a complete unambiguous host-specific response and bounds both pipe reads and termination, including children that ignore SIGTERM (#805, follow-up to #807). Unit fixtures prove classification and probing, not new host compatibility.
+
 ## [0.20.65] - 2026-10-19
 
 ### Fixed

@@ -399,18 +399,26 @@ final readonly class RepositorySetupDiagnosticsInspector
             );
 
             foreach ($rows as $row) {
+                $runtimeFacts = isset($row['runtime_evidence']) ? $row['runtime_evidence']->facts($versionProbe['version']) : [];
+                $details = implode('; ', array_map(
+                    static fn (string $key, string $value): string => $key . '=' . $value,
+                    array_keys($runtimeFacts),
+                    array_values($runtimeFacts),
+                ));
                 $diagnostics[] = new RepositorySetupDiagnostic(
                     RepositorySetupDiagnosticKind::HOST_CAPABILITY,
                     RepositorySetupDiagnosticLevel::INFO,
                     'Host capability evidence [' . $agent . '/' . $row['capability']->value . ']:'
                     . ' mechanism=' . $row['mechanism']
-                    . '; evidence=' . $row['evidence'],
+                    . '; evidence=' . $row['evidence']
+                    . ($details !== '' ? '; ' . $details : ''),
                     $agent,
                     [
                         'capability' => $row['capability']->value,
                         'status' => $row['status']->value,
                         'mechanism' => $row['mechanism'],
                         'evidence' => $row['evidence'],
+                        ...$runtimeFacts,
                     ],
                 );
             }

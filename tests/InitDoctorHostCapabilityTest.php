@@ -96,6 +96,8 @@ final class InitDoctorHostCapabilityTest extends TestCase
             $output = $this->doctorOutput($root, $binRoot);
             self::assertStringContainsString('Host runtime [codex]: available;', $output);
             self::assertStringContainsString('version=0.157.0', $output);
+            self::assertStringContainsString('runtime_evidence_state=exact_verified', $output);
+            self::assertStringContainsString('verified_at=2026-10-19T17:07:54+00:00', $output);
             self::assertStringContainsString('Host capability evidence [codex/pre-tool-guardrail]:', $output);
             self::assertStringContainsString('; evidence=adapter-declared;live-runtime-verified', $output);
             self::assertStringContainsString('Host runtime [claude]: available;', $output);
