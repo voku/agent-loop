@@ -39,7 +39,7 @@ final readonly class WorkflowCloseCommand
                         'task_id' => $taskId->value,
                         'status' => 'error',
                         'error' => 'workflow close currently gates only --status done. Use agent-loop session close directly for other statuses.',
-                        'next_action_kind' => $gate === 'execution_review' ? 'command' : 'host_work',
+                        'next_action_kind' => 'host_work',
                     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
                     return 1;
