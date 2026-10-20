@@ -24,11 +24,6 @@ use voku\AgentMap\Search\SearchIndexStore;
 final readonly class WorkflowPrePlanDiscoveryProjector
 {
     private const int MAX_REQUEST_BYTES = 4000;
-    private const int MAX_SEARCH_RESULTS = 5;
-    private const int MAX_EXPANDED_METHODS = 3;
-    private const int MAX_STRUCTURAL_SLICES = 12;
-    private const int MAX_BLIND_SPOTS = 12;
-    private const int MAX_OMITTED_CONTEXT = 12;
 
     public function __construct(private string $rootPath)
     {
@@ -37,12 +32,12 @@ final readonly class WorkflowPrePlanDiscoveryProjector
     /** @return array<string, mixed> */
     public function project(string $request): array
     {
-        $requestFailure = $this->requestFailure($request);
+        $query = trim($request);
+        $requestFailure = $this->requestFailure($query);
         if ($requestFailure !== null) {
             return $requestFailure;
         }
 
-        $query = trim($request);
         $artifacts = $this->mapArtifacts();
         $readiness = (new MapReadinessInspector())->inspect($artifacts);
         $map = $readiness->currentMap();
@@ -56,49 +51,19 @@ final readonly class WorkflowPrePlanDiscoveryProjector
             ]);
         }
 
-        $mapSnapshot = $readiness->mapSnapshot;
-        $searchSnapshot = $readiness->searchSnapshot;
-        $search = $this->searchCandidates(
+        return $this->projectCurrentEvidence(
             $map,
+            $artifacts,
             $readiness->searchPath,
             $query,
-            $mapSnapshot,
-            $searchSnapshot,
+            $readiness->mapSnapshot,
+            $readiness->searchSnapshot,
         );
-        if (($search['status'] ?? null) !== 'ready') {
-            return $search;
-        }
-        if (!is_array($search['candidates'] ?? null) || !is_string($search['search_mode'] ?? null)) {
-            return $this->abstained('search_projection_invalid', ['map_snapshot' => $mapSnapshot]);
-        }
-
-        $candidates = array_values($search['candidates']);
-        $context = $this->structuralContext($map, $candidates);
-        if (!$this->evidenceIsCurrent($artifacts, $mapSnapshot, $searchSnapshot)) {
-            return $this->abstained('evidence_became_stale', [
-                'map_snapshot' => $mapSnapshot,
-                'search_snapshot' => $searchSnapshot,
-            ]);
-        }
-
-        return [
-            'owner' => 'agent-map',
-            'status' => 'ready',
-            'evidence_status' => 'current_navigation_evidence',
-            'authority' => 'none',
-            'query_sha256' => hash('sha256', $query),
-            'map_snapshot' => $mapSnapshot,
-            'search_snapshot' => $searchSnapshot,
-            'search_mode' => $search['search_mode'],
-            'candidates' => $candidates,
-            ...$context,
-        ];
     }
 
     /** @return array<string, mixed>|null */
-    private function requestFailure(string $request): ?array
+    private function requestFailure(string $query): ?array
     {
-        $query = trim($request);
         if ($query === '') {
             return $this->abstained('request_empty');
         }
@@ -123,12 +88,118 @@ final readonly class WorkflowPrePlanDiscoveryProjector
         return MapArtifactPaths::forProject($this->rootPath, $layout->mapRoot());
     }
 
+    /** @return array<string, mixed> */
+    private function projectCurrentEvidence(
+        AgentMapIndex $map,
+        MapArtifactPaths $artifacts,
+        string $searchPath,
+        string $query,
+        string $mapSnapshot,
+        string $searchSnapshot,
+    ): array {
+        $search = (new WorkflowPrePlanSearchProjector())->project(
+            $map,
+            $searchPath,
+            $query,
+            $mapSnapshot,
+            $searchSnapshot,
+        );
+        if (($search['status'] ?? null) !== 'ready') {
+            return $search;
+        }
+        if (!is_array($search['candidates'] ?? null) || !is_string($search['search_mode'] ?? null)) {
+            return $this->abstained('search_projection_invalid', ['map_snapshot' => $mapSnapshot]);
+        }
+
+        $candidates = $this->candidateRows($search['candidates']);
+        $context = (new WorkflowPrePlanStructuralContextProjector())->project($map, $candidates);
+        if (!$this->evidenceIsCurrent($artifacts, $mapSnapshot, $searchSnapshot)) {
+            return $this->abstained('evidence_became_stale', [
+                'map_snapshot' => $mapSnapshot,
+                'search_snapshot' => $searchSnapshot,
+            ]);
+        }
+
+        return $this->readyProjection($query, $mapSnapshot, $searchSnapshot, $search['search_mode'], $candidates, $context);
+    }
+
+    /** @param array<mixed> $rows
+     * @return list<array<mixed>>
+     */
+    private function candidateRows(array $rows): array
+    {
+        $candidates = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $candidates[] = $row;
+            }
+        }
+
+        return $candidates;
+    }
+
+    /** @param list<array<mixed>> $candidates
+     * @param array{structural_context: list<array<string, mixed>>, blind_spots: list<array<string, mixed>>, omitted: list<array<string, mixed>>} $context
+     * @return array<string, mixed>
+     */
+    private function readyProjection(
+        string $query,
+        string $mapSnapshot,
+        string $searchSnapshot,
+        string $searchMode,
+        array $candidates,
+        array $context,
+    ): array {
+        return [
+            'owner' => 'agent-map',
+            'status' => 'ready',
+            'evidence_status' => 'current_navigation_evidence',
+            'authority' => 'none',
+            'query_sha256' => hash('sha256', $query),
+            'map_snapshot' => $mapSnapshot,
+            'search_snapshot' => $searchSnapshot,
+            'search_mode' => $searchMode,
+            'candidates' => $candidates,
+            ...$context,
+        ];
+    }
+
+    private function evidenceIsCurrent(MapArtifactPaths $artifacts, string $mapSnapshot, string $searchSnapshot): bool
+    {
+        $readiness = (new MapReadinessInspector())->inspect($artifacts);
+
+        return $readiness->rankedSearchReady()
+            && $readiness->mapSnapshot !== null
+            && hash_equals($mapSnapshot, $readiness->mapSnapshot)
+            && $readiness->searchSnapshot !== null
+            && hash_equals($searchSnapshot, $readiness->searchSnapshot);
+    }
+
+    /** @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private function abstained(string $reason, array $details = []): array
+    {
+        return [
+            'owner' => 'agent-map',
+            'status' => 'abstained',
+            'reason' => $reason,
+            'authority' => 'none',
+            ...$details,
+        ];
+    }
+}
+
+/** @internal */
+final readonly class WorkflowPrePlanSearchProjector
+{
+    private const int MAX_SEARCH_RESULTS = 5;
+
     /**
      * @return array<string, mixed>
-     *
      * @SuppressWarnings("PHPMD.StaticAccess")
      */
-    private function searchCandidates(
+    public function project(
         AgentMapIndex $map,
         string $searchPath,
         string $query,
@@ -176,7 +247,7 @@ final readonly class WorkflowPrePlanDiscoveryProjector
     }
 
     /** @param list<mixed> $rows
-     * @return list<array<string, mixed>>
+     * @return list<array<mixed>>
      */
     private function rankedCandidates(array $rows): array
     {
@@ -195,35 +266,83 @@ final readonly class WorkflowPrePlanDiscoveryProjector
     }
 
     /** @param array<string, mixed> $row
-     * @return array<string, mixed>|null
+     * @return array<mixed>|null
      */
     private function rankedCandidate(array $row, int $rank): ?array
     {
-        $symbolId = is_string($row['symbol_id'] ?? null) ? $row['symbol_id'] : '';
-        $filePath = is_string($row['file_path'] ?? null) ? $row['file_path'] : '';
-        if ($symbolId === '' || $filePath === '') {
+        $identity = $this->candidateIdentity($row);
+        if ($identity === null) {
             return null;
         }
 
         return [
             'rank' => $rank,
             'status' => 'ranked_unverified',
-            'symbol_id' => $symbolId,
-            'file_path' => $filePath,
+            ...$identity,
+            ...$this->candidateMetadata($row),
+        ];
+    }
+
+    /** @param array<string, mixed> $row
+     * @return array{symbol_id: string, file_path: string}|null
+     */
+    private function candidateIdentity(array $row): ?array
+    {
+        $symbolId = $row['symbol_id'] ?? null;
+        $filePath = $row['file_path'] ?? null;
+        if (!is_string($symbolId) || $symbolId === '' || !is_string($filePath) || $filePath === '') {
+            return null;
+        }
+
+        return ['symbol_id' => $symbolId, 'file_path' => $filePath];
+    }
+
+    /** @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function candidateMetadata(array $row): array
+    {
+        return [
             'start_line' => is_int($row['start_line'] ?? null) ? $row['start_line'] : null,
             'end_line' => is_int($row['end_line'] ?? null) ? $row['end_line'] : null,
-            'score' => is_float($row['rrf_score'] ?? null) || is_int($row['rrf_score'] ?? null)
-                ? (float) $row['rrf_score']
-                : null,
+            'score' => $this->numericScore($row['rrf_score'] ?? null),
             'channel_ranks' => is_array($row['channel_ranks'] ?? null) ? $row['channel_ranks'] : [],
             'reasons' => is_array($row['reasons'] ?? null) ? array_values(array_filter($row['reasons'], 'is_string')) : [],
         ];
     }
 
-    /** @param list<array<string, mixed>> $candidates
+    private function numericScore(mixed $score): ?float
+    {
+        return is_float($score) || is_int($score) ? (float) $score : null;
+    }
+
+    /** @param array<string, mixed> $details
+     * @return array<string, mixed>
+     */
+    private function abstained(string $reason, array $details = []): array
+    {
+        return [
+            'owner' => 'agent-map',
+            'status' => 'abstained',
+            'reason' => $reason,
+            'authority' => 'none',
+            ...$details,
+        ];
+    }
+}
+
+/** @internal */
+final readonly class WorkflowPrePlanStructuralContextProjector
+{
+    private const int MAX_EXPANDED_METHODS = 3;
+    private const int MAX_STRUCTURAL_SLICES = 12;
+    private const int MAX_BLIND_SPOTS = 12;
+    private const int MAX_OMITTED_CONTEXT = 12;
+
+    /** @param list<array<mixed>> $candidates
      * @return array{structural_context: list<array<string, mixed>>, blind_spots: list<array<string, mixed>>, omitted: list<array<string, mixed>>}
      */
-    private function structuralContext(AgentMapIndex $map, array $candidates): array
+    public function project(AgentMapIndex $map, array $candidates): array
     {
         $structural = [];
         $blindSpots = [];
@@ -250,7 +369,7 @@ final readonly class WorkflowPrePlanDiscoveryProjector
     }
 
     /**
-     * @param array<string, mixed> $candidate
+     * @param array<mixed> $candidate
      * @param list<array<string, mixed>> $structural
      * @param list<array<string, mixed>> $blindSpots
      * @param list<array<string, mixed>> $omitted
@@ -360,30 +479,5 @@ final readonly class WorkflowPrePlanDiscoveryProjector
                 'reason' => $omission->reason,
             ];
         }
-    }
-
-    private function evidenceIsCurrent(MapArtifactPaths $artifacts, string $mapSnapshot, string $searchSnapshot): bool
-    {
-        $readiness = (new MapReadinessInspector())->inspect($artifacts);
-
-        return $readiness->rankedSearchReady()
-            && $readiness->mapSnapshot !== null
-            && hash_equals($mapSnapshot, $readiness->mapSnapshot)
-            && $readiness->searchSnapshot !== null
-            && hash_equals($searchSnapshot, $readiness->searchSnapshot);
-    }
-
-    /** @param array<string, mixed> $details
-     * @return array<string, mixed>
-     */
-    private function abstained(string $reason, array $details = []): array
-    {
-        return [
-            'owner' => 'agent-map',
-            'status' => 'abstained',
-            'reason' => $reason,
-            'authority' => 'none',
-            ...$details,
-        ];
     }
 }
