@@ -13,6 +13,7 @@ use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionStageKind;
 use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentLoop\Execution\StageResult;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLearning\GuidanceOutcomeEventRepository;
 use voku\AgentLearning\RecallSelectionEventRepository;
@@ -174,7 +175,7 @@ final readonly class WorkflowCloseReadinessInspector
                     break;
                 }
             }
-            if (!$result instanceof \\voku\\AgentLoop\\Execution\\StageResult || $result->outcome !== StageOutcome::PASS) {
+            if (!$result instanceof StageResult || $result->outcome !== StageOutcome::PASS) {
                 return 'semantic review stage ' . $stage->id . ' has no accepted PASS result';
             }
             if (!hash_equals($result->candidateRevision, $state->candidateRevision)) {
