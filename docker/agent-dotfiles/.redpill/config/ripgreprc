@@ -1,0 +1,5 @@
+# Agent ripgrep defaults, selected by RIPGREP_CONFIG_PATH on explicit activation.
+# Only presentation is changed; no globs, depth or column limits that could hide
+# matches. agent_rg ignores this file (--no-config) for literal, host-independent
+# searches.
+--color=never

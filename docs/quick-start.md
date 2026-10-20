@@ -1,22 +1,31 @@
 # Your first governed task
 
-This is the shortest supported path from an installed `agent-loop` to one
-governed coding task. The host follows the lifecycle kernel instead of carrying
-its own map/Session/Recall/review choreography.
+This is the shortest supported path from the `agent-loop` checkout to one
+governed coding task. Use the Docker wrapper when PHP and Composer are not
+installed on the host. The host follows the lifecycle kernel instead of
+carrying its own map/Session/Recall/review choreography.
 
 ## 1. Bootstrap the repository and host
 
 ```bash
-vendor/bin/agent-loop init scaffold --demo
-vendor/bin/agent-loop init install-assets --agent=codex
-vendor/bin/agent-loop init doctor
+./docker/agent-loop init scaffold --demo --agent=codex
+./docker/agent-loop init doctor
 ```
+
+The Docker CLI image already includes PHP, Composer, the required extensions,
+Bash, ripgrep, and the reviewed `agent-dotfiles` profile. Bash commands launched
+through the wrapper inherit its plain-output defaults and `agent_*` helpers;
+there is no host PHP setup or manual profile-sourcing step. Select the coding
+host once with `--agent=<name>` when scaffolding so its project assets are
+installed in the same setup command. The selected host's files are tracked as
+managed project assets. The Docker shell profile has one reviewed default, so
+there is no profile selection or manual activation step.
 
 Replace `codex` with the host you actually use. For a real repository, prefer its
 real project prefix instead of tutorial state:
 
 ```bash
-vendor/bin/agent-loop init scaffold --prefix=PROJECT
+./docker/agent-loop init scaffold --prefix=PROJECT --agent=codex
 ```
 
 Project agent assets before starting the agent session that should consume them.
@@ -28,7 +37,7 @@ loaded the files.
 The ordinary lifecycle front door is:
 
 ```bash
-vendor/bin/agent-loop enter DEMO-1 --format=json
+./docker/agent-loop enter DEMO-1 --format=json
 ```
 
 For a new task, the result will normally be incomplete and provide a canonical
@@ -70,7 +79,7 @@ repository evidence before executing it. This is model-owned task construction,
 not a human approval gate. For example:
 
 ```bash
-vendor/bin/agent-loop workflow plan DEMO-1 \
+./docker/agent-loop workflow plan DEMO-1 \
   --by "$(git config user.name)" \
   --file composer.json \
   --goal "Add a small validated change." \
@@ -126,7 +135,7 @@ canonical next step; optional navigation remains host/tool choice.
 After host-native mutation, run:
 
 ```bash
-vendor/bin/agent-loop finish DEMO-1 --format=json
+./docker/agent-loop finish DEMO-1 --format=json
 ```
 
 Then obey the returned `next_action_kind` and `next_action` until the lifecycle
@@ -165,9 +174,9 @@ A complete structured result has no further lifecycle action. Useful diagnostic
 surfaces remain available:
 
 ```bash
-vendor/bin/agent-loop workflow status DEMO-1 --format=json
-vendor/bin/agent-loop workflow report DEMO-1 --format=json
-vendor/bin/agent-loop verify --task-id=DEMO-1
+./docker/agent-loop workflow status DEMO-1 --format=json
+./docker/agent-loop workflow report DEMO-1 --format=json
+./docker/agent-loop verify --task-id=DEMO-1
 ```
 
 These are diagnostics/read-only evidence, not another required happy-path
@@ -180,7 +189,7 @@ select it in the Contract before approval. The package that owns the recipe owns
 its schema and construction semantics. Example:
 
 ```bash
-vendor/bin/agent-loop workflow plan PROJECT-1 \
+./docker/agent-loop workflow plan PROJECT-1 \
   --by "$(git config user.name)" \
   --file src/SomeOwningClass.php \
   --goal "Find and fix the smallest evidenced workflow integration gap." \

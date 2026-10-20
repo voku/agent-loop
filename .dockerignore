@@ -11,5 +11,8 @@
 !resources/**
 !docker/
 !docker/entrypoint.sh
+!docker/container-bash-env.sh
+!docker/agent-dotfiles/
+!docker/agent-dotfiles/**
 !docker/agent-ui/
 !docker/agent-ui/**
