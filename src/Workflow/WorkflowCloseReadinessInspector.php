@@ -183,10 +183,6 @@ final readonly class WorkflowCloseReadinessInspector
             if ($stage->contextPolicy !== ExecutionContextPolicy::FRESH_REQUIRED || $result->contextId === null) {
                 return 'semantic review stage ' . $stage->id . ' has no fresh observed context identity';
             }
-            if ($result->artifactReferences === []) {
-                return 'semantic review stage ' . $stage->id . ' has no candidate-file evidence';
-            }
-
             foreach ($stage->requires as $requiredStageId) {
                 $requiredStage = $plan->stage($requiredStageId);
                 if ($requiredStage->kind !== ExecutionStageKind::AGENT) {
