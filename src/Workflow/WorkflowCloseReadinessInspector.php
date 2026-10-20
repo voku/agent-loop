@@ -5,6 +5,15 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
+use voku\AgentLoop\Execution\ExecutionContextPolicy;
+use voku\AgentLoop\Execution\ExecutionEvidenceKind;
+use voku\AgentLoop\Execution\ExecutionEvidenceStore;
+use voku\AgentLoop\Execution\ExecutionPlan;
+use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionProfileName;
+use voku\AgentLoop\Execution\ExecutionStageKind;
+use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLearning\GuidanceOutcomeEventRepository;
 use voku\AgentLearning\RecallSelectionEventRepository;
 use voku\AgentLearning\RunLearningDecisionStore;
@@ -67,6 +76,11 @@ final readonly class WorkflowCloseReadinessInspector
         if ($learningBindingFailure !== null) {
             $nonWaivable[] = ['gate' => 'integrity', 'detail' => $learningBindingFailure];
         }
+
+        $executionReviewFailure = $this->independentReviewPipelineFailure($contract, $run);
+        if ($executionReviewFailure !== null) {
+            $nonWaivable[] = ['gate' => 'execution_review', 'detail' => $executionReviewFailure];
+        }
         if ($nonWaivable !== []) {
             return new WorkflowCloseReadiness($boundary, $nonWaivable, [], [], []);
         }
@@ -100,6 +114,114 @@ final readonly class WorkflowCloseReadinessInspector
             $validation['obligations'],
             $passedMessages,
         );
+    }
+
+    private function independentReviewPipelineFailure(TaskContract $contract, GovernedRun $run): ?string
+    {
+        $plan = (new ExecutionPlanStore($this->rootPath))->find($contract->taskId);
+        if ($plan === null) {
+            return 'missing execution plan for the approved Run';
+        }
+        if (
+            $plan->runId !== $run->runId
+            || $plan->contractRevision !== $contract->revision
+            || $plan->contractSource !== $run->contractSource
+        ) {
+            return 'execution plan is stale for the current Run and Contract';
+        }
+        if ($plan->profile === ExecutionProfileName::MANUAL) {
+            return null;
+        }
+
+        $state = (new ExecutionStateStore($this->rootPath))->find($contract->taskId);
+        if ($state === null) {
+            return 'independent review pipeline has not started';
+        }
+        if (
+            $state->taskId !== $contract->taskId
+            || $state->runId !== $run->runId
+            || $state->contractRevision !== $contract->revision
+            || !hash_equals($state->executionPlanDigest, $plan->digest())
+        ) {
+            return 'execution state is stale for the current Run and execution plan';
+        }
+        if ($state->attention !== null) {
+            return 'independent review pipeline is waiting for Attention';
+        }
+        if ($state->currentStageId !== null) {
+            return 'independent review pipeline is incomplete at stage ' . $state->currentStageId;
+        }
+
+        $reviewStages = [];
+        foreach ($plan->stages as $stage) {
+            if ($stage->kind !== ExecutionStageKind::AGENT || $stage->roleId === null) {
+                continue;
+            }
+            $capabilities = $plan->role($stage->roleId)->requiredCapabilities;
+            if (in_array('review', $capabilities, true) || in_array('architecture-review', $capabilities, true)) {
+                $reviewStages[] = $stage;
+            }
+        }
+        if ($reviewStages === []) {
+            return 'selected non-manual profile has no semantic review stage';
+        }
+
+        foreach ($reviewStages as $stage) {
+            $result = null;
+            foreach (array_reverse($state->history) as $accepted) {
+                if ($accepted->result->stageId === $stage->id) {
+                    $result = $accepted->result;
+                    break;
+                }
+            }
+            if (!$result instanceof \\voku\\AgentLoop\\Execution\\StageResult || $result->outcome !== StageOutcome::PASS) {
+                return 'semantic review stage ' . $stage->id . ' has no accepted PASS result';
+            }
+            if (!hash_equals($result->candidateRevision, $state->candidateRevision)) {
+                return 'semantic review stage ' . $stage->id . ' is stale for the final candidate';
+            }
+            if ($stage->contextPolicy !== ExecutionContextPolicy::FRESH_REQUIRED || $result->contextId === null) {
+                return 'semantic review stage ' . $stage->id . ' has no fresh observed context identity';
+            }
+            if ($result->artifactReferences === []) {
+                return 'semantic review stage ' . $stage->id . ' has no candidate-file evidence';
+            }
+
+            foreach ($stage->requires as $requiredStageId) {
+                $requiredStage = $plan->stage($requiredStageId);
+                if ($requiredStage->kind !== ExecutionStageKind::AGENT) {
+                    continue;
+                }
+                $predecessor = null;
+                foreach (array_reverse($state->history) as $accepted) {
+                    if ($accepted->result->stageId === $requiredStageId) {
+                        $predecessor = $accepted->result;
+                        break;
+                    }
+                }
+                if (
+                    $predecessor === null
+                    || $predecessor->contextId === null
+                    || hash_equals($predecessor->contextId, $result->contextId)
+                ) {
+                    return 'semantic review stage ' . $stage->id . ' cannot prove isolation from predecessor ' . $requiredStageId;
+                }
+            }
+
+            $evidence = new ExecutionEvidenceStore($this->rootPath);
+            foreach ($result->artifactReferences as $reference) {
+                $evidence->assertCurrent(
+                    $reference,
+                    ExecutionEvidenceKind::ARTIFACT,
+                    $plan,
+                    $result->stageId,
+                    $result->attempt,
+                    $result->candidateRevision,
+                );
+            }
+        }
+
+        return null;
     }
 
     /**
