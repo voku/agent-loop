@@ -39,7 +39,7 @@ final readonly class WorkflowCloseCommand
                         'task_id' => $taskId->value,
                         'status' => 'error',
                         'error' => 'workflow close currently gates only --status done. Use agent-loop session close directly for other statuses.',
-                        'next_action_kind' => 'host_work',
+                        'next_action_kind' => $gate === 'execution_review' ? 'command' : 'host_work',
                     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
                     return 1;
@@ -97,11 +97,14 @@ final readonly class WorkflowCloseCommand
                 $msg = match ($gate) {
                     'contract_binding' => 'accepted risk cannot waive Contract binding; session was not closed.',
                     'execution_contract' => "Run agent-loop workflow status {$taskId->value} --format=json and satisfy or revise the execution contract. Accepted risk does not bypass this contract gate.",
+                    'execution_review' => 'independent review must complete before successful close; session was not closed.',
                     default => 'stale post-execution evidence cannot be accepted as risk; session was not closed.',
                 };
-                $nextAction = $gate === 'execution_contract'
-                    ? "agent-loop workflow status {$taskId->value} --format=json"
-                    : 'none';
+                $nextAction = match ($gate) {
+                    'execution_contract' => "agent-loop workflow status {$taskId->value} --format=json",
+                    'execution_review' => "agent-loop pipeline status {$taskId->value} --format=json",
+                    default => 'none',
+                };
 
                 if ($options['format'] === 'json') {
                     echo json_encode([
@@ -122,6 +125,8 @@ final readonly class WorkflowCloseCommand
                     echo "[FAIL] workflow close: accepted risk cannot waive Contract binding; session was not closed.\n";
                 } elseif ($gate === 'execution_contract') {
                     echo "[ACTION REQUIRED] Run agent-loop workflow status {$taskId->value} --format=json and satisfy or revise the execution contract. Accepted risk does not bypass this contract gate.\n";
+                } elseif ($gate === 'execution_review') {
+                    echo "[ACTION REQUIRED] Run agent-loop pipeline status {$taskId->value} --format=json, complete the independent review stages, then close again.\n";
                 } else {
                     echo "[FAIL] workflow close: stale post-execution evidence cannot be accepted as risk; session was not closed.\n";
                 }
