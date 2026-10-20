@@ -112,7 +112,7 @@ final readonly class WorkflowPrePlanDiscoveryProjector
         }
 
         $candidates = $this->candidateRows($search['candidates']);
-        $context = (new WorkflowPrePlanStructuralContextProjector())->project($map, $candidates);
+        $context = (new WorkflowPrePlanContextProjector())->project($map, $candidates);
         if (!$this->evidenceIsCurrent($artifacts, $mapSnapshot, $searchSnapshot)) {
             return $this->abstained('evidence_became_stale', [
                 'map_snapshot' => $mapSnapshot,
@@ -332,7 +332,7 @@ final readonly class WorkflowPrePlanSearchProjector
 }
 
 /** @internal */
-final readonly class WorkflowPrePlanStructuralContextProjector
+final readonly class WorkflowPrePlanContextProjector
 {
     private const int MAX_EXPANDED_METHODS = 3;
     private const int MAX_STRUCTURAL_SLICES = 12;
