@@ -116,6 +116,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             "submit", "PIPE-2",
             "--outcome=changes_required",
             "--summary=Add missing null-check in Foo.php.", "--context-id=ctx:review-1",
+            "--artifact=src/Foo.php",
             "--format=json",
         ]);
         self::assertSame(0, $res3["exit"]);

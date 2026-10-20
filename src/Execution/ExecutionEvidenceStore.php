@@ -65,7 +65,7 @@ final readonly class ExecutionEvidenceStore
         string $stageId,
         int $attempt,
         string $candidateRevision,
-    ): void {
+    ): ExecutionEvidenceClaim {
         $record = $this->load($plan->taskId, $reference);
         $claim = $record->claim;
         if ($claim->taskId !== $plan->taskId
@@ -78,6 +78,8 @@ final readonly class ExecutionEvidenceStore
             || $claim->kind !== $kind) {
             throw new RuntimeException('STALE_EVIDENCE: owner evidence does not match the current execution binding.');
         }
+
+        return $claim;
     }
 
     private function load(string $taskId, string $reference): ExecutionEvidenceRecord

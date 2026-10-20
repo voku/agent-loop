@@ -76,6 +76,7 @@ jobs:
             --operating-prompt-manifest "${catalog}" \
             --operating-prompt '{"id":"adversarial-review","arguments":{"minimum_failure_modes":3}}'
           php vendor/bin/agent-loop workflow approve PROMPT-ADVERSARIAL --by prompt-sync-approver
+          php vendor/bin/agent-loop workflow execution-profile PROMPT-ADVERSARIAL --profile manual --by prompt-sync-approver
 
           entered=0
           php vendor/bin/agent-loop enter PROMPT-ADVERSARIAL || entered=$?
