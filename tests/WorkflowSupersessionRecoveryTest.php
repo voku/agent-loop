@@ -322,6 +322,7 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
     /** @return array{exit: int, payload: array<string, mixed>} */
     private function enter(): array
     {
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, self::TASK_ID);
         ob_start();
         try {
             $exit = (new HostFrontDoorCommand(

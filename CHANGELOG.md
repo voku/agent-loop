@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fixed
+
+- Governed Runs now default to the standard independent-review profile. Successful close for non-manual profiles requires a completed, current review pipeline with fresh reviewer contexts and current candidate-file evidence covering every changed file; explicit `manual` selection remains available.
+- Reviewer `PASS` results now fail closed when they omit candidate evidence or leave changed candidate files uncovered. Review prompts use the guaranteed first-draft review even when optional engineering lenses are not installed.
+
 ## [0.20.67] - 2026-10-20
 
 ### Fixed

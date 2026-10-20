@@ -139,6 +139,249 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
         self::addToAssertionCount(1);
     }
 
+    public function testReviewerPassWithoutChangedFileEvidenceIsRejected(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 1;\n");
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Example.php');
+        $this->git('commit', '-qm', 'base');
+        $baseCommit = $this->git('rev-parse', 'HEAD');
+
+        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 2;\n");
+        $this->git('add', 'src/Example.php');
+        $candidateTree = $this->git('write-tree');
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+        $role = new ExecutionRole('reviewer', false, ['review']);
+        $stage = new ExecutionStage(
+            'review',
+            ExecutionStageKind::AGENT,
+            'reviewer',
+            false,
+            [],
+            [StageOutcome::PASS->value => null],
+            \voku\AgentLoop\Execution\ExecutionContextPolicy::FRESH_REQUIRED,
+        );
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:review-evidence-required',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            $baseCommit,
+            ExecutionProfileName::SURGICAL,
+            [$role],
+            [$stage],
+            '2026-08-24T00:00:00+00:00',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            null,
+            [],
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('review PASS must cite every changed candidate file');
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $stage,
+            new StageResult(
+                'submission:review-without-evidence',
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $plan->digest(),
+                'review',
+                1,
+                StageOutcome::PASS,
+                $candidateRevision,
+                [],
+                [],
+                'Review complete.',
+                'ctx:fresh-review',
+            ),
+        );
+    }
+
+    public function testGitBaseFileEvidenceUsesOriginalObjectDespiteReplacementRefs(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        $baseContents = "<?php\nreturn 1;\n";
+        file_put_contents($this->root . '/src/Example.php', $baseContents);
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Example.php');
+        $this->git('commit', '-qm', 'base');
+        $baseCommit = $this->git('rev-parse', 'HEAD');
+
+        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 2;\n");
+        $this->git('add', 'src/Example.php');
+        $this->git('commit', '-qm', 'replacement');
+        $replacementCommit = $this->git('rev-parse', 'HEAD');
+        $this->git('replace', $baseCommit, $replacementCommit);
+        $this->git('rm', 'src/Example.php');
+        $candidateTree = $this->git('write-tree');
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+        $role = new ExecutionRole('reviewer', false, ['review']);
+        $stage = new ExecutionStage(
+            'review',
+            ExecutionStageKind::AGENT,
+            'reviewer',
+            false,
+            [],
+            [StageOutcome::PASS->value => null],
+            \voku\AgentLoop\Execution\ExecutionContextPolicy::FRESH_REQUIRED,
+        );
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:original-base-evidence',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            $baseCommit,
+            ExecutionProfileName::SURGICAL,
+            [$role],
+            [$stage],
+            '2026-08-24T00:00:00+00:00',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            null,
+            [],
+        );
+        $reference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            'git-base-file:src/Example.php',
+            'sha256:' . hash('sha256', $baseContents),
+        ));
+
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $stage,
+            new StageResult(
+                'submission:original-base-evidence',
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $plan->digest(),
+                'review',
+                1,
+                StageOutcome::PASS,
+                $candidateRevision,
+                [$reference],
+                [],
+                'Reviewed the deletion from the original base.',
+                'ctx:fresh-review',
+            ),
+        );
+        self::addToAssertionCount(1);
+    }
+
+    public function testGitBaseFileEvidenceIsRejectedWhenChangedPathStillExists(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        $baseContents = "<?php\nreturn 1;\n";
+        file_put_contents($this->root . '/src/Example.php', $baseContents);
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Example.php');
+        $this->git('commit', '-qm', 'base');
+        $baseCommit = $this->git('rev-parse', 'HEAD');
+
+        file_put_contents($this->root . '/src/Example.php', "<?php\nreturn 2;\n");
+        $this->git('add', 'src/Example.php');
+        $candidateTree = $this->git('write-tree');
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+        $role = new ExecutionRole('reviewer', false, ['review']);
+        $stage = new ExecutionStage(
+            'review',
+            ExecutionStageKind::AGENT,
+            'reviewer',
+            false,
+            [],
+            [StageOutcome::PASS->value => null],
+        );
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:deleted-file-evidence',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            $baseCommit,
+            ExecutionProfileName::SURGICAL,
+            [$role],
+            [$stage],
+            '2026-08-24T00:00:00+00:00',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            null,
+            [],
+        );
+        $reference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            'git-base-file:src/Example.php',
+            'sha256:' . hash('sha256', $baseContents),
+        ));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('git-base-file evidence is valid only when the path is absent from the candidate');
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $stage,
+            new StageResult(
+                'submission:deleted-file-evidence',
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $plan->digest(),
+                'review',
+                1,
+                StageOutcome::PASS,
+                $candidateRevision,
+                [$reference],
+                [],
+                'Reviewed the changed file.',
+            ),
+        );
+    }
+
     private function plan(): ExecutionPlan
     {
         $role = new ExecutionRole('reviewer', false, []);
@@ -203,6 +446,20 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
             $validationReferences,
             'Review complete.',
         );
+    }
+
+    private function git(string ...$arguments): string
+    {
+        exec(
+            'git -C ' . escapeshellarg($this->root) . ' ' . implode(' ', array_map('escapeshellarg', $arguments)) . ' 2>&1',
+            $output,
+            $exit,
+        );
+        if ($exit !== 0) {
+            throw new RuntimeException('git ' . implode(' ', $arguments) . ' failed: ' . implode("\n", $output));
+        }
+
+        return trim(implode("\n", $output));
     }
 
     private function rm(string $path): void

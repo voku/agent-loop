@@ -78,11 +78,14 @@ final readonly class RunPolicyEvaluator
         if (in_array($reviewState, ['missing', 'invalid', 'stale', 'unacknowledged'], true)) {
             return 'incomplete';
         }
+        $verificationState = $this->referenceState($references, 'verification');
+        if ($verificationState === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review') {
+            return 'blocked';
+        }
         if ($this->referenceState($references, 'learning') !== 'decided') {
             return 'incomplete';
         }
-
-        $verificationState = $this->referenceState($references, 'verification');
         if (in_array($verificationState, ['failed', 'blocked', 'invalid'], true)) {
             return 'blocked';
         }
@@ -427,6 +430,16 @@ final readonly class RunPolicyEvaluator
 
             return $action === null
                 ? $this->command('agent-loop', ['finish', $taskId])
+                : $this->classifyAction($action, $references['verification']['action_invocation'] ?? null);
+        }
+        if (
+            $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review'
+        ) {
+            $action = $this->referenceAction($references, 'verification');
+
+            return $action === null
+                ? $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json'])
                 : $this->classifyAction($action, $references['verification']['action_invocation'] ?? null);
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {

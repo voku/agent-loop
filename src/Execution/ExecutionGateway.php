@@ -109,6 +109,43 @@ final readonly class ExecutionGateway
         return (new ExecutionEvidenceStore($this->rootPath))->record($claim);
     }
 
+    /**
+     * Turn a reviewer's candidate-relative path citation into owner-validated artifact evidence.
+     *
+     * The digest is read from the immutable candidate tree (or governed base for deleted files), so the
+     * submitted evidence cannot silently describe a different working-tree version.
+     */
+    public function recordStageArtifactPath(StageExecutionBundle $bundle, string $reference): string
+    {
+        $deleted = str_starts_with($reference, 'deleted-file:');
+        if ($deleted) {
+            $relativePath = substr($reference, strlen('deleted-file:'));
+            $treeish = $bundle->baseCommit
+                ?? throw new RuntimeException('MISSING_EVIDENCE: deleted-file citation requires a governed Git base.');
+            $sourceReference = 'git-base-file:' . $relativePath;
+        } else {
+            $relativePath = str_starts_with($reference, 'workspace-file:')
+                ? substr($reference, strlen('workspace-file:'))
+                : $reference;
+            $treeish = $this->candidateTreeish($bundle);
+            $sourceReference = 'workspace-file:' . $relativePath;
+        }
+        $this->assertCanonicalArtifactPath($relativePath);
+        $digest = $this->gitBlobDigest($treeish, $relativePath);
+
+        return $this->recordStageArtifact(new StageArtifactObservation(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $bundle->candidateRevision,
+            $sourceReference,
+            $digest,
+        ));
+    }
+
     public function submitStageResult(StageResult $result): ExecutionProjection
     {
         [, , $plan] = $this->current($result->taskId);
@@ -346,6 +383,84 @@ final readonly class ExecutionGateway
     }
 
     /** @return array{TaskContract, GovernedRun, ExecutionPlan} */
+    private function candidateTreeish(StageExecutionBundle $bundle): string
+    {
+        $baseCommit = $bundle->baseCommit
+            ?? throw new RuntimeException('MISSING_EVIDENCE: review citation requires a governed Git base.');
+        if (hash_equals($baseCommit, $bundle->candidateRevision)) {
+            return $baseCommit;
+        }
+        if (preg_match(
+            '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $bundle->candidateRevision,
+            $matches,
+        ) !== 1) {
+            throw new RuntimeException('MISSING_EVIDENCE: review citation is not bound to the governed Git candidate.');
+        }
+
+        return $matches[1];
+    }
+
+    private function assertCanonicalArtifactPath(string $path): void
+    {
+        if ($path === ''
+            || str_starts_with($path, '/')
+            || str_contains($path, "\0")
+            || str_contains($path, '\\')) {
+            throw new RuntimeException('INVALID_STAGE_RESULT: artifact citation must be a canonical workspace-relative path.');
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new RuntimeException('INVALID_STAGE_RESULT: artifact citation contains an unsafe path segment.');
+            }
+        }
+    }
+
+    private function gitBlobDigest(string $treeish, string $path): string
+    {
+        if (preg_match('/^[0-9a-f]{40,64}$/', $treeish) !== 1) {
+            throw new RuntimeException('MISSING_EVIDENCE: artifact citation is not bound to an exact Git object.');
+        }
+        $process = proc_open(
+            ['git', '--no-replace-objects', 'cat-file', 'blob', $treeish . ':' . $path],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $this->rootPath,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('MISSING_EVIDENCE: unable to read the cited file from the governed Git object.');
+        }
+        fclose($pipes[0]);
+        $hash = hash_init('sha256');
+        while (!feof($pipes[1])) {
+            $chunk = fread($pipes[1], 1024 * 1024);
+            if ($chunk === false) {
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_terminate($process);
+                proc_close($process);
+                throw new RuntimeException('MISSING_EVIDENCE: unable to read the cited file from the governed Git object.');
+            }
+            hash_update($hash, $chunk);
+        }
+        fclose($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: cited file is not present in the governed Git object: '
+                . trim(is_string($error) ? $error : ''),
+            );
+        }
+
+        return 'sha256:' . hash_final($hash);
+    }
+
     private function current(string $taskId): array
     {
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
@@ -502,6 +617,15 @@ final readonly class ExecutionGateway
             // deterministic verify stage runs it on this exact candidate, "could not run it" is not a finding.
             $lines[] = 'Required validation is executed by the deterministic verify stage on this exact candidate after this stage; a failing command there stops the plan.';
             $lines[] = 'Do not return blocked or fail only because you could not run it here. Judge the candidate against the Contract and state what you could not check.';
+        }
+
+        $roleCapabilities = $stage->roleId === null ? [] : $plan->role($stage->roleId)->requiredCapabilities;
+        if (in_array('review', $roleCapabilities, true) || in_array('architecture-review', $roleCapabilities, true)) {
+            $lines[] = '';
+            $lines[] = 'Review the complete raw diff against the approved Contract and task evidence.';
+            $lines[] = 'Before returning PASS, list every changed candidate file path in artifact_references; the owner checks that this set covers the complete governed diff.';
+            $lines[] = 'For CHANGES_REQUIRED, cite at least one current candidate file that supports each material finding.';
+            $lines[] = 'artifact_references entries are workspace-relative paths, not owner evidence IDs; use deleted-file:<path> for a path removed from the candidate.';
         }
 
         if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {

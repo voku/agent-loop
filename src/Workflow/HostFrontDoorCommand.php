@@ -8,6 +8,8 @@ use Closure;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\Execution\ExecutionProfileName;
+use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
@@ -1182,7 +1184,8 @@ final readonly class HostFrontDoorCommand
     {
         if ($this->helpRequested($args)) {
             echo "Usage: agent-loop quick [task-id] \"<goal>\" --file=<path> [--file=<path2>] [--verify=\"<cmd>\"] [--actor=<name>] [--format text|json] [--max-lines N] [--max-bytes N]\n";
-            echo "Initiate, approve, and enter a bounded fast-path micro-task within up to 2 target files.\n";
+            echo "Initiate, approve, and enter a bounded manual fast-path micro-task within up to 2 target files.\n";
+            echo "Use agent-loop enter for the standard independent-review pipeline.\n";
 
             return 0;
         }
@@ -1272,6 +1275,12 @@ final readonly class HostFrontDoorCommand
             ],
         );
         $contractStore->approve($taskId->value, $actor);
+        // Invoking `quick` is the explicit manual-profile choice for this bounded fast path.
+        (new ExecutionProfileSelectionStore($this->rootPath))->select(
+            $taskId->value,
+            ExecutionProfileName::MANUAL,
+            $actor,
+        );
 
         $preparationWarning = $this->prepareApprovedRun($taskId->value);
         $manifest = (new RunManifestProjector($this->rootPath))->project($taskId->value);

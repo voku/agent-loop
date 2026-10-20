@@ -53,6 +53,10 @@ final class PromptPrimitivesDogfood
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
                 '--by', self::APPROVER,
             ]);
+            $this->runCommand([
+                'vendor/bin/agent-loop', 'workflow', 'execution-profile', self::TASK_ID,
+                '--profile', 'manual', '--by', self::APPROVER,
+            ]);
             $entered = $this->runCommand([
                 'vendor/bin/agent-loop', 'enter', self::TASK_ID, '--format=json',
             ]);

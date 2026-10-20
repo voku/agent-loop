@@ -22,8 +22,9 @@ final readonly class ExecutionStageResultAuthority
         $this->assertExecutionContext($plan, $state, $stage, $result);
 
         $evidence = new ExecutionEvidenceStore($this->rootPath);
+        $artifactClaims = [];
         foreach ($result->artifactReferences as $reference) {
-            $evidence->assertCurrent(
+            $claim = $evidence->assertCurrent(
                 $reference,
                 ExecutionEvidenceKind::ARTIFACT,
                 $plan,
@@ -31,6 +32,17 @@ final readonly class ExecutionStageResultAuthority
                 $result->attempt,
                 $result->candidateRevision,
             );
+            if (
+                str_starts_with($claim->sourceReference, 'workspace-file:')
+                || str_starts_with($claim->sourceReference, 'git-base-file:')
+            ) {
+                // Evidence may have been persisted through any owner-side
+                // entry point. Recheck file claims at acceptance so a reviewer
+                // cannot pass by directly storing a stale or misclassified
+                // artifact claim.
+                $this->assertArtifactClaim($plan, $claim);
+            }
+            $artifactClaims[] = $claim;
         }
         foreach ($result->validationReferences as $reference) {
             $evidence->assertCurrent(
@@ -53,6 +65,8 @@ final readonly class ExecutionStageResultAuthority
                 $result->candidateRevision,
             );
         }
+
+        $this->assertReviewEvidence($plan, $stage, $result, $artifactClaims);
 
         if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
             // Validation references are the Contract commands verify executed on the candidate (each asserted current
@@ -158,6 +172,111 @@ final readonly class ExecutionStageResultAuthority
         return null;
     }
 
+    /**
+     * @param list<ExecutionEvidenceClaim> $artifactClaims
+     */
+    private function assertReviewEvidence(
+        ExecutionPlan $plan,
+        ExecutionStage $stage,
+        StageResult $result,
+        array $artifactClaims,
+    ): void {
+        if ($stage->kind !== ExecutionStageKind::AGENT || $stage->roleId === null) {
+            return;
+        }
+
+        $capabilities = $plan->role($stage->roleId)->requiredCapabilities;
+        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+            return;
+        }
+        if (!in_array($result->outcome, [StageOutcome::PASS, StageOutcome::CHANGES_REQUIRED], true)) {
+            return;
+        }
+        if ($result->outcome === StageOutcome::CHANGES_REQUIRED && $artifactClaims === []) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: review stage ' . $stage->id
+                . ' must cite current candidate files before returning ' . $result->outcome->value . '.',
+            );
+        }
+        if ($result->outcome === StageOutcome::PASS) {
+            $this->assertCompleteReviewCoverage($plan, $result, $artifactClaims);
+        }
+    }
+
+    /**
+     * A review PASS must reference every file changed from the governed base.
+     *
+     * @param list<ExecutionEvidenceClaim> $artifactClaims
+     */
+    private function assertCompleteReviewCoverage(
+        ExecutionPlan $plan,
+        StageResult $result,
+        array $artifactClaims,
+    ): void {
+        if ($plan->baseCommit === null) {
+            throw new RuntimeException('MISSING_EVIDENCE: review PASS is not bound to the governed Git candidate.');
+        }
+        if (hash_equals($plan->baseCommit, $result->candidateRevision)) {
+            $candidateTree = $plan->baseCommit;
+        } elseif (preg_match(
+            '/^git-tree-v1:' . preg_quote($plan->baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $result->candidateRevision,
+            $matches,
+        ) === 1) {
+            $candidateTree = $matches[1];
+        } else {
+            throw new RuntimeException('MISSING_EVIDENCE: review PASS is not bound to the governed Git candidate.');
+        }
+
+        $root = realpath($this->rootPath);
+        if (!is_string($root)) {
+            throw new RuntimeException('MISSING_EVIDENCE: repository root cannot be resolved for review coverage.');
+        }
+        $process = proc_open(
+            ['git', '--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $plan->baseCommit, $candidateTree, '--'],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('MISSING_EVIDENCE: unable to inspect changed files for review coverage.');
+        }
+        fclose($pipes[0]);
+        $changedOutput = stream_get_contents($pipes[1]);
+        $errorOutput = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0 || !is_string($changedOutput)) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: unable to inspect changed files for review coverage: '
+                . trim(is_string($errorOutput) ? $errorOutput : ''),
+            );
+        }
+
+        $reviewed = [];
+        foreach ($artifactClaims as $claim) {
+            foreach (['workspace-file:', 'git-base-file:'] as $prefix) {
+                if (str_starts_with($claim->sourceReference, $prefix)) {
+                    $reviewed[substr($claim->sourceReference, strlen($prefix))] = true;
+                    break;
+                }
+            }
+        }
+        $changed = array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
+        $missing = array_values(array_filter($changed, static fn (string $path): bool => !isset($reviewed[$path])));
+        if ($missing !== []) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: review PASS must cite every changed candidate file; missing: '
+                . implode(', ', $missing),
+            );
+        }
+    }
+
     private function assertCandidateClaim(
         ExecutionPlan $plan,
         ExecutionState $state,
@@ -243,7 +362,7 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('STALE_CANDIDATE: repository root cannot be resolved.');
         }
         $process = proc_open(
-            ['git', 'cat-file', '-t', $tree],
+            ['git', '--no-replace-objects', 'cat-file', '-t', $tree],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -268,11 +387,28 @@ final readonly class ExecutionStageResultAuthority
 
     private function assertArtifactClaim(ExecutionPlan $plan, ExecutionEvidenceClaim $claim): void
     {
-        $prefix = 'workspace-file:';
-        if (!str_starts_with($claim->sourceReference, $prefix)) {
-            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a workspace file.');
+        $workspacePrefix = 'workspace-file:';
+        $basePrefix = 'git-base-file:';
+        $candidateTree = null;
+        if (str_starts_with($claim->sourceReference, $workspacePrefix)) {
+            $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
+            $relativePath = substr($claim->sourceReference, strlen($workspacePrefix));
+        } elseif (str_starts_with($claim->sourceReference, $basePrefix)) {
+            $stage = $plan->stage($claim->stageId);
+            $capabilities = $stage->roleId === null ? [] : $plan->role($stage->roleId)->requiredCapabilities;
+            if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+                throw new RuntimeException('EVIDENCE_MISMATCH: base-file evidence is accepted only for review stages.');
+            }
+            $treeish = $plan->baseCommit
+                ?? throw new RuntimeException('STALE_EVIDENCE: deleted-file evidence has no governed Git base.');
+            $candidateTree = $this->candidateTreeish($plan, $claim->candidateRevision);
+            $relativePath = substr($claim->sourceReference, strlen($basePrefix));
+        } else {
+            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a candidate or deleted base file.');
         }
-        $relativePath = substr($claim->sourceReference, strlen($prefix));
+        if (preg_match('/^[0-9a-f]{40,64}$/', $treeish) !== 1) {
+            throw new RuntimeException('STALE_EVIDENCE: artifact source is not bound to an exact Git object.');
+        }
         if ($relativePath === ''
             || str_starts_with($relativePath, '/')
             || str_contains($relativePath, "\0")
@@ -285,13 +421,15 @@ final readonly class ExecutionStageResultAuthority
             }
         }
 
-        $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
         $root = realpath($this->rootPath);
         if (!is_string($root)) {
             throw new RuntimeException('STALE_EVIDENCE: repository root cannot be resolved for artifact verification.');
         }
+        if ($candidateTree !== null) {
+            $this->assertPathAbsentFromCandidate($candidateTree, $relativePath, $root);
+        }
         $process = proc_open(
-            ['git', 'cat-file', 'blob', $treeish . ':' . $relativePath],
+            ['git', '--no-replace-objects', 'cat-file', 'blob', $treeish . ':' . $relativePath],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -326,6 +464,32 @@ final readonly class ExecutionStageResultAuthority
         $actualDigest = 'sha256:' . hash_final($hash);
         if (!hash_equals($actualDigest, $claim->sourceDigest)) {
             throw new RuntimeException('EVIDENCE_MISMATCH: artifact digest does not match the governed candidate content.');
+        }
+    }
+
+    private function assertPathAbsentFromCandidate(string $candidateTree, string $relativePath, string $root): void
+    {
+        $process = proc_open(
+            ['git', '--no-replace-objects', 'cat-file', '-e', $candidateTree . ':' . $relativePath],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('MISSING_EVIDENCE: unable to verify deleted-file evidence against the candidate.');
+        }
+        fclose($pipes[0]);
+        stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit === 0) {
+            throw new RuntimeException('EVIDENCE_MISMATCH: git-base-file evidence is valid only when the path is absent from the candidate.');
         }
     }
 

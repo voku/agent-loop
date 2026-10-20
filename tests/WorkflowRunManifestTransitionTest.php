@@ -67,6 +67,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
         $contracts->approve('ABC-123', 'lars');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         $recallCalls = 0;
 
         $command = new HostFrontDoorCommand(
@@ -109,6 +110,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
         self::assertNull((new GovernedRunStore($this->root))->find('ABC-123'));
         self::assertSame([], (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
 
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         ob_start();
         $firstExit = (new HostFrontDoorCommand(
             $this->root,
@@ -220,6 +222,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         ob_start();
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         self::assertSame(
             0,
             (new HostFrontDoorCommand($this->root))->run('enter', ['ABC-123', '--format=json']),
