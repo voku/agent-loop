@@ -452,6 +452,17 @@ final readonly class ExecutionGateway
         return $result;
     }
 
+    private function endsInDeterministicVerify(ExecutionPlan $plan): bool
+    {
+        foreach ($plan->stages as $candidate) {
+            if ($candidate->kind === ExecutionStageKind::DETERMINISTIC && $candidate->id === 'verify') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** @param list<StageOutcome> $acceptedOutcomes */
     private function prompt(
         TaskContract $contract,
@@ -485,6 +496,13 @@ final readonly class ExecutionGateway
             'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
+
+        if ($stage->kind === ExecutionStageKind::AGENT && !$stage->mayMutate && $stage->requires !== [] && $this->endsInDeterministicVerify($plan)) {
+            // A read-only stage after the build usually cannot execute the Contract's validation. Since the
+            // deterministic verify stage runs it on this exact candidate, "could not run it" is not a finding.
+            $lines[] = 'Required validation is executed by the deterministic verify stage on this exact candidate after this stage; a failing command there stops the plan.';
+            $lines[] = 'Do not return blocked or fail only because you could not run it here. Judge the candidate against the Contract and state what you could not check.';
+        }
 
         if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {
             $lines[] = '';
