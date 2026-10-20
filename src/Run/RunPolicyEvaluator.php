@@ -212,11 +212,8 @@ final readonly class RunPolicyEvaluator
         }
 
         $step = $this->nextAction($taskId, $state, $mode, $references, $disagreements);
-        $isExecutionReviewBlock = $this->referenceState($references, 'verification') === 'blocked'
-            && ($references['verification']['gate'] ?? null) === 'execution_review';
         if (
             $state === 'blocked'
-            && !$isExecutionReviewBlock
             && (
                 str_starts_with($step['action'], 'agent-loop workflow status ')
                 || str_starts_with($step['action'], 'agent-loop workflow manifest ')
@@ -439,11 +436,7 @@ final readonly class RunPolicyEvaluator
             $this->referenceState($references, 'verification') === 'blocked'
             && ($references['verification']['gate'] ?? null) === 'execution_review'
         ) {
-            $action = $this->referenceAction($references, 'verification');
-
-            return $action === null
-                ? $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json'])
-                : $this->classifyAction($action, $references['verification']['action_invocation'] ?? null);
+            return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
         }
         if ($this->referenceState($references, 'learning') !== 'decided') {
             return $this->command(
