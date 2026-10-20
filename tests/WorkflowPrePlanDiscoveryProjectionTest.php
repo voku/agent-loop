@@ -21,6 +21,21 @@ use voku\AgentMap\Search\SearchMaintenanceService;
 final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
 {
     private const string REQUEST = 'Project deterministic discovery evidence before PLAN';
+    private const string FIXTURE_SOURCE = <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+/** Deterministic discovery evidence for the pre plan scope projection fixture. */
+final class DiscoveryFixture
+{
+    /** Project deterministic discovery evidence before PLAN. */
+    public function projectPrePlanDiscoveryEvidence(): string
+    {
+        return 'deterministic discovery evidence';
+    }
+}
+PHP;
 
     private string $root;
 
@@ -37,10 +52,32 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
         $this->removeTree($this->root);
     }
 
+    /** @SuppressWarnings("PHPMD.StaticAccess") */
     public function testEnterProjectsFreshBoundedUnverifiedEvidenceWithoutChangingPlanOrWorkflowState(): void
     {
-        [$mapSnapshot, $searchSnapshot] = $this->prepareMapAndSearch();
-        $before = $this->snapshotFiles();
+        $prepared = $this->prepareMap();
+        $mapSnapshot = $prepared['map_snapshot'];
+        $searchSnapshot = $prepared['search_snapshot'];
+        if ($searchSnapshot === null) {
+            throw new RuntimeException('Prepared test search has no snapshot.');
+        }
+        $snapshot = function (): array {
+            $files = [];
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
+            );
+            foreach ($iterator as $file) {
+                if (!$file->isFile()) {
+                    continue;
+                }
+                $path = PathResolver::relativeTo($this->root, $file->getPathname());
+                $files[$path] = hash_file('sha256', $file->getPathname()) ?: '';
+            }
+            ksort($files);
+
+            return $files;
+        };
+        $before = $snapshot();
 
         $baseline = $this->enter('PREPLAN-QUERY');
         $withRequest = $this->enter('PREPLAN-QUERY', ['--request', self::REQUEST]);
@@ -68,7 +105,7 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
         self::assertLessThanOrEqual(12, count($discovery['structural_context'] ?? []));
         self::assertArrayNotHasKey('scope', $discovery);
         self::assertNull((new TaskContractStore($this->root))->find('PREPLAN-QUERY'));
-        self::assertSame($before, $this->snapshotFiles(), 'enter must not create or change workflow state.');
+        self::assertSame($before, $snapshot(), 'enter must not create or change workflow state.');
     }
 
     public function testMissingMapAbstainsAndKeepsTheCanonicalPlanAction(): void
@@ -86,7 +123,7 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
 
     public function testStaleMapAndMissingOrStaleSearchCannotBePresentedAsCurrent(): void
     {
-        $this->prepareMapAndSearch();
+        $this->prepareMap();
         file_put_contents($this->root . '/src/DiscoveryFixture.php', "\n// changed after map build\n", FILE_APPEND);
         $staleMap = $this->enter('PREPLAN-STALE-MAP', ['--request', self::REQUEST])['payload']['references']['discovery'] ?? [];
         self::assertSame('abstained', $staleMap['status'] ?? null);
@@ -98,13 +135,13 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
         if (!mkdir($this->root, 0o775, true) && !is_dir($this->root)) {
             throw new RuntimeException('Unable to recreate test root: ' . $this->root);
         }
-        $this->prepareMap();
+        $prepared = $this->prepareMap(false);
         $missingSearch = $this->enter('PREPLAN-MISSING-SEARCH', ['--request', self::REQUEST])['payload']['references']['discovery'] ?? [];
         self::assertSame('abstained', $missingSearch['status'] ?? null);
         self::assertSame('search_not_current', $missingSearch['reason'] ?? null);
         self::assertSame('missing', $missingSearch['search_state'] ?? null);
 
-        $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
+        $artifacts = $prepared['artifacts'];
         $search = new SearchIndexStore($artifacts->searchDatabase());
         $search->setMeta('map_snapshot', 'sha256:deliberately-stale');
         $staleSearch = $this->enter('PREPLAN-STALE-SEARCH', ['--request', self::REQUEST])['payload']['references']['discovery'] ?? [];
@@ -115,8 +152,8 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
 
     public function testInvalidOwnerArtifactsAndEmptySearchResultsAbstain(): void
     {
-        $this->prepareMapAndSearch();
-        $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
+        $prepared = $this->prepareMap();
+        $artifacts = $prepared['artifacts'];
         file_put_contents($artifacts->searchDatabase(), 'not a sqlite database');
         $invalidSearch = $this->enter('PREPLAN-INVALID-SEARCH', ['--request', self::REQUEST])['payload']['references']['discovery'] ?? [];
         self::assertSame('abstained', $invalidSearch['status'] ?? null);
@@ -128,12 +165,12 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
         if (!mkdir($this->root, 0o775, true) && !is_dir($this->root)) {
             throw new RuntimeException('Unable to recreate test root: ' . $this->root);
         }
-        $this->prepareMapAndSearch();
+        $prepared = $this->prepareMap();
         $empty = $this->enter('PREPLAN-EMPTY-RESULTS', ['--request', 'unmatchable zzemptytoken qxvplm'])['payload']['references']['discovery'] ?? [];
         self::assertSame('abstained', $empty['status'] ?? null);
         self::assertSame('no_ranked_candidates', $empty['reason'] ?? null);
 
-        $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
+        $artifacts = $prepared['artifacts'];
         file_put_contents($artifacts->indexJson(), '{');
         $invalidMap = $this->enter('PREPLAN-INVALID-MAP', ['--request', self::REQUEST])['payload']['references']['discovery'] ?? [];
         self::assertSame('abstained', $invalidMap['status'] ?? null);
@@ -164,46 +201,17 @@ final class WorkflowPrePlanDiscoveryProjectionTest extends TestCase
         self::assertArrayNotHasKey('references', $decision);
     }
 
-    /** @return array{0: string, 1: string} */
-    private function prepareMapAndSearch(): array
-    {
-        [$index, $artifacts] = $this->prepareMap();
-        new SearchIndexStore($artifacts->searchDatabase());
-        $maintenance = (new SearchMaintenanceService())->refreshIfPresent(new SearchMaintenanceRequest($index, $artifacts));
-        self::assertContains($maintenance->state, ['current', 'refreshed']);
-        $fingerprint = $index->fingerprint;
-        if ($fingerprint === null) {
-            throw new RuntimeException('Prepared test map has no source fingerprint.');
-        }
-
-        return [
-            $fingerprint->sourceDigest,
-            $maintenance->searchSnapshot ?? '',
-        ];
-    }
-
-    /** @return array{0: \voku\AgentMap\Index\AgentMapIndex, 1: MapArtifactPaths} */
-    private function prepareMap(): array
+    /**
+     * @return array{artifacts: MapArtifactPaths, map_snapshot: string, search_snapshot: string|null}
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
+    private function prepareMap(bool $withSearch = true): array
     {
         $source = $this->root . '/src';
         if (!is_dir($source) && !mkdir($source, 0o775, true) && !is_dir($source)) {
             throw new RuntimeException('Unable to create test source directory.');
         }
-        file_put_contents($source . '/DiscoveryFixture.php', <<<'PHP'
-<?php
-
-declare(strict_types=1);
-
-/** Deterministic discovery evidence for the pre plan scope projection fixture. */
-final class DiscoveryFixture
-{
-    /** Project deterministic discovery evidence before PLAN. */
-    public function projectPrePlanDiscoveryEvidence(): string
-    {
-        return 'deterministic discovery evidence';
-    }
-}
-PHP);
+        file_put_contents($source . '/DiscoveryFixture.php', self::FIXTURE_SOURCE);
 
         $artifacts = MapArtifactPaths::forProject($this->root, $this->root . '/.agent-loop/map');
         $prepared = (new MapPreparationService())->prepare(new MapPreparationRequest(
@@ -222,8 +230,23 @@ PHP);
             phpStanMemoryLimit: null,
             artifacts: $artifacts,
         ));
+        $fingerprint = $prepared->index->fingerprint;
+        if ($fingerprint === null) {
+            throw new RuntimeException('Prepared test map has no source fingerprint.');
+        }
+        $searchSnapshot = null;
+        if ($withSearch) {
+            new SearchIndexStore($artifacts->searchDatabase());
+            $maintenance = (new SearchMaintenanceService())->refreshIfPresent(new SearchMaintenanceRequest($prepared->index, $artifacts));
+            self::assertContains($maintenance->state, ['current', 'refreshed']);
+            $searchSnapshot = $maintenance->searchSnapshot;
+        }
 
-        return [$prepared->index, $artifacts];
+        return [
+            'artifacts' => $artifacts,
+            'map_snapshot' => $fingerprint->sourceDigest,
+            'search_snapshot' => $searchSnapshot,
+        ];
     }
 
     /** @param list<string> $options
@@ -251,25 +274,6 @@ PHP);
         ];
     }
 
-    /** @return array<string, string> */
-    private function snapshotFiles(): array
-    {
-        $files = [];
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($this->root, RecursiveDirectoryIterator::SKIP_DOTS),
-        );
-        foreach ($iterator as $file) {
-            if (!$file->isFile()) {
-                continue;
-            }
-            $path = PathResolver::relativeTo($this->root, $file->getPathname());
-            $files[$path] = hash_file('sha256', $file->getPathname()) ?: '';
-        }
-        ksort($files);
-
-        return $files;
-    }
-
     private function removeTree(string $path): void
     {
         if (!is_dir($path)) {
@@ -282,9 +286,9 @@ PHP);
         foreach ($iterator as $file) {
             if ($file->isDir() && !$file->isLink()) {
                 rmdir($file->getPathname());
-            } else {
-                unlink($file->getPathname());
+                continue;
             }
+            unlink($file->getPathname());
         }
         rmdir($path);
     }

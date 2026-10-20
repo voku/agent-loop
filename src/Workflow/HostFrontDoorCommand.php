@@ -147,7 +147,10 @@ final readonly class HostFrontDoorCommand
         }
     }
 
-    /** @param list<string> $args */
+    /**
+     * @param list<string> $args
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     private function enter(array $args): int
     {
         if ($this->helpRequested($args)) {
