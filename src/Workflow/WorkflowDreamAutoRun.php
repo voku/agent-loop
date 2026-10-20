@@ -64,13 +64,14 @@ final readonly class WorkflowDreamAutoRun
      *     ran: bool,
      *     reason: string,
      *     ran_at: int,
+     *     dreamPreviewRan: bool,
      *     evaluated: int,
      *     warnings: list<string>,
      *     reviewDecisions: int,
      *     suppressedDecisions: int,
      *     guidanceSources: list<string>,
      *     guidanceCandidates: int,
-     * }|null null when Dream is switched off, the repository has no Learning root, or nothing is worth saying
+     * }|null null when switched off, no Learning/guidance inputs exist, or nothing is worth saying
      */
     public function runIfDue(): ?array
     {
@@ -80,15 +81,17 @@ final readonly class WorkflowDreamAutoRun
 
         $layout = new ProjectLayout($this->rootPath);
         $learningRoot = $layout->learningRoot();
-        if (!is_dir($learningRoot)) {
-            return null;
-        }
+        $hasLearning = is_dir($learningRoot);
 
         $stateFile = $layout->stateRoot() . '/dream/auto.json';
         $previous = $this->readState($stateFile);
-        $fingerprint = $this->fingerprint($learningRoot);
+        $fingerprint = $hasLearning ? $this->fingerprint($learningRoot) : 'missing';
         $sources = $this->sources();
-        $guidanceFingerprint = $this->guidanceFingerprint($sources);
+        $guidance = $this->guidanceFingerprint($sources);
+        if (!$hasLearning && !$guidance['hasFiles'] && $previous === null) {
+            return null;
+        }
+        $guidanceFingerprint = $guidance['fingerprint'];
         $now = $this->clock !== null ? ($this->clock)() : time();
 
         $reason = $this->dueReason($previous, $fingerprint, $guidanceFingerprint, $now);
@@ -99,7 +102,7 @@ final readonly class WorkflowDreamAutoRun
                 : null;
         }
 
-        $outcome = (new WorkflowDreamService($this->rootPath))->preview()->outcome->result;
+        $outcome = $hasLearning ? (new WorkflowDreamService($this->rootPath))->preview()->outcome->result : null;
         // Learning owns both the candidates and their meaning. Loop only schedules a read-only snapshot.
         $candidates = (new GuidanceConsistencyAudit())->audit($this->rootPath, $sources);
         $state = [
@@ -117,10 +120,10 @@ final readonly class WorkflowDreamAutoRun
                 array_slice($candidates, 0, self::MAX_GUIDANCE_CANDIDATES),
             ),
             'ran_at' => $now,
-            'evaluated' => $outcome->evaluatedGuidanceCount,
-            'warnings' => array_values(array_unique(array_map(static fn ($warning) => $warning->code, $outcome->warnings))),
-            'reviewDecisions' => count($outcome->decisions),
-            'suppressedDecisions' => count($outcome->suppressedDecisions),
+            'evaluated' => $outcome->evaluatedGuidanceCount ?? 0,
+            'warnings' => array_values(array_unique(array_map(static fn ($warning) => $warning->code, $outcome->warnings ?? []))),
+            'reviewDecisions' => count($outcome->decisions ?? []),
+            'suppressedDecisions' => count($outcome->suppressedDecisions ?? []),
         ];
         $this->writeState($stateFile, $state);
 
@@ -199,8 +202,11 @@ final readonly class WorkflowDreamAutoRun
         return array_values(array_unique($configured));
     }
 
-    /** @param list<string> $sources */
-    private function guidanceFingerprint(array $sources): string
+    /**
+     * @param list<string> $sources
+     * @return array{fingerprint: string, hasFiles: bool}
+     */
+    private function guidanceFingerprint(array $sources): array
     {
         $entries = array_map(static fn (string $source): string => 'source' . "\0" . $source, $sources);
         $root = rtrim($this->rootPath, '/');
@@ -218,7 +224,10 @@ final readonly class WorkflowDreamAutoRun
         }
         sort($entries);
 
-        return hash('sha256', implode("\n", $entries));
+        return [
+            'fingerprint' => hash('sha256', implode("\n", $entries)),
+            'hasFiles' => count($entries) > count($sources),
+        ];
     }
 
     /**
@@ -286,12 +295,13 @@ final readonly class WorkflowDreamAutoRun
     /**
      * @param array{ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, guidance_sources: list<string>, guidance_candidates_total: int, fingerprint?: string} $state
      *
-     * @return array{ran_at: int, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, guidanceSources: list<string>, guidanceCandidates: int}
+     * @return array{ran_at: int, dreamPreviewRan: bool, evaluated: int, warnings: list<string>, reviewDecisions: int, suppressedDecisions: int, guidanceSources: list<string>, guidanceCandidates: int}
      */
     private function digest(array $state): array
     {
         return [
             'ran_at' => $state['ran_at'],
+            'dreamPreviewRan' => ($state['fingerprint'] ?? 'missing') !== 'missing',
             'evaluated' => $state['evaluated'],
             'warnings' => $state['warnings'],
             'reviewDecisions' => $state['reviewDecisions'],

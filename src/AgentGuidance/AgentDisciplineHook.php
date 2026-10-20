@@ -377,7 +377,7 @@ final readonly class AgentDisciplineHook
         }
 
         $lines = [];
-        if ($digest['ran']) {
+        if ($digest['ran'] && $digest['dreamPreviewRan']) {
             $lines[] = sprintf(
                 '- ran the read-only Dream preview automatically (%s): %d guidance evaluated, %d warning kind(s)%s, %d review decision(s), %d suppressed.',
                 $digest['reason'],
@@ -386,6 +386,12 @@ final readonly class AgentDisciplineHook
                 $digest['warnings'] === [] ? '' : ' [' . implode(', ', $digest['warnings']) . ']',
                 $digest['reviewDecisions'],
                 $digest['suppressedDecisions'],
+            );
+        }
+        if ($digest['ran'] && !$digest['dreamPreviewRan']) {
+            $lines[] = sprintf(
+                '- ran the read-only guidance audit automatically (%s); Dream preview skipped because no Learning root exists.',
+                $digest['reason'],
             );
         }
         if ($digest['ran']) {
