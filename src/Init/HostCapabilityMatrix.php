@@ -79,12 +79,18 @@ final readonly class HostCapabilityMatrix
         if ($capability === HostCapability::SubagentReadOnlyEnforcement) {
             if ($canonicalAgent === 'codex') {
                 $runtimeEvidence = self::runtimeEvidence('codex', $capability);
+                $verified = $runtimeEvidence->classification($runtimeVersion) === 'exact_verified';
 
                 return [
                     'status' => HostCapabilityStatus::Degraded,
                     'runtime_evidence' => $runtimeEvidence,
-                    'mechanism' => 'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
-                    'evidence' => $runtimeEvidence->classification($runtimeVersion) === 'exact_verified'
+                    'mechanism' => self::runtimeVersionMechanism(
+                        'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
+                        $runtimeEvidence->hostVersion,
+                        $runtimeVersion,
+                        $verified,
+                    ),
+                    'evidence' => $verified
                         ? 'adapter-declared;live-runtime-refuted'
                         : 'adapter-declared;live-runtime-unverified',
                 ];

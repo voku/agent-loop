@@ -232,6 +232,7 @@ final class HostCapabilityMatrixTest extends TestCase
         foreach ([null, '0.158.0'] as $version) {
             $row = HostCapabilityMatrix::describe('codex', HostCapability::SubagentReadOnlyEnforcement, $version);
             self::assertSame('adapter-declared;live-runtime-unverified', $row['evidence']);
+            self::assertStringContainsString('live-runtime evidence unverified (tested=0.157.0, current=' . ($version ?? 'unknown') . ')', $row['mechanism']);
             self::assertSame(HostCapabilityStatus::Degraded, $row['status']);
         }
     }

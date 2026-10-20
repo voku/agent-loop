@@ -74,72 +74,82 @@ final readonly class HostRuntimeProbe
         if (!in_array($canonicalAgent, ['codex', 'claude'], true)) {
             return ['status' => 'unprobed', 'version' => null];
         }
-        if ($executablePath === null) {
+        if ($executablePath === null || !self::isAbsolutePath($executablePath)) {
             return ['status' => 'unavailable', 'version' => null];
         }
         if (!function_exists('proc_open')) {
             return ['status' => 'unavailable', 'version' => null];
         }
 
-        $pipes = [];
-        $process = @proc_open(
-            [$executablePath, '--version'],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-            $pipes,
-            null,
-            null,
-            ['bypass_shell' => true],
-        );
-        if (!is_resource($process)) {
+        // File descriptors avoid Windows' blocking proc_open pipes. Never read
+        // from the child while it is running; only poll sizes and its status.
+        $stdout = tmpfile();
+        $stderr = tmpfile();
+        if ($stdout === false || $stderr === false) {
+            if (is_resource($stdout)) {
+                fclose($stdout);
+            }
+            if (is_resource($stderr)) {
+                fclose($stderr);
+            }
+
             return ['status' => 'unavailable', 'version' => null];
         }
 
-        fclose($pipes[0]);
-        stream_set_blocking($pipes[1], false);
-        stream_set_blocking($pipes[2], false);
-        $output = '';
-        $errorOutput = '';
-        $deadline = hrtime(true) + (int) (self::VERSION_PROBE_TIMEOUT_SECONDS * 1_000_000_000);
-        $processExitCode = null;
+        $process = null;
+        try {
+            $pipes = [];
+            $process = @proc_open(
+                [$executablePath, '--version'],
+                [0 => ['pipe', 'r'], 1 => $stdout, 2 => $stderr],
+                $pipes,
+                null,
+                null,
+                ['bypass_shell' => true],
+            );
+            if (!is_resource($process)) {
+                return ['status' => 'unavailable', 'version' => null];
+            }
+            fclose($pipes[0]);
+            $deadline = hrtime(true) + (int) (self::VERSION_PROBE_TIMEOUT_SECONDS * 1_000_000_000);
 
-        do {
-            $output .= self::readAvailableOutput($pipes[1]);
-            $errorOutput .= self::readAvailableOutput($pipes[2]);
+            do {
+                $outputStat = fstat($stdout);
+                $errorStat = fstat($stderr);
+                if ($outputStat === false || $errorStat === false
+                    || $outputStat['size'] + $errorStat['size'] > self::VERSION_PROBE_MAX_OUTPUT_BYTES
+                ) {
+                    return ['status' => 'unavailable', 'version' => null];
+                }
+                $processStatus = proc_get_status($process);
+                if (!$processStatus['running']) {
+                    $processExitCode = $processStatus['exitcode'];
+                    break;
+                }
+                if (hrtime(true) >= $deadline) {
+                    return ['status' => 'unavailable', 'version' => null];
+                }
+                usleep(10_000);
+            } while (true);
+
+            $closeExitCode = proc_close($process);
+            if ($closeExitCode !== 0 && $processExitCode !== 0) {
+                return ['status' => 'unavailable', 'version' => null];
+            }
+            rewind($stdout);
+            rewind($stderr);
+            $output = self::readAvailableOutput($stdout);
+            $errorOutput = self::readAvailableOutput($stderr);
             if (strlen($output) + strlen($errorOutput) > self::VERSION_PROBE_MAX_OUTPUT_BYTES) {
-                proc_terminate($process, 9);
-                fclose($pipes[1]);
-                fclose($pipes[2]);
-                proc_close($process);
-
                 return ['status' => 'unavailable', 'version' => null];
             }
-
-            $processStatus = proc_get_status($process);
-            if (!$processStatus['running']) {
-                $processExitCode = $processStatus['exitcode'];
-                break;
-            }
-            if (hrtime(true) >= $deadline) {
+        } finally {
+            if (is_resource($process)) {
                 proc_terminate($process, 9);
-                fclose($pipes[1]);
-                fclose($pipes[2]);
                 proc_close($process);
-
-                return ['status' => 'unavailable', 'version' => null];
             }
-
-            usleep(10_000);
-        } while (true);
-
-        $output .= self::readAvailableOutput($pipes[1]);
-        $errorOutput .= self::readAvailableOutput($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $closeExitCode = proc_close($process);
-        if (strlen($output) + strlen($errorOutput) > self::VERSION_PROBE_MAX_OUTPUT_BYTES
-            || ($closeExitCode !== 0 && $processExitCode !== 0)
-        ) {
-            return ['status' => 'unavailable', 'version' => null];
+            fclose($stdout);
+            fclose($stderr);
         }
 
         $version = self::parseVersionOutput($canonicalAgent, $output . "\n" . $errorOutput);
@@ -185,11 +195,18 @@ final readonly class HostRuntimeProbe
         return null;
     }
 
-    /** Read currently available bytes from a non-blocking process pipe. */
+    private static function isAbsolutePath(string $path): bool
+    {
+        if (DIRECTORY_SEPARATOR === '/') {
+            return str_starts_with($path, '/');
+        }
+
+        return preg_match('~\\A(?:[A-Za-z]:[\\\\/]|[\\\\/]{2})~', $path) === 1;
+    }
+
+    /** Read bounded bytes from the completed process output file. */
     private static function readAvailableOutput(mixed $pipe): string
     {
-        // One bounded read per poll: a continuously writing child must not keep
-        // us inside a drain loop past either the byte or monotonic time budget.
         $chunk = fread($pipe, self::VERSION_PROBE_MAX_OUTPUT_BYTES + 1);
 
         return $chunk === false ? '' : $chunk;

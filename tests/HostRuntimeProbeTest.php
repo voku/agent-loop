@@ -74,6 +74,27 @@ final class HostRuntimeProbeTest extends TestCase
         }
     }
 
+    public function testRelativePathMatchesRemainPresenceOnly(): void
+    {
+        $marker = $this->binRoot . '/executed';
+        $this->createExecutableWithOutput('codex', "#!/bin/sh\ntouch " . escapeshellarg($marker) . "\nprintf 'codex-cli 0.157.0\\n'\n");
+        $previousDirectory = getcwd();
+        if (!is_string($previousDirectory) || !chdir($this->binRoot)) {
+            throw new RuntimeException('Unable to enter fake binary root.');
+        }
+        try {
+            foreach (['.', PATH_SEPARATOR . './missing'] as $path) {
+                $probe = new HostRuntimeProbe($path, self::pathExt());
+                $runtime = $probe->probe('codex');
+                self::assertSame('available', $runtime['status']);
+                self::assertSame(['status' => 'unavailable', 'version' => null], $probe->probeVersion('codex', $runtime['path']));
+                self::assertFileDoesNotExist($marker);
+            }
+        } finally {
+            chdir($previousDirectory);
+        }
+    }
+
     public function testReportsMissingRuntimeWithoutUpgradingAdapterTruth(): void
     {
         $result = (new HostRuntimeProbe($this->binRoot, self::pathExt()))->probe('opencode');

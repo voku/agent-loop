@@ -24,7 +24,7 @@ final class InitDoctorHostCapabilityTest extends TestCase
             self::assertIsArray($before);
 
             ob_start();
-            $exit = (new InitDoctorCommand($root))->run([]);
+            $exit = (new InitDoctorCommand($root, new HostRuntimeProbe($root)))->run([]);
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit);
