@@ -202,12 +202,18 @@ final readonly class ExecutionStageResultAuthority
         StageResult $result,
         array $artifactClaims,
     ): void {
-        if ($plan->baseCommit === null
-            || preg_match(
-                '/^git-tree-v1:' . preg_quote($plan->baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
-                $result->candidateRevision,
-                $matches,
-            ) !== 1) {
+        if ($plan->baseCommit === null) {
+            throw new RuntimeException('MISSING_EVIDENCE: review PASS is not bound to the governed Git candidate.');
+        }
+        if (hash_equals($plan->baseCommit, $result->candidateRevision)) {
+            $candidateTree = $plan->baseCommit;
+        } elseif (preg_match(
+            '/^git-tree-v1:' . preg_quote($plan->baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+            $result->candidateRevision,
+            $matches,
+        ) === 1) {
+            $candidateTree = $matches[1];
+        } else {
             throw new RuntimeException('MISSING_EVIDENCE: review PASS is not bound to the governed Git candidate.');
         }
 
@@ -216,7 +222,7 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('MISSING_EVIDENCE: repository root cannot be resolved for review coverage.');
         }
         $process = proc_open(
-            ['git', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $plan->baseCommit, $matches[1], '--'],
+            ['git', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $plan->baseCommit, $candidateTree, '--'],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
