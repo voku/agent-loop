@@ -151,8 +151,9 @@ final readonly class HostFrontDoorCommand
     private function enter(array $args): int
     {
         if ($this->helpRequested($args)) {
-            echo "Usage: agent-loop enter <task-id> [--format text|json] [--max-lines N] [--max-bytes N]\n";
+            echo "Usage: agent-loop enter <task-id> [--request TEXT] [--format text|json] [--max-lines N] [--max-bytes N]\n";
             echo "Prepare deterministic post-approval workflow state and project bounded context before host mutation.\n";
+            echo "On the initial PLAN path, --request may project existing current Map/Search evidence; it never builds indexes or chooses scope.\n";
 
             return 0;
         }
@@ -192,6 +193,10 @@ final readonly class HostFrontDoorCommand
 
         $policy = (new RunPolicyEvaluator())->evaluateManifest($manifest);
         $context = (new WorkflowContextCommand($this->rootPath))->build($taskId->value, $maxLines, $maxBytes);
+        $request = OptionTokens::value($tokens, 'request');
+        $discovery = $request !== null && $this->isPlanTemplate($policy)
+            ? (new WorkflowPrePlanDiscoveryProjector($this->rootPath))->project($request)
+            : null;
         $warnings = $preparationWarning === null ? [] : [[
             'code' => 'enter.ranked_search_unavailable',
             'owner' => 'agent-map',
@@ -224,6 +229,9 @@ final readonly class HostFrontDoorCommand
             'manifest' => $manifest->toArray(),
             'context' => $context,
         ];
+        if ($discovery !== null) {
+            $payload['references'] = ['discovery' => $discovery];
+        }
         if ($hookResults !== []) {
             $payload['hooks'] = $hookResults;
         }
@@ -246,6 +254,30 @@ final readonly class HostFrontDoorCommand
             $this->printCandidateApprovalSubject($taskId->value, $policy->nextActionKind);
             echo ($policy->nextActionKind === RunPolicyEvaluation::KIND_HOST_WORK ? 'Next (your change): ' : 'Next: ')
                 . $policy->nextAction . "\n";
+            if ($discovery !== null) {
+                echo 'Pre-PLAN discovery (agent-map, ' . $discovery['status'] . "):\n";
+                if (($discovery['status'] ?? null) === 'ready') {
+                    foreach ($discovery['candidates'] ?? [] as $candidate) {
+                        if (!is_array($candidate)) {
+                            continue;
+                        }
+                        $range = is_int($candidate['start_line'] ?? null)
+                            ? ':' . $candidate['start_line'] . (is_int($candidate['end_line'] ?? null) && $candidate['end_line'] > $candidate['start_line']
+                                ? '-' . $candidate['end_line']
+                                : '')
+                            : '';
+                        echo sprintf(
+                            "  rank %d %s — %s%s [unverified]\n",
+                            is_int($candidate['rank'] ?? null) ? $candidate['rank'] : 0,
+                            is_string($candidate['symbol_id'] ?? null) ? $candidate['symbol_id'] : 'unknown',
+                            is_string($candidate['file_path'] ?? null) ? $candidate['file_path'] : 'unknown',
+                            $range,
+                        );
+                    }
+                } else {
+                    echo '  Abstained: ' . (is_string($discovery['reason'] ?? null) ? $discovery['reason'] : 'unavailable') . "\n";
+                }
+            }
             foreach ($warnings as $warning) {
                 echo '[WARN] ' . $warning['message'] . "\n";
             }
@@ -270,6 +302,17 @@ final readonly class HostFrontDoorCommand
         }
 
         return $policy->mutationAllowed ? 0 : 1;
+    }
+
+    private function isPlanTemplate(RunPolicyEvaluation $policy): bool
+    {
+        $invocation = $policy->nextActionInvocation;
+
+        return $policy->nextActionKind === RunPolicyEvaluation::KIND_COMMAND_TEMPLATE
+            && $invocation !== null
+            && $invocation->template
+            && ($invocation->arguments[0] ?? null) === 'workflow'
+            && ($invocation->arguments[1] ?? null) === 'plan';
     }
 
     private function printCandidateApprovalSubject(string $taskId, string $nextActionKind): void
@@ -1069,7 +1112,7 @@ final readonly class HostFrontDoorCommand
     /** @param list<string> $tokens */
     private function validateEnterTokens(array $tokens): void
     {
-        $this->validateTokens($tokens, ['format', 'max-lines', 'max-bytes'], ['json']);
+        $this->validateTokens($tokens, ['format', 'max-lines', 'max-bytes', 'request'], ['json']);
     }
 
     /** @param list<string> $tokens */

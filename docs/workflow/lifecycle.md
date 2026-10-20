@@ -33,6 +33,21 @@ human/task intent
 The host does not need to know package storage paths, reconstruct gate ordering,
 or remember a map/Recall/Session preparation sequence.
 
+For non-trivial PHP work where structural discovery is relevant, the host may
+pass the bounded task request to the initial PLAN lookup:
+
+```bash
+agent-loop enter <task-id> --request "<task request>" --format=json
+```
+
+Only when `enter` returns the initial `workflow plan` template does Loop inspect
+an already-current Map and Search index and add `references.discovery`. Missing,
+stale, unreadable, or unhelpful evidence is reported as an abstention. The
+command never builds or refreshes those indexes. Ranked candidates and
+structural references remain unverified navigation evidence: the host inspects
+source and chooses the Contract scope, and the human approval boundary is
+unchanged. Without `--request`, the existing PLAN response is unchanged.
+
 The structured lifecycle result exposes the facts needed for routing:
 
 - `mutation_ready` — whether implementation work is currently authorized;
