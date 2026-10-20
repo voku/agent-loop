@@ -212,8 +212,11 @@ final readonly class RunPolicyEvaluator
         }
 
         $step = $this->nextAction($taskId, $state, $mode, $references, $disagreements);
+        $isExecutionReviewBlock = $this->referenceState($references, 'verification') === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review';
         if (
             $state === 'blocked'
+            && !$isExecutionReviewBlock
             && (
                 str_starts_with($step['action'], 'agent-loop workflow status ')
                 || str_starts_with($step['action'], 'agent-loop workflow manifest ')

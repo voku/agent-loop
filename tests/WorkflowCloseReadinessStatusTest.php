@@ -169,6 +169,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             'pipeline status ABC-123',
             (string) ($status['manifest']['next_action'] ?? ''),
         );
+        self::assertSame('command', $status['policy']['next_action_kind'] ?? null);
     }
 
     public function testFailedCurrentValidationBlocksStatusWithSameReasonAsClose(): void
