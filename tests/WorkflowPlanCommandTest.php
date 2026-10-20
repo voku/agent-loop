@@ -353,7 +353,7 @@ CARD,
     /** @param callable(CompileRequest): CompileResult $compiler */
     private function enter(string $root, callable $compiler): int
     {
-        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($root, 'ABC-123');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($root, 'ABC-123');
         ob_start();
         try {
             return (new HostFrontDoorCommand($root, recallCompiler: $compiler))

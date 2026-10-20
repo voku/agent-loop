@@ -122,7 +122,7 @@ final class EnterPreparationFailureRoutingTest extends TestCase
     /** @return array<string, mixed> */
     private function enter(): array
     {
-        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, 'PREP-001');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'PREP-001');
         $dispatcher = new Dispatcher($this->root);
         $runner = static function (array $rest) use ($dispatcher): int {
             /** @var list<string> $argv */

@@ -302,7 +302,7 @@ PHP,
     private function runApp(HostFrontDoorApplication $app, string $command, array $args): array
     {
         if ($command === 'enter') {
-            \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, (string) ($args[0] ?? ''));
+            \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, (string) ($args[0] ?? ''));
         }
         ob_start();
         try {

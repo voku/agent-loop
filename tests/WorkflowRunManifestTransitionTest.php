@@ -220,7 +220,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
 
         ob_start();
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
-        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         self::assertSame(
             0,
             (new HostFrontDoorCommand($this->root))->run('enter', ['ABC-123', '--format=json']),

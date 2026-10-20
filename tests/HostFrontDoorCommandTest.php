@@ -582,7 +582,7 @@ final class HostFrontDoorCommandTest extends TestCase
     private function runBinary(array $args): array
     {
         if (($args[0] ?? null) === 'enter') {
-            \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, (string) ($args[1] ?? ''));
+            \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, (string) ($args[1] ?? ''));
         }
         $pipes = [];
         $process = proc_open(

@@ -205,7 +205,7 @@ final class SmokeLoopTest extends TestCase
         try {
             $frontDoor = $argv[1] ?? null;
             if ($frontDoor === 'enter') {
-                \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, (string) ($argv[2] ?? ''));
+                \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, (string) ($argv[2] ?? ''));
             }
             if (in_array($frontDoor, ['enter', 'finish'], true)) {
                 $exit = (new HostFrontDoorCommand($this->root))->run($frontDoor, array_slice($argv, 2));

@@ -173,7 +173,7 @@ final class WorkflowRepeatRunTest extends TestCase
 
     private function enter(): int
     {
-        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, 'SELF-SHAPE');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'SELF-SHAPE');
         ob_start();
         try {
             return (new HostFrontDoorCommand($this->root))->run('enter', ['SELF-SHAPE', '--format=json']);
