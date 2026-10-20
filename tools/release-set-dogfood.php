@@ -505,6 +505,10 @@ final class ReleaseSetDogfood
         // No manual Map build: enter reconciles discovery. If that regresses,
         // every scenario below fails rather than quietly paying for it here.
         $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', $task, '--by', 'release-set-gate'], [0], $root);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'execution-profile', $task,
+            '--profile', 'manual', '--by', 'release-set-gate',
+        ], [0], $root);
         $this->mustRun(['vendor/bin/agent-loop', 'enter', $task], [0, 1, 2], $root);
     }
 
