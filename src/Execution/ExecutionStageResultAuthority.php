@@ -22,8 +22,9 @@ final readonly class ExecutionStageResultAuthority
         $this->assertExecutionContext($plan, $state, $stage, $result);
 
         $evidence = new ExecutionEvidenceStore($this->rootPath);
+        $artifactClaims = [];
         foreach ($result->artifactReferences as $reference) {
-            $evidence->assertCurrent(
+            $artifactClaims[] = $evidence->assertCurrent(
                 $reference,
                 ExecutionEvidenceKind::ARTIFACT,
                 $plan,
@@ -53,6 +54,8 @@ final readonly class ExecutionStageResultAuthority
                 $result->candidateRevision,
             );
         }
+
+        $this->assertReviewEvidence($plan, $stage, $result, $artifactClaims);
 
         if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
             // Validation references are the Contract commands verify executed on the candidate (each asserted current
@@ -156,6 +159,103 @@ final readonly class ExecutionStageResultAuthority
         }
 
         return null;
+    }
+
+    /**
+     * @param list<ExecutionEvidenceClaim> $artifactClaims
+     */
+    private function assertReviewEvidence(
+        ExecutionPlan $plan,
+        ExecutionStage $stage,
+        StageResult $result,
+        array $artifactClaims,
+    ): void {
+        if ($stage->kind !== ExecutionStageKind::AGENT || $stage->roleId === null) {
+            return;
+        }
+
+        $capabilities = $plan->role($stage->roleId)->requiredCapabilities;
+        if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+            return;
+        }
+        if (!in_array($result->outcome, [StageOutcome::PASS, StageOutcome::CHANGES_REQUIRED], true)) {
+            return;
+        }
+        if ($artifactClaims === []) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: review stage ' . $stage->id
+                . ' must cite current candidate files before returning ' . $result->outcome->value . '.',
+            );
+        }
+        if ($result->outcome === StageOutcome::PASS) {
+            $this->assertCompleteReviewCoverage($plan, $result, $artifactClaims);
+        }
+    }
+
+    /**
+     * A review PASS must reference every file changed from the governed base.
+     *
+     * @param list<ExecutionEvidenceClaim> $artifactClaims
+     */
+    private function assertCompleteReviewCoverage(
+        ExecutionPlan $plan,
+        StageResult $result,
+        array $artifactClaims,
+    ): void {
+        if ($plan->baseCommit === null
+            || preg_match(
+                '/^git-tree-v1:' . preg_quote($plan->baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
+                $result->candidateRevision,
+                $matches,
+            ) !== 1) {
+            throw new RuntimeException('MISSING_EVIDENCE: review PASS is not bound to the governed Git candidate.');
+        }
+
+        $root = realpath($this->rootPath);
+        if (!is_string($root)) {
+            throw new RuntimeException('MISSING_EVIDENCE: repository root cannot be resolved for review coverage.');
+        }
+        $process = proc_open(
+            ['git', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $plan->baseCommit, $matches[1], '--'],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $root,
+        );
+        if (!is_resource($process)) {
+            throw new RuntimeException('MISSING_EVIDENCE: unable to inspect changed files for review coverage.');
+        }
+        fclose($pipes[0]);
+        $changedOutput = stream_get_contents($pipes[1]);
+        $errorOutput = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exit = proc_close($process);
+        if ($exit !== 0 || !is_string($changedOutput)) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: unable to inspect changed files for review coverage: '
+                . trim(is_string($errorOutput) ? $errorOutput : ''),
+            );
+        }
+
+        $reviewed = [];
+        foreach ($artifactClaims as $claim) {
+            $prefix = 'workspace-file:';
+            if (str_starts_with($claim->sourceReference, $prefix)) {
+                $reviewed[substr($claim->sourceReference, strlen($prefix))] = true;
+            }
+        }
+        $changed = array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
+        $missing = array_values(array_filter($changed, static fn (string $path): bool => !isset($reviewed[$path])));
+        if ($missing !== []) {
+            throw new RuntimeException(
+                'MISSING_EVIDENCE: review PASS must cite every changed candidate file; missing: '
+                . implode(', ', $missing),
+            );
+        }
     }
 
     private function assertCandidateClaim(
