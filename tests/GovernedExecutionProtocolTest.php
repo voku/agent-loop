@@ -278,6 +278,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         $gateway = new ExecutionGateway($this->root);
 
         $investigate = $gateway->prepareStage('ABC-123', 'investigate');
+        self::assertStringNotContainsString('Required validation is executed by the deterministic verify stage on this exact candidate after this stage', $investigate->prompt);
         $gateway->submitStageResult(new StageResult(
             'submission:investigate',
             $investigate->taskId,
@@ -294,6 +295,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         ));
 
         $build = $gateway->prepareStage('ABC-123', 'build');
+        self::assertStringNotContainsString('Required validation is executed by the deterministic verify stage on this exact candidate after this stage', $build->prompt);
         $candidate = $build->candidateRevision;
         $gateway->submitStageResult(new StageResult(
             'submission:build',
@@ -312,6 +314,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         ));
 
         $review = $gateway->prepareStage('ABC-123', 'review');
+        self::assertStringContainsString('Required validation is executed by the deterministic verify stage on this exact candidate after this stage', $review->prompt);
         $gateway->submitStageResult(new StageResult(
             'submission:review',
             $review->taskId,

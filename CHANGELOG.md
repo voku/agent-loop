@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+- Read-only stages after the build (the review roles of every profile that ends in `verify`) are now told that the deterministic `verify` stage executes the Contract's required validation on the exact candidate after them, and that being unable to run it is not by itself a reason to return `blocked` or `failed`. Since #802 `verify` runs those commands, so a reviewer without validation permission no longer needs to stop the plan at Attention for that alone. In a real Runner dogfood (Runner 0.1.6, Loop 0.20.65, declared `composer install` + phpunit + PHPStan in a fresh worktree) the released review stage blocked in 2 of 3 runs for exactly that reason; with the note, 2 of 2 runs passed review and `verify` executed all three declared commands in the worktree. Validation itself is unchanged: a failing command in `verify` still opens Attention.
+
 ## [0.20.66] - 2026-10-20
 
 ### Fixed
