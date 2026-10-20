@@ -492,7 +492,7 @@ final readonly class ExecutionGateway
             $lines[] = 'Review the complete raw diff against the approved Contract and task evidence.';
             $lines[] = 'Before returning PASS, list every changed candidate file path in artifact_references; the owner checks that this set covers the complete governed diff.';
             $lines[] = 'For CHANGES_REQUIRED, cite at least one current candidate file that supports each material finding.';
-            $lines[] = 'artifact_references entries are workspace-relative candidate file paths, not owner evidence IDs.';
+            $lines[] = 'artifact_references entries are workspace-relative paths, not owner evidence IDs; use deleted-file:<path> for a path removed from the candidate.';
         }
 
         if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {
