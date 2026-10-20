@@ -243,9 +243,11 @@ final readonly class ExecutionStageResultAuthority
 
         $reviewed = [];
         foreach ($artifactClaims as $claim) {
-            $prefix = 'workspace-file:';
-            if (str_starts_with($claim->sourceReference, $prefix)) {
-                $reviewed[substr($claim->sourceReference, strlen($prefix))] = true;
+            foreach (['workspace-file:', 'git-base-file:'] as $prefix) {
+                if (str_starts_with($claim->sourceReference, $prefix)) {
+                    $reviewed[substr($claim->sourceReference, strlen($prefix))] = true;
+                    break;
+                }
             }
         }
         $changed = array_values(array_filter(explode("\0", $changedOutput), static fn (string $path): bool => $path !== ''));
@@ -368,11 +370,23 @@ final readonly class ExecutionStageResultAuthority
 
     private function assertArtifactClaim(ExecutionPlan $plan, ExecutionEvidenceClaim $claim): void
     {
-        $prefix = 'workspace-file:';
-        if (!str_starts_with($claim->sourceReference, $prefix)) {
-            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a workspace file.');
+        $workspacePrefix = 'workspace-file:';
+        $basePrefix = 'git-base-file:';
+        if (str_starts_with($claim->sourceReference, $workspacePrefix)) {
+            $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
+            $relativePath = substr($claim->sourceReference, strlen($workspacePrefix));
+        } elseif (str_starts_with($claim->sourceReference, $basePrefix)) {
+            $stage = $plan->stage($claim->stageId);
+            $capabilities = $stage->roleId === null ? [] : $plan->role($stage->roleId)->requiredCapabilities;
+            if (!in_array('review', $capabilities, true) && !in_array('architecture-review', $capabilities, true)) {
+                throw new RuntimeException('EVIDENCE_MISMATCH: base-file evidence is accepted only for review stages.');
+            }
+            $treeish = $plan->baseCommit
+                ?? throw new RuntimeException('STALE_EVIDENCE: deleted-file evidence has no governed Git base.');
+            $relativePath = substr($claim->sourceReference, strlen($basePrefix));
+        } else {
+            throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a candidate or deleted base file.');
         }
-        $relativePath = substr($claim->sourceReference, strlen($prefix));
         if ($relativePath === ''
             || str_starts_with($relativePath, '/')
             || str_contains($relativePath, "\0")
@@ -385,7 +399,6 @@ final readonly class ExecutionStageResultAuthority
             }
         }
 
-        $treeish = $this->candidateTreeish($plan, $claim->candidateRevision);
         $root = realpath($this->rootPath);
         if (!is_string($root)) {
             throw new RuntimeException('STALE_EVIDENCE: repository root cannot be resolved for artifact verification.');
