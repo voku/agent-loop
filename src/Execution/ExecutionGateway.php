@@ -83,6 +83,7 @@ final readonly class ExecutionGateway
     }
 
     /** @return non-empty-string */
+    /** @return non-empty-string */
     public function recordStageArtifact(StageArtifactObservation $observation): string
     {
         [, , $plan] = $this->current($observation->taskId);
@@ -115,6 +116,7 @@ final readonly class ExecutionGateway
      * The digest is read from the immutable candidate tree (or governed base for deleted files), so the
      * submitted evidence cannot silently describe a different working-tree version.
      */
+    /** @return non-empty-string */
     public function recordStageArtifactPath(StageExecutionBundle $bundle, string $reference): string
     {
         $deleted = str_starts_with($reference, 'deleted-file:');
@@ -382,7 +384,6 @@ final readonly class ExecutionGateway
         }
     }
 
-    /** @return array{TaskContract, GovernedRun, ExecutionPlan} */
     private function candidateTreeish(StageExecutionBundle $bundle): string
     {
         $baseCommit = $bundle->baseCommit
@@ -461,6 +462,7 @@ final readonly class ExecutionGateway
         return 'sha256:' . hash_final($hash);
     }
 
+    /** @return array{TaskContract, GovernedRun, ExecutionPlan} */
     private function current(string $taskId): array
     {
         $contract = (new TaskContractStore($this->rootPath))->load($taskId);
