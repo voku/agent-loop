@@ -201,10 +201,10 @@ final readonly class ExecutionStageResultAuthority
                 }
             }
             if (!$citesCurrentCandidateFile) {
-            throw new RuntimeException(
-                'MISSING_EVIDENCE: review stage ' . $stage->id
-                . ' must cite current candidate files before returning ' . $result->outcome->value . '.',
-            );
+                throw new RuntimeException(
+                    'MISSING_EVIDENCE: review stage ' . $stage->id
+                    . ' must cite current candidate files before returning ' . $result->outcome->value . '.',
+                );
             }
         }
         if ($result->outcome === StageOutcome::PASS) {

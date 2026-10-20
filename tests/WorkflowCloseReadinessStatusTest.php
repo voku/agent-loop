@@ -57,15 +57,20 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         $this->git('add', 'src/Foo.php');
         $this->git('commit', '-qm', 'base');
 
-        $session = $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
         $contract = (new TaskContractStore($this->root))->load('ABC-123');
         $run = (new GovernedRunStore($this->root))->findForContract($contract);
         self::assertNotNull($run);
         $plan = (new ExecutionPlanStore($this->root))->prepare($run, $contract);
         self::assertSame('standard', $plan->profile->value);
+        self::assertNotNull($plan->baseCommit);
         $candidateTree = $this->git('rev-parse', 'HEAD^{tree}');
         $candidateRevision = 'git-tree-v1:' . $plan->baseCommit . ':' . $candidateTree;
 
+        $sourceContents = file_get_contents($this->root . '/src/Foo.php');
+        if (!is_string($sourceContents)) {
+            throw new \\RuntimeException('Unable to read the close-readiness fixture source.');
+        }
         $reference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
             $plan->taskId,
             $plan->runId,
@@ -76,7 +81,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             $candidateRevision,
             ExecutionEvidenceKind::ARTIFACT,
             'workspace-file:src/Foo.php',
-            'sha256:' . hash_file('sha256', $this->root . '/src/Foo.php'),
+            'sha256:' . hash('sha256', $sourceContents),
         ));
         $build = new StageResult(
             'fixture:build',
@@ -163,7 +168,6 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
             'pipeline status ABC-123',
             (string) ($status['manifest']['next_action'] ?? ''),
         );
-        unset($session);
     }
 
     public function testFailedCurrentValidationBlocksStatusWithSameReasonAsClose(): void
