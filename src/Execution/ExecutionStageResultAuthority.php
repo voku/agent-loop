@@ -387,6 +387,9 @@ final readonly class ExecutionStageResultAuthority
         } else {
             throw new RuntimeException('EVIDENCE_MISMATCH: external artifact evidence must reference a candidate or deleted base file.');
         }
+        if (preg_match('/^[0-9a-f]{40,64}$/', $treeish) !== 1) {
+            throw new RuntimeException('STALE_EVIDENCE: artifact source is not bound to an exact Git object.');
+        }
         if ($relativePath === ''
             || str_starts_with($relativePath, '/')
             || str_contains($relativePath, "\0")
