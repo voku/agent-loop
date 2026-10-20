@@ -486,6 +486,15 @@ final readonly class ExecutionGateway
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
 
+        $roleCapabilities = $stage->roleId === null ? [] : $plan->role($stage->roleId)->requiredCapabilities;
+        if (in_array('review', $roleCapabilities, true) || in_array('architecture-review', $roleCapabilities, true)) {
+            $lines[] = '';
+            $lines[] = 'Review the complete raw diff against the approved Contract and task evidence.';
+            $lines[] = 'Before returning PASS, list every changed candidate file path in artifact_references; the owner checks that this set covers the complete governed diff.';
+            $lines[] = 'For CHANGES_REQUIRED, cite at least one current candidate file that supports each material finding.';
+            $lines[] = 'artifact_references entries are workspace-relative candidate file paths, not owner evidence IDs.';
+        }
+
         if ($stage->contextPolicy === ExecutionContextPolicy::FRESH_REQUIRED) {
             $lines[] = '';
             $lines[] = 'Independent-review boundary: execute this stage in a host context distinct from its direct agent predecessor(s).';
