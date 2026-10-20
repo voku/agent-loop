@@ -56,7 +56,7 @@ final readonly class ExecutionProfileSelectionStore
     {
         $selection = $this->find($contract->taskId);
         if ($selection === null || !$this->appliesTo($selection, $contract)) {
-            return ExecutionProfileName::MANUAL;
+            return ExecutionProfileName::STANDARD;
         }
 
         return $selection->profile;
