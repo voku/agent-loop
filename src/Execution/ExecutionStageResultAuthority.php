@@ -24,7 +24,7 @@ final readonly class ExecutionStageResultAuthority
         $evidence = new ExecutionEvidenceStore($this->rootPath);
         $artifactClaims = [];
         foreach ($result->artifactReferences as $reference) {
-            $artifactClaims[] = $evidence->assertCurrent(
+            $claim = $evidence->assertCurrent(
                 $reference,
                 ExecutionEvidenceKind::ARTIFACT,
                 $plan,
@@ -32,6 +32,17 @@ final readonly class ExecutionStageResultAuthority
                 $result->attempt,
                 $result->candidateRevision,
             );
+            if (
+                str_starts_with($claim->sourceReference, 'workspace-file:')
+                || str_starts_with($claim->sourceReference, 'git-base-file:')
+            ) {
+                // Evidence may have been persisted through any owner-side
+                // entry point. Recheck file claims at acceptance so a reviewer
+                // cannot pass by directly storing a stale or misclassified
+                // artifact claim.
+                $this->assertArtifactClaim($plan, $claim);
+            }
+            $artifactClaims[] = $claim;
         }
         foreach ($result->validationReferences as $reference) {
             $evidence->assertCurrent(
