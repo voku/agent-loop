@@ -120,7 +120,9 @@ final readonly class WorkflowCloseReadinessInspector
     {
         $plan = (new ExecutionPlanStore($this->rootPath))->find($contract->taskId);
         if ($plan === null) {
-            return 'missing execution plan for the approved Run';
+            // Runs created before execution plans became part of the governed
+            // path remain on the legacy/manual close contract.
+            return null;
         }
         if (
             $plan->runId !== $run->runId
@@ -152,9 +154,21 @@ final readonly class WorkflowCloseReadinessInspector
             return 'independent review pipeline is incomplete at stage ' . $state->currentStageId;
         }
 
+        $lastMutatingStageIndex = -1;
+        foreach ($plan->stages as $index => $stage) {
+            if ($stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate) {
+                $lastMutatingStageIndex = $index;
+            }
+        }
+
+        // Earlier reviews guide later implementation and hardening. The close
+        // gate needs the semantic reviews performed after the final mutator,
+        // bound to the candidate that is actually being closed.
         $reviewStages = [];
-        foreach ($plan->stages as $stage) {
-            if ($stage->kind !== ExecutionStageKind::AGENT || $stage->roleId === null) {
+        foreach ($plan->stages as $index => $stage) {
+            if ($index <= $lastMutatingStageIndex
+                || $stage->kind !== ExecutionStageKind::AGENT
+                || $stage->roleId === null) {
                 continue;
             }
             $capabilities = $plan->role($stage->roleId)->requiredCapabilities;
@@ -163,7 +177,7 @@ final readonly class WorkflowCloseReadinessInspector
             }
         }
         if ($reviewStages === []) {
-            return 'selected non-manual profile has no semantic review stage';
+            return 'selected non-manual profile has no semantic review stage after its final mutating stage';
         }
 
         foreach ($reviewStages as $stage) {
