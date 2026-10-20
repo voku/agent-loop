@@ -220,14 +220,19 @@ final readonly class WorkflowCloseReadinessInspector
 
             $evidence = new ExecutionEvidenceStore($this->rootPath);
             foreach ($result->artifactReferences as $reference) {
-                $evidence->assertCurrent(
-                    $reference,
-                    ExecutionEvidenceKind::ARTIFACT,
-                    $plan,
-                    $result->stageId,
-                    $result->attempt,
-                    $result->candidateRevision,
-                );
+                try {
+                    $evidence->assertCurrent(
+                        $reference,
+                        ExecutionEvidenceKind::ARTIFACT,
+                        $plan,
+                        $result->stageId,
+                        $result->attempt,
+                        $result->candidateRevision,
+                    );
+                } catch (RuntimeException $exception) {
+                    return 'semantic review stage ' . $stage->id
+                        . ' has stale review evidence: ' . $exception->getMessage();
+                }
             }
         }
 

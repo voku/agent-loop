@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
+use voku\AgentLoop\Execution\ExecutionContextPolicy;
 use voku\AgentLoop\Execution\ExecutionEvidenceClaim;
 use voku\AgentLoop\Execution\ExecutionEvidenceKind;
 use voku\AgentLoop\Execution\ExecutionEvidenceStore;
@@ -378,6 +379,92 @@ final class ExecutionEvidenceAuthorityTest extends TestCase
                 [$reference],
                 [],
                 'Reviewed the changed file.',
+            ),
+        );
+    }
+
+    public function testChangesRequiredMustCiteCurrentCandidateFileWhenOnlyDeletedFilesAreCited(): void
+    {
+        mkdir($this->root . '/src', 0o775, true);
+        $baseContents = "<?php\nreturn 1;\n";
+        file_put_contents($this->root . '/src/Example.php', $baseContents);
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Example.php');
+        $this->git('commit', '-qm', 'base');
+        $baseCommit = $this->git('rev-parse', 'HEAD');
+        $this->git('rm', 'src/Example.php');
+        $candidateTree = $this->git('write-tree');
+        $candidateRevision = 'git-tree-v1:' . $baseCommit . ':' . $candidateTree;
+        $role = new ExecutionRole('reviewer', false, ['review']);
+        $stage = new ExecutionStage(
+            'review',
+            ExecutionStageKind::AGENT,
+            'reviewer',
+            false,
+            [],
+            [
+                StageOutcome::CHANGES_REQUIRED->value => null,
+                StageOutcome::PASS->value => null,
+            ],
+            ExecutionContextPolicy::FRESH_REQUIRED,
+        );
+        $plan = new ExecutionPlan(
+            'ABC-123',
+            'run:deleted-only-changes-required',
+            1,
+            ['path' => '.agent-loop/contracts/ABC-123.json', 'sha256' => 'sha256:' . str_repeat('1', 64)],
+            $baseCommit,
+            ExecutionProfileName::SURGICAL,
+            [$role],
+            [$stage],
+            '2026-08-24T00:00:00+00:00',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            null,
+            [],
+        );
+        $reference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'review',
+            1,
+            $candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            'git-base-file:src/Example.php',
+            'sha256:' . hash('sha256', $baseContents),
+        ));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('must cite current candidate files');
+        (new ExecutionStageResultAuthority($this->root))->assertAcceptable(
+            $plan,
+            $state,
+            $stage,
+            new StageResult(
+                'submission:deleted-only-changes-required',
+                $plan->taskId,
+                $plan->runId,
+                $plan->contractRevision,
+                $plan->digest(),
+                'review',
+                1,
+                StageOutcome::CHANGES_REQUIRED,
+                $candidateRevision,
+                [$reference],
+                [],
+                'Only reviewed a deleted file.',
+                'ctx:fresh-review',
             ),
         );
     }
