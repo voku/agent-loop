@@ -271,6 +271,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
      */
     private function enter(string $taskId): array
     {
+        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, $taskId);
         $dispatcher = new Dispatcher($this->root);
         $runner = static function (array $rest) use ($dispatcher): int {
             /** @var list<string> $argv */

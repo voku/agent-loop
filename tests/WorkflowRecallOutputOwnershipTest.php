@@ -68,6 +68,7 @@ final class WorkflowRecallOutputOwnershipTest extends TestCase
         self::assertSame([], (new SessionStore())->all($this->root . '/.agent-loop/sessions'));
         self::assertNull((new GovernedRunStore($this->root))->find('ABC-123'));
 
+        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         ob_start();
         $enterExit = (new HostFrontDoorCommand(
             $this->root,

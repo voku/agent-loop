@@ -257,6 +257,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
 
     private function enter(): int
     {
+        \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         ob_start();
         try {
             return (new HostFrontDoorCommand(

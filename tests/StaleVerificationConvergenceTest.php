@@ -214,6 +214,9 @@ final class StaleVerificationConvergenceTest extends TestCase
     /** @param list<string> $rest */
     private function frontDoor(string $command, array $rest = []): int
     {
+        if ($command === 'enter') {
+            \\voku\\AgentLoop\\Tests\\Support\\ManualProfileLifecycleFixture::beforeEnter($this->root, self::TASK);
+        }
         $dispatcher = new Dispatcher($this->root);
         $runner = static function (array $args) use ($dispatcher): int {
             /** @var list<string> $argv */
