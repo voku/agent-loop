@@ -323,6 +323,7 @@ jobs:
             --validation 'php -l src/MethodSource.php && php -l src/MethodDestination.php' \
             --acceptance 'normalize exists only on MethodDestination and refactor verification passes.'
           vendor/bin/agent-loop workflow approve METHOD-MOVE-1 --by installed-method-move-dogfood
+          vendor/bin/agent-loop workflow execution-profile METHOD-MOVE-1 --profile manual --by installed-method-move-dogfood
           vendor/bin/agent-loop enter METHOD-MOVE-1 --format=json --max-lines=40 --max-bytes=4096 > method-move-enter.json
           jq -e '.mutation_ready == true' method-move-enter.json >/dev/null
 
