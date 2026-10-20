@@ -233,7 +233,7 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('MISSING_EVIDENCE: repository root cannot be resolved for review coverage.');
         }
         $process = proc_open(
-            ['git', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $plan->baseCommit, $candidateTree, '--'],
+            ['git', '--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--no-renames', $plan->baseCommit, $candidateTree, '--'],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -362,7 +362,7 @@ final readonly class ExecutionStageResultAuthority
             throw new RuntimeException('STALE_CANDIDATE: repository root cannot be resolved.');
         }
         $process = proc_open(
-            ['git', 'cat-file', '-t', $tree],
+            ['git', '--no-replace-objects', 'cat-file', '-t', $tree],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -429,7 +429,7 @@ final readonly class ExecutionStageResultAuthority
             $this->assertPathAbsentFromCandidate($candidateTree, $relativePath, $root);
         }
         $process = proc_open(
-            ['git', 'cat-file', 'blob', $treeish . ':' . $relativePath],
+            ['git', '--no-replace-objects', 'cat-file', 'blob', $treeish . ':' . $relativePath],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
@@ -470,7 +470,7 @@ final readonly class ExecutionStageResultAuthority
     private function assertPathAbsentFromCandidate(string $candidateTree, string $relativePath, string $root): void
     {
         $process = proc_open(
-            ['git', 'cat-file', '-e', $candidateTree . ':' . $relativePath],
+            ['git', '--no-replace-objects', 'cat-file', '-e', $candidateTree . ':' . $relativePath],
             [
                 0 => ['pipe', 'r'],
                 1 => ['pipe', 'w'],
