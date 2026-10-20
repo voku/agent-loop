@@ -292,6 +292,10 @@ final class ReleaseSetDogfood
     private function approve(): void
     {
         $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'release-set-gate']);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'execution-profile', 'DEMO-1',
+            '--profile', 'manual', '--by', 'release-set-gate',
+        ]);
         $status = $this->status('DEMO-1');
         $this->assertReference($status, 'approval', 'current');
         $this->assertReference($status, 'recall', 'missing');
