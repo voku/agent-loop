@@ -43,19 +43,19 @@ final class GovernedExecutionProtocolTest extends TestCase
         $this->rm($this->root);
     }
 
-    public function testManualProfileRemainsDefaultAndCompletesWithoutRunnerStages(): void
+    public function testStandardProfileIsDefaultAndStartsAtInvestigationStage(): void
     {
         $this->prepareApprovedRun();
 
         $plan = (new ExecutionPlanStore($this->root))->load('ABC-123');
-        self::assertSame(ExecutionProfileName::MANUAL, $plan->profile);
-        self::assertSame([], $plan->stages);
+        self::assertSame(ExecutionProfileName::STANDARD, $plan->profile);
+        self::assertNotSame([], $plan->stages);
         self::assertMatchesRegularExpression('/^sha256:[a-f0-9]{64}$/', $plan->digest());
 
         $projection = (new ExecutionGateway($this->root))->projection('ABC-123');
-        self::assertTrue($projection->complete());
-        self::assertNull($projection->currentStageId);
-        self::assertSame(0, $projection->currentAttempt);
+        self::assertFalse($projection->complete());
+        self::assertSame('investigate', $projection->currentStageId);
+        self::assertSame(1, $projection->currentAttempt);
         self::assertSame(self::BASE_COMMIT, $projection->candidateRevision);
         self::assertFileExists((new ExecutionStateStore($this->root))->path('ABC-123'));
     }
@@ -426,11 +426,11 @@ final class GovernedExecutionProtocolTest extends TestCase
         $profileOutput = trim((string) ob_get_clean());
 
         self::assertSame(0, $profileExit);
-        self::assertStringEndsWith('manual', $profileOutput);
+        self::assertStringEndsWith('standard', $profileOutput);
         self::assertSame(2, (new TaskContractStore($this->root))->load('ABC-123')->revision);
 
         $this->enter();
-        self::assertSame(ExecutionProfileName::MANUAL, (new ExecutionPlanStore($this->root))->load('ABC-123')->profile);
+        self::assertSame(ExecutionProfileName::STANDARD, (new ExecutionPlanStore($this->root))->load('ABC-123')->profile);
     }
 
     public function testPersistedPlanDigestDetectsTampering(): void
