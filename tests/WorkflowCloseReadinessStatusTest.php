@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use voku\AgentLoop\Execution\AcceptedStageResult;
 use voku\AgentLoop\Execution\ExecutionEvidenceClaim;
 use voku\AgentLoop\Execution\ExecutionEvidenceKind;
@@ -69,7 +70,7 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
 
         $sourceContents = file_get_contents($this->root . '/src/Foo.php');
         if (!is_string($sourceContents)) {
-            throw new \\RuntimeException('Unable to read the close-readiness fixture source.');
+            throw new RuntimeException('Unable to read the close-readiness fixture source.');
         }
         $reference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
             $plan->taskId,
