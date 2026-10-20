@@ -492,7 +492,7 @@ final class HostFrontDoorCommandTest extends TestCase
             'lars',
         );
         $contract = $contracts->approve('ABC-123', 'lars');
-        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture($this->root, 'ABC-123');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         $sessions = new SessionStore();
