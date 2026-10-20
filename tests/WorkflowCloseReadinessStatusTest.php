@@ -5,6 +5,17 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+use voku\AgentLoop\Execution\AcceptedStageResult;
+use voku\AgentLoop\Execution\ExecutionEvidenceClaim;
+use voku\AgentLoop\Execution\ExecutionEvidenceKind;
+use voku\AgentLoop\Execution\ExecutionEvidenceStore;
+use voku\AgentLoop\Execution\ExecutionPlanStore;
+use voku\AgentLoop\Execution\ExecutionState;
+use voku\AgentLoop\Execution\ExecutionStateStore;
+use voku\AgentLoop\Execution\StageOutcome;
+use voku\AgentLoop\Execution\StageResult;
+use voku\AgentLoop\ProjectLayout;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use voku\AgentLearning\RunLearningDecisionStatus;
@@ -37,6 +48,128 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
     protected function tearDown(): void
     {
         $this->rm($this->root);
+    }
+
+    public function testMissingPersistedReviewEvidenceStaysOnExecutionReviewGate(): void
+    {
+        $this->git('init', '-q');
+        $this->git('config', 'user.email', 'tests@example.test');
+        $this->git('config', 'user.name', 'Tests');
+        $this->git('add', 'src/Foo.php');
+        $this->git('commit', '-qm', 'base');
+
+        $this->prepareGovernedRun(ValidationStatus::PASSED, 0);
+        $contract = (new TaskContractStore($this->root))->load('ABC-123');
+        $run = (new GovernedRunStore($this->root))->findForContract($contract);
+        self::assertNotNull($run);
+        $plan = (new ExecutionPlanStore($this->root))->prepare($run, $contract);
+        self::assertSame('standard', $plan->profile->value);
+        self::assertNotNull($plan->baseCommit);
+        $candidateTree = $this->git('rev-parse', 'HEAD^{tree}');
+        $candidateRevision = 'git-tree-v1:' . $plan->baseCommit . ':' . $candidateTree;
+
+        $sourceContents = file_get_contents($this->root . '/src/Foo.php');
+        if (!is_string($sourceContents)) {
+            throw new RuntimeException('Unable to read the close-readiness fixture source.');
+        }
+        $reference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'correctness-review',
+            1,
+            $candidateRevision,
+            ExecutionEvidenceKind::ARTIFACT,
+            'workspace-file:src/Foo.php',
+            'sha256:' . hash('sha256', $sourceContents),
+        ));
+        $build = new StageResult(
+            'fixture:build',
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'build',
+            1,
+            StageOutcome::COMPLETED,
+            $candidateRevision,
+            [],
+            [],
+            'Fixture build completed.',
+            'ctx:build',
+        );
+        $correctness = new StageResult(
+            'fixture:correctness-review',
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'correctness-review',
+            1,
+            StageOutcome::PASS,
+            $candidateRevision,
+            [$reference],
+            [],
+            'Fixture correctness review passed.',
+            'ctx:correctness-review',
+        );
+        $blindspots = new StageResult(
+            'fixture:blindspot-review',
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            'blindspot-review',
+            1,
+            StageOutcome::PASS,
+            $candidateRevision,
+            [],
+            [],
+            'Fixture blind-spot review passed.',
+            'ctx:blindspot-review',
+        );
+        $state = new ExecutionState(
+            $plan->taskId,
+            $plan->runId,
+            $plan->contractRevision,
+            $plan->digest(),
+            null,
+            1,
+            $candidateRevision,
+            null,
+            [
+                new AcceptedStageResult($build, null, '2026-10-20T00:00:00+00:00'),
+                new AcceptedStageResult($correctness, null, '2026-10-20T00:01:00+00:00'),
+                new AcceptedStageResult($blindspots, null, '2026-10-20T00:02:00+00:00'),
+            ],
+        );
+        $stateStore = new ExecutionStateStore($this->root);
+        $statePath = $stateStore->path('ABC-123');
+        if (!is_dir(dirname($statePath))) {
+            mkdir(dirname($statePath), 0o775, true);
+        }
+        file_put_contents($statePath, json_encode($state->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        $evidenceRoot = (new ProjectLayout($this->root))->executionEvidenceRoot('ABC-123');
+        $evidenceFiles = glob($evidenceRoot . '/*.json') ?: [];
+        self::assertCount(1, $evidenceFiles);
+        self::assertTrue(unlink($evidenceFiles[0]));
+
+        [$statusExit, $statusOutput] = $this->runStatus(['--format=json']);
+        $status = json_decode($statusOutput, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(2, $statusExit);
+        self::assertSame('blocked', $status['manifest']['state'] ?? null);
+        self::assertSame('execution_review', $status['manifest']['references']['verification']['gate'] ?? null);
+        self::assertStringContainsString(
+            'semantic review stage correctness-review has stale review evidence',
+            (string) ($status['manifest']['references']['verification']['reason'] ?? ''),
+        );
+        self::assertStringContainsString(
+            'pipeline status ABC-123',
+            (string) ($status['manifest']['next_action'] ?? ''),
+        );
+        self::assertSame('command', $status['policy']['next_action_kind'] ?? null);
     }
 
     public function testFailedCurrentValidationBlocksStatusWithSameReasonAsClose(): void
@@ -431,6 +564,21 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
         $output = (string) ob_get_clean();
 
         return [$exit, $output];
+    }
+
+    private function git(string ...$arguments): string
+    {
+        exec(
+            'git -C ' . escapeshellarg($this->root) . ' '
+                . implode(' ', array_map('escapeshellarg', $arguments)) . ' 2>&1',
+            $output,
+            $exit,
+        );
+        if ($exit !== 0) {
+            throw new RuntimeException('git ' . implode(' ', $arguments) . ' failed: ' . implode(PHP_EOL, $output));
+        }
+
+        return trim(implode(PHP_EOL, $output));
     }
 
     private function rm(string $dir): void

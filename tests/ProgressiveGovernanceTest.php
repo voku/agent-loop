@@ -205,6 +205,7 @@ final class ProgressiveGovernanceTest extends TestCase
      */
     private function enter(string $taskId, ?callable $recallCompiler = null): array
     {
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, $taskId);
         ob_start();
         try {
             $exit = (new HostFrontDoorCommand($this->root, recallCompiler: $recallCompiler))

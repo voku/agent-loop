@@ -58,7 +58,7 @@ final class WorkflowApproveExecutionProfileNoteTest extends TestCase
         self::assertNotFalse($note);
         self::assertLessThan(strpos($output, '[NEXT]'), $note);
         self::assertSame(1, substr_count($output, '[NOTE]'));
-        self::assertStringContainsString('manual', $output);
+        self::assertStringContainsString('standard', $output);
         self::assertStringContainsString('fixed by the first enter', $output);
         self::assertStringContainsString('workflow execution-profile NOTE-1 --profile <manual|surgical|standard|hardened> --by <actor>', $output);
     }

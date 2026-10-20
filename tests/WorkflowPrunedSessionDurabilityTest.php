@@ -171,6 +171,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             'lars',
         );
         $contract = $contracts->approve('ABC-123', 'lars');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
 
         $sessions = new SessionStore();
         $session = $sessions->rehydrate(
@@ -213,6 +214,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             'lars',
         );
         $contract = $contracts->approve('ABC-123', 'lars');
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
 
         $sessionsRoot = $this->root . '/.agent-loop/sessions';
         $sessions = new SessionStore();
@@ -257,6 +259,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
 
     private function enter(): int
     {
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         ob_start();
         try {
             return (new HostFrontDoorCommand(

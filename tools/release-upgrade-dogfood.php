@@ -202,6 +202,9 @@ final class ReleaseUpgradeDogfood
             '--validation', $this->validationCommand(),
         ]);
         $this->agentLoop($scenario, ['workflow', 'approve', 'UPGRADE-AUTH-1', '--by', 'upgrade-fixture-human']);
+        $this->agentLoop($scenario, [
+            'workflow', 'execution-profile', 'UPGRADE-AUTH-1', '--profile', 'manual', '--by', 'upgrade-fixture-human',
+        ]);
         $this->agentLoopJson($scenario, ['enter', 'UPGRADE-AUTH-1', '--format=json']);
         $revisionTwo = $this->identity($scenario, 'UPGRADE-AUTH-1');
 
@@ -433,6 +436,9 @@ final class ReleaseUpgradeDogfood
             '--validation', $this->validationCommand(),
         ]);
         $this->agentLoop($scenario, ['workflow', 'approve', $taskId, '--by', 'upgrade-fixture-human']);
+        $this->agentLoop($scenario, [
+            'workflow', 'execution-profile', $taskId, '--profile', 'manual', '--by', 'upgrade-fixture-human',
+        ]);
         $enter = $this->agentLoopJson($scenario, ['enter', $taskId, '--format=json']);
         if (($enter['mutation_ready'] ?? false) !== true) {
             throw new RuntimeException($taskId . ' did not become mutation-ready before interruption.');

@@ -170,6 +170,7 @@ jobs:
             --validation 'composer test' \
             --acceptance 'The obsolete property is absent, public behavior passes, and property-removal verification proves current Map evidence.'
           vendor/bin/agent-loop workflow approve DEMO-1 --by installed-property-removal-dogfood
+          vendor/bin/agent-loop workflow execution-profile DEMO-1 --profile manual --by installed-property-removal-dogfood
           vendor/bin/agent-loop enter DEMO-1 --format=json --max-lines=40 --max-bytes=4096 > enter.json
           jq -e '.mutation_ready == true' enter.json >/dev/null
 

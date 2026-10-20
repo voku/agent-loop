@@ -130,6 +130,7 @@ final class GovernedRunPortabilityTest extends TestCase
         ob_start();
         self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
         ob_end_clean();
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         ob_start();
         self::assertSame(
             0,
