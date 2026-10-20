@@ -115,7 +115,7 @@ final readonly class WorkflowCloseCommand
                         'error' => $msg,
                         'non_waivable_failures' => $readiness->nonWaivableFailures,
                         'next_action' => $nextAction,
-                        'next_action_kind' => 'host_work',
+                        'next_action_kind' => $gate === 'execution_review' ? 'command' : 'host_work',
                     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
                     return 1;
