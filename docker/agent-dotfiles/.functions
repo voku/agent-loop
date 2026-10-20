@@ -1,0 +1,41 @@
+# Named commands for agent shells. Aliases do not expand in the non-interactive
+# shells most coding agents use, so every helper is a function that behaves the
+# same in Bash and Zsh. No helper shadows a native command.
+#
+# Boundary (ADR 0004): a helper belongs here only if it is the native command
+# with host-config bleed or interactivity removed and nothing else, plus one
+# named exception, agent_head, that makes a truncation visible. Completeness
+# checks, tool strategy and workflow belong in guidance (voku/agent-skills).
+# Read-only; no helper hides or silently truncates evidence.
+
+# Read-only native Git with stable, non-paged output and no credential prompt.
+agent_git() {
+    GIT_PAGER=cat GIT_TERMINAL_PROMPT=0 command git --no-pager -c color.ui=false "$@"
+}
+
+# Literal ripgrep invocation insulated from host ripgrep configuration.
+agent_rg() {
+    RIPGREP_CONFIG_PATH=/dev/null command rg --no-config --color=never "$@"
+}
+
+# Evidence-preservation primitive (the one non-normalizing exception, ADR 0004):
+# print the first N lines (default 100) of stdin and, on stdout, say how many
+# were left out. Use instead of a bare `head`, which truncates silently. Reads
+# all of stdin to count, so the producer is never cut off by SIGPIPE.
+agent_head() {
+    local _limit="${1:-100}" _shown=0 _total=0 _line
+    case "$_limit" in '' | *[!0-9]*) printf 'usage: ... | agent_head [LINES]\n' >&2; return 64 ;; esac
+    while IFS= read -r _line || [ -n "$_line" ]; do
+        _total=$((_total + 1))
+        if [ "$_shown" -lt "$_limit" ]; then
+            printf '%s\n' "$_line"
+            _shown=$((_shown + 1))
+        fi
+    done
+    if [ "$_total" -gt "$_limit" ]; then
+        printf 'agent_head: TRUNCATED, showed %s of %s lines\n' "$_shown" "$_total"
+    fi
+}
+
+# shellcheck source=.redpill/lib/deactivation.sh
+. "$AGENT_DOTFILES_HOME/.redpill/lib/deactivation.sh"

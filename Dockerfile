@@ -5,10 +5,12 @@ FROM php:8.4.26-cli-trixie@sha256:1d2cf2b7d715b5b3aa959f0150ccbcc7b71e0181b637e4
 
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \
+        bash \
         git \
         libicu-dev \
         libonig-dev \
         libsqlite3-dev \
+        ripgrep \
         unzip \
     && docker-php-ext-install intl mbstring pdo_sqlite \
     && apt-get clean \
@@ -17,7 +19,8 @@ RUN apt-get update \
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
-    COMPOSER_HOME=/tmp/composer
+    COMPOSER_HOME=/tmp/composer \
+    BASH_ENV=/opt/agent-loop/docker/container-bash-env.sh
 
 WORKDIR /opt/agent-loop
 
@@ -36,8 +39,10 @@ COPY bin/ ./bin/
 COPY src/ ./src/
 COPY resources/ ./resources/
 COPY docker/entrypoint.sh /usr/local/bin/agent-loop-entrypoint
+COPY docker/container-bash-env.sh ./docker/container-bash-env.sh
+COPY docker/agent-dotfiles/ /opt/agent-dotfiles/
 
-RUN chmod -R a+rX /opt/agent-loop && chmod 755 /usr/local/bin/agent-loop-entrypoint
+RUN chmod -R a+rX /opt/agent-loop /opt/agent-dotfiles && chmod 755 /usr/local/bin/agent-loop-entrypoint
 
 USER 1000:1000
 

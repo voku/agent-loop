@@ -5,17 +5,25 @@ runtimes and locked Composer dependencies. PHP and Composer do not need to be
 installed on the host. Docker Engine, the Docker Compose plugin, and a browser
 for the UI are required.
 
-The image contains the `agent-loop` package and its runtime dependencies. The
-mounted project remains on the host and is the working directory for every CLI
-command. The image does not contain or launch a coding-agent host such as Codex,
-Claude Code or Cursor; run that host as usual and use this wrapper when a
+The CLI image contains the `agent-loop` package, its runtime dependencies,
+`bash`, `ripgrep`, and a pinned copy of the reviewed `voku/agent-dotfiles`
+agent profile. `BASH_ENV` activates that profile automatically for the entrypoint
+and non-interactive Bash commands. Its non-interactive defaults and `agent_git`,
+`agent_rg`, and `agent_head` helpers are available without sourcing a file by
+hand. The profile only affects the container process tree; it does not read or
+write host shell startup files or Git configuration. The exact upstream commit
+and bundled file list are recorded in `docker/agent-dotfiles/UPSTREAM.md`.
+
+The mounted project remains on the host and is the working directory for every
+CLI command. The image does not contain or launch a coding-agent host such as
+Codex, Claude Code or Cursor; run that host as usual and use this wrapper when a
 workflow command needs PHP.
 The CLI image build context is allow-listed to its Docker inputs,
-`composer.json`, `composer.lock`, `bin/`, `src/`, `resources/` and
-`docker/entrypoint.sh`. The UI image receives only its Dockerfile, locked
-dependency manifest and entrypoint. Git history, local workflow state and
-development dependencies are not sent to either image builder. This does not
-limit the separate project bind mount.
+`composer.json`, `composer.lock`, `bin/`, `src/`, `resources/`, the CLI
+entrypoint, Bash bootstrap, and pinned dotfiles files. The UI image receives
+only its Dockerfile, locked dependency manifest and entrypoint. Git history,
+local workflow state and development dependencies are not sent to either image
+builder. This does not limit the separate project bind mount.
 
 ## Build and run against this checkout
 
