@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Init\HostCapability;
 use voku\AgentLoop\Init\HostCapabilityMatrix;
 use voku\AgentLoop\Init\HostCapabilityStatus;
+use voku\AgentLoop\Init\HostRuntimeEvidence;
 use voku\AgentLoop\Init\InitAgent;
 
 /**
@@ -49,7 +50,7 @@ final class HostCapabilityMatrixTest extends TestCase
             HostCapabilityStatus::Degraded,
             HostCapabilityMatrix::status('codex', HostCapability::SubagentReadOnlyEnforcement),
         );
-        $codex = HostCapabilityMatrix::describe('codex', HostCapability::SubagentReadOnlyEnforcement);
+        $codex = HostCapabilityMatrix::describe('codex', HostCapability::SubagentReadOnlyEnforcement, '0.157.0');
         self::assertSame('adapter-declared;live-runtime-refuted', $codex['evidence']);
         self::assertSame(
             'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
@@ -110,10 +111,10 @@ final class HostCapabilityMatrixTest extends TestCase
         ];
 
         foreach ($hookBacked as $capability) {
-            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status('codex', $capability));
+            self::assertSame(HostCapabilityStatus::Supported, HostCapabilityMatrix::status('codex', $capability, '0.157.0'));
             self::assertSame(
                 'adapter-declared;live-runtime-verified',
-                HostCapabilityMatrix::describe('codex', $capability)['evidence'],
+                HostCapabilityMatrix::describe('codex', $capability, '0.157.0')['evidence'],
             );
 
             foreach (['opencode', 'copilot', 'gemini', 'antigravity'] as $agent) {
@@ -126,28 +127,28 @@ final class HostCapabilityMatrixTest extends TestCase
 
         self::assertStringContainsString(
             'Codex 0.157.0 project-trust and persisted-hash runtime proofs observed execution',
-            HostCapabilityMatrix::describe('codex', HostCapability::SessionBootstrap)['mechanism'],
+            HostCapabilityMatrix::describe('codex', HostCapability::SessionBootstrap, '0.157.0')['mechanism'],
         );
         self::assertStringContainsString(
             'Codex 0.157.0 selected-child runtime proof observed execution',
-            HostCapabilityMatrix::describe('codex', HostCapability::SubagentBootstrap)['mechanism'],
+            HostCapabilityMatrix::describe('codex', HostCapability::SubagentBootstrap, '0.157.0')['mechanism'],
         );
         self::assertStringContainsString(
             'Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement',
-            HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
+            HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail, '0.157.0')['mechanism'],
         );
 
         self::assertSame(
             HostCapabilityStatus::Supported,
-            HostCapabilityMatrix::status('claude', HostCapability::PreToolGuardrail),
+            HostCapabilityMatrix::status('claude', HostCapability::PreToolGuardrail, '2.1.287'),
         );
         self::assertSame(
             'adapter-declared;live-runtime-verified',
-            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail)['evidence'],
+            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail, '2.1.287')['evidence'],
         );
         self::assertStringContainsString(
             'Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
-            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail)['mechanism'],
+            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail, '2.1.287')['mechanism'],
         );
 
         foreach ([
@@ -179,6 +180,63 @@ final class HostCapabilityMatrixTest extends TestCase
         }
     }
 
+    public function testRuntimeEvidenceIsVerifiedOnlyForTheExactTestedVersion(): void
+    {
+        $capability = HostCapability::PreToolGuardrail;
+
+        self::assertSame(
+            'adapter-declared;live-runtime-verified',
+            HostCapabilityMatrix::describe('codex', $capability, '0.157.0')['evidence'],
+        );
+        foreach ([null, '0.158.0', 'not-a-version'] as $version) {
+            $description = HostCapabilityMatrix::describe('codex', $capability, $version);
+            self::assertSame(HostCapabilityStatus::Degraded, $description['status']);
+            self::assertSame('adapter-declared;live-runtime-unverified', $description['evidence']);
+            self::assertStringContainsString('0.157.0', $description['mechanism']);
+        }
+
+        self::assertSame(
+            HostCapabilityStatus::Supported,
+            HostCapabilityMatrix::status('claude', $capability, '2.1.287'),
+        );
+        self::assertSame(
+            HostCapabilityStatus::Degraded,
+            HostCapabilityMatrix::status('claude', $capability, '2.1.288'),
+        );
+    }
+
+    public function testRuntimeProvenanceAndFreshnessAreTypedAndIndependentFromProjection(): void
+    {
+        $capability = HostCapability::PreToolGuardrail;
+        foreach (['codex' => '0.157.0', 'claude' => '2.1.287'] as $host => $version) {
+            $row = HostCapabilityMatrix::describe($host, $capability, $version);
+            $evidence = $row['runtime_evidence'] ?? null;
+            self::assertInstanceOf(HostRuntimeEvidence::class, $evidence);
+            self::assertSame($host, $evidence->host);
+            self::assertSame($capability, $evidence->capability);
+            self::assertSame($version, $evidence->hostVersion);
+            self::assertSame('2026-10-19', $evidence->verifiedAt->format('Y-m-d'));
+            self::assertStringContainsString('https://github.com/voku/agent-loop/actions/runs/', $evidence->evidenceRef);
+            self::assertStringContainsString('ac1b898', $evidence->verifiedBy);
+            self::assertSame('exact_verified', $evidence->classification($version));
+            self::assertSame('unavailable', $evidence->classification(null));
+            foreach (['0.0.1', '999.0.0', 'malformed'] as $other) {
+                self::assertSame('drift_unverified', $evidence->classification($other));
+            }
+            self::assertSame('adapter-declared', HostCapabilityMatrix::describe($host, HostCapability::SkillProjection, null)['evidence']);
+        }
+    }
+
+    public function testHistoricalRefutationDoesNotBecomeEvidenceForADifferentRuntime(): void
+    {
+        foreach ([null, '0.158.0'] as $version) {
+            $row = HostCapabilityMatrix::describe('codex', HostCapability::SubagentReadOnlyEnforcement, $version);
+            self::assertSame('adapter-declared;live-runtime-unverified', $row['evidence']);
+            self::assertStringContainsString('live-runtime evidence unverified (tested=0.157.0, current=' . ($version ?? 'unknown') . ')', $row['mechanism']);
+            self::assertSame(HostCapabilityStatus::Degraded, $row['status']);
+        }
+    }
+
     public function testKnownNativeMechanismsAreExplainedWithoutClaimingRuntimeExecution(): void
     {
         self::assertSame(
@@ -203,7 +261,7 @@ final class HostCapabilityMatrixTest extends TestCase
         );
         self::assertSame(
             'Codex hooks.json PreToolUse ^Bash$ command hook; Codex 0.157.0 canonical exec_command/Bash runtime proof observed deny enforcement',
-            HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail)['mechanism'],
+            HostCapabilityMatrix::describe('codex', HostCapability::PreToolGuardrail, '0.157.0')['mechanism'],
         );
         self::assertSame(
             'Claude project settings granular hook registrations + repository-local command hooks',
@@ -211,7 +269,7 @@ final class HostCapabilityMatrixTest extends TestCase
         );
         self::assertSame(
             'Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
-            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail)['mechanism'],
+            HostCapabilityMatrix::describe('claude', HostCapability::PreToolGuardrail, '2.1.287')['mechanism'],
         );
         self::assertSame(
             '.cursor/hooks.json beforeShellExecution fail-closed shell authority policy',

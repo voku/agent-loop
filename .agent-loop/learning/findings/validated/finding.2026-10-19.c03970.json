@@ -1,0 +1,30 @@
+{
+    "id": "finding.2026-10-19.c03970",
+    "task_id": "805",
+    "session": "2026-10-19-805-r3-aa179fea",
+    "created_at": "2026-10-19T17:00:22+00:00",
+    "created_by": "codex",
+    "scope": [
+        "src/Init/HostRuntimeProbe.php",
+        "src/Init/HostCapabilityMatrix.php"
+    ],
+    "observation": "Issue 805 confirmed that HostRuntimeProbe recorded executable presence while HostCapabilityMatrix presented historical live-runtime-verified claims without checking the current executable version. A version change or missing binary could therefore leave stale compatibility evidence apparently current.",
+    "evidence": [
+        {
+            "type": "issue_reference",
+            "issue": "voku/agent-loop#805",
+            "summary": "Issue 805 identified stale live runtime claims that were shown without comparing the tested release to the currently evaluated executable."
+        },
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Passed on implementation snapshot sha256:35aadcce21b1c993a0877783593eaecac294be0fea0037af99ad9ddd8533f527 with voku/agent-learning 0.18.34: PHP 8.5.11, 1576 tests, 10525 assertions, 5 skips; CS, PHPStan and dogfood passed."
+        }
+    ],
+    "hypothesis": "Runtime compatibility evidence becomes misleading when it is not bound to the tested executable identity. Executable discovery and a successful version command establish presence and identity, but neither proves compatibility.",
+    "validated_conclusion": "For live runtime compatibility claims tied to a known host release, compare the current executable version with the tested version before reporting verified. Keep executable availability, version discovery, and successful compatibility testing as separate facts; unknown or mismatched identity must not retain verified status.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}
