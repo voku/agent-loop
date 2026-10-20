@@ -8,6 +8,7 @@ use RuntimeException;
 use voku\AgentLoop\Execution\ExecutionPlanStore;
 use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Execution\ExecutionProfileSelectionStore;
+use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 
@@ -21,6 +22,9 @@ final class ManualProfileLifecycleFixture
 
         $contract = (new TaskContractStore($root))->find($taskId);
         if (!$contract instanceof TaskContract || $contract->status !== TaskContract::APPROVED) {
+            return;
+        }
+        if ((new GovernedRunStore($root))->findForContract($contract) !== null) {
             return;
         }
 

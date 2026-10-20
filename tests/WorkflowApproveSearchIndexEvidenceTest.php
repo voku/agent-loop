@@ -119,6 +119,7 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
     /** @return array{exit: int, payload: array<string, mixed>, recallRequest: CompileRequest} */
     private function enter(): array
     {
+        \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture($this->root, 'ABC-123');
         $recallRequest = null;
         $compiler = function (CompileRequest $request) use (&$recallRequest): CompileResult {
             $recallRequest = $request;

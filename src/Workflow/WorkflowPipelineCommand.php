@@ -317,6 +317,7 @@ final readonly class WorkflowPipelineCommand
         $summary = OptionTokens::value($tokens, "summary") ?? ("Stage result: " . $outcome->value);
         $candidate = OptionTokens::value($tokens, "candidate");
         $contextId = OptionTokens::value($tokens, "context-id");
+        $artifactPaths = OptionTokens::values($tokens, "artifact");
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
 
         $gateway = new ExecutionGateway($this->rootPath);
@@ -335,6 +336,15 @@ final readonly class WorkflowPipelineCommand
 
         $bundle = $gateway->prepareStage($taskId, $currentStageId);
         $effectiveCandidate = $candidate ?? $bundle->candidateRevision;
+        $artifactReferences = [];
+        foreach ($artifactPaths as $artifactPath) {
+            foreach (explode(',', $artifactPath) as $path) {
+                $path = trim($path);
+                if ($path !== '') {
+                    $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path);
+                }
+            }
+        }
 
         $submissionId = sprintf(
             "submission:%s:%d:%s",
@@ -353,7 +363,7 @@ final readonly class WorkflowPipelineCommand
             $bundle->attempt,
             $outcome,
             $effectiveCandidate,
-            [],
+            $artifactReferences,
             [],
             $summary,
             $contextId,
@@ -509,7 +519,7 @@ Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--auto-verify] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--auto-verify] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.
 TXT;
