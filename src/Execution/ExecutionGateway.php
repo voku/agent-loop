@@ -405,8 +405,8 @@ final readonly class ExecutionGateway
     {
         if ($path === ''
             || str_starts_with($path, '/')
+            || str_contains($path, "\0")
             || str_contains($path, '\\')) {
-            || str_contains($path, '\\\\')) {
             throw new RuntimeException('INVALID_STAGE_RESULT: artifact citation must be a canonical workspace-relative path.');
         }
         foreach (explode('/', $path) as $segment) {
