@@ -535,7 +535,7 @@ jobs:
                 },
                 subagent_start_context: {
                   evidence_class: "host_runtime_context_consumption",
-                  mechanism: "SubagentStart-only registration for a native foreground Agent child; the disposable projected discipline skill carries a proof marker observed in the child's actual provider request",
+                  mechanism: "SubagentStart-only registration for a native foreground Agent child; the disposable projected discipline skill carries a proof marker observed in the native child provider request",
                   observations: ($runtime_observations.context_hook_runtime.subagent_start // null),
                   status: (if $runtime_observations.context_hook_runtime.subagent_start.status == "observed" then "observed" else "unverified" end),
                   boundary: "Proves the pinned Claude Code runtime includes the projected SubagentStart additionalContext exactly once in this fresh native child request. It does not prove subagent read-only enforcement or arbitrary child behavior."
