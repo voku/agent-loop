@@ -108,6 +108,32 @@ class Provider:
             }
 
         if (
+            "RUNTIME_PROOF_SUBAGENT_START_CHILD" in observed
+            and "RUNTIME_PROOF_SUBAGENT_START_PARENT" not in observed
+        ):
+            return "text", "SUBAGENT_START_PROOF_OK"
+
+        if "RUNTIME_PROOF_SUBAGENT_START_PARENT" in observed:
+            if has_block_type(payload.get("messages", []), "tool_result"):
+                return "text", "PROOF_OK"
+            return "tool", {
+                "id": f"toolu_agent_subagent_start_{request_index}",
+                "name": "Agent",
+                "input": {
+                    "description": "Runtime proof investigator",
+                    "prompt": (
+                        "RUNTIME_PROOF_SUBAGENT_START_CHILD "
+                        "Return exactly SUBAGENT_START_PROOF_OK and do not use tools."
+                    ),
+                    "run_in_background": False,
+                    "subagent_type": "agent-loop-investigator",
+                },
+            }
+
+        if "RUNTIME_PROOF_SESSION_START" in observed:
+            return "text", "PROOF_OK"
+
+        if (
             "RUNTIME_PROOF_SUBAGENT_CHILD_" in observed
             and "RUNTIME_PROOF_SUBAGENT_PARENT_" not in observed
         ):
