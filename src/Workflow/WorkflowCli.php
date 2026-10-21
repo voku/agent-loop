@@ -65,7 +65,7 @@ Usage:
 Commands:
   plan               Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
   approve            Approve the exact Contract revision only; deterministic Run/Session/Recall preparation belongs to `agent-loop enter`.
-  execution-profile  Select the explicit execution topology for an approved Contract before its Run exists; absent selection means manual.
+  execution-profile  Select an execution topology before Run creation; standard independent review is the default, manual is opt-in.
   attention          Resolve pending human-owned execution Attention through an explicit actor-owned workflow transition; runner-facing APIs cannot manufacture this authority.
   contract           Persist the project-specific L1 execution contract, or an explicit BLOCKED/REJECTED result.
   status             Show the read-only cross-package Run projection and one next action; --expect makes an exact state CI-assertable.
@@ -88,7 +88,7 @@ Built-in L1 control prompts:
   They are context-independent L1 controls and do not create an L2 execution-contract construction pass.
 
 Governed flow:
-  PLAN -> APPROVE -> EXECUTION PROFILE (optional; default manual) -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
+  PLAN -> APPROVE -> EXECUTION PROFILE (optional; default standard) -> ENTER/PREPARE -> CONTRACT -> IMPLEMENT -> VALIDATE -> REVIEW -> LEARN -> CLOSE
 
 Ownership:
   Contract/approval, execution topology, Attention resolution, and Run lifecycle are durable agent-loop state.

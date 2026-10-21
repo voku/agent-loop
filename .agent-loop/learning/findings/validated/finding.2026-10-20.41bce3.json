@@ -1,0 +1,29 @@
+{
+    "id": "finding.2026-10-20.41bce3",
+    "task_id": "DOCKER-810-DOTFILES-CHILD-SHELL",
+    "session": "2026-10-20-docker-810-dotfiles-child-shell-r1-3eb39845",
+    "created_at": "2026-10-20T05:33:08+00:00",
+    "created_by": "Codex",
+    "scope": [
+        "docker/container-bash-env.sh",
+        "docker/test-dotfiles-profile.sh"
+    ],
+    "observation": "The profile activation marker crossed a POSIX shell intermediary while the exported helper functions did not, leaving later Bash shells marked active but without the helper functions.",
+    "evidence": [
+        {
+            "type": "manual_verification",
+            "summary": "A POSIX shell between the Docker entrypoint Bash and a later Bash process drops exported Bash function definitions while preserving ordinary environment variables, including AGENT_LOOP_CONTAINER_PROFILE_ACTIVE. The bootstrap now restores only missing helper definitions from the pinned, read-only dotfiles snapshot after validating the active profile path and exported bookkeeping state."
+        },
+        {
+            "type": "test_result",
+            "command": "./docker/agent-loop --exec sh -c './docker/test-dotfiles-profile.sh'",
+            "summary": "Observed passed with exit code 0; the smoke test exercised the profile through a POSIX shell intermediary, child deactivation, and automatic activation in the next nested Bash shell."
+        }
+    ],
+    "hypothesis": "Mixed-shell process chains can preserve ordinary environment state while dropping Bash function exports; a marker alone cannot prove the helper functions remain available.",
+    "validated_conclusion": "Export profile bookkeeping and include the activation marker in the profile-owned variables removed by deactivation. When the trusted marker survives but helper functions do not, reload only the pinned helper definitions after validating the profile path and state.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "public"
+}

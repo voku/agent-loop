@@ -39,6 +39,21 @@ def objects(value: Any) -> Iterable[dict[str, Any]]:
             yield from objects(item)
 
 
+def tool_result_contains(value: Any, expected_text: str) -> bool:
+    return any(
+        item.get("type") == "tool_result"
+        and expected_text in "\n".join(strings(item))
+        for item in objects(value)
+    )
+
+
+def marker_occurrences(
+    records: list[tuple[Path, dict[str, Any], str]],
+    marker: str,
+) -> int:
+    return sum(record[2].count(marker) for record in records)
+
+
 def request_records(evidence_root: Path) -> list[tuple[Path, dict[str, Any], str]]:
     records = []
     for raw_path in glob.glob(str(evidence_root / "provider-request-*.json")):
@@ -80,8 +95,82 @@ def analyze(evidence_root: Path) -> dict[str, Any]:
         "instruction_consumption": {},
         "skill_runtime": {},
         "subagent_runtime": {},
+        "context_hook_runtime": {},
         "pretool_deny_runtime": None,
         "direct_permission_deny_runtime": {},
+    }
+
+    session_start_sentinel = "CLAUDE_RUNTIME_PROOF_SESSION_START_CONTEXT_ISSUE_623"
+    session_start_request = exactly_one(records, "RUNTIME_PROOF_SESSION_START")
+    session_start_count = session_start_request[2].count(session_start_sentinel)
+    session_start_total = marker_occurrences(records, session_start_sentinel)
+    if session_start_count != 1 or session_start_total != 1:
+        raise SystemExit(
+            "SessionStart: expected exactly one projected hook context in the dedicated fresh request, "
+            f"observed {session_start_total}"
+        )
+    observations["context_hook_runtime"]["session_start"] = {
+        "event": "SessionStart",
+        "request_file": session_start_request[0].name,
+        "projected_context_count": session_start_count,
+        "status": "observed",
+    }
+
+    subagent_start_sentinel = "CLAUDE_RUNTIME_PROOF_SUBAGENT_START_CONTEXT_ISSUE_623"
+    subagent_start_witnesses = [
+        record
+        for record in records
+        if subagent_start_sentinel in record[2]
+        and "RUNTIME_PROOF_SUBAGENT_START_CHILD" in record[2]
+    ]
+    if len(subagent_start_witnesses) != 1:
+        raise SystemExit(
+            "SubagentStart: expected exactly one projected hook context in the fresh child request, "
+            f"observed {len(subagent_start_witnesses)}"
+        )
+    child_request = subagent_start_witnesses[0]
+    child_context_count = child_request[2].count(subagent_start_sentinel)
+    child_context_total = marker_occurrences(records, subagent_start_sentinel)
+    if child_context_count != 1 or child_context_total != 1:
+        raise SystemExit(
+            "SubagentStart: expected exactly one projected hook context in provider evidence, "
+            f"observed {child_context_total}"
+        )
+
+    subagent_parent_requests = phase_requests(records, "RUNTIME_PROOF_SUBAGENT_START_PARENT")
+    parent_request = subagent_parent_requests[0]
+    if "- agent-loop-investigator:" not in parent_request[2]:
+        raise SystemExit(
+            "SubagentStart: projected agent-loop-investigator was not advertised to the fresh parent request"
+        )
+    child_completions = [
+        record
+        for record in records
+        if records.index(record) > records.index(child_request)
+        and tool_result_contains(
+            record[1].get("messages", []), "SUBAGENT_START_PROOF_OK"
+        )
+    ]
+    if len(child_completions) != 1:
+        raise SystemExit(
+            "SubagentStart: expected exactly one completed native Agent child result, "
+            f"observed {len(child_completions)}"
+        )
+    if session_start_sentinel in child_request[2]:
+        raise SystemExit("SubagentStart: child request inherited the SessionStart-only witness")
+    if not (
+        records.index(parent_request) < records.index(child_request)
+        < records.index(child_completions[0])
+    ):
+        raise SystemExit("SubagentStart: parent, child, and completion must be separate ordered requests")
+    observations["context_hook_runtime"]["subagent_start"] = {
+        "event": "SubagentStart",
+        "parent_request_file": parent_request[0].name,
+        "child_request_file": child_request[0].name,
+        "child_completion_request_file": child_completions[0][0].name,
+        "projected_context_count": child_context_count,
+        "native_agent_child_result_observed": True,
+        "status": "observed",
     }
 
     for phase in ("before", "after"):

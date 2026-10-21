@@ -352,8 +352,12 @@ final readonly class RepositorySetupDiagnosticsInspector
         $runtimeProbe = $this->runtimeProbe ?? new HostRuntimeProbe();
         foreach (InitAgent::canonicalNames() as $agent) {
             $runtime = $runtimeProbe->probe($agent);
+            $versionProbe = $runtimeProbe->probeVersion($agent, $runtime['path']);
             $runtimeMessage = 'Host runtime [' . $agent . ']: ' . $runtime['status'];
-            $facts = ['status' => $runtime['status']];
+            $facts = [
+                'status' => $runtime['status'],
+                'version_probe' => $versionProbe['status'],
+            ];
             if ($runtime['command'] !== null) {
                 $runtimeMessage .= '; command=' . $runtime['command'];
                 $facts['command'] = $runtime['command'];
@@ -361,6 +365,11 @@ final readonly class RepositorySetupDiagnosticsInspector
             if ($runtime['path'] !== null) {
                 $runtimeMessage .= '; path=' . $runtime['path'];
                 $facts['path'] = $runtime['path'];
+            }
+            $runtimeMessage .= '; version_probe=' . $versionProbe['status'];
+            if ($versionProbe['version'] !== null) {
+                $runtimeMessage .= '; version=' . $versionProbe['version'];
+                $facts['version'] = $versionProbe['version'];
             }
             if ($runtime['status'] === 'unprobed') {
                 $runtimeMessage .= '; evidence=no stable CLI probe configured';
@@ -374,7 +383,7 @@ final readonly class RepositorySetupDiagnosticsInspector
                 $facts,
             );
 
-            $rows = HostCapabilityMatrix::forAgent($agent);
+            $rows = HostCapabilityMatrix::forAgent($agent, $versionProbe['version']);
             $capabilities = [];
             $capabilityFacts = [];
             foreach ($rows as $row) {
@@ -390,18 +399,26 @@ final readonly class RepositorySetupDiagnosticsInspector
             );
 
             foreach ($rows as $row) {
+                $runtimeFacts = isset($row['runtime_evidence']) ? $row['runtime_evidence']->facts($versionProbe['version']) : [];
+                $details = implode('; ', array_map(
+                    static fn (string $key, string $value): string => $key . '=' . $value,
+                    array_keys($runtimeFacts),
+                    array_values($runtimeFacts),
+                ));
                 $diagnostics[] = new RepositorySetupDiagnostic(
                     RepositorySetupDiagnosticKind::HOST_CAPABILITY,
                     RepositorySetupDiagnosticLevel::INFO,
                     'Host capability evidence [' . $agent . '/' . $row['capability']->value . ']:'
                     . ' mechanism=' . $row['mechanism']
-                    . '; evidence=' . $row['evidence'],
+                    . '; evidence=' . $row['evidence']
+                    . ($details !== '' ? '; ' . $details : ''),
                     $agent,
                     [
                         'capability' => $row['capability']->value,
                         'status' => $row['status']->value,
                         'mechanism' => $row['mechanism'],
                         'evidence' => $row['evidence'],
+                        ...$runtimeFacts,
                     ],
                 );
             }

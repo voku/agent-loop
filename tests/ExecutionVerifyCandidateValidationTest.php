@@ -59,6 +59,31 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
         self::assertCount(1, $verify->validationReferences);
     }
 
+    public function testUndeclaredDependencyIsMissingInTheFreshWorktreeAndStopsThePlan(): void
+    {
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", ['vendor/bin/check']);
+
+        $projection = (new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
+
+        self::assertFalse($projection->complete());
+        self::assertNotNull($projection->attention);
+        self::assertStringContainsString('[FAIL] vendor/bin/check (exit 127)', $projection->attention->message);
+    }
+
+    public function testDeclaredPreparationProvidesDependenciesInsideTheWorktreeOnly(): void
+    {
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", ['php prepare.php', 'vendor/bin/check']);
+
+        $projection = (new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
+
+        self::assertTrue($projection->complete());
+        self::assertFileExists($this->run->workspace . '/vendor/bin/check', 'Preparation runs in the candidate worktree.');
+        self::assertDirectoryDoesNotExist($this->run->root . '/vendor', 'The source checkout is never prepared by verify.');
+        $state = (new ExecutionStateStore($this->run->root))->find('VER-1');
+        self::assertNotNull($state);
+        self::assertCount(2, $state->history[count($state->history) - 1]->result->validationReferences);
+    }
+
     public function testWorkspaceThatDoesNotHoldTheGovernedCandidateIsRefused(): void
     {
         $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n");
@@ -92,7 +117,7 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
 
     public function testFailedValidationSummaryKeepsAValidUtf8Tail(): void
     {
-        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", 'php -r "echo str_repeat(\'a\', 1998) . \'🙂\'; exit(1);"');
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", ['php -r "echo str_repeat(\'a\', 1998) . \'🙂\'; exit(1);"']);
 
         $projection = (new ExecutionGateway($this->run->root))->runDeterministicStage('VER-1', 'verify', $this->run->workspace);
 
@@ -103,7 +128,7 @@ final class ExecutionVerifyCandidateValidationTest extends TestCase
 
     public function testValidationThatChangesTheCandidateIsRefused(): void
     {
-        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", 'php -r "file_put_contents(\'side-effect.txt\', \'x\');"');
+        $this->run->reachVerifyWith("<?php\nfinal class Foo { public const int X = 1; }\n", ['php -r "file_put_contents(\'side-effect.txt\', \'x\');"']);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('changed the governed candidate');

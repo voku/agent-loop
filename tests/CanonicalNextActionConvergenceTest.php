@@ -117,6 +117,9 @@ final class CanonicalNextActionConvergenceTest extends TestCase
 
     private function frontDoor(string $command): int
     {
+        if ($command === 'enter') {
+            \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'CONV-001');
+        }
         $dispatcher = new Dispatcher($this->root);
         $runner = static function (array $rest) use ($dispatcher): int {
             /** @var list<string> $argv */

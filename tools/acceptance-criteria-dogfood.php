@@ -44,6 +44,10 @@ final class AcceptanceCriteriaDogfood
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
                 '--by', 'ci-approval-fixture',
             ]);
+            $this->runCommand([
+                'vendor/bin/agent-loop', 'workflow', 'execution-profile', self::TASK_ID,
+                '--profile', 'manual', '--by', 'ci-approval-fixture',
+            ]);
             $this->assertContract('approved');
             $entered = $this->runCommand([
                 'vendor/bin/agent-loop', 'enter', self::TASK_ID, '--format=json',

@@ -239,8 +239,13 @@ $loop([
     '--behavior-anchor', 'real pull-request diff -> durable Contract -> governed Run -> bounded context -> observed validation -> review -> durable Learning decision -> Verification receipt -> pruneable Session',
 ]);
 $loop(['workflow', 'approve', TASK, '--by', $options['approver']]);
-// Approval only records authority. The governed Run, Session and Recall output
-// that every projection below reads are prepared by `enter`.
+// This lifecycle harness has no separate host-agent reviewer process. Select
+// manual explicitly so prompt generation cannot masquerade as semantic review;
+// the standard-profile reviewer path is exercised by governed execution-contract
+// dogfood and remains the default for ordinary Runs.
+$loop(['workflow', 'execution-profile', TASK, '--profile', 'manual', '--by', PLANNER]);
+// Approval records the Contract authority. The governed Run, Session and Recall
+// output that every projection below reads are prepared by `enter`.
 $loop(['enter', TASK]);
 
 $decode = static function (string $raw) use ($fail): array {

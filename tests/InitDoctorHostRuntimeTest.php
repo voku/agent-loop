@@ -58,7 +58,7 @@ final class InitDoctorHostRuntimeTest extends TestCase
         );
         self::assertStringContainsString('[INFO] Host runtime [codex]: missing; command=codex', $output);
         self::assertStringContainsString(
-            '[INFO] Host runtime [antigravity]: unprobed; evidence=no stable CLI probe configured',
+            '[INFO] Host runtime [antigravity]: unprobed; version_probe=unprobed; evidence=no stable CLI probe configured',
             $output,
         );
         self::assertStringContainsString(
@@ -73,7 +73,7 @@ final class InitDoctorHostRuntimeTest extends TestCase
 
     public function testBinaryDiscoveryRemainsSeparateFromCommittedRuntimeCapabilityEvidence(): void
     {
-        $this->createExecutable('codex');
+        $this->createExecutable('codex', "#!/bin/sh\nprintf '%s\\n' 'codex-cli 0.157.0'\n");
 
         $output = $this->runDoctor();
 
@@ -95,11 +95,11 @@ final class InitDoctorHostRuntimeTest extends TestCase
         );
         self::assertSame(
             HostCapabilityStatus::Supported,
-            HostCapabilityMatrix::status('codex', HostCapability::SessionBootstrap),
+            HostCapabilityMatrix::status('codex', HostCapability::SessionBootstrap, '0.157.0'),
         );
         self::assertSame(
             'adapter-declared;live-runtime-verified',
-            HostCapabilityMatrix::describe('codex', HostCapability::SessionBootstrap)['evidence'],
+            HostCapabilityMatrix::describe('codex', HostCapability::SessionBootstrap, '0.157.0')['evidence'],
         );
         self::assertSame(
             'adapter-declared',
@@ -121,10 +121,10 @@ final class InitDoctorHostRuntimeTest extends TestCase
         return $output;
     }
 
-    private function createExecutable(string $name): void
+    private function createExecutable(string $name, string $contents = "#!/bin/sh\nexit 0\n"): void
     {
         $path = $this->executablePath($name);
-        if (file_put_contents($path, "#!/bin/sh\nexit 0\n") === false) {
+        if (file_put_contents($path, $contents) === false) {
             throw new RuntimeException('Unable to create fake host binary: ' . $path);
         }
         if (DIRECTORY_SEPARATOR === '/' && !chmod($path, 0o755)) {

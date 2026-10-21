@@ -1,0 +1,51 @@
+#!/bin/sh
+
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
+target_dir=${AGENT_LOOP_TARGET:-$PWD}
+target_dir=$(CDPATH= cd -- "$target_dir" && pwd)
+
+export AGENT_LOOP_TARGET="$target_dir"
+export AGENT_LOOP_UID=${AGENT_LOOP_UID:-$(id -u)}
+export AGENT_LOOP_GID=${AGENT_LOOP_GID:-$(id -g)}
+
+if [ "${1:-}" = "ui" ]; then
+    shift
+    if [ "$#" -gt 0 ]; then
+        printf '%s\n' 'Usage: docker/agent-loop ui' >&2
+        printf '%s\n' 'Set AGENT_UI_PORT to change the host port.' >&2
+        exit 2
+    fi
+
+    if [ -n "${CODEX_PROXY_CERT:-}" ]; then
+        exec docker compose \
+            --progress=quiet \
+            --project-directory "$project_dir" \
+            --file "$project_dir/compose.yaml" \
+            --file "$project_dir/compose.proxy-ca.yaml" \
+            up --build agent-ui
+    fi
+
+    exec docker compose \
+        --progress=quiet \
+        --project-directory "$project_dir" \
+        --file "$project_dir/compose.yaml" \
+        up --build agent-ui
+fi
+
+if [ -n "${CODEX_PROXY_CERT:-}" ]; then
+    exec docker compose \
+        --progress=quiet \
+        --project-directory "$project_dir" \
+        --file "$project_dir/compose.yaml" \
+        --file "$project_dir/compose.proxy-ca.yaml" \
+        run --rm --build agent-loop "$@"
+fi
+
+exec docker compose \
+    --progress=quiet \
+    --project-directory "$project_dir" \
+    --file "$project_dir/compose.yaml" \
+    run --rm --build agent-loop "$@"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Init;
 
+use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
@@ -21,41 +22,50 @@ final readonly class HostCapabilityMatrix
      *     capability: HostCapability,
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
+     *     runtime_evidence?: HostRuntimeEvidence,
      *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-verified'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }>
      */
-    public static function forAgent(string $canonicalAgent): array
+    public static function forAgent(string $canonicalAgent, ?string $runtimeVersion = null): array
     {
         self::assertCanonicalAgent($canonicalAgent);
 
         $rows = [];
         foreach (HostCapability::cases() as $capability) {
-            $description = self::describe($canonicalAgent, $capability);
+            $description = self::describe($canonicalAgent, $capability, $runtimeVersion);
             $rows[] = [
                 'capability' => $capability,
                 'status' => $description['status'],
                 'mechanism' => $description['mechanism'],
                 'evidence' => $description['evidence'],
+                ...isset($description['runtime_evidence']) ? ['runtime_evidence' => $description['runtime_evidence']] : [],
             ];
         }
 
         return $rows;
     }
 
-    public static function status(string $canonicalAgent, HostCapability $capability): HostCapabilityStatus
-    {
-        return self::describe($canonicalAgent, $capability)['status'];
+    public static function status(
+        string $canonicalAgent,
+        HostCapability $capability,
+        ?string $runtimeVersion = null,
+    ): HostCapabilityStatus {
+        return self::describe($canonicalAgent, $capability, $runtimeVersion)['status'];
     }
 
     /**
      * @return array{
      *     status: HostCapabilityStatus,
      *     mechanism: non-empty-string,
+     *     runtime_evidence?: HostRuntimeEvidence,
      *     evidence: 'adapter-declared'|'adapter-declared;live-runtime-verified'|'adapter-declared;live-runtime-unverified'|'adapter-declared;live-runtime-refuted'|'no-agent-loop-projector'
      * }
      */
-    public static function describe(string $canonicalAgent, HostCapability $capability): array
-    {
+    public static function describe(
+        string $canonicalAgent,
+        HostCapability $capability,
+        ?string $runtimeVersion = null,
+    ): array {
         self::assertCanonicalAgent($canonicalAgent);
 
         if (in_array($capability, [HostCapability::SkillProjection, HostCapability::SubagentProjection], true)) {
@@ -68,10 +78,21 @@ final readonly class HostCapabilityMatrix
 
         if ($capability === HostCapability::SubagentReadOnlyEnforcement) {
             if ($canonicalAgent === 'codex') {
+                $runtimeEvidence = self::runtimeEvidence('codex', $capability);
+                $verified = $runtimeEvidence->classification($runtimeVersion) === 'exact_verified';
+
                 return [
                     'status' => HostCapabilityStatus::Degraded,
-                    'mechanism' => 'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
-                    'evidence' => 'adapter-declared;live-runtime-refuted',
+                    'runtime_evidence' => $runtimeEvidence,
+                    'mechanism' => self::runtimeVersionMechanism(
+                        'canonical subagent mutation: read-only -> Codex sandbox_mode = read-only; Codex 0.157.0 selected-child runtime proof observed no authority downgrade',
+                        $runtimeEvidence->hostVersion,
+                        $runtimeVersion,
+                        $verified,
+                    ),
+                    'evidence' => $verified
+                        ? 'adapter-declared;live-runtime-refuted'
+                        : 'adapter-declared;live-runtime-unverified',
                 ];
             }
 
@@ -112,18 +133,42 @@ final readonly class HostCapabilityMatrix
             HostCapability::PreToolGuardrail,
             HostCapability::RepositoryHooks,
         ], true)) {
+            $runtimeEvidence = self::runtimeEvidence('codex', $capability);
+            $testedVersion = $runtimeEvidence->hostVersion;
+            $verified = $runtimeEvidence->classification($runtimeVersion) === 'exact_verified';
+
             return [
-                'status' => HostCapabilityStatus::Supported,
-                'mechanism' => self::codexVerifiedHookMechanism($capability),
-                'evidence' => 'adapter-declared;live-runtime-verified',
+                'status' => $verified ? HostCapabilityStatus::Supported : HostCapabilityStatus::Degraded,
+                'mechanism' => self::runtimeVersionMechanism(
+                    self::codexVerifiedHookMechanism($capability),
+                    $testedVersion,
+                    $runtimeVersion,
+                    $verified,
+                ),
+                'runtime_evidence' => $runtimeEvidence,
+                'evidence' => $verified
+                    ? 'adapter-declared;live-runtime-verified'
+                    : 'adapter-declared;live-runtime-unverified',
             ];
         }
 
         if ($canonicalAgent === 'claude' && $capability === HostCapability::PreToolGuardrail) {
+            $runtimeEvidence = self::runtimeEvidence('claude', $capability);
+            $testedVersion = $runtimeEvidence->hostVersion;
+            $verified = $runtimeEvidence->classification($runtimeVersion) === 'exact_verified';
+
             return [
-                'status' => HostCapabilityStatus::Supported,
-                'mechanism' => 'Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
-                'evidence' => 'adapter-declared;live-runtime-verified',
+                'status' => $verified ? HostCapabilityStatus::Supported : HostCapabilityStatus::Degraded,
+                'mechanism' => self::runtimeVersionMechanism(
+                    'Claude project settings PreToolUse ^Bash$ command hook; Claude 2.1.287 runtime proof observed bounded alternate-publication deny enforcement under bypassPermissions',
+                    $testedVersion,
+                    $runtimeVersion,
+                    $verified,
+                ),
+                'runtime_evidence' => $runtimeEvidence,
+                'evidence' => $verified
+                    ? 'adapter-declared;live-runtime-verified'
+                    : 'adapter-declared;live-runtime-unverified',
             ];
         }
 
@@ -205,6 +250,41 @@ final readonly class HostCapabilityMatrix
             'cursor' => 'Cursor .cursor/hooks.json beforeShellExecution + repository-local fail-closed shell authority guard',
             default => throw new InvalidArgumentException('No hook projector for canonical agent: ' . $canonicalAgent),
         };
+    }
+
+    /**
+     * Frozen successful pinned-host proof runs; no clock refresh or network lookup.
+     *
+     * @param 'codex'|'claude' $host
+     */
+    private static function runtimeEvidence(string $host, HostCapability $capability): HostRuntimeEvidence
+    {
+        return new HostRuntimeEvidence(
+            host: $host,
+            capability: $capability,
+            hostVersion: $host === 'codex' ? '0.157.0' : '2.1.287',
+            verifiedAt: new DateTimeImmutable($host === 'codex' ? '2026-10-19T17:07:54Z' : '2026-10-19T17:07:49Z'),
+            evidenceRef: 'https://github.com/voku/agent-loop/actions/runs/' . ($host === 'codex' ? '39291414757' : '39291414596'),
+            verifiedBy: 'GitHub Actions pinned ' . $host . ' runtime proof at ac1b898d3f8cb30ea718da25aae4f1aa7f0ca8e2',
+        );
+    }
+
+    /**
+     * @param non-empty-string $mechanism
+     * @return non-empty-string
+     */
+    private static function runtimeVersionMechanism(
+        string $mechanism,
+        string $testedVersion,
+        ?string $runtimeVersion,
+        bool $verified,
+    ): string {
+        if ($verified) {
+            return $mechanism;
+        }
+
+        return $mechanism . '; live-runtime evidence unverified (tested=' . $testedVersion
+            . ', current=' . ($runtimeVersion ?? 'unknown') . ')';
     }
 
     private static function assertCanonicalAgent(string $canonicalAgent): void

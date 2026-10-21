@@ -1,0 +1,31 @@
+# Session environment for non-interactive coding agents. Every name added is
+# recorded in AGENT_DOTFILES_EXPORTED so agent_deactivate can remove exactly
+# those; nothing is written to disk, Git config or user startup files.
+# shellcheck disable=SC2034
+builtin export AGENT_DOTFILES_HOME="$1"
+AGENT_DOTFILES_EXPORTED=
+
+# Names the host already exports are never overridden.
+_agent_env=$(command env)
+_agent_nl='
+'
+
+# The reviewed defaults live in .redpill/config/agent.env, parsed as data.
+while IFS='=' read -r _agent_name _agent_value || [ -n "$_agent_name" ]; do
+    case "$_agent_name" in '' | '#'*) continue ;; esac
+    case "$_agent_nl$_agent_env" in
+        *"$_agent_nl$_agent_name="*) continue ;;
+    esac
+    builtin export "$_agent_name=$_agent_value"
+    AGENT_DOTFILES_EXPORTED="$AGENT_DOTFILES_EXPORTED$_agent_name$_agent_nl"
+done < "$1/.redpill/config/agent.env"
+
+# Plain `rg` gets the reviewed presentation defaults; the path depends on the root.
+case "$_agent_nl$_agent_env" in
+    *"${_agent_nl}RIPGREP_CONFIG_PATH="*) ;;
+    *)
+        builtin export RIPGREP_CONFIG_PATH="$1/.redpill/config/ripgreprc"
+        AGENT_DOTFILES_EXPORTED="${AGENT_DOTFILES_EXPORTED}RIPGREP_CONFIG_PATH$_agent_nl"
+        ;;
+esac
+unset _agent_env _agent_nl _agent_name _agent_value

@@ -201,6 +201,7 @@ $loop workflow plan "$task" \
   --validation 'composer test' \
   --acceptance 'The plan was applied by agent-edit, verification proves current Map evidence, and PHP still parses.'
 $loop workflow approve "$task" --by "$by"
+$loop workflow execution-profile "$task" --profile manual --by "$by"
 $loop enter "$task" --format=json --max-lines=40 --max-bytes=4096 > enter.json
 jq -e '.mutation_ready == true' enter.json >/dev/null
 
