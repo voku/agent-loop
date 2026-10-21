@@ -8,7 +8,7 @@
   },
   "workflow": {
     "future_work": {
-      "mode": "invest",
+      "mode": "discover",
       "max_follow_up_slices": 2
     }
   },

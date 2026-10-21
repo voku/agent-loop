@@ -74,7 +74,7 @@ Commands:
   report             Show an auditable task/Run completion report.
   transparency       Show the read-only task-transparency projection: approved boundary, Contract-based repository observation, implementation identity, context skipped/omitted facts and exact review findings, each labelled with its authority class.
   review             Write a self-contained human review workbench from the existing audit projection. The HTML is non-authoritative and cannot acknowledge a review.
-  reflect            Emit a context-light project/task future-work prompt only after the task is review-ready or complete; never mutates workflow state.
+  reflect            Emit a context-light future-work prompt; task scope requires ready_to_close or complete, project scope requires complete; never mutates workflow state.
   handoff            Compile a self-contained TODO/card handoff prompt from explicit bounded current-session notes plus the governed Session identity, durable Contract evidence, and current board-card projection when available. The acting agent still updates the existing task owner.
   learn              Record the durable Run Learning close-out through agent-learning.
   close              Close the governed Run through safety gates and preserve durable close evidence.

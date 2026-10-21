@@ -15,6 +15,12 @@ Configure that behavior in `.agent-loop/init.json`:
 }
 ```
 
+## Reflection eligibility
+
+Task-level reflection can return an unfinished task to review. Project-level
+future-work reflection is available only after the current task is complete,
+and its output is not authorization to create or execute follow-up work.
+
 ## Modes
 
 ### `focus`
@@ -45,6 +51,8 @@ This fits fast-moving libraries and active open-source projects where hot contex
 - `max_follow_up_slices` must be an integer from 1 to 10; invalid configuration falls back to conservative defaults with a warning.
 - Future-work policy never expands the current Contract.
 - Future-work reflection is optional post-completion work, never another close gate.
+- Project-level reflection is blocked until the current task is complete; task-level reflection remains available at `ready_to_close` to surface genuine gaps for review.
+- Reflection output does not authorize creating follow-up cards, Contracts, issues, or PRs, or executing follow-up work.
 - `workflow reflect` remains Recall-owned; Loop decides when repository policy permits proactive reflection, not how the reflection prompt is written.
 - A configured budget is a ceiling, not a quota. Do not manufacture backlog merely to consume it.
 - Human/owner/risk authority is not created by `discover` or `invest`.

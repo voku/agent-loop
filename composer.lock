@@ -1101,16 +1101,16 @@
         },
         {
             "name": "voku/agent-learning",
-            "version": "0.18.34",
+            "version": "0.18.35",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-learning.git",
-                "reference": "86bf5ecbbfa938d76c9e7d362d5008d024f2dff8"
+                "reference": "3e92072e985f8ffe240b07e954d3ca13c2b600ee"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-learning/zipball/86bf5ecbbfa938d76c9e7d362d5008d024f2dff8",
-                "reference": "86bf5ecbbfa938d76c9e7d362d5008d024f2dff8",
+                "url": "https://api.github.com/repos/voku/agent-learning/zipball/3e92072e985f8ffe240b07e954d3ca13c2b600ee",
+                "reference": "3e92072e985f8ffe240b07e954d3ca13c2b600ee",
                 "shasum": ""
             },
             "require": {
@@ -1165,7 +1165,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-19T16:50:50+00:00"
+            "time": "2026-10-20T12:40:01+00:00"
         },
         {
             "name": "voku/agent-map",

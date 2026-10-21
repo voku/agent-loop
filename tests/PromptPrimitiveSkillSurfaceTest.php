@@ -39,7 +39,9 @@ final class PromptPrimitiveSkillSurfaceTest extends TestCase
         self::assertStringContainsString('momentum', $workflow);
         self::assertStringContainsString('RETURN_TO_REVIEW', $workflow);
         self::assertStringContainsString('Reflection is deliberately **not** another lifecycle phase.', $workflow);
-        self::assertStringContainsString('## Post-completion Future Work', $workflow);
+        self::assertStringContainsString('## Reflection Eligibility and Post-completion Future Work', $workflow);
+        self::assertStringContainsString('`task` reflection is allowed at `ready_to_close` or `complete`', $workflow);
+        self::assertStringContainsString('`project` reflection is allowed only after the current task is `complete`', $workflow);
         self::assertStringContainsString('`focus` — stop.', $workflow);
         self::assertStringContainsString('`discover` — run one bounded project reflection', $workflow);
         self::assertStringContainsString('`invest` — run the same bounded project reflection', $workflow);

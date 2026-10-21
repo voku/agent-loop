@@ -25,6 +25,10 @@ final class WorkflowCliTest extends TestCase
         self::assertStringContainsString('agent-loop workflow handoff', $result['output']);
         self::assertStringContainsString('agent-loop workflow learn', $result['output']);
         self::assertStringContainsString('agent-loop workflow close', $result['output']);
+        self::assertStringContainsString(
+            'task scope requires ready_to_close or complete, project scope requires complete',
+            $result['output'],
+        );
         self::assertStringContainsString('EXECUTION PROFILE (optional; default standard)', $result['output']);
         self::assertStringContainsString('checkpoint-autonomy', $result['output']);
         self::assertStringContainsString('momentum', $result['output']);

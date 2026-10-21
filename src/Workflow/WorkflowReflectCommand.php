@@ -42,6 +42,14 @@ final readonly class WorkflowReflectCommand
                     ),
                 );
             }
+            if ($scope === FutureWorkScope::PROJECT && $state !== 'complete') {
+                throw new InvalidArgumentException(
+                    sprintf(
+                        'Project reflection requires a completed task; current state is %s. Complete the normal close workflow first.',
+                        $state,
+                    ),
+                );
+            }
 
             echo $this->promptBuilder->build($scope) . "\n";
 
