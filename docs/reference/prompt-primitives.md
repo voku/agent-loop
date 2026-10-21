@@ -163,13 +163,16 @@ vendor/bin/agent-loop workflow reflect TASK-1 --scope task
 ```
 
 - `project` asks what future investment became visible through doing the work.
-- `task` asks what additional depth may have been missed in the completed task.
+- `task` asks what additional depth may have been missed in the current task.
   A real correctness/acceptance gap is reported as `RETURN_TO_REVIEW`; optional
   extra depth remains optional.
 
-Inside a governed Run, prefer `workflow reflect` because it enforces the
-`ready_to_close` / `complete` state boundary. For a manual context-light session,
-the same Recall-owned raw helper is also available without Run state:
+Inside a governed Run, prefer `workflow reflect` because it allows task
+reflection at `ready_to_close` and project reflection only after the task is
+`complete`. Task reflection can return an unfinished task to review. Project
+reflection output does not authorize creating or executing follow-up work. For
+a manual context-light session, the same Recall-owned raw helper is also
+available without Run state:
 
 ```bash
 vendor/bin/agent-loop prompt future-work --scope project

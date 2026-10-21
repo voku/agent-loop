@@ -173,6 +173,36 @@ final class WorkflowContextCommandTest extends TestCase
         }
     }
 
+    public function testRepositoryDiscoverPolicyProjectsWithoutFollowUpPreparationAuthority(): void
+    {
+        $repositoryConfig = json_decode(
+            (string) file_get_contents(dirname(__DIR__) . '/.agent-loop/init.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        self::assertIsArray($repositoryConfig);
+        self::assertSame('discover', $repositoryConfig['workflow']['future_work']['mode'] ?? null);
+
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode($repositoryConfig, JSON_THROW_ON_ERROR),
+        );
+        $context = (new WorkflowContextCommand($this->root))->build('ABC-123', 120, 12000);
+        $rendered = implode("\n", $context['lines']);
+
+        self::assertSame([
+            'mode' => 'discover',
+            'max_follow_up_slices' => 2,
+            'current_contract_scope_expansion' => 'forbidden',
+            'follow_up_authority' => 'separate_contract_required',
+        ], $context['future_work']);
+        self::assertStringContainsString(
+            'Future work: discover; after the current task completes, permit one bounded future-work reflection but do not prepare or execute follow-up work. Never widen the current Contract; follow-up execution requires separate Contract authority.',
+            $rendered,
+        );
+        self::assertStringNotContainsString('--generate-id', $rendered);
+    }
+
     /**
      * Release gate: the projected command is only truthful once the installed agent-kanban ships the generator.
      * Red until composer.json requires a release that contains it.
