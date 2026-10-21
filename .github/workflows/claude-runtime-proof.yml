@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - uses: shivammathur/setup-php@v2
@@ -50,6 +52,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          expected_head_sha='${{ github.event.pull_request.head.sha }}'
+          test -n "${expected_head_sha}" || expected_head_sha="${GITHUB_SHA}"
+          checked_out_head_sha="$(git -C "${GITHUB_WORKSPACE}" rev-parse HEAD)"
+          test "${checked_out_head_sha}" = "${expected_head_sha}"
+
           proof_root="${RUNNER_TEMP}/agent-loop-claude-runtime-proof"
           runtime_home="${RUNNER_TEMP}/claude-runtime-home"
           evidence_root="${GITHUB_WORKSPACE}/build/claude-runtime-proof"
@@ -75,11 +82,9 @@ jobs:
             projection_digest > "${evidence_root}/projection-before-reinstall.sha256"
           )
 
-          head_sha='${{ github.event.pull_request.head.sha }}'
           base_sha='${{ github.event.pull_request.base.sha }}'
-          test -n "${head_sha}" || head_sha="${GITHUB_SHA}"
           test -n "${base_sha}" || base_sha="${GITHUB_SHA}"
-          printf '%s\n' "${head_sha}" > "${evidence_root}/repository-head-sha.txt"
+          printf '%s\n' "${checked_out_head_sha}" > "${evidence_root}/repository-head-sha.txt"
           printf '%s\n' "${base_sha}" > "${evidence_root}/repository-base-sha.txt"
           sha256sum "${GITHUB_WORKSPACE}/composer.lock" | cut -d' ' -f1 > "${evidence_root}/dependency-graph.sha256"
 
@@ -267,6 +272,117 @@ jobs:
           test ! -e "${EVIDENCE_ROOT}/direct-permission-gh_pr_merge-executed.log"
           test ! -e "${EVIDENCE_ROOT}/direct-permission-gh-unexpected-executed.log"
 
+      - name: Install exact candidate consumer and register Claude hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          (
+            cd "${PROOF_ROOT}"
+            jq -n --arg source "${GITHUB_WORKSPACE}" '{
+              repositories: [{
+                type: "path",
+                url: $source,
+                options: {
+                  symlink: false,
+                  versions: {"voku/agent-loop": "dev-candidate"}
+                }
+              }],
+              require: {"voku/agent-loop": "dev-candidate"}
+            }' > composer.json
+
+            composer install --no-interaction --prefer-dist --no-progress
+            composer show voku/agent-loop --format=json > "${EVIDENCE_ROOT}/installed-agent-loop.json"
+
+            test -x vendor/bin/agent-loop
+            test -f vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php
+            test "$(sha256sum vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php | cut -d' ' -f1)" = \
+              "$(sha256sum "${GITHUB_WORKSPACE}/src/AgentGuidance/AgentDisciplineHook.php" | cut -d' ' -f1)"
+            test "$(sha256sum vendor/voku/agent-loop/resources/hooks/claude/hooks/pre_tool_use_policy.php | cut -d' ' -f1)" = \
+              "$(sha256sum "${GITHUB_WORKSPACE}/resources/hooks/claude/hooks/pre_tool_use_policy.php" | cut -d' ' -f1)"
+            for hook_file in context.php runtime.php; do
+              test "$(sha256sum "vendor/voku/agent-loop/resources/hooks/claude/hooks/${hook_file}" | cut -d' ' -f1)" = \
+                "$(sha256sum "${GITHUB_WORKSPACE}/resources/hooks/claude/hooks/${hook_file}" | cut -d' ' -f1)"
+            done
+
+            vendor/bin/agent-loop init install-assets --agent=claude --with-hooks
+
+            : > "${EVIDENCE_ROOT}/claude-context-hook-source.sha256"
+            for hook_file in context.php runtime.php; do
+              vendor_hash="$(sha256sum "vendor/voku/agent-loop/resources/hooks/claude/hooks/${hook_file}" | cut -d' ' -f1)"
+              source_hash="$(sha256sum "${GITHUB_WORKSPACE}/resources/hooks/claude/hooks/${hook_file}" | cut -d' ' -f1)"
+              projected_hash="$(sha256sum ".claude/hooks/${hook_file}" | cut -d' ' -f1)"
+              test "${vendor_hash}" = "${source_hash}"
+              test "${projected_hash}" = "${source_hash}"
+              printf '%s %s\n' "${hook_file}" "${source_hash}" >> \
+                "${EVIDENCE_ROOT}/claude-context-hook-source.sha256"
+            done
+          )
+
+          test -f "${PROOF_ROOT}/.claude/settings.json"
+          test -f "${PROOF_ROOT}/.claude/hooks/context.php"
+          test -f "${PROOF_ROOT}/.claude/hooks/pre_tool_use_policy.php"
+          cp "${PROOF_ROOT}/.claude/settings.json" \
+            "${RUNNER_TEMP}/claude-runtime-proof-settings-all-hooks.json"
+          cp "${PROOF_ROOT}/.claude/skills/agent-loop-discipline/SKILL.md" \
+            "${RUNNER_TEMP}/claude-runtime-proof-discipline-skill.md"
+
+      - name: Prove Claude SessionStart and SubagentStart hook context
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: proof-key
+          DISABLE_TELEMETRY: '1'
+          DISABLE_AUTOUPDATER: '1'
+          ENABLE_CLAUDEAI_MCP_SERVERS: 'false'
+          MCP_CONNECTION_NONBLOCKING: 'true'
+          CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION: 'false'
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: '1'
+          IS_DEMO: '1'
+        run: |
+          set -euo pipefail
+          export ANTHROPIC_BASE_URL="http://127.0.0.1:${CLAUDE_PROOF_PORT}"
+
+          settings_file="${PROOF_ROOT}/.claude/settings.json"
+          skill_file="${PROOF_ROOT}/.claude/skills/agent-loop-discipline/SKILL.md"
+          settings_backup="${RUNNER_TEMP}/claude-runtime-proof-settings-all-hooks.json"
+          skill_backup="${RUNNER_TEMP}/claude-runtime-proof-discipline-skill.md"
+
+          only_hook_event() {
+            event="$1"
+            jq --arg event "${event}" \
+              '.hooks = ((.hooks // {}) | with_entries(select(.key == $event)))' \
+              "${settings_backup}" > "${settings_file}.tmp"
+            mv "${settings_file}.tmp" "${settings_file}"
+          }
+
+          run_hook_proof() {
+            label="$1"
+            prompt="$2"
+            (
+              cd "${PROOF_ROOT}"
+              claude -p \
+                --model claude-sonnet-4-5 \
+                --output-format json \
+                "${prompt}"
+            ) > "${EVIDENCE_ROOT}/claude-${label}.json"
+            jq -e '(.type == "result") and (.subtype == "success") and (.result == "PROOF_OK")' \
+              "${EVIDENCE_ROOT}/claude-${label}.json" >/dev/null
+          }
+
+          only_hook_event SessionStart
+          printf '\n%s\n' 'CLAUDE_RUNTIME_PROOF_SESSION_START_CONTEXT_ISSUE_623' >> "${skill_file}"
+          run_hook_proof session-start-context \
+            'RUNTIME_PROOF_SESSION_START Return exactly PROOF_OK and do not use tools.'
+
+          cp "${skill_backup}" "${skill_file}"
+          only_hook_event SubagentStart
+          printf '\n%s\n' 'CLAUDE_RUNTIME_PROOF_SUBAGENT_START_CONTEXT_ISSUE_623' >> "${skill_file}"
+          run_hook_proof subagent-start-context \
+            'RUNTIME_PROOF_SUBAGENT_START_PARENT Select agent-loop-investigator with the native Agent tool for a foreground child that returns SUBAGENT_START_PROOF_OK, then return exactly PROOF_OK.'
+
+          cp "${skill_backup}" "${skill_file}"
+          cp "${settings_backup}" "${settings_file}"
+
       - name: Prove Claude PreToolUse deny is honored live
         shell: bash
         env:
@@ -284,22 +400,6 @@ jobs:
 
           (
             cd "${PROOF_ROOT}"
-
-            jq -n --arg source "${GITHUB_WORKSPACE}" '{
-              repositories: [{
-                type: "path",
-                url: $source,
-                options: {
-                  symlink: false,
-                  versions: {"voku/agent-loop": "dev-candidate"}
-                }
-              }],
-              require: {"voku/agent-loop": "dev-candidate"}
-            }' > composer.json
-
-            composer install --no-interaction --prefer-dist --no-progress
-            composer show voku/agent-loop --format=json > "${EVIDENCE_ROOT}/installed-agent-loop.json"
-
             test -x vendor/bin/agent-loop
             test -f vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php
             test "$(sha256sum vendor/voku/agent-loop/src/AgentGuidance/AgentDisciplineHook.php | cut -d' ' -f1)" = \
@@ -425,11 +525,25 @@ jobs:
                   observations: ($runtime_observations.pretool_deny_runtime // null),
                   status: (if ($runtime_observations.pretool_deny_runtime // null) == null then "unverified" else "observed" end),
                   boundary: "Proves the projected Claude PreToolUse Bash hook executes and its deny output suppresses one bounded alternate-publication command. It does not establish a universal shell, MCP, or security boundary and does not prove the separate hard direct-form permission rules."
+                },
+                session_start_context: {
+                  evidence_class: "host_runtime_context_consumption",
+                  mechanism: "SessionStart-only registration in a fresh claude -p process; the disposable projected discipline skill carries a proof marker that only the hook output can add to the actual provider request",
+                  observations: ($runtime_observations.context_hook_runtime.session_start // null),
+                  status: (if $runtime_observations.context_hook_runtime.session_start.status == "observed" then "observed" else "unverified" end),
+                  boundary: "Proves the pinned Claude Code runtime includes the projected SessionStart additionalContext exactly once in this fresh main model request. It does not prove resume, clear, compact, or other SessionStart matchers."
+                },
+                subagent_start_context: {
+                  evidence_class: "host_runtime_context_consumption",
+                  mechanism: "SubagentStart-only registration for a native foreground Agent child; the disposable projected discipline skill carries a proof marker observed in the child's actual provider request",
+                  observations: ($runtime_observations.context_hook_runtime.subagent_start // null),
+                  status: (if $runtime_observations.context_hook_runtime.subagent_start.status == "observed" then "observed" else "unverified" end),
+                  boundary: "Proves the pinned Claude Code runtime includes the projected SubagentStart additionalContext exactly once in this fresh native child request. It does not prove subagent read-only enforcement or arbitrary child behavior."
                 }
               },
               not_proven_by_this_slice: {
-                session_start_exact_once_context: true,
-                subagent_start_hook_execution: true,
+                session_start_exact_once_context: ($runtime_observations.context_hook_runtime.session_start.status != "observed"),
+                subagent_start_hook_execution: ($runtime_observations.context_hook_runtime.subagent_start.status != "observed"),
                 subagent_read_only_enforcement: true,
                 mcp_authority_coverage: true,
                 interactive_workspace_trust: true,
