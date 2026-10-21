@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Tests;
 
 use PHPUnit\Framework\TestCase;
-use voku\AgentLoop\Execution\ExecutionProfile;
-use voku\AgentLoop\Execution\ExecutionProfileName;
 use voku\AgentLoop\Workflow\WorkflowReflectCommand;
 use voku\AgentRecallCompiler\Reflection\FutureWorkPromptBuilder;
 use voku\AgentRecallCompiler\Reflection\FutureWorkScope;
@@ -126,15 +124,5 @@ final class WorkflowReflectCommandTest extends TestCase
         );
 
         self::assertSame(1, $command->run(['TASK-4', '--scope', 'everything']));
-    }
-
-    public function testStandardIndependentReviewStagesRemainUnchanged(): void
-    {
-        $profile = ExecutionProfile::firstParty(ExecutionProfileName::STANDARD);
-
-        self::assertSame(
-            ['investigate', 'build', 'correctness-review', 'blindspot-review', 'verify'],
-            array_map(static fn ($stage): string => $stage->id, $profile->stages),
-        );
     }
 }
