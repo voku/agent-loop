@@ -21,7 +21,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         $comment = $this->comment();
         $comment['author_association'] = 'OWNER';
         $reader = $this->reader([
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$comment]],
         ]);
 
@@ -38,7 +38,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         $comment['html_url'] = 'https://github.com/voku/agent-loop/pull/758#issuecomment-758123';
 
         $responses = [
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$comment]],
             'repos/voku/agent-loop/collaborators/contributor/permission' => ['permission' => 'write'],
         ];
@@ -58,10 +58,30 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         $reader->findAll(self::REPO, 758, self::HEAD);
     }
 
-    public function testNoMatchingReviewDoesNotBecomeApproval(): void
+    public function testPullRequestAuthorCannotIndependentlyReviewOwnMaintenanceComment(): void
+    {
+        $reader = $this->reader([
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest('voku', 264695),
+            'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$this->comment()]],
+        ]);
+
+        self::assertSame([], $reader->findAll(self::REPO, 758, self::HEAD));
+    }
+
+    public function testMissingPullRequestAuthorIdentityFailsClosed(): void
     {
         $reader = $this->reader([
             'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+        ]);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('author identity is missing');
+        $reader->findAll(self::REPO, 758, self::HEAD);
+    }
+
+    public function testNoMatchingReviewDoesNotBecomeApproval(): void
+    {
+        $reader = $this->reader([
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[], [['body' => 'LGTM']]],
         ]);
         self::assertSame([], $reader->findAll(self::REPO, 758, self::HEAD));
@@ -85,7 +105,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         // There is deliberately NO collaborator-permission response for outsider.
         // The old reader tried that API call first and failed before seeing owner.
         $reader = $this->reader([
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$malformed, $stale, $valid]],
         ]);
 
@@ -108,7 +128,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         $valid['html_url'] = 'https://github.com/voku/agent-loop/pull/758#issuecomment-758124';
 
         $reader = $this->reader([
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$stale], [$valid]],
         ]);
 
@@ -130,7 +150,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         $owner['html_url'] = 'https://github.com/voku/agent-loop/pull/758#issuecomment-758124';
 
         $reader = $this->reader([
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$outsider], [$owner]],
             'repos/voku/agent-loop/collaborators/outsider/permission' => new RuntimeException('GitHub HTTP 403'),
         ]);
@@ -148,7 +168,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         $outsider['author_association'] = 'NONE';
 
         $reader = $this->reader([
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => [[$outsider]],
             'repos/voku/agent-loop/collaborators/outsider/permission' => new RuntimeException('GitHub HTTP 403'),
         ]);
@@ -171,7 +191,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
     public function testUnexpectedPaginationShapeFailsClosed(): void
     {
         $reader = $this->reader([
-            'repos/voku/agent-loop/pulls/758' => ['head' => ['sha' => self::HEAD]],
+            'repos/voku/agent-loop/pulls/758' => $this->pullRequest(),
             'repos/voku/agent-loop/issues/758/comments?per_page=100' => ['unexpected' => 'shape'],
         ]);
         $this->expectException(RuntimeException::class);
@@ -208,6 +228,15 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
         return new SelfShapeMaintenanceGitHubReader(new ProcessRunner(__DIR__), api: $api);
     }
 
+    /** @return array{head: array{sha: string}, user: array{id: int, login: string}} */
+    private function pullRequest(string $authorLogin = 'pr-author', int $authorId = 999999): array
+    {
+        return [
+            'head' => ['sha' => self::HEAD],
+            'user' => ['id' => $authorId, 'login' => $authorLogin],
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function comment(): array
     {
@@ -215,7 +244,7 @@ final class SelfShapeMaintenanceGitHubReaderTest extends TestCase
             'id' => 758123,
             'html_url' => 'https://github.com/voku/agent-loop/pull/758#issuecomment-758123',
             'author_association' => 'OWNER',
-            'user' => ['type' => 'User', 'login' => 'voku'],
+            'user' => ['id' => 264695, 'type' => 'User', 'login' => 'voku'],
             'body' => implode("\n", [
                 'SELF_SHAPE_MAINTENANCE_V1',
                 'source=MEMORY.md',

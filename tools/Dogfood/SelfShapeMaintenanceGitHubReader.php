@@ -35,6 +35,11 @@ final readonly class SelfShapeMaintenanceGitHubReader
             || ($pr['head']['sha'] ?? null) !== $expectedHead) {
             throw new RuntimeException('GitHub PR head differs from the exact checkout being reviewed.');
         }
+        $author = $pr['user'] ?? null;
+        $authorId = is_array($author) ? ($author['id'] ?? null) : null;
+        if (!is_int($authorId) || $authorId < 1) {
+            throw new RuntimeException('GitHub PR author identity is missing or invalid.');
+        }
 
         $pages = $this->api->request('repos/' . $repository . '/issues/' . $prNumber . '/comments?per_page=100', true);
         if (!is_array($pages)) {
@@ -67,7 +72,14 @@ final readonly class SelfShapeMaintenanceGitHubReader
                 }
 
                 $actor = $comment['user'] ?? null;
-                if (!is_array($actor) || !is_string($actor['login'] ?? null)) {
+                if (!is_array($actor) || !is_int($actor['id'] ?? null)
+                    || !is_string($actor['login'] ?? null)) {
+                    continue;
+                }
+                // A PR author cannot independently review their own exact diff.
+                // Compare GitHub's stable user IDs so a login rename cannot
+                // turn self-review into a separate reviewer identity.
+                if ($actor['id'] === $authorId) {
                     continue;
                 }
                 $login = $actor['login'];

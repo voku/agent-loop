@@ -189,11 +189,13 @@ semantic equivalence or human authority.
 
 `SelfShapeMaintenanceGitHubReader` obtains actual PR metadata and paginated
 PR conversation comments using a read-only GitHub token, never PR-authored JSON.
-It authenticates a non-bot reviewer by GitHub's `OWNER` association for the
-repository owner, or by a separately queried collaborator permission of
-`write`, `maintain` or `admin`. An unavailable API or permission lookup
-fails closed. A token proves GitHub account attribution, not the physical
-identity of the person using the account.
+It rejects the pull-request author's own comment, then authenticates a distinct
+non-bot reviewer by GitHub's `OWNER` association for the repository owner, or
+by a separately queried collaborator permission of `write`, `maintain` or
+`admin`. The PR and comment identities are compared by GitHub user ID, so a
+login rename cannot turn self-review into independent review. An unavailable
+API or permission lookup fails closed. A token proves GitHub account
+attribution, not the physical identity of the person using the account.
 
 `SelfShapeMaintenanceReviewCommentVerifier` requires an entire literal
 `SELF_SHAPE_MAINTENANCE_V1` comment on the **same PR**. For the frozen #758
