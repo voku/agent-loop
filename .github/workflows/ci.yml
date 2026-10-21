@@ -61,8 +61,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
+      pull-requests: read
     timeout-minutes: 30
     env:
+      SELF_SHAPE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       SELF_SHAPE_GOAL: ${{ github.event.pull_request.title }}
       SELF_SHAPE_APPROVER: ${{ github.event.pull_request.user.login }}
       SELF_SHAPE_PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -120,6 +123,8 @@ jobs:
         run: php tools/self-edit-dogfood.php
       - name: Govern this change with agent-loop itself
         if: steps.self-shape-scope.outputs.applicable == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: php tools/self-shape-dogfood.php --base-ref="${{ github.base_ref }}"
       - name: Upload self-shaping evidence
         if: always()

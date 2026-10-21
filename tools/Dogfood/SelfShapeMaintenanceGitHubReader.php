@@ -1,0 +1,130 @@
+<?php
+
+declare(strict_types=1);
+
+namespace voku\AgentLoop\Dogfood;
+
+use RuntimeException;
+
+/**
+ * Reads GitHub-issued PR/comment evidence. No pull-request-controlled JSON can
+ * substitute for these responses, and no review is created automatically.
+ */
+final readonly class SelfShapeMaintenanceGitHubReader
+{
+    private SelfShapeMaintenanceGitHubApi $api;
+
+    public function __construct(
+        ProcessRunner $runner,
+        private SelfShapeMaintenanceReviewCommentVerifier $verifier = new SelfShapeMaintenanceReviewCommentVerifier(),
+        ?SelfShapeMaintenanceGitHubApi $api = null,
+    ) {
+        $this->api = $api ?? new SelfShapeMaintenanceGitHubCli($runner);
+    }
+
+    /** @return list<SelfShapeMaintenanceReviewCommentEvidence> */
+    public function findAll(string $repository, int $prNumber, string $expectedHead): array
+    {
+        if (preg_match('~\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\z~', $repository) !== 1
+            || $prNumber < 1 || preg_match('/\A[a-f0-9]{40}\z/', $expectedHead) !== 1) {
+            throw new RuntimeException('Invalid trusted GitHub PR identity.');
+        }
+
+        $pr = $this->api->request('repos/' . $repository . '/pulls/' . $prNumber);
+        if (!is_array($pr) || !isset($pr['head']) || !is_array($pr['head'])
+            || ($pr['head']['sha'] ?? null) !== $expectedHead) {
+            throw new RuntimeException('GitHub PR head differs from the exact checkout being reviewed.');
+        }
+        $author = $pr['user'] ?? null;
+        $authorId = is_array($author) ? ($author['id'] ?? null) : null;
+        if (!is_int($authorId) || $authorId < 1) {
+            throw new RuntimeException('GitHub PR author identity is missing or invalid.');
+        }
+
+        $pages = $this->api->request('repos/' . $repository . '/issues/' . $prNumber . '/comments?per_page=100', true);
+        if (!is_array($pages)) {
+            throw new RuntimeException('Invalid GitHub issue-comments response.');
+        }
+
+        $reviews = [];
+        /** @var array<string, string|null> $permissions */
+        $permissions = [];
+        $unverifiablePermission = null;
+        foreach ($pages as $page) {
+            if (!is_array($page)) {
+                throw new RuntimeException('Invalid GitHub issue-comments page.');
+            }
+            foreach ($page as $comment) {
+                if (!is_array($comment) || !is_string($comment['body'] ?? null)
+                    || !str_starts_with($comment['body'], 'SELF_SHAPE_MAINTENANCE_V1')) {
+                    continue;
+                }
+
+                // A forged or stale marker must not trigger collaborator-permission
+                // reads (which can consume quota or fail closed before a real review).
+                if (!$this->verifier->isWellFormedCandidate(
+                    $comment,
+                    $repository,
+                    $prNumber,
+                    $expectedHead,
+                )) {
+                    continue;
+                }
+
+                $actor = $comment['user'] ?? null;
+                if (!is_array($actor) || !is_int($actor['id'] ?? null)
+                    || !is_string($actor['login'] ?? null)) {
+                    continue;
+                }
+                // A PR author cannot independently review their own exact diff.
+                // Compare GitHub's stable user IDs so a login rename cannot
+                // turn self-review into a separate reviewer identity.
+                if ($actor['id'] === $authorId) {
+                    continue;
+                }
+                $login = $actor['login'];
+                $owner = explode('/', $repository, 2)[0];
+                if (strcasecmp($login, $owner) === 0 && ($comment['author_association'] ?? null) === 'OWNER') {
+                    // Owner identity and OWNER association both come from the
+                    // GitHub API, not from a PR-controlled environment value.
+                    $permission = 'admin';
+                } else {
+                    // A public commenter can post a syntactically valid marker.
+                    // A failing permission lookup for that one account must
+                    // not suppress independently authenticated later reviews.
+                    $key = strtolower($login);
+                    if (!array_key_exists($key, $permissions)) {
+                        try {
+                            $permissionData = $this->api->request(
+                                'repos/' . $repository . '/collaborators/' . rawurlencode($login) . '/permission',
+                            );
+                            $permissions[$key] = is_array($permissionData)
+                                && is_string($permissionData['permission'] ?? null)
+                                ? $permissionData['permission']
+                                : '';
+                        } catch (RuntimeException $exception) {
+                            $unverifiablePermission ??= $exception;
+                            $permissions[$key] = null;
+                        }
+                    }
+                    $permission = $permissions[$key];
+                    if ($permission === null) {
+                        continue;
+                    }
+                }
+                $evidence = $this->verifier->fromTrustedGitHubApi($comment, $permission, $repository, $prNumber);
+                if ($evidence !== null && $evidence->claim->headCommit === $expectedHead) {
+                    $reviews[] = $evidence;
+                }
+            }
+        }
+
+        if ($reviews === [] && $unverifiablePermission !== null) {
+            // No authenticated candidate survived: preserve the actionable
+            // API failure rather than interpreting it as an approval.
+            throw $unverifiablePermission;
+        }
+
+        return $reviews;
+    }
+}

@@ -76,6 +76,21 @@ final class SelfShapeEvidenceTest extends TestCase
         $evidence->learningStatus();
     }
 
+    public function testValidatedMaintenanceCanReuseExistingFindingWithoutInventingNewFinding(): void
+    {
+        $evidence = new SelfShapeEvidence(['MEMORY.md'], true);
+        self::assertSame('no_durable_learning', $evidence->learningStatus(true));
+    }
+
+    public function testRecordedFindingStillWinsOverVerifiedMaintenance(): void
+    {
+        $evidence = new SelfShapeEvidence(
+            ['.agent-loop/learning/findings/consolidated/finding.2026-08-14.005.json'],
+            true,
+        );
+        self::assertSame('findings_recorded', $evidence->learningStatus(true));
+    }
+
     public function testACompleteProjectionHasNoProblems(): void
     {
         $problems = (new RunProjectionAssertion())->beforePrune($this->projection('done'), 'run:X:1', 'findings_recorded');

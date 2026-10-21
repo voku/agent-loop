@@ -14,6 +14,9 @@ declare(strict_types=1);
  * evidence and reports; anything it decides, it asks a tested class.
  */
 
+use voku\AgentLearning\AppliedGuidanceMaintenanceInspector;
+use voku\AgentLoop\Dogfood\SelfShapeMaintenanceApprovalGate;
+use voku\AgentLoop\Dogfood\SelfShapeMaintenanceGitHubReader;
 use voku\AgentLoop\Dogfood\ProcessRunner;
 use voku\AgentLoop\Dogfood\RecallOutcomeDraft;
 use voku\AgentLoop\Dogfood\RunProjectionAssertion;
@@ -94,7 +97,75 @@ $evidence = new SelfShapeEvidence(
     $lines($git(['diff', '--name-only', '--diff-filter=AR', $base, 'HEAD', '--', '.agent-loop/learning/findings'])),
     $runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['exit_code'] !== 0,
 );
-$learningStatus = $evidence->learningStatus();
+$verifiedMaintenance = false;
+if ($runner->run(['git', 'diff', '--quiet', $base, 'HEAD', '--', 'MEMORY.md'])['exit_code'] !== 0
+    && $evidence->recordedFindingIds() === []
+    && $options['pr-number'] !== '') {
+    $repository = getenv('GITHUB_REPOSITORY');
+    $prHead = getenv('SELF_SHAPE_HEAD_SHA');
+    if (!is_string($repository) || $repository === ''
+        || !is_string($prHead) || preg_match('/\A[a-f0-9]{40}\z/', $prHead) !== 1) {
+        $fail('MEMORY maintenance needs the trusted GitHub repository and PR-head context.');
+    }
+
+    // GitHub's pull_request checkout is normally a synthetic merge commit.
+    // The review must bind to the real PR head, not that merge commit.
+    $checkoutHead = $git(['rev-parse', 'HEAD']);
+    $mergeSecondParent = $runner->run(['git', 'rev-parse', 'HEAD^2']);
+    $secondParent = $mergeSecondParent['exit_code'] === 0 ? trim($mergeSecondParent['stdout']) : '';
+    if ($prHead !== $checkoutHead && $prHead !== $secondParent) {
+        $fail('PR-head review SHA is not the checked-out direct or merge parent commit.');
+    }
+    // The checkout may be GitHub's synthetic PR merge commit. Its merge-base
+    // against origin/main is the current main tip, not the PR head's ancestor.
+    // Bind the human review to the actual PR branch diff instead.
+    $reviewBase = $git(['merge-base', $prHead, 'origin/' . $options['base-ref']]);
+
+    $reviews = (new SelfShapeMaintenanceGitHubReader($runner))->findAll(
+        $repository,
+        (int) $options['pr-number'],
+        $prHead,
+    );
+    if ($reviews !== []) {
+        $temporary = sys_get_temp_dir() . '/agent-loop-memory-proof-' . bin2hex(random_bytes(8));
+        if (!mkdir($temporary, 0o700)) {
+            $fail('Unable to allocate independent Learning proof worktrees.');
+        }
+        $baseCheckout = $temporary . '/base';
+        $headCheckout = $temporary . '/head';
+        try {
+            $runner->mustRun(['git', 'worktree', 'add', '--detach', $baseCheckout, $reviewBase]);
+            $runner->mustRun(['git', 'worktree', 'add', '--detach', $headCheckout, $prHead]);
+            $ownerProof = (new AppliedGuidanceMaintenanceInspector())->inspect(
+                $baseCheckout . '/.agent-loop/learning',
+                $headCheckout . '/.agent-loop/learning',
+                'MEMORY.md',
+            );
+            $scope = (new SelfShapeGitChangedPaths($runner))->between($reviewBase, $prHead);
+            $diffHash = hash('sha256', $runner->mustRun([
+                'git', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false',
+                'diff', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames',
+                '--diff-algorithm=myers', '--binary', $reviewBase, $prHead, '--',
+            ])['stdout']);
+            $approvalGate = new SelfShapeMaintenanceApprovalGate();
+            foreach ($reviews as $review) {
+                if (!$approvalGate->matches($ownerProof, $review, $reviewBase, $prHead, $diffHash, $scope)) {
+                    continue;
+                }
+
+                $verifiedMaintenance = true;
+                echo '[OK] exact-diff existing-guidance maintenance attributed to GitHub review: '
+                    . $review->commentUrl . PHP_EOL;
+                break;
+            }
+        } finally {
+            $runner->run(['git', 'worktree', 'remove', '--force', $headCheckout]);
+            $runner->run(['git', 'worktree', 'remove', '--force', $baseCheckout]);
+            rmdir($temporary);
+        }
+    }
+}
+$learningStatus = $evidence->learningStatus($verifiedMaintenance);
 
 if (!is_dir($root . '/build') && !mkdir($root . '/build', 0o775, true) && !is_dir($root . '/build')) {
     $fail('Unable to create build/.');
