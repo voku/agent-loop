@@ -133,7 +133,7 @@ else
 fi
 if [ -n "${LOOP_REPO:-}" ]; then
   # Installed-consumer mode: agent-loop (path) and the released agent-map (path) are installed as a consuming project
-  # would; voku/agent-edit resolves from Packagist through agent-loop's own `^0.4.2` requirement.
+  # would; voku/agent-edit resolves from Packagist through agent-loop's own composer.json requirement.
   jq -n \
     --argjson psr4 "{${psr4}}" \
     --arg loop "$LOOP_REPO" \
@@ -155,8 +155,9 @@ if [ -n "${LOOP_REPO:-}" ]; then
     }' > composer.json
   composer update --no-interaction --prefer-dist --no-progress --no-ansi
   composer show voku/agent-edit --format=json > resolved-agent-edit.json
-  # Any release inside Loop's own `^0.4.2` constraint proves the Packagist resolution; pinning one patch breaks on every release.
-  jq -e '(.versions | length) == 1 and (.versions[0] | test("^0\\.4\\.[0-9]+$"))' resolved-agent-edit.json >/dev/null
+  # Composer resolved the version inside Loop's own composer.json constraint; this only proves it came from a tagged release.
+  # The pattern must not hard-code a minor: it silently failed every installed job when agent-edit went from 0.4.x to 0.5.0.
+  jq -e '(.versions | length) == 1 and (.versions[0] | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' resolved-agent-edit.json >/dev/null
 else
   cat > composer.json <<JSON
 {
