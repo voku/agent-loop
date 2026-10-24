@@ -10,13 +10,9 @@ $autoloadCandidates = [];
 if (is_dir($repositoryRoot . '/vendor/voku/agent-loop')) {
     $autoloadCandidates[] = $rootAutoload;
 }
-$isolatedAutoloads = glob($repositoryRoot . '/tools/*/vendor/autoload.php');
-if (is_array($isolatedAutoloads)) {
-    sort($isolatedAutoloads, SORT_STRING);
-    foreach ($isolatedAutoloads as $isolatedAutoload) {
-        $autoloadCandidates[] = $isolatedAutoload;
-    }
-}
+// Explicit install path only: a glob over repo-writable tools/*/ would execute
+// any committed tools/<x>/vendor/autoload.php.
+$autoloadCandidates[] = $repositoryRoot . '/tools/agent-loop/vendor/autoload.php';
 if (!in_array($rootAutoload, $autoloadCandidates, true)) {
     $autoloadCandidates[] = $rootAutoload;
 }
