@@ -495,8 +495,8 @@ final readonly class ExecutionGateway
     {
         $recallRoot = (new ProjectLayout($this->rootPath))->recallRoot();
         $path = $recallRoot . '/' . $taskId . '/system.md';
-        if (is_link($path)) {
-            throw new RuntimeException('Governed Recall source must not be a symbolic link: ' . $path);
+        if ($this->hasSymbolicLinkComponent($recallRoot) || $this->hasSymbolicLinkComponent($path)) {
+            throw new RuntimeException('Governed Recall source must not be reached through a symbolic link: ' . $path);
         }
         if (!is_file($path)) {
             return ['source' => null, 'content' => null];
@@ -545,6 +545,21 @@ final readonly class ExecutionGateway
             'source' => ['path' => $relative, 'sha256' => 'sha256:' . hash('sha256', $content)],
             'content' => $content,
         ];
+    }
+
+    private function hasSymbolicLinkComponent(string $path): bool
+    {
+        $current = $path;
+        while (true) {
+            if (is_link($current)) {
+                return true;
+            }
+            $parent = dirname($current);
+            if ($parent === $current) {
+                return false;
+            }
+            $current = $parent;
+        }
     }
 
     /**

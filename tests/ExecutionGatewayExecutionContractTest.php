@@ -123,13 +123,36 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
             (new ExecutionGateway($this->root))->prepareStage(self::TASK, 'investigate');
             self::fail('A symbolic-link Recall source must not be read into the agent prompt.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('must not be a symbolic link', $exception->getMessage());
+            self::assertStringContainsString('symbolic link', $exception->getMessage());
         } finally {
             if (is_link($recallPath)) {
                 unlink($recallPath);
             }
             if (is_file($externalPath)) {
                 unlink($externalPath);
+            }
+        }
+    }
+
+    public function testFallbackRecallRejectsSymbolicLinkAtRecallRoot(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $recallRoot = $this->root . '/.agent-loop/recall';
+        $externalRoot = sys_get_temp_dir() . '/agent-loop-recall-root-' . bin2hex(random_bytes(5));
+        self::assertTrue(rename($recallRoot, $externalRoot));
+        self::assertTrue(symlink($externalRoot, $recallRoot));
+
+        try {
+            (new ExecutionGateway($this->root))->prepareStage(self::TASK, 'investigate');
+            self::fail('A symlinked Recall root must not be read into the agent prompt.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('symbolic link', $exception->getMessage());
+        } finally {
+            if (is_link($recallRoot)) {
+                unlink($recallRoot);
+            }
+            if (is_dir($externalRoot)) {
+                $this->rm($externalRoot);
             }
         }
     }
