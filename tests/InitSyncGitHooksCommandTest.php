@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\Init\InitSyncGitHooksCommand;
 
@@ -201,6 +202,28 @@ final class InitSyncGitHooksCommandTest extends TestCase
         self::assertSame(1, $result['exit']);
         self::assertDirectoryDoesNotExist(dirname($this->root) . '/elsewhere');
         self::assertSame('', $this->gitConfig('core.hooksPath'));
+    }
+
+    public function testRefusesToWriteThroughASymlinkedHookTarget(): void
+    {
+        mkdir($this->root . '/.githooks', 0o775, true);
+        $escape = sys_get_temp_dir() . '/agent-loop-githooks-escape-' . bin2hex(random_bytes(6));
+        symlink($escape, $this->root . '/.githooks/post-merge');
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('Refusing to write through a symlink');
+
+            ob_start();
+            try {
+                (new InitSyncGitHooksCommand($this->root))->run([]);
+            } finally {
+                ob_end_clean();
+            }
+        } finally {
+            self::assertFileDoesNotExist($escape);
+            @unlink($this->root . '/.githooks/post-merge');
+        }
     }
 
     /**

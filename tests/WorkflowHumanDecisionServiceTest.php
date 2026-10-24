@@ -42,6 +42,56 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
         }
     }
 
+    public function testApproveContractWithMatchingExpectedRevisionSucceeds(): void
+    {
+        $root = $this->root('approve-revision-match');
+
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create(
+                'UI-2',
+                'Expose the human decision boundary.',
+                ['src/Foo.php'],
+                [],
+                ['vendor/bin/phpunit'],
+                'planner',
+            );
+            $service = new WorkflowHumanDecisionService($root);
+
+            $approved = $service->approveContract('UI-2', 'lars', 1);
+
+            self::assertSame(TaskContract::APPROVED, $approved->status);
+            self::assertSame(1, $approved->revision);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
+    public function testApproveContractRefusesStaleExpectedRevision(): void
+    {
+        $root = $this->root('approve-revision-stale');
+
+        try {
+            $contracts = new TaskContractStore($root);
+            $contracts->create(
+                'UI-3',
+                'Expose the human decision boundary.',
+                ['src/Foo.php'],
+                [],
+                ['vendor/bin/phpunit'],
+                'planner',
+            );
+            $service = new WorkflowHumanDecisionService($root);
+
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Contract revision changed since it was reviewed');
+
+            $service->approveContract('UI-3', 'lars', 2);
+        } finally {
+            $this->removeDirectory($root);
+        }
+    }
+
     public function testProjectsNoHumanActionForMissingContract(): void
     {
         $root = $this->root('missing');
