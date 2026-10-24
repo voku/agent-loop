@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use JsonException;
 use Throwable;
 use voku\AgentLoop\GitHooks\HookConfigTrustStore;
 use voku\AgentLoop\GitHooks\HookProcessEnvironment;
@@ -152,11 +151,7 @@ final readonly class WorkflowHookRunner
             return null;
         }
 
-        try {
-            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return null;
-        }
+        $decoded = json_decode($content, true, 512);
         if (!is_array($decoded)) {
             return null;
         }

@@ -429,7 +429,6 @@ final class GitHooksRunnerTest extends TestCase
         ]);
     }
 
-    /** @param string|false $originalValue */
     private function restoreEnv(string $name, string|false $originalValue): void
     {
         if ($originalValue === false) {
