@@ -106,12 +106,40 @@ final class WorkflowHookRunnerTest extends TestCase
             ],
         ], JSON_THROW_ON_ERROR));
 
+        $originalSecret = getenv('HOOK_ENV_TEST_API_TOKEN');
+        $originalPassthrough = getenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
         putenv('HOOK_ENV_TEST_API_TOKEN=super-secret-token');
+        putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
         try {
             $runner = new WorkflowHookRunner($this->root);
             $runner->run('enter', 'TASK-ENV');
         } finally {
-            putenv('HOOK_ENV_TEST_API_TOKEN');
+            $this->restoreEnv('HOOK_ENV_TEST_API_TOKEN', $originalSecret);
+            $this->restoreEnv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH', $originalPassthrough);
+        }
+
+        self::assertSame("unset\n", file_get_contents($outputFile));
+    }
+
+    public function testHookDoesNotInheritComposerAuthCredentials(): void
+    {
+        $outputFile = $this->root . '/composer-auth.out';
+        file_put_contents($this->root . '/.agent-loop/workflow-hooks.json', json_encode([
+            'enter' => [
+                [
+                    'name' => 'dump-composer-auth',
+                    'command' => 'echo "${COMPOSER_AUTH:-unset}" > "' . $outputFile . '"',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $originalComposerAuth = getenv('COMPOSER_AUTH');
+        putenv('COMPOSER_AUTH={"http-basic":{"example.test":{"username":"u","password":"p"}}}');
+        try {
+            $runner = new WorkflowHookRunner($this->root);
+            $runner->run('enter', 'TASK-COMPOSER-AUTH');
+        } finally {
+            $this->restoreEnv('COMPOSER_AUTH', $originalComposerAuth);
         }
 
         self::assertSame("unset\n", file_get_contents($outputFile));
@@ -147,17 +175,31 @@ final class WorkflowHookRunnerTest extends TestCase
             ],
         ], JSON_THROW_ON_ERROR));
 
+        $originalSecret = getenv('HOOK_ENV_TEST_API_TOKEN');
+        $originalPassthrough = getenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
         putenv('HOOK_ENV_TEST_API_TOKEN=super-secret-token');
         putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH=1');
         try {
             $runner = new WorkflowHookRunner($this->root);
             $runner->run('enter', 'TASK-ENV-PASSTHROUGH');
         } finally {
-            putenv('HOOK_ENV_TEST_API_TOKEN');
-            putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
+            $this->restoreEnv('HOOK_ENV_TEST_API_TOKEN', $originalSecret);
+            $this->restoreEnv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH', $originalPassthrough);
         }
 
         self::assertSame("super-secret-token\n", file_get_contents($outputFile));
+    }
+
+    /** @param string|false $originalValue the value getenv() returned before the test changed it */
+    private function restoreEnv(string $name, string|false $originalValue): void
+    {
+        if ($originalValue === false) {
+            putenv($name);
+
+            return;
+        }
+
+        putenv($name . '=' . $originalValue);
     }
 
     private function removeDirectory(string $path): void

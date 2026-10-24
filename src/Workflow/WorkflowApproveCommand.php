@@ -28,6 +28,14 @@ final readonly class WorkflowApproveCommand
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
 
+            if ($options['revision'] !== null && $options['revision'] !== $contract->revision) {
+                throw new RuntimeException(sprintf(
+                    'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
+                    $options['revision'],
+                    $contract->revision,
+                ));
+            }
+
             $status = 'approved';
             $notes = [];
             if ($contract->status !== TaskContract::APPROVED) {

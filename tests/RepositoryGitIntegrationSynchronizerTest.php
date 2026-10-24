@@ -55,7 +55,7 @@ final class RepositoryGitIntegrationSynchronizerTest extends TestCase
 
             (new RepositoryGitIntegrationSynchronizer($this->root))->syncDeclared();
         } finally {
-            self::assertDirectoryDoesNotExist($escape . '/post-merge');
+            self::assertSame([], array_diff(scandir($escape) ?: [], ['.', '..']));
             @unlink($this->root . '/.githooks');
             $this->removeDirectory($escape);
         }

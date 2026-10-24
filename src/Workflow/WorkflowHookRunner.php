@@ -131,7 +131,7 @@ final readonly class WorkflowHookRunner
 
         $inherited = [];
         foreach ($all as $name => $value) {
-            if (is_string($value) && preg_match('/^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LC_[A-Z_]+|TERM|TMPDIR|TZ|PHP[A-Z_]*|COMPOSER_[A-Z_]+|AGENT_LOOP_[A-Z_]+)$/', (string) $name) === 1) {
+            if (is_string($value) && preg_match('/^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LC_[A-Z_]+|TERM|TMPDIR|TZ|PHP[A-Z_]*|COMPOSER_(?!AUTH$)[A-Z_]+|AGENT_LOOP_[A-Z_]+)$/', (string) $name) === 1) {
                 $inherited[(string) $name] = $value;
             }
         }

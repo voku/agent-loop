@@ -100,6 +100,29 @@ final class WorkflowApproveRevisionBindingTest extends TestCase
         self::assertSame(TaskContract::CANDIDATE, $contracts->load('APPROVE-REV-3')->status);
     }
 
+    public function testApproveWithStaleRevisionRefusesEvenWhenAlreadyApprovedAtADifferentRevision(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $contracts->create(
+            'APPROVE-REV-5',
+            'Approve one bounded text change already approved at a different revision.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $contracts->approve('APPROVE-REV-5', 'first-approver');
+
+        ob_start();
+        try {
+            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-REV-5', '--by', 'approver', '--revision', '2']);
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit);
+    }
+
     public function testApproveWithoutRevisionOptionStillSucceeds(): void
     {
         $contracts = new TaskContractStore($this->root);
