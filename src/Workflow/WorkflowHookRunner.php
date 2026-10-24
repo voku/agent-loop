@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use JsonException;
 use Throwable;
+use voku\AgentLoop\GitHooks\HookConfigTrustStore;
+use voku\AgentLoop\GitHooks\HookProcessEnvironment;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -18,8 +21,11 @@ use voku\AgentLoop\ProjectLayout;
  */
 final readonly class WorkflowHookRunner
 {
-    public function __construct(private string $rootPath)
+    private HookConfigTrustStore $trustStore;
+
+    public function __construct(private string $rootPath, ?HookConfigTrustStore $trustStore = null)
     {
+        $this->trustStore = $trustStore ?? new HookConfigTrustStore();
     }
 
     /**
@@ -30,7 +36,7 @@ final readonly class WorkflowHookRunner
      */
     public function run(string $event, string $taskId, array $context = []): array
     {
-        $configs = $this->loadConfig();
+        $configs = $this->loadConfig($event);
         $hooks = $configs[$event] ?? [];
         if ($hooks === []) {
             return [];
@@ -102,7 +108,7 @@ final readonly class WorkflowHookRunner
             $descriptors,
             $pipes,
             $this->rootPath,
-            array_merge($this->inheritedEnvironment(), $env),
+            array_merge(HookProcessEnvironment::inherited(), $env),
         );
 
         if (!is_resource($process)) {
@@ -117,65 +123,75 @@ final readonly class WorkflowHookRunner
     }
 
     /**
-     * Repository-declared hook commands must not inherit ambient credentials. Only a small allowlist is passed
-     * through; AGENT_LOOP_HOOK_ENV_PASSTHROUGH=1 is the explicit operator opt-out.
-     *
-     * @return array<string, string>
+     * @return array<string, list<mixed>>
      */
-    private function inheritedEnvironment(): array
+    private function loadConfig(string $event): array
     {
-        $all = array_merge($_ENV, getenv());
-        if (($all['AGENT_LOOP_HOOK_ENV_PASSTHROUGH'] ?? '') === '1') {
-            return array_filter($all, 'is_string');
+        $hooksFile = $this->rootPath . '/.agent-loop/workflow-hooks.json';
+
+        $workflowHooks = $this->readWorkflowConfig($hooksFile, requireWorkflowHooksKey: false, event: $event);
+        if ($workflowHooks !== null) {
+            return $workflowHooks;
         }
 
-        $inherited = [];
-        foreach ($all as $name => $value) {
-            if (is_string($value) && preg_match('/^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LC_[A-Z_]+|TERM|TMPDIR|TZ|PHP[A-Z_]*|COMPOSER_(?!AUTH$)[A-Z_]+|AGENT_LOOP_[A-Z_]+)$/', (string) $name) === 1) {
-                $inherited[(string) $name] = $value;
-            }
-        }
-
-        return $inherited;
+        $gitHooksFile = (new ProjectLayout($this->rootPath))->gitHooksConfig();
+        return $this->readWorkflowConfig($gitHooksFile, requireWorkflowHooksKey: true, event: $event) ?? [];
     }
 
     /**
-     * @return array<string, list<mixed>>
+     * @return array<string, list<mixed>>|null null means absent, malformed, or not a workflow-hook config
      */
-    private function loadConfig(): array
+    private function readWorkflowConfig(string $path, bool $requireWorkflowHooksKey, string $event): ?array
     {
-        $layout = new ProjectLayout($this->rootPath);
-        $hooksFile = $this->rootPath . '/.agent-loop/workflow-hooks.json';
+        if (!is_file($path)) {
+            return null;
+        }
 
-        if (is_file($hooksFile)) {
-            try {
-                $content = file_get_contents($hooksFile);
-                if (is_string($content)) {
-                    $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-                    if (is_array($decoded)) {
-                        return $decoded['workflow_hooks'] ?? $decoded;
-                    }
+        $content = file_get_contents($path);
+        if (!is_string($content)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+        if (!is_array($decoded)) {
+            return null;
+        }
+        if ($requireWorkflowHooksKey && !is_array($decoded['workflow_hooks'] ?? null)) {
+            return null;
+        }
+
+        $hooks = $requireWorkflowHooksKey ? $decoded['workflow_hooks'] : ($decoded['workflow_hooks'] ?? $decoded);
+        if (!is_array($hooks)) {
+            return null;
+        }
+
+        $eventHooks = $hooks[$event] ?? null;
+        if (is_array($eventHooks) && $this->hasShellCommands([$event => $eventHooks])) {
+            $this->trustStore->assertTrusted($this->rootPath, $path, $content);
+        }
+
+        return $hooks;
+    }
+
+    /** @param array<string, mixed> $hooks */
+    private function hasShellCommands(array $hooks): bool
+    {
+        foreach ($hooks as $eventHooks) {
+            if (!is_array($eventHooks)) {
+                continue;
+            }
+            foreach ($eventHooks as $hook) {
+                $command = is_array($hook) ? ($hook['command'] ?? null) : $hook;
+                if (is_string($command) && trim($command) !== '') {
+                    return true;
                 }
-            } catch (Throwable) {
-                // Ignore malformed hook file
             }
         }
 
-        $gitHooksFile = $layout->gitHooksConfig();
-        if (is_file($gitHooksFile)) {
-            try {
-                $content = file_get_contents($gitHooksFile);
-                if (is_string($content)) {
-                    $decoded = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
-                    if (is_array($decoded) && isset($decoded['workflow_hooks']) && is_array($decoded['workflow_hooks'])) {
-                        return $decoded['workflow_hooks'];
-                    }
-                }
-            } catch (Throwable) {
-                // Ignore malformed hook file
-            }
-        }
-
-        return [];
+        return false;
     }
 }
