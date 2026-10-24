@@ -102,7 +102,7 @@ final readonly class WorkflowHookRunner
             $descriptors,
             $pipes,
             $this->rootPath,
-            array_merge($_ENV, getenv(), $env),
+            array_merge($this->inheritedEnvironment(), $env),
         );
 
         if (!is_resource($process)) {
@@ -114,6 +114,29 @@ final readonly class WorkflowHookRunner
         fclose($pipes[2]);
 
         return proc_close($process);
+    }
+
+    /**
+     * Repository-declared hook commands must not inherit ambient credentials. Only a small allowlist is passed
+     * through; AGENT_LOOP_HOOK_ENV_PASSTHROUGH=1 is the explicit operator opt-out.
+     *
+     * @return array<string, string>
+     */
+    private function inheritedEnvironment(): array
+    {
+        $all = array_merge($_ENV, getenv());
+        if (($all['AGENT_LOOP_HOOK_ENV_PASSTHROUGH'] ?? '') === '1') {
+            return array_filter($all, 'is_string');
+        }
+
+        $inherited = [];
+        foreach ($all as $name => $value) {
+            if (is_string($value) && preg_match('/^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LC_[A-Z_]+|TERM|TMPDIR|TZ|PHP[A-Z_]*|COMPOSER_[A-Z_]+|AGENT_LOOP_[A-Z_]+)$/', (string) $name) === 1) {
+                $inherited[(string) $name] = $value;
+            }
+        }
+
+        return $inherited;
     }
 
     /**
