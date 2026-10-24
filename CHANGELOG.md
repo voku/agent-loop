@@ -1,20 +1,21 @@
 ## Unreleased
 
-### Fixed
-
-- Breaking: Contract approval is bound to the exact revision reviewed. `workflow approve`, `TaskContractStore::approve()`, and `WorkflowHumanDecisionService::approveContract()` require the expected revision; this supersedes the optional behavior noted in 0.20.68. Stale approvals fail; update CLI, store, and service callers to re-read the Contract and pass that revision. The Make target now requires `REVISION`.
-- Governed Runs now default to the standard independent-review profile. Successful close for non-manual profiles requires a completed, current review pipeline with fresh reviewer contexts and current candidate-file evidence covering every changed file; explicit `manual` selection remains available.
-- Reviewer `PASS` results now fail closed when they omit candidate evidence or leave changed candidate files uncovered. Review prompts use the guaranteed first-draft review even when optional engineering lenses are not installed.
-- Breaking: configured workflow-state roots outside the selected project now require an exact canonical path in `AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS`; derived state paths reject traversal and symlink escapes.
-
 ## [0.20.68] - 2026-10-24
 
+### Security
+
+- Tracked `.agent-loop/githooks.json` and `workflow-hooks.json` shell commands now require an explicit SHA-256 trust record outside the checkout, scoped to the canonical checkout and config path. Missing, changed, malformed, symlinked, or unsafe trust state fails closed. Hook subprocesses receive an allowlisted environment, including Git's temporary `GIT_INDEX_FILE`; `AGENT_LOOP_HOOK_ENV_PASSTHROUGH=1` remains an explicit operator opt-out. Trusted hooks still run with the user's permissions and are not sandboxed.
+- `init sync-githooks` and the repository Git integration synchronizer refuse symlinked hook files and hook directories.
+- The bundled Codex context hook loads only `tools/agent-loop/vendor/autoload.php`, avoiding execution of repository-controlled `tools/*/vendor/autoload.php` files.
+- Workflow approval now requires the exact Contract revision reviewed, in the CLI, `TaskContractStore`, and `WorkflowHumanDecisionService`. Contract creation, revision, and approval are serialized per task and recheck the revision under the lock; callers must re-read the Contract and pass `--revision` / the expected revision.
+- Recall sources are rejected when reached through symlinks or outside the configured Recall root. The bytes used for the digest are also the bytes sent to the provider, and fallback Recall is labeled untrusted reference data.
+- Configured workflow state roots outside the checkout now require an exact canonical path in `AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS`; derived state paths reject traversal and symlink escapes.
+- Loop now requires the first fixed security releases of Edit, Kanban, Learning, Map, Recall, and Session, and its lock and release-set integration tests pin the updated consumer graph so CI cannot pass against pre-fix tags.
+
 ### Fixed
 
-- Repository-declared `workflow_hooks`/`pre_commit` commands in `.agent-loop/githooks.json` and `workflow-hooks.json` no longer inherit the full process environment (ambient credentials, tokens). `WorkflowHookRunner` passes through only an explicit allowlist (`PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`/`LC_*`, `TERM`, `TMPDIR`, `TZ`, `PHP*`, `COMPOSER_*`, `AGENT_LOOP_*`); the operator opt-out is `AGENT_LOOP_HOOK_ENV_PASSTHROUGH=1`. This does not add a trust gate for the hook commands themselves, and `PreCommitRunner` still inherits the full environment.
-- `init sync-githooks` and the repository-declared Git integration synchronizer now refuse to write a hook file through a symlinked target or hooks directory instead of following it.
-- The bundled Codex context hook loads only the explicit `tools/agent-loop/vendor/autoload.php` install path instead of globbing `tools/*/vendor/autoload.php`, which would have executed any repository-committed `tools/<name>/vendor/autoload.php`.
-- `workflow approve` accepts an optional `--revision <n>` (and `TaskContractStore::approve()` / `WorkflowHumanDecisionService::approveContract()` an optional `$expectedRevision`) that refuses the approval if the Contract's revision changed since it was reviewed. Backward compatible: omitting it keeps prior behavior, so callers must opt in to the protection.
+- Governed Runs now default to the standard independent-review profile. Successful close for non-manual profiles requires a completed, current review pipeline with fresh reviewer contexts and current candidate-file evidence covering every changed file; explicit `manual` selection remains available.
+- Reviewer `PASS` results fail closed when they omit candidate evidence or leave changed candidate files uncovered. Review prompts use the guaranteed first-draft review even when optional engineering lenses are not installed.
 
 ## [0.20.67] - 2026-10-20
 

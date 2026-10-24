@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-edit
-          ref: 0.5.0
+          ref: 07dc5091e0c2f7edcc1907298cd03fb60a54543f
           path: build/released-agent-edit
           persist-credentials: false
 
@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-map
-          ref: 0.22.0
+          ref: 91e631249f3e3bcfd8b5783f600f2a6d8818cab2
           path: build/released-agent-map
           persist-credentials: false
 
