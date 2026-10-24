@@ -127,7 +127,9 @@ final class GovernedRecallInputArchiveTest extends TestCase
     {
         ob_start();
         try {
-            return (new WorkflowApproveCommand($this->root))->run([$taskId, '--by', 'lars']);
+            $revision = (new TaskContractStore($this->root))->load($taskId)->revision;
+
+            return (new WorkflowApproveCommand($this->root))->run([$taskId, '--revision', (string) $revision, '--by', 'lars']);
         } finally {
             ob_end_clean();
         }

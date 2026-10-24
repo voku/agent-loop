@@ -28,7 +28,7 @@ final readonly class WorkflowApproveCommand
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
 
-            if ($options['revision'] !== null && $options['revision'] !== $contract->revision) {
+            if ($options['revision'] !== $contract->revision) {
                 throw new RuntimeException(sprintf(
                     'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
                     $options['revision'],
@@ -145,7 +145,7 @@ final readonly class WorkflowApproveCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, format: string, revision: ?int}
+     * @return array{by: string, format: string, revision: int}
      */
     private function parse(array $tokens): array
     {
@@ -194,6 +194,9 @@ final readonly class WorkflowApproveCommand
         }
         if ($by === null) {
             throw new InvalidArgumentException('--by is required.');
+        }
+        if ($revision === null) {
+            throw new InvalidArgumentException('--revision is required; re-read the current Contract revision before approving.');
         }
 
         return ['by' => $by, 'format' => $format, 'revision' => $revision];

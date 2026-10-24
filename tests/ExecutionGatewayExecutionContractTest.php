@@ -169,7 +169,7 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
 
         ob_start();
         self::assertSame(0, (new WorkflowPlanCommand($this->root))->run($plan));
-        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run([self::TASK, '--by', 'lars']));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run([self::TASK, '--revision', '1', '--by', 'lars']));
         self::assertSame(0, (new WorkflowExecutionProfileCommand($this->root))->run([
             self::TASK, '--profile', 'surgical', '--by', 'lars',
         ]));

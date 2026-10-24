@@ -95,9 +95,9 @@ final class CanonicalActionKindTest extends TestCase
         );
 
         self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $policy->nextActionKind);
-        self::assertSame('agent-loop workflow approve E5-001 --by <named-actor>', $policy->nextAction);
+        self::assertSame('agent-loop workflow approve E5-001 --revision 1 --by <named-actor>', $policy->nextAction);
         self::assertNotNull($policy->nextActionInvocation);
-        self::assertSame(['workflow', 'approve', 'E5-001', '--by', '<named-actor>'], $policy->nextActionInvocation->arguments);
+        self::assertSame(['workflow', 'approve', 'E5-001', '--revision', '1', '--by', '<named-actor>'], $policy->nextActionInvocation->arguments);
     }
 
     public function testReviewAcknowledgementIsDelegatedAfterContractApproval(): void
@@ -277,7 +277,7 @@ final class CanonicalActionKindTest extends TestCase
     ): array {
         return [
             'session' => ['owner' => 'agent-session', 'state' => $session],
-            'contract' => ['owner' => 'agent-loop', 'state' => $contract],
+            'contract' => ['owner' => 'agent-loop', 'state' => $contract, 'revision' => 1],
             'approval' => ['owner' => 'agent-loop', 'state' => $approval],
             'recall' => ['owner' => 'agent-recall-compiler', 'state' => $recall],
             'execution_contract' => ['owner' => 'agent-loop', 'state' => $executionContract],

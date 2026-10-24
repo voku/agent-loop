@@ -116,7 +116,7 @@ final class EnterPreparationFailureRoutingTest extends TestCase
             '--operating-prompt', $selection,
         ]), 'plan');
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']), 'map build');
-        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'PREP-001', '--by', 'lars']), 'approve');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'PREP-001', '--revision', '1', '--by', 'lars']), 'approve');
     }
 
     /** @return array<string, mixed> */

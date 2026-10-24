@@ -117,7 +117,7 @@ final class HostFrontDoorCommandTest extends TestCase
 
         self::assertSame(1, $result['exit'], $result['stderr']);
         $goalOffset = strpos($result['stdout'], "Approval subject:\n  Contract revision: 1\n  Goal:\n    " . $goal);
-        $nextOffset = strpos($result['stdout'], 'Next: agent-loop workflow approve TEXT-1 --by <named-actor>');
+        $nextOffset = strpos($result['stdout'], 'Next: agent-loop workflow approve TEXT-1 --revision 1 --by <named-actor>');
         self::assertNotFalse($goalOffset, $result['stdout']);
         self::assertNotFalse($nextOffset, $result['stdout']);
         self::assertLessThan($nextOffset, $goalOffset, $result['stdout']);

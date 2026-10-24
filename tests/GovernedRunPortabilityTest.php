@@ -128,7 +128,7 @@ final class GovernedRunPortabilityTest extends TestCase
         $contracts->create('ABC-123', 'Survive relocation.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
 
         ob_start();
-        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', '1', '--by', 'lars']));
         ob_end_clean();
         \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         ob_start();

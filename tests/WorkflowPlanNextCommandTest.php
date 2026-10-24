@@ -44,7 +44,7 @@ final class WorkflowPlanNextCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit, $output);
-            self::assertStringContainsString("Next:\n  agent-loop workflow approve ABC-123 --by <named-actor>\n", $output);
+            self::assertStringContainsString("Next:\n  agent-loop workflow approve ABC-123 --revision 1 --by <named-actor>\n", $output);
             self::assertStringNotContainsString($actor, substr($output, (int) strpos($output, 'Next:')));
 
             $contract = (new TaskContractStore($root))->load('ABC-123');

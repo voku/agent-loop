@@ -165,7 +165,9 @@ final class WorkflowRepeatRunTest extends TestCase
     {
         ob_start();
         try {
-            return (new WorkflowApproveCommand($this->root))->run(['SELF-SHAPE', '--by', 'fixture-approver']);
+            $revision = (new TaskContractStore($this->root))->load('SELF-SHAPE')->revision;
+
+            return (new WorkflowApproveCommand($this->root))->run(['SELF-SHAPE', '--revision', (string) $revision, '--by', 'fixture-approver']);
         } finally {
             ob_end_clean();
         }

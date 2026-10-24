@@ -110,7 +110,9 @@ final class WorkflowApproveSearchIndexEvidenceTest extends TestCase
     {
         ob_start();
         try {
-            return (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']);
+            $revision = (new TaskContractStore($this->root))->load('ABC-123')->revision;
+
+            return (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', (string) $revision, '--by', 'lars']);
         } finally {
             ob_end_clean();
         }

@@ -21,7 +21,7 @@ final class HumanDecisionUxDogfoodTest extends TestCase
         self::assertSame(RunPolicyEvaluation::KIND_COMMAND_TEMPLATE, $plan->nextActionKind);
 
         $approval = $evaluator->evaluate('UX-1', 'planned', [
-            'contract' => ['owner' => 'agent-loop', 'state' => 'candidate'],
+            'contract' => ['owner' => 'agent-loop', 'state' => 'candidate', 'revision' => 1],
             'approval' => ['owner' => 'agent-loop', 'state' => 'missing'],
         ], []);
         self::assertSame(RunPolicyEvaluation::KIND_DECISION_REQUIRED, $approval->nextActionKind);
@@ -72,7 +72,7 @@ final class HumanDecisionUxDogfoodTest extends TestCase
 
         self::assertCount(1, $humanInterruptions);
         self::assertSame(
-            ['agent-loop workflow approve UX-1 --by <named-actor>'],
+            ['agent-loop workflow approve UX-1 --revision 1 --by <named-actor>'],
             array_map(static fn (RunPolicyEvaluation $result): string => $result->nextAction, $humanInterruptions),
         );
     }

@@ -61,7 +61,7 @@ final class WorkflowCliTest extends TestCase
     {
         $commands = [
             ['plan', 'ABC-123', '--by', 'planner', '--learning-root', 'alternate'],
-            ['approve', 'ABC-123', '--by', 'reviewer', '--learning-root', 'alternate'],
+            ['approve', 'ABC-123', '--revision', '1', '--by', 'reviewer', '--learning-root', 'alternate'],
             ['context', 'ABC-123', '--learning-root', 'alternate'],
             ['report', 'ABC-123', '--learning-root', 'alternate'],
             ['learn', 'ABC-123', '--status', 'no_durable_learning', '--by', 'planner', '--reason', 'none', '--learning-root', 'alternate'],

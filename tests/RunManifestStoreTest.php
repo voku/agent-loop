@@ -38,7 +38,7 @@ final class RunManifestStoreTest extends TestCase
                 'board' => ['state' => 'not_configured', 'owner' => 'agent-kanban'],
             ],
             disagreements: [],
-            nextAction: 'agent-loop workflow approve ABC-123 --by <human-actor>',
+            nextAction: 'agent-loop workflow approve ABC-123 --revision 1 --by <human-actor>',
         );
         $right = new RunManifest(
             taskId: 'ABC-123',
@@ -50,7 +50,7 @@ final class RunManifestStoreTest extends TestCase
                 'session' => ['owner' => 'agent-session', 'state' => 'active'],
             ],
             disagreements: [],
-            nextAction: 'agent-loop workflow approve ABC-123 --by <human-actor>',
+            nextAction: 'agent-loop workflow approve ABC-123 --revision 1 --by <human-actor>',
         );
 
         self::assertSame($left->toJson(), $right->toJson());

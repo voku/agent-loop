@@ -55,7 +55,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
         );
 
         ob_start();
-        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', '1', '--by', 'lars']));
         ob_end_clean();
         self::assertSame(0, $this->enter());
 

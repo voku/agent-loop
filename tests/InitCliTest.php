@@ -192,7 +192,7 @@ final class InitCliTest extends TestCase
         ]);
         self::assertSame(0, $plan['exit'], $plan['output']);
 
-        $approve = $this->dispatch(['agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'tester']);
+        $approve = $this->dispatch(['agent-loop', 'workflow', 'approve', 'DEMO-1', '--revision', '1', '--by', 'tester']);
         self::assertSame(0, $approve['exit'], $approve['output']);
         self::assertFileExists($this->root . '/.agent-loop/contracts/DEMO-1/contract.json');
         self::assertFileDoesNotExist($this->root . '/.agent-loop/runs/DEMO-1/run.json');

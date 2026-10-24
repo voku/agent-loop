@@ -32,7 +32,7 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
             $available = $service->availableActions('UI-1');
             self::assertSame([WorkflowHumanDecisionProjection::APPROVE_CONTRACT], $available->actions);
 
-            $approved = $service->approveContract('UI-1', 'lars');
+            $approved = $service->approveContract('UI-1', 'lars', 1);
 
             self::assertSame(TaskContract::APPROVED, $approved->status);
             self::assertSame('lars', $approved->approvedBy);

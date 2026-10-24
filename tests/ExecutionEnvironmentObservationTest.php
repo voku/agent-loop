@@ -156,7 +156,7 @@ final class ExecutionEnvironmentObservationTest extends TestCase
             '--validation', 'vendor/bin/phpunit',
             '--base-commit', self::BASE_COMMIT,
         ]));
-        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', '1', '--by', 'lars']));
         ob_end_clean();
 
         (new ExecutionProfileSelectionStore($this->root))->select('ABC-123', ExecutionProfileName::SURGICAL, 'lars');

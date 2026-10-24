@@ -134,7 +134,7 @@ final class WorkflowApproveRevisionBindingTest extends TestCase
         self::assertSame(1, $exit);
     }
 
-    public function testApproveWithoutRevisionOptionStillSucceeds(): void
+    public function testApproveWithoutRevisionOptionIsRefused(): void
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create(
@@ -153,8 +153,8 @@ final class WorkflowApproveRevisionBindingTest extends TestCase
             ob_end_clean();
         }
 
-        self::assertSame(0, $exit);
-        self::assertSame(TaskContract::APPROVED, $contracts->load('APPROVE-REV-4')->status);
+        self::assertSame(1, $exit);
+        self::assertSame(TaskContract::CANDIDATE, $contracts->load('APPROVE-REV-4')->status);
     }
 
     private function removeDirectory(string $path): void

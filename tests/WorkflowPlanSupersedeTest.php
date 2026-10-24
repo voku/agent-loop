@@ -91,7 +91,7 @@ final class WorkflowPlanSupersedeTest extends TestCase
         self::assertNull($candidate->approvedBy);
         self::assertNull($candidate->approvedAt);
         self::assertStringContainsString('candidate Contract superseded', $output);
-        self::assertStringContainsString('agent-loop workflow approve SUPERSEDE-1 --by <named-actor>', $output);
+        self::assertStringContainsString('agent-loop workflow approve SUPERSEDE-1 --revision 2 --by <named-actor>', $output);
         self::assertSame('planner', $candidate->plannedBy);
     }
 
