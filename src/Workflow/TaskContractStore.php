@@ -403,11 +403,9 @@ final class TaskContractStore
      * Serializes Contract writes so approval revision checks and replacements
      * cannot race with creation or supersession.
      *
-     * @template TResult
-     * @param Closure(): TResult $operation
-     * @return TResult
+     * @param Closure(): TaskContract $operation
      */
-    private function withMutationLock(string $taskId, Closure $operation): mixed
+    private function withMutationLock(string $taskId, Closure $operation): TaskContract
     {
         $contractsRoot = (new ProjectLayout($this->rootPath))->contractsRoot();
         $this->makeDirectory($contractsRoot);

@@ -441,7 +441,6 @@ final class ReleaseUpgradeDogfood
         ]);
         $this->agentLoop($scenario, [
             'workflow', 'approve', $taskId,
-            '--revision', (string) $this->contractRevision($scenario, $taskId),
             '--by', 'upgrade-fixture-human',
         ]);
         $this->agentLoop($scenario, [
