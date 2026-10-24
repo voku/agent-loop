@@ -81,11 +81,13 @@ final readonly class RepositoryGitIntegrationSynchronizer
         foreach (self::HOOK_ENTRIES as $entry) {
             $targetPath = $targetRoot . '/' . $entry;
             if (isset($adopted[$entry])) {
-                if (in_array($entry, self::EXECUTABLE_ENTRIES, true)
-                    && !is_executable($targetPath)
-                    && !chmod($targetPath, 0o755)
-                ) {
-                    throw new RuntimeException('Unable to make adopted Git hook executable: ' . $targetPath);
+                if (in_array($entry, self::EXECUTABLE_ENTRIES, true) && !is_executable($targetPath)) {
+                    if (is_link($targetPath)) {
+                        throw new RuntimeException('Refusing to change the mode of a symlinked adopted hook: ' . $targetPath);
+                    }
+                    if (!chmod($targetPath, 0o755)) {
+                        throw new RuntimeException('Unable to make adopted Git hook executable: ' . $targetPath);
+                    }
                 }
                 continue;
             }
@@ -139,12 +141,43 @@ final readonly class RepositoryGitIntegrationSynchronizer
 
     private function writeFile(string $path, string $content): void
     {
+        $this->assertNoSymlinkedAncestor($path);
+
         $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
             throw new RuntimeException('Unable to create Git integration directory: ' . $directory);
         }
+        if (is_link($path) || is_link($directory)) {
+            throw new RuntimeException('Refusing to write through a symlink: ' . $path);
+        }
         if (file_put_contents($path, $content) === false) {
             throw new RuntimeException('Unable to write Git integration file: ' . $path);
+        }
+    }
+
+    /**
+     * A target path can be lexically inside the repository while a symlinked
+     * ancestor directory component (for example a symlinked `.githooks`
+     * reached through a nested entry such as `lib/agent-loop-hooks.env`)
+     * redirects the write outside it. `mkdir(..., recursive: true)` and
+     * `file_put_contents()` both follow such a symlink, so every existing
+     * ancestor between the repository root and the target is checked before
+     * either is called.
+     */
+    private function assertNoSymlinkedAncestor(string $path): void
+    {
+        $root = rtrim($this->rootPath, '/');
+        $relative = ltrim(substr($path, strlen($root)), '/');
+        if ($relative === $path) {
+            return;
+        }
+
+        $current = $root;
+        foreach (explode('/', $relative) as $segment) {
+            $current .= '/' . $segment;
+            if (is_link($current)) {
+                throw new RuntimeException('Refusing to write through a symlinked path component: ' . $current);
+            }
         }
     }
 }

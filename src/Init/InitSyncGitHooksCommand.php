@@ -140,6 +140,9 @@ final readonly class InitSyncGitHooksCommand
                 // Git cannot execute is not an installed hook. The execute bit is
                 // the one property that decides whether the file runs at all, so it
                 // is enforced even here; the content stays untouched.
+                if (!$dryRun && in_array($entry, self::EXECUTABLE_ENTRIES, true) && !is_executable($targetPath) && is_link($targetPath)) {
+                    throw new InvalidArgumentException('Refusing to change the mode of a symlinked adopted hook: ' . $targetPath);
+                }
                 $repaired = !$dryRun
                     && in_array($entry, self::EXECUTABLE_ENTRIES, true)
                     && !is_executable($targetPath)
@@ -319,13 +322,45 @@ final readonly class InitSyncGitHooksCommand
 
     private function writeFile(string $filePath, string $content): void
     {
+        $this->assertNoSymlinkedAncestor($filePath);
+
         $directory = dirname($filePath);
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
             throw new InvalidArgumentException('Unable to create target directory: ' . $directory);
         }
 
+        if (is_link($filePath) || is_link($directory)) {
+            throw new InvalidArgumentException('Refusing to write through a symlink: ' . $filePath);
+        }
         if (file_put_contents($filePath, $content) === false) {
             throw new InvalidArgumentException('Unable to write file: ' . $filePath);
+        }
+    }
+
+    /**
+     * A target path can be lexically inside the repository while a symlinked
+     * ancestor component (for example a symlinked `--hooks-dir` path segment)
+     * redirects the write outside it. `mkdir(..., recursive: true)` and
+     * `file_put_contents()` both follow such a symlink, so every existing
+     * ancestor between the repository root and the target is checked before
+     * either is called.
+     */
+    private function assertNoSymlinkedAncestor(string $path): void
+    {
+        $root = rtrim($this->rootPath, '/');
+        $relative = ltrim(substr($path, strlen($root)), '/');
+        if ($relative === $path) {
+            // $path was not inside $root to begin with; the existing containment
+            // checks elsewhere are responsible for that case.
+            return;
+        }
+
+        $current = $root;
+        foreach (explode('/', $relative) as $segment) {
+            $current .= '/' . $segment;
+            if (is_link($current)) {
+                throw new InvalidArgumentException('Refusing to write through a symlinked path component: ' . $current);
+            }
         }
     }
 

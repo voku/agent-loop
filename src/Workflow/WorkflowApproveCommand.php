@@ -28,13 +28,21 @@ final readonly class WorkflowApproveCommand
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
 
+            if ($options['revision'] !== null && $options['revision'] !== $contract->revision) {
+                throw new RuntimeException(sprintf(
+                    'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
+                    $options['revision'],
+                    $contract->revision,
+                ));
+            }
+
             $status = 'approved';
             $notes = [];
             if ($contract->status !== TaskContract::APPROVED) {
                 // Approval records authority and nothing else. Map discovery is
                 // deterministic preparation, so `enter` reconciles it rather
                 // than the host being told to run agent-map first.
-                $contract = $contracts->approve($taskId->value, $options['by']);
+                $contract = $contracts->approve($taskId->value, $options['by'], $options['revision']);
                 (new WorkflowHookRunner($this->rootPath))->run('approve', $taskId->value);
                 $msg = "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
                 $note = $this->profileNote($contract, $taskId->value);
@@ -137,11 +145,12 @@ final readonly class WorkflowApproveCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, format: string}
+     * @return array{by: string, format: string, revision: ?int}
      */
     private function parse(array $tokens): array
     {
         $by = null;
+        $revision = null;
         $format = 'text';
         for ($index = 0, $count = count($tokens); $index < $count; ++$index) {
             $token = $tokens[$index];
@@ -164,6 +173,13 @@ final readonly class WorkflowApproveCommand
                 $format = $formatVal;
                 continue;
             }
+            if ($token === '--revision') {
+                if (!isset($tokens[$index + 1]) || preg_match('/^[1-9][0-9]*$/', $tokens[$index + 1]) !== 1) {
+                    throw new InvalidArgumentException('--revision requires a positive integer.');
+                }
+                $revision = (int) $tokens[++$index];
+                continue;
+            }
             if ($token !== '--by') {
                 throw new InvalidArgumentException('Unknown option: ' . $token);
             }
@@ -180,6 +196,6 @@ final readonly class WorkflowApproveCommand
             throw new InvalidArgumentException('--by is required.');
         }
 
-        return ['by' => $by, 'format' => $format];
+        return ['by' => $by, 'format' => $format, 'revision' => $revision];
     }
 }

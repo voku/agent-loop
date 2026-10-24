@@ -67,14 +67,14 @@ final readonly class WorkflowHumanDecisionService
         return new WorkflowHumanDecisionProjection($task->value, [], null);
     }
 
-    public function approveContract(string $taskId, string $approvedBy): TaskContract
+    public function approveContract(string $taskId, string $approvedBy, ?int $expectedRevision = null): TaskContract
     {
         $task = new WorkflowTaskId($taskId);
         if (!$this->availableActions($task->value)->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {
             throw new RuntimeException('Contract approval is not a currently available human action.');
         }
 
-        return (new TaskContractStore($this->rootPath))->approve($task->value, $approvedBy);
+        return (new TaskContractStore($this->rootPath))->approve($task->value, $approvedBy, $expectedRevision);
     }
 
     public function acknowledgeReview(

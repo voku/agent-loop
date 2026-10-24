@@ -123,9 +123,16 @@ final class TaskContractStore
         return $contract;
     }
 
-    public function approve(string $taskId, string $by): TaskContract
+    public function approve(string $taskId, string $by, ?int $expectedRevision = null): TaskContract
     {
         $contract = $this->load($taskId);
+        if ($expectedRevision !== null && $expectedRevision !== $contract->revision) {
+            throw new RuntimeException(sprintf(
+                'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
+                $expectedRevision,
+                $contract->revision,
+            ));
+        }
         if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
             return $contract;
         }
