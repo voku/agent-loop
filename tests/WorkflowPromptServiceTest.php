@@ -101,7 +101,7 @@ final class WorkflowPromptServiceTest extends TestCase
             ['php -r "exit(0);"'],
             'lars',
         );
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         $sessions = new SessionStore();
         $session = $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', 'prompt', 'lars');

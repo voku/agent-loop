@@ -63,7 +63,7 @@ final class WorkflowPlanNextCommandTest extends TestCase
         try {
             $contracts = new TaskContractStore($root);
             $contracts->create('ABC-123', 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-            $contracts->approve('ABC-123', 'lars');
+            $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
             (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123', null, 'lars');
 
             $result = $this->runProcess([

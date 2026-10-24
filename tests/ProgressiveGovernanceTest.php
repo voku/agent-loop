@@ -92,7 +92,7 @@ final class ProgressiveGovernanceTest extends TestCase
             ['php -r "exit(0);"'],
             'planner',
         );
-        $contracts->approve('ENTER-1', 'approver');
+        $contracts->approve('ENTER-1', 'approver', $contracts->load('ENTER-1')->revision);
 
         self::assertDirectoryDoesNotExist($this->root . '/.agent-loop/runs/ENTER-1');
         self::assertFileDoesNotExist($this->root . '/.agent-loop/map/php-symbols.json');
@@ -140,7 +140,7 @@ final class ProgressiveGovernanceTest extends TestCase
             ['php -r "exit(0);"'],
             'planner',
         );
-        $contracts->approve('FAIL-1', 'approver');
+        $contracts->approve('FAIL-1', 'approver', $contracts->load('FAIL-1')->revision);
 
         [$exit, $payload] = $this->enter(
             'FAIL-1',

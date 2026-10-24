@@ -143,7 +143,7 @@ final class HostFrontDoorCommandTest extends TestCase
             ['php -r "exit(0);"'],
             'lars',
         );
-        $contracts->approve('JSON-1', 'lars');
+        $contracts->approve('JSON-1', 'lars', $contracts->load('JSON-1')->revision);
 
         $result = $this->runBinary(['enter', 'JSON-1', '--format=json']);
 
@@ -491,7 +491,7 @@ final class HostFrontDoorCommandTest extends TestCase
             ['vendor/bin/phpunit'],
             'lars',
         );
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 

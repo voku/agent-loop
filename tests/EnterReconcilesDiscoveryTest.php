@@ -193,7 +193,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
         file_put_contents($this->root . '/README.md', "# Demo\n");
         $contracts = new TaskContractStore($this->root);
         $contracts->create('DOC-9', 'Update docs.', ['README.md'], [], ['php -r "exit(0);"'], 'planner');
-        $contracts->approve('DOC-9', 'approver');
+        $contracts->approve('DOC-9', 'approver', $contracts->load('DOC-9')->revision);
 
         $this->enter('DOC-9');
 
@@ -246,7 +246,7 @@ final class EnterReconcilesDiscoveryTest extends TestCase
             ['php -l src/Greeter.php'],
             'planner',
         );
-        $contracts->approve($taskId, 'approver');
+        $contracts->approve($taskId, 'approver', $contracts->load($taskId)->revision);
     }
 
     /** @param list<string> $paths */

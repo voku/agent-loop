@@ -222,7 +222,7 @@ final class WorkflowCloseCommandTest extends TestCase
             $current->validation,
             'lars',
         );
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         $result = $this->runClose();
 
@@ -369,7 +369,7 @@ final class WorkflowCloseCommandTest extends TestCase
             ['vendor/bin/phpunit'],
             'lars',
         );
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');

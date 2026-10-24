@@ -48,7 +48,7 @@ final class TaskContractSupersededRevisionsTest extends TestCase
         // being asked to change.
         $contracts = new TaskContractStore($this->root);
         $contracts->create('HIST-2', 'Original goal.', ['src/A.php'], [], ['composer ci'], 'lars');
-        $contracts->approve('HIST-2', 'approver-one');
+        $contracts->approve('HIST-2', 'approver-one', $contracts->load('HIST-2')->revision);
         $contracts->revise('HIST-2', 'Wider goal.', ['src/A.php', 'src/B.php'], [], ['composer ci'], 'lars');
 
         $history = $contracts->supersededRevisions('HIST-2');

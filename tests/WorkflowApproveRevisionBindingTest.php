@@ -122,7 +122,7 @@ final class WorkflowApproveRevisionBindingTest extends TestCase
             ['php -r "exit(0);"'],
             'planner',
         );
-        $contracts->approve('APPROVE-REV-5', 'first-approver');
+        $contracts->approve('APPROVE-REV-5', 'first-approver', $contracts->load('APPROVE-REV-5')->revision);
 
         ob_start();
         try {
@@ -155,6 +155,39 @@ final class WorkflowApproveRevisionBindingTest extends TestCase
 
         self::assertSame(1, $exit);
         self::assertSame(TaskContract::CANDIDATE, $contracts->load('APPROVE-REV-4')->status);
+    }
+
+    public function testContractStoreRequiresAndChecksReviewedRevision(): void
+    {
+        $contracts = new TaskContractStore($this->root);
+        $created = $contracts->create(
+            'APPROVE-REV-6',
+            'Approve only the exact Contract revision that was reviewed.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+        $reviewedRevision = $created->revision;
+        $contracts->revise(
+            'APPROVE-REV-6',
+            'Replace the Contract after revision 1 was reviewed.',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
+
+        try {
+            $contracts->approve('APPROVE-REV-6', 'approver', $reviewedRevision);
+            self::fail('The store must reject approval for a superseded revision.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('Contract revision changed since it was reviewed', $exception->getMessage());
+        }
+
+        self::assertSame(TaskContract::CANDIDATE, $contracts->load('APPROVE-REV-6')->status);
+        self::assertSame(2, $contracts->load('APPROVE-REV-6')->revision);
+        self::assertSame(3, (new \ReflectionMethod(TaskContractStore::class, 'approve'))->getNumberOfRequiredParameters());
     }
 
     private function removeDirectory(string $path): void

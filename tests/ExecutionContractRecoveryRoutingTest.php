@@ -140,7 +140,7 @@ final class ExecutionContractRecoveryRoutingTest extends TestCase
                 'arguments' => ['minimum_percentage_points' => 10, 'mutation_command' => 'vendor/bin/infection'],
             ]],
         );
-        $contracts->approve($taskId, 'lars');
+        $contracts->approve($taskId, 'lars', $contracts->load($taskId)->revision);
 
         $recall = $root . '/.agent-loop/recall/' . $taskId;
         mkdir($recall, 0o777, true);

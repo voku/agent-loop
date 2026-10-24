@@ -48,7 +48,7 @@ final class WorkflowTransparencyCommandTest extends TestCase
             'fixture-planner',
             baseCommit: $base,
         );
-        $contracts->approve(self::TASK_ID, 'fixture-approver');
+        $contracts->approve(self::TASK_ID, 'fixture-approver', $contracts->load(self::TASK_ID)->revision);
 
         $hostilePath = "line\nbreak-\x1b[31m.txt";
         file_put_contents($root . '/' . $hostilePath, "content\n");

@@ -205,11 +205,12 @@ agent_workflow_plan:
 	@test -n "$(if $(BY),$(BY),$(AGENT_LOOP_DEFAULT_ACTOR))" || { echo "BY or AGENT_LOOP_DEFAULT_ACTOR is required."; exit 1; }
 	$(call AGENT_LOOP_RUN,$(AGENT_LOOP_BIN) workflow plan "$(TASK)" --by "$(if $(BY),$(BY),$(AGENT_LOOP_DEFAULT_ACTOR))" --file "$(FILE)" $(if $(FILE2),--file "$(FILE2)",) --goal $(call AGENT_LOOP_QUOTE,$(if $(GOAL),$(GOAL),Task $(TASK))) --validation $(call AGENT_LOOP_QUOTE,$(if $(VALIDATION),$(VALIDATION),$(AGENT_LOOP_DEFAULT_VALIDATION))) $(ARGS),agent_workflow_plan,)
 
-.PHONY: agent_workflow_approve ## approve a candidate Contract, e.g. make agent_workflow_approve TASK=TASK-123 BY=reviewer
+.PHONY: agent_workflow_approve ## approve the reviewed Contract revision, e.g. make agent_workflow_approve TASK=TASK-123 REVISION=1 BY=reviewer
 agent_workflow_approve:
-	@test -n "$(TASK)" || { echo "TASK is required, e.g. make agent_workflow_approve TASK=TASK-123 BY=reviewer"; exit 1; }
+	@test -n "$(TASK)" || { echo "TASK is required, e.g. make agent_workflow_approve TASK=TASK-123 REVISION=1 BY=reviewer"; exit 1; }
+	@test -n "$(REVISION)" || { echo "REVISION is required; use the current Contract revision you reviewed."; exit 1; }
 	@test -n "$(if $(BY),$(BY),$(AGENT_LOOP_DEFAULT_ACTOR))" || { echo "BY or AGENT_LOOP_DEFAULT_ACTOR is required."; exit 1; }
-	$(call AGENT_LOOP_RUN,$(AGENT_LOOP_BIN) workflow approve "$(TASK)" --by "$(if $(BY),$(BY),$(AGENT_LOOP_DEFAULT_ACTOR))" $(ARGS),agent_workflow_approve,)
+	$(call AGENT_LOOP_RUN,$(AGENT_LOOP_BIN) workflow approve "$(TASK)" --revision "$(REVISION)" --by "$(if $(BY),$(BY),$(AGENT_LOOP_DEFAULT_ACTOR))" $(ARGS),agent_workflow_approve,)
 
 .PHONY: agent_workflow_enter ## enter the canonical lifecycle, e.g. make agent_workflow_enter TASK=TASK-123
 agent_workflow_enter:

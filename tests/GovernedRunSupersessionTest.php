@@ -39,7 +39,7 @@ final class GovernedRunSupersessionTest extends TestCase
             ['composer ci'],
             'lars',
         );
-        $firstContract = $contracts->approve('ABC-123', 'lars');
+        $firstContract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         $layout = new ProjectLayout($this->root);
         $sessions = new SessionStore();
@@ -59,7 +59,7 @@ final class GovernedRunSupersessionTest extends TestCase
             ['composer ci'],
             'lars',
         );
-        $secondContract = $contracts->approve('ABC-123', 'lars');
+        $secondContract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         $secondSession = $sessions->create($layout->sessionsRoot(), 'ABC-123', null, 'lars');
 
         $secondRun = $runs->prepare($secondContract, $secondSession, $layout->learningRoot());

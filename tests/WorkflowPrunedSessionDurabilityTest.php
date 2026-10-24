@@ -170,7 +170,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             ['vendor/bin/phpunit'],
             'lars',
         );
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
 
         $sessions = new SessionStore();
@@ -213,7 +213,7 @@ final class WorkflowPrunedSessionDurabilityTest extends TestCase
             ['vendor/bin/phpunit'],
             'lars',
         );
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
 
         $sessionsRoot = $this->root . '/.agent-loop/sessions';

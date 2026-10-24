@@ -34,7 +34,7 @@ final class PostExecutionEvidenceDispatcherTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('BIND-1', 'Bind post-execution evidence.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('BIND-1', 'fixture');
+        $contract = $contracts->approve('BIND-1', 'fixture', $contracts->load('BIND-1')->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'BIND-1', by: 'fixture');
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
         $dispatcher = new Dispatcher($this->root);

@@ -100,6 +100,28 @@ final class CanonicalActionKindTest extends TestCase
         self::assertSame(['workflow', 'approve', 'E5-001', '--revision', '1', '--by', '<named-actor>'], $policy->nextActionInvocation->arguments);
     }
 
+    public function testContractApprovalUsesPlaceholderForInvalidRevision(): void
+    {
+        $references = $this->references(
+            contract: 'candidate',
+            approval: 'unavailable',
+            session: 'missing',
+            recall: 'missing',
+            executionContract: 'not_required',
+            verification: 'pending_close',
+            review: 'missing',
+            learning: 'unavailable',
+        );
+        $references['contract']['revision'] = '1 --by attacker';
+
+        $policy = (new RunPolicyEvaluator())->evaluate('E5-001', 'planned', $references, []);
+
+        self::assertSame(
+            ['workflow', 'approve', 'E5-001', '--revision', '<current-revision>', '--by', '<named-actor>'],
+            $policy->nextActionInvocation?->arguments,
+        );
+    }
+
     public function testReviewAcknowledgementIsDelegatedAfterContractApproval(): void
     {
         $references = $this->references(

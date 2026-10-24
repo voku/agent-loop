@@ -131,7 +131,7 @@ final class WorkflowPlanSupersedeTest extends TestCase
             ]],
             acceptanceCriteria: ['Preserve the selected L2 policy.'],
         );
-        $contracts->approve('SUPERSEDE-1', 'approver');
+        $contracts->approve('SUPERSEDE-1', 'approver', $contracts->load('SUPERSEDE-1')->revision);
 
         return $contracts;
     }

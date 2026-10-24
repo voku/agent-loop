@@ -66,7 +66,7 @@ final class WorkflowRunManifestTransitionTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         \voku\AgentLoop\Tests\Support\ManualProfileLifecycleFixture::beforeEnter($this->root, 'ABC-123');
         $recallCalls = 0;
 

@@ -83,7 +83,7 @@ PHP,
             [PHP_BINARY . ' -l src/Calculator.php'],
             'lars',
         );
-        $contracts->approve($taskId, 'lars');
+        $contracts->approve($taskId, 'lars', $contracts->load($taskId)->revision);
 
         $app = new HostFrontDoorApplication($this->root);
 
@@ -228,7 +228,7 @@ PHP,
             [PHP_BINARY . ' -l src/Calculator.php'],
             'lars',
         );
-        $contracts->approve($taskId, 'lars');
+        $contracts->approve($taskId, 'lars', $contracts->load($taskId)->revision);
 
         $app = new HostFrontDoorApplication($this->root);
 
@@ -271,7 +271,7 @@ PHP,
         );
 
         // 4. Human grants explicit approval
-        $contracts->approve($taskId, 'human-approver');
+        $contracts->approve($taskId, 'human-approver', $contracts->load($taskId)->revision);
 
         // 5. Agent can now enter and mutate the expanded scope
         $enter3 = $this->runApp($app, 'enter', [$taskId, '--format=json']);

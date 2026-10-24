@@ -33,7 +33,7 @@ final class WorkflowHumanDecisionProjectorTest extends TestCase
             ['composer ci'],
             'codex',
         );
-        $store->approve('DECISION-3', 'lars');
+        $store->approve('DECISION-3', 'lars', $store->load('DECISION-3')->revision);
     }
 
     protected function tearDown(): void

@@ -121,7 +121,7 @@ final class WorkflowPlanCommandTest extends TestCase
         $root = $this->root('revise');
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         try {
             ob_start();

@@ -116,7 +116,7 @@ final class WorkflowReportCommandTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Durable intent.', ['src/Foo.php'], [], ['composer ci'], 'lars');
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         $result = $this->runReport(['ABC-123', '--format', 'json']);
         $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
@@ -163,7 +163,7 @@ final class WorkflowReportCommandTest extends TestCase
             'lars',
             behaviorAnchors: ['request -> FooService -> persisted state'],
         );
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
         $this->sessionPath = $session->path;

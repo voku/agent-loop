@@ -38,11 +38,12 @@ final readonly class WorkflowApproveCommand
 
             $status = 'approved';
             $notes = [];
-            if ($contract->status !== TaskContract::APPROVED) {
+            $wasAlreadyApproved = $contract->status === TaskContract::APPROVED;
+            $contract = $contracts->approve($taskId->value, $options['by'], $options['revision']);
+            if (!$wasAlreadyApproved) {
                 // Approval records authority and nothing else. Map discovery is
                 // deterministic preparation, so `enter` reconciles it rather
                 // than the host being told to run agent-map first.
-                $contract = $contracts->approve($taskId->value, $options['by'], $options['revision']);
                 (new WorkflowHookRunner($this->rootPath))->run('approve', $taskId->value);
                 $msg = "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
                 $note = $this->profileNote($contract, $taskId->value);

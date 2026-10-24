@@ -1256,7 +1256,7 @@ final readonly class HostFrontDoorCommand
         }
 
         $baseCommit = GitWorkTree::headCommit($this->rootPath);
-        $contractStore->create(
+        $contract = $contractStore->create(
             taskId: $taskId->value,
             goal: $goal,
             scope: $resolvedFiles,
@@ -1274,7 +1274,7 @@ final readonly class HostFrontDoorCommand
                 'Required verification passes',
             ],
         );
-        $contractStore->approve($taskId->value, $actor);
+        $contractStore->approve($taskId->value, $actor, $contract->revision);
         // Invoking `quick` is the explicit manual-profile choice for this bounded fast path.
         (new ExecutionProfileSelectionStore($this->rootPath))->select(
             $taskId->value,

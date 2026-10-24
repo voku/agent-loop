@@ -37,7 +37,7 @@ final class WorkflowLearningEvidenceTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('LEARN-STALE-1', 'Bind Learning to post-execution evidence.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('LEARN-STALE-1', 'fixture');
+        $contract = $contracts->approve('LEARN-STALE-1', 'fixture', $contracts->load('LEARN-STALE-1')->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'LEARN-STALE-1', by: 'fixture');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
 
@@ -59,7 +59,7 @@ final class WorkflowLearningEvidenceTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('LEARN-FAILED-1', 'Learn from current failed post-execution evidence.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('LEARN-FAILED-1', 'fixture');
+        $contract = $contracts->approve('LEARN-FAILED-1', 'fixture', $contracts->load('LEARN-FAILED-1')->revision);
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'LEARN-FAILED-1', by: 'fixture');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');

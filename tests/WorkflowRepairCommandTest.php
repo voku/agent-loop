@@ -167,7 +167,7 @@ PHPSTAN;
             ['php -l src/Broken.php'],
             'tester',
         );
-        $contracts->approve('TASK-104', 'tester');
+        $contracts->approve('TASK-104', 'tester', $contracts->load('TASK-104')->revision);
 
         mkdir($this->root . '/src', 0777, true);
         file_put_contents($this->root . '/src/Broken.php', "<?php echo 1;\n");

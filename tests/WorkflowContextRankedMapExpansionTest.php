@@ -109,7 +109,7 @@ PHP);
             ['composer test'],
             'dogfood',
         );
-        $contracts->approve('MAP-69', 'dogfood');
+        $contracts->approve('MAP-69', 'dogfood', $contracts->load('MAP-69')->revision);
 
         file_put_contents($this->root . '/.agent-loop/recall/MAP-69/meta.json', json_encode([
             'schema_version' => '1.0',

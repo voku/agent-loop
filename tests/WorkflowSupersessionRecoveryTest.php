@@ -83,7 +83,7 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
             ['composer ci'],
             'fixture-planner',
         );
-        $contracts->approve(self::TASK_ID, 'fixture-approver');
+        $contracts->approve(self::TASK_ID, 'fixture-approver', $contracts->load(self::TASK_ID)->revision);
 
         $superseded = (new RunManifestProjector($this->root))->project(self::TASK_ID);
         self::assertSame(2, $superseded->references['contract']['revision'] ?? null);
@@ -107,7 +107,7 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
             ['composer ci'],
             'fixture-planner',
         );
-        $contracts->approve(self::TASK_ID, 'fixture-approver');
+        $contracts->approve(self::TASK_ID, 'fixture-approver', $contracts->load(self::TASK_ID)->revision);
 
         $recallRoot = RecallOutputRoot::resolve($this->root);
         $permissions = fileperms($recallRoot);
@@ -282,7 +282,7 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
             ['composer ci'],
             'fixture-planner',
         );
-        $contracts->approve(self::TASK_ID, 'fixture-approver');
+        $contracts->approve(self::TASK_ID, 'fixture-approver', $contracts->load(self::TASK_ID)->revision);
 
         $replacementEnter = $this->enter();
         self::assertSame(0, $replacementEnter['exit']);
@@ -314,7 +314,7 @@ final class WorkflowSupersessionRecoveryTest extends TestCase
             ['composer ci'],
             'fixture-planner',
         );
-        $contracts->approve(self::TASK_ID, 'fixture-approver');
+        $contracts->approve(self::TASK_ID, 'fixture-approver', $contracts->load(self::TASK_ID)->revision);
 
         return $contracts;
     }

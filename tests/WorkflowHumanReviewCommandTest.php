@@ -61,7 +61,7 @@ final class WorkflowHumanReviewCommandTest extends TestCase
             $base,
             acceptanceCriteria: ['Review evidence is understandable to a human.'],
         );
-        $contract = $contracts->approve('REVIEW-1', 'developer');
+        $contract = $contracts->approve('REVIEW-1', 'developer', $contracts->load('REVIEW-1')->revision);
 
         file_put_contents($root . '/reviewed.php', "<?php\n\nreturn '<changed>';\n");
         $snapshot = ImplementationSnapshot::capture($root, $contract);

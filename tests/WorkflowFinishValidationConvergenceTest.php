@@ -159,7 +159,7 @@ final class WorkflowFinishValidationConvergenceTest extends TestCase
             [$validation],
             'fixture-planner',
         );
-        $contract = $contracts->approve($taskId, 'fixture-approver');
+        $contract = $contracts->approve($taskId, 'fixture-approver', $contracts->load($taskId)->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', $taskId, by: 'fixture-agent');
         (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
 

@@ -353,14 +353,17 @@ final readonly class RunPolicyEvaluator
                 return $this->classifyAction($repair, $references['approval']['repair_invocation'] ?? null);
             }
 
-            $revision = filter_var($references['contract']['revision'] ?? null, FILTER_VALIDATE_INT);
-            $revisionArgument = $revision !== false && $revision > 0
-                ? (string) $revision
-                : '<current-revision>';
-
             return $this->command(
                 'agent-loop',
-                ['workflow', 'approve', $taskId, '--revision', $revisionArgument, '--by', '<named-actor>'],
+                [
+                    'workflow',
+                    'approve',
+                    $taskId,
+                    '--revision',
+                    RunApprovalRevisionArgument::fromContractReference($references['contract'] ?? []),
+                    '--by',
+                    '<named-actor>',
+                ],
                 true,
                 RunPolicyEvaluation::KIND_DECISION_REQUIRED,
             );

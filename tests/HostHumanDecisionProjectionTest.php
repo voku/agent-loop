@@ -162,7 +162,7 @@ final class HostHumanDecisionProjectionTest extends TestCase
             ['vendor/bin/phpunit'],
             'codex',
         );
-        $contract = $contracts->approve($taskId, 'lars');
+        $contract = $contracts->approve($taskId, 'lars', $contracts->load($taskId)->revision);
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         $sessions = new SessionStore();

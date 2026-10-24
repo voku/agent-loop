@@ -43,7 +43,7 @@ final class HostLearningNoteFollowUpProjectorTest extends TestCase
             ['php -r "exit(0);"'],
             'fixture-planner',
         );
-        $contract = $contracts->approve('LEARN-349', 'fixture-approver');
+        $contract = $contracts->approve('LEARN-349', 'fixture-approver', $contracts->load('LEARN-349')->revision);
         $session = (new SessionStore())->create(
             $this->root . '/.agent-loop/sessions',
             'LEARN-349',
@@ -87,7 +87,7 @@ final class HostLearningNoteFollowUpProjectorTest extends TestCase
             ['php -r "exit(0);"'],
             'fixture-planner',
         );
-        $contract = $contracts->approve('LEARN-349-NONE', 'fixture-approver');
+        $contract = $contracts->approve('LEARN-349-NONE', 'fixture-approver', $contracts->load('LEARN-349-NONE')->revision);
         $session = (new SessionStore())->create(
             $this->root . '/.agent-loop/sessions',
             'LEARN-349-NONE',

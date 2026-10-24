@@ -117,7 +117,7 @@ PHP,
             ['php -l src/AuthService.php'],
             'security-lead',
         );
-        $contracts->approve($taskA, 'security-approver');
+        $contracts->approve($taskA, 'security-approver', $contracts->load($taskA)->revision);
 
         $app1 = new HostFrontDoorApplication($this->root);
 
@@ -255,7 +255,7 @@ PHP,
             ['php -l src/AuthService.php'],
             'api-developer',
         );
-        $contracts2->approve($taskB, 'security-approver');
+        $contracts2->approve($taskB, 'security-approver', $contracts2->load($taskB)->revision);
 
         $app2 = new HostFrontDoorApplication($this->root);
 

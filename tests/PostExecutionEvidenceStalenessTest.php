@@ -39,7 +39,7 @@ final class PostExecutionEvidenceStalenessTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('STALE-1', 'Freeze post-execution evidence.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('STALE-1', 'fixture');
+        $contract = $contracts->approve('STALE-1', 'fixture', $contracts->load('STALE-1')->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'STALE-1', by: 'fixture');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
 
@@ -74,7 +74,7 @@ final class PostExecutionEvidenceStalenessTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('STALE-2', 'Freeze review identity.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('STALE-2', 'fixture');
+        $contract = $contracts->approve('STALE-2', 'fixture', $contracts->load('STALE-2')->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'STALE-2', by: 'fixture');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
         $a = ImplementationSnapshot::capture($this->root, $contract);
@@ -116,7 +116,7 @@ final class PostExecutionEvidenceStalenessTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('STALE-3', 'Freeze Learning identity.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('STALE-3', 'fixture');
+        $contract = $contracts->approve('STALE-3', 'fixture', $contracts->load('STALE-3')->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'STALE-3', by: 'fixture');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
         $a = ImplementationSnapshot::capture($this->root, $contract);
