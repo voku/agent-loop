@@ -28,11 +28,11 @@ final class ProjectLayoutOwnershipTest extends TestCase
 {
     private string $root;
 
-    private string|false $originalTrustedExternalStatePaths = false;
+    private string|false $originalTrustedStatePaths = false;
 
     protected function setUp(): void
     {
-        $this->originalTrustedExternalStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $this->originalTrustedStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $this->root = sys_get_temp_dir() . '/agent-loop-layout-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/.agent-loop', 0o775, true);
@@ -40,9 +40,9 @@ final class ProjectLayoutOwnershipTest extends TestCase
 
     protected function tearDown(): void
     {
-        putenv($this->originalTrustedExternalStatePaths === false
+        putenv($this->originalTrustedStatePaths === false
             ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
-            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedExternalStatePaths);
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedStatePaths);
         $this->rm($this->root);
     }
 
@@ -472,13 +472,12 @@ final class ProjectLayoutOwnershipTest extends TestCase
         }
     }
 
-    public function testSessionTreeRejectsLinkedSessionDirectoriesAndMetadata(): void
+    public function testSessionTreeRejectsLinkedSessionDirectories(): void
     {
         $outside = $this->root . '-session-target';
         $sessionsRoot = (new ProjectLayout($this->root))->sessionsRoot();
         mkdir($outside, 0o775, true);
         mkdir($sessionsRoot, 0o775, true);
-        file_put_contents($outside . '/session.json', '{}');
         $sessionLink = $sessionsRoot . '/linked-session';
         if (!@symlink($outside, $sessionLink)) {
             $this->rm($outside);
@@ -497,14 +496,22 @@ final class ProjectLayoutOwnershipTest extends TestCase
             unlink($sessionLink);
             $this->rm($outside);
         }
+    }
 
+    public function testSessionTreeRejectsLinkedMetadataFiles(): void
+    {
+        $outside = $this->root . '-session-target';
+        $sessionsRoot = (new ProjectLayout($this->root))->sessionsRoot();
         mkdir($outside, 0o775, true);
         file_put_contents($outside . '/session.json', '{}');
-        mkdir($sessionsRoot . '/real-session', 0o775, true);
-        if (!@symlink($outside . '/session.json', $sessionsRoot . '/real-session/session.json')) {
-            $this->rm($sessionsRoot . '/real-session');
+        $sessionDirectory = $sessionsRoot . '/real-session';
+        mkdir($sessionDirectory, 0o775, true);
+        $sessionLink = $sessionDirectory . '/session.json';
+        if (!@symlink($outside . '/session.json', $sessionLink)) {
+            $this->rm($sessionDirectory);
             self::markTestSkipped('symlink() is not available.');
         }
+
         try {
             $resolvedSessionsRoot = (new ProjectLayout($this->root))->sessionsRoot();
             self::assertDirectoryExists($resolvedSessionsRoot);
@@ -512,21 +519,28 @@ final class ProjectLayoutOwnershipTest extends TestCase
         } catch (RuntimeException $exception) {
             self::assertStringContainsString('symbolic link', $exception->getMessage());
         } finally {
-            unlink($sessionsRoot . '/real-session/session.json');
-            rmdir($sessionsRoot . '/real-session');
+            unlink($sessionLink);
+            rmdir($sessionDirectory);
             $this->rm($outside);
         }
+    }
 
+    public function testSessionTreeRejectsNestedCheckpointLinks(): void
+    {
+        $outside = $this->root . '-checkpoint-target';
+        $sessionsRoot = (new ProjectLayout($this->root))->sessionsRoot();
         mkdir($outside, 0o775, true);
         file_put_contents($outside . '/checkpoint.json', '{}');
-        $nestedDirectory = $sessionsRoot . '/real-session/checkpoints';
-        mkdir($nestedDirectory, 0o775, true);
-        $nestedLink = $nestedDirectory . '/checkpoint.md';
-        if (!@symlink($outside . '/checkpoint.json', $nestedLink)) {
-            $this->rm($sessionsRoot . '/real-session');
+        $sessionDirectory = $sessionsRoot . '/real-session';
+        $checkpointDirectory = $sessionDirectory . '/checkpoints';
+        mkdir($checkpointDirectory, 0o775, true);
+        $checkpointLink = $checkpointDirectory . '/checkpoint.md';
+        if (!@symlink($outside . '/checkpoint.json', $checkpointLink)) {
+            $this->rm($sessionDirectory);
             $this->rm($outside);
             self::markTestSkipped('symlink() is not available.');
         }
+
         try {
             $resolvedRoot = (new ProjectLayout($this->root))->sessionsRoot();
             self::assertSame($sessionsRoot, $resolvedRoot);
@@ -534,9 +548,9 @@ final class ProjectLayoutOwnershipTest extends TestCase
         } catch (RuntimeException $exception) {
             self::assertStringContainsString('symbolic link', $exception->getMessage());
         } finally {
-            unlink($nestedLink);
-            rmdir($nestedDirectory);
-            rmdir($sessionsRoot . '/real-session');
+            unlink($checkpointLink);
+            rmdir($checkpointDirectory);
+            rmdir($sessionDirectory);
             $this->rm($outside);
         }
     }

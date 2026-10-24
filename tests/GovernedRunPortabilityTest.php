@@ -44,11 +44,11 @@ final class GovernedRunPortabilityTest extends TestCase
 
     private string $relocated;
 
-    private string|false $originalTrustedExternalStatePaths = false;
+    private string|false $originalTrustedStatePaths = false;
 
     protected function setUp(): void
     {
-        $this->originalTrustedExternalStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $this->originalTrustedStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $suffix = bin2hex(random_bytes(5));
         $this->root = sys_get_temp_dir() . '/agent-loop-origin-' . $suffix;
@@ -60,9 +60,9 @@ final class GovernedRunPortabilityTest extends TestCase
     {
         $this->rm($this->root);
         $this->rm($this->relocated);
-        putenv($this->originalTrustedExternalStatePaths === false
+        putenv($this->originalTrustedStatePaths === false
             ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
-            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedExternalStatePaths);
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedStatePaths);
     }
 
     public function testCompletedRunStaysCompleteAfterTheProjectIsRelocated(): void
@@ -128,6 +128,7 @@ final class GovernedRunPortabilityTest extends TestCase
         }
     }
 
+    /** @SuppressWarnings("PHPMD.StaticAccess") */
     public function testPersistedLearningRootCannotEscapeThroughTraversalOrSymlink(): void
     {
         $outside = $this->root . '-external-learning';

@@ -126,8 +126,8 @@ final class GitHooksRunnerTest extends TestCase
         $originalJwt = getenv('AGENT_LOOP_JWT');
         $originalAuthorization = getenv('PHP_AUTHORIZATION');
         $originalPassthrough = getenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
-        $originalTrustedExternalStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
-        $originalTrustedExternalStatePathsFromEnv = $_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'] ?? null;
+        $originalTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $originalTrustedPathsFromEnv = $_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'] ?? null;
         unset($_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS']);
         putenv('AGENT_LOOP_BIN=agent-loop-test-bin');
         putenv('AGENT_LOOP_TEST_TOKEN=ambient-secret-value');
@@ -149,10 +149,10 @@ final class GitHooksRunnerTest extends TestCase
             $this->restoreEnv('AGENT_LOOP_DEPLOY_KEY', $originalDeployKey);
             $this->restoreEnv('AGENT_LOOP_JWT', $originalJwt);
             $this->restoreEnv('PHP_AUTHORIZATION', $originalAuthorization);
-            $this->restoreEnv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS', $originalTrustedExternalStatePaths);
+            $this->restoreEnv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS', $originalTrustedPaths);
             $this->restoreEnv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH', $originalPassthrough);
-            if (is_string($originalTrustedExternalStatePathsFromEnv)) {
-                $_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'] = $originalTrustedExternalStatePathsFromEnv;
+            if (is_string($originalTrustedPathsFromEnv)) {
+                $_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'] = $originalTrustedPathsFromEnv;
             } else {
                 unset($_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS']);
             }

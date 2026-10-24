@@ -17,14 +17,14 @@ final class WorkflowDreamAutoRunTest extends TestCase
     private string $learningRoot;
     private string $stateFile;
     private string|false $originalAutorun = false;
-    private string|false $originalTrustedExternalStatePaths = false;
+    private string|false $originalTrustedStatePaths = false;
 
     protected function setUp(): void
     {
         // Autorun must be enabled here, whatever the caller exported; the original value comes back in tearDown().
         $this->originalAutorun = getenv('AGENT_LOOP_DREAM_AUTORUN');
         putenv('AGENT_LOOP_DREAM_AUTORUN');
-        $this->originalTrustedExternalStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $this->originalTrustedStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $this->root = sys_get_temp_dir() . '/agent-loop-dream-auto-' . bin2hex(random_bytes(4));
         $layout = new ProjectLayout($this->root);
@@ -41,9 +41,9 @@ final class WorkflowDreamAutoRunTest extends TestCase
     protected function tearDown(): void
     {
         putenv($this->originalAutorun === false ? 'AGENT_LOOP_DREAM_AUTORUN' : 'AGENT_LOOP_DREAM_AUTORUN=' . $this->originalAutorun);
-        putenv($this->originalTrustedExternalStatePaths === false
+        putenv($this->originalTrustedStatePaths === false
             ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
-            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedExternalStatePaths);
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedStatePaths);
         $this->removeTree($this->root);
     }
 

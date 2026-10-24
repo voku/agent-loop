@@ -40,7 +40,11 @@ final readonly class ProjectLayout
         );
     }
 
-    /** Resolve an untrusted persisted project-relative path without allowing it to leave the checkout. */
+    /**
+     * Resolve an untrusted persisted project-relative path without allowing it to leave the checkout.
+     *
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     public function projectOwnedPath(string $relativePath, string $key): string
     {
         if (trim($relativePath) === '' || PathResolver::isAbsolute($relativePath) || preg_match('/[\x00-\x1f\x7f]/', $relativePath) === 1) {
@@ -488,6 +492,9 @@ final readonly class ProjectLayout
         return rtrim(str_replace('\\', '/', $this->projectRoot), '/');
     }
 
+    /**
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     private function configuredWorkflowPath(string $key): ?string
     {
         $value = $this->config()['paths'][$key] ?? null;
@@ -557,6 +564,17 @@ final readonly class ProjectLayout
     private function runChildPath(string $taskId, string $relativePath, bool $directory): string
     {
         self::assertTaskId($taskId);
+        $normalizedPath = self::normalizeRunRelativePath($relativePath);
+
+        $taskRoot = $this->runRoot($taskId);
+        $path = rtrim($taskRoot, '/\\') . '/' . $normalizedPath;
+        $this->assertSafeRunChildPath($taskRoot, $path, $normalizedPath, $directory);
+
+        return $path;
+    }
+
+    private static function normalizeRunRelativePath(string $relativePath): string
+    {
         $segments = explode('/', str_replace('\\', '/', $relativePath));
         foreach ($segments as $segment) {
             if (preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $segment) !== 1 || str_contains($segment, '..')) {
@@ -564,11 +582,15 @@ final readonly class ProjectLayout
             }
         }
 
-        $taskRoot = $this->runRoot($taskId);
-        if ($this->hasSymlinkComponent($taskRoot, implode('/', $segments))) {
+        return implode('/', $segments);
+    }
+
+    private function assertSafeRunChildPath(string $taskRoot, string $path, string $relativePath, bool $directory): void
+    {
+        if ($this->hasSymlinkComponent($taskRoot, $relativePath)) {
             throw new RuntimeException('Workflow run path must not contain a symbolic link: ' . $relativePath);
         }
-        $path = rtrim($taskRoot, '/\\') . '/' . implode('/', $segments);
+
         $resolvedTaskRoot = self::canonicalPath($taskRoot);
         $resolvedPath = self::canonicalPath($path);
         if ($resolvedTaskRoot === null || $resolvedPath === null || !self::isWithin($resolvedTaskRoot, $resolvedPath)) {
@@ -577,25 +599,23 @@ final readonly class ProjectLayout
         if (file_exists($path) && ($directory ? !is_dir($path) : !is_file($path))) {
             throw new RuntimeException('Workflow run path has an unexpected type: ' . $relativePath);
         }
-
-        return $path;
     }
 
     private function ownedChildDirectory(string $root, string $relativePath, string $owner): string
     {
-        $normalizedRelativePath = str_replace('\\', '/', $relativePath);
-        $segments = explode('/', $normalizedRelativePath);
+        $normalizedPath = str_replace('\\', '/', $relativePath);
+        $segments = explode('/', $normalizedPath);
         foreach ($segments as $segment) {
             if (preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]*\z/', $segment) !== 1 || str_contains($segment, '..')) {
                 throw new RuntimeException('Invalid relative ' . $owner . ' path: ' . $relativePath);
             }
         }
 
-        if ($this->hasSymlinkComponent($root, $normalizedRelativePath)) {
+        if ($this->hasSymlinkComponent($root, $normalizedPath)) {
             throw new RuntimeException('Configured ' . $owner . ' path must not contain a symbolic link: ' . $relativePath);
         }
 
-        return $this->assertChildWithinRoot($root, $normalizedRelativePath, $owner . '/' . $normalizedRelativePath, true);
+        return $this->assertChildWithinRoot($root, $normalizedPath, $owner . '/' . $normalizedPath, true);
     }
 
     private function hasSymlinkComponent(string $root, string $relativePath): bool
@@ -675,9 +695,26 @@ final readonly class ProjectLayout
 
     private function externalPathIsTrusted(string $resolvedPath): bool
     {
+        $trustedPaths = $this->trustedExternalStatePaths();
+        if ($trustedPaths === null) {
+            return false;
+        }
+
+        foreach ($trustedPaths as $trustedPath) {
+            if (self::pathsEqual(self::canonicalTrustedExternalPath($trustedPath), $resolvedPath)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<mixed>|null */
+    private function trustedExternalStatePaths(): ?array
+    {
         $configured = getenv(self::TRUSTED_EXTERNAL_STATE_PATHS_ENV);
         if (!is_string($configured) || trim($configured) === '') {
-            return false;
+            return null;
         }
 
         $trustedPaths = json_decode($configured, true);
@@ -685,34 +722,33 @@ final readonly class ProjectLayout
             throw new RuntimeException(self::TRUSTED_EXTERNAL_STATE_PATHS_ENV . ' must be a JSON list of canonical absolute paths.');
         }
 
-        $trusted = false;
-        foreach ($trustedPaths as $trustedPath) {
-            if (
-                !is_string($trustedPath)
-                || trim($trustedPath) === ''
-                || preg_match('/[\x00-\x1f\x7f]/', $trustedPath) === 1
-                || !PathResolver::isAbsolute($trustedPath)
-            ) {
-                throw new RuntimeException(self::TRUSTED_EXTERNAL_STATE_PATHS_ENV . ' must contain only canonical absolute paths.');
-            }
-
-            $normalizedTrustedPath = self::normalizeAbsolutePath($trustedPath);
-            $canonicalTrustedPath = self::canonicalPath($trustedPath);
-            if (
-                $normalizedTrustedPath === null
-                || $canonicalTrustedPath === null
-                || !self::pathsEqual($normalizedTrustedPath, $canonicalTrustedPath)
-            ) {
-                throw new RuntimeException(self::TRUSTED_EXTERNAL_STATE_PATHS_ENV . ' entries must use canonical paths without symlink aliases.');
-            }
-            if (self::pathsEqual($canonicalTrustedPath, $resolvedPath)) {
-                $trusted = true;
-            }
-        }
-
-        return $trusted;
+        return $trustedPaths;
     }
 
+    /** @SuppressWarnings("PHPMD.StaticAccess") */
+    private static function canonicalTrustedExternalPath(mixed $trustedPath): string
+    {
+        if (
+            !is_string($trustedPath)
+            || trim($trustedPath) === ''
+            || preg_match('/[\x00-\x1f\x7f]/', $trustedPath) === 1
+            || !PathResolver::isAbsolute($trustedPath)
+        ) {
+            throw new RuntimeException(self::TRUSTED_EXTERNAL_STATE_PATHS_ENV . ' must contain only canonical absolute paths.');
+        }
+
+        $normalizedPath = self::normalizeAbsolutePath($trustedPath);
+        $canonicalPath = self::canonicalPath($trustedPath);
+        if ($normalizedPath === null || $canonicalPath === null || !self::pathsEqual($normalizedPath, $canonicalPath)) {
+            throw new RuntimeException(self::TRUSTED_EXTERNAL_STATE_PATHS_ENV . ' entries must use canonical paths without symlink aliases.');
+        }
+
+        return $canonicalPath;
+    }
+
+    /**
+     * @SuppressWarnings("PHPMD.StaticAccess")
+     */
     private static function canonicalPath(string $path): ?string
     {
         if (!PathResolver::isAbsolute($path)) {
@@ -725,8 +761,27 @@ final readonly class ProjectLayout
 
         // Resolve the existing prefix before collapsing dot segments: a symlink
         // followed by `..` is interpreted relative to the symlink target.
-        $nativePath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
-        $probe = $nativePath;
+        $resolvedPrefix = self::resolveExistingPrefix(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path));
+        if ($resolvedPrefix === null) {
+            return null;
+        }
+
+        $canonical = $resolvedPrefix['canonical'];
+        if ($resolvedPrefix['missingSegments'] !== []) {
+            $canonical = rtrim($canonical, DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR
+                . implode(DIRECTORY_SEPARATOR, $resolvedPrefix['missingSegments']);
+        }
+
+        return self::normalizeAbsolutePath($canonical);
+    }
+
+    /**
+     * @return array{canonical: string, missingSegments: list<string>}|null
+     */
+    private static function resolveExistingPrefix(string $path): ?array
+    {
+        $probe = $path;
         $missingSegments = [];
         while (!file_exists($probe) && !is_link($probe)) {
             $parent = dirname($probe);
@@ -741,28 +796,17 @@ final readonly class ProjectLayout
         if ($canonical === false || ($missingSegments !== [] && !is_dir($canonical))) {
             return null;
         }
-        if ($missingSegments !== []) {
-            $canonical = rtrim($canonical, DIRECTORY_SEPARATOR)
-                . DIRECTORY_SEPARATOR
-                . implode(DIRECTORY_SEPARATOR, $missingSegments);
-        }
 
-        return self::normalizeAbsolutePath($canonical);
+        return ['canonical' => $canonical, 'missingSegments' => $missingSegments];
     }
 
     private static function normalizeAbsolutePath(string $path): ?string
     {
-        $path = str_replace('\\', '/', $path);
-        $prefix = '/';
-        if (PHP_OS_FAMILY === 'Windows' && preg_match('/\A([a-zA-Z]:)\//', $path, $matches) === 1) {
-            $prefix = strtoupper($matches[1]) . '/';
-            $path = substr($path, 3);
-        } elseif (PHP_OS_FAMILY === 'Windows' && str_starts_with($path, '//')) {
-            $prefix = '//';
-            $path = substr($path, 2);
-        } elseif (!str_starts_with($path, '/')) {
+        $pathParts = self::absolutePathParts($path);
+        if ($pathParts === null) {
             return null;
         }
+        [$prefix, $path] = $pathParts;
 
         $segments = [];
         foreach (explode('/', $path) as $segment) {
@@ -778,6 +822,23 @@ final readonly class ProjectLayout
         }
 
         return $prefix . implode('/', $segments);
+    }
+
+    /** @return array{string, string}|null */
+    private static function absolutePathParts(string $path): ?array
+    {
+        $path = str_replace('\\', '/', $path);
+        if (PHP_OS_FAMILY === 'Windows' && preg_match('/\A([a-zA-Z]:)\//', $path, $matches) === 1) {
+            return [strtoupper($matches[1]) . '/', substr($path, 3)];
+        }
+        if (PHP_OS_FAMILY === 'Windows' && str_starts_with($path, '//')) {
+            return ['//', substr($path, 2)];
+        }
+        if (str_starts_with($path, '/')) {
+            return ['/', $path];
+        }
+
+        return null;
     }
 
     private static function isWithin(string $directory, string $path): bool
