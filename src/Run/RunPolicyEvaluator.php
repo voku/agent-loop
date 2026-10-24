@@ -353,8 +353,8 @@ final readonly class RunPolicyEvaluator
                 return $this->classifyAction($repair, $references['approval']['repair_invocation'] ?? null);
             }
 
-            $revision = $references['contract']['revision'] ?? null;
-            $revisionArgument = is_int($revision) && $revision > 0
+            $revision = filter_var($references['contract']['revision'] ?? null, FILTER_VALIDATE_INT);
+            $revisionArgument = $revision !== false && $revision > 0
                 ? (string) $revision
                 : '<current-revision>';
 

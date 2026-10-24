@@ -49,8 +49,10 @@ final class PromptPrimitivesDogfood
             $this->assertFile('vendor/voku/agent-loop/resources/prompts/operating-prompts.json');
             $this->runCommand(['vendor/bin/agent-loop', 'init', 'scaffold']);
             $this->plan();
+            $revision = $this->contractRevision();
             $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
+                '--revision', (string) $revision,
                 '--by', self::APPROVER,
             ]);
             $this->runCommand([
@@ -357,6 +359,17 @@ final class PromptPrimitivesDogfood
         }
 
         return $this->json((string) file_get_contents($path), $path);
+    }
+
+    private function contractRevision(): int
+    {
+        $contract = $this->jsonFile($this->consumerRoot . '/.agent-loop/contracts/' . self::TASK_ID . '/contract.json');
+        $revision = $contract['revision'] ?? null;
+        if (!is_int($revision) || $revision < 1) {
+            throw new PromptPrimitivesDogfoodFailure('Planned Contract has no valid revision.');
+        }
+
+        return $revision;
     }
 
     /** @return array<string, mixed> */

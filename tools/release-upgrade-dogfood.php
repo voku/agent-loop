@@ -201,7 +201,11 @@ final class ReleaseUpgradeDogfood
             '--goal', 'Bind a replacement governed Run to approved Contract revision 2.',
             '--validation', $this->validationCommand(),
         ]);
-        $this->agentLoop($scenario, ['workflow', 'approve', 'UPGRADE-AUTH-1', '--by', 'upgrade-fixture-human']);
+        $this->agentLoop($scenario, [
+            'workflow', 'approve', 'UPGRADE-AUTH-1',
+            '--revision', (string) $this->contractRevision($scenario, 'UPGRADE-AUTH-1'),
+            '--by', 'upgrade-fixture-human',
+        ]);
         $this->agentLoop($scenario, [
             'workflow', 'execution-profile', 'UPGRADE-AUTH-1', '--profile', 'manual', '--by', 'upgrade-fixture-human',
         ]);
@@ -435,7 +439,11 @@ final class ReleaseUpgradeDogfood
             '--goal', $goal,
             '--validation', $this->validationCommand(),
         ]);
-        $this->agentLoop($scenario, ['workflow', 'approve', $taskId, '--by', 'upgrade-fixture-human']);
+        $this->agentLoop($scenario, [
+            'workflow', 'approve', $taskId,
+            '--revision', (string) $this->contractRevision($scenario, $taskId),
+            '--by', 'upgrade-fixture-human',
+        ]);
         $this->agentLoop($scenario, [
             'workflow', 'execution-profile', $taskId, '--profile', 'manual', '--by', 'upgrade-fixture-human',
         ]);
@@ -618,6 +626,17 @@ final class ReleaseUpgradeDogfood
         }
 
         return $decoded;
+    }
+
+    private function contractRevision(UpgradeScenario $scenario, string $taskId): int
+    {
+        $contract = $this->readJson($scenario->projectRoot . '/.agent-loop/contracts/' . $taskId . '/contract.json');
+        $revision = $contract['revision'] ?? null;
+        if (!is_int($revision) || $revision < 1) {
+            throw new RuntimeException('Planned Contract has no valid revision for ' . $taskId . '.');
+        }
+
+        return $revision;
     }
 
     private function writeReport(string $result, ?string $error): void

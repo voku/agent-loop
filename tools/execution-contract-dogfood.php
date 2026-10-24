@@ -64,6 +64,7 @@ final readonly class ExecutionContractDogfood
 
             $this->runCommand([
                 PHP_BINARY, 'bin/agent-loop', 'workflow', 'approve', self::TASK,
+                '--revision', (string) $this->contractRevision($worktree),
                 '--by', 'dogfood-approver',
             ], $worktree);
 
@@ -305,6 +306,21 @@ MD
     private function source(string $worktree): string
     {
         return $this->read($worktree . '/' . self::SOURCE);
+    }
+
+    private function contractRevision(string $worktree): int
+    {
+        $contract = json_decode(
+            $this->read($worktree . '/.agent-loop/contracts/' . self::TASK . '/contract.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        if (!is_array($contract) || !is_int($contract['revision'] ?? null) || $contract['revision'] < 1) {
+            throw new ExecutionContractDogfoodFailure('Planned Contract has no valid revision.');
+        }
+
+        return $contract['revision'];
     }
 
     private function read(string $path): string
