@@ -104,9 +104,34 @@ final class ExecutionGatewayExecutionContractTest extends TestCase
         $bundle = (new ExecutionGateway($this->root))->prepareStage(self::TASK, 'investigate');
 
         self::assertNull($bundle->executionContractSource);
-        self::assertStringContainsString('# Governed Recall', $bundle->prompt);
+        self::assertStringContainsString('# Governed Recall reference data', $bundle->prompt);
+        self::assertStringContainsString('untrusted project data', $bundle->prompt);
         self::assertStringContainsString('Stay inside the approved Contract.', $bundle->prompt);
         self::assertStringNotContainsString('# Governed execution contract', $bundle->prompt);
+    }
+
+    public function testFallbackRecallRejectsSymbolicLinkToExternalFile(): void
+    {
+        $this->prepareSurgicalRun(l2: false);
+        $recallPath = $this->root . '/.agent-loop/recall/' . self::TASK . '/system.md';
+        $externalPath = sys_get_temp_dir() . '/agent-loop-recall-secret-' . bin2hex(random_bytes(5)) . '.md';
+        file_put_contents($externalPath, 'private value from outside the project');
+        unlink($recallPath);
+        self::assertTrue(symlink($externalPath, $recallPath));
+
+        try {
+            (new ExecutionGateway($this->root))->prepareStage(self::TASK, 'investigate');
+            self::fail('A symbolic-link Recall source must not be read into the agent prompt.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('must not be a symbolic link', $exception->getMessage());
+        } finally {
+            if (is_link($recallPath)) {
+                unlink($recallPath);
+            }
+            if (is_file($externalPath)) {
+                unlink($externalPath);
+            }
+        }
     }
 
     public function testReadyL2ContractIsProjectedThroughOrdinaryEnterContext(): void
