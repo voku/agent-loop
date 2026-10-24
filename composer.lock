@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f64ae5aab500d6d682b0777dfeac1c56",
+    "content-hash": "48805a773011205abd4a11f8afb94005",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -921,21 +921,21 @@
         },
         {
             "name": "voku/agent-edit",
-            "version": "0.5.0",
+            "version": "0.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-edit.git",
-                "reference": "07dc5091e0c2f7edcc1907298cd03fb60a54543f"
+                "reference": "4532a99f148c33d64d60c0e036a4d892f9712fa7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-edit/zipball/07dc5091e0c2f7edcc1907298cd03fb60a54543f",
-                "reference": "07dc5091e0c2f7edcc1907298cd03fb60a54543f",
+                "url": "https://api.github.com/repos/voku/agent-edit/zipball/4532a99f148c33d64d60c0e036a4d892f9712fa7",
+                "reference": "4532a99f148c33d64d60c0e036a4d892f9712fa7",
                 "shasum": ""
             },
             "require": {
                 "helgesverre/toon": "^3.1",
-                "nikic/php-parser": "^5.0",
+                "nikic/php-parser": "^5.2",
                 "php": "^8.3",
                 "voku/agent-map": "^0.20.0 || ^0.21.0 || ^0.22.0",
                 "voku/simple-php-code-parser": "^0.22.14"
@@ -979,7 +979,7 @@
                 "issues": "https://github.com/voku/agent-edit/issues",
                 "source": "https://github.com/voku/agent-edit"
             },
-            "time": "2026-10-22T01:28:00+00:00"
+            "time": "2026-10-24T21:03:23+00:00"
         },
         {
             "name": "voku/agent-graph",
