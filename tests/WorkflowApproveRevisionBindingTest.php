@@ -65,16 +65,27 @@ final class WorkflowApproveRevisionBindingTest extends TestCase
             ['php -r "exit(0);"'],
             'planner',
         );
+        $contracts->revise(
+            'APPROVE-REV-2',
+            'Approve one bounded text change bound to a stale reviewed revision (revised).',
+            ['docs/note.txt'],
+            [],
+            ['php -r "exit(0);"'],
+            'planner',
+        );
 
         ob_start();
         try {
-            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-REV-2', '--by', 'approver', '--revision', '2']);
+            // The caller reviewed revision 1, but the Contract moved on to revision 2
+            // (an actual stale review, not a future revision that never existed).
+            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-REV-2', '--by', 'approver', '--revision', '1']);
         } finally {
             ob_end_clean();
         }
 
         self::assertSame(1, $exit);
         self::assertSame(TaskContract::CANDIDATE, $contracts->load('APPROVE-REV-2')->status);
+        self::assertSame(2, $contracts->load('APPROVE-REV-2')->revision);
     }
 
     public function testRevisionOptionRejectsNonPositiveValue(): void

@@ -81,12 +81,21 @@ final class WorkflowHumanDecisionServiceTest extends TestCase
                 ['vendor/bin/phpunit'],
                 'planner',
             );
+            $contracts->revise(
+                'UI-3',
+                'Expose the human decision boundary (revised).',
+                ['src/Foo.php'],
+                [],
+                ['vendor/bin/phpunit'],
+                'planner',
+            );
             $service = new WorkflowHumanDecisionService($root);
 
             $this->expectException(RuntimeException::class);
             $this->expectExceptionMessage('Contract revision changed since it was reviewed');
 
-            $service->approveContract('UI-3', 'lars', 2);
+            // The caller reviewed revision 1, but the Contract moved on to revision 2.
+            $service->approveContract('UI-3', 'lars', 1);
         } finally {
             $this->removeDirectory($root);
         }
