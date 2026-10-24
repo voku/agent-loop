@@ -88,6 +88,33 @@ final class WorkflowReportCommandTest extends TestCase
         self::assertArrayNotHasKey('work_brief', $report);
     }
 
+    public function testJsonReportFindsAcceptedRiskBelowAnApprovedExternalStateRoot(): void
+    {
+        $previousTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $externalStateRoot = $this->root . '-external-state';
+        mkdir($externalStateRoot . '/risks', 0o775, true);
+        $riskPath = $externalStateRoot . '/risks/ABC-123.accepted-risk.md';
+        file_put_contents($riskPath, "# Accepted risk\n");
+        $this->write('.agent-loop/init.json', json_encode([
+            'paths' => ['state_root' => $externalStateRoot],
+        ], JSON_THROW_ON_ERROR));
+        putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . json_encode([$externalStateRoot], JSON_THROW_ON_ERROR));
+
+        try {
+            $result = $this->runReport(['ABC-123', '--format', 'json']);
+
+            self::assertSame(0, $result['exit']);
+            $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+            self::assertTrue($report['accepted_risk']['recorded']);
+            self::assertSame($riskPath, $report['accepted_risk']['path']);
+        } finally {
+            putenv($previousTrustedPaths === false
+                ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
+                : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $previousTrustedPaths);
+            $this->removeDirectory($externalStateRoot);
+        }
+    }
+
     public function testJsonReportMarksEvidenceForSupersededContractAsStale(): void
     {
         $this->writeApprovedContract();

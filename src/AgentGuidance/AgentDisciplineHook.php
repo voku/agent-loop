@@ -274,9 +274,8 @@ final readonly class AgentDisciplineHook
             return '';
         }
 
-        $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
-
         try {
+            $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
             $catalog = new LearningCatalog($root);
             $candidates = [];
             $unconsolidated = [];
@@ -406,7 +405,7 @@ final readonly class AgentDisciplineHook
                 '- %d guidance consistency candidate(s) await semantic review. Inspect `%s`; these are facts, not contradiction verdicts or permission to edit guidance.',
                 $digest['guidanceCandidates'],
                 (new ProjectLayout($this->repositoryRoot))->display(
-                    (new ProjectLayout($this->repositoryRoot))->stateRoot() . '/dream/auto.json',
+                    (new ProjectLayout($this->repositoryRoot))->dreamAutoRunPath(),
                 ),
             );
         }
@@ -431,7 +430,17 @@ final readonly class AgentDisciplineHook
 
     private function workflowResumeHint(): string
     {
-        $runsRoot = (new ProjectLayout($this->repositoryRoot))->runsRoot();
+        try {
+            $runsRoot = (new ProjectLayout($this->repositoryRoot))->runsRoot();
+        } catch (Throwable $exception) {
+            return implode("\n", [
+                '## Agent Loop Resume Hint',
+                '',
+                '- repository workflow state is unavailable: ' . $exception->getMessage(),
+                '',
+                '',
+            ]);
+        }
         if (!is_dir($runsRoot)) {
             return '';
         }
@@ -495,7 +504,13 @@ final readonly class AgentDisciplineHook
     /** @return array{task_id: non-empty-string, state: non-empty-string}|null */
     private function readResumeManifest(string $manifestPath): ?array
     {
-        if (is_link($manifestPath) || !is_file($manifestPath) || !is_readable($manifestPath)) {
+        $layout = new ProjectLayout($this->repositoryRoot);
+        if (
+            !$layout->isRunPathWithinRunsRoot($manifestPath)
+            || is_link($manifestPath)
+            || !is_file($manifestPath)
+            || !is_readable($manifestPath)
+        ) {
             return null;
         }
 

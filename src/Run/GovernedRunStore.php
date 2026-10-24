@@ -127,7 +127,8 @@ final class GovernedRunStore
      */
     public function taskIds(): array
     {
-        $directory = (new ProjectLayout($this->rootPath))->runsRoot();
+        $layout = new ProjectLayout($this->rootPath);
+        $directory = $layout->runsRoot();
         if (!is_dir($directory)) {
             return [];
         }
@@ -142,7 +143,12 @@ final class GovernedRunStore
             if ($entry === '' || str_starts_with($entry, '.')) {
                 continue;
             }
-            if (!is_file($directory . '/' . $entry . '/run.json')) {
+            try {
+                $runPath = $layout->runFile($entry, 'run.json');
+            } catch (RuntimeException) {
+                continue;
+            }
+            if (is_link($runPath) || !is_file($runPath)) {
                 continue;
             }
 
@@ -168,7 +174,7 @@ final class GovernedRunStore
 
     public function path(string $taskId): string
     {
-        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/run.json';
+        return (new ProjectLayout($this->rootPath))->runFile($taskId, 'run.json');
     }
 
     /** @return array{path: string, sha256: string} */

@@ -117,7 +117,7 @@ final class RunVerificationReceiptStore
 
     public function path(string $taskId): string
     {
-        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/verification.json';
+        return (new ProjectLayout($this->rootPath))->runFile($taskId, 'verification.json');
     }
 
     private function write(RunVerificationReceipt $receipt): void

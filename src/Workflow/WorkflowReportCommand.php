@@ -318,7 +318,7 @@ final readonly class WorkflowReportCommand
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
     private function recallReport(string $taskId): array
     {
-        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         $reader = new CompiledRecallOutputReader();
         $relative = $this->relativePath($reader->identityPath($directory));
         $taskFiles = [];
@@ -417,10 +417,11 @@ final readonly class WorkflowReportCommand
     /** @return array{recorded: bool, path: string} */
     private function acceptedRiskReport(string $taskId): array
     {
-        $writer = new AcceptedRiskWriter($this->rootPath);
-        $relative = $writer->relativePath($taskId);
+        $layout = new ProjectLayout($this->rootPath);
+        $path = $layout->acceptedRiskPath($taskId, 'md');
+        $displayPath = $layout->display($path);
 
-        return ['recorded' => is_file(rtrim($this->rootPath, '/') . '/' . $relative), 'path' => $relative];
+        return ['recorded' => is_file($path), 'path' => $displayPath];
     }
 
     /**

@@ -83,7 +83,7 @@ final readonly class WorkflowDreamAutoRun
         $learningRoot = $layout->learningRoot();
         $hasLearning = is_dir($learningRoot);
 
-        $stateFile = $layout->stateRoot() . '/dream/auto.json';
+        $stateFile = $layout->dreamAutoRunPath();
         $previous = $this->readState($stateFile);
         $fingerprint = $hasLearning ? $this->fingerprint($learningRoot) : 'missing';
         $sources = $this->sources();
@@ -153,7 +153,7 @@ final readonly class WorkflowDreamAutoRun
     {
         $entries = [];
         foreach (self::FINGERPRINT_DIRECTORIES as $directory) {
-            $path = $learningRoot . '/' . $directory;
+            $path = (new ProjectLayout($this->rootPath))->learningSubdirectory($directory);
             if (!is_dir($path)) {
                 continue;
             }
@@ -161,8 +161,24 @@ final readonly class WorkflowDreamAutoRun
                 new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
             );
             foreach ($files as $file) {
+                if ($file->isLink()) {
+                    throw new RuntimeException('Learning fingerprint path contains a symbolic link: ' . $file->getPathname());
+                }
                 if ($file->isFile() && $file->getExtension() === 'json') {
-                    $entries[] = substr($file->getPathname(), strlen($learningRoot)) . "\0" . hash_file('sha256', $file->getPathname());
+                    $filePath = $file->getPathname();
+                    $resolvedLearningRoot = realpath($learningRoot);
+                    $resolvedFilePath = realpath($filePath);
+                    if (
+                        $resolvedLearningRoot === false
+                        || $resolvedFilePath === false
+                        || !str_starts_with(
+                            str_replace('\\', '/', $resolvedFilePath),
+                            rtrim(str_replace('\\', '/', $resolvedLearningRoot), '/') . '/',
+                        )
+                    ) {
+                        throw new RuntimeException('Learning fingerprint file escapes its configured root: ' . $filePath);
+                    }
+                    $entries[] = substr($filePath, strlen($learningRoot)) . "\0" . hash_file('sha256', $filePath);
                 }
             }
         }

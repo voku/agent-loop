@@ -23,7 +23,7 @@ final readonly class AcceptedRiskWriter
 {
     private ProjectLayout $layout;
 
-    public function __construct(private string $rootPath)
+    public function __construct(string $rootPath)
     {
         $this->layout = new ProjectLayout($rootPath);
     }
@@ -40,7 +40,7 @@ final readonly class AcceptedRiskWriter
 
     private function absolutePath(string $taskId, string $extension): string
     {
-        return $this->layout->risksRoot() . '/' . $taskId . '.accepted-risk.' . $extension;
+        return $this->layout->acceptedRiskPath($taskId, $extension);
     }
 
     /**
@@ -54,7 +54,9 @@ final readonly class AcceptedRiskWriter
             throw new RuntimeException('Could not create accepted-risk directory: ' . $dir);
         }
 
-        $relative = $this->relativePath($taskId);
+        $path = $this->absolutePath($taskId, 'md');
+        $jsonPath = $this->absolutePath($taskId, 'json');
+        $relative = $this->layout->display($path);
         $content = "# Accepted risk for {$taskId}\n\n";
         $content .= "Accepted by: {$acceptedBy}\n";
         $content .= "Reason: {$reason}\n\n";
@@ -69,8 +71,8 @@ final readonly class AcceptedRiskWriter
         $content .= "\nBypassing workflow close gates does not approve code or durable learning.\n";
         $content .= "Human review remains required.\n";
 
-        $this->put($relative, $content);
-        $this->put($this->relativeJsonPath($taskId), $this->json([
+        $this->put($path, $content);
+        $this->put($jsonPath, $this->json([
             'schema_version' => '1.0',
             'task_id' => $taskId,
             'accepted_by' => $acceptedBy,
@@ -81,14 +83,13 @@ final readonly class AcceptedRiskWriter
         return $relative;
     }
 
-    private function put(string $relative, string $content): void
+    private function put(string $path, string $content): void
     {
-        $path = rtrim($this->rootPath, '/') . '/' . $relative;
-        if (is_dir($path)) {
-            throw new RuntimeException('Could not write accepted-risk file: ' . $relative);
+        if (is_link($path) || is_dir($path)) {
+            throw new RuntimeException('Could not write accepted-risk file: ' . $this->layout->display($path));
         }
         if (file_put_contents($path, $content) === false) {
-            throw new RuntimeException('Could not write accepted-risk file: ' . $relative);
+            throw new RuntimeException('Could not write accepted-risk file: ' . $this->layout->display($path));
         }
     }
 

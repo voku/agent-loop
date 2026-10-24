@@ -8,7 +8,6 @@ use Closure;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
-use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -163,7 +162,7 @@ final readonly class WorkflowRunPreparer
         $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
         $session = $this->prepareSession($contract);
         $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
-        $recallOutputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId;
+        $recallOutputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($contract->taskId);
 
         // Recall is derived state. Supersede any previous/partial task-local
         // output only after the exact governed Run/Session can be established,

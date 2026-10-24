@@ -540,7 +540,7 @@ final class RunManifestProjector
         ?TaskContract $contract,
         array &$disagreements,
     ): array {
-        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         $reader = new CompiledRecallOutputReader();
         try {
             $output = $reader->read($directory);
@@ -798,7 +798,7 @@ final class RunManifestProjector
                 'recall_outcome_draft' => ($failure['gate'] ?? null) === 'recall_outcomes'
                     ? PathResolver::relativeTo(
                         $this->rootPath,
-                        RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/recall-log.draft.json',
+                        (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
                     )
                     : null,
                 'repair_action' => $repairAction,
@@ -914,7 +914,7 @@ final class RunManifestProjector
         if (($failure['gate'] ?? null) === 'recall_outcomes') {
             $draft = PathResolver::relativeTo(
                 $this->rootPath,
-                RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId . '/recall-log.draft.json',
+                (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
             );
 
             return 'agent-loop finish ' . $taskId

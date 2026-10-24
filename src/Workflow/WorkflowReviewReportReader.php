@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use Throwable;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\Transparency\ReviewCurrency;
 use voku\AgentLoop\Workflow\Transparency\ReviewDetail;
@@ -28,7 +29,7 @@ final readonly class WorkflowReviewReportReader
 
     public function absolutePath(string $taskId): string
     {
-        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
 
         return (new ReviewReportReader($this->rootPath))->jsonPath($taskId, $outputDirectory);
     }
@@ -80,7 +81,7 @@ final readonly class WorkflowReviewReportReader
     public function detail(string $taskId): ReviewDetail
     {
         $path = $this->relativePath($taskId);
-        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         try {
             $artifact = (new ReviewReportReader($this->rootPath))->read($taskId, $outputDirectory);
         } catch (Throwable) {

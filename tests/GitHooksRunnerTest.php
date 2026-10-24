@@ -115,7 +115,7 @@ final class GitHooksRunnerTest extends TestCase
     {
         file_put_contents($this->root . '/src/Kept.php', "<?php\n");
         $outputPath = $this->root . '/secret.out';
-        $command = 'set -- {files}; printf "%s|%s|%s|%s|%s" "${AGENT_LOOP_BIN:-unset}" "${AGENT_LOOP_TEST_TOKEN:-unset}" "${AGENT_LOOP_DEPLOY_KEY:-unset}" "${AGENT_LOOP_JWT:-unset}" "${PHP_AUTHORIZATION:-unset}" > ' . escapeshellarg($outputPath);
+        $command = 'set -- {files}; printf "%s|%s|%s|%s|%s|%s" "${AGENT_LOOP_BIN:-unset}" "${AGENT_LOOP_TEST_TOKEN:-unset}" "${AGENT_LOOP_DEPLOY_KEY:-unset}" "${AGENT_LOOP_JWT:-unset}" "${PHP_AUTHORIZATION:-unset}" "${AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS:-unset}" > ' . escapeshellarg($outputPath);
         $runner = new PreCommitRunner($this->root, GitHookConfig::fromArray([
             'pre_commit' => ['checks' => [['name' => 'env-probe', 'command' => $command]]],
         ]));
@@ -126,11 +126,15 @@ final class GitHooksRunnerTest extends TestCase
         $originalJwt = getenv('AGENT_LOOP_JWT');
         $originalAuthorization = getenv('PHP_AUTHORIZATION');
         $originalPassthrough = getenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
+        $originalTrustedExternalStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $originalTrustedExternalStatePathsFromEnv = $_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'] ?? null;
+        unset($_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS']);
         putenv('AGENT_LOOP_BIN=agent-loop-test-bin');
         putenv('AGENT_LOOP_TEST_TOKEN=ambient-secret-value');
         putenv('AGENT_LOOP_DEPLOY_KEY=ambient-deploy-key');
         putenv('AGENT_LOOP_JWT=ambient-jwt');
         putenv('PHP_AUTHORIZATION=ambient-auth-header');
+        putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=["/tmp/approved-state"]');
         putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
         try {
             $exit = $runner->run($this->stubRunner(['src/Kept.php']));
@@ -145,11 +149,17 @@ final class GitHooksRunnerTest extends TestCase
             $this->restoreEnv('AGENT_LOOP_DEPLOY_KEY', $originalDeployKey);
             $this->restoreEnv('AGENT_LOOP_JWT', $originalJwt);
             $this->restoreEnv('PHP_AUTHORIZATION', $originalAuthorization);
+            $this->restoreEnv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS', $originalTrustedExternalStatePaths);
             $this->restoreEnv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH', $originalPassthrough);
+            if (is_string($originalTrustedExternalStatePathsFromEnv)) {
+                $_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'] = $originalTrustedExternalStatePathsFromEnv;
+            } else {
+                unset($_ENV['AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS']);
+            }
         }
 
         self::assertSame(0, $exit);
-        self::assertSame('agent-loop-test-bin|unset|unset|unset|unset', file_get_contents($outputPath));
+        self::assertSame('agent-loop-test-bin|unset|unset|unset|unset|["/tmp/approved-state"]', file_get_contents($outputPath));
     }
 
     public function testTrustedPreCommitCheckUsesGitTemporaryIndex(): void

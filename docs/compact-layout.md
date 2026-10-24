@@ -41,6 +41,29 @@ Direct umbrella commands resolve the same paths as governed workflow commands,
 including `board`, `session`, `recall`, `learn`, `map`, `verify`, `review`, and
 `edit`.
 
+## External workflow-state roots
+
+Workflow state roots and their `board_root`, `sessions_root`, `learning_root`,
+`recall_root`, and `map_root` overrides must resolve inside the selected project
+by default. A checkout can contain an absolute path, parent traversal, or symlink
+that redirects those readers and writers into another project or a shared
+directory, so external paths require an operator-owned exact-path allowlist.
+
+Set `AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS` to a JSON list of canonical
+absolute paths after reviewing `.agent-loop/init.json`:
+
+```bash
+export AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS='["/srv/agent-state","/srv/project-learning"]'
+```
+
+Each externally configured root must match an entry after realpath resolution;
+paths derived beneath an approved `state_root` or `board_root` must remain
+inside that root. The allowlist does not accept symlink aliases. Agent Loop
+also rejects symbolic links beneath the board, session, Learning, Recall task
+output, and map roots before those trees are read or written. The setting is
+passed to explicitly trusted hook commands so nested Agent Loop commands can
+use the same approved paths.
+
 ## Breaking change from the historical defaults
 
 Older releases used several default paths such as `todo/`, `tasks/`,

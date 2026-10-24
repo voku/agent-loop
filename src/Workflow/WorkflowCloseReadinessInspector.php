@@ -284,7 +284,7 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkRecallGate(string $taskId): array
     {
-        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
         try {
@@ -385,7 +385,7 @@ final readonly class WorkflowCloseReadinessInspector
         }
 
         $taskId = $contract->taskId;
-        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         try {
             $output = (new CompiledRecallOutputReader())->read($directory);
         } catch (RuntimeException) {
