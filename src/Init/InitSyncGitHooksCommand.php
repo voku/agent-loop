@@ -324,6 +324,9 @@ final readonly class InitSyncGitHooksCommand
             throw new InvalidArgumentException('Unable to create target directory: ' . $directory);
         }
 
+        if (is_link($filePath) || is_link($directory)) {
+            throw new InvalidArgumentException('Refusing to write through a symlink: ' . $filePath);
+        }
         if (file_put_contents($filePath, $content) === false) {
             throw new InvalidArgumentException('Unable to write file: ' . $filePath);
         }

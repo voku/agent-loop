@@ -143,6 +143,9 @@ final readonly class RepositoryGitIntegrationSynchronizer
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
             throw new RuntimeException('Unable to create Git integration directory: ' . $directory);
         }
+        if (is_link($path) || is_link($directory)) {
+            throw new RuntimeException('Refusing to write through a symlink: ' . $path);
+        }
         if (file_put_contents($path, $content) === false) {
             throw new RuntimeException('Unable to write Git integration file: ' . $path);
         }
