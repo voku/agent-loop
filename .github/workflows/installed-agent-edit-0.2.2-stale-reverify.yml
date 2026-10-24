@@ -1,4 +1,4 @@
-name: Installed agent-edit stale reverification proof (0.5.0)
+name: Installed agent-edit stale reverification proof (Loop 603c4af, Edit 0.5.0)
 
 on:
   pull_request:
@@ -20,11 +20,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Checkout historical agent-loop consumer
+        uses: actions/checkout@v7
+        with:
+          repository: voku/agent-loop
+          ref: 603c4af606beb6f30b8c01d0a43356fa769a53d2
+          path: build/historical-agent-loop
+          persist-credentials: false
+
       - name: Checkout released agent-edit owner
         uses: actions/checkout@v7
         with:
           repository: voku/agent-edit
-          ref: 0.5.0
+          ref: 07dc5091e0c2f7edcc1907298cd03fb60a54543f
           path: build/released-agent-edit
           persist-credentials: false
 
@@ -32,7 +40,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: voku/agent-map
-          ref: 0.22.0
+          ref: 91e631249f3e3bcfd8b5783f600f2a6d8818cab2
           path: build/released-agent-map
           persist-credentials: false
 
@@ -43,10 +51,11 @@ jobs:
           extensions: pdo_sqlite, sqlite3
           tools: composer:v2
 
-      - name: Prove exact released owner revisions
+      - name: Prove exact historical and released revisions
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git -C build/historical-agent-loop rev-parse 'HEAD^{commit}')" = "603c4af606beb6f30b8c01d0a43356fa769a53d2"
           test "$(git -C build/released-agent-edit rev-parse 'HEAD^{commit}')" = "07dc5091e0c2f7edcc1907298cd03fb60a54543f"
           test "$(git -C build/released-agent-map rev-parse 'HEAD^{commit}')" = "91e631249f3e3bcfd8b5783f600f2a6d8818cab2"
 
@@ -64,15 +73,15 @@ jobs:
             "type": "project",
             "require-dev": {
               "phpstan/phpstan": "^2.2",
-              "voku/agent-loop": "dev-main"
+              "voku/agent-loop": "dev-stale-proof-603c4af"
             },
             "repositories": [
               {
                 "type": "path",
-                "url": "${GITHUB_WORKSPACE}",
+                "url": "${GITHUB_WORKSPACE}/build/historical-agent-loop",
                 "options": {
                   "symlink": false,
-                  "versions": {"voku/agent-loop": "dev-main"}
+                  "versions": {"voku/agent-loop": "dev-stale-proof-603c4af"}
                 }
               },
               {
@@ -107,6 +116,7 @@ jobs:
           cat > "$root/.gitignore" <<'EOF'
           /vendor/
           /.agent-loop/
+          /resolved-agent-loop.json
           /resolved-agent-edit.json
           /resolved-agent-map.json
           /enter.json
@@ -136,8 +146,10 @@ jobs:
 
           cd "$root"
           composer update --no-interaction --prefer-dist --no-progress --no-ansi
+          composer show voku/agent-loop --format=json > resolved-agent-loop.json
           composer show voku/agent-edit --format=json > resolved-agent-edit.json
           composer show voku/agent-map --format=json > resolved-agent-map.json
+          jq -e '.versions | index("dev-stale-proof-603c4af") != null' resolved-agent-loop.json >/dev/null
           jq -e '.versions | index("0.5.0") != null' resolved-agent-edit.json >/dev/null
           jq -e '.versions | index("0.22.0") != null' resolved-agent-map.json >/dev/null
 
@@ -224,6 +236,7 @@ jobs:
           if-no-files-found: warn
           path: |
             ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/resolved-agent-edit.json
+            ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/resolved-agent-loop.json
             ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/resolved-agent-map.json
             ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/.agent-loop/edit/DEMO-1/plan.json
             ${{ runner.temp }}/agent-loop-installed-agent-edit-0-2-2-reverify/.agent-loop/edit/DEMO-1/execution.json

@@ -17,12 +17,12 @@
   "require": {
     "php": "^8.3",
     "helgesverre/toon": "^3.1",
-    "voku/agent-edit": "^0.5.0",
-    "voku/agent-kanban": "^0.4.5",
-    "voku/agent-learning": "^0.18.33",
-    "voku/agent-map": "^0.22.0",
-    "voku/agent-recall-compiler": "^0.25.8",
-    "voku/agent-session": "^0.7.1",
+    "voku/agent-edit": "^0.6.1",
+    "voku/agent-kanban": "^0.4.6",
+    "voku/agent-learning": "^0.18.36",
+    "voku/agent-map": "^0.22.3",
+    "voku/agent-recall-compiler": "^0.25.9",
+    "voku/agent-session": "^0.7.2",
     "voku/portable-utf8": "^6.1"
   },
   "require-dev": {

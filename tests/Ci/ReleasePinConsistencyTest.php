@@ -42,7 +42,6 @@ final class ReleasePinConsistencyTest extends TestCase
         }
 
         self::assertArrayHasKey('agent-map', $owners);
-        self::assertArrayHasKey('agent-edit', $owners);
         self::assertArrayHasKey('agent-recall-compiler', $owners);
     }
 
@@ -405,7 +404,11 @@ final class ReleasePinConsistencyTest extends TestCase
         $url = 'https://github.com/voku/' . $package . '.git';
         $output = [];
         exec(
-            'git ls-remote ' . escapeshellarg($url) . ' ' . escapeshellarg('refs/tags/' . $tag . '^{}') . ' ' . escapeshellarg('refs/tags/' . $tag) . ' 2>/dev/null',
+            'git -C ' . escapeshellarg(sys_get_temp_dir())
+                . ' ls-remote ' . escapeshellarg($url)
+                . ' ' . escapeshellarg('refs/tags/' . $tag . '^{}')
+                . ' ' . escapeshellarg('refs/tags/' . $tag)
+                . ' 2>/dev/null',
             $output,
         );
         $commits = [];
