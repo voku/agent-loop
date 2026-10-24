@@ -157,7 +157,7 @@ final class CanonicalNextActionConvergenceTest extends TestCase
     private function reachMutationReady(): void
     {
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']), 'map build');
-        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'CONV-001', '--by', 'lars']), 'approve');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', 'CONV-001', '--revision', '1', '--by', 'lars']), 'approve');
         // enter/finish are front-door commands wired in bin/agent-loop rather
         // than the Dispatcher, so the owner is invoked directly here. Its exit
         // code is 0 only once mutation is authorized, which these tests need.

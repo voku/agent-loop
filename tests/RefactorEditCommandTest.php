@@ -190,7 +190,7 @@ PHP);
             'id' => 'coverage-mutation',
             'arguments' => ['minimum_percentage_points' => 10, 'mutation_command' => 'vendor/bin/infection'],
         ]]);
-        $contracts->approve($taskId, 'lars');
+        $contracts->approve($taskId, 'lars', $contracts->load($taskId)->revision);
         $recall = $this->root . '/.agent-loop/recall/' . $taskId;
         mkdir($recall, 0o775, true);
         file_put_contents($recall . '/facts.json', json_encode([

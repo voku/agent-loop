@@ -42,7 +42,7 @@ final class PostExecutionEvidenceRecoveryTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('RECOVER-1', 'Recover after stale implementation evidence.', ['src/Foo.php'], [], ['php -l src/Foo.php'], 'fixture');
-        $contract = $contracts->approve('RECOVER-1', 'fixture');
+        $contract = $contracts->approve('RECOVER-1', 'fixture', $contracts->load('RECOVER-1')->revision);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'RECOVER-1', by: 'fixture');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');
         $this->writeRecallMeta('RECOVER-1');

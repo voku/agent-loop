@@ -238,7 +238,16 @@ $loop([
     '--validation', 'composer ci',
     '--behavior-anchor', 'real pull-request diff -> durable Contract -> governed Run -> bounded context -> observed validation -> review -> durable Learning decision -> Verification receipt -> pruneable Session',
 ]);
-$loop(['workflow', 'approve', TASK, '--by', $options['approver']]);
+$contractPath = $root . '/.agent-loop/contracts/' . TASK . '/contract.json';
+$contractContents = file_get_contents($contractPath);
+if (!is_string($contractContents)) {
+    $fail('Self-shape could not read the planned Contract.');
+}
+$contract = json_decode($contractContents, true, 512, JSON_THROW_ON_ERROR);
+if (!is_array($contract) || !is_int($contract['revision'] ?? null) || $contract['revision'] < 1) {
+    $fail('Self-shape planned Contract has no valid revision.');
+}
+$loop(['workflow', 'approve', TASK, '--revision', (string) $contract['revision'], '--by', $options['approver']]);
 // This lifecycle harness has no separate host-agent reviewer process. Select
 // manual explicitly so prompt generation cannot masquerade as semantic review;
 // the standard-profile reviewer path is exercised by governed execution-contract

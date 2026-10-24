@@ -67,7 +67,7 @@ final readonly class WorkflowHumanDecisionService
         return new WorkflowHumanDecisionProjection($task->value, [], null);
     }
 
-    public function approveContract(string $taskId, string $approvedBy, ?int $expectedRevision = null): TaskContract
+    public function approveContract(string $taskId, string $approvedBy, int $expectedRevision): TaskContract
     {
         $task = new WorkflowTaskId($taskId);
         if (!$this->availableActions($task->value)->allows(WorkflowHumanDecisionProjection::APPROVE_CONTRACT)) {

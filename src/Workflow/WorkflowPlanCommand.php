@@ -128,7 +128,7 @@ final readonly class WorkflowPlanCommand
                 'scope' => $contract->scope,
                 'validation' => $contract->validation,
                 'warnings' => $warnings,
-                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --by <named-actor>',
+                'next_action' => 'agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . ' --by <named-actor>',
                 'next_action_kind' => 'decision_required',
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
 
@@ -143,7 +143,7 @@ final readonly class WorkflowPlanCommand
             echo '[WARN] workflow plan: ' . $warning . "\n";
         }
         echo "Next:\n";
-        echo '  agent-loop workflow approve ' . $taskId->value . " --by <named-actor>\n";
+        echo '  agent-loop workflow approve ' . $taskId->value . ' --revision ' . $contract->revision . " --by <named-actor>\n";
 
         return 0;
     }

@@ -118,7 +118,7 @@ final class WorkflowFinishValidationTest extends TestCase
             [$validation],
             'fixture-planner',
         );
-        $contract = $contracts->approve($taskId, 'fixture-approver');
+        $contract = $contracts->approve($taskId, 'fixture-approver', $contracts->load($taskId)->revision);
         $sessions = new SessionStore();
         $session = $sessions->create($this->root . '/.agent-loop/sessions', $taskId, by: 'fixture-agent');
         (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');

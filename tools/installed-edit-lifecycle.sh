@@ -201,7 +201,8 @@ $loop workflow plan "$task" \
   --behavior-anchor 'The edited code keeps parsing and the governed bundle proves the exact published plan was applied.' \
   --validation 'composer test' \
   --acceptance 'The plan was applied by agent-edit, verification proves current Map evidence, and PHP still parses.'
-$loop workflow approve "$task" --by "$by"
+revision="$(jq -er '.revision | select(type == "number" and . > 0 and floor == .)' ".agent-loop/contracts/$task/contract.json")"
+$loop workflow approve "$task" --revision "$revision" --by "$by"
 $loop workflow execution-profile "$task" --profile manual --by "$by"
 $loop enter "$task" --format=json --max-lines=40 --max-bytes=4096 > enter.json
 jq -e '.mutation_ready == true' enter.json >/dev/null

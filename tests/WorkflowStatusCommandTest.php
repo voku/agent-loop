@@ -128,7 +128,7 @@ final class WorkflowStatusCommandTest extends TestCase
         $contracts->create('ABC-123', 'Keep the task scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
         self::assertStringContainsString('workflow approve ABC-123', $this->statusText('ABC-123'));
 
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         mkdir($this->root . '/src', 0o775, true);
         file_put_contents($this->root . '/src/Foo.php', "<?php\nfinal class Foo {}\n");
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
@@ -239,7 +239,7 @@ final class WorkflowStatusCommandTest extends TestCase
                 'arguments' => [],
             ]],
         );
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         mkdir($this->root . '/.agent-loop/recall/ABC-123', 0o775, true);
         file_put_contents($this->root . '/.agent-loop/recall/ABC-123/facts.json', '{');

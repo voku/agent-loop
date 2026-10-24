@@ -60,7 +60,7 @@ final class WorkflowRecallOutputOwnershipTest extends TestCase
         );
 
         ob_start();
-        $approveExit = (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']);
+        $approveExit = (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', '1', '--by', 'lars']);
         ob_end_clean();
 
         self::assertSame(0, $approveExit);

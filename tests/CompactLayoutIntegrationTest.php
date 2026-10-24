@@ -58,7 +58,7 @@ final class CompactLayoutIntegrationTest extends TestCase
         self::assertSame([], glob($this->root . '/.agent-loop/sessions/*') ?: []);
         self::assertDirectoryDoesNotExist($this->root . '/session_plan');
 
-        $approve = $this->dispatch(['agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'tester']);
+        $approve = $this->dispatch(['agent-loop', 'workflow', 'approve', 'DEMO-1', '--revision', '1', '--by', 'tester']);
         self::assertSame(0, $approve['exit'], $approve['output']);
         self::assertSame([], glob($this->root . '/.agent-loop/sessions/*') ?: []);
         self::assertFileDoesNotExist($this->root . '/.agent-loop/recall/DEMO-1/meta.json');

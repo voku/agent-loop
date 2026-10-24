@@ -276,7 +276,7 @@ final class ImplementationSnapshotTest extends TestCase
         $store = new TaskContractStore($this->root);
         $store->create($taskId, 'Snapshot fixture.', $scope, [], ['composer test'], 'fixture');
 
-        return $store->approve($taskId, 'fixture');
+        return $store->approve($taskId, 'fixture', $store->load($taskId)->revision);
     }
 
     /** @param list<string> $scope */
@@ -285,7 +285,7 @@ final class ImplementationSnapshotTest extends TestCase
         $store = new TaskContractStore($this->root);
         $store->create($taskId, 'Snapshot fixture.', $scope, [], ['composer test'], 'fixture', $baseCommit);
 
-        return $store->approve($taskId, 'fixture');
+        return $store->approve($taskId, 'fixture', $store->load($taskId)->revision);
     }
 
     private function commitAll(): string

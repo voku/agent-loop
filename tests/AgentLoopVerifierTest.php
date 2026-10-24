@@ -259,7 +259,7 @@ MD
         $session = $sessions->create($this->root . '/.agent-loop/sessions', 'TASK-1', by: 'lars');
         $contracts = new TaskContractStore($this->root);
         $contract = $contracts->create('TASK-1', 'Keep the scope reviewable.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        $approved = $contracts->approve('TASK-1', 'lars');
+        $approved = $contracts->approve('TASK-1', 'lars', $contracts->load('TASK-1')->revision);
         (new GovernedRunStore($this->root))->prepare($approved, $session, $this->root . '/learning-root');
 
         mkdir($this->root . '/.agent-loop/recall/TASK-1', 0o775, true);

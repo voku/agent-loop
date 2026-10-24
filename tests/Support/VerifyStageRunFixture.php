@@ -107,7 +107,7 @@ final class VerifyStageRunFixture
                     ...array_merge(...array_map(static fn (string $command): array => ['--validation', $command], $validation)),
                     '--base-commit', $this->base,
                 ]),
-                (new WorkflowApproveCommand($this->root))->run(['VER-1', '--by', 'approver']),
+                (new WorkflowApproveCommand($this->root))->run(['VER-1', '--revision', '1', '--by', 'approver']),
                 (new WorkflowExecutionProfileCommand($this->root))->run(['VER-1', '--profile', 'surgical', '--by', 'approver']),
                 (new HostFrontDoorCommand($this->root))->run('enter', ['VER-1', '--format=json']),
             ];

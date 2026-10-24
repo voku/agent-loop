@@ -428,7 +428,8 @@ final class GovernedExecutionProtocolTest extends TestCase
             '--validation', 'vendor/bin/phpunit',
             '--base-commit', $this->baseCommit,
         ]));
-        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        $revision = (new TaskContractStore($this->root))->load('ABC-123')->revision;
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', (string) $revision, '--by', 'lars']));
         $profileExit = (new WorkflowExecutionProfileCommand($this->root))->run(['ABC-123']);
         $profileOutput = trim((string) ob_get_clean());
 
@@ -483,7 +484,8 @@ final class GovernedExecutionProtocolTest extends TestCase
             '--validation', $validation,
             '--base-commit', $this->baseCommit,
         ]));
-        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--by', 'lars']));
+        $revision = (new TaskContractStore($this->root))->load('ABC-123')->revision;
+        self::assertSame(0, (new WorkflowApproveCommand($this->root))->run(['ABC-123', '--revision', (string) $revision, '--by', 'lars']));
         ob_end_clean();
         self::assertSame('approved', (new TaskContractStore($this->root))->load('ABC-123')->status);
     }

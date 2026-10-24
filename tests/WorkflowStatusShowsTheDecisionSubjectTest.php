@@ -17,7 +17,7 @@ use voku\AgentLoop\Workflow\WorkflowStatusCommand;
  *
  * The manifest already carries the goal and the acceptance criteria; the text
  * renderer used to drop both and show only `revision N (<path>)`. A human told
- * `Next: agent-loop workflow approve ... --by <named-actor>` was then given the
+ * `Next: agent-loop workflow approve ... --revision <current-revision> --by <named-actor>` was then given the
  * command and not the decision. Reported as #413.
  */
 final class WorkflowStatusShowsTheDecisionSubjectTest extends TestCase

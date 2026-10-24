@@ -144,7 +144,7 @@ final class SmokeLoopTest extends TestCase
             '--validation', 'php -l src/Signup.php',
         ])['exit']);
         self::assertSame(0, $this->dispatch([
-            'agent-loop', 'workflow', 'approve', 'task.001', '--by', 'tester',
+            'agent-loop', 'workflow', 'approve', 'task.001', '--revision', '1', '--by', 'tester',
         ])['exit']);
 
         $enter = $this->dispatch(['agent-loop', 'enter', 'task.001', '--format=json']);

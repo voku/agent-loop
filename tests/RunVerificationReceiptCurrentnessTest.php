@@ -41,7 +41,7 @@ final class RunVerificationReceiptCurrentnessTest extends TestCase
             ['php -r "exit(0);"'],
             'fixture-planner',
         );
-        $contract = $contracts->approve('VERIFY-328', 'fixture-approver');
+        $contract = $contracts->approve('VERIFY-328', 'fixture-approver', $contracts->load('VERIFY-328')->revision);
         $snapshotA = ImplementationSnapshot::capture($this->root, $contract);
 
         $session = (new SessionStore())->create(

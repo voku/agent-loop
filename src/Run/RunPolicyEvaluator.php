@@ -355,7 +355,15 @@ final readonly class RunPolicyEvaluator
 
             return $this->command(
                 'agent-loop',
-                ['workflow', 'approve', $taskId, '--by', '<named-actor>'],
+                [
+                    'workflow',
+                    'approve',
+                    $taskId,
+                    '--revision',
+                    RunApprovalRevisionArgument::fromContractReference($references['contract'] ?? []),
+                    '--by',
+                    '<named-actor>',
+                ],
                 true,
                 RunPolicyEvaluation::KIND_DECISION_REQUIRED,
             );

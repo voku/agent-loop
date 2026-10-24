@@ -38,6 +38,10 @@ final class WorkflowApproveExecutionProfileNoteTest extends TestCase
     /** @param list<string> $args */
     private function approve(array $args): string
     {
+        $taskId = (string) ($args[0] ?? '');
+        $revision = (new TaskContractStore($this->root))->load($taskId)->revision;
+        array_splice($args, 1, 0, ['--revision', (string) $revision]);
+
         ob_start();
         try {
             $exit = (new WorkflowApproveCommand($this->root))->run($args);

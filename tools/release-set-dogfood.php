@@ -291,7 +291,11 @@ final class ReleaseSetDogfood
 
     private function approve(): void
     {
-        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', 'DEMO-1', '--by', 'release-set-gate']);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'approve', 'DEMO-1',
+            '--revision', (string) $this->contractRevision($this->consumerRoot, 'DEMO-1'),
+            '--by', 'release-set-gate',
+        ]);
         $this->mustRun([
             'vendor/bin/agent-loop', 'workflow', 'execution-profile', 'DEMO-1',
             '--profile', 'manual', '--by', 'release-set-gate',
@@ -504,7 +508,11 @@ final class ReleaseSetDogfood
         $this->recoveryPlan($root, $task, $extra);
         // No manual Map build: enter reconciles discovery. If that regresses,
         // every scenario below fails rather than quietly paying for it here.
-        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', $task, '--by', 'release-set-gate'], [0], $root);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'approve', $task,
+            '--revision', (string) $this->contractRevision($root, $task),
+            '--by', 'release-set-gate',
+        ], [0], $root);
         $this->mustRun([
             'vendor/bin/agent-loop', 'workflow', 'execution-profile', $task,
             '--profile', 'manual', '--by', 'release-set-gate',
@@ -539,7 +547,11 @@ final class ReleaseSetDogfood
         $this->expectNotContains($scenario, 'map refresh', $step['action']);
 
         // Supply the one irreducible decision, then discovery must resolve itself.
-        $this->mustRun(['vendor/bin/agent-loop', 'workflow', 'approve', 'REC-1', '--by', 'release-set-gate'], [0], $root);
+        $this->mustRun([
+            'vendor/bin/agent-loop', 'workflow', 'approve', 'REC-1',
+            '--revision', (string) $this->contractRevision($root, 'REC-1'),
+            '--by', 'release-set-gate',
+        ], [0], $root);
         $this->mustRun(['vendor/bin/agent-loop', 'enter', 'REC-1'], [0, 1, 2], $root);
         if (!is_file($root . '/.agent-loop/map/php-symbols.json')) {
             throw new ReleaseSetFailure($scenario . ': enter did not reconcile Map discovery for an approved PHP scope.');
@@ -1134,6 +1146,17 @@ final class ReleaseSetDogfood
         $this->assertFile($path);
 
         return $this->json((string) file_get_contents($path), $path);
+    }
+
+    private function contractRevision(string $root, string $taskId): int
+    {
+        $contract = $this->jsonFile($root . '/.agent-loop/contracts/' . $taskId . '/contract.json');
+        $revision = $contract['revision'] ?? null;
+        if (!is_int($revision) || $revision < 1) {
+            throw new ReleaseSetFailure('Planned Contract has no valid revision for ' . $taskId . '.');
+        }
+
+        return $revision;
     }
 
     /** @return array<string, mixed> */

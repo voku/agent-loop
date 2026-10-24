@@ -38,10 +38,11 @@ final class AcceptanceCriteriaDogfood
             $this->runCommand(['composer', 'update', '--no-interaction', '--prefer-dist', '--no-progress', '--no-ansi']);
             $this->runCommand(['vendor/bin/agent-loop', 'init', 'scaffold']);
             $this->plan();
-            $this->assertContract('candidate');
+            $revision = $this->assertContract('candidate');
 
             $this->runCommand([
                 'vendor/bin/agent-loop', 'workflow', 'approve', self::TASK_ID,
+                '--revision', (string) $revision,
                 '--by', 'ci-approval-fixture',
             ]);
             $this->runCommand([
@@ -98,7 +99,7 @@ final class AcceptanceCriteriaDogfood
         ]);
     }
 
-    private function assertContract(string $expectedStatus): void
+    private function assertContract(string $expectedStatus): int
     {
         $contract = $this->jsonFile('.agent-loop/contracts/' . self::TASK_ID . '/contract.json');
         $this->assertCriteria($contract, 'persisted Contract');
@@ -108,6 +109,13 @@ final class AcceptanceCriteriaDogfood
             throw new AcceptanceCriteriaDogfoodFailure('persisted Contract status mismatch.');
         }
         $this->assertNoFakeAcceptanceStatus($contract, 'persisted Contract');
+
+        $revision = $contract['revision'] ?? null;
+        if (!is_int($revision) || $revision < 1) {
+            throw new AcceptanceCriteriaDogfoodFailure('persisted Contract revision is invalid.');
+        }
+
+        return $revision;
     }
 
     private function assertRecall(): void

@@ -144,7 +144,7 @@ jobs:
             --behavior-anchor 'Greeter public greeting remains unchanged while the obsolete private constant disappears.' \
             --validation 'composer test' \
             --acceptance 'The obsolete class constant is absent, public behavior passes, and class-constant-removal verification proves current Map evidence.'
-          vendor/bin/agent-loop workflow approve DEMO-1 --by installed-class-constant-removal-dogfood
+          vendor/bin/agent-loop workflow approve DEMO-1 --revision 1 --by installed-class-constant-removal-dogfood
           vendor/bin/agent-loop workflow execution-profile DEMO-1 --profile manual --by installed-class-constant-removal-dogfood
           vendor/bin/agent-loop enter DEMO-1 --format=json --max-lines=40 --max-bytes=4096 > enter.json
           jq -e '.mutation_ready == true' enter.json >/dev/null

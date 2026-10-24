@@ -44,7 +44,7 @@ final class WorkflowApproveAuthorityBoundaryTest extends TestCase
 
         ob_start();
         try {
-            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-1', '--by', 'approver']);
+            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-1', '--revision', '1', '--by', 'approver']);
             $output = (string) ob_get_contents();
         } finally {
             ob_end_clean();
@@ -72,7 +72,7 @@ final class WorkflowApproveAuthorityBoundaryTest extends TestCase
 
         ob_start();
         try {
-            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-JSON', '--by', 'approver', '--json']);
+            $exit = (new WorkflowApproveCommand($this->root))->run(['APPROVE-JSON', '--revision', '1', '--by', 'approver', '--json']);
             $output = (string) ob_get_contents();
         } finally {
             ob_end_clean();

@@ -121,7 +121,7 @@ final class WorkflowPlanCommandTest extends TestCase
         $root = $this->root('revise');
         $contracts = new TaskContractStore($root);
         $contracts->create('ABC-123', 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        $contracts->approve('ABC-123', 'lars');
+        $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
 
         try {
             ob_start();
@@ -344,7 +344,8 @@ CARD,
     {
         ob_start();
         try {
-            return (new WorkflowApproveCommand($root))->run(['ABC-123', '--by', 'lars']);
+            $revision = (new TaskContractStore($root))->load('ABC-123')->revision;
+            return (new WorkflowApproveCommand($root))->run(['ABC-123', '--revision', (string) $revision, '--by', 'lars']);
         } finally {
             ob_end_clean();
         }
@@ -449,7 +450,7 @@ CARD,
             self::assertSame('created', $decoded['action']);
             self::assertSame('Structured plan test.', $decoded['goal']);
             self::assertSame('decision_required', $decoded['next_action_kind']);
-            self::assertSame('agent-loop workflow approve ABC-JSON --by <named-actor>', $decoded['next_action']);
+            self::assertSame('agent-loop workflow approve ABC-JSON --revision 1 --by <named-actor>', $decoded['next_action']);
         } finally {
             $this->removeDirectory($root);
         }

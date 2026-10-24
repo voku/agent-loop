@@ -28,7 +28,7 @@ final class WorkflowHandoffCommandTest extends TestCase
             ['composer test'],
             'planner',
         );
-        $contract = $contractStore->approve('TASK-1', 'reviewer');
+        $contract = $contractStore->approve('TASK-1', 'reviewer', $contractStore->load('TASK-1')->revision);
 
         $sessionStore = new SessionStore();
         $session = $sessionStore->create($layout->sessionsRoot(), 'TASK-1', by: 'agent');
@@ -70,7 +70,7 @@ final class WorkflowHandoffCommandTest extends TestCase
         $layout = new ProjectLayout($root);
         $contractStore = new TaskContractStore($root);
         $contractStore->create('REAL-1', 'Persist a resumable task handoff.', ['README.md'], [], ['composer test'], 'planner');
-        $contract = $contractStore->approve('REAL-1', 'reviewer');
+        $contract = $contractStore->approve('REAL-1', 'reviewer', $contractStore->load('REAL-1')->revision);
         $sessionStore = new SessionStore();
         $session = $sessionStore->create($layout->sessionsRoot(), 'REAL-1', by: 'agent');
         self::assertTrue(is_dir($layout->learningRoot()) || mkdir($layout->learningRoot(), 0777, true));
@@ -103,7 +103,7 @@ final class WorkflowHandoffCommandTest extends TestCase
         $layout = new ProjectLayout($root);
         $contractStore = new TaskContractStore($root);
         $contractStore->create('TASK-2', 'Prepare handoff.', ['README.md'], [], ['composer test'], 'planner');
-        $contract = $contractStore->approve('TASK-2', 'reviewer');
+        $contract = $contractStore->approve('TASK-2', 'reviewer', $contractStore->load('TASK-2')->revision);
         $sessionStore = new SessionStore();
         $session = $sessionStore->create($layout->sessionsRoot(), 'TASK-2', by: 'agent');
         self::assertTrue(is_dir($layout->learningRoot()) || mkdir($layout->learningRoot(), 0777, true));

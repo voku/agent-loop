@@ -157,7 +157,7 @@ final class StaleVerificationConvergenceTest extends TestCase
     private function closeWithExactHeadEvidence(): void
     {
         self::assertSame(0, $this->dispatch(['agent-loop', 'map', 'build', '--paths=src']), 'map build');
-        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', self::TASK, '--by', 'lars']), 'approve');
+        self::assertSame(0, $this->dispatch(['agent-loop', 'workflow', 'approve', self::TASK, '--revision', '1', '--by', 'lars']), 'approve');
         self::assertSame(0, $this->frontDoor('enter'), 'enter');
         $this->writeImplementation('Hello ', '!');
         $this->frontDoor('finish');

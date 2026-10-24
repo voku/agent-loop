@@ -246,7 +246,8 @@ final class WorkflowPipelineCommandTest extends TestCase
             "--validation", "php -l src/Foo.php",
             "--base-commit", $this->baseCommit,
         ]);
-        (new WorkflowApproveCommand($this->root))->run([$taskId, "--by", "lars"]);
+        $revision = (new TaskContractStore($this->root))->load($taskId)->revision;
+        (new WorkflowApproveCommand($this->root))->run([$taskId, '--revision', (string) $revision, '--by', 'lars']);
         (new WorkflowExecutionProfileCommand($this->root))->run([$taskId, "--profile", "surgical", "--by", "lars"]);
         ob_end_clean();
 

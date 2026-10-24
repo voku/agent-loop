@@ -110,7 +110,9 @@ final class WorkflowApproveDiscoveryGuardTest extends TestCase
     {
         ob_start();
         try {
-            return $command->run([$taskId, '--by', 'approver']);
+            $revision = (new TaskContractStore($this->root))->load($taskId)->revision;
+
+            return $command->run([$taskId, '--revision', (string) $revision, '--by', 'approver']);
         } finally {
             ob_end_clean();
         }

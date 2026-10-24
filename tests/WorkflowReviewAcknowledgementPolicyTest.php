@@ -48,7 +48,7 @@ final class WorkflowReviewAcknowledgementPolicyTest extends TestCase
             ['php -r "exit(0);"'],
             'fixture-planner',
         );
-        $contract = $contracts->approve('ACK-1', 'fixture-approver');
+        $contract = $contracts->approve('ACK-1', 'fixture-approver', $contracts->load('ACK-1')->revision);
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ACK-1', by: 'fixture-agent');
         $run = (new GovernedRunStore($this->root))->prepare($contract, $session, $this->root . '/.agent-loop/learning');

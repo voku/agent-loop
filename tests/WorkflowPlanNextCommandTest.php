@@ -44,7 +44,7 @@ final class WorkflowPlanNextCommandTest extends TestCase
             $output = (string) ob_get_clean();
 
             self::assertSame(0, $exit, $output);
-            self::assertStringContainsString("Next:\n  agent-loop workflow approve ABC-123 --by <named-actor>\n", $output);
+            self::assertStringContainsString("Next:\n  agent-loop workflow approve ABC-123 --revision 1 --by <named-actor>\n", $output);
             self::assertStringNotContainsString($actor, substr($output, (int) strpos($output, 'Next:')));
 
             $contract = (new TaskContractStore($root))->load('ABC-123');
@@ -63,7 +63,7 @@ final class WorkflowPlanNextCommandTest extends TestCase
         try {
             $contracts = new TaskContractStore($root);
             $contracts->create('ABC-123', 'Initial scope.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-            $contracts->approve('ABC-123', 'lars');
+            $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
             (new SessionStore())->create($root . '/.agent-loop/sessions', 'ABC-123', null, 'lars');
 
             $result = $this->runProcess([

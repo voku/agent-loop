@@ -43,7 +43,7 @@ final class ProgressiveCloseoutOrderTest extends TestCase
             ['vendor/bin/phpunit --testsuite unit'],
             'planner',
         );
-        $contract = $contracts->approve('SIMPLE-2', 'approver');
+        $contract = $contracts->approve('SIMPLE-2', 'approver', $contracts->load('SIMPLE-2')->revision);
 
         $sessions = new SessionStore();
         $session = $sessions->create($this->root . '/.agent-loop/sessions', 'SIMPLE-2', by: 'planner');

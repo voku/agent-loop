@@ -448,7 +448,7 @@ MD,
             ['vendor/bin/phpunit'],
             'lars',
         );
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         $snapshot = ImplementationSnapshot::capture($this->root, $contract);
 
         $sessions = new SessionStore();

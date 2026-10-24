@@ -336,7 +336,7 @@ final class TransparencyProjectionTest extends TestCase
             acceptanceCriteria: ['Foo returns the changed value.'],
         );
 
-        return $contracts->approve(self::TASK_ID, 'fixture-approver');
+        return $contracts->approve(self::TASK_ID, 'fixture-approver', $contracts->load(self::TASK_ID)->revision);
     }
 
     /** @param list<array{id:string,severity:string,message:string,evidence:list<string>}> $findings */

@@ -98,7 +98,7 @@ final class GovernedRunLearningBindingTest extends TestCase
     {
         $contracts = new TaskContractStore($this->root);
         $contracts->create('ABC-123', 'Bind a Run to its Learning root.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars');
-        $contract = $contracts->approve('ABC-123', 'lars');
+        $contract = $contracts->approve('ABC-123', 'lars', $contracts->load('ABC-123')->revision);
         self::assertSame(TaskContract::APPROVED, $contract->status);
         $session = (new SessionStore())->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars');
 

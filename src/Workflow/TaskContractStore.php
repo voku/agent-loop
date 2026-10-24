@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
+use Closure;
 use DateTimeImmutable;
 use DateTimeInterface;
 use JsonException;
@@ -42,21 +43,12 @@ final class TaskContractStore
         array $acceptanceCriteria = [],
         array $acceptanceObservations = [],
     ): TaskContract {
-        if ($this->find($taskId) !== null) {
-            throw new RuntimeException('Task ' . $taskId . ' already has a Contract. Use revise instead.');
-        }
-
-        $now = $this->now();
-        $contract = $this->newContract(
+        return $this->withMutationLock($taskId, function () use (
             $taskId,
             $goal,
             $scope,
             $nonGoals,
             $validation,
-            TaskContract::CANDIDATE,
-            1,
-            $now,
-            $now,
             $plannedBy,
             $baseCommit,
             $tags,
@@ -65,10 +57,35 @@ final class TaskContractStore
             $operatingPrompts,
             $acceptanceCriteria,
             $acceptanceObservations,
-        );
-        $this->write($contract);
+        ): TaskContract {
+            if ($this->find($taskId) !== null) {
+                throw new RuntimeException('Task ' . $taskId . ' already has a Contract. Use revise instead.');
+            }
 
-        return $contract;
+            $now = $this->now();
+            $contract = $this->newContract(
+                $taskId,
+                $goal,
+                $scope,
+                $nonGoals,
+                $validation,
+                TaskContract::CANDIDATE,
+                1,
+                $now,
+                $now,
+                $plannedBy,
+                $baseCommit,
+                $tags,
+                $behaviorAnchors,
+                $operatingPromptManifest,
+                $operatingPrompts,
+                $acceptanceCriteria,
+                $acceptanceObservations,
+            );
+            $this->write($contract);
+
+            return $contract;
+        });
     }
 
     /**
@@ -96,19 +113,12 @@ final class TaskContractStore
         array $acceptanceCriteria = [],
         array $acceptanceObservations = [],
     ): TaskContract {
-        $previous = $this->load($taskId);
-        $this->archive($previous);
-        $now = $this->now();
-        $contract = $this->newContract(
+        return $this->withMutationLock($taskId, function () use (
             $taskId,
             $goal,
             $scope,
             $nonGoals,
             $validation,
-            TaskContract::CANDIDATE,
-            $previous->revision + 1,
-            $now,
-            $now,
             $plannedBy,
             $baseCommit,
             $tags,
@@ -117,59 +127,84 @@ final class TaskContractStore
             $operatingPrompts,
             $acceptanceCriteria,
             $acceptanceObservations,
-        );
-        $this->write($contract);
+        ): TaskContract {
+            $previous = $this->load($taskId);
+            $this->archive($previous);
+            $now = $this->now();
+            $contract = $this->newContract(
+                $taskId,
+                $goal,
+                $scope,
+                $nonGoals,
+                $validation,
+                TaskContract::CANDIDATE,
+                $previous->revision + 1,
+                $now,
+                $now,
+                $plannedBy,
+                $baseCommit,
+                $tags,
+                $behaviorAnchors,
+                $operatingPromptManifest,
+                $operatingPrompts,
+                $acceptanceCriteria,
+                $acceptanceObservations,
+            );
+            $this->write($contract);
 
-        return $contract;
+            return $contract;
+        });
     }
 
-    public function approve(string $taskId, string $by, ?int $expectedRevision = null): TaskContract
+    public function approve(string $taskId, string $by, int $expectedRevision): TaskContract
     {
-        $contract = $this->load($taskId);
-        if ($expectedRevision !== null && $expectedRevision !== $contract->revision) {
-            throw new RuntimeException(sprintf(
-                'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
-                $expectedRevision,
+        return $this->withMutationLock($taskId, function () use ($taskId, $by, $expectedRevision): TaskContract {
+            $contract = $this->load($taskId);
+            if ($expectedRevision !== $contract->revision) {
+                throw new RuntimeException(sprintf(
+                    'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
+                    $expectedRevision,
+                    $contract->revision,
+                ));
+            }
+            if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
+                return $contract;
+            }
+            if ($contract->status !== TaskContract::CANDIDATE) {
+                throw new RuntimeException(sprintf('Contract revision %d is not awaiting approval.', $contract->revision));
+            }
+
+            $by = trim($by);
+            if ($by === '') {
+                throw new RuntimeException('Contract approval requires --by <actor>.');
+            }
+            $now = $this->now();
+            $approved = new TaskContract(
+                $contract->taskId,
+                $contract->goal,
+                $contract->scope,
+                $contract->nonGoals,
+                $contract->validation,
+                TaskContract::APPROVED,
                 $contract->revision,
-            ));
-        }
-        if ($contract->status === TaskContract::APPROVED && $contract->approvedBy !== null && $contract->approvedAt !== null) {
-            return $contract;
-        }
-        if ($contract->status !== TaskContract::CANDIDATE) {
-            throw new RuntimeException(sprintf('Contract revision %d is not awaiting approval.', $contract->revision));
-        }
+                $contract->createdAt,
+                $now,
+                $contract->path,
+                $contract->plannedBy,
+                $contract->baseCommit,
+                $contract->tags,
+                $contract->behaviorAnchors,
+                $contract->operatingPromptManifest,
+                $contract->operatingPrompts,
+                $by,
+                $now,
+                $contract->acceptanceCriteria,
+                $contract->acceptanceObservations,
+            );
+            $this->write($approved);
 
-        $by = trim($by);
-        if ($by === '') {
-            throw new RuntimeException('Contract approval requires --by <actor>.');
-        }
-        $now = $this->now();
-        $approved = new TaskContract(
-            $contract->taskId,
-            $contract->goal,
-            $contract->scope,
-            $contract->nonGoals,
-            $contract->validation,
-            TaskContract::APPROVED,
-            $contract->revision,
-            $contract->createdAt,
-            $now,
-            $contract->path,
-            $contract->plannedBy,
-            $contract->baseCommit,
-            $contract->tags,
-            $contract->behaviorAnchors,
-            $contract->operatingPromptManifest,
-            $contract->operatingPrompts,
-            $by,
-            $now,
-            $contract->acceptanceCriteria,
-            $contract->acceptanceObservations,
-        );
-        $this->write($approved);
-
-        return $approved;
+            return $approved;
+        });
     }
 
     public function find(string $taskId): ?TaskContract
@@ -362,6 +397,51 @@ final class TaskContractStore
     {
         $this->makeDirectory(dirname($contract->path));
         $this->atomicWrite($contract->path, CanonicalJson::pretty($contract->toArray()));
+    }
+
+    /**
+     * Serializes Contract writes so approval revision checks and replacements
+     * cannot race with creation or supersession.
+     *
+     * @param Closure(): TaskContract $operation
+     */
+    private function withMutationLock(string $taskId, Closure $operation): TaskContract
+    {
+        $contractsRoot = (new ProjectLayout($this->rootPath))->contractsRoot();
+        $this->makeDirectory($contractsRoot);
+        $resolvedContractsRoot = realpath($contractsRoot);
+        if (!is_string($resolvedContractsRoot)) {
+            throw new RuntimeException('Unable to resolve Contract root for mutation lock: ' . $contractsRoot);
+        }
+
+        $path = $resolvedContractsRoot . DIRECTORY_SEPARATOR . '.contract-mutation-' . hash('sha256', $taskId) . '.lock';
+        $handle = fopen($path, 'c+b');
+        if (!is_resource($handle)) {
+            throw new RuntimeException('Unable to open Contract mutation lock: ' . $path);
+        }
+        clearstatcache(true, $path);
+        $opened = fstat($handle);
+        $current = lstat($path);
+        if (!is_array($opened)
+            || !is_array($current)
+            || ($opened['mode'] & 0170000) !== 0100000
+            || ($current['mode'] & 0170000) !== 0100000
+            || $opened['dev'] !== $current['dev']
+            || $opened['ino'] !== $current['ino']) {
+            fclose($handle);
+            throw new RuntimeException('Contract mutation lock is not a stable regular file: ' . $path);
+        }
+        if (!flock($handle, LOCK_EX)) {
+            fclose($handle);
+            throw new RuntimeException('Unable to acquire Contract mutation lock: ' . $path);
+        }
+
+        try {
+            return $operation();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     private function decode(string $json, string $path, string $expectedTaskId): TaskContract

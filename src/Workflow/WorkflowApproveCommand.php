@@ -28,7 +28,7 @@ final readonly class WorkflowApproveCommand
             $contracts = new TaskContractStore($this->rootPath);
             $contract = $contracts->load($taskId->value);
 
-            if ($options['revision'] !== null && $options['revision'] !== $contract->revision) {
+            if ($options['revision'] !== $contract->revision) {
                 throw new RuntimeException(sprintf(
                     'Contract revision changed since it was reviewed (reviewed %d, current %d); re-read it and approve again.',
                     $options['revision'],
@@ -38,11 +38,12 @@ final readonly class WorkflowApproveCommand
 
             $status = 'approved';
             $notes = [];
-            if ($contract->status !== TaskContract::APPROVED) {
+            $wasAlreadyApproved = $contract->status === TaskContract::APPROVED;
+            $contract = $contracts->approve($taskId->value, $options['by'], $options['revision']);
+            if (!$wasAlreadyApproved) {
                 // Approval records authority and nothing else. Map discovery is
                 // deterministic preparation, so `enter` reconciles it rather
                 // than the host being told to run agent-map first.
-                $contract = $contracts->approve($taskId->value, $options['by'], $options['revision']);
                 (new WorkflowHookRunner($this->rootPath))->run('approve', $taskId->value);
                 $msg = "[OK] workflow approve: Contract revision {$contract->revision} approved for {$taskId->value}\n";
                 $note = $this->profileNote($contract, $taskId->value);
@@ -145,7 +146,7 @@ final readonly class WorkflowApproveCommand
 
     /**
      * @param list<string> $tokens
-     * @return array{by: string, format: string, revision: ?int}
+     * @return array{by: string, format: string, revision: int}
      */
     private function parse(array $tokens): array
     {
@@ -194,6 +195,9 @@ final readonly class WorkflowApproveCommand
         }
         if ($by === null) {
             throw new InvalidArgumentException('--by is required.');
+        }
+        if ($revision === null) {
+            throw new InvalidArgumentException('--revision is required; re-read the current Contract revision before approving.');
         }
 
         return ['by' => $by, 'format' => $format, 'revision' => $revision];

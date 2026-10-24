@@ -199,9 +199,13 @@ Learning repository lives outside the project and its location is owned by
 Consequently an out-of-project Learning root must be configured.
 
 **Action:** Run artifacts written before this change are rejected by name. Re-run
-`agent-loop workflow approve <task-id> --by <actor>` to re-prepare the Run
+`agent-loop workflow approve <task-id> --revision <current-revision> --by <actor>` to re-prepare the Run
 against the same approved Contract revision. The durable
 Contract, verification receipt and Learning decision are untouched.
+
+PHP callers must also pass the revision they reviewed as the third argument to
+`TaskContractStore::approve()` and as `expectedRevision` to
+`WorkflowHumanDecisionService::approveContract()`.
 
 Configure `paths.learning_root` before approval when the project does not use
 the default. `workflow plan` owns no Learning state or Learning-root option.

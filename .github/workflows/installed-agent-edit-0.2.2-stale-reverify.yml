@@ -155,7 +155,7 @@ jobs:
             --behavior-anchor 'Successful verification is current evidence only; later source drift invalidates that verdict.' \
             --validation 'php -l src/Greeter.php' \
             --acceptance 'The initial removal verifies as passed, source drift makes reverification fail, and verification-result.json is absent afterwards.'
-          vendor/bin/agent-loop workflow approve DEMO-1 --by installed-agent-edit-reverify
+          vendor/bin/agent-loop workflow approve DEMO-1 --revision 1 --by installed-agent-edit-reverify
           vendor/bin/agent-loop workflow execution-profile DEMO-1 --profile manual --by installed-agent-edit-reverify
           vendor/bin/agent-loop enter DEMO-1 --format=json --max-lines=40 --max-bytes=4096 > enter.json
           jq -e '.mutation_ready == true' enter.json >/dev/null

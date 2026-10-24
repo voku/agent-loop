@@ -37,7 +37,7 @@ final class WorkflowPlanScopeNormalizationTest extends TestCase
             $candidate = $contracts->load('SCOPE-1');
             self::assertSame(['tests'], $candidate->scope);
 
-            $approved = $contracts->approve('SCOPE-1', 'fixture');
+            $approved = $contracts->approve('SCOPE-1', 'fixture', $contracts->load('SCOPE-1')->revision);
             self::assertSame(['tests'], $approved->scope);
 
             $snapshot = ImplementationSnapshot::capture($root, $approved);

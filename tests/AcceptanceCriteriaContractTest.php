@@ -40,7 +40,7 @@ final class AcceptanceCriteriaContractTest extends TestCase
             ], $candidate->acceptanceCriteria);
             self::assertSame($candidate->acceptanceCriteria, $candidate->uncoveredAcceptanceCriteria());
 
-            $approved = $store->approve('ACCEPT-1', 'lars');
+            $approved = $store->approve('ACCEPT-1', 'lars', $store->load('ACCEPT-1')->revision);
             self::assertSame(TaskContract::APPROVED, $approved->status);
             self::assertSame($candidate->acceptanceCriteria, $approved->acceptanceCriteria);
             self::assertSame([], $approved->acceptanceObservations);
@@ -113,7 +113,7 @@ final class AcceptanceCriteriaContractTest extends TestCase
             ]], $contract->acceptanceObservations);
             self::assertSame(['Repository remains valid.'], $contract->uncoveredAcceptanceCriteria());
 
-            $approved = $store->approve('ACCEPT-1', 'lars');
+            $approved = $store->approve('ACCEPT-1', 'lars', $store->load('ACCEPT-1')->revision);
             self::assertSame($contract->acceptanceObservations, $approved->acceptanceObservations);
         } finally {
             $this->removeDirectory($root);
@@ -191,7 +191,7 @@ final class AcceptanceCriteriaContractTest extends TestCase
                     'validations' => ['composer ci'],
                 ]],
             );
-            $store->approve('ACCEPT-1', 'lars');
+            $store->approve('ACCEPT-1', 'lars', $store->load('ACCEPT-1')->revision);
 
             $revised = $store->revise(
                 'ACCEPT-1',
