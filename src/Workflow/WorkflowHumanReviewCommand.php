@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use RuntimeException;
 use Throwable;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentRecallCompiler\Review\ReviewReportPaths;
 use voku\AgentRecallCompiler\Review\ReviewReportReader;
@@ -70,7 +71,7 @@ final readonly class WorkflowHumanReviewCommand
      */
     public function path(string $taskId): string
     {
-        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
 
         return (new ReviewReportPaths($this->rootPath))->reviewsDirectory($outputDirectory)
             . '/' . $taskId . '.human.html';
@@ -86,7 +87,7 @@ final readonly class WorkflowHumanReviewCommand
             return [];
         }
 
-        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         $artifact = (new ReviewReportReader($this->rootPath))->read($taskId, $outputDirectory);
         if ($artifact === null) {
             throw new RuntimeException('Review summary exists but typed review artifact is missing.');

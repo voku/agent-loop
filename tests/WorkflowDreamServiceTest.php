@@ -7,6 +7,7 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLearning\EvolutionDecisionType;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Workflow\WorkflowDreamService;
@@ -60,6 +61,29 @@ final class WorkflowDreamServiceTest extends TestCase
         );
         self::assertSame([], glob($this->learningRoot . '/proposals/approved/*.json') ?: [], 'Loop never approves Dream output');
         self::assertFalse($service->writeCandidates()->wroteCandidates(), 'A written candidate is suppressed on the next run');
+    }
+
+    public function testDreamRefusesLinkedLearningFiles(): void
+    {
+        $outside = $this->root . '-outside-learning.json';
+        file_put_contents($outside, '{}');
+        $link = $this->learningRoot . '/findings/validated/outside.json';
+        if (!@symlink($outside, $link)) {
+            unlink($outside);
+            self::markTestSkipped('symlink() is not available.');
+        }
+
+        try {
+            try {
+                (new WorkflowDreamService($this->root))->preview();
+                self::fail('Dream must not follow linked Learning evidence.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('Learning tree', $exception->getMessage());
+            }
+        } finally {
+            unlink($link);
+            unlink($outside);
+        }
     }
 
     private function writeFinding(string $id, string $taskId): void

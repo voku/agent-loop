@@ -64,7 +64,7 @@ final class AcceptedRiskWriterTest extends TestCase
         mkdir($this->root . '/.agent-loop/risks/ABC-123.accepted-risk.md');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Could not write accepted-risk file: .agent-loop/risks/ABC-123.accepted-risk.md');
+        $this->expectExceptionMessage('Workflow state path has an unexpected type: risks/ABC-123.accepted-risk.md');
 
         (new AcceptedRiskWriter($this->root))->write('ABC-123', 'Manual review.', 'lars');
     }

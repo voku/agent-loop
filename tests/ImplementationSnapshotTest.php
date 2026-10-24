@@ -113,7 +113,15 @@ final class ImplementationSnapshotTest extends TestCase
             ], JSON_THROW_ON_ERROR),
         );
 
-        $snapshot = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-EXT-1', ['src/A.php']));
+        $originalTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . json_encode([$externalStateRoot], JSON_THROW_ON_ERROR));
+        try {
+            $snapshot = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-EXT-1', ['src/A.php']));
+        } finally {
+            putenv($originalTrustedPaths === false
+                ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
+                : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $originalTrustedPaths);
+        }
 
         self::assertSame(['src/A.php'], array_column($snapshot->files, 'path'));
     }

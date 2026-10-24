@@ -82,7 +82,7 @@ final readonly class WorkflowHandoffCommand
                 $descriptionParts[] = "Current durable Contract evidence:\n```json\n" . $contractEvidence . "\n```";
             }
 
-            $outputDirectory = $layout->recallRoot() . '/' . $taskId->value . '/handoff';
+            $outputDirectory = $layout->recallHandoffDirectory($taskId->value);
             $kanbanContext = (new WorkflowKanbanContextProjector($this->rootPath))->project($taskId->value);
             $result = ($this->recallCompiler)(new CompileRequest(
                 learningRoot: $layout->learningRoot(),

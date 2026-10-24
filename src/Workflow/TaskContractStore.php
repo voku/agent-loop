@@ -251,7 +251,8 @@ final class TaskContractStore
      */
     public function supersededRevisions(string $taskId): array
     {
-        $directory = dirname($this->path($taskId)) . '/history';
+        $layout = new ProjectLayout($this->rootPath);
+        $directory = $layout->contractHistoryRoot($taskId);
         if (!is_dir($directory)) {
             return [];
         }
@@ -263,7 +264,8 @@ final class TaskContractStore
         sort($paths, SORT_STRING);
 
         $revisions = [];
-        foreach ($paths as $path) {
+        foreach ($paths as $candidatePath) {
+            $path = $layout->contractHistoryFile($taskId, basename($candidatePath));
             $contents = file_get_contents($path);
             if (!is_string($contents)) {
                 throw new RuntimeException('Unable to read archived Contract artifact: ' . $path);
@@ -281,8 +283,13 @@ final class TaskContractStore
 
     private function archive(TaskContract $contract): void
     {
-        $directory = dirname($contract->path) . '/history';
+        $layout = new ProjectLayout($this->rootPath);
+        $directory = $layout->contractHistoryRoot($contract->taskId);
         $this->makeDirectory($directory);
+        $archivePath = $layout->contractHistoryFile(
+            $contract->taskId,
+            sprintf('contract.%03d.json', $contract->revision),
+        );
         $superseded = new TaskContract(
             $contract->taskId,
             $contract->goal,
@@ -293,7 +300,7 @@ final class TaskContractStore
             $contract->revision,
             $contract->createdAt,
             $this->now(),
-            $directory . '/' . sprintf('contract.%03d.json', $contract->revision),
+            $archivePath,
             $contract->plannedBy,
             $contract->baseCommit,
             $contract->tags,

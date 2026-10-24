@@ -17,12 +17,15 @@ final class WorkflowDreamAutoRunTest extends TestCase
     private string $learningRoot;
     private string $stateFile;
     private string|false $originalAutorun = false;
+    private string|false $oldTrustedPaths = false;
 
     protected function setUp(): void
     {
         // Autorun must be enabled here, whatever the caller exported; the original value comes back in tearDown().
         $this->originalAutorun = getenv('AGENT_LOOP_DREAM_AUTORUN');
         putenv('AGENT_LOOP_DREAM_AUTORUN');
+        $this->oldTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $this->root = sys_get_temp_dir() . '/agent-loop-dream-auto-' . bin2hex(random_bytes(4));
         $layout = new ProjectLayout($this->root);
         $this->learningRoot = $layout->learningRoot();
@@ -38,6 +41,9 @@ final class WorkflowDreamAutoRunTest extends TestCase
     protected function tearDown(): void
     {
         putenv($this->originalAutorun === false ? 'AGENT_LOOP_DREAM_AUTORUN' : 'AGENT_LOOP_DREAM_AUTORUN=' . $this->originalAutorun);
+        putenv($this->oldTrustedPaths === false
+            ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->oldTrustedPaths);
         $this->removeTree($this->root);
     }
 
@@ -451,6 +457,41 @@ final class WorkflowDreamAutoRunTest extends TestCase
         self::assertStringContainsString('1 guidance consistency candidate(s) await semantic review', $context);
         self::assertStringContainsString('facts, not contradiction verdicts or permission to edit guidance', $context);
         self::assertStringNotContainsString('guidance consistency candidate(s)', $subagent['hookSpecificOutput']['additionalContext']);
+    }
+
+    public function testSessionStartRequiresAnExactExternalStatePathBeforeWritingThere(): void
+    {
+        $externalStateRoot = $this->root . '-external-state';
+        self::assertTrue(mkdir($externalStateRoot, 0o700, true));
+        file_put_contents($this->root . '/.agent-loop/init.json', json_encode([
+            'version' => 1,
+            'paths' => ['state_root' => $externalStateRoot],
+        ], JSON_THROW_ON_ERROR));
+        file_put_contents($this->root . '/AGENTS.md', "# Guidance\n\nKeep changes small.\n");
+
+        try {
+            $untrusted = (new AgentDisciplineHook($this->root))->contextOutput(
+                'SessionStart',
+                json_encode(['hook_event_name' => 'SessionStart'], JSON_THROW_ON_ERROR),
+            );
+            $untrustedContext = $untrusted['hookSpecificOutput']['additionalContext'];
+            self::assertStringContainsString('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS', $untrustedContext);
+            self::assertFileDoesNotExist($externalStateRoot . '/dream/auto.json');
+            self::assertFileDoesNotExist($this->stateFile);
+
+            putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . json_encode([$externalStateRoot], JSON_THROW_ON_ERROR));
+            $trusted = (new AgentDisciplineHook($this->root))->contextOutput(
+                'SessionStart',
+                json_encode(['hook_event_name' => 'SessionStart'], JSON_THROW_ON_ERROR),
+            );
+
+            self::assertStringContainsString('ran the read-only guidance audit automatically', $trusted['hookSpecificOutput']['additionalContext']);
+            self::assertFileExists($externalStateRoot . '/dream/auto.json');
+            self::assertFileDoesNotExist($this->stateFile);
+        } finally {
+            putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+            $this->removeTree($externalStateRoot);
+        }
     }
 
     private function writeFinding(string $id, string $taskId): void

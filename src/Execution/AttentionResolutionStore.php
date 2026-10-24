@@ -127,6 +127,9 @@ final readonly class AttentionResolutionStore
     {
         $digest = hash('sha256', $attentionId);
 
-        return (new ProjectLayout($this->rootPath))->executionAttentionResolutionsRoot($taskId) . '/' . $digest . '.json';
+        return (new ProjectLayout($this->rootPath))->runChildFile(
+            $taskId,
+            'attention-resolutions/' . $digest . '.json',
+        );
     }
 }

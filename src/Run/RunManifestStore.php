@@ -17,7 +17,7 @@ final readonly class RunManifestStore
 
     public function path(string $taskId): string
     {
-        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/manifest.json';
+        return (new ProjectLayout($this->rootPath))->runFile($taskId, 'manifest.json');
     }
 
     public function write(RunManifest $manifest): string

@@ -408,7 +408,7 @@ final readonly class WorkflowContextCommand
      */
     private function addRecall(WorkflowContextBudget $budget, string $taskId): bool
     {
-        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
         $output = null;

@@ -493,6 +493,43 @@ final class AgentDisciplineHookTest extends TestCase
         }
     }
 
+    public function testInvalidMapLayoutDoesNotAbortOtherToolHookGuardrails(): void
+    {
+        $root = sys_get_temp_dir() . '/agent-loop-discipline-invalid-map-' . bin2hex(random_bytes(6));
+        $outside = $root . '-outside';
+        $previousTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        self::assertTrue(mkdir($root . '/.agent-loop', 0o775, true));
+        self::assertTrue(mkdir($outside, 0o775, true));
+        self::assertNotFalse(file_put_contents(
+            $root . '/.agent-loop/init.json',
+            $this->json(['version' => 1, 'paths' => ['map_root' => $outside]]),
+        ));
+        putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+
+        try {
+            $mapDump = (new AgentDisciplineHook($root))->preToolUseOutput($this->json([
+                'hook_event_name' => 'PreToolUse',
+                'tool_input' => ['command' => 'cat ' . $outside . '/php-symbols.json'],
+            ]));
+            self::assertSame('deny', $mapDump['hookSpecificOutput']['permissionDecision'] ?? null);
+            self::assertStringContainsString('agent-loop map query', $mapDump['hookSpecificOutput']['additionalContext'] ?? '');
+
+            $output = (new AgentDisciplineHook($root))->preToolUseOutput($this->json([
+                'hook_event_name' => 'PreToolUse',
+                'tool_input' => ['command' => 'cat README.md; grep -R "needle" src'],
+            ]));
+
+            self::assertSame('deny', $output['hookSpecificOutput']['permissionDecision'] ?? null);
+            self::assertStringContainsString('Use rg for literal or file discovery', $output['hookSpecificOutput']['additionalContext'] ?? '');
+        } finally {
+            putenv($previousTrustedPaths === false
+                ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
+                : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $previousTrustedPaths);
+            $this->removeTree($root);
+            $this->removeTree($outside);
+        }
+    }
+
     /** @return iterable<string, array{string, string}> */
     public static function discouragedShellToolProvider(): iterable
     {

@@ -140,6 +140,9 @@ final readonly class ExecutionEvidenceStore
             throw new RuntimeException('MISSING_EVIDENCE: invalid owner evidence reference: ' . $reference);
         }
 
-        return (new ProjectLayout($this->rootPath))->executionEvidenceRoot($taskId) . '/' . $matches[1] . '.json';
+        return (new ProjectLayout($this->rootPath))->runChildFile(
+            $taskId,
+            'execution-evidence/' . $matches[1] . '.json',
+        );
     }
 }

@@ -318,9 +318,22 @@ final readonly class WorkflowReportCommand
     /** @return array{status: string, meta_path: string, task_files: list<string>, outcome_draft: bool, logged_outcomes: int} */
     private function recallReport(string $taskId): array
     {
-        $directory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         $reader = new CompiledRecallOutputReader();
-        $relative = $this->relativePath($reader->identityPath($directory));
+        $relative = 'unavailable';
+        try {
+            $layout = new ProjectLayout($this->rootPath);
+            $recallRoot = $layout->recallRoot();
+            $relative = $this->relativePath(rtrim($recallRoot, '/') . '/' . $taskId . '/meta.json');
+            $directory = $layout->recallTaskDirectory($taskId);
+        } catch (RuntimeException) {
+            return [
+                'status' => 'invalid',
+                'meta_path' => $relative,
+                'task_files' => [],
+                'outcome_draft' => false,
+                'logged_outcomes' => $this->loggedOutcomeCount($taskId, $this->resolveLearningRoot($taskId)),
+            ];
+        }
         $taskFiles = [];
         $status = 'missing';
         $outcomeDraft = false;
@@ -356,9 +369,19 @@ final readonly class WorkflowReportCommand
     /** @return array{exists: bool, status: string|null, invalid: bool, path: string} */
     private function reviewReport(string $taskId): array
     {
-        $reader = new WorkflowReviewReportReader($this->rootPath);
+        $detail = (new WorkflowReviewReportReader($this->rootPath))->detail($taskId);
 
-        return [...$reader->read($taskId), 'path' => $reader->relativePath($taskId)];
+        return [
+            'exists' => $detail->exists,
+            'status' => $detail->lifecycleStatus,
+            'report_status' => $detail->reportStatus,
+            'invalid' => $detail->invalid,
+            'contract_revision' => $detail->contractRevision,
+            'implementation_snapshot' => $detail->implementationSnapshot,
+            'sha256' => $detail->sha256,
+            'acknowledged_by' => $detail->acknowledgedBy,
+            'path' => $detail->path,
+        ];
     }
 
     /** @return array{status: string, root: string|null, findings: int, proposals: int, outcomes: int, decision: string|null, run_id: string|null} */
@@ -417,10 +440,11 @@ final readonly class WorkflowReportCommand
     /** @return array{recorded: bool, path: string} */
     private function acceptedRiskReport(string $taskId): array
     {
-        $writer = new AcceptedRiskWriter($this->rootPath);
-        $relative = $writer->relativePath($taskId);
+        $layout = new ProjectLayout($this->rootPath);
+        $path = $layout->acceptedRiskPath($taskId, 'md');
+        $displayPath = $layout->display($path);
 
-        return ['recorded' => is_file(rtrim($this->rootPath, '/') . '/' . $relative), 'path' => $relative];
+        return ['recorded' => is_file($path), 'path' => $displayPath];
     }
 
     /**

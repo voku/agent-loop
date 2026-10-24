@@ -93,7 +93,7 @@ final readonly class ReviewAcknowledgementStore
 
     public function path(string $taskId): string
     {
-        return (new ProjectLayout($this->rootPath))->runRoot($taskId) . '/review-acknowledgement.json';
+        return (new ProjectLayout($this->rootPath))->runFile($taskId, 'review-acknowledgement.json');
     }
 
     private function write(ReviewAcknowledgement $acknowledgement): void
@@ -108,11 +108,15 @@ final readonly class ReviewAcknowledgementStore
     private function archive(ReviewAcknowledgement $acknowledgement): void
     {
         $json = CanonicalJson::pretty($acknowledgement->toArray());
-        $directory = dirname($acknowledgement->path) . '/review-acknowledgements/archive';
+        $layout = new ProjectLayout($this->rootPath);
+        $directory = $layout->runDirectory($acknowledgement->taskId, 'review-acknowledgements/archive');
         if (!is_dir($directory) && !mkdir($directory, 0o775, true) && !is_dir($directory)) {
             throw new RuntimeException('Unable to create review acknowledgement archive directory: ' . $directory);
         }
-        $path = $directory . '/' . hash('sha256', $json) . '.json';
+        $path = $layout->runChildFile(
+            $acknowledgement->taskId,
+            'review-acknowledgements/archive/' . hash('sha256', $json) . '.json',
+        );
         if (!is_file($path)) {
             $this->atomicWrite($path, $json);
         }

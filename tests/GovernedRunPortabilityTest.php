@@ -7,8 +7,10 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
+use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Workflow\HostFrontDoorCommand;
@@ -18,6 +20,7 @@ use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowApproveCommand;
 use voku\AgentLoop\Workflow\WorkflowCli;
+use voku\AgentLoop\Workflow\WorkflowLearningRoot;
 use voku\AgentLoop\Workflow\WorkflowReviewReportReader;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -41,8 +44,12 @@ final class GovernedRunPortabilityTest extends TestCase
 
     private string $relocated;
 
+    private string|false $oldTrustedPaths = false;
+
     protected function setUp(): void
     {
+        $this->oldTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $suffix = bin2hex(random_bytes(5));
         $this->root = sys_get_temp_dir() . '/agent-loop-origin-' . $suffix;
         $this->relocated = sys_get_temp_dir() . '/agent-loop-moved-' . $suffix;
@@ -53,6 +60,9 @@ final class GovernedRunPortabilityTest extends TestCase
     {
         $this->rm($this->root);
         $this->rm($this->relocated);
+        putenv($this->oldTrustedPaths === false
+            ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->oldTrustedPaths);
     }
 
     public function testCompletedRunStaysCompleteAfterTheProjectIsRelocated(): void
@@ -90,6 +100,7 @@ final class GovernedRunPortabilityTest extends TestCase
         mkdir($external, 0o775, true);
 
         try {
+            putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . json_encode([$external], JSON_THROW_ON_ERROR));
             $this->writeConfig(['learning_root' => $external]);
             $this->completeGovernedRun($external, configured: true);
 
@@ -114,6 +125,43 @@ final class GovernedRunPortabilityTest extends TestCase
             self::assertSame('complete', $projected->state);
         } finally {
             $this->rm($external);
+        }
+    }
+
+    /** @SuppressWarnings("PHPMD.StaticAccess") */
+    public function testPersistedLearningRootCannotEscapeThroughTraversalOrSymlink(): void
+    {
+        $outside = $this->root . '-external-learning';
+        mkdir($outside, 0o775, true);
+        $link = $this->root . '/linked-learning';
+        if (!@symlink($outside, $link)) {
+            $this->rm($outside);
+            self::markTestSkipped('symlink() is not available.');
+        }
+
+        try {
+            foreach (['../' . basename($outside), 'linked-learning'] as $learningRoot) {
+                $run = new GovernedRun(
+                    'run.ABC-123',
+                    'ABC-123',
+                    1,
+                    ['path' => '.agent-loop/contracts/ABC-123/contract.json', 'sha256' => str_repeat('a', 64)],
+                    'session.ABC-123',
+                    $learningRoot,
+                    '2026-10-24T00:00:00Z',
+                    $this->root . '/.agent-loop/runs/ABC-123/run.json',
+                );
+
+                try {
+                    self::assertSame('', WorkflowLearningRoot::forRun($this->root, $run));
+                    self::fail('A persisted Learning root must not resolve outside the project: ' . $learningRoot);
+                } catch (RuntimeException $exception) {
+                    self::assertStringContainsString('escapes the project', $exception->getMessage());
+                }
+            }
+        } finally {
+            unlink($link);
+            $this->rm($outside);
         }
     }
 

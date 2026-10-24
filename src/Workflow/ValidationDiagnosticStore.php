@@ -19,8 +19,8 @@ final readonly class ValidationDiagnosticStore
 
     public function record(ValidationDiagnostic $diagnostic): void
     {
-        $dir = $this->ensureDirectory();
-        $path = $dir . '/' . $diagnostic->taskId . '.json';
+        $this->ensureDirectory();
+        $path = (new ProjectLayout($this->rootPath))->diagnosticPath($diagnostic->taskId);
         $json = json_encode($diagnostic->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         file_put_contents($path, $json . "\n");
     }
@@ -48,7 +48,8 @@ final readonly class ValidationDiagnosticStore
 
     public function latest(string $taskId): ?ValidationDiagnostic
     {
-        $path = $this->ensureDirectory() . '/' . $taskId . '.json';
+        $this->ensureDirectory();
+        $path = (new ProjectLayout($this->rootPath))->diagnosticPath($taskId);
         if (!is_file($path)) {
             return null;
         }
@@ -88,8 +89,8 @@ final readonly class ValidationDiagnosticStore
         $attempts = ($currentRevision === $contractRevision) ? (int) ($data['attempts'] ?? 0) : 0;
         $newAttempts = $attempts + 1;
 
-        $dir = $this->ensureDirectory();
-        $path = $dir . '/' . $taskId . '.repairs.json';
+        $this->ensureDirectory();
+        $path = (new ProjectLayout($this->rootPath))->diagnosticPath($taskId, repairs: true);
         $payload = [
             'task_id' => $taskId,
             'revision' => $contractRevision,
@@ -103,9 +104,8 @@ final readonly class ValidationDiagnosticStore
 
     public function clear(string $taskId): void
     {
-        $dir = (new ProjectLayout($this->rootPath))->diagnosticsRoot();
-        $diagPath = $dir . '/' . $taskId . '.json';
-        $repairsPath = $dir . '/' . $taskId . '.repairs.json';
+        $diagPath = (new ProjectLayout($this->rootPath))->diagnosticPath($taskId);
+        $repairsPath = (new ProjectLayout($this->rootPath))->diagnosticPath($taskId, repairs: true);
         if (is_file($diagPath)) {
             unlink($diagPath);
         }
@@ -119,7 +119,7 @@ final readonly class ValidationDiagnosticStore
      */
     private function loadRepairData(string $taskId): array
     {
-        $path = (new ProjectLayout($this->rootPath))->diagnosticsRoot() . '/' . $taskId . '.repairs.json';
+        $path = (new ProjectLayout($this->rootPath))->diagnosticPath($taskId, repairs: true);
         if (!is_file($path)) {
             return [];
         }

@@ -175,8 +175,16 @@ start a fresh agent session after the migration.
 | `learning_root` | `<state_root>/learning` | durable Learning close-out |
 | `recall_root` | `<state_root>/recall` | compiled briefings |
 
-Relative values resolve against the project root; absolute values are used
-as-is, so a Learning repository can live outside the repo. Everything else
+Relative values resolve against the project root. Absolute roots outside the
+checkout require an operator-owned `AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS`
+JSON list containing each canonical path, so a Learning repository can still
+live outside the repo after review. For example:
+
+```bash
+export AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS='["/srv/agent-state","/srv/project-learning"]'
+```
+
+Everything else
 (`runs/`, `contracts/`, `edit/`, `risks/`, `tasks/`, `map/`) follows
 `state_root`.
 

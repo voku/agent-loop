@@ -96,8 +96,9 @@ final class Dispatcher
         }
 
         if (!in_array($command, ['help', '--help', '-h', ''], true) && !$this->hasOption($rest, 'root')) {
+            $layout = $this->layout();
             $rest[] = '--root';
-            $rest[] = $this->layout()->learningRoot();
+            $rest[] = $layout->learningRoot();
         }
 
         $exit = (new LearningCli())->run($this->subArgv($scriptName, $rest));
@@ -322,7 +323,7 @@ final class Dispatcher
             return $rest;
         }
 
-        return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
+        return array_merge($rest, ['--output-dir', $this->layout()->recallTaskDirectory($taskId)]);
     }
 
     /** @param list<string> $rest */
@@ -434,7 +435,7 @@ final class Dispatcher
             return $rest;
         }
 
-        return array_merge($rest, ['--output-dir', RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId]);
+        return array_merge($rest, ['--output-dir', $this->layout()->recallTaskDirectory($taskId)]);
     }
 
     private function isSafeTaskId(string $taskId): bool

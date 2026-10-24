@@ -5,6 +5,7 @@
 - Breaking: Contract approval is bound to the exact revision reviewed. `workflow approve`, `TaskContractStore::approve()`, and `WorkflowHumanDecisionService::approveContract()` require the expected revision; this supersedes the optional behavior noted in 0.20.68. Stale approvals fail; update CLI, store, and service callers to re-read the Contract and pass that revision. The Make target now requires `REVISION`.
 - Governed Runs now default to the standard independent-review profile. Successful close for non-manual profiles requires a completed, current review pipeline with fresh reviewer contexts and current candidate-file evidence covering every changed file; explicit `manual` selection remains available.
 - Reviewer `PASS` results now fail closed when they omit candidate evidence or leave changed candidate files uncovered. Review prompts use the guaranteed first-draft review even when optional engineering lenses are not installed.
+- Breaking: configured workflow-state roots outside the selected project now require an exact canonical path in `AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS`; derived state paths reject traversal and symlink escapes.
 
 ## [0.20.68] - 2026-10-24
 

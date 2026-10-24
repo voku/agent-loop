@@ -274,9 +274,8 @@ final readonly class AgentDisciplineHook
             return '';
         }
 
-        $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
-
         try {
+            $root = (new ProjectLayout($this->repositoryRoot))->learningRoot();
             $catalog = new LearningCatalog($root);
             $candidates = [];
             $unconsolidated = [];
@@ -406,7 +405,7 @@ final readonly class AgentDisciplineHook
                 '- %d guidance consistency candidate(s) await semantic review. Inspect `%s`; these are facts, not contradiction verdicts or permission to edit guidance.',
                 $digest['guidanceCandidates'],
                 (new ProjectLayout($this->repositoryRoot))->display(
-                    (new ProjectLayout($this->repositoryRoot))->stateRoot() . '/dream/auto.json',
+                    (new ProjectLayout($this->repositoryRoot))->dreamAutoRunPath(),
                 ),
             );
         }
@@ -431,7 +430,17 @@ final readonly class AgentDisciplineHook
 
     private function workflowResumeHint(): string
     {
-        $runsRoot = (new ProjectLayout($this->repositoryRoot))->runsRoot();
+        try {
+            $runsRoot = (new ProjectLayout($this->repositoryRoot))->runsRoot();
+        } catch (Throwable $exception) {
+            return implode("\n", [
+                '## Agent Loop Resume Hint',
+                '',
+                '- repository workflow state is unavailable: ' . $exception->getMessage(),
+                '',
+                '',
+            ]);
+        }
         if (!is_dir($runsRoot)) {
             return '';
         }
@@ -495,7 +504,13 @@ final readonly class AgentDisciplineHook
     /** @return array{task_id: non-empty-string, state: non-empty-string}|null */
     private function readResumeManifest(string $manifestPath): ?array
     {
-        if (is_link($manifestPath) || !is_file($manifestPath) || !is_readable($manifestPath)) {
+        $layout = new ProjectLayout($this->repositoryRoot);
+        if (
+            !$layout->isRunPathWithinRunsRoot($manifestPath)
+            || is_link($manifestPath)
+            || !is_file($manifestPath)
+            || !is_readable($manifestPath)
+        ) {
             return null;
         }
 
@@ -560,11 +575,27 @@ final readonly class AgentDisciplineHook
 
     private function isUnboundedMapDump(string $command): bool
     {
-        $layout = new ProjectLayout($this->repositoryRoot);
-        $mapRoot = preg_quote(rtrim($layout->display($layout->mapRoot()), '/') . '/', '~');
+        if (preg_match('~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b~i', $command) !== 1) {
+            return false;
+        }
+
+        try {
+            $layout = new ProjectLayout($this->repositoryRoot);
+            $mapRoot = preg_quote(rtrim($layout->display($layout->mapRootForCommandGuard()), '/') . '/', '~');
+        } catch (Throwable) {
+            return $this->isGeneratedMapArtifactDump($command);
+        }
 
         return preg_match(
             '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*' . $mapRoot . '[^;&|]*(?:\s|$)~i',
+            $command,
+        ) === 1;
+    }
+
+    private function isGeneratedMapArtifactDump(string $command): bool
+    {
+        return preg_match(
+            '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*(?:php-symbols\.(?:json|toon)|php-relations\.(?:json|toon)|graph\.sqlite|graph-generation\.json|search\.sqlite|history\.sqlite|structural-cache\.json|phpstan-cache)~i',
             $command,
         ) === 1;
     }

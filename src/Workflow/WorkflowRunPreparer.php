@@ -8,7 +8,6 @@ use Closure;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
-use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
@@ -163,12 +162,12 @@ final readonly class WorkflowRunPreparer
         $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
         $session = $this->prepareSession($contract);
         $run = (new GovernedRunStore($this->rootPath))->prepare($contract, $session, $learningRoot);
-        $recallOutputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $contract->taskId;
+        $recallOutputDir = (new ProjectLayout($this->rootPath))->recallTaskDirectory($contract->taskId);
 
         // Recall is derived state. Supersede any previous/partial task-local
         // output only after the exact governed Run/Session can be established,
         // and before projecting or compiling the new governed context.
-        (new CompiledRecallOutputSuperseder())->archiveIfPresent($recallOutputDirectory);
+        (new CompiledRecallOutputSuperseder())->archiveIfPresent($recallOutputDir);
 
         $recallInput = $this->writeGovernedRecallInput($run, $contract);
         $preparedManifestPath = (new RunManifestTransitionWriter($this->rootPath))->write($contract->taskId);
@@ -205,7 +204,7 @@ final readonly class WorkflowRunPreparer
         ($this->recallCompiler)(new CompileRequest(
             learningRoot: $learningRoot,
             taskBrief: $recallInput,
-            outputDirectory: $recallOutputDirectory,
+            outputDirectory: $recallOutputDir,
             operatingPromptManifests: $operatingPromptManifests,
             documentManifests: $documentManifests,
             kanbanContextProjection: $kanbanContext,

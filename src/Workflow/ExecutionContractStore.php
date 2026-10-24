@@ -9,7 +9,7 @@ use DateTimeInterface;
 use JsonException;
 use RuntimeException;
 use voku\AgentLoop\PathResolver;
-use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
 use voku\AgentRecallCompiler\Output\RecallFactsDocumentReader;
 
@@ -361,7 +361,7 @@ final readonly class ExecutionContractStore
 
     private function contractDirectory(string $taskId): string
     {
-        return rtrim(RecallOutputRoot::resolve($this->rootPath), '/') . '/' . $taskId;
+        return (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
     }
 
     /** @return array<string, mixed> */

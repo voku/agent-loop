@@ -176,6 +176,17 @@ final class AgentLoopVerifierTest extends TestCase
         self::assertStringNotContainsString('does not describe directory name', $result['output']);
     }
 
+    public function testVerifyRejectsInvalidTaskIdLoadedFromSessionMetadata(): void
+    {
+        $this->writeSession('2026-06-23-invalid-task', '../outside', ephemeral: false);
+
+        $result = $this->verify([]);
+
+        self::assertSame(1, $result['exit'], $result['output']);
+        self::assertStringContainsString('has an invalid task id', $result['output']);
+        self::assertStringNotContainsString('no compiled briefing at', $result['output']);
+    }
+
     public function testVerifyRecognizesTypedBoardMetadata(): void
     {
         mkdir($this->root . '/.agent-loop/todo/cards', 0o775, true);

@@ -15,7 +15,6 @@ use voku\AgentLoop\Cli\OptionTokens;
 use voku\AgentLoop\GitWorkTree;
 use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
-use voku\AgentLoop\RecallOutputRoot;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\CanonicalJson;
@@ -608,7 +607,10 @@ final readonly class HostFrontDoorCommand
     private function learningMaintenance(string $taskId): array
     {
         try {
-            $output = (new CompiledRecallOutputReader())->readForTask(RecallOutputRoot::resolve($this->rootPath), $taskId);
+            $layout = new ProjectLayout($this->rootPath);
+            $layout->recallTaskDirectory($taskId);
+            $layout->recallCurrentDirectory();
+            $output = (new CompiledRecallOutputReader())->readForTask($layout->recallRoot(), $taskId);
         } catch (RuntimeException) {
             // Unreadable compiled output is reported by the Recall close gate;
             // a maintenance hint must not turn it into a second failure.
@@ -821,7 +823,7 @@ final readonly class HostFrontDoorCommand
 
     private function fastPathScopeBaselinePath(TaskContract $contract): string
     {
-        return (new ProjectLayout($this->rootPath))->runRoot($contract->taskId) . '/fast-path-scope-baseline.json';
+        return (new ProjectLayout($this->rootPath))->runFile($contract->taskId, 'fast-path-scope-baseline.json');
     }
 
     private function workingTreeFingerprint(string $path): ?string

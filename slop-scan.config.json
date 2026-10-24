@@ -72,6 +72,21 @@
             "ruleId": "php.generic-array-casts",
             "path": "src/Workflow/HostFrontDoorCommand.php",
             "count": 1
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "path": "src/Run/RunManifestProjector.php",
+            "count": 1
+        },
+        {
+            "ruleId": "php.catch-default-fallbacks",
+            "path": "src/AgentLoopVerifier.php",
+            "count": 3
+        },
+        {
+            "ruleId": "php.error-swallowing",
+            "path": "src/AgentLoopVerifier.php",
+            "count": 1
         }
     ],
     "scan": {

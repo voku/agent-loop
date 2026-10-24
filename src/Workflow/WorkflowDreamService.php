@@ -41,7 +41,8 @@ final readonly class WorkflowDreamService
 
     private function run(int $reviewHorizonDays, bool $writeCandidates): WorkflowDreamReport
     {
-        $learningRoot = (new ProjectLayout($this->rootPath))->learningRoot();
+        $layout = new ProjectLayout($this->rootPath);
+        $learningRoot = $layout->learningRoot();
 
         return new WorkflowDreamReport(
             $learningRoot,

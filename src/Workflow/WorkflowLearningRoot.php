@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Workflow;
 
-use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 
@@ -21,8 +20,10 @@ final class WorkflowLearningRoot
      */
     public static function forRun(string $rootPath, GovernedRun $run): string
     {
+        $layout = new ProjectLayout($rootPath);
+
         return $run->learningRoot === null
-            ? (new ProjectLayout($rootPath))->learningRoot()
-            : PathResolver::join($rootPath, $run->learningRoot);
+            ? $layout->learningRoot()
+            : $layout->projectOwnedPath($run->learningRoot, 'learning_root');
     }
 }

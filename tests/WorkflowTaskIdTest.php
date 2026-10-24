@@ -14,12 +14,14 @@ final class WorkflowTaskIdTest extends TestCase
     #[DataProvider('validTaskIds')]
     public function testAcceptsSafeTaskIds(string $taskId): void
     {
+        self::assertTrue(WorkflowTaskId::isValid($taskId));
         self::assertSame($taskId, (new WorkflowTaskId($taskId))->value);
     }
 
     #[DataProvider('invalidTaskIds')]
     public function testRejectsUnsafeTaskIds(string $taskId): void
     {
+        self::assertFalse(WorkflowTaskId::isValid($taskId));
         $this->expectException(InvalidArgumentException::class);
 
         new WorkflowTaskId($taskId);

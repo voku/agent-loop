@@ -6,6 +6,7 @@ namespace voku\AgentLoop\Workflow;
 
 use Throwable;
 use voku\AgentLoop\RecallOutputRoot;
+use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\Transparency\ReviewCurrency;
 use voku\AgentLoop\Workflow\Transparency\ReviewDetail;
@@ -28,14 +29,22 @@ final readonly class WorkflowReviewReportReader
 
     public function absolutePath(string $taskId): string
     {
-        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
+        $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
 
         return (new ReviewReportReader($this->rootPath))->jsonPath($taskId, $outputDirectory);
     }
 
     public function relativePath(string $taskId): string
     {
-        return RecallOutputRoot::relativeTo($this->rootPath, $this->absolutePath($taskId));
+        try {
+            $layout = new ProjectLayout($this->rootPath);
+            $outputDirectory = rtrim($layout->recallRoot(), '/') . '/' . $taskId;
+            $path = (new ReviewReportReader($this->rootPath))->jsonPath($taskId, $outputDirectory);
+
+            return RecallOutputRoot::relativeTo($this->rootPath, $path);
+        } catch (Throwable) {
+            return 'unsafe Recall review output path';
+        }
     }
 
     /**
@@ -80,9 +89,10 @@ final readonly class WorkflowReviewReportReader
     public function detail(string $taskId): ReviewDetail
     {
         $path = $this->relativePath($taskId);
-        $outputDirectory = RecallOutputRoot::resolve($this->rootPath) . '/' . $taskId;
         try {
-            $artifact = (new ReviewReportReader($this->rootPath))->read($taskId, $outputDirectory);
+            $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
+            $reader = new ReviewReportReader($this->rootPath);
+            $artifact = $reader->read($taskId, $outputDirectory);
         } catch (Throwable) {
             return ReviewDetail::invalid($path);
         }

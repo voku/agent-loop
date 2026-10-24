@@ -15,6 +15,7 @@ final readonly class HookProcessEnvironment
         'AGENT_LOOP_CONTAINER_WORKDIR',
         'AGENT_LOOP_DREAM_AUTORUN',
         'AGENT_LOOP_MAP_INDEX',
+        'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS',
         'GIT_INDEX_FILE',
     ];
 
