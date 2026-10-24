@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop\Tests\Ci;
 
-use Composer\Semver\Semver;
+use Composer\Semver\Constraint\Constraint;
+use Composer\Semver\VersionParser;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -43,11 +44,11 @@ final class SecurityOwnerReleaseIntegrationTest extends TestCase
             $constraint = $requirements[$package] ?? null;
             self::assertIsString($constraint, sprintf('Loop must declare a direct requirement for %s.', $package));
             self::assertTrue(
-                Semver::satisfies($release['fixed'], $constraint),
+                $this->constraintSatisfies($release['fixed'], $constraint),
                 sprintf('%s must permit its fixed release %s.', $package, $release['fixed']),
             );
             self::assertFalse(
-                Semver::satisfies($release['previous'], $constraint),
+                $this->constraintSatisfies($release['previous'], $constraint),
                 sprintf('%s must not permit the pre-fix release %s.', $package, $release['previous']),
             );
 
@@ -59,6 +60,14 @@ final class SecurityOwnerReleaseIntegrationTest extends TestCase
                 sprintf('composer.lock pins %s at %s, before fixed release %s.', $package, $locked, $release['fixed']),
             );
         }
+    }
+
+    private function constraintSatisfies(string $version, string $constraint): bool
+    {
+        $parser = new VersionParser();
+        $provider = new Constraint('==', $parser->normalize($version));
+
+        return $parser->parseConstraints($constraint)->matches($provider);
     }
 
     /** @return array<string, mixed> */
