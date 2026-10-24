@@ -7,7 +7,7 @@ namespace voku\AgentLoop\GitHooks;
 /** Builds the environment passed to repository-declared shell hooks. */
 final readonly class HookProcessEnvironment
 {
-    private const array SAFE_AGENT_LOOP_VARIABLES = [
+    private const array SAFE_ADDITIONAL_VARIABLES = [
         'AGENT_LOOP_BIN',
         'AGENT_LOOP_CONTAINER_IMAGE',
         'AGENT_LOOP_CONTAINER_SERVICE',
@@ -15,6 +15,7 @@ final readonly class HookProcessEnvironment
         'AGENT_LOOP_CONTAINER_WORKDIR',
         'AGENT_LOOP_DREAM_AUTORUN',
         'AGENT_LOOP_MAP_INDEX',
+        'GIT_INDEX_FILE',
     ];
 
     private const string SAFE_STANDARD_ENVIRONMENT_PATTERN = '/^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LC_[A-Z_]+|TERM|TMPDIR|TZ|PHP[A-Z_]*|COMPOSER_(?!AUTH$)[A-Z_]+)$/';
@@ -35,7 +36,7 @@ final readonly class HookProcessEnvironment
                 continue;
             }
 
-            if (preg_match(self::SAFE_STANDARD_ENVIRONMENT_PATTERN, $name) === 1 || in_array($name, self::SAFE_AGENT_LOOP_VARIABLES, true)) {
+            if (preg_match(self::SAFE_STANDARD_ENVIRONMENT_PATTERN, $name) === 1 || in_array($name, self::SAFE_ADDITIONAL_VARIABLES, true)) {
                 $allowed[$name] = $value;
             }
         }

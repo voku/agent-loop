@@ -29,6 +29,7 @@ final class GitHooksRunnerTest extends TestCase
     protected function tearDown(): void
     {
         exec('rm -rf ' . escapeshellarg($this->root));
+        exec('rm -rf ' . escapeshellarg($this->root . '-trust'));
     }
 
     public function testStagedFilesAreFilteredByPatternExclusionAndExistence(): void
@@ -149,6 +150,74 @@ final class GitHooksRunnerTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertSame('agent-loop-test-bin|unset|unset|unset|unset', file_get_contents($outputPath));
+    }
+
+    public function testTrustedPreCommitCheckUsesGitTemporaryIndex(): void
+    {
+        $gitIndexFile = getenv('GIT_INDEX_FILE');
+        $gitIndexFromEnvironment = $_ENV['GIT_INDEX_FILE'] ?? null;
+        unset($_ENV['GIT_INDEX_FILE']);
+        putenv('GIT_INDEX_FILE');
+
+        try {
+            mkdir($this->root . '/.agent-loop');
+            file_put_contents($this->root . '/src/Base.php', "<?php\n");
+            file_put_contents($this->root . '/src/CommitOnly.php', "<?php\n");
+            exec('git -C ' . escapeshellarg($this->root) . ' init --quiet -b main', $output, $exitCode);
+            if ($exitCode !== 0) {
+                self::markTestSkipped('git init is not available.');
+            }
+            exec('git -C ' . escapeshellarg($this->root) . ' add src/Base.php', $output, $exitCode);
+            self::assertSame(0, $exitCode);
+            exec('git -C ' . escapeshellarg($this->root) . ' -c user.name=Test -c user.email=test@example.invalid commit --quiet -m base', $output, $exitCode);
+            self::assertSame(0, $exitCode);
+
+            $temporaryIndex = $this->root . '/.git/commit-only.index';
+            $readTree = 'GIT_INDEX_FILE=' . escapeshellarg($temporaryIndex)
+                . ' git -C ' . escapeshellarg($this->root) . ' read-tree HEAD';
+            exec($readTree, $output, $exitCode);
+            self::assertSame(0, $exitCode);
+            $stageCommitOnly = 'GIT_INDEX_FILE=' . escapeshellarg($temporaryIndex)
+                . ' git -C ' . escapeshellarg($this->root) . ' add -- src/CommitOnly.php';
+            exec($stageCommitOnly, $output, $exitCode);
+            self::assertSame(0, $exitCode);
+
+            $outputPath = $this->root . '/checked-index.txt';
+            file_put_contents($this->root . '/.agent-loop/githooks.json', json_encode([
+                'pre_commit' => ['checks' => [[
+                    'name' => 'read-commit-index',
+                    'command' => 'git -C ' . escapeshellarg($this->root)
+                        . ' diff --cached --name-only > ' . escapeshellarg($outputPath) . ' # {files}',
+                ]]],
+            ], JSON_THROW_ON_ERROR));
+
+            putenv('GIT_INDEX_FILE=' . $temporaryIndex);
+            $_ENV['GIT_INDEX_FILE'] = $temporaryIndex;
+            $store = new HookConfigTrustStore($this->root . '-trust/hook-trust.json');
+            $cli = new GitHooksCli($this->root, $store);
+            ob_start();
+            try {
+                self::assertSame(0, $cli->run(['trust']));
+                self::assertSame(0, $cli->run(['pre-commit']));
+            } finally {
+                ob_end_clean();
+            }
+
+            self::assertSame($temporaryIndex, getenv('GIT_INDEX_FILE'));
+            self::assertSame($temporaryIndex, $_ENV['GIT_INDEX_FILE']);
+            self::assertSame("src/CommitOnly.php\n", file_get_contents($outputPath));
+        } finally {
+            if ($gitIndexFile === false) {
+                putenv('GIT_INDEX_FILE');
+            } else {
+                putenv('GIT_INDEX_FILE=' . $gitIndexFile);
+            }
+            if ($gitIndexFromEnvironment === null) {
+                unset($_ENV['GIT_INDEX_FILE']);
+            } else {
+                $_ENV['GIT_INDEX_FILE'] = $gitIndexFromEnvironment;
+            }
+        }
     }
 
     public function testPreCommitRefusesUntrustedShellConfigBeforeRunningChecks(): void
