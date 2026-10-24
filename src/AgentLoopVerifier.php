@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
-use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentKanban\Exception\AgentKanbanException;
@@ -313,13 +312,12 @@ final class AgentLoopVerifier
                 continue;
             }
 
-            try {
-                $sessionTaskId = (new WorkflowTaskId($session->taskId))->value;
-            } catch (InvalidArgumentException) {
+            if (!WorkflowTaskId::isValid($session->taskId)) {
                 echo "[FAIL] sessions: session {$session->id} has an invalid task id\n";
                 $ok = false;
                 continue;
             }
+            $sessionTaskId = $session->taskId;
 
             if ($taskId === null && $this->taskIds !== [] && !in_array($sessionTaskId, $this->taskIds, true)) {
                 echo "[FAIL] sessions: session {$session->id} points to unknown task '{$sessionTaskId}'\n";

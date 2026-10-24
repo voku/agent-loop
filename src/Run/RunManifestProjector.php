@@ -933,6 +933,7 @@ final class RunManifestProjector
                 (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
             );
         } catch (RuntimeException) {
+            // Unsafe Recall roots have no usable draft path; the readiness failure remains in the manifest.
             return null;
         }
     }
