@@ -101,17 +101,17 @@ final class WorkflowHookRunnerTest extends TestCase
             'enter' => [
                 [
                     'name' => 'dump-secret',
-                    'command' => 'echo "${AGENT_LOOP_TEST_SECRET:-unset}" > "' . $outputFile . '"',
+                    'command' => 'echo "${HOOK_ENV_TEST_API_TOKEN:-unset}" > "' . $outputFile . '"',
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
 
-        putenv('AGENT_LOOP_TEST_SECRET=super-secret-token');
+        putenv('HOOK_ENV_TEST_API_TOKEN=super-secret-token');
         try {
             $runner = new WorkflowHookRunner($this->root);
             $runner->run('enter', 'TASK-ENV');
         } finally {
-            putenv('AGENT_LOOP_TEST_SECRET');
+            putenv('HOOK_ENV_TEST_API_TOKEN');
         }
 
         self::assertSame("unset\n", file_get_contents($outputFile));
@@ -142,18 +142,18 @@ final class WorkflowHookRunnerTest extends TestCase
             'enter' => [
                 [
                     'name' => 'dump-secret',
-                    'command' => 'echo "${AGENT_LOOP_TEST_SECRET:-unset}" > "' . $outputFile . '"',
+                    'command' => 'echo "${HOOK_ENV_TEST_API_TOKEN:-unset}" > "' . $outputFile . '"',
                 ],
             ],
         ], JSON_THROW_ON_ERROR));
 
-        putenv('AGENT_LOOP_TEST_SECRET=super-secret-token');
+        putenv('HOOK_ENV_TEST_API_TOKEN=super-secret-token');
         putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH=1');
         try {
             $runner = new WorkflowHookRunner($this->root);
             $runner->run('enter', 'TASK-ENV-PASSTHROUGH');
         } finally {
-            putenv('AGENT_LOOP_TEST_SECRET');
+            putenv('HOOK_ENV_TEST_API_TOKEN');
             putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
         }
 
