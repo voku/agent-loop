@@ -7,7 +7,9 @@ namespace voku\AgentLoop\Tests;
 use PHPUnit\Framework\TestCase;
 use voku\AgentLoop\GitHooks\CheckCommandFactory;
 use voku\AgentLoop\GitHooks\CommitMessageValidator;
+use voku\AgentLoop\GitHooks\GitHooksCli;
 use voku\AgentLoop\GitHooks\GitHookConfig;
+use voku\AgentLoop\GitHooks\HookConfigTrustStore;
 use voku\AgentLoop\GitHooks\PreCommitRunner;
 
 /**
@@ -27,6 +29,7 @@ final class GitHooksRunnerTest extends TestCase
     protected function tearDown(): void
     {
         exec('rm -rf ' . escapeshellarg($this->root));
+        exec('rm -rf ' . escapeshellarg($this->root . '-trust'));
     }
 
     public function testStagedFilesAreFilteredByPatternExclusionAndExistence(): void
@@ -59,6 +62,242 @@ final class GitHooksRunnerTest extends TestCase
 
         self::assertSame(0, $exit);
         self::assertStringContainsString('No pre-commit checks configured.', $output);
+    }
+
+    public function testNoHookPreCommitDoesNotRequireHomeOrXdgConfigHome(): void
+    {
+        $originalHome = getenv('HOME');
+        $originalXdgConfigHome = getenv('XDG_CONFIG_HOME');
+        putenv('HOME');
+        putenv('XDG_CONFIG_HOME');
+
+        ob_start();
+        try {
+            $exit = (new GitHooksCli($this->root))->run(['pre-commit']);
+        } finally {
+            ob_end_clean();
+            $this->restoreEnv('HOME', $originalHome);
+            $this->restoreEnv('XDG_CONFIG_HOME', $originalXdgConfigHome);
+        }
+
+        self::assertSame(0, $exit);
+    }
+
+    public function testShellHookFailsClosedWhenNoTrustStoreLocationIsAvailable(): void
+    {
+        mkdir($this->root . '/.agent-loop');
+        $marker = $this->root . '/must-not-run.marker';
+        file_put_contents($this->root . '/.agent-loop/githooks.json', json_encode([
+            'pre_commit' => ['checks' => [[
+                'name' => 'marker',
+                'command' => 'touch ' . escapeshellarg($marker),
+            ]]],
+        ], JSON_THROW_ON_ERROR));
+        $originalHome = getenv('HOME');
+        $originalXdgConfigHome = getenv('XDG_CONFIG_HOME');
+        putenv('HOME');
+        putenv('XDG_CONFIG_HOME');
+
+        ob_start();
+        try {
+            $exit = (new GitHooksCli($this->root))->run(['pre-commit']);
+        } finally {
+            ob_end_clean();
+            $this->restoreEnv('HOME', $originalHome);
+            $this->restoreEnv('XDG_CONFIG_HOME', $originalXdgConfigHome);
+        }
+
+        self::assertSame(1, $exit);
+        self::assertFileDoesNotExist($marker);
+    }
+
+    public function testPreCommitCommandDoesNotInheritAmbientSecretsByDefault(): void
+    {
+        file_put_contents($this->root . '/src/Kept.php', "<?php\n");
+        $outputPath = $this->root . '/secret.out';
+        $command = 'set -- {files}; printf "%s|%s|%s|%s|%s" "${AGENT_LOOP_BIN:-unset}" "${AGENT_LOOP_TEST_TOKEN:-unset}" "${AGENT_LOOP_DEPLOY_KEY:-unset}" "${AGENT_LOOP_JWT:-unset}" "${PHP_AUTHORIZATION:-unset}" > ' . escapeshellarg($outputPath);
+        $runner = new PreCommitRunner($this->root, GitHookConfig::fromArray([
+            'pre_commit' => ['checks' => [['name' => 'env-probe', 'command' => $command]]],
+        ]));
+
+        $originalBin = getenv('AGENT_LOOP_BIN');
+        $originalSecret = getenv('AGENT_LOOP_TEST_TOKEN');
+        $originalDeployKey = getenv('AGENT_LOOP_DEPLOY_KEY');
+        $originalJwt = getenv('AGENT_LOOP_JWT');
+        $originalAuthorization = getenv('PHP_AUTHORIZATION');
+        $originalPassthrough = getenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
+        putenv('AGENT_LOOP_BIN=agent-loop-test-bin');
+        putenv('AGENT_LOOP_TEST_TOKEN=ambient-secret-value');
+        putenv('AGENT_LOOP_DEPLOY_KEY=ambient-deploy-key');
+        putenv('AGENT_LOOP_JWT=ambient-jwt');
+        putenv('PHP_AUTHORIZATION=ambient-auth-header');
+        putenv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH');
+        try {
+            $exit = $runner->run($this->stubRunner(['src/Kept.php']));
+            self::assertSame('agent-loop-test-bin', getenv('AGENT_LOOP_BIN'));
+            self::assertSame('ambient-secret-value', getenv('AGENT_LOOP_TEST_TOKEN'));
+            self::assertSame('ambient-deploy-key', getenv('AGENT_LOOP_DEPLOY_KEY'));
+            self::assertSame('ambient-jwt', getenv('AGENT_LOOP_JWT'));
+            self::assertSame('ambient-auth-header', getenv('PHP_AUTHORIZATION'));
+        } finally {
+            $this->restoreEnv('AGENT_LOOP_BIN', $originalBin);
+            $this->restoreEnv('AGENT_LOOP_TEST_TOKEN', $originalSecret);
+            $this->restoreEnv('AGENT_LOOP_DEPLOY_KEY', $originalDeployKey);
+            $this->restoreEnv('AGENT_LOOP_JWT', $originalJwt);
+            $this->restoreEnv('PHP_AUTHORIZATION', $originalAuthorization);
+            $this->restoreEnv('AGENT_LOOP_HOOK_ENV_PASSTHROUGH', $originalPassthrough);
+        }
+
+        self::assertSame(0, $exit);
+        self::assertSame('agent-loop-test-bin|unset|unset|unset|unset', file_get_contents($outputPath));
+    }
+
+    public function testTrustedPreCommitCheckUsesGitTemporaryIndex(): void
+    {
+        $gitIndexFile = getenv('GIT_INDEX_FILE');
+        $gitIndexFromEnvironment = $_ENV['GIT_INDEX_FILE'] ?? null;
+        unset($_ENV['GIT_INDEX_FILE']);
+        putenv('GIT_INDEX_FILE');
+
+        try {
+            mkdir($this->root . '/.agent-loop');
+            file_put_contents($this->root . '/src/Base.php', "<?php\n");
+            file_put_contents($this->root . '/src/CommitOnly.php', "<?php\n");
+            exec('git -C ' . escapeshellarg($this->root) . ' init --quiet -b main', $output, $exitCode);
+            if ($exitCode !== 0) {
+                self::markTestSkipped('git init is not available.');
+            }
+            exec('git -C ' . escapeshellarg($this->root) . ' add src/Base.php', $output, $exitCode);
+            self::assertSame(0, $exitCode);
+            exec('git -C ' . escapeshellarg($this->root) . ' -c user.name=Test -c user.email=test@example.invalid commit --quiet -m base', $output, $exitCode);
+            self::assertSame(0, $exitCode);
+
+            $temporaryIndex = $this->root . '/.git/commit-only.index';
+            $readTree = 'GIT_INDEX_FILE=' . escapeshellarg($temporaryIndex)
+                . ' git -C ' . escapeshellarg($this->root) . ' read-tree HEAD';
+            exec($readTree, $output, $exitCode);
+            self::assertSame(0, $exitCode);
+            $stageCommitOnly = 'GIT_INDEX_FILE=' . escapeshellarg($temporaryIndex)
+                . ' git -C ' . escapeshellarg($this->root) . ' add -- src/CommitOnly.php';
+            exec($stageCommitOnly, $output, $exitCode);
+            self::assertSame(0, $exitCode);
+
+            $outputPath = $this->root . '/checked-index.txt';
+            file_put_contents($this->root . '/.agent-loop/githooks.json', json_encode([
+                'pre_commit' => ['checks' => [[
+                    'name' => 'read-commit-index',
+                    'command' => 'git -C ' . escapeshellarg($this->root)
+                        . ' diff --cached --name-only > ' . escapeshellarg($outputPath) . ' # {files}',
+                ]]],
+            ], JSON_THROW_ON_ERROR));
+
+            putenv('GIT_INDEX_FILE=' . $temporaryIndex);
+            $_ENV['GIT_INDEX_FILE'] = $temporaryIndex;
+            $store = new HookConfigTrustStore($this->root . '-trust/hook-trust.json');
+            $cli = new GitHooksCli($this->root, $store);
+            ob_start();
+            try {
+                self::assertSame(0, $cli->run(['trust']));
+                self::assertSame(0, $cli->run(['pre-commit']));
+            } finally {
+                ob_end_clean();
+            }
+
+            self::assertSame($temporaryIndex, getenv('GIT_INDEX_FILE'));
+            self::assertSame($temporaryIndex, $_ENV['GIT_INDEX_FILE']);
+            self::assertSame("src/CommitOnly.php\n", file_get_contents($outputPath));
+        } finally {
+            if ($gitIndexFile === false) {
+                putenv('GIT_INDEX_FILE');
+            } else {
+                putenv('GIT_INDEX_FILE=' . $gitIndexFile);
+            }
+            if ($gitIndexFromEnvironment === null) {
+                unset($_ENV['GIT_INDEX_FILE']);
+            } else {
+                $_ENV['GIT_INDEX_FILE'] = $gitIndexFromEnvironment;
+            }
+        }
+    }
+
+    public function testPreCommitRefusesUntrustedShellConfigBeforeRunningChecks(): void
+    {
+        $marker = $this->root . '/untrusted.marker';
+        mkdir($this->root . '/.agent-loop');
+        file_put_contents($this->root . '/.agent-loop/githooks.json', json_encode([
+            'pre_commit' => ['checks' => [[
+                'name' => 'marker',
+                'command' => 'touch ' . escapeshellarg($marker) . ' {files}',
+            ]]],
+        ], JSON_THROW_ON_ERROR));
+        $store = new HookConfigTrustStore($this->root . '-trust/hook-trust.json');
+
+        ob_start();
+        try {
+            $exit = (new GitHooksCli($this->root, $store))->run(['pre-commit']);
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertFileDoesNotExist($marker);
+    }
+
+    public function testExplicitTrustCommandRecordsCurrentConfigAndAllowsPreCommit(): void
+    {
+        mkdir($this->root . '/.agent-loop');
+        file_put_contents($this->root . '/src/Kept.php', "<?php\n");
+        exec('git -C ' . escapeshellarg($this->root) . ' init --quiet -b main', $output, $exitCode);
+        if ($exitCode !== 0) {
+            self::markTestSkipped('git init is not available.');
+        }
+        exec('git -C ' . escapeshellarg($this->root) . ' add src/Kept.php', $output, $exitCode);
+        self::assertSame(0, $exitCode);
+        $marker = $this->root . '/trusted.marker';
+        file_put_contents($this->root . '/.agent-loop/githooks.json', json_encode([
+            'pre_commit' => ['checks' => [['name' => 'marker', 'command' => 'true {files} && touch ' . escapeshellarg($marker)]]],
+        ], JSON_THROW_ON_ERROR));
+        $store = new HookConfigTrustStore($this->root . '-trust/hook-trust.json');
+        $cli = new GitHooksCli($this->root, $store);
+
+        ob_start();
+        try {
+            self::assertSame(0, $cli->run(['trust']));
+            self::assertSame(0, $cli->run(['pre-commit']));
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertFileExists($this->root . '-trust/hook-trust.json');
+        self::assertFileExists($marker);
+    }
+
+    public function testChangedPreCommitConfigIsRefusedAfterTrust(): void
+    {
+        $marker = $this->root . '/changed.marker';
+        mkdir($this->root . '/.agent-loop');
+        $configPath = $this->root . '/.agent-loop/githooks.json';
+        file_put_contents($configPath, json_encode([
+            'pre_commit' => ['checks' => [['name' => 'noop', 'command' => 'true {files}']]],
+        ], JSON_THROW_ON_ERROR));
+        $store = new HookConfigTrustStore($this->root . '-trust/hook-trust.json');
+        $cli = new GitHooksCli($this->root, $store);
+        ob_start();
+        try {
+            self::assertSame(0, $cli->run(['trust']));
+            file_put_contents($configPath, json_encode([
+                'pre_commit' => ['checks' => [[
+                    'name' => 'changed',
+                    'command' => 'touch ' . escapeshellarg($marker) . ' {files}',
+                ]]],
+            ], JSON_THROW_ON_ERROR));
+            $exit = $cli->run(['pre-commit']);
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $exit);
+        self::assertFileDoesNotExist($marker);
     }
 
     public function testMergeCommitSkipsEveryCheck(): void
@@ -188,6 +427,17 @@ final class GitHooksRunnerTest extends TestCase
                 'vague_word_threshold' => 8,
             ],
         ]);
+    }
+
+    private function restoreEnv(string $name, string|false $originalValue): void
+    {
+        if ($originalValue === false) {
+            putenv($name);
+
+            return;
+        }
+
+        putenv($name . '=' . $originalValue);
     }
 
     /**

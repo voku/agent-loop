@@ -206,9 +206,32 @@ final readonly class PreCommitRunner
 
     private function passthru(string $command): int
     {
-        $exitCode = 0;
-        passthru($command, $exitCode);
+        $originalEnvironment = getenv();
+        $hookEnvironment = HookProcessEnvironment::inherited();
+        foreach ($originalEnvironment as $name => $_value) {
+            if (!array_key_exists($name, $hookEnvironment)) {
+                putenv((string) $name);
+            }
+        }
+        foreach ($hookEnvironment as $name => $value) {
+            putenv($name . '=' . $value);
+        }
 
-        return $exitCode;
+        try {
+            $exitCode = 0;
+            passthru($command, $exitCode);
+
+            return $exitCode;
+        } finally {
+            $currentEnvironment = getenv();
+            foreach ($currentEnvironment as $name => $_value) {
+                if (!array_key_exists($name, $originalEnvironment)) {
+                    putenv((string) $name);
+                }
+            }
+            foreach ($originalEnvironment as $name => $value) {
+                putenv($name . '=' . $value);
+            }
+        }
     }
 }
