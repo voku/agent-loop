@@ -540,9 +540,9 @@ final class RunManifestProjector
         ?TaskContract $contract,
         array &$disagreements,
     ): array {
-        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         $reader = new CompiledRecallOutputReader();
         try {
+            $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
             $output = $reader->read($directory);
         } catch (RuntimeException $exception) {
             $disagreements[] = ['code' => 'recall.meta_invalid', 'owner' => 'agent-recall-compiler', 'message' => $exception->getMessage()];
@@ -785,7 +785,10 @@ final class RunManifestProjector
             if ($diagnosticStore->find($taskId) !== null && $diagnosticStore->canAttemptRepair($taskId)) {
                 $repairAction = 'agent-loop repair ' . $taskId;
             }
-            $action = $this->closeReadinessAction($taskId, $readiness);
+            $recallOutcomeDraft = ($failure['gate'] ?? null) === 'recall_outcomes'
+                ? $this->recallOutcomeDraftPath($taskId)
+                : null;
+            $action = $this->closeReadinessAction($taskId, $readiness, $recallOutcomeDraft);
 
             $reference = [
                 'owner' => 'agent-loop',
@@ -795,12 +798,7 @@ final class RunManifestProjector
                 'reason' => $failure['detail'] ?? 'workflow close readiness failed without detail',
                 'action' => $action,
                 'action_invocation' => $this->closeReadinessInvocation($taskId, $readiness),
-                'recall_outcome_draft' => ($failure['gate'] ?? null) === 'recall_outcomes'
-                    ? PathResolver::relativeTo(
-                        $this->rootPath,
-                        (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
-                    )
-                    : null,
+                'recall_outcome_draft' => $recallOutcomeDraft,
                 'repair_action' => $repairAction,
                 'repair_invocation' => $repairAction !== null
                     ? (new RunCommandInvocation('agent-loop', ['repair', $taskId]))->toArray()
@@ -901,8 +899,11 @@ final class RunManifestProjector
         return $reference;
     }
 
-    private function closeReadinessAction(string $taskId, WorkflowCloseReadiness $readiness): string
-    {
+    private function closeReadinessAction(
+        string $taskId,
+        WorkflowCloseReadiness $readiness,
+        ?string $recallOutcomeDraft,
+    ): string {
         $failure = $readiness->firstFailure();
         if (($failure['gate'] ?? null) === 'validation') {
             return $readiness->firstUnsatisfiedValidationCommand()
@@ -912,17 +913,28 @@ final class RunManifestProjector
             return 'agent-loop verify --task-id=' . $taskId;
         }
         if (($failure['gate'] ?? null) === 'recall_outcomes') {
-            $draft = PathResolver::relativeTo(
-                $this->rootPath,
-                (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
-            );
+            if ($recallOutcomeDraft === null) {
+                return 'agent-loop workflow status ' . $taskId . ' --format=json';
+            }
 
             return 'agent-loop finish ' . $taskId
-                . ' --recall-outcome-draft ' . $draft
+                . ' --recall-outcome-draft ' . $recallOutcomeDraft
                 . ' --by <actor> --commit <commit>';
         }
 
         return 'agent-loop workflow status ' . $taskId . ' --format=json';
+    }
+
+    private function recallOutcomeDraftPath(string $taskId): ?string
+    {
+        try {
+            return PathResolver::relativeTo(
+                $this->rootPath,
+                (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId) . '/recall-log.draft.json',
+            );
+        } catch (RuntimeException) {
+            return null;
+        }
     }
 
     /** @return array{executable: non-empty-string, arguments: list<string>, template: bool}|null */
@@ -946,20 +958,20 @@ final class RunManifestProjector
     private function reviewReference(string $taskId, array &$disagreements): array
     {
         $reader = new WorkflowReviewReportReader($this->rootPath);
-        $report = $reader->read($taskId);
-        if (!$report['exists']) {
+        $report = $reader->detail($taskId);
+        if (!$report->exists) {
             return [
                 'owner' => 'agent-recall-compiler',
                 'state' => 'missing',
                 'observation_mode' => 'checked',
-                'path' => $reader->relativePath($taskId),
+                'path' => $report->path,
             ];
         }
-        if ($report['invalid']) {
+        if ($report->invalid) {
             $disagreements[] = [
                 'code' => 'review.report_invalid',
                 'owner' => 'agent-recall-compiler',
-                'message' => $reader->relativePath($taskId) . ' is not a valid blind-spot report.',
+                'message' => $report->path . ' is not a valid blind-spot report.',
                 'repair_action' => 'agent-loop review blindspots ' . $taskId,
                 'repair_invocation' => (new RunCommandInvocation('agent-loop', ['review', 'blindspots', $taskId]))->toArray(),
             ];
@@ -969,9 +981,9 @@ final class RunManifestProjector
 
         return [
             'owner' => 'agent-recall-compiler',
-            'state' => $report['status'],
+            'state' => $report->lifecycleStatus,
             'observation_mode' => 'checked',
-            'source' => $this->artifact($reader->absolutePath($taskId)),
+            'source' => $this->artifact(PathResolver::join($this->rootPath, $report->path)),
         ];
     }
 

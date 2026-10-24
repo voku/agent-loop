@@ -284,7 +284,11 @@ final readonly class WorkflowCloseReadinessInspector
     /** @return array{detail: string|null, message: string|null} */
     private function checkRecallGate(string $taskId): array
     {
-        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
+        try {
+            $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
+        } catch (RuntimeException $exception) {
+            return ['detail' => 'invalid recall output path for task ' . $taskId . ': ' . $exception->getMessage(), 'message' => null];
+        }
         $reader = new CompiledRecallOutputReader();
         $relative = RecallOutputRoot::relativeTo($this->rootPath, $reader->identityPath($directory));
         try {
@@ -306,28 +310,27 @@ final readonly class WorkflowCloseReadinessInspector
     private function checkReviewGate(string $taskId): array
     {
         $reader = new WorkflowReviewReportReader($this->rootPath);
-        $relative = $reader->relativePath($taskId);
-        $report = $reader->read($taskId);
-        if (!$report['exists']) {
-            return ['detail' => 'missing blind-spot report ' . $relative, 'message' => null];
+        $report = $reader->detail($taskId);
+        if (!$report->exists) {
+            return ['detail' => 'missing blind-spot report ' . $report->path, 'message' => null];
         }
-        if ($report['invalid']) {
-            return ['detail' => 'invalid blind-spot report ' . $relative, 'message' => null];
+        if ($report->invalid) {
+            return ['detail' => 'invalid blind-spot report ' . $report->path, 'message' => null];
         }
-        if ($report['status'] === 'stale') {
+        if ($report->lifecycleStatus === 'stale') {
             return ['detail' => 'blind-spot report is stale for the current implementation', 'message' => null];
         }
-        if ($report['status'] === 'unacknowledged') {
+        if ($report->lifecycleStatus === 'unacknowledged') {
             return ['detail' => 'blind-spot report has not been acknowledged by exact current report identity', 'message' => null];
         }
-        if ($report['status'] === 'fail') {
+        if ($report->lifecycleStatus === 'fail') {
             return ['detail' => 'blind-spot report status is fail', 'message' => null];
         }
-        if (!in_array($report['status'], ['ok', 'warn'], true)) {
+        if (!in_array($report->lifecycleStatus, ['ok', 'warn'], true)) {
             return ['detail' => 'blind-spot report has unsupported lifecycle status', 'message' => null];
         }
 
-        return ['detail' => null, 'message' => '[OK] review: found ' . $relative . ' with status ' . $report['status']];
+        return ['detail' => null, 'message' => '[OK] review: found ' . $report->path . ' with status ' . $report->lifecycleStatus];
     }
 
     /** @return array{detail: string|null, message: string|null} */
@@ -385,7 +388,11 @@ final readonly class WorkflowCloseReadinessInspector
         }
 
         $taskId = $contract->taskId;
-        $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
+        try {
+            $directory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
+        } catch (RuntimeException $exception) {
+            return ['detail' => 'invalid recall output path for task ' . $taskId . ': ' . $exception->getMessage(), 'message' => null];
+        }
         try {
             $output = (new CompiledRecallOutputReader())->read($directory);
         } catch (RuntimeException) {

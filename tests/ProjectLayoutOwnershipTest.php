@@ -46,6 +46,22 @@ final class ProjectLayoutOwnershipTest extends TestCase
         $this->rm($this->root);
     }
 
+    public function testContractPathRejectsInvalidTaskIds(): void
+    {
+        $layout = new ProjectLayout($this->root);
+
+        self::assertSame(
+            $this->root . '/.agent-loop/contracts/ABC-123/contract.json',
+            $layout->contractPath('ABC-123'),
+        );
+        try {
+            $layout->contractPath('../outside');
+            self::fail('Contract paths must reject traversal task ids.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('Invalid task id', $exception->getMessage());
+        }
+    }
+
     public function testConfiguredStateRootMovesEveryOwnedPath(): void
     {
         $this->writeConfig(['state_root' => 'var/agent-state']);

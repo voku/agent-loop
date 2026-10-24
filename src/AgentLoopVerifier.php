@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace voku\AgentLoop;
 
+use InvalidArgumentException;
 use RuntimeException;
 use voku\AgentKanban\Cli\CliApplication;
 use voku\AgentKanban\Exception\AgentKanbanException;
@@ -15,6 +16,7 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Workflow\TaskContract;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCli;
+use voku\AgentLoop\Workflow\WorkflowTaskId;
 use voku\AgentMap\Cli\AgentMapApplication;
 use voku\AgentRecallCompiler\Cli as RecallCli;
 use voku\AgentRecallCompiler\Output\CompiledRecallOutputReader;
@@ -311,13 +313,21 @@ final class AgentLoopVerifier
                 continue;
             }
 
-            if ($taskId === null && $this->taskIds !== [] && !in_array($session->taskId, $this->taskIds, true)) {
-                echo "[FAIL] sessions: session {$session->id} points to unknown task '{$session->taskId}'\n";
+            try {
+                $sessionTaskId = (new WorkflowTaskId($session->taskId))->value;
+            } catch (InvalidArgumentException) {
+                echo "[FAIL] sessions: session {$session->id} has an invalid task id\n";
                 $ok = false;
                 continue;
             }
 
-            $ok = $this->checkRecallCoverage($recallRoot, $session->id, $session->taskId) && $ok;
+            if ($taskId === null && $this->taskIds !== [] && !in_array($sessionTaskId, $this->taskIds, true)) {
+                echo "[FAIL] sessions: session {$session->id} points to unknown task '{$sessionTaskId}'\n";
+                $ok = false;
+                continue;
+            }
+
+            $ok = $this->checkRecallCoverage($recallRoot, $session->id, $sessionTaskId) && $ok;
             $ok = $this->checkGovernedBinding($session) && $ok;
         }
 

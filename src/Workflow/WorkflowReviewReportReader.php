@@ -36,7 +36,15 @@ final readonly class WorkflowReviewReportReader
 
     public function relativePath(string $taskId): string
     {
-        return RecallOutputRoot::relativeTo($this->rootPath, $this->absolutePath($taskId));
+        try {
+            $layout = new ProjectLayout($this->rootPath);
+            $outputDirectory = rtrim($layout->recallRoot(), '/') . '/' . $taskId;
+            $path = (new ReviewReportReader($this->rootPath))->jsonPath($taskId, $outputDirectory);
+
+            return RecallOutputRoot::relativeTo($this->rootPath, $path);
+        } catch (Throwable) {
+            return 'unsafe Recall review output path';
+        }
     }
 
     /**
@@ -81,9 +89,10 @@ final readonly class WorkflowReviewReportReader
     public function detail(string $taskId): ReviewDetail
     {
         $path = $this->relativePath($taskId);
-        $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
         try {
-            $artifact = (new ReviewReportReader($this->rootPath))->read($taskId, $outputDirectory);
+            $outputDirectory = (new ProjectLayout($this->rootPath))->recallTaskDirectory($taskId);
+            $reader = new ReviewReportReader($this->rootPath);
+            $artifact = $reader->read($taskId, $outputDirectory);
         } catch (Throwable) {
             return ReviewDetail::invalid($path);
         }

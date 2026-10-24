@@ -259,6 +259,31 @@ final class WorkflowStatusCommandTest extends TestCase
         self::assertStringContainsString('.agent-loop/recall/ABC-123', $reason);
     }
 
+    public function testStatusReportsLinkedRecallOutputAsBlocked(): void
+    {
+        $recallRoot = $this->root . '/.agent-loop/recall';
+        $outside = $this->root . '-outside-recall';
+        mkdir($recallRoot, 0o775, true);
+        mkdir($outside, 0o775, true);
+        if (!@symlink($outside, $recallRoot . '/ABC-123')) {
+            rmdir($outside);
+            self::markTestSkipped('symlink() is not available.');
+        }
+
+        try {
+            [$exit, $output] = $this->statusOf('ABC-123', ['--format=json']);
+            $status = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+            self::assertSame(2, $exit);
+            self::assertSame('blocked', $status['policy']['state'] ?? null);
+            self::assertSame('invalid', $status['manifest']['references']['recall']['state'] ?? null);
+            self::assertNotSame('error', $status['status'] ?? null);
+        } finally {
+            unlink($recallRoot . '/ABC-123');
+            rmdir($outside);
+        }
+    }
+
     public function testJsonStatusReportsPersistedProjectionFreshness(): void
     {
         $projector = new RunManifestProjector($this->root);

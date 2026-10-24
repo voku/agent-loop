@@ -87,7 +87,7 @@ final readonly class ProjectLayout
 
     public function learningRoot(): string
     {
-        $root = $this->configuredWorkflowPath('learning_root') ?? $this->stateDirectory('learning');
+        $root = $this->learningRootPath();
         $this->assertNoSymlinksBelow($root, 'Learning tree');
 
         return $root;
@@ -117,7 +117,7 @@ final readonly class ProjectLayout
 
     public function learningSubdirectory(string $relativePath): string
     {
-        return $this->ownedChildDirectory($this->learningRoot(), $relativePath, 'learning');
+        return $this->ownedChildDirectory($this->learningRootPath(), $relativePath, 'learning');
     }
 
     /** Task-scoped destination used by Recall handoff compilation. */
@@ -235,6 +235,8 @@ final readonly class ProjectLayout
 
     public function contractPath(string $taskId): string
     {
+        self::assertTaskId($taskId);
+
         return $this->stateFile('contracts/' . $taskId . '/contract.json');
     }
 
@@ -372,6 +374,23 @@ final readonly class ProjectLayout
         return $root;
     }
 
+    /**
+     * Resolve the configured map path as a command-matching token only.
+     * Callers must use mapRoot() before reading or writing map artifacts.
+     */
+    public function mapRootForCommandGuard(): string
+    {
+        $configured = $this->config()['paths']['map_root'] ?? null;
+        if (!is_string($configured) || $configured === '') {
+            return $this->stateDirectory('map');
+        }
+        if (preg_match('/[\x00-\x1f\x7f]/', $configured) === 1) {
+            throw new RuntimeException('Configured map root contains control characters.');
+        }
+
+        return PathResolver::join($this->projectRoot(), $configured);
+    }
+
     public function mapIndex(): string
     {
         return $this->mapArtifacts()->indexJson();
@@ -485,6 +504,11 @@ final readonly class ProjectLayout
     private function mapArtifacts(): MapArtifactPaths
     {
         return MapArtifactPaths::forProject($this->projectRoot(), $this->mapRoot());
+    }
+
+    private function learningRootPath(): string
+    {
+        return $this->configuredWorkflowPath('learning_root') ?? $this->stateDirectory('learning');
     }
 
     private function projectRoot(): string

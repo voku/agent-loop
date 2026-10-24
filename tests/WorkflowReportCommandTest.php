@@ -155,6 +155,30 @@ final class WorkflowReportCommandTest extends TestCase
         self::assertSame('missing', $report['validation'][0]['status']);
     }
 
+    public function testJsonReportMarksLinkedRecallOutputInvalidWithoutAborting(): void
+    {
+        $recallRoot = $this->root . '/.agent-loop/recall';
+        $outside = $this->root . '-outside-recall';
+        mkdir($recallRoot, 0o775, true);
+        mkdir($outside, 0o775, true);
+        if (!@symlink($outside, $recallRoot . '/ABC-123')) {
+            rmdir($outside);
+            self::markTestSkipped('symlink() is not available.');
+        }
+
+        try {
+            $result = $this->runReport(['ABC-123', '--format', 'json']);
+            $report = json_decode($result['output'], true, 512, JSON_THROW_ON_ERROR);
+
+            self::assertSame(0, $result['exit']);
+            self::assertSame('invalid', $report['recall']['status'] ?? null);
+            self::assertTrue($report['review']['invalid'] ?? false);
+        } finally {
+            unlink($recallRoot . '/ABC-123');
+            rmdir($outside);
+        }
+    }
+
     public function testInvalidInputDoesNotWriteArtifacts(): void
     {
         $before = $this->files();

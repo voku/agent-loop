@@ -12,6 +12,8 @@ use RuntimeException;
 use UnexpectedValueException;
 use voku\AgentLearning\GuidanceConsistencyAudit;
 use voku\AgentLearning\GuidanceConsistencyCandidate;
+use voku\AgentLearning\DreamRequest;
+use voku\AgentLearning\DreamService;
 use voku\AgentLoop\ProjectLayout;
 
 /**
@@ -25,9 +27,10 @@ use voku\AgentLoop\ProjectLayout;
  * purpose: it grows with every task and would make Dream due on every session; the
  * age limit covers it.
  *
- * Only {@see WorkflowDreamService::preview()} is called. It writes nothing into
- * the Learning root, so this never creates, approves or applies guidance. The
- * digest lands in `<state>/dream/auto.json`, which is regenerable working state.
+ * Dream runs with the Learning root already resolved and checked above. It
+ * writes nothing into that root, so this never creates, approves or applies
+ * guidance. The digest lands in `<state>/dream/auto.json`, which is regenerable
+ * working state.
  *
  * Set AGENT_LOOP_DREAM_AUTORUN=0 to switch it off.
  */
@@ -102,7 +105,9 @@ final readonly class WorkflowDreamAutoRun
                 : null;
         }
 
-        $outcome = $hasLearning ? (new WorkflowDreamService($this->rootPath))->preview()->outcome->result : null;
+        $outcome = $hasLearning
+            ? (new DreamService())->run(new DreamRequest(learningRoot: $learningRoot))->result
+            : null;
         // Learning owns both the candidates and their meaning. Loop only schedules a read-only snapshot.
         $candidates = (new GuidanceConsistencyAudit())->audit($this->rootPath, $sources);
         $state = [

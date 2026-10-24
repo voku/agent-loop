@@ -575,11 +575,27 @@ final readonly class AgentDisciplineHook
 
     private function isUnboundedMapDump(string $command): bool
     {
-        $layout = new ProjectLayout($this->repositoryRoot);
-        $mapRoot = preg_quote(rtrim($layout->display($layout->mapRoot()), '/') . '/', '~');
+        if (preg_match('~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b~i', $command) !== 1) {
+            return false;
+        }
+
+        try {
+            $layout = new ProjectLayout($this->repositoryRoot);
+            $mapRoot = preg_quote(rtrim($layout->display($layout->mapRootForCommandGuard()), '/') . '/', '~');
+        } catch (Throwable) {
+            return $this->isGeneratedMapArtifactDump($command);
+        }
 
         return preg_match(
             '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*' . $mapRoot . '[^;&|]*(?:\s|$)~i',
+            $command,
+        ) === 1;
+    }
+
+    private function isGeneratedMapArtifactDump(string $command): bool
+    {
+        return preg_match(
+            '~(?:^|[;&|]\s*)(?:cat|less|more|jq|sqlite3)\b[^;&|]*(?:php-symbols\.(?:json|toon)|php-relations\.(?:json|toon)|graph\.sqlite|graph-generation\.json|search\.sqlite|history\.sqlite|structural-cache\.json|phpstan-cache)~i',
             $command,
         ) === 1;
     }
