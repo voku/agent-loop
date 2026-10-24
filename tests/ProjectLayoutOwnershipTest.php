@@ -28,11 +28,11 @@ final class ProjectLayoutOwnershipTest extends TestCase
 {
     private string $root;
 
-    private string|false $originalTrustedStatePaths = false;
+    private string|false $oldTrustedPaths = false;
 
     protected function setUp(): void
     {
-        $this->originalTrustedStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $this->oldTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $this->root = sys_get_temp_dir() . '/agent-loop-layout-' . bin2hex(random_bytes(5));
         mkdir($this->root . '/.agent-loop', 0o775, true);
@@ -40,9 +40,9 @@ final class ProjectLayoutOwnershipTest extends TestCase
 
     protected function tearDown(): void
     {
-        putenv($this->originalTrustedStatePaths === false
+        putenv($this->oldTrustedPaths === false
             ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
-            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedStatePaths);
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->oldTrustedPaths);
         $this->rm($this->root);
     }
 

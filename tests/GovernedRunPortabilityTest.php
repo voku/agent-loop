@@ -44,11 +44,11 @@ final class GovernedRunPortabilityTest extends TestCase
 
     private string $relocated;
 
-    private string|false $originalTrustedStatePaths = false;
+    private string|false $oldTrustedPaths = false;
 
     protected function setUp(): void
     {
-        $this->originalTrustedStatePaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
+        $this->oldTrustedPaths = getenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         putenv('AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS');
         $suffix = bin2hex(random_bytes(5));
         $this->root = sys_get_temp_dir() . '/agent-loop-origin-' . $suffix;
@@ -60,9 +60,9 @@ final class GovernedRunPortabilityTest extends TestCase
     {
         $this->rm($this->root);
         $this->rm($this->relocated);
-        putenv($this->originalTrustedStatePaths === false
+        putenv($this->oldTrustedPaths === false
             ? 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS'
-            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->originalTrustedStatePaths);
+            : 'AGENT_LOOP_TRUSTED_EXTERNAL_STATE_PATHS=' . $this->oldTrustedPaths);
     }
 
     public function testCompletedRunStaysCompleteAfterTheProjectIsRelocated(): void
