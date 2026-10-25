@@ -88,10 +88,10 @@ final class AgentLearningProposalQueueCrossUsageTest extends TestCase
     }
 
     /** @param list<string> $scope */
-    private function writeProposal(string $id, string $target, array $scope): void
+    private function writeProposal(string $proposalId, string $target, array $scope): void
     {
         $proposal = [
-            'id' => $id,
+            'id' => $proposalId,
             'created_at' => '2026-10-24T12:00:00+00:00',
             'source_findings' => ['finding.2026-10-24.000001'],
             'remaining_uncertainty' => [],
@@ -119,7 +119,7 @@ final class AgentLearningProposalQueueCrossUsageTest extends TestCase
             ],
         ];
 
-        $path = $this->learningRoot . '/proposals/candidate/' . $id . '.json';
+        $path = $this->learningRoot . '/proposals/candidate/' . $proposalId . '.json';
         $json = json_encode($proposal, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         if (file_put_contents($path, $json . "\n") === false) {
             throw new RuntimeException('Unable to write proposal fixture: ' . $path);
@@ -181,9 +181,10 @@ final class AgentLearningProposalQueueCrossUsageTest extends TestCase
             $pathname = $item->getPathname();
             if ($item->isDir() && !$item->isLink()) {
                 rmdir($pathname);
-            } else {
-                unlink($pathname);
+                continue;
             }
+
+            unlink($pathname);
         }
 
         rmdir($path);
