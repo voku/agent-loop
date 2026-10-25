@@ -1,5 +1,11 @@
 ## Unreleased
 
+## [0.20.69] - 2026-10-25
+
+### Added
+
+- Add Loop CLI cross-package regression coverage for Learning's released semantic skill-target resolver, and lock `voku/agent-learning` 0.18.37 for installed consumers. Unique targets resolve to their scoped skill file; missing and ambiguous mappings remain unresolved.
+
 ## [0.20.68] - 2026-10-24
 
 ### Security
