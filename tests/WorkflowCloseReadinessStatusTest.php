@@ -22,6 +22,7 @@ use voku\AgentLearning\RunLearningDecisionStatus;
 use voku\AgentLearning\RunLearningDecisionStore;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunPolicyEvaluation;
+use voku\AgentLoop\Run\RunPolicyEvaluator;
 use voku\AgentLoop\Workflow\ImplementationSnapshot;
 use voku\AgentLoop\Workflow\PostExecutionEvidenceBoundary;
 use voku\AgentLoop\Workflow\ReviewAcknowledgementStore;
@@ -48,6 +49,29 @@ final class WorkflowCloseReadinessStatusTest extends TestCase
     protected function tearDown(): void
     {
         $this->rm($this->root);
+    }
+
+    public function testRecoveredPipelineStatusOutranksAnUnacknowledgedHistoricalReport(): void
+    {
+        $policy = (new RunPolicyEvaluator())->evaluate('ABC-123', 'governed', [
+            'contract' => ['state' => 'approved'],
+            'approval' => ['state' => 'current'],
+            'session' => ['state' => 'active'],
+            'recall' => ['state' => 'compiled'],
+            'execution_contract' => ['state' => 'ready'],
+            'verification' => [
+                'state' => 'blocked',
+                'gate' => 'execution_review',
+                'reason' => 'recovered execution pipeline: independent review pipeline is incomplete at stage build',
+            ],
+            'review' => ['state' => 'unacknowledged'],
+            'learning' => ['state' => 'stale'],
+        ], []);
+
+        self::assertSame('incomplete', $policy->state);
+        self::assertFalse($policy->mutationAllowed);
+        self::assertFalse($policy->ordinaryCloseAllowed);
+        self::assertSame('agent-loop pipeline status ABC-123 --format=json', $policy->nextAction);
     }
 
     public function testMissingPersistedReviewEvidenceStaysOnExecutionReviewGate(): void

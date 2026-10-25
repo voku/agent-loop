@@ -49,7 +49,7 @@ final readonly class WorkflowPipelineCommand
             $subcommand = $args[0];
             $rest = array_slice($args, 1);
 
-            $knownSubcommands = ["status", "stage", "bundle", "run", "submit"];
+            $knownSubcommands = ["status", "stage", "bundle", "run", "submit", "recover"];
             if (!in_array($subcommand, $knownSubcommands, true)) {
                 // If first arg looks like a task-id, default to "run"
                 $taskId = $subcommand;
@@ -76,6 +76,7 @@ final readonly class WorkflowPipelineCommand
                 "status" => $this->status($taskId, $tokens, $format),
                 "stage", "bundle" => $this->stage($taskId, $tokens, $format),
                 "run" => $this->pipelineRun($taskId, $tokens, $format),
+                "recover" => $this->recover($taskId, $tokens, $format),
                 default => $this->submit($taskId, $tokens, $format),
             };
         } catch (InvalidArgumentException $exception) {
@@ -386,6 +387,22 @@ final readonly class WorkflowPipelineCommand
     /**
      * @param list<string> $tokens
      */
+    private function recover(string $taskIdString, array $tokens, string $format): int
+    {
+        $taskId = (new WorkflowTaskId($taskIdString))->value;
+        $candidate = OptionTokens::value($tokens, "candidate");
+        if ($candidate === null) {
+            throw new InvalidArgumentException("pipeline recover requires --candidate <content-addressed-revision>.");
+        }
+
+        $projection = (new ExecutionGateway($this->rootPath))->recoverCompletedPipeline($taskId, $candidate);
+
+        return $this->renderTransition($taskId, $projection, $format);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
     private function pipelineRun(string $taskIdString, array $tokens, string $format): int
     {
         $taskId = (new WorkflowTaskId($taskIdString))->value;
@@ -520,6 +537,7 @@ Usage:
   agent-loop pipeline stage <task-id> [--format text|json]
   agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--auto-verify] [--format text|json]
   agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--auto-verify] [--format text|json]
+  agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.
 TXT;

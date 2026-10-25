@@ -6,7 +6,17 @@ namespace voku\AgentLoop\Execution;
 
 final readonly class ExecutionState
 {
-    /** @param list<AcceptedStageResult> $history */
+    /**
+     * @param list<AcceptedStageResult> $history
+     * @param list<array{
+     *     recovered_at: string,
+     *     previous_candidate_revision: string,
+     *     observed_candidate_revision: string,
+     *     changed_files: list<string>,
+     *     history_count: int,
+     *     build_attempt: int
+     * }> $recoveryHistory
+     */
     public function __construct(
         public string $taskId,
         public string $runId,
@@ -17,6 +27,7 @@ final readonly class ExecutionState
         public string $candidateRevision,
         public ?AttentionRequest $attention,
         public array $history,
+        public array $recoveryHistory = [],
     ) {
     }
 
@@ -35,6 +46,7 @@ final readonly class ExecutionState
             'candidate_revision' => $this->candidateRevision,
             'attention' => $this->attention?->toArray(),
             'history' => array_map(static fn (AcceptedStageResult $result): array => $result->toArray(), $this->history),
+            'recovery_history' => $this->recoveryHistory,
         ];
     }
 }
