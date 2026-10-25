@@ -1,5 +1,11 @@
 ## Unreleased
 
+## [0.20.70] - 2026-10-25
+
+### Fixed
+
+- Recover changed approved-scope implementations after a completed execution pipeline through `pipeline recover`, preserving the same Run, Contract, plan and historical evidence. Recovery starts a new build attempt and requires owner candidate observation, fresh independent reviews and current deterministic verification. Reject unsafe paths, symlinks, scope expansion and stale result replay. Active recovery takes precedence over historical verification receipts even when a mode-only change preserves the content snapshot (#836).
+
 ## [0.20.69] - 2026-10-25
 
 ### Added
