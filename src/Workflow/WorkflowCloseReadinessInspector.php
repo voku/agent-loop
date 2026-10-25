@@ -57,13 +57,20 @@ final readonly class WorkflowCloseReadinessInspector
             return new WorkflowCloseReadiness(null, $nonWaivable, [], [], []);
         }
 
+        $recoveredExecutionPending = $this->recoveredExecutionPending($contract, $run);
+        $executionReviewFailure = $this->independentReviewPipelineFailure($contract, $run);
+        if ($recoveredExecutionPending && $executionReviewFailure !== null) {
+            $executionReviewFailure = 'recovered execution pipeline: ' . $executionReviewFailure;
+        }
         $learningRoot = WorkflowLearningRoot::forRun($this->rootPath, $run);
         try {
             $boundary = PostExecutionEvidenceBoundary::inspect($this->rootPath, $contract, $session);
         } catch (ImplementationSnapshotUnavailable $exception) {
             return new WorkflowCloseReadiness(
                 null,
-                [],
+                $recoveredExecutionPending && $executionReviewFailure !== null
+                    ? [['gate' => 'execution_review', 'detail' => $executionReviewFailure]]
+                    : [],
                 [['gate' => 'implementation', 'detail' => $exception->getMessage()]],
                 [],
                 [],
@@ -76,11 +83,16 @@ final readonly class WorkflowCloseReadinessInspector
         if ($learningBindingFailure !== null) {
             $nonWaivable[] = ['gate' => 'integrity', 'detail' => $learningBindingFailure];
         }
-
-        $executionReviewFailure = $this->independentReviewPipelineFailure($contract, $run);
-        if ($executionReviewFailure !== null) {
+        if ($executionReviewFailure !== null && $recoveredExecutionPending) {
+            // Resume the current execution stage before acting on older
+            // close-out evidence, while retaining the full boundary projection.
+            array_unshift($nonWaivable, ['gate' => 'execution_review', 'detail' => $executionReviewFailure]);
+        } elseif ($executionReviewFailure !== null) {
+            // Preserve the established close ordering for ordinary pipelines;
+            // only recovery makes the current execution stage take priority.
             $nonWaivable[] = ['gate' => 'execution_review', 'detail' => $executionReviewFailure];
         }
+
         if ($nonWaivable !== []) {
             return new WorkflowCloseReadiness($boundary, $nonWaivable, [], [], []);
         }
@@ -114,6 +126,37 @@ final readonly class WorkflowCloseReadinessInspector
             $validation['obligations'],
             $passedMessages,
         );
+    }
+
+    public function pendingRecoveredExecutionFailure(TaskContract $contract, GovernedRun $run): ?string
+    {
+        if (!$this->recoveredExecutionPending($contract, $run)) {
+            return null;
+        }
+        $failure = $this->independentReviewPipelineFailure($contract, $run);
+
+        return $failure === null ? null : 'recovered execution pipeline: ' . $failure;
+    }
+
+    private function recoveredExecutionPending(TaskContract $contract, GovernedRun $run): bool
+    {
+        $plan = (new ExecutionPlanStore($this->rootPath))->find($contract->taskId);
+        if ($plan === null
+            || $plan->runId !== $run->runId
+            || $plan->contractRevision !== $contract->revision
+            || $plan->contractSource !== $run->contractSource) {
+            return false;
+        }
+
+        $state = (new ExecutionStateStore($this->rootPath))->find($contract->taskId);
+
+        return $state !== null
+            && $state->taskId === $contract->taskId
+            && $state->runId === $run->runId
+            && $state->contractRevision === $contract->revision
+            && hash_equals($state->executionPlanDigest, $plan->digest())
+            && $state->recoveryHistory !== []
+            && ($state->currentStageId !== null || $state->attention !== null);
     }
 
     private function independentReviewPipelineFailure(TaskContract $contract, GovernedRun $run): ?string

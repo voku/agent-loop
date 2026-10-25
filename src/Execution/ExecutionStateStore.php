@@ -10,6 +10,8 @@ use JsonException;
 use RuntimeException;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\CanonicalJson;
+use voku\AgentLoop\Workflow\TaskContract;
+use voku\AgentLoop\Workflow\TaskContractStore;
 
 final readonly class ExecutionStateStore
 {
@@ -51,12 +53,15 @@ final readonly class ExecutionStateStore
             $state = $this->find($plan->taskId) ?? $this->prepareUnlocked($plan);
             $this->assertBinding($state, $plan);
 
-            foreach ($state->history as $accepted) {
+            foreach ($state->history as $index => $accepted) {
                 if ($accepted->result->submissionId !== $result->submissionId) {
                     continue;
                 }
                 if ($accepted->result->toArray() !== $result->toArray()) {
                     throw new RuntimeException('Stage submission id was already accepted with different content: ' . $result->submissionId);
+                }
+                if ($this->isStaleAfterRecovery($state, $index)) {
+                    throw new RuntimeException('STALE_STAGE_RESULT: accepted stage result predates the latest candidate recovery and cannot be replayed.');
                 }
 
                 return $this->projectionFromState($plan, $state);
@@ -97,6 +102,7 @@ final readonly class ExecutionStateStore
                     $result->candidateRevision,
                     $attention,
                     $history,
+                    $state->recoveryHistory,
                 );
                 $this->write($next);
 
@@ -128,6 +134,98 @@ final readonly class ExecutionStateStore
                 $result->candidateRevision,
                 null,
                 $history,
+                $state->recoveryHistory,
+            );
+            $this->write($next);
+
+            return $this->projectionFromState($plan, $next);
+        } finally {
+            $this->releaseLock($lock);
+        }
+    }
+
+    /**
+     * Reopen a completed execution on the same approved plan after the owner
+     * has proven a different current workspace candidate.
+     *
+     * @param list<string> $changedFiles
+     */
+    public function recoverCompleted(
+        ExecutionPlan $plan,
+        string $previousCandidateRevision,
+        string $observedCandidateRevision,
+        array $changedFiles,
+    ): ExecutionProjection {
+        $lock = $this->acquireLock($plan->taskId);
+        try {
+            $state = $this->find($plan->taskId) ?? $this->prepareUnlocked($plan);
+            $this->assertBinding($state, $plan);
+
+            if (hash_equals($state->candidateRevision, $observedCandidateRevision)) {
+                return $this->projectionFromState($plan, $state);
+            }
+
+            $lastRecovery = $state->recoveryHistory[array_key_last($state->recoveryHistory)] ?? null;
+            if (is_array($lastRecovery)
+                && hash_equals($lastRecovery['previous_candidate_revision'], $previousCandidateRevision)
+                && hash_equals($lastRecovery['observed_candidate_revision'], $observedCandidateRevision)
+                && $state->candidateRevision === $previousCandidateRevision
+                && $state->currentStageId === 'build'
+                && $state->currentAttempt === $lastRecovery['build_attempt']) {
+                return $this->projectionFromState($plan, $state);
+            }
+
+            if ($state->currentStageId !== null || $state->attention !== null) {
+                throw new RuntimeException('RECOVERY_BLOCKED: only a completed execution can recover a changed candidate.');
+            }
+            if (!hash_equals($state->candidateRevision, $previousCandidateRevision)) {
+                throw new RuntimeException('STALE_CANDIDATE: completed execution candidate changed while recovery was being evaluated.');
+            }
+            if ($changedFiles === []) {
+                throw new RuntimeException('RECOVERY_BLOCKED: candidate revisions differ but no unambiguous changed files were observed.');
+            }
+
+            $lastAccepted = $state->history[array_key_last($state->history)] ?? null;
+            if (!$lastAccepted instanceof AcceptedStageResult
+                || $lastAccepted->result->stageId !== 'verify'
+                || $lastAccepted->result->outcome !== StageOutcome::PASS
+                || !hash_equals($lastAccepted->result->candidateRevision, $state->candidateRevision)
+                || $plan->stage('verify')->kind !== ExecutionStageKind::DETERMINISTIC) {
+                throw new RuntimeException('RECOVERY_BLOCKED: completed execution has no final PASS verification bound to its accepted candidate.');
+            }
+
+            $build = $plan->stage('build');
+            if ($build->kind !== ExecutionStageKind::AGENT || !$build->mayMutate) {
+                throw new RuntimeException('RECOVERY_BLOCKED: execution plan has no mutating agent build stage.');
+            }
+            $this->assertRecoveryCandidateInput(
+                $plan,
+                $previousCandidateRevision,
+                $observedCandidateRevision,
+                $changedFiles,
+            );
+            $this->assertSafeChangedFiles($changedFiles);
+            $attempt = $this->attemptFor('build', $state->history);
+            $recoveryHistory = $state->recoveryHistory;
+            $recoveryHistory[] = [
+                'recovered_at' => $this->now(),
+                'previous_candidate_revision' => $previousCandidateRevision,
+                'observed_candidate_revision' => $observedCandidateRevision,
+                'changed_files' => $changedFiles,
+                'history_count' => count($state->history),
+                'build_attempt' => $attempt,
+            ];
+            $next = new ExecutionState(
+                $state->taskId,
+                $state->runId,
+                $state->contractRevision,
+                $state->executionPlanDigest,
+                'build',
+                $attempt,
+                $state->candidateRevision,
+                null,
+                $state->history,
+                $recoveryHistory,
             );
             $this->write($next);
 
@@ -165,6 +263,7 @@ final readonly class ExecutionStateStore
                 $state->candidateRevision,
                 null,
                 $state->history,
+                $state->recoveryHistory,
             );
             $this->write($next);
 
@@ -360,7 +459,142 @@ final readonly class ExecutionStateStore
             $this->requiredString($data, 'candidate_revision', $path),
             $this->decodeAttention($data['attention'] ?? null, $path),
             $this->decodeHistory($data['history'] ?? null, $path),
+            $this->decodeRecoveryHistory($data['recovery_history'] ?? [], $path),
         );
+    }
+
+    /**
+     * @return list<array{
+     *     recovered_at: string,
+     *     previous_candidate_revision: string,
+     *     observed_candidate_revision: string,
+     *     changed_files: list<string>,
+     *     history_count: int,
+     *     build_attempt: int
+     * }>
+     */
+    private function decodeRecoveryHistory(mixed $value, string $path): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new RuntimeException('Execution state recovery_history must be an array in ' . $path . '.');
+        }
+        $history = [];
+        foreach ($value as $index => $entry) {
+            $entryPath = $path . '#recovery_history[' . $index . ']';
+            if (!is_array($entry)) {
+                throw new RuntimeException('Execution recovery history entry is invalid in ' . $entryPath . '.');
+            }
+            $historyCount = $entry['history_count'] ?? null;
+            $buildAttempt = $entry['build_attempt'] ?? null;
+            if (!is_int($historyCount) || $historyCount < 1 || !is_int($buildAttempt) || $buildAttempt < 1) {
+                throw new RuntimeException('Execution recovery history boundary is invalid in ' . $entryPath . '.');
+            }
+            $changedFiles = $entry['changed_files'] ?? null;
+            if (!is_array($changedFiles) || !array_is_list($changedFiles) || $changedFiles === []) {
+                throw new RuntimeException('Execution recovery changed_files must be a non-empty list in ' . $entryPath . '.');
+            }
+            $this->assertSafeChangedFiles($changedFiles);
+            $history[] = [
+                'recovered_at' => $this->requiredString($entry, 'recovered_at', $entryPath),
+                'previous_candidate_revision' => $this->requiredString($entry, 'previous_candidate_revision', $entryPath),
+                'observed_candidate_revision' => $this->requiredString($entry, 'observed_candidate_revision', $entryPath),
+                'changed_files' => $changedFiles,
+                'history_count' => $historyCount,
+                'build_attempt' => $buildAttempt,
+            ];
+        }
+
+        return $history;
+    }
+
+    public function assertSafeChangedFiles(mixed $paths, string $errorPrefix = 'RECOVERY_BLOCKED'): void
+    {
+        if (!is_array($paths) || !array_is_list($paths) || $paths === []) {
+            throw new RuntimeException($errorPrefix . ': changed file evidence must be a non-empty ordered list.');
+        }
+        $seen = [];
+        foreach ($paths as $path) {
+            if (!is_string($path)
+                || $path === ''
+                || str_starts_with($path, '/')
+                || str_contains($path, "\0")
+                || str_contains($path, '\\')
+                || preg_match('//u', $path) !== 1
+                || preg_match('/[\x00-\x1f\x7f]/', $path) === 1) {
+                throw new RuntimeException($errorPrefix . ': changed file evidence contains an ambiguous repository path.');
+            }
+            foreach (explode('/', $path) as $segment) {
+                if ($segment === '' || $segment === '.' || $segment === '..') {
+                    throw new RuntimeException($errorPrefix . ': changed file evidence contains an unsafe repository path.');
+                }
+            }
+            if (isset($seen[$path])) {
+                throw new RuntimeException($errorPrefix . ': changed file evidence contains duplicate repository paths.');
+            }
+            $seen[$path] = true;
+        }
+    }
+
+    /** @param list<string> $changedFiles */
+    private function assertRecoveryCandidateInput(
+        ExecutionPlan $plan,
+        string $previousCandidateRevision,
+        string $observedCandidateRevision,
+        array $changedFiles,
+    ): void {
+        $root = realpath($this->rootPath);
+        if (!is_string($root) || !is_dir($root)) {
+            throw new RuntimeException('RECOVERY_BLOCKED: repository root cannot be resolved.');
+        }
+        $contract = (new TaskContractStore($root))->load($plan->taskId);
+        $contractSha = hash_file('sha256', $contract->path);
+        if ($contract->status !== TaskContract::APPROVED
+            || $contract->taskId !== $plan->taskId
+            || $contract->revision !== $plan->contractRevision
+            || ($contract->baseCommit !== null && $contract->baseCommit !== $plan->baseCommit)
+            || !is_string($contractSha)
+            || !hash_equals($plan->contractSource['sha256'], 'sha256:' . $contractSha)) {
+            throw new RuntimeException('RECOVERY_BLOCKED: current approved Contract does not match the execution plan.');
+        }
+        (new CandidateWorkspaceIdentity())->assertHolds(
+            $root,
+            $plan->baseCommit,
+            $observedCandidateRevision,
+            $this->relativeStateRoot($root),
+        );
+        $verifiedChangedFiles = (new CompletedPipelineRecovery($root))->candidateChangedFilesWithinApprovedScope(
+            $plan,
+            $contract,
+            $previousCandidateRevision,
+            $observedCandidateRevision,
+            'RECOVERY_BLOCKED',
+        );
+        if ($verifiedChangedFiles !== $changedFiles) {
+            throw new RuntimeException(
+                'RECOVERY_BLOCKED: supplied changed files do not match the owner-recomputed candidate diff.',
+            );
+        }
+    }
+
+    private function relativeStateRoot(string $root): ?string
+    {
+        $stateRoot = realpath((new ProjectLayout($root))->stateRoot());
+        if (!is_string($stateRoot) || !str_starts_with($stateRoot, $root . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return str_replace(DIRECTORY_SEPARATOR, '/', substr($stateRoot, strlen($root) + 1));
+    }
+
+    private function isStaleAfterRecovery(ExecutionState $state, int $historyIndex): bool
+    {
+        foreach ($state->recoveryHistory as $recovery) {
+            if ($historyIndex < $recovery['history_count']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decodeAttention(mixed $value, string $path): ?AttentionRequest

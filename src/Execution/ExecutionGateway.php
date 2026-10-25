@@ -42,6 +42,17 @@ final readonly class ExecutionGateway
         return (new ExecutionStateStore($this->rootPath))->projection($plan);
     }
 
+    /**
+     * Recover the current approved Run after proving that its completed
+     * candidate differs from the candidate held by the owner workspace.
+     */
+    public function recoverCompletedPipeline(string $taskId, string $observedCandidateRevision): ExecutionProjection
+    {
+        [$contract, , $plan] = $this->current($taskId);
+
+        return (new CompletedPipelineRecovery($this->rootPath))->recover($plan, $contract, $observedCandidateRevision);
+    }
+
     public function prepareStage(string $taskId, string $stageId): StageExecutionBundle
     {
         return $this->prepareStageBundle($taskId, $stageId, null);

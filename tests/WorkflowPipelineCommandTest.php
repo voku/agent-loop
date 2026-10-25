@@ -51,6 +51,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertStringContainsString("agent-loop pipeline stage", $res["stdout"]);
         self::assertStringContainsString("agent-loop pipeline run", $res["stdout"]);
         self::assertStringContainsString("agent-loop pipeline submit", $res["stdout"]);
+        self::assertStringContainsString("agent-loop pipeline recover", $res["stdout"]);
     }
 
     public function testPipelineStatusReportsSurgicalStageProgression(): void

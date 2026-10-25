@@ -125,6 +125,31 @@ rules. Constructing that project-specific L1 from approved intent/evidence is a
 `command_template` unless the lifecycle explicitly reports a human authority
 boundary.
 
+## Recovering a Completed Execution
+
+If implementation changes after an execution pipeline completes, recovery keeps
+the same Run, approved Contract revision and execution plan. The owner supplies a
+content-addressed candidate to:
+
+```bash
+agent-loop pipeline recover <task-id> --candidate <git-tree-v1-revision>
+```
+
+Loop verifies that claim against the current workspace, compares it with the
+accepted candidate and checks every changed path against the approved Contract
+scope. An unchanged candidate leaves the pipeline complete. A changed,
+in-scope candidate appends a recovery record and reopens at a new `build`
+attempt. Historical results remain available for audit, but results accepted
+before recovery cannot satisfy the reopened attempt.
+
+The recovered candidate must pass through the ordinary owner-side candidate
+observation before a build result can advance to review. Correctness review,
+blind-spot review and deterministic verification then run against the current
+candidate. Until that pipeline completes, close readiness remains blocked and
+`workflow status` routes to `pipeline status`, ahead of older close-out reports
+or Learning decisions. Out-of-scope or ambiguous changes fail closed; move
+unrelated work to its own worktree before recovering the governed candidate.
+
 ## Finish And Close-Out
 
 `finish` is the deterministic close-out front door. It reconciles current

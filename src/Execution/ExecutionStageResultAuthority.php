@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace voku\AgentLoop\Execution;
 
 use RuntimeException;
+use voku\AgentLoop\Workflow\TaskContractStore;
 
 final readonly class ExecutionStageResultAuthority
 {
@@ -18,7 +19,7 @@ final readonly class ExecutionStageResultAuthority
         ExecutionStage $stage,
         StageResult $result,
     ): void {
-        $this->assertCandidate($plan, $state, $stage, $result->candidateRevision);
+        $this->assertCandidate($plan, $state, $stage, $result->candidateRevision, $result->outcome);
         $this->assertExecutionContext($plan, $state, $stage, $result);
 
         $evidence = new ExecutionEvidenceStore($this->rootPath);
@@ -307,6 +308,7 @@ final readonly class ExecutionStageResultAuthority
         }
 
         $this->assertCandidateObject($plan, $claim->candidateRevision);
+        $this->assertRecoveredCandidateWithinScope($plan, $state, $stage, $claim->candidateRevision);
     }
 
     private function assertCandidate(
@@ -314,7 +316,18 @@ final readonly class ExecutionStageResultAuthority
         ExecutionState $state,
         ExecutionStage $stage,
         string $candidateRevision,
+        ?StageOutcome $outcome = null,
     ): void {
+        $this->assertRecoveredCandidateWithinScope($plan, $state, $stage, $candidateRevision);
+        $lastRecovery = $state->recoveryHistory[array_key_last($state->recoveryHistory)] ?? null;
+        if (is_array($lastRecovery)
+            && $stage->id === 'build'
+            && $state->candidateRevision === $lastRecovery['previous_candidate_revision']
+            && $candidateRevision === $lastRecovery['previous_candidate_revision']
+            && $outcome !== null
+            && !in_array($outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
+            throw new RuntimeException('CANDIDATE_MISMATCH: recovered build must register a changed candidate before it can complete.');
+        }
         if (hash_equals($state->candidateRevision, $candidateRevision)) {
             return;
         }
@@ -343,6 +356,25 @@ final readonly class ExecutionStageResultAuthority
             $plan,
             $stage->id,
             $state->currentAttempt,
+            $candidateRevision,
+        );
+    }
+
+    private function assertRecoveredCandidateWithinScope(
+        ExecutionPlan $plan,
+        ExecutionState $state,
+        ExecutionStage $stage,
+        string $candidateRevision,
+    ): void {
+        if ($stage->kind !== ExecutionStageKind::AGENT || !$stage->mayMutate || $state->recoveryHistory === []) {
+            return;
+        }
+        $recovery = $state->recoveryHistory[array_key_last($state->recoveryHistory)];
+        $contract = (new TaskContractStore($this->rootPath))->load($plan->taskId);
+        (new CompletedPipelineRecovery($this->rootPath))->candidateChangedFilesWithinApprovedScope(
+            $plan,
+            $contract,
+            $recovery['previous_candidate_revision'],
             $candidateRevision,
         );
     }

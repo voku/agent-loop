@@ -174,6 +174,12 @@ final readonly class RunPolicyEvaluator
         }
         if (
             $this->referenceState($references, 'verification') === 'blocked'
+            && $this->isPendingRecoveredExecutionReview($references)
+        ) {
+            return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
+        }
+        if (
+            $this->referenceState($references, 'verification') === 'blocked'
             && ($references['verification']['gate'] ?? null) === 'validation'
             && ($references['verification']['validation_failed'] ?? false) === true
         ) {
@@ -403,6 +409,12 @@ final readonly class RunPolicyEvaluator
                 'invocation' => null,
             ];
         }
+        if (
+            $this->referenceState($references, 'verification') === 'blocked'
+            && $this->isPendingRecoveredExecutionReview($references)
+        ) {
+            return $this->command('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
+        }
 
         $reviewState = $this->referenceState($references, 'review');
         if (in_array($reviewState, ['missing', 'invalid', 'stale'], true)) {
@@ -509,6 +521,16 @@ final readonly class RunPolicyEvaluator
             . $detail . '; persist the complete revised intent with workflow plan --supersede; explicit approval remains required';
     }
 
+    /** @param array<string, array<string, mixed>> $references */
+    private function isPendingRecoveredExecutionReview(array $references): bool
+    {
+        $reason = $references['verification']['reason'] ?? null;
+
+        return ($references['verification']['gate'] ?? null) === 'execution_review'
+            && is_string($reason)
+            && str_starts_with($reason, 'recovered execution pipeline:');
+    }
+
     /**
      * @param array<string, array<string, mixed>> $references
      * @param list<array{code: string, owner: string, message: string, repair_action?: string, repair_invocation?: array{executable: non-empty-string, arguments: list<string>, template: bool}}> $disagreements
@@ -536,6 +558,16 @@ final readonly class RunPolicyEvaluator
                     ?? 'Execution contract is ' . $executionContractState . '.',
             ]];
         }
+        $verificationState = $this->referenceState($references, 'verification');
+        if ($verificationState === 'blocked'
+            && ($references['verification']['gate'] ?? null) === 'execution_review') {
+            return [[
+                'code' => 'verification.execution_review',
+                'owner' => $this->referenceOwner($references, 'verification', 'agent-loop'),
+                'message' => $this->referenceReason($references, 'verification')
+                    ?? 'Independent execution reviews are not current for the candidate.',
+            ]];
+        }
         if ($this->referenceState($references, 'review') === 'fail') {
             return [[
                 'code' => 'review.failed',
@@ -544,7 +576,6 @@ final readonly class RunPolicyEvaluator
             ]];
         }
 
-        $verificationState = $this->referenceState($references, 'verification');
         if (in_array($verificationState, ['failed', 'blocked', 'invalid'], true)) {
             $gate = $references['verification']['gate'] ?? null;
 

@@ -731,6 +731,25 @@ final class RunManifestProjector
             }
 
             if ($superseded === null) {
+                // Git candidate identity includes modes; the content snapshot does not.
+                // A historical receipt cannot hide an active recovered execution.
+                $recoveryFailure = $contract !== null && $run !== null
+                    ? (new WorkflowCloseReadinessInspector($this->rootPath))->pendingRecoveredExecutionFailure($contract, $run)
+                    : null;
+                if ($recoveryFailure !== null) {
+                    $invocation = new RunCommandInvocation('agent-loop', ['pipeline', 'status', $taskId, '--format=json']);
+
+                    return [
+                        'owner' => 'agent-loop',
+                        'state' => 'blocked',
+                        'observation_mode' => 'checked',
+                        'gate' => 'execution_review',
+                        'reason' => $recoveryFailure,
+                        'action' => 'agent-loop pipeline status ' . $taskId . ' --format=json',
+                        'action_invocation' => $invocation->toArray(),
+                        'source' => $this->artifact($receipt->path),
+                    ];
+                }
                 $state = match ($receipt->verdict) {
                     'satisfied' => 'passed',
                     'accepted_risk' => 'accepted_risk',
