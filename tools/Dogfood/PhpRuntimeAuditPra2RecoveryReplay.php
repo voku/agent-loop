@@ -23,7 +23,7 @@ require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
     try {
-        $arguments = parseArguments($argv);
+        $arguments = parseArguments($argv ?? []);
         $result = (new PhpRuntimeAuditPra2RecoveryReplay())->run($arguments);
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), "\n";
     } catch (Throwable $exception) {
