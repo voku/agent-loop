@@ -143,14 +143,87 @@ final class ImplementationSnapshotTest extends TestCase
         ImplementationSnapshot::capture($this->root, $this->contract('SNAP-4', ['src/Missing.php']));
     }
 
-    public function testSymlinkInsideScopedDirectoryIsNeverSilentlySkipped(): void
+    public function testSafeSymlinkInsideScopedDirectoryIsBoundAsALinkAndItsTargetFile(): void
     {
         self::assertTrue(symlink('A.php', $this->root . '/src/Linked.php'));
+        $before = ImplementationSnapshot::capture($this->root, $this->contract('SNAP-5', ['src']));
+
+        self::assertSame(['src/A.php', 'src/B.php', 'src/Linked.php'], array_column($before->files, 'path'));
+        self::assertSame(
+            'sha256:' . hash('sha256', "agent-loop:implementation-snapshot:symlink:v1\0A.php"),
+            $before->files[2]['sha256'],
+        );
+
+        file_put_contents($this->root . '/src/A.php', "<?php\nreturn 'changed';\n");
+        self::assertNotSame($before->digest, ImplementationSnapshot::capture($this->root, $this->contract('SNAP-6', ['src']))->digest);
+
+        unlink($this->root . '/src/Linked.php');
+        self::assertTrue(symlink('B.php', $this->root . '/src/Linked.php'));
+        self::assertNotSame($before->digest, ImplementationSnapshot::capture($this->root, $this->contract('SNAP-7', ['src']))->digest);
+    }
+
+    public function testUnsafeOrUnresolvedSymlinkInsideScopedDirectoryFailsClosed(): void
+    {
+        file_put_contents($this->root . '/outside.php', "<?php\nreturn 'outside';\n");
+        foreach ([
+            'absolute' => '/etc/passwd',
+            'outside' => '../outside.php',
+            'missing' => 'Missing.php',
+        ] as $name => $target) {
+            $directory = $this->root . '/links-' . $name;
+            mkdir($directory);
+            self::assertTrue(symlink($target, $directory . '/Link.php'));
+
+            try {
+                ImplementationSnapshot::capture($this->root, $this->contract('SNAP-LINK-' . strtoupper($name), ['links-' . $name]));
+                self::fail('Unsafe fixture symlink must fail closed.');
+            } catch (RuntimeException $exception) {
+                self::assertStringContainsString('symlink', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testSymlinkToExcludedNestedVendorTargetFailsClosed(): void
+    {
+        $directory = $this->root . '/vendor/acme/pkg';
+        $target = $this->root . '/vendor/acme/vendor/dependency/Target.php';
+        mkdir($directory, 0o775, true);
+        mkdir(dirname($target), 0o775, true);
+        file_put_contents($target, "<?php\nreturn 'target';\n");
+        self::assertTrue(symlink('../vendor/dependency/Target.php', $directory . '/Linked.php'));
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('src/Linked.php');
+        $this->expectExceptionMessage('without a bound regular target: vendor/acme/pkg/Linked.php');
 
-        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-5', ['src']));
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-NESTED-VENDOR-LINK', ['vendor/acme']));
+    }
+
+    public function testSymlinkToExcludedWorkflowMetadataFailsClosed(): void
+    {
+        $directory = $this->root . '/src/links';
+        $target = $this->root . '/src/learning/history/state.json';
+        mkdir($directory, 0o775, true);
+        mkdir(dirname($target), 0o775, true);
+        file_put_contents($target, "{}\n");
+        file_put_contents(
+            $this->root . '/.agent-loop/init.json',
+            json_encode(['version' => 1, 'paths' => ['learning_root' => 'src/learning']], JSON_THROW_ON_ERROR),
+        );
+        self::assertTrue(symlink('../learning/history/state.json', $directory . '/State.php'));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('without a bound regular target: src/links/State.php');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-METADATA-LINK', ['src']));
+    }
+
+    public function testExplicitSymlinkScopeRemainsRefused(): void
+    {
+        self::assertTrue(symlink('A.php', $this->root . '/src/Linked.php'));
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Implementation snapshot refuses symlinked scope: src/Linked.php');
+
+        ImplementationSnapshot::capture($this->root, $this->contract('SNAP-8', ['src/Linked.php']));
     }
 
     public function testExplicitScopedVendorPackageCanBeCaptured(): void
