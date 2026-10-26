@@ -1,5 +1,12 @@
 ## Unreleased
 
+## [0.20.72] - 2026-10-26
+
+### Fixed
+
+- Support completed-pipeline recovery and deterministic verification against an explicitly selected candidate worktree, while keeping governed Run state in the owner checkout (#843, closes #840).
+- Require explicit candidate workspaces to be registered Git worktrees; reject unregistered directories with forged `.git` pointers and preserve valid paths ending in whitespace or LF (#845, closes #844).
+
 ## [0.20.71] - 2026-10-26
 
 ### Fixed
