@@ -15,6 +15,7 @@ use voku\AgentLoop\Execution\ExecutionStageResultAuthority;
 use voku\AgentLoop\Execution\ExecutionState;
 use voku\AgentLoop\Execution\ExecutionStateStore;
 use voku\AgentLoop\Execution\CompletedPipelineRecovery;
+use voku\AgentLoop\Execution\CandidateWorkspaceIdentity;
 use voku\AgentLoop\Execution\StageCandidateObservation;
 use voku\AgentLoop\Execution\StageOutcome;
 use voku\AgentLoop\Execution\StageResult;
@@ -169,6 +170,55 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
             self::assertSame($before->toArray(), $this->state()->toArray());
         } finally {
             exec('rm -rf ' . escapeshellarg($foreign));
+        }
+    }
+
+    public function testRecoveryRejectsUnregisteredDirectoryPointingAtOwnerGitDirectoryBeforeMutation(): void
+    {
+        [, $before, $build] = $this->completeRun();
+        $unregistered = $this->run->root . '-unregistered';
+        mkdir($unregistered);
+        file_put_contents($unregistered . '/.git', 'gitdir: ' . $this->run->root . '/.git' . "\n");
+        $statePath = (new ExecutionStateStore($this->run->root))->path('VER-1');
+        $stateBefore = file_get_contents($statePath);
+
+        try {
+            [$exit, $payload] = $this->recover($build->candidateRevision, $unregistered);
+
+            self::assertSame(1, $exit);
+            self::assertStringContainsString('not a registered linked worktree', $payload['message']);
+            self::assertSame($stateBefore, file_get_contents($statePath));
+            self::assertSame($before->toArray(), $this->state()->toArray());
+        } finally {
+            exec('rm -rf ' . escapeshellarg($unregistered));
+        }
+    }
+
+    public function testRegisteredCandidateWorktreePathEndingInWhitespaceIsRecognized(): void
+    {
+        $workspace = $this->run->root . '-zzzz-candidate-with-trailing-space ';
+        exec('git -C ' . escapeshellarg($this->run->root) . ' worktree add --detach '
+            . escapeshellarg($workspace) . ' HEAD', $output, $exitCode);
+        self::assertSame(0, $exitCode, implode("\n", $output));
+
+        try {
+            (new CandidateWorkspaceIdentity())->assertSameRepository($this->run->root, $workspace);
+        } finally {
+            exec('git -C ' . escapeshellarg($this->run->root) . ' worktree remove --force ' . escapeshellarg($workspace));
+        }
+    }
+
+    public function testRegisteredCandidateWorktreePathEndingInLineFeedIsRecognized(): void
+    {
+        $workspace = $this->run->root . "-zzzz-candidate-with-trailing-line-feed\n";
+        exec('git -C ' . escapeshellarg($this->run->root) . ' worktree add --detach '
+            . escapeshellarg($workspace) . ' HEAD', $output, $exitCode);
+        self::assertSame(0, $exitCode, implode("\n", $output));
+
+        try {
+            (new CandidateWorkspaceIdentity())->assertSameRepository($this->run->root, $workspace);
+        } finally {
+            exec('git -C ' . escapeshellarg($this->run->root) . ' worktree remove --force ' . escapeshellarg($workspace));
         }
     }
 

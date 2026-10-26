@@ -42,20 +42,33 @@ final readonly class CandidateWorkspaceIdentity
     /** Ensure a candidate workspace belongs to the owner's Git repository. */
     public function assertSameRepository(string $ownerWorkspace, string $candidateWorkspace): void
     {
-        $candidateRoot = $this->git($candidateWorkspace, ['rev-parse', '--path-format=absolute', '--show-toplevel']);
+        $candidatePrefix = $this->git($candidateWorkspace, ['rev-parse', '--show-prefix'], [], false);
         $candidateReal = realpath($candidateWorkspace);
-        $candidateRootReal = realpath($candidateRoot);
-        if (!is_string($candidateReal) || !is_string($candidateRootReal) || !hash_equals($candidateRootReal, $candidateReal)) {
+        if (!is_string($candidateReal) || ($candidatePrefix !== "\n" && $candidatePrefix !== "\r\n")) {
             throw new RuntimeException('STALE_CANDIDATE: candidate workspace must be the root of its Git worktree.');
         }
 
-        $ownerCommonDir = $this->git($ownerWorkspace, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-        $candidateCommonDir = $this->git($candidateWorkspace, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+        $ownerCommonDir = $this->gitPath($ownerWorkspace, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+        $candidateCommonDir = $this->gitPath($candidateWorkspace, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
         $ownerReal = realpath($ownerCommonDir);
         $candidateCommonReal = realpath($candidateCommonDir);
         if (!is_string($ownerReal) || !is_string($candidateCommonReal) || !hash_equals($ownerReal, $candidateCommonReal)) {
             throw new RuntimeException('STALE_CANDIDATE: candidate workspace is not a linked worktree of the owner repository.');
         }
+
+        $registered = $this->git($ownerWorkspace, ['worktree', 'list', '--porcelain', '-z'], [], false);
+        foreach (explode("\0", $registered) as $entry) {
+            if (!str_starts_with($entry, 'worktree ')) {
+                continue;
+            }
+
+            $registeredRoot = realpath(substr($entry, strlen('worktree ')));
+            if (is_string($registeredRoot) && hash_equals($registeredRoot, $candidateReal)) {
+                return;
+            }
+        }
+
+        throw new RuntimeException('STALE_CANDIDATE: candidate workspace is not a registered linked worktree of the owner repository.');
     }
 
     private function candidateTree(string $baseCommit, string $candidateRevision): string
@@ -69,6 +82,12 @@ final readonly class CandidateWorkspaceIdentity
         }
 
         return $matches[1];
+    }
+
+    /** @param non-empty-list<string> $arguments */
+    private function gitPath(string $workspace, array $arguments): string
+    {
+        return rtrim($this->git($workspace, $arguments, [], false), "\r\n");
     }
 
     private function tree(string $workspace, string $baseCommit, ?string $excludedStatePath): string
@@ -102,7 +121,7 @@ final readonly class CandidateWorkspaceIdentity
      * @param non-empty-list<string> $arguments
      * @param array<string, string> $environment
      */
-    private function git(string $workspace, array $arguments, array $environment = []): string
+    private function git(string $workspace, array $arguments, array $environment = [], bool $trimOutput = true): string
     {
         $pipes = [];
         $stderr = tmpfile();
@@ -132,7 +151,7 @@ final readonly class CandidateWorkspaceIdentity
             throw new RuntimeException('STALE_CANDIDATE: git ' . $arguments[0] . ' failed in the verify workspace: ' . trim($errorOutput));
         }
 
-        return trim($stdout);
+        return $trimOutput ? trim($stdout) : $stdout;
     }
 
     /**
