@@ -15,7 +15,7 @@ final readonly class CompletedPipelineRecovery
     {
     }
 
-    public function recover(ExecutionPlan $plan, TaskContract $contract, string $observedCandidateRevision): ExecutionProjection
+    public function recover(ExecutionPlan $plan, TaskContract $contract, string $observedCandidateRevision, ?string $candidateWorkspace = null): ExecutionProjection
     {
         if ($contract->status !== TaskContract::APPROVED
             || $contract->taskId !== $plan->taskId
@@ -38,8 +38,14 @@ final readonly class CompletedPipelineRecovery
 
         // A caller-supplied revision is only a claim. Recompute the tree from the
         // actual owner workspace using a private Git index before comparing it.
-        (new CandidateWorkspaceIdentity())->assertHolds(
-            $root,
+        $candidateRoot = realpath($candidateWorkspace ?? $root);
+        if (!is_string($candidateRoot) || !is_dir($candidateRoot)) {
+            throw new RuntimeException('RECOVERY_BLOCKED: candidate workspace cannot be resolved.');
+        }
+        $identity = new CandidateWorkspaceIdentity();
+        $identity->assertSameRepository($root, $candidateRoot);
+        $identity->assertHolds(
+            $candidateRoot,
             $plan->baseCommit,
             $observedCandidateRevision,
             $this->relativeStateRoot($root),
@@ -62,6 +68,7 @@ final readonly class CompletedPipelineRecovery
             $state->candidateRevision,
             $observedCandidateRevision,
             $changedFiles,
+            $candidateRoot,
         );
     }
 

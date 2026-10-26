@@ -46,11 +46,11 @@ final readonly class ExecutionGateway
      * Recover the current approved Run after proving that its completed
      * candidate differs from the candidate held by the owner workspace.
      */
-    public function recoverCompletedPipeline(string $taskId, string $observedCandidateRevision): ExecutionProjection
+    public function recoverCompletedPipeline(string $taskId, string $observedCandidateRevision, ?string $candidateWorkspace = null): ExecutionProjection
     {
         [$contract, , $plan] = $this->current($taskId);
 
-        return (new CompletedPipelineRecovery($this->rootPath))->recover($plan, $contract, $observedCandidateRevision);
+        return (new CompletedPipelineRecovery($this->rootPath))->recover($plan, $contract, $observedCandidateRevision, $candidateWorkspace);
     }
 
     public function prepareStage(string $taskId, string $stageId): StageExecutionBundle
@@ -191,6 +191,7 @@ final readonly class ExecutionGateway
 
         $workspace = $this->verifyWorkspace($candidateWorkspace);
         $identity = new CandidateWorkspaceIdentity();
+        $identity->assertSameRepository($this->rootPath, $workspace);
         $statePath = $this->relativeStateRoot();
         $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
 

@@ -155,6 +155,7 @@ final readonly class ExecutionStateStore
         string $previousCandidateRevision,
         string $observedCandidateRevision,
         array $changedFiles,
+        ?string $candidateWorkspace = null,
     ): ExecutionProjection {
         $lock = $this->acquireLock($plan->taskId);
         try {
@@ -203,6 +204,7 @@ final readonly class ExecutionStateStore
                 $previousCandidateRevision,
                 $observedCandidateRevision,
                 $changedFiles,
+                $candidateWorkspace,
             );
             $this->assertSafeChangedFiles($changedFiles);
             $attempt = $this->attemptFor('build', $state->history);
@@ -541,6 +543,7 @@ final readonly class ExecutionStateStore
         string $previousCandidateRevision,
         string $observedCandidateRevision,
         array $changedFiles,
+        ?string $candidateWorkspace,
     ): void {
         $root = realpath($this->rootPath);
         if (!is_string($root) || !is_dir($root)) {
@@ -556,8 +559,14 @@ final readonly class ExecutionStateStore
             || !hash_equals($plan->contractSource['sha256'], 'sha256:' . $contractSha)) {
             throw new RuntimeException('RECOVERY_BLOCKED: current approved Contract does not match the execution plan.');
         }
-        (new CandidateWorkspaceIdentity())->assertHolds(
-            $root,
+        $candidateRoot = realpath($candidateWorkspace ?? $root);
+        if (!is_string($candidateRoot) || !is_dir($candidateRoot)) {
+            throw new RuntimeException('RECOVERY_BLOCKED: candidate workspace cannot be resolved.');
+        }
+        $identity = new CandidateWorkspaceIdentity();
+        $identity->assertSameRepository($root, $candidateRoot);
+        $identity->assertHolds(
+            $candidateRoot,
             $plan->baseCommit,
             $observedCandidateRevision,
             $this->relativeStateRoot($root),

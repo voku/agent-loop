@@ -39,6 +39,25 @@ final readonly class CandidateWorkspaceIdentity
         }
     }
 
+    /** Ensure a candidate workspace belongs to the owner's Git repository. */
+    public function assertSameRepository(string $ownerWorkspace, string $candidateWorkspace): void
+    {
+        $candidateRoot = $this->git($candidateWorkspace, ['rev-parse', '--path-format=absolute', '--show-toplevel']);
+        $candidateReal = realpath($candidateWorkspace);
+        $candidateRootReal = realpath($candidateRoot);
+        if (!is_string($candidateReal) || !is_string($candidateRootReal) || !hash_equals($candidateRootReal, $candidateReal)) {
+            throw new RuntimeException('STALE_CANDIDATE: candidate workspace must be the root of its Git worktree.');
+        }
+
+        $ownerCommonDir = $this->git($ownerWorkspace, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+        $candidateCommonDir = $this->git($candidateWorkspace, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+        $ownerReal = realpath($ownerCommonDir);
+        $candidateCommonReal = realpath($candidateCommonDir);
+        if (!is_string($ownerReal) || !is_string($candidateCommonReal) || !hash_equals($ownerReal, $candidateCommonReal)) {
+            throw new RuntimeException('STALE_CANDIDATE: candidate workspace is not a linked worktree of the owner repository.');
+        }
+    }
+
     private function candidateTree(string $baseCommit, string $candidateRevision): string
     {
         if (preg_match(
