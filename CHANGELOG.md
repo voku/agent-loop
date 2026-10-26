@@ -1,5 +1,15 @@
 ## Unreleased
 
+## [0.20.71] - 2026-10-26
+
+### Fixed
+
+- Allow safe in-scope symlink fixtures in governed implementation snapshots while binding raw link targets and rejecting unsafe or excluded targets (#841).
+
+### Validation
+
+- `composer ci` passes, including the symlink snapshot regression coverage.
+
 ## [0.20.70] - 2026-10-25
 
 ### Fixed
