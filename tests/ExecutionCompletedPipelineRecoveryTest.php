@@ -126,6 +126,66 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
         $gateway->submitStageResult($review);
     }
 
+    public function testRecoveryCanUseSameRepositoryCandidateWorktree(): void
+    {
+        [$gateway, $before, $build] = $this->completeRun();
+        self::assertNotSame(realpath($this->run->root), realpath($this->run->workspace));
+        self::assertSame(
+            realpath($this->run->workspace),
+            realpath($this->run->git($this->run->workspace, 'rev-parse', '--show-toplevel')),
+        );
+        file_put_contents($this->run->workspace . '/src/Foo.php', "<?php\nfinal class Foo { public const int VALUE = 2; }\n");
+        $candidate = $this->currentCandidateRevision($this->run->workspace);
+
+        [$exit, $payload] = $this->recover($candidate, $this->run->workspace);
+
+        self::assertSame(0, $exit, json_encode($payload, JSON_THROW_ON_ERROR));
+        self::assertSame('build', $payload['current_stage']);
+        self::assertSame($build->candidateRevision, $this->state()->recoveryHistory[0]['previous_candidate_revision']);
+        self::assertSame($build->candidateRevision, $this->state()->candidateRevision);
+        self::assertSame($before->toArray()['history'], $this->state()->toArray()['history']);
+        self::assertSame('build', $gateway->projection('VER-1')->currentStageId);
+    }
+
+    public function testRecoveryRejectsUnrelatedCandidateRepositoryBeforeMutation(): void
+    {
+        [, $before] = $this->completeRun();
+        $foreign = $this->run->root . '-foreign';
+        mkdir($foreign);
+        exec('git -C ' . escapeshellarg($foreign) . ' init -q');
+        exec('git -C ' . escapeshellarg($foreign) . ' config user.email x@y.test');
+        exec('git -C ' . escapeshellarg($foreign) . ' config user.name X');
+        file_put_contents($foreign . '/foreign.txt', "foreign\n");
+        exec('git -C ' . escapeshellarg($foreign) . ' add . && git -C ' . escapeshellarg($foreign) . ' commit -qm foreign');
+        $candidate = $this->currentCandidateRevision($foreign);
+        $statePath = (new ExecutionStateStore($this->run->root))->path('VER-1');
+        $stateBefore = file_get_contents($statePath);
+
+        try {
+            [$exit, $payload] = $this->recover($candidate, $foreign);
+            self::assertSame(1, $exit);
+            self::assertStringContainsString('not a linked worktree', $payload['message']);
+            self::assertSame($stateBefore, file_get_contents($statePath));
+            self::assertSame($before->toArray(), $this->state()->toArray());
+        } finally {
+            exec('rm -rf ' . escapeshellarg($foreign));
+        }
+    }
+
+    public function testRecoveryRejectsNestedDirectoryAsCandidateWorkspaceBeforeMutation(): void
+    {
+        [, $before, $build] = $this->completeRun();
+        $statePath = (new ExecutionStateStore($this->run->root))->path('VER-1');
+        $stateBefore = file_get_contents($statePath);
+
+        [$exit, $payload] = $this->recover($build->candidateRevision, $this->run->workspace . '/src');
+
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('must be the root of its Git worktree', $payload['message']);
+        self::assertSame($stateBefore, file_get_contents($statePath));
+        self::assertSame($before->toArray(), $this->state()->toArray());
+    }
+
     public function testModeOnlyRecoveryOverridesHistoricalVerificationReceipt(): void
     {
         $this->completeRun();
@@ -651,8 +711,9 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
         self::assertNotFalse(file_put_contents($this->run->root . '/src/Foo.php', $source));
     }
 
-    private function currentCandidateRevision(): string
+    private function currentCandidateRevision(?string $workspace = null): string
     {
+        $workspace ??= $this->run->root;
         $index = tempnam(sys_get_temp_dir(), 'agent-loop-recovery-index-');
         if (!is_string($index) || !unlink($index)) {
             throw new RuntimeException('Unable to prepare a private Git index for the recovery fixture.');
@@ -663,9 +724,9 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
         }
         $environment['GIT_INDEX_FILE'] = $index;
         try {
-            $this->gitWithEnvironment(['read-tree', $this->run->git($this->run->root, 'rev-parse', 'HEAD')], $environment);
-            $this->gitWithEnvironment(['add', '-A', '--', '.'], $environment);
-            $tree = $this->gitWithEnvironment(['write-tree'], $environment);
+            $this->gitWithEnvironment(['read-tree', $this->run->git($workspace, 'rev-parse', 'HEAD')], $environment, $workspace);
+            $this->gitWithEnvironment(['add', '-A', '--', '.'], $environment, $workspace);
+            $tree = $this->gitWithEnvironment(['write-tree'], $environment, $workspace);
         } finally {
             if (is_file($index)) {
                 unlink($index);
@@ -682,14 +743,14 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
     /** @param list<string> $arguments
      *  @param array<string, string> $environment
      */
-    private function gitWithEnvironment(array $arguments, array $environment): string
+    private function gitWithEnvironment(array $arguments, array $environment, ?string $workspace = null): string
     {
         $pipes = [];
         $process = proc_open(
             ['git', ...$arguments],
             [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
-            $this->run->root,
+            $workspace ?? $this->run->root,
             $environment,
         );
         if (!is_resource($process)) {
@@ -709,14 +770,17 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
     }
 
     /** @return array{int, array<string, mixed>} */
-    private function recover(string $candidate): array
+    private function recover(string $candidate, ?string $workspace = null): array
     {
         $level = ob_get_level();
         ob_start();
         try {
-            $exit = (new WorkflowPipelineCommand($this->run->root))->run([
-                'recover', 'VER-1', '--candidate', $candidate, '--format=json',
-            ]);
+            $arguments = ['recover', 'VER-1', '--candidate', $candidate];
+            if ($workspace !== null) {
+                $arguments[] = '--workspace=' . $workspace;
+            }
+            $arguments[] = '--format=json';
+            $exit = (new WorkflowPipelineCommand($this->run->root))->run($arguments);
             $output = (string) ob_get_clean();
         } finally {
             while (ob_get_level() > $level) {

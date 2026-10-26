@@ -320,6 +320,7 @@ final readonly class WorkflowPipelineCommand
         $contextId = OptionTokens::value($tokens, "context-id");
         $artifactPaths = OptionTokens::values($tokens, "artifact");
         $autoVerify = OptionTokens::hasFlag($tokens, "auto-verify") || OptionTokens::value($tokens, "auto-verify") === "true";
+        $candidateWorkspace = OptionTokens::value($tokens, "workspace");
 
         $gateway = new ExecutionGateway($this->rootPath);
         $projection = $gateway->projection($taskId);
@@ -377,7 +378,7 @@ final readonly class WorkflowPipelineCommand
             $plan = (new ExecutionPlanStore($this->rootPath))->load($taskId);
             $nextStage = $plan->stage($newProjection->currentStageId);
             if ($nextStage->kind === ExecutionStageKind::DETERMINISTIC) {
-                $newProjection = $gateway->runDeterministicStage($taskId, $nextStage->id);
+                $newProjection = $gateway->runDeterministicStage($taskId, $nextStage->id, $candidateWorkspace);
             }
         }
 
@@ -395,7 +396,8 @@ final readonly class WorkflowPipelineCommand
             throw new InvalidArgumentException("pipeline recover requires --candidate <content-addressed-revision>.");
         }
 
-        $projection = (new ExecutionGateway($this->rootPath))->recoverCompletedPipeline($taskId, $candidate);
+        $workspace = OptionTokens::value($tokens, "workspace");
+        $projection = (new ExecutionGateway($this->rootPath))->recoverCompletedPipeline($taskId, $candidate, $workspace);
 
         return $this->renderTransition($taskId, $projection, $format);
     }
@@ -408,6 +410,7 @@ final readonly class WorkflowPipelineCommand
         $taskId = (new WorkflowTaskId($taskIdString))->value;
         $requestedProfile = OptionTokens::value($tokens, "profile");
         $actor = OptionTokens::value($tokens, "by") ?? "pipeline-runner";
+        $candidateWorkspace = OptionTokens::value($tokens, "workspace");
         $autoVerify = true; // Default auto-verify to true in run mode unless explicitly disabled
         if (OptionTokens::value($tokens, "auto-verify") === "false") {
             $autoVerify = false;
@@ -452,7 +455,7 @@ final readonly class WorkflowPipelineCommand
 
             if ($stage->kind === ExecutionStageKind::DETERMINISTIC) {
                 if ($autoVerify) {
-                    $projection = $gateway->runDeterministicStage($taskId, $stageId);
+                    $projection = $gateway->runDeterministicStage($taskId, $stageId, $candidateWorkspace);
                 } else {
                     break;
                 }
@@ -535,9 +538,9 @@ final readonly class WorkflowPipelineCommand
 Usage:
   agent-loop pipeline status <task-id> [--format text|json]
   agent-loop pipeline stage <task-id> [--format text|json]
-  agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--auto-verify] [--format text|json]
-  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--auto-verify] [--format text|json]
-  agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--format text|json]
+  agent-loop pipeline run <task-id> [--profile surgical|standard|hardened] [--by <actor>] [--workspace <path>] [--auto-verify] [--format text|json]
+  agent-loop pipeline submit <task-id> --outcome <completed|pass|changes_required|blocked|needs_clarification|failed> [--summary "<text>"] [--candidate <rev>] [--context-id <opaque-id>] [--artifact <path|deleted-file:path>] [--auto-verify] [--workspace <path>] [--format text|json]
+  agent-loop pipeline recover <task-id> --candidate <content-addressed-revision> [--workspace <path>] [--format text|json]
 
 Automated multi-stage execution runner for governed task profiles.
 TXT;

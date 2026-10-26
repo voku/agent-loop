@@ -51,6 +51,7 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertStringContainsString("agent-loop pipeline stage", $res["stdout"]);
         self::assertStringContainsString("agent-loop pipeline run", $res["stdout"]);
         self::assertStringContainsString("agent-loop pipeline submit", $res["stdout"]);
+        self::assertStringContainsString("--workspace <path>", $res["stdout"]);
         self::assertStringContainsString("agent-loop pipeline recover", $res["stdout"]);
     }
 
@@ -176,6 +177,59 @@ final class WorkflowPipelineCommandTest extends TestCase
         self::assertArrayHasKey("complete", $p);
     }
 
+    public function testPipelineRunVerifiesAnExplicitLinkedCandidateWorkspace(): void
+    {
+        $this->prepareSurgicalRun("PIPE-WORKSPACE", ["test -f .agent-loop/candidate-marker"]);
+        $workspace = $this->root . "-candidate";
+        $git = "git -C " . escapeshellarg($this->root);
+        exec("$git worktree add -q --detach " . escapeshellarg($workspace) . " " . escapeshellarg($this->baseCommit));
+        try {
+            self::assertFileExists($workspace . "/src/Foo.php");
+            mkdir($workspace . "/.agent-loop", 0o775, true);
+            file_put_contents($workspace . "/.agent-loop/candidate-marker", "candidate worktree\n");
+            $command = new WorkflowPipelineCommand($this->root);
+
+            $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed"]);
+            $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=completed", "--context-id=ctx:build-workspace"]);
+            $this->captureRun($command, ["submit", "PIPE-WORKSPACE", "--outcome=pass", "--context-id=ctx:review-workspace"]);
+
+            $run = $this->captureRun($command, ["run", "PIPE-WORKSPACE", "--workspace", $workspace, "--format=json"]);
+            self::assertSame(0, $run["exit"], $run["stdout"]);
+            $payload = json_decode($run["stdout"], true, 512, JSON_THROW_ON_ERROR);
+            self::assertTrue($payload["complete"]);
+        } finally {
+            exec("$git worktree remove --force " . escapeshellarg($workspace) . " 2>/dev/null");
+            $this->rm($workspace);
+        }
+    }
+
+    public function testPipelineSubmitAutoVerifyUsesExplicitLinkedCandidateWorkspace(): void
+    {
+        $this->prepareSurgicalRun("PIPE-WORKSPACE-SUBMIT", ["test -f .agent-loop/candidate-marker"]);
+        $workspace = $this->root . "-candidate-submit";
+        $git = "git -C " . escapeshellarg($this->root);
+        exec("$git worktree add -q --detach " . escapeshellarg($workspace) . " " . escapeshellarg($this->baseCommit));
+        try {
+            mkdir($workspace . "/.agent-loop", 0o775, true);
+            file_put_contents($workspace . "/.agent-loop/candidate-marker", "candidate worktree\n");
+            $command = new WorkflowPipelineCommand($this->root);
+
+            $this->captureRun($command, ["submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed"]);
+            $this->captureRun($command, ["submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=completed", "--context-id=ctx:build-workspace-submit"]);
+            $review = $this->captureRun($command, [
+                "submit", "PIPE-WORKSPACE-SUBMIT", "--outcome=pass", "--context-id=ctx:review-workspace-submit",
+                "--auto-verify", "--workspace", $workspace, "--format=json",
+            ]);
+
+            self::assertSame(0, $review["exit"], $review["stdout"]);
+            $payload = json_decode($review["stdout"], true, 512, JSON_THROW_ON_ERROR);
+            self::assertTrue($payload["complete"]);
+        } finally {
+            exec("$git worktree remove --force " . escapeshellarg($workspace) . " 2>/dev/null");
+            $this->rm($workspace);
+        }
+    }
+
     public function testPipelineCompletedStageInspection(): void
     {
         $this->prepareSurgicalRun("PIPE-4");
@@ -236,7 +290,8 @@ final class WorkflowPipelineCommandTest extends TestCase
         return ["exit" => $exit, "stdout" => $stdout, "stderr" => $stdout];
     }
 
-    private function prepareSurgicalRun(string $taskId): void
+    /** @param list<string> $validation */
+    private function prepareSurgicalRun(string $taskId, array $validation = ["php -l src/Foo.php"]): void
     {
         ob_start();
         (new WorkflowPlanCommand($this->root))->run([
@@ -244,7 +299,7 @@ final class WorkflowPipelineCommandTest extends TestCase
             "--by", "lars",
             "--file", "src/Foo.php",
             "--goal", "Pipeline execution test.",
-            "--validation", "php -l src/Foo.php",
+            ...array_merge(...array_map(static fn (string $command): array => ["--validation", $command], $validation)),
             "--base-commit", $this->baseCommit,
         ]);
         $revision = (new TaskContractStore($this->root))->load($taskId)->revision;
