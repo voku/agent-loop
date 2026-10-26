@@ -1,0 +1,46 @@
+{
+    "id": "finding.2026-10-26.4b3cfd",
+    "task_id": "AL-841",
+    "session": "2026-10-26-al-841-r3-b484683e",
+    "created_at": "2026-10-26T11:50:23+00:00",
+    "created_by": "codex",
+    "scope": [
+        "src/Workflow/ImplementationSnapshot.php",
+        "tests/ImplementationSnapshotTest.php",
+        "tests/WorkflowPlanScopeNormalizationTest.php",
+        "tests/WorkflowStatusCommandTest.php"
+    ],
+    "observation": "Independent correctness review changed an in-scope symlink target file that was excluded from the captured regular-file set; the snapshot digest did not change, so the candidate identity omitted mutable target content.",
+    "evidence": [
+        {
+            "type": "test_result",
+            "command": "composer test -- --do-not-cache-result",
+            "summary": "Observed passed with exit code 0 for implementation sha256:e435f34a4eac9cf25f2ce7e0c9d24707df1f452d8adfda651831e522d9d0f7fc."
+        },
+        {
+            "type": "test_result",
+            "command": "composer phpstan",
+            "summary": "Observed passed with exit code 0 for implementation sha256:e435f34a4eac9cf25f2ce7e0c9d24707df1f452d8adfda651831e522d9d0f7fc."
+        },
+        {
+            "type": "test_result",
+            "command": "composer cs",
+            "summary": "Observed passed with exit code 0 for implementation sha256:e435f34a4eac9cf25f2ce7e0c9d24707df1f452d8adfda651831e522d9d0f7fc."
+        },
+        {
+            "type": "test_result",
+            "command": "composer ci",
+            "summary": "Observed passed with exit code 0 for implementation sha256:e435f34a4eac9cf25f2ce7e0c9d24707df1f452d8adfda651831e522d9d0f7fc."
+        },
+        {
+            "type": "manual_verification",
+            "summary": "Exact blind-spot report acknowledged: sha256:33fd2df2eedf502051ca346c2d79684604a123e88f99602a66aa710c45888692."
+        }
+    ],
+    "hypothesis": "A filesystem snapshot that hashes a symlink target string without binding the resolved regular file can authenticate an incomplete candidate.",
+    "validated_conclusion": "For a descendant symlink in a scoped directory, bind its bounded raw relative target with a domain-separated digest and require the resolved regular target to be present as a captured regular-file entry in that same scope; reject excluded, traversal, dangling, absolute, and out-of-scope targets. Regression tests cover changed target bytes and excluded metadata/vendor targets.",
+    "confidence": "high",
+    "validation_status": "validated",
+    "status": "validated",
+    "sensitivity": "internal"
+}

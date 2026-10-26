@@ -48,6 +48,10 @@ final readonly class ImplementationSnapshot
 
         /** @var array<string, string> $files */
         $files = [];
+        /** @var array<string, true> $regularFiles */
+        $regularFiles = [];
+        /** @var array<string, array{target: non-empty-string, resolved_relative: string}> $links */
+        $links = [];
         /** @var list<string> $deleted */
         $deleted = [];
         foreach ($contract->scope as $scopePath) {
@@ -61,6 +65,7 @@ final readonly class ImplementationSnapshot
                     throw new RuntimeException('Implementation snapshot scope is workflow/dependency metadata, not implementation content: ' . $relative);
                 }
                 $files[$relative] = self::hashFile($absolute, $relative);
+                $regularFiles[$relative] = true;
                 continue;
             }
             if (!is_dir($absolute)) {
@@ -85,6 +90,7 @@ final readonly class ImplementationSnapshot
             }
 
             $before = count($files);
+            $linksBefore = count($links);
             $iterator = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($absolute, RecursiveDirectoryIterator::SKIP_DOTS),
             );
@@ -98,16 +104,24 @@ final readonly class ImplementationSnapshot
                     continue;
                 }
                 if ($item->isLink()) {
-                    throw new RuntimeException('Implementation snapshot refuses symlinked path inside approved scope: ' . $fileRelative);
+                    $links[$fileRelative] = self::inspectScopedSymlink($path, $fileRelative, $absolute, $root);
+                    continue;
                 }
                 if (!$item->isFile()) {
                     continue;
                 }
                 $files[$fileRelative] = self::hashFile($path, $fileRelative);
+                $regularFiles[$fileRelative] = true;
             }
-            if (count($files) === $before) {
+            if (count($files) === $before && count($links) === $linksBefore) {
                 throw new ImplementationSnapshotUnavailable('Implementation snapshot scoped directory contains no implementation files yet: ' . $relative);
             }
+        }
+        foreach ($links as $fileRelative => $link) {
+            if (!isset($regularFiles[$link['resolved_relative']])) {
+                throw new RuntimeException('Implementation snapshot refuses symlink without a bound regular target: ' . $fileRelative);
+            }
+            $files[$fileRelative] = self::hashSymlinkTarget($link['target']);
         }
         if ($files === [] && $deleted === []) {
             throw new ImplementationSnapshotUnavailable('Implementation snapshot has no scoped implementation files yet.');
@@ -282,5 +296,40 @@ final readonly class ImplementationSnapshot
         }
 
         return 'sha256:' . $hash;
+    }
+
+    /**
+     * Bind a link as a link. The target is inspected only to prove that this
+     * fixture link resolves to a regular file inside the same approved scope;
+     * its bytes are represented by their own scoped file entry.
+     */
+    /** @return array{target: non-empty-string, resolved_relative: string} */
+    private static function inspectScopedSymlink(string $absolute, string $relative, string $scopeAbsolute, string $root): array
+    {
+        $target = readlink($absolute);
+        if (!is_string($target) || strlen($target) > 4096 || str_contains($target, "\0")
+            || str_starts_with($target, '/') || preg_match('~^[A-Za-z]:[\\\\/]~', $target) === 1) {
+            throw new RuntimeException('Implementation snapshot refuses unsafe symlink target: ' . $relative);
+        }
+        $scope = realpath($scopeAbsolute);
+        $resolved = realpath($absolute);
+        if ($scope === false || $resolved === false || !is_file($resolved) || !self::isInsidePath($resolved, $scope)) {
+            throw new RuntimeException('Implementation snapshot refuses unresolved or out-of-scope symlink: ' . $relative);
+        }
+
+        return ['target' => $target, 'resolved_relative' => self::relative($root, $resolved)];
+    }
+
+    private static function hashSymlinkTarget(string $target): string
+    {
+        return 'sha256:' . hash('sha256', "agent-loop:implementation-snapshot:symlink:v1\0" . $target);
+    }
+
+    private static function isInsidePath(string $path, string $root): bool
+    {
+        $path = rtrim(str_replace('\\\\', '/', $path), '/');
+        $root = rtrim(str_replace('\\\\', '/', $root), '/');
+
+        return $path === $root || str_starts_with($path, $root . '/');
     }
 }
