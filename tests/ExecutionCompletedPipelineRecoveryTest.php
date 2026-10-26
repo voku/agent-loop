@@ -541,20 +541,35 @@ final class ExecutionCompletedPipelineRecoveryTest extends TestCase
         $candidate = $this->currentCandidateRevision();
         $plan = (new ExecutionPlanStore($this->run->root))->load('VER-1');
         $contract = $this->contractWithScope([':(top)src/Execution']);
-        $rejection = null;
+        $changedFiles = (new CompletedPipelineRecovery($this->run->root))->candidateChangedFilesWithinApprovedScope(
+            $plan,
+            $contract,
+            $previousCandidate,
+            $candidate,
+        );
 
-        try {
-            (new CompletedPipelineRecovery($this->run->root))->candidateChangedFilesWithinApprovedScope(
-                $plan,
-                $contract,
-                $previousCandidate,
-                $candidate,
-            );
-        } catch (RuntimeException $exception) {
-            $rejection = $exception;
-        }
-        self::assertNotNull($rejection);
-        self::assertStringContainsString('outside approved Contract scope', $rejection->getMessage());
+        self::assertSame([$literalPath], $changedFiles);
+    }
+
+    public function testRecoveryAllowsNewFilesUnderApprovedDirectoryCreatedInCandidate(): void
+    {
+        $this->completeRun();
+        $previousCandidate = $this->currentCandidateRevision();
+        $scopePath = 'src/NewEvidence';
+        self::assertTrue(mkdir($this->run->root . '/' . $scopePath, 0o775, true));
+        self::assertNotFalse(file_put_contents($this->run->root . '/' . $scopePath . '/Record.php', "<?php\n"));
+        $candidate = $this->currentCandidateRevision();
+        $plan = (new ExecutionPlanStore($this->run->root))->load('VER-1');
+        $contract = $this->contractWithScope([$scopePath]);
+
+        $changedFiles = (new CompletedPipelineRecovery($this->run->root))->candidateChangedFilesWithinApprovedScope(
+            $plan,
+            $contract,
+            $previousCandidate,
+            $candidate,
+        );
+
+        self::assertSame([$scopePath . '/Record.php'], $changedFiles);
     }
 
     public function testRecoveredBuildRejectsSymlinkAtApprovedExactFileBeforeMutation(): void
