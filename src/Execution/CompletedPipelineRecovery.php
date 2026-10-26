@@ -134,6 +134,7 @@ final readonly class CompletedPipelineRecovery
             if (!$this->isExactOrInsideApprovedDirectory(
                 $root,
                 $previousTree,
+                $candidateTree,
                 $contract->scope,
                 $path,
                 $directoryScopeEntries,
@@ -161,6 +162,7 @@ final readonly class CompletedPipelineRecovery
     private function isExactOrInsideApprovedDirectory(
         string $root,
         string $previousTree,
+        string $candidateTree,
         array $scopeEntries,
         string $changedPath,
         array &$directoryScopeEntries,
@@ -174,7 +176,9 @@ final readonly class CompletedPipelineRecovery
                 continue;
             }
             if (!array_key_exists($scopePath, $directoryScopeEntries)) {
-                $directoryScopeEntries[$scopePath] = $this->isDirectoryAtCandidateTree($root, $previousTree, $scopePath);
+                $previousScopeExists = $this->pathEntryExistsAtTree($root, $previousTree, $scopePath);
+                $directoryScopeEntries[$scopePath] = $this->isDirectoryAtCandidateTree($root, $previousTree, $scopePath)
+                    || (!$previousScopeExists && $this->isDirectoryAtCandidateTree($root, $candidateTree, $scopePath));
             }
             if ($directoryScopeEntries[$scopePath]) {
                 return true;
@@ -201,6 +205,25 @@ final readonly class CompletedPipelineRecovery
         );
 
         return trim($output) === 'tree';
+    }
+
+    private function pathEntryExistsAtTree(string $root, string $candidateTree, string $path): bool
+    {
+        $output = $this->gitOutput(
+            [
+                '--no-replace-objects',
+                '--literal-pathspecs',
+                'ls-tree',
+                '--full-tree',
+                '--format=%(objecttype)',
+                $candidateTree,
+                '--',
+                $path,
+            ],
+            $root,
+        );
+
+        return trim($output) !== '';
     }
 
     private function isSymlinkAtCandidateTree(string $root, string $candidateTree, string $path): bool
