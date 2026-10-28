@@ -1,5 +1,17 @@
 ## Unreleased
 
+### Added
+
+- Let a governed Run end honestly when it can no longer pass its close gates: `agent-loop workflow retire <task-id> --status superseded|abandoned --reason <text> --by <actor>` records a durable, Run-bound retirement and the Run projects as the terminal state `retired` with nothing left to do (`workflow status --expect retired`). It is not a successful close: it is refused for a Run that already has final verification evidence, needs a reason and an actor, changes no Contract, code or board card, and a later Run of the same task is not retired by it. Previously the only exits were an accepted-risk `done` or an open Run that hides live work.
+
+### Changed
+
+- Every third `changes_required` review result of a governed Run (counted across its review stages) opens a human-owned `review_changes_required` Attention carrying the review summary instead of reopening `build`, and no further stage result is accepted until a human resolves it; after the resolution the review stage runs again and the next prompt comes after another three. A failing review is never passed automatically. Before, a Run could loop through unlimited review rounds without a human decision.
+
+### Validation
+
+- `composer ci` passes, including `RunRetirementTest` and `ExecutionReviewRoundCapTest`.
+
 ## [0.20.74] - 2026-10-28
 
 ### Fixed

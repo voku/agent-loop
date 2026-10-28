@@ -175,6 +175,27 @@ final class RunProgressProjectorTest extends TestCase
         }
     }
 
+    public function testRetiredRunHasNoCurrentOrPendingStepsAndNoNextAction(): void
+    {
+        $references = $this->references(
+            contract: 'approved',
+            approval: 'current',
+            session: 'active',
+            recall: 'compiled',
+            executionContract: 'not_required',
+            verification: 'missing',
+            review: 'missing',
+            learning: 'missing',
+        );
+        $references['retirement'] = ['owner' => 'agent-loop', 'state' => 'retired'];
+
+        $progress = (new RunProgressProjector())->project('ABC-123', 'governed', $references, []);
+
+        self::assertSame('retired', $progress->state);
+        self::assertSame('none', $progress->nextActionKind);
+        self::assertSame([], $progress->steps);
+    }
+
     /**
      * @param list<RunProgressStep> $steps
      * @return array<string, string>

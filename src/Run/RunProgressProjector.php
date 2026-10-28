@@ -24,7 +24,8 @@ final readonly class RunProgressProjector
     public function project(string $taskId, string $mode, array $references, array $disagreements): RunProgressProjection
     {
         $policy = (new RunPolicyEvaluator())->evaluate($taskId, $mode, $references, $disagreements);
-        if ($mode === 'ephemeral') {
+        // A retired Run has no remaining step: listing the old ones as current or pending would contradict its terminal state.
+        if ($mode === 'ephemeral' || $policy->state === 'retired') {
             return new RunProgressProjection($taskId, $policy->state, $policy->nextAction, $policy->nextActionKind, []);
         }
 

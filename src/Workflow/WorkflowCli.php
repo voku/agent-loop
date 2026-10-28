@@ -36,6 +36,7 @@ final readonly class WorkflowCli
             'handoff' => (new WorkflowHandoffCommand($this->rootPath))->run($rest),
             'learn' => (new WorkflowLearningCommand($this->rootPath))->run($rest),
             'close' => (new WorkflowCloseCommand($this->rootPath))->run($rest),
+            'retire' => (new WorkflowRetireCommand($this->rootPath))->run($rest),
             default => $this->unknown($command),
         };
     }
@@ -51,7 +52,7 @@ Usage:
   agent-loop workflow attention <task-id> --resolve <attention-id> --by <actor>
   agent-loop workflow contract <task-id> --status ready --from <l1.md> --by <actor>
   agent-loop workflow contract <task-id> --status blocked|rejected --reason <text> --evidence <text> [--evidence <text> ...] --minimum-change <text> [--affected-constraint <text>] --by <actor>
-  agent-loop workflow status <task-id> [--format text|json|toon] [--expect blocked|experiment|incomplete|ready_to_close|complete]
+  agent-loop workflow status <task-id> [--format text|json|toon] [--expect blocked|experiment|incomplete|ready_to_close|complete|retired]
   agent-loop workflow manifest <task-id> [--write] [--format text|json]
   agent-loop workflow context <task-id> [--max-lines N] [--max-bytes N] [--format text|json]
   agent-loop workflow report <task-id> [--format text|json] [--changed-file <path> ...]
@@ -61,6 +62,7 @@ Usage:
   agent-loop workflow handoff <task-id> (--context <text> | --context-file <path>)
   agent-loop workflow learn <task-id> --by <actor> (--status no_durable_learning | --finding <id> [--finding <id> ...] | --follow-up <ref>) [--reason <text>]
   agent-loop workflow close <task-id> --status done [--accept-risk <reason> --accept-risk-by <name>]
+  agent-loop workflow retire <task-id> --status superseded|abandoned --reason <text> --by <actor>
 
 Commands:
   plan               Create or revise a durable candidate Contract, including explicit required acceptance outcomes when supplied. PLAN creates no Session and no Run.
@@ -77,6 +79,7 @@ Commands:
   reflect            Emit a context-light future-work prompt; task scope requires ready_to_close or complete, project scope requires complete; never mutates workflow state.
   handoff            Compile a self-contained TODO/card handoff prompt from explicit bounded current-session notes plus the governed Session identity, durable Contract evidence, and current board-card projection when available. The acting agent still updates the existing task owner.
   learn              Record the durable Run Learning close-out through agent-learning.
+  retire             Give a governed Run up on the record (superseded or abandoned) when it can no longer pass its close gates; it is not a successful close and changes no Contract, code or board card.
   close              Close the governed Run through safety gates and preserve durable close evidence.
 
 Built-in L1 control prompts:

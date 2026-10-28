@@ -48,6 +48,9 @@ final readonly class RunPolicyEvaluator
      */
     private function state(string $mode, array $references, array $disagreements): string
     {
+        if ($this->referenceState($references, 'retirement') === 'retired') {
+            return 'retired';
+        }
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
             static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
@@ -137,6 +140,9 @@ final readonly class RunPolicyEvaluator
         array $references,
         array $disagreements,
     ): array {
+        if ($state === 'retired') {
+            return ['action' => 'none', 'kind' => RunPolicyEvaluation::KIND_NONE, 'invocation' => null];
+        }
         // A disagreement is an unexpected state, and naming the inspection
         // command for it was non-convergent by construction: `workflow manifest
         // --format=json` is read-only, so it can never alter the state that
@@ -538,6 +544,9 @@ final readonly class RunPolicyEvaluator
      */
     private function blockers(string $state, array $references, array $disagreements): array
     {
+        if ($state === 'retired') {
+            return [];
+        }
         $blockingDisagreements = array_values(array_filter(
             $disagreements,
             static fn (array $d): bool => $d['code'] !== 'board.active_after_run_complete',
