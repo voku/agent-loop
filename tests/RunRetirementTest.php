@@ -68,6 +68,11 @@ final class RunRetirementTest extends TestCase
         $sessions->setStatus($sessions->load($this->root . '/.agent-loop/sessions', $run->sessionId), SessionStatus::DONE);
         $contracts = new TaskContractStore($this->root);
         $revised = $contracts->approve('ABC-123', 'lars', $contracts->revise('ABC-123', 'Second attempt.', ['src/Foo.php'], [], ['vendor/bin/phpunit'], 'lars')->revision);
+
+        $beforeSuccessor = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('incomplete', $beforeSuccessor->state, 'Approved successor must be preparable through enter.');
+        self::assertSame('retired', $beforeSuccessor->references['retirement']['state'], 'Previous Run remains retired.');
+
         (new GovernedRunStore($this->root))->prepare(
             $revised,
             $sessions->create($this->root . '/.agent-loop/sessions', 'ABC-123', by: 'lars'),
