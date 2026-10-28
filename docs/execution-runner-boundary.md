@@ -54,15 +54,56 @@ final `verify` stage remains an `agent-loop` operation rather than an LLM
 claim. It runs in the workspace that holds the governed candidate (the execution
 consumer passes its Run worktree; the default is the project root). Loop first
 recomputes that workspace's `git-tree-v1` identity and refuses it with
-`CANDIDATE_MISMATCH` unless it is the accepted candidate. It then runs the
+`CANDIDATE_MISMATCH` unless it is the accepted candidate (whole-tree identity in
+a Run worktree; scoped to the approved Contract in the owner checkout, see
+[Verify in a shared checkout](#verify-in-a-shared-checkout)). It then runs the
 project/Run consistency check, which emits one owner-bound `consistency` receipt
 in `consistency_references` and is never `VALIDATION` evidence, and executes the
-approved Contract's validation commands in that workspace, recording one
+approved Contract's validation commands in that workspace (or, in a shared
+checkout, on an export of it; see below), recording one
 `VALIDATION` evidence per executed command. PASS requires the consistency
 receipt, every declared command to exit 0, and the candidate to be unchanged
-afterwards; a failing command opens Attention. A deterministic PASS without the
+afterwards (compared as described below in a shared checkout); a failing command opens Attention. A deterministic PASS without the
 consistency receipt is rejected. `finish` remains the task-level validation gate
 for the work the host adopts into the checkout.
+
+### Verify in a shared checkout
+
+When `verify` runs in the owner checkout (the project root, not a Run
+worktree), the governed candidate is the base commit overlaid with only the
+approved Contract scope. Scope entries are literal paths or directory prefixes:
+no globs, and `.` means the whole tree. The scoped tree must match the accepted
+candidate exactly, so uncommitted work of other tasks outside the scope no longer
+causes `CANDIDATE_MISMATCH`.
+
+- If the workspace differs from the candidate outside the scope, the declared
+  validation commands run against an export of the accepted candidate tree (not a
+  Git worktree). The export holds the files of the accepted candidate tree only:
+  no ignored or generated files such as `vendor/`, `node_modules` or `.env`, and
+  no `.git`, so commands that call `git` fail there. Nothing is symlinked or
+  reused from the checkout. A Contract whose validation needs dependencies must
+  declare their preparation as validation commands (for example
+  `composer install` before `composer ci`); a bare `composer ci` fails there. A
+  declared command failing is a recorded `FAILED` stage, not a retryable
+  mismatch. A failure to create the export is an error and records no stage
+  result; it is an environment problem to fix before running `verify` again.
+  The project/Run consistency check always runs once against the project root,
+  never inside the export. Its `consistency` receipt is still required for PASS,
+  but it describes the checkout, not the exported tree; only the declared
+  validation commands describe the exported candidate.
+- Otherwise validation runs in place and the whole tree must be unchanged
+  afterwards. In both modes the accepted candidate is proven again after
+  validation.
+- Edits outside the scope, whether the builder's own or another task's, are not
+  part of the accepted candidate, and a PASS does not cover them. That is the
+  point of the scope boundary, so review the scope when approving the Contract.
+- Ignored foreign files are invisible to this detection. A PASS is a statement
+  about the accepted candidate, not about the shared checkout with other tasks'
+  files in it: an export PASS proves the candidate in a clean tree, and an
+  ignored foreign file can still influence an in-place run. The
+  task-level `finish` gate is where the adopted work is checked in the checkout.
+- Recovery, explicit candidate worktrees and Runner flows keep the exact
+  whole-tree identity.
 
 ## Typed consumer API
 

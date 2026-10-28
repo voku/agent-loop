@@ -150,6 +150,12 @@ candidate. Until that pipeline completes, close readiness remains blocked and
 or Learning decisions. Out-of-scope or ambiguous changes fail closed; move
 unrelated work to its own worktree before recovering the governed candidate.
 
+Recovery keeps the exact whole-tree identity. Deterministic `verify` in a shared
+checkout is different: it holds only the approved scope to the candidate, runs
+the declared validation on an export of the accepted tree when other files
+differ outside the scope, and does not cover edits outside the scope.
+See [Verify in a shared checkout](../execution-runner-boundary.md#verify-in-a-shared-checkout).
+
 ## Finish And Close-Out
 
 `finish` is the deterministic close-out front door. It reconciles current
