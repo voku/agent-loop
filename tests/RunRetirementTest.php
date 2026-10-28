@@ -10,11 +10,14 @@ use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Run\RunManifestProjector;
+use voku\AgentLoop\Run\RunManifestStore;
+use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentLoop\Run\RunRetirementStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
 use voku\AgentLoop\Workflow\WorkflowCloseCommand;
 use voku\AgentLoop\Workflow\WorkflowRetireCommand;
+use voku\AgentLoop\Workflow\WorkflowStatusCommand;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
 
@@ -157,6 +160,42 @@ final class RunRetirementTest extends TestCase
 
         self::assertSame(0, $first);
         self::assertSame(1, $second);
+    }
+
+    public function testCommandRefreshesExistingManifestAndTextStatusExplainsRetirement(): void
+    {
+        $this->preparedRun();
+        $manifestStore = new RunManifestStore($this->root);
+        (new RunManifestTransitionWriter($this->root))->writeRecoveryProjection('ABC-123');
+        self::assertNotSame('retired', $manifestStore->read('ABC-123')['state'] ?? null);
+
+        ob_start();
+        try {
+            $retireExit = (new WorkflowRetireCommand($this->root))->run([
+                'ABC-123', '--status', 'abandoned', '--reason', 'No longer needed.', '--by', 'lars',
+            ]);
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $retireExit);
+        self::assertSame('retired', $manifestStore->read('ABC-123')['state'] ?? null);
+        $projected = (new RunManifestProjector($this->root))->project('ABC-123');
+        self::assertSame('current', $manifestStore->status($projected)['state']);
+
+        ob_start();
+        try {
+            $statusExit = (new WorkflowStatusCommand($this->root))->run(['ABC-123']);
+            $text = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(0, $statusExit);
+        self::assertStringContainsString('Manifest:', $text);
+        self::assertStringContainsString('Retirement:', $text);
+        self::assertStringContainsString('abandoned by "lars"', $text);
+        self::assertStringContainsString('No longer needed.', $text);
     }
 
     public function testCommandRefusesATaskWithoutAGovernedRun(): void
