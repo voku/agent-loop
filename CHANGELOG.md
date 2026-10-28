@@ -1,5 +1,21 @@
 ## Unreleased
 
+## [0.20.74] - 2026-10-28
+
+### Fixed
+
+- Let deterministic `verify` pass in a checkout shared with other tasks: in the owner checkout the candidate is now the base overlaid with only the approved Contract scope, `verify` compares that scoped tree exactly, and when the workspace differs outside the scope the declared validation runs against an export of the accepted candidate tree (a plain temporary directory, not a Git worktree) so foreign files can neither block a correct candidate nor make a failing one pass. The accepted candidate is re-proved after validation, and in place the whole tree must be unchanged. Explicit candidate worktrees keep the exact whole-tree identity (#858; follow-ups in #859).
+- Treat approved scope entries as literal repository-relative paths and refuse unsafe ones, so Git pathspec magic such as `:(exclude)path` or glob characters cannot hide or widen an in-scope difference; normalize hand-written spellings (`./x`, trailing `/`, backslashes, `.` for the whole tree) and let entries that name nothing present contribute nothing.
+
+### Notes
+
+- The export contains tracked files only (no `vendor/`, no `.git`): Contracts whose validation needs dependencies or Git must declare their preparation, and a failure there is a recorded `FAILED` stage.
+- Changes outside the approved scope in the owner checkout, including a builder's own, are not part of the candidate and are neither validated nor reviewed; a note is written to stderr. Ignored foreign files are invisible to the detection. Recovery keeps the whole-tree identity.
+
+### Validation
+
+- `composer ci` passes, including `CandidateScopeExportTest` (the false-green regression) and `CandidateWorkspaceIdentityScopeTest`.
+
 ## [0.20.73] - 2026-10-28
 
 ### Fixed
