@@ -1,5 +1,15 @@
 ## Unreleased
 
+## [0.20.73] - 2026-10-28
+
+### Fixed
+
+- Let a host-native builder complete a mutating pipeline stage through `pipeline submit`: for a completing submission the workspace candidate is now observed by Loop itself and recorded as candidate evidence before artifact citations, a claimed `--candidate` that the workspace does not hold is refused with `CANDIDATE_MISMATCH`, and an unclaimed silent revert to the base tree is refused. `blocked`, `failed` and `needs_clarification` stay reportable from any workspace. Previously `--candidate` failed with `MISSING_EVIDENCE` and omitting it left `verify` to fail `CANDIDATE_MISMATCH` with no repair path (#851; follow-ups in #852).
+
+### Validation
+
+- `composer ci` passes, including `PipelineSubmitCandidateEvidenceTest` (11 tests, four of which fail on the previous source).
+
 ## [0.20.72] - 2026-10-26
 
 ### Fixed
