@@ -10,6 +10,7 @@ use voku\AgentLoop\PathResolver;
 use voku\AgentLoop\ProjectLayout;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunRetirementStore;
 use voku\AgentLoop\Workflow\DeclaredValidationShell;
 use voku\AgentLoop\Workflow\ExecutionContractStore;
 use voku\AgentLoop\Workflow\TaskContract;
@@ -629,6 +630,9 @@ final readonly class ExecutionGateway
         $run = (new GovernedRunStore($this->rootPath))->findForContract($contract);
         if (!$run instanceof GovernedRun) {
             throw new RuntimeException('Execution requires a governed Run bound to the current approved Contract.');
+        }
+        if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            throw new RuntimeException('Execution refused: governed Run is retired.');
         }
         $plan = (new ExecutionPlanStore($this->rootPath))->prepare($run, $contract);
         (new ExecutionStateStore($this->rootPath))->prepare($plan);

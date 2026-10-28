@@ -8,10 +8,12 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use voku\AgentLoop\Run\GovernedRun;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Execution\ExecutionGateway;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunRetirementStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentLoop\Workflow\TaskContractStore;
+use voku\AgentLoop\Workflow\WorkflowCloseCommand;
 use voku\AgentLoop\Workflow\WorkflowRetireCommand;
 use voku\AgentSession\SessionStatus;
 use voku\AgentSession\SessionStore;
@@ -77,6 +79,33 @@ final class RunRetirementTest extends TestCase
         $manifest = (new RunManifestProjector($this->root))->project('ABC-123');
 
         self::assertNotSame('retired', $manifest->state);
+    }
+
+    public function testRetirementRejectsCloseAndExecutionWithoutWritingCompletionEvidence(): void
+    {
+        $run = $this->preparedRun();
+        (new RunRetirementStore($this->root))->record($run, 'abandoned', 'No acceptable outcome.', 'lars');
+
+        ob_start();
+        try {
+            $closeStatus = (new WorkflowCloseCommand($this->root))->run([
+                'ABC-123', '--status', 'done', '--accept-risk', 'Legacy work.',
+                '--accept-risk-by', 'lars', '--format=json',
+            ]);
+            $output = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::assertSame(1, $closeStatus, $output);
+        self::assertStringContainsString('retired', $output);
+        self::assertNull((new RunVerificationReceiptStore($this->root))->find('ABC-123'));
+        $session = (new SessionStore())->load($this->root . '/.agent-loop/sessions', $run->sessionId);
+        self::assertFalse($session->status->isClosed());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('retired');
+        (new ExecutionGateway($this->root))->prepareStage('ABC-123', 'build');
     }
 
     public function testRetirementNeedsAReasonAndAnActor(): void
