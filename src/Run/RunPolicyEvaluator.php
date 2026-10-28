@@ -48,7 +48,8 @@ final readonly class RunPolicyEvaluator
      */
     private function state(string $mode, array $references, array $disagreements): string
     {
-        if ($this->referenceState($references, 'retirement') === 'retired') {
+        if ($this->referenceState($references, 'retirement') === 'retired'
+            && $this->runMatchesCurrentContract($references)) {
             return 'retired';
         }
         $blockingDisagreements = array_values(array_filter(
