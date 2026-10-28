@@ -138,7 +138,12 @@ final readonly class ExecutionGateway
         $workspace = $this->verifyWorkspace($candidateWorkspace);
         $identity = new CandidateWorkspaceIdentity();
         $identity->assertSameRepository($this->rootPath, $workspace);
-        $observed = $identity->observe($workspace, $bundle->baseCommit, $this->relativeStateRoot());
+        $scope = $this->scopeFor($bundle, $workspace);
+        $statePath = $this->relativeStateRoot();
+        $observed = $identity->observe($workspace, $bundle->baseCommit, $statePath, $scope);
+        if ($scope !== [] && $identity->differsOutsideScope($workspace, (string) $bundle->baseCommit, $statePath, $scope)) {
+            fwrite(STDERR, "NOTE: the workspace holds changes outside the approved scope. They are not part of the candidate and are neither validated nor reviewed.\n");
+        }
         $unchanged = hash_equals($identity->normalize($workspace, (string) $bundle->baseCommit, $bundle->candidateRevision), $observed);
 
         if ($unchanged) {
@@ -251,7 +256,12 @@ final readonly class ExecutionGateway
         $identity = new CandidateWorkspaceIdentity();
         $identity->assertSameRepository($this->rootPath, $workspace);
         $statePath = $this->relativeStateRoot();
-        $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
+        // In the owner checkout only the approved scope can belong to the candidate: files other tasks keep
+        // uncommitted there are not part of it. A candidate worktree keeps the exact whole-tree identity.
+        $scope = $this->scopeFor($bundle, $workspace);
+        $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath, $scope);
+        $treeBeforeValidation = $identity->observe($workspace, $bundle->baseCommit, $statePath);
+        $foreign = $scope !== [] && !hash_equals($treeBeforeValidation, $identity->observe($workspace, $bundle->baseCommit, $statePath, $scope));
 
         ob_start();
         try {
@@ -259,12 +269,35 @@ final readonly class ExecutionGateway
         } finally {
             $output = (string) ob_get_clean();
         }
-        $contract = $this->runContractValidation($bundle, $workspace);
 
+        // Foreign files must not influence validation: with any present, the declared commands run against an
+        // exported copy of the accepted candidate, never in the shared checkout.
+        $exported = $foreign ? $this->exportCandidateDirectory($identity, $workspace, $bundle) : null;
         try {
-            $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath);
+            $contract = $this->runContractValidation($bundle, $exported ?? $workspace, $exported !== null);
+        } finally {
+            if ($exported !== null) {
+                $this->removeDirectory($exported);
+            }
+        }
+
+        // In place the declared commands must leave the whole checkout as they found it. In an export they cannot
+        // reach the checkout, so only the accepted candidate itself has to still hold.
+        try {
+            if ($exported === null && !hash_equals($treeBeforeValidation, $identity->observe($workspace, $bundle->baseCommit, $statePath))) {
+                throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: verify workspace %s changed while the declared validation ran.', $workspace));
+            }
+            // The accepted candidate is re-proved after validation in both modes, so a change that raced the first
+            // observation cannot leave a pass on content that was never the candidate.
+            $identity->assertHolds($workspace, $bundle->baseCommit, $bundle->candidateRevision, $statePath, $scope);
         } catch (RuntimeException $exception) {
-            throw new RuntimeException('CANDIDATE_MISMATCH: a declared validation command changed the governed candidate while it was being verified. ' . $exception->getMessage(), 0, $exception);
+            throw new RuntimeException(
+                $exported === null
+                    ? 'CANDIDATE_MISMATCH: a declared validation command changed the governed candidate while it was being verified. ' . $exception->getMessage()
+                    : 'CANDIDATE_MISMATCH: the governed candidate no longer held in the shared checkout after validation. ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
         }
 
         // The consistency check is a receipt of its own kind; only the Contract commands executed on the candidate
@@ -308,11 +341,13 @@ final readonly class ExecutionGateway
      *
      * @return array{passed: bool, references: list<non-empty-string>, summary: list<string>}
      */
-    private function runContractValidation(StageExecutionBundle $bundle, string $workspace): array
+    private function runContractValidation(StageExecutionBundle $bundle, string $workspace, bool $exported = false): array
     {
         $shell = new DeclaredValidationShell();
         $references = [];
-        $summary = [];
+        $summary = $exported
+            ? ['[export] Validation ran against an exported copy of the accepted candidate (tracked files only) because the shared checkout holds files outside the approved scope. Ignored files such as vendor/ are absent; declare their preparation in the Contract.']
+            : [];
         foreach ($bundle->requiredValidation as $command) {
             $result = $shell->executeDeclaredValidationShell($command, $workspace);
             $references[] = $this->recordVerifyEvidence($bundle, ExecutionEvidenceKind::VALIDATION, $command, $result['exitCode'], $result['output']);
@@ -344,6 +379,56 @@ final readonly class ExecutionGateway
             $command,
             'sha256:' . hash('sha256', $command . "\0" . $exit . "\0" . $output),
         ));
+    }
+
+    /**
+     * The approved scope to observe, only for the owner checkout itself. A separate candidate worktree holds exactly
+     * the candidate and keeps the whole-tree identity.
+     *
+     * @return list<string>
+     */
+    private function scopeFor(StageExecutionBundle $bundle, string $workspace): array
+    {
+        $root = realpath($this->rootPath);
+
+        return $root !== false && realpath($workspace) === $root ? CandidateWorkspaceIdentity::normalizeScope($bundle->allowedScope) : [];
+    }
+
+    private function exportCandidateDirectory(CandidateWorkspaceIdentity $identity, string $workspace, StageExecutionBundle $bundle): string
+    {
+        $directory = sys_get_temp_dir() . '/agent-loop-candidate-export-' . bin2hex(random_bytes(8));
+        if (!mkdir($directory, 0o700)) {
+            throw new RuntimeException('Unable to create the candidate export directory.');
+        }
+        try {
+            $identity->exportCandidate($workspace, (string) $bundle->baseCommit, $bundle->candidateRevision, $directory);
+        } catch (RuntimeException $exception) {
+            $this->removeDirectory($directory);
+            throw $exception;
+        }
+
+        return $directory;
+    }
+
+    private function removeDirectory(string $directory): void
+    {
+        if (!is_dir($directory) || is_link($directory)) {
+            return;
+        }
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($iterator as $item) {
+            $path = $item->getPathname();
+            if ($item->isLink() || $item->isFile()) {
+                @unlink($path);
+            } else {
+                @chmod($path, 0o700);
+                @rmdir($path);
+            }
+        }
+        @rmdir($directory);
     }
 
     /** Loop's state root relative to the project, so candidate identity ignores the governance state Loop writes itself. */

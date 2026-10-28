@@ -17,23 +17,33 @@ use RuntimeException;
  */
 final readonly class CandidateWorkspaceIdentity
 {
-    /** Observes the `git-tree-v1:<base>:<tree>` candidate the workspace holds on top of the governed base. */
-    public function observe(string $workspace, ?string $baseCommit, ?string $excludedStatePath = null): string
+    /**
+     * Observes the `git-tree-v1:<base>:<tree>` candidate the workspace holds on top of the governed base.
+     *
+     * With a non-empty `$scopePaths` the candidate is the base overlaid with only those paths from the workspace, so
+     * files other tasks keep uncommitted in a shared checkout never become part of it.
+     *
+     * @param list<string> $scopePaths literal repository-relative paths of the approved Contract scope
+     */
+    public function observe(string $workspace, ?string $baseCommit, ?string $excludedStatePath = null, array $scopePaths = []): string
     {
         if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
             throw new RuntimeException('STALE_CANDIDATE: observing a candidate requires an exact governed base commit.');
         }
 
-        return 'git-tree-v1:' . $baseCommit . ':' . $this->tree($workspace, $baseCommit, $excludedStatePath);
+        return 'git-tree-v1:' . $baseCommit . ':' . $this->tree($workspace, $baseCommit, $excludedStatePath, $scopePaths);
     }
 
-    public function assertHolds(string $workspace, ?string $baseCommit, string $candidateRevision, ?string $excludedStatePath = null): void
+    /**
+     * @param list<string> $scopePaths when non-empty, the workspace is compared with the candidate on those paths only
+     */
+    public function assertHolds(string $workspace, ?string $baseCommit, string $candidateRevision, ?string $excludedStatePath = null, array $scopePaths = []): void
     {
         if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
             throw new RuntimeException('STALE_CANDIDATE: verify requires an exact governed base commit.');
         }
 
-        $observedTree = $this->tree($workspace, $baseCommit, $excludedStatePath);
+        $observedTree = $this->tree($workspace, $baseCommit, $excludedStatePath, $scopePaths);
         $expectedTree = $this->expectedTree($workspace, $baseCommit, $candidateRevision);
 
         if (!hash_equals($expectedTree, $observedTree)) {
@@ -44,6 +54,64 @@ final readonly class CandidateWorkspaceIdentity
                 $observedTree,
                 $candidateRevision,
             ));
+        }
+    }
+
+    /**
+     * Normalizes approved Contract scope entries the way hand-written Contracts spell them: backslashes become `/`, a
+     * leading `./` and trailing `/` are dropped. An entry naming the whole repository (`.`) yields an empty scope, which
+     * keeps the exact whole-tree identity. Absolute and escaping entries are kept so that they are refused.
+     *
+     * @param list<string> $paths
+     * @return list<string>
+     */
+    public static function normalizeScope(array $paths): array
+    {
+        $normalized = [];
+        foreach ($paths as $path) {
+            $path = str_replace('\\', '/', trim($path));
+            while (str_starts_with($path, './')) {
+                $path = substr($path, 2);
+            }
+            if ($path === '.') {
+                return [];
+            }
+            $path = $path === '/' ? $path : rtrim($path, '/');
+            $normalized[] = $path;
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * Whether the workspace differs from the governed base on paths outside the approved scope (a shared checkout).
+     *
+     * @param list<string> $scopePaths
+     */
+    public function differsOutsideScope(string $workspace, string $baseCommit, ?string $excludedStatePath, array $scopePaths): bool
+    {
+        return !hash_equals(
+            $this->tree($workspace, $baseCommit, $excludedStatePath, $scopePaths),
+            $this->tree($workspace, $baseCommit, $excludedStatePath, []),
+        );
+    }
+
+    /** Writes the files of an accepted candidate into an empty directory, without registering a Git worktree. */
+    public function exportCandidate(string $workspace, string $baseCommit, string $candidateRevision, string $destination): void
+    {
+        $tree = $this->expectedTree($workspace, $baseCommit, $candidateRevision);
+        $index = tempnam(sys_get_temp_dir(), 'agent-loop-export-index-');
+        if (!is_string($index) || !unlink($index)) {
+            throw new RuntimeException('Unable to prepare a private Git index for the candidate export.');
+        }
+        $environment = ['GIT_INDEX_FILE' => $index];
+        try {
+            $this->git($workspace, ['read-tree', $tree], $environment);
+            $this->git($workspace, ['checkout-index', '-a', '--prefix=' . rtrim($destination, '/') . '/'], $environment);
+        } finally {
+            if (is_file($index)) {
+                unlink($index);
+            }
         }
     }
 
@@ -111,12 +179,14 @@ final readonly class CandidateWorkspaceIdentity
         return rtrim($this->git($workspace, $arguments, [], false), "\r\n");
     }
 
-    private function tree(string $workspace, string $baseCommit, ?string $excludedStatePath): string
+    /** @param list<string> $scopePaths */
+    private function tree(string $workspace, string $baseCommit, ?string $excludedStatePath, array $scopePaths = []): string
     {
         $head = $this->git($workspace, ['rev-parse', '--verify', 'HEAD']);
         if (!hash_equals($baseCommit, $head)) {
             throw new RuntimeException(sprintf('STALE_CANDIDATE: verify workspace HEAD is %s, not the governed base %s.', $head, $baseCommit));
         }
+        $this->assertSafeScope($scopePaths);
 
         $index = tempnam(sys_get_temp_dir(), 'agent-loop-verify-index-');
         if (!is_string($index) || !unlink($index)) {
@@ -125,7 +195,14 @@ final readonly class CandidateWorkspaceIdentity
         $environment = ['GIT_INDEX_FILE' => $index];
         try {
             $this->git($workspace, ['read-tree', $baseCommit], $environment);
-            $this->git($workspace, ['add', '-A', '--', '.'], $environment);
+            if ($scopePaths === []) {
+                $this->git($workspace, ['add', '-A', '--', '.'], $environment);
+            } else {
+                $present = $this->presentScopePaths($workspace, $baseCommit, $scopePaths);
+                if ($present !== []) {
+                    $this->git($workspace, ['--literal-pathspecs', 'add', '-A', '--', ...$present], $environment);
+                }
+            }
             if ($excludedStatePath !== null) {
                 $this->git($workspace, ['reset', '-q', $baseCommit, '--', $excludedStatePath], $environment);
             }
@@ -136,6 +213,47 @@ final readonly class CandidateWorkspaceIdentity
                 unlink($index);
             }
         }
+    }
+
+    /**
+     * Scope entries are literal repository-relative paths (a file or a directory prefix), never Git pathspec magic:
+     * `:(exclude)` or glob characters must not be able to hide or redirect an in-scope difference.
+     *
+     * @param list<string> $scopePaths
+     */
+    private function assertSafeScope(array $scopePaths): void
+    {
+        foreach ($scopePaths as $path) {
+            if ($path === '' || str_contains($path, "\0") || str_starts_with($path, '/')) {
+                throw new RuntimeException('STALE_CANDIDATE: verify scope entry is not a repository-relative path: ' . addcslashes($path, "\0..\37"));
+            }
+            foreach (explode('/', $path) as $segment) {
+                if ($segment === '' || $segment === '.' || $segment === '..') {
+                    throw new RuntimeException('STALE_CANDIDATE: verify scope entry is ambiguous or escapes the repository: ' . $path);
+                }
+            }
+        }
+    }
+
+    /**
+     * Scope entries that name something the candidate can contain: a path of the base, or a tracked or untracked and
+     * not ignored path of the workspace. Staging a path that exists nowhere, or one that is only ignored, is a Git
+     * error, and it contributes nothing to the candidate.
+     *
+     * @param list<string> $scopePaths
+     * @return list<string>
+     */
+    private function presentScopePaths(string $workspace, string $baseCommit, array $scopePaths): array
+    {
+        $present = [];
+        foreach ($scopePaths as $path) {
+            if ($this->git($workspace, ['--literal-pathspecs', 'ls-tree', '-r', '--name-only', $baseCommit, '--', $path]) !== ''
+                || $this->git($workspace, ['--literal-pathspecs', 'ls-files', '--cached', '--others', '--exclude-standard', '--', $path]) !== '') {
+                $present[] = $path;
+            }
+        }
+
+        return $present;
     }
 
     /**
