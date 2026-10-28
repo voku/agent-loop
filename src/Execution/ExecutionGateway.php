@@ -631,6 +631,9 @@ final readonly class ExecutionGateway
         if (!$run instanceof GovernedRun) {
             throw new RuntimeException('Execution requires a governed Run bound to the current approved Contract.');
         }
+        if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+            throw new RuntimeException('Execution refused: governed Run is retired.');
+        }
         $plan = (new ExecutionPlanStore($this->rootPath))->prepare($run, $contract);
         (new ExecutionStateStore($this->rootPath))->prepare($plan);
 
