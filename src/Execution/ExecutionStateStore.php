@@ -15,6 +15,12 @@ use voku\AgentLoop\Workflow\TaskContractStore;
 
 final readonly class ExecutionStateStore
 {
+    /**
+     * Every this-many-th `changes_required` of a Run (counted across its review stages) needs a human decision before the Run
+     * continues; the count is not reset by Attention resolution or recovery, so the next prompt comes after another full set.
+     */
+    public const int MAX_REVIEW_ROUNDS = 3;
+
     public function __construct(private string $rootPath)
     {
     }
@@ -79,15 +85,21 @@ final readonly class ExecutionStateStore
             $acceptedAt = $this->now();
             $history = $state->history;
 
-            if (in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
+            $reviewRoundsExhausted = $result->outcome === StageOutcome::CHANGES_REQUIRED
+                && ($this->changesRequiredCount($history) + 1) % self::MAX_REVIEW_ROUNDS === 0;
+            if ($reviewRoundsExhausted || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
                 $attention = new AttentionRequest(
                     'attention:' . bin2hex(random_bytes(8)),
                     $plan->taskId,
                     $plan->runId,
-                    $result->outcome === StageOutcome::NEEDS_CLARIFICATION
-                        ? AttentionKind::CLARIFICATION_REQUIRED
-                        : AttentionKind::RUNNER_FAILED,
-                    trim($result->summary) !== '' ? trim($result->summary) : 'Execution stage requires human attention.',
+                    match (true) {
+                        $reviewRoundsExhausted => AttentionKind::REVIEW_CHANGES_REQUIRED,
+                        $result->outcome === StageOutcome::NEEDS_CLARIFICATION => AttentionKind::CLARIFICATION_REQUIRED,
+                        default => AttentionKind::RUNNER_FAILED,
+                    },
+                    $reviewRoundsExhausted
+                        ? trim(sprintf('Review requested changes in %d rounds; a human decides how to continue. %s', $this->changesRequiredCount($history) + 1, $result->summary))
+                        : (trim($result->summary) !== '' ? trim($result->summary) : 'Execution stage requires human attention.'),
                     $stage->id,
                     $acceptedAt,
                 );
@@ -360,6 +372,19 @@ final readonly class ExecutionStateStore
         }
 
         return $accepted + 1;
+    }
+
+    /** @param list<AcceptedStageResult> $history */
+    private function changesRequiredCount(array $history): int
+    {
+        $count = 0;
+        foreach ($history as $entry) {
+            if ($entry->result->outcome === StageOutcome::CHANGES_REQUIRED) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     private function projectionFromState(ExecutionPlan $plan, ExecutionState $state): ExecutionProjection

@@ -148,6 +148,19 @@ final class RunManifestProjector
             ],
         ];
 
+        $retirement = $run === null ? null : (new RunRetirementStore($this->rootPath))->findForRun($run);
+        if ($retirement !== null) {
+            $references['retirement'] = [
+                'owner' => 'agent-loop',
+                'state' => 'retired',
+                'observation_mode' => 'checked',
+                'status' => $retirement->status,
+                'reason' => $retirement->reason,
+                'retired_by' => $retirement->retiredBy,
+                'retired_at' => $retirement->retiredAt,
+            ];
+        }
+
         usort(
             $disagreements,
             static fn (array $left, array $right): int => strcmp($left['code'], $right['code']),

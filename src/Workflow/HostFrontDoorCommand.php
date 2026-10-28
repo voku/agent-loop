@@ -301,7 +301,7 @@ final readonly class HostFrontDoorCommand
         if ($policy->state === 'blocked') {
             return 2;
         }
-        if (in_array($policy->state, ['ready_to_close', 'complete'], true)) {
+        if (in_array($policy->state, ['ready_to_close', 'complete', 'retired'], true)) {
             return 0;
         }
 
@@ -656,7 +656,7 @@ final readonly class HostFrontDoorCommand
 
     private function needsPreparation(RunManifest $manifest): bool
     {
-        if (in_array($manifest->state, ['blocked', 'experiment', 'ready_to_close', 'complete'], true)) {
+        if (in_array($manifest->state, ['blocked', 'experiment', 'ready_to_close', 'complete', 'retired'], true)) {
             return false;
         }
         if (($manifest->references['contract']['state'] ?? null) !== TaskContract::APPROVED) {

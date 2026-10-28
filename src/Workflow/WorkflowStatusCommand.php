@@ -388,7 +388,7 @@ final readonly class WorkflowStatusCommand
      * @param list<string> $tokens
      * @return array{
      *     format: 'text'|'json'|'toon',
-     *     expect: 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete'|null
+     *     expect: 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete'|'retired'|null
      * }
      */
     private function parseOptions(array $tokens): array
@@ -456,13 +456,13 @@ final readonly class WorkflowStatusCommand
         return $format;
     }
 
-    /** @return 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete' */
+    /** @return 'blocked'|'experiment'|'incomplete'|'ready_to_close'|'complete'|'retired' */
     private function expectedState(string $value): string
     {
         $state = strtolower(trim($value));
-        if (!in_array($state, ['blocked', 'experiment', 'incomplete', 'ready_to_close', 'complete'], true)) {
+        if (!in_array($state, ['blocked', 'experiment', 'incomplete', 'ready_to_close', 'complete', 'retired'], true)) {
             throw new InvalidArgumentException(
-                '--expect must be blocked, experiment, incomplete, ready_to_close, or complete.',
+                '--expect must be blocked, experiment, incomplete, ready_to_close, complete, or retired.',
             );
         }
 

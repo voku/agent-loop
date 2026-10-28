@@ -69,7 +69,7 @@ Top-level fields:
 | `task_id` | Product-level task identity supplied to the workflow. |
 | `run_id` | Current resolved run identity. |
 | `mode` | `governed`, `ephemeral`, `planned`, or `legacy_inferred`. |
-| `state` | Derived overall state such as `incomplete`, `blocked`, `ready_to_close`, or `complete`. |
+| `state` | Derived overall state such as `incomplete`, `blocked`, `ready_to_close`, `complete`, or `retired` (a Run ended by `workflow retire`: terminal, not a successful close, no next action). |
 | `references` | Package-owned artifact references and observed states. |
 | `disagreements` | Deterministically ordered contradictions or invalid authoritative artifacts. |
 | `next_action` | One evidence-backed next or recovery command. |
