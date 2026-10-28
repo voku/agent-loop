@@ -17,6 +17,16 @@ use RuntimeException;
  */
 final readonly class CandidateWorkspaceIdentity
 {
+    /** Observes the `git-tree-v1:<base>:<tree>` candidate the workspace holds on top of the governed base. */
+    public function observe(string $workspace, ?string $baseCommit, ?string $excludedStatePath = null): string
+    {
+        if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
+            throw new RuntimeException('STALE_CANDIDATE: observing a candidate requires an exact governed base commit.');
+        }
+
+        return 'git-tree-v1:' . $baseCommit . ':' . $this->tree($workspace, $baseCommit, $excludedStatePath);
+    }
+
     public function assertHolds(string $workspace, ?string $baseCommit, string $candidateRevision, ?string $excludedStatePath = null): void
     {
         if ($baseCommit === null || preg_match('/^[0-9a-f]{40,64}$/', $baseCommit) !== 1) {
@@ -24,9 +34,7 @@ final readonly class CandidateWorkspaceIdentity
         }
 
         $observedTree = $this->tree($workspace, $baseCommit, $excludedStatePath);
-        $expectedTree = hash_equals($baseCommit, $candidateRevision)
-            ? $this->git($workspace, ['rev-parse', '--verify', $baseCommit . '^{tree}'])
-            : $this->candidateTree($baseCommit, $candidateRevision);
+        $expectedTree = $this->expectedTree($workspace, $baseCommit, $candidateRevision);
 
         if (!hash_equals($expectedTree, $observedTree)) {
             throw new RuntimeException(sprintf(
@@ -37,6 +45,12 @@ final readonly class CandidateWorkspaceIdentity
                 $candidateRevision,
             ));
         }
+    }
+
+    /** The `git-tree-v1:<base>:<tree>` form of an accepted stage candidate, which is a bare base commit while nothing changed. */
+    public function normalize(string $workspace, string $baseCommit, string $candidateRevision): string
+    {
+        return 'git-tree-v1:' . $baseCommit . ':' . $this->expectedTree($workspace, $baseCommit, $candidateRevision);
     }
 
     /** Ensure a candidate workspace belongs to the owner's Git repository. */
@@ -69,6 +83,13 @@ final readonly class CandidateWorkspaceIdentity
         }
 
         throw new RuntimeException('STALE_CANDIDATE: candidate workspace is not a registered linked worktree of the owner repository.');
+    }
+
+    private function expectedTree(string $workspace, string $baseCommit, string $candidateRevision): string
+    {
+        return hash_equals($baseCommit, $candidateRevision)
+            ? $this->git($workspace, ['rev-parse', '--verify', $baseCommit . '^{tree}'])
+            : $this->candidateTree($baseCommit, $candidateRevision);
     }
 
     private function candidateTree(string $baseCommit, string $candidateRevision): string
