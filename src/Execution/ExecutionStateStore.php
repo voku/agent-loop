@@ -87,6 +87,10 @@ final readonly class ExecutionStateStore
 
             $reviewRoundsExhausted = $result->outcome === StageOutcome::CHANGES_REQUIRED
                 && ($this->changesRequiredCount($history) + 1) % self::MAX_REVIEW_ROUNDS === 0;
+            if ($reviewRoundsExhausted) {
+                // The cap cannot turn a stage-illegal outcome into durable Attention.
+                $stage->next($result->outcome);
+            }
             if ($reviewRoundsExhausted || in_array($result->outcome, [StageOutcome::BLOCKED, StageOutcome::NEEDS_CLARIFICATION, StageOutcome::FAILED], true)) {
                 $attention = new AttentionRequest(
                     'attention:' . bin2hex(random_bytes(8)),

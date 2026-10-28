@@ -152,6 +152,30 @@ final class ExecutionReviewRoundCapTest extends TestCase
         self::assertStringContainsString('6 rounds', $second->message);
     }
 
+    public function testIllegalThirdChangesRequiredDoesNotWriteHistoryOrAttention(): void
+    {
+        $this->changeWorkspace();
+        $this->buildAndRequestChanges(1);
+        $this->buildAndRequestChanges(2);
+
+        $store = new ExecutionStateStore($this->root);
+        $before = $store->find('SUB-1');
+        self::assertNotNull($before);
+        self::assertSame('build', $this->projection()->currentStageId);
+
+        [$exit, $payload] = $this->submit([
+            '--outcome', 'changes_required', '--context-id', 'ctx:invalid-third',
+        ]);
+
+        self::assertNotSame(0, $exit);
+        self::assertStringContainsString('not legal for execution stage build', json_encode($payload, JSON_THROW_ON_ERROR));
+        $after = $store->find('SUB-1');
+        self::assertNotNull($after);
+        self::assertCount(count($before->history), $after->history);
+        self::assertNull($this->projection()->attention);
+        self::assertSame('build', $this->projection()->currentStageId);
+    }
+
     private function buildAndRequestChanges(int $round): void
     {
         [$exit, $payload] = $this->submit(['--outcome', 'completed', '--context-id', 'ctx:build-' . $round]);
