@@ -183,6 +183,7 @@ final readonly class WorkflowStatusCommand
             'review',
             'learning',
             'outcome_lineage',
+            'retirement',
         ] as $name) {
             if (isset($manifest->references[$name])) {
                 $ordered[$name] = $manifest->references[$name];
@@ -213,8 +214,24 @@ final readonly class WorkflowStatusCommand
             'recall' => $this->value($reference, 'compilation_id', $this->pathOrOwner($reference)),
             'execution_contract' => $this->executionContractDetail($reference),
             'learning' => $this->learningDetail($reference),
+            'retirement' => $this->retirementDetail($reference),
             default => $this->pathOrOwner($reference),
         };
+    }
+
+    /** @param array<string, mixed> $reference */
+    private function retirementDetail(array $reference): string
+    {
+        $status = is_string($reference['status'] ?? null) ? $reference['status'] : 'unknown';
+        $actor = is_string($reference['retired_by'] ?? null) ? $reference['retired_by'] : 'unknown';
+        $reason = is_string($reference['reason'] ?? null) ? $reference['reason'] : 'unknown';
+
+        return sprintf(
+            '%s by %s; reason: %s',
+            $status,
+            json_encode($actor, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            json_encode($reason, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        );
     }
 
     /** @param array<string, mixed> $reference */

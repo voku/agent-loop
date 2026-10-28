@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use voku\AgentLoop\Run\GovernedRunStore;
+use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentLoop\Run\RunRetirementStore;
 
 /**
@@ -34,6 +35,15 @@ final readonly class WorkflowRetireCommand
                 $options['reason'],
                 $options['by'],
             );
+            try {
+                (new RunManifestTransitionWriter($this->rootPath))->writeRecoveryProjection($taskId->value);
+            } catch (Throwable $exception) {
+                throw new RuntimeException(
+                    'Retirement recorded, but manifest refresh failed: ' . $exception->getMessage(),
+                    0,
+                    $exception,
+                );
+            }
             echo "[OK] workflow retire: Run {$retirement->runId} of {$taskId->value} retired as {$retirement->status} by {$retirement->retiredBy}\n";
 
             return 0;
