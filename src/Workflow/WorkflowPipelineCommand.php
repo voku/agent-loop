@@ -337,13 +337,22 @@ final readonly class WorkflowPipelineCommand
         }
 
         $bundle = $gateway->prepareStage($taskId, $currentStageId);
-        $effectiveCandidate = $candidate ?? $bundle->candidateRevision;
+        // Only a completing submission claims the workspace; blocked/failed/clarification must stay reportable from any workspace.
+        $completing = $outcome === StageOutcome::COMPLETED;
+        $effectiveCandidate = $completing
+            ? $gateway->observeStageCandidate($bundle, $candidate, $candidateWorkspace)
+            : ($candidate ?? $bundle->candidateRevision);
+        if ($completing) {
+            // Artifact claims for a changed candidate are only accepted once its candidate evidence exists. The
+            // record is idempotent, so retrying after a later refusal is safe.
+            $gateway->recordObservedCandidate($bundle, $effectiveCandidate);
+        }
         $artifactReferences = [];
         foreach ($artifactPaths as $artifactPath) {
             foreach (explode(',', $artifactPath) as $path) {
                 $path = trim($path);
                 if ($path !== '') {
-                    $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path);
+                    $artifactReferences[] = $gateway->recordStageArtifactPath($bundle, $path, $effectiveCandidate);
                 }
             }
         }

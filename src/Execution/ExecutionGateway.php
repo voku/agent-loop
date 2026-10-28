@@ -122,13 +122,71 @@ final readonly class ExecutionGateway
     }
 
     /**
+     * Resolves the candidate a completing mutating-stage submission must carry from what the workspace holds.
+     *
+     * A claimed candidate is never trusted: it must equal the observed workspace candidate (or the stage's
+     * current candidate when the workspace is unchanged). Nothing is recorded here; `recordObservedCandidate()`
+     * persists the evidence once the rest of the submission has been prepared. Non-mutating stages keep the
+     * stage candidate.
+     */
+    public function observeStageCandidate(StageExecutionBundle $bundle, ?string $claimedCandidate, ?string $candidateWorkspace = null): string
+    {
+        if ($bundle->kind !== ExecutionStageKind::AGENT || !$bundle->mayMutate) {
+            return $claimedCandidate ?? $bundle->candidateRevision;
+        }
+
+        $workspace = $this->verifyWorkspace($candidateWorkspace);
+        $identity = new CandidateWorkspaceIdentity();
+        $identity->assertSameRepository($this->rootPath, $workspace);
+        $observed = $identity->observe($workspace, $bundle->baseCommit, $this->relativeStateRoot());
+        $unchanged = hash_equals($identity->normalize($workspace, (string) $bundle->baseCommit, $bundle->candidateRevision), $observed);
+
+        if ($unchanged) {
+            if ($claimedCandidate !== null && !hash_equals($bundle->candidateRevision, $claimedCandidate) && !hash_equals($observed, $claimedCandidate)) {
+                throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: claimed candidate %s is not the unchanged workspace candidate %s.', $claimedCandidate, $observed));
+            }
+
+            return $bundle->candidateRevision;
+        }
+        if ($claimedCandidate !== null && !hash_equals($observed, $claimedCandidate)) {
+            throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: claimed candidate %s is not the candidate %s held by the workspace.', $claimedCandidate, $observed));
+        }
+        // An unclaimed workspace that merely equals the base would silently discard the stage's accepted work,
+        // for example when a later attempt omits --workspace and the clean project root is observed instead.
+        if ($claimedCandidate === null && hash_equals($identity->normalize($workspace, (string) $bundle->baseCommit, (string) $bundle->baseCommit), $observed)) {
+            throw new RuntimeException(sprintf('CANDIDATE_MISMATCH: workspace holds the unchanged base but the stage candidate is %s; pass --workspace for the candidate worktree or claim the revert with --candidate %s.', $bundle->candidateRevision, $observed));
+        }
+
+        return $observed;
+    }
+
+    /** Persists candidate evidence for a candidate returned by `observeStageCandidate()` when it differs from the stage candidate. */
+    public function recordObservedCandidate(StageExecutionBundle $bundle, string $effectiveCandidate): void
+    {
+        if (hash_equals($bundle->candidateRevision, $effectiveCandidate)) {
+            return;
+        }
+
+        $this->recordStageCandidate(new StageCandidateObservation(
+            $bundle->taskId,
+            $bundle->runId,
+            $bundle->contractRevision,
+            $bundle->executionPlanDigest,
+            $bundle->stageId,
+            $bundle->attempt,
+            $bundle->candidateRevision,
+            $effectiveCandidate,
+        ));
+    }
+
+    /**
      * Turn a reviewer's candidate-relative path citation into owner-validated artifact evidence.
      *
      * The digest is read from the immutable candidate tree (or governed base for deleted files), so the
      * submitted evidence cannot silently describe a different working-tree version.
      */
     /** @return non-empty-string */
-    public function recordStageArtifactPath(StageExecutionBundle $bundle, string $reference): string
+    public function recordStageArtifactPath(StageExecutionBundle $bundle, string $reference, ?string $candidateRevision = null): string
     {
         $deleted = str_starts_with($reference, 'deleted-file:');
         if ($deleted) {
@@ -140,7 +198,7 @@ final readonly class ExecutionGateway
             $relativePath = str_starts_with($reference, 'workspace-file:')
                 ? substr($reference, strlen('workspace-file:'))
                 : $reference;
-            $treeish = $this->candidateTreeish($bundle);
+            $treeish = $this->candidateTreeish($bundle, $candidateRevision ?? $bundle->candidateRevision);
             $sourceReference = 'workspace-file:' . $relativePath;
         }
         $this->assertCanonicalArtifactPath($relativePath);
@@ -153,7 +211,7 @@ final readonly class ExecutionGateway
             $bundle->executionPlanDigest,
             $bundle->stageId,
             $bundle->attempt,
-            $bundle->candidateRevision,
+            $candidateRevision ?? $bundle->candidateRevision,
             $sourceReference,
             $digest,
         ));
@@ -398,16 +456,16 @@ final readonly class ExecutionGateway
         }
     }
 
-    private function candidateTreeish(StageExecutionBundle $bundle): string
+    private function candidateTreeish(StageExecutionBundle $bundle, string $candidateRevision): string
     {
         $baseCommit = $bundle->baseCommit
             ?? throw new RuntimeException('MISSING_EVIDENCE: review citation requires a governed Git base.');
-        if (hash_equals($baseCommit, $bundle->candidateRevision)) {
+        if (hash_equals($baseCommit, $candidateRevision)) {
             return $baseCommit;
         }
         if (preg_match(
             '/^git-tree-v1:' . preg_quote($baseCommit, '/') . ':([0-9a-f]{40}|[0-9a-f]{64})$/',
-            $bundle->candidateRevision,
+            $candidateRevision,
             $matches,
         ) !== 1) {
             throw new RuntimeException('MISSING_EVIDENCE: review citation is not bound to the governed Git candidate.');
