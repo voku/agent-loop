@@ -14,6 +14,7 @@ use voku\AgentLoop\Run\GovernedRunStore;
 use voku\AgentLoop\Run\RunManifestProjector;
 use voku\AgentLoop\Run\RunManifestTransitionWriter;
 use voku\AgentLoop\Run\RunPolicyEvaluator;
+use voku\AgentLoop\Run\RunRetirementStore;
 use voku\AgentLoop\Run\RunVerificationReceiptStore;
 use voku\AgentSession\Session;
 use voku\AgentSession\SessionStatus;
@@ -56,6 +57,9 @@ final readonly class WorkflowCloseCommand
             }
             $run = (new GovernedRunStore($this->rootPath))->find($taskId->value)
                 ?? throw new RuntimeException('Successful close requires a governed Run.');
+            if ((new RunRetirementStore($this->rootPath))->findForRun($run) !== null) {
+                throw new RuntimeException('Successful close refused: governed Run is retired.');
+            }
             $session = $this->sessionForRun($run);
             if ($session === null) {
                 $receipt = (new RunVerificationReceiptStore($this->rootPath))->find($taskId->value);
