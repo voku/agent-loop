@@ -7,8 +7,10 @@
 #      because Docker is down is not. Every exit path is 0.
 #   2. Never build. A missing index means nobody opted into the map, and a cold build costs
 #      minutes - not something a hook may start behind someone's back.
-#   3. Do nothing when no PHP file moved. `refresh` still has to hash every indexed file, so the
-#      no-op case is skipped by diffing the two revisions first.
+#   3. Do nothing when neither PHP files nor composer.lock moved. `refresh` still has to hash
+#      every indexed file, so the no-op case is skipped by diffing the two revisions first.
+#      A lockfile-only change may invalidate PHPStan's semantic fingerprint even when all PHP
+#      sources are identical; agent-map refresh already detects that and rebuilds as needed.
 #
 # Opt out with AGENT_LOOP_SKIP_MAP_REFRESH=1.
 #
@@ -40,7 +42,7 @@ if [[ -n "$old_rev" ]]; then
         exit 0
     fi
     if git rev-parse --quiet --verify "$old_rev" >/dev/null 2>&1; then
-        changed="$(git diff --name-only "$old_rev" "$new_rev" -- '*.php' 2>/dev/null | head -n 1)"
+        changed="$(git diff --name-only "$old_rev" "$new_rev" -- '*.php' 'composer.lock' 2>/dev/null | head -n 1)"
         if [[ -z "$changed" ]]; then
             exit 0
         fi
