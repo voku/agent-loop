@@ -29,16 +29,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: benchmark
-      - uses: actions/checkout@v7
-        with:
-          repository: voku/agent-loop
-          ref: c066ff35df0d3f5485bb33fbf4a83ca66b8b1053
-          path: baseline
-      - uses: actions/checkout@v7
-        with:
-          repository: voku/agent-loop
-          ref: 341020305b3b8904a96e7731c037fdb59ffc760e
-          path: candidate
+      - name: Build separate pinned app worktrees with one authenticated checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline_sha=c066ff35df0d3f5485bb33fbf4a83ca66b8b1053
+          candidate_sha=341020305b3b8904a96e7731c037fdb59ffc760e
+          git -C benchmark fetch --no-tags --depth=1 origin "$baseline_sha" "$candidate_sha"
+          git -C benchmark worktree add --detach "$GITHUB_WORKSPACE/baseline" "$baseline_sha"
+          git -C benchmark worktree add --detach "$GITHUB_WORKSPACE/candidate" "$candidate_sha"
+          test "$(git -C baseline rev-parse HEAD)" = "$baseline_sha"
+          test "$(git -C candidate rev-parse HEAD)" = "$candidate_sha"
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
