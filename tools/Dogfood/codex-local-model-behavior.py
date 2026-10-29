@@ -12,6 +12,11 @@ import tempfile
 import time
 
 
+CANARY_TASK = (
+    "Use the shell tool to execute pwd once. Report the printed working "
+    "directory, then stop. Do not modify files."
+)
+
 TASK = (
     "A PHP regression treats numeric user ID 0 as missing and returns the "
     "fallback ID instead. Investigate and fix the underlying bug. "
@@ -110,10 +115,10 @@ def prepare_consumer(repository: Path, destination: Path):
         raise RuntimeError("missing managed hard shell policy")
 
 
-def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
+def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt: str):
     project = experiment / (name + "-project")
     shutil.copytree(consumer, project, ignore=shutil.ignore_patterns(".git", ".agent-loop"))
-    if name == "control":
+    if name != "treatment":
         (project / "AGENTS.md").unlink()
     subprocess.run(
         ["git", "init", "--quiet", "--initial-branch=main", str(project)], check=True
@@ -145,7 +150,7 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
         "-c", "model_providers.local=" + provider,
         "-c", 'sandbox_mode="workspace-write"',
         "-c", 'approval_policy="never"',
-        TASK,
+        prompt,
     ]
     try:
         result = run(command, project, timeout=240, env=env)
@@ -158,13 +163,21 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
 
     commands = []
     message_count = 0
+    event_types = {}
+    item_types = {}
     for line in result.stdout.splitlines():
         try:
             event = json.loads(line)
         except ValueError:
             continue
+        event_kind = event.get("type")
+        if isinstance(event_kind, str):
+            event_types[event_kind] = event_types.get(event_kind, 0) + 1
         item = event.get("item")
         if isinstance(item, dict):
+            item_kind = item.get("type")
+            if isinstance(item_kind, str):
+                item_types[item_kind] = item_types.get(item_kind, 0) + 1
             if item.get("type") == "command_execution":
                 command = item.get("command", "")
                 commands.append({
@@ -196,6 +209,8 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
         "router_present": (project / "AGENTS.md").exists(),
         "hard_policy_sha256": sha(project / ".codex/rules/agent-loop.rules"),
         "command_count": len(commands),
+        "event_type_counts": event_types,
+        "item_type_counts": item_types,
         "enter_attempts": sum(int(c["enter"]) for c in commands),
         "finish_attempts": sum(int(c["finish"]) for c in commands),
         "php_test_attempts": sum(int(c["php_test"]) for c in commands),
@@ -218,11 +233,16 @@ def main():
         root = Path(location)
         consumer = root / "consumer"
         prepare_consumer(args.repository.resolve(), consumer)
-        control = run_arm(consumer, root, "control", args.model_port)
-        treatment = run_arm(consumer, root, "treatment", args.model_port)
+        canary = run_arm(consumer, root, "canary", args.model_port, CANARY_TASK)
+        tool_capable = canary["codex_process_succeeded"] and canary["command_count"] > 0
+        control = run_arm(consumer, root, "control", args.model_port, TASK) if tool_capable else None
+        treatment = run_arm(consumer, root, "treatment", args.model_port, TASK) if tool_capable else None
 
-    parity = control["hard_policy_sha256"] == treatment["hard_policy_sha256"]
-    observable = (
+    parity = control is not None and treatment is not None and (
+        control["hard_policy_sha256"] == treatment["hard_policy_sha256"]
+        == canary["hard_policy_sha256"]
+    )
+    observable = control is not None and treatment is not None and (
         control["codex_process_succeeded"]
         and treatment["codex_process_succeeded"]
         and control["model_behavior_observed"]
@@ -233,16 +253,19 @@ def main():
         "evidence_class": "local_model_host_behavior_probe",
         "repository_head_sha": args.revision,
         "runtime": "Codex 0.157.0",
-        "model": "Qwen2.5-Coder-0.5B-Instruct-GGUF Q4_K_M",
+        "model": "Qwen2.5-Coder-1.5B-Instruct-GGUF Q4_K_M",
         "model_sha256": args.model_sha256,
         "llama_release_asset_sha256": args.llama_sha256,
         "prompt": TASK,
-        "experimental_order": ["control", "treatment"],
-        "arms": {"control": control, "treatment": treatment},
+        "experimental_order": (["canary", "control", "treatment"] if tool_capable else ["canary"]),
+        "canary": canary,
+        "preflight_tool_call_observed": bool(tool_capable),
+        "arms": {"control": control, "treatment": treatment} if tool_capable else None,
         "common_hard_policy": parity,
-        "status": "observed" if observable and parity else "inconclusive",
+        "status": ("tool_use_blocked" if not tool_capable else
+                   "observed" if observable and parity else "inconclusive"),
         "boundary": (
-            "Local 0.5B model through native Codex CLI in independent fresh projects; "
+            "Local 1.5B model through native Codex CLI in independent fresh projects; "
             "this is one ordered pair, not an unbiased crossover or generalizable "
             "engineering benchmark. Source/test changes do not imply approved Loop "
             "Contract or valid completion. No hidden reasoning or full prompt logs "
@@ -255,10 +278,12 @@ def main():
     path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({
         "status": receipt["status"],
-        "oracle_control": control["final_oracle_passed"],
-        "oracle_treatment": treatment["final_oracle_passed"],
-        "control_commands": control["command_count"],
-        "treatment_commands": treatment["command_count"],
+        "preflight_tool_call_observed": bool(tool_capable),
+        "canary_commands": canary["command_count"],
+        "oracle_control": control["final_oracle_passed"] if control else None,
+        "oracle_treatment": treatment["final_oracle_passed"] if treatment else None,
+        "control_commands": control["command_count"] if control else None,
+        "treatment_commands": treatment["command_count"] if treatment else None,
     }))
     if not parity:
         raise SystemExit("safety-floor mismatch between model arms")

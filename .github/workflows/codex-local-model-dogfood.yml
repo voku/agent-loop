@@ -19,8 +19,8 @@ jobs:
       CODEX_VERSION: '0.157.0'
       LLAMA_RELEASE: 'b11904'
       LLAMA_ASSET_SHA256: 'c27afda42cd81be6583bca659fedd518492380ee36581b2004885ef45ef2be33'
-      QWEN_MODEL_REVISION: 'ebb2015119c907b064c512bf053e945850b5875f'
-      QWEN_MODEL_SHA256: '1d9614638d18024d0fbb36575a15f1302a3adf044df10345688ec4f6e1c4ff32'
+      QWEN_MODEL_REVISION: '2ab9f8f42af02fc212effaef7c4850c885e965f4'
+      QWEN_MODEL_SHA256: 'cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046'
       LOCAL_MODEL_PORT: '8999'
 
     steps:
@@ -73,7 +73,7 @@ jobs:
           tar -xzf "${archive}" -C "${RUNNER_TEMP}/llama-cpu"
 
           curl -fL --retry 3 --connect-timeout 20 --max-time 540 \
-            "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/${QWEN_MODEL_REVISION}/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf?download=true" \
+            "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/${QWEN_MODEL_REVISION}/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf?download=true" \
             -o "${model}"
           printf '%s  %s\n' "${QWEN_MODEL_SHA256}" "${model}" | sha256sum -c -
 
@@ -124,9 +124,12 @@ jobs:
             --model-sha256="${QWEN_MODEL_SHA256}" \
             --llama-sha256="${LLAMA_ASSET_SHA256}"
           jq -e '.evidence_class == "local_model_host_behavior_probe"
-            and .common_hard_policy == true
-            and .arms.control.baseline_oracle_failed == true
-            and .arms.treatment.baseline_oracle_failed == true' \
+            and .canary.baseline_oracle_failed == true
+            and (.preflight_tool_call_observed | type) == "boolean"
+            and ((.arms == null) or
+              (.arms.control.baseline_oracle_failed == true
+              and .arms.treatment.baseline_oracle_failed == true
+              and .common_hard_policy == true))' \
             build/codex-local-model/local-model-behavior.json > /dev/null
 
       - name: Upload bounded model outcome receipt
