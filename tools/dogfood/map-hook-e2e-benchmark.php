@@ -122,6 +122,7 @@ final class AgentMapHookEndToEndBenchmark
         }
 
         $launchOverhead = $this->measureStartupOverhead();
+        $shellAb = $this->compareRealHookShellModes();
 
         $report = [
             'schema_version' => 1,
@@ -140,6 +141,7 @@ final class AgentMapHookEndToEndBenchmark
             'repetitions' => self::REPETITIONS,
             'cases' => $cases,
             'startup_microprobes_median_ms' => $launchOverhead,
+            'real_hook_login_vs_nonlogin_ab' => $shellAb,
             'invariants' => [
                 'missing_or_unexpected_hook_calls_fail' => true,
                 'current_php_file_hashes_verified' => true,
@@ -158,7 +160,7 @@ final class AgentMapHookEndToEndBenchmark
         $reportPath = $this->fixture . '/map-hook-e2e-report.json';
         file_put_contents($reportPath, json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
         echo json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
-        $this->writeGitHubSummary($cases, $launchOverhead);
+        $this->writeGitHubSummary($cases, $launchOverhead, $shellAb);
     }
 
     /**
@@ -197,6 +199,102 @@ final class AgentMapHookEndToEndBenchmark
             . json_encode($results, JSON_THROW_ON_ERROR) . "\n");
 
         return $results;
+    }
+
+    /**
+     * A/B ablation: only change the two HOST fallback bash invocations in the
+     * copied helper; the shipped repository code remains unchanged. All real
+     * CLI calls, PHPStan work, FTS5 state and Git transitions must agree.
+     *
+     * This does NOT establish safety for a user's login-shell environment.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function compareRealHookShellModes(): array
+    {
+        $helper = $this->fixture . '/.githooks/lib/agent-loop-hooks.sh';
+        $original = file_get_contents($helper);
+        if (!is_string($original)) {
+            throw new RuntimeException('Real copied hook helper missing for controlled A/B.');
+        }
+        $loginCommand = '        bash -lc "$command"';
+        if (substr_count($original, $loginCommand) !== 2) {
+            throw new RuntimeException('Expected exactly two host bash-login fallback invocations.');
+        }
+        $nonlogin = str_replace($loginCommand, '        bash -c "$command"', $original);
+        $cases = ['php_edit', 'composer_lock_only'];
+        $samples = [];
+        $canonicalHashes = [];
+
+        try {
+            for ($round = 0; $round < self::REPETITIONS; ++$round) {
+                foreach ($cases as $case) {
+                    $modes = $round % 2 === 0 ? ['login', 'nonlogin'] : ['nonlogin', 'login'];
+                    foreach ($modes as $mode) {
+                        file_put_contents($helper, $mode === 'login' ? $original : $nonlogin);
+                        $this->clearTrace();
+                        $elapsed = $this->timedCheckout($this->revisions[$case]);
+                        $events = $this->readTrace();
+                        if (array_column($events, 'stage') !== ['refresh', 'search-index refresh']) {
+                            throw new RuntimeException($case . '/' . $mode . ': missing hook stages.');
+                        }
+                        foreach ($events as $event) {
+                            if ($event['exit'] !== 0) {
+                                throw new RuntimeException($case . '/' . $mode . ': map/search subprocess failed.');
+                            }
+                        }
+                        $this->assertCurrent($case);
+
+                        // Stable canonical map and split relations have to match
+                        // across shell modes, not merely pass stale-file checks.
+                        $relationPath = \voku\AgentMap\MapArtifactPaths::relationsFileFor($this->index);
+                        $fingerprints = [
+                            hash_file('sha256', $this->index),
+                            hash_file('sha256', $relationPath),
+                        ];
+                        if (!isset($canonicalHashes[$case])) {
+                            $canonicalHashes[$case] = $fingerprints;
+                        } elseif ($canonicalHashes[$case] !== $fingerprints) {
+                            throw new RuntimeException($case . '/' . $mode . ': canonical map or relations bytes differ.');
+                        }
+
+                        $samples[$case][$mode][] = [
+                            'checkout_plus_hook_ms' => $elapsed,
+                            'map_refresh_ms' => $this->stageMs($events, 'refresh'),
+                            'search_refresh_ms' => $this->stageMs($events, 'search-index refresh'),
+                            'canonical_map_relations_byte_parity' => true,
+                            'live_search_index_doctor' => 'passed',
+                        ];
+                        $this->clearTrace();
+                        $this->timedCheckout($this->revisions['base']);
+                        $this->assertCurrent('base');
+                    }
+                }
+            }
+        } finally {
+            file_put_contents($helper, $original);
+        }
+
+        $report = [];
+        foreach ($samples as $case => $perMode) {
+            $report[$case] = [];
+            foreach ($perMode as $mode => $entries) {
+                $report[$case][$mode] = [
+                    'median_checkout_plus_hook_ms' => $this->median(array_column($entries, 'checkout_plus_hook_ms')),
+                    'median_map_refresh_ms' => $this->median(array_column($entries, 'map_refresh_ms')),
+                    'median_search_refresh_ms' => $this->median(array_column($entries, 'search_refresh_ms')),
+                    'samples' => $entries,
+                ];
+            }
+            $login = $report[$case]['login']['median_checkout_plus_hook_ms'];
+            $candidate = $report[$case]['nonlogin']['median_checkout_plus_hook_ms'];
+            $report[$case]['saved_ms_nonlogin'] = round($login - $candidate, 3);
+            fwrite(STDERR, sprintf(
+                "CONTROLLED REAL HOOK A/B %s: login %.1f ms; nonlogin %.1f ms; saved %.1f ms; exact map/relation/search parity PASS\n",
+                $case, $login, $candidate, $login - $candidate,
+            ));
+        }
+        return $report;
     }
 
     private function prepareGitFixture(): void
@@ -446,8 +544,9 @@ PHP;
     /**
      * @param array<string, array<string, mixed>> $cases
      * @param array<string, float> $launchOverhead
+     * @param array<string, array<string, mixed>> $shellAb
      */
-    private function writeGitHubSummary(array $cases, array $launchOverhead): void
+    private function writeGitHubSummary(array $cases, array $launchOverhead, array $shellAb): void
     {
         $summary = getenv('GITHUB_STEP_SUMMARY');
         if (!is_string($summary) || $summary === '') {
@@ -472,6 +571,19 @@ PHP;
         foreach ($launchOverhead as $name => $ms) {
             $text .= sprintf("- %s: %.3f ms\n", $name, $ms);
         }
+        $text .= "\n### Same-run REAL post-checkout hook A/B (research only)\n\n"
+            . "| Scenario | Login shell | Non-login shell | Saved | Canonical/search parity |\n"
+            . "| --- | ---: | ---: | ---: | --- |\n";
+        foreach ($shellAb as $case => $measurements) {
+            $text .= sprintf(
+                "| %s | %.1f ms | %.1f ms | %.1f ms | PASS |\n",
+                $case,
+                $measurements['login']['median_checkout_plus_hook_ms'],
+                $measurements['nonlogin']['median_checkout_plus_hook_ms'],
+                $measurements['saved_ms_nonlogin'],
+            );
+        }
+        $text .= "\nThe non-login variant is NOT automatically safe on hosts that rely on login profile initialization.\n";
         file_put_contents($summary, $text, FILE_APPEND);
     }
 }
