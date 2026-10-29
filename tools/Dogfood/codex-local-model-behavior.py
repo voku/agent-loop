@@ -165,6 +165,7 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
     message_count = 0
     event_types = {}
     item_types = {}
+    error_kinds = []
     for line in result.stdout.splitlines():
         try:
             event = json.loads(line)
@@ -178,6 +179,21 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
             item_kind = item.get("type")
             if isinstance(item_kind, str):
                 item_types[item_kind] = item_types.get(item_kind, 0) + 1
+            if item.get("type") == "error":
+                # Only record bounded error codes/kinds. Never persist the model's
+                # raw response, hidden reasoning, prompt, or tool parameters.
+                error = item.get("message", "")
+                if isinstance(error, str):
+                    if "error decoding response body" in error.lower():
+                        error_kinds.append("response_decode_failure")
+                    elif "context" in error.lower():
+                        error_kinds.append("context_error")
+                    elif "connection" in error.lower():
+                        error_kinds.append("connection_error")
+                    elif "tool" in error.lower():
+                        error_kinds.append("tool_error")
+                    else:
+                        error_kinds.append("other_error")
             if item.get("type") == "command_execution":
                 command = item.get("command", "")
                 commands.append({
@@ -211,6 +227,7 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int, prompt
         "command_count": len(commands),
         "event_type_counts": event_types,
         "item_type_counts": item_types,
+        "error_kinds": error_kinds,
         "enter_attempts": sum(int(c["enter"]) for c in commands),
         "finish_attempts": sum(int(c["finish"]) for c in commands),
         "php_test_attempts": sum(int(c["php_test"]) for c in commands),
