@@ -76,8 +76,8 @@ function snapshot(string $path): array
     if (!is_string($raw)) {
         throw new RuntimeException('Missing canonical map: ' . $path);
     }
-    $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-    if (!str_ends_with((string) ($payload['backend'] ?? ''), '+phpstan')) {
+    $decodedIndex = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($decodedIndex) || !str_ends_with((string) ($decodedIndex['backend'] ?? ''), '+phpstan')) {
         throw new RuntimeException('Benchmark did not run the required PHPStan backend.');
     }
 
@@ -109,7 +109,7 @@ function snapshot(string $path): array
         'map' => hash_file('sha256', $path),
         'relations' => hash_file('sha256', MapArtifactPaths::relationsFileFor($path)),
         'semantic_relations' => hash('sha256', json_encode($semanticPayload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
-        'backend' => (string) $payload['backend'],
+        'backend' => (string) $decodedIndex['backend'],
     ];
 }
 
