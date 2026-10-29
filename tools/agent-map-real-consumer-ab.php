@@ -13,8 +13,6 @@ declare(strict_types=1);
  * Usage: php tools/agent-map-real-consumer-ab.php <baseline> <candidate> <source-fixture>
  */
 
-use PDO;
-use RuntimeException;
 use voku\AgentMap\Index\MapGraphIndex;
 use voku\AgentMap\MapArtifactPaths;
 
@@ -194,7 +192,19 @@ try {
         parity($after, snapshot($paths['candidate']));
         if ($after['revision'] === $oldRevision || $after['count'] !== $initial['count']
             || $after['relations'] !== $initial['relations']) {
-            throw new RuntimeException('Comment-only round changed relations or failed to advance canonical provenance.');
+            $diagnostic = [
+                'round' => $round + 1,
+                'initial' => $initial,
+                'after' => $after,
+                'old_revision' => $oldRevision,
+                'cli_output' => $observed,
+                'source_sha256' => hash_file('sha256', $fixtureFile),
+            ];
+            file_put_contents(
+                $root . '/failure-diagnostic.json',
+                json_encode($diagnostic, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+            );
+            throw new RuntimeException('Comment-only invariant failed: ' . json_encode($diagnostic, JSON_THROW_ON_ERROR));
         }
         $oldRevision = $after['revision'];
         $report['changed_source_refresh'][] = [
