@@ -983,16 +983,16 @@
         },
         {
             "name": "voku/agent-graph",
-            "version": "0.3.1",
+            "version": "0.3.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-graph.git",
-                "reference": "33486d52132ad0da057279e162f2424db0db5159"
+                "reference": "3c26e8ffabdbd39ad63560bb9cd4754f38e7e802"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-graph/zipball/33486d52132ad0da057279e162f2424db0db5159",
-                "reference": "33486d52132ad0da057279e162f2424db0db5159",
+                "url": "https://api.github.com/repos/voku/agent-graph/zipball/3c26e8ffabdbd39ad63560bb9cd4754f38e7e802",
+                "reference": "3c26e8ffabdbd39ad63560bb9cd4754f38e7e802",
                 "shasum": ""
             },
             "require": {
@@ -1031,7 +1031,7 @@
                 "issues": "https://github.com/voku/agent-graph/issues",
                 "source": "https://github.com/voku/agent-graph"
             },
-            "time": "2026-10-09T08:41:27+00:00"
+            "time": "2026-10-29T02:42:21+00:00"
         },
         {
             "name": "voku/agent-kanban",
@@ -1170,16 +1170,16 @@
         },
         {
             "name": "voku/agent-map",
-            "version": "0.22.3",
+            "version": "0.22.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-map.git",
-                "reference": "22a3698fbdf48f70a7d5021acbe455d20255e072"
+                "reference": "c654e4f6bcc644878e0efbb42e3aebbdf9814bb8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-map/zipball/22a3698fbdf48f70a7d5021acbe455d20255e072",
-                "reference": "22a3698fbdf48f70a7d5021acbe455d20255e072",
+                "url": "https://api.github.com/repos/voku/agent-map/zipball/c654e4f6bcc644878e0efbb42e3aebbdf9814bb8",
+                "reference": "c654e4f6bcc644878e0efbb42e3aebbdf9814bb8",
                 "shasum": ""
             },
             "require": {
@@ -1187,7 +1187,7 @@
                 "helgesverre/toon": "^3.1",
                 "nikic/php-parser": "^5.0",
                 "php": "^8.3",
-                "voku/agent-graph": "^0.3.1",
+                "voku/agent-graph": "^0.3.2",
                 "voku/simple-php-code-parser": "^0.22.15",
                 "voku/stop-words": "^2.0"
             },
@@ -1241,7 +1241,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-24T21:08:41+00:00"
+            "time": "2026-10-29T03:09:29+00:00"
         },
         {
             "name": "voku/agent-recall-compiler",
