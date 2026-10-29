@@ -38,16 +38,25 @@ jobs:
       - name: Install exact-head package dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Install pinned Codex host
+      - name: Install checksum-verified Codex 0.157.0 release asset
         shell: bash
         run: |
           set -euo pipefail
-          export CODEX_NON_INTERACTIVE=1
-          export CODEX_INSTALL_DIR="${RUNNER_TEMP}/codex-bin"
-          export CODEX_HOME="${RUNNER_TEMP}/codex-install-home"
-          curl -fsSL https://chatgpt.com/codex/install.sh |
-            sh -s -- --release "${CODEX_VERSION}"
-          echo "${CODEX_INSTALL_DIR}" >> "${GITHUB_PATH}"
+          archive="${RUNNER_TEMP}/codex-linux-musl.tar.gz"
+          destination="${RUNNER_TEMP}/codex-extracted"
+          install_root="${RUNNER_TEMP}/codex-bin"
+          curl -fL --retry 3 --connect-timeout 20 --max-time 300 \
+            "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz" \
+            -o "${archive}"
+          printf '%s  %s\n' \
+            'db3fe3adaa35c50edfb68a988a117782fe3492960fb63d7003eb6748ccc0657b' \
+            "${archive}" | sha256sum -c -
+          mkdir -p "${destination}" "${install_root}"
+          tar -xzf "${archive}" -C "${destination}"
+          binary="$(find "${destination}" -type f -name 'codex-x86_64-unknown-linux-musl' -print -quit)"
+          test -f "${binary}"
+          install -m 0755 "${binary}" "${install_root}/codex"
+          echo "${install_root}" >> "${GITHUB_PATH}"
 
       - name: Fetch and verify pinned CPU runtime and model
         shell: bash
@@ -81,7 +90,7 @@ jobs:
           set -euo pipefail
           "${LLAMA_SERVER}" --model "${LLAMA_MODEL}" --alias local-coder \
             --host 127.0.0.1 --port "${LOCAL_MODEL_PORT}" \
-            --ctx-size 8192 --threads 4 --parallel 1 \
+            --ctx-size 16384 --threads 4 --parallel 1 \
             > "${RUNNER_TEMP}/llama-server.log" 2>&1 &
           echo "LLAMA_PID=$!" >> "${GITHUB_ENV}"
 
