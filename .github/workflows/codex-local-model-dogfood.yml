@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "${LLAMA_SERVER}" --model "${LLAMA_MODEL}" --alias local-coder \
+          "${LLAMA_SERVER}" --model "${LLAMA_MODEL}" --alias local-coder --jinja \
             --host 127.0.0.1 --port "${LOCAL_MODEL_PORT}" \
             --ctx-size 16384 --threads 4 --parallel 1 \
             > "${RUNNER_TEMP}/llama-server.log" 2>&1 &
