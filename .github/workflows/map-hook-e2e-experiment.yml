@@ -1,0 +1,98 @@
+name: Experiment real agent-map Git-hook end-to-end latency
+
+on:
+  push:
+    branches:
+      - experiment/map-hook-e2e-ci-*
+  pull_request:
+    paths:
+      - .github/workflows/map-hook-e2e-experiment.yml
+      - tools/dogfood/map-hook-e2e-benchmark.php
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-git-hook:
+    name: Real Git transition + map + search (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: loop
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: voku/agent-map
+          ref: b8ae773f3ec696e71f0e9a8d1ed7837bca6e92e4
+          path: map
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Prepare isolated Composer consumer using an exact agent-map checkout
+        shell: bash
+        env:
+          MAP_BENCH_FIXTURE: ${{ runner.temp }}/agent-map-hook-e2e
+        run: |
+          set -euo pipefail
+          mkdir -p "$MAP_BENCH_FIXTURE"
+          cat > "$MAP_BENCH_FIXTURE/composer.json" <<JSON
+          {
+            "name": "voku/agent-map-hook-e2e-consumer",
+            "description": "Temporary Composer consumer for real Git-hook benchmark",
+            "type": "project",
+            "require": {
+              "php": "^8.3",
+              "voku/agent-map": "dev-main"
+            },
+            "require-dev": {
+              "phpstan/phpstan": "^2.2"
+            },
+            "repositories": [
+              {
+                "type": "path",
+                "url": "$GITHUB_WORKSPACE/map",
+                "options": {
+                  "symlink": false,
+                  "versions": {"voku/agent-map": "dev-main"}
+                }
+              }
+            ],
+            "minimum-stability": "dev",
+            "prefer-stable": true,
+            "config": {
+              "allow-plugins": false,
+              "sort-packages": true
+            }
+          }
+          JSON
+          composer update --working-dir="$MAP_BENCH_FIXTURE" --no-interaction --prefer-dist --no-progress --no-ansi
+          test -f "$MAP_BENCH_FIXTURE/vendor/voku/agent-map/bin/agent-map"
+          test -f "$MAP_BENCH_FIXTURE/vendor/phpstan/phpstan/phpstan.phar"
+      - name: Run 3x real Git post-checkout and PHPStan-backed refresh pipeline, verify search freshness
+        shell: bash
+        env:
+          MAP_BENCH_FIXTURE: ${{ runner.temp }}/agent-map-hook-e2e
+          MAP_BENCH_LOOP_CHECKOUT: ${{ github.workspace }}/loop
+          MAP_BENCH_MAP_COMMIT: b8ae773f3ec696e71f0e9a8d1ed7837bca6e92e4
+        run: |
+          set -euo pipefail
+          php -l loop/tools/dogfood/map-hook-e2e-benchmark.php
+          php loop/tools/dogfood/map-hook-e2e-benchmark.php
+      - name: Upload exact-head structured end-to-end latency and parity evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-map-hook-e2e-php-${{ matrix.php }}
+          path: ${{ runner.temp }}/agent-map-hook-e2e/map-hook-e2e-report.json
+          if-no-files-found: warn
