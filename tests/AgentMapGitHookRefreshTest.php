@@ -196,9 +196,6 @@ PHP);
     private function command(array $argv, array $environment = []): array
     {
         $env = getenv();
-        if (!is_array($env)) {
-            $env = [];
-        }
         $env['MAP_HOOK_TEST_LOG'] = $this->logPath;
         $env['AGENT_LOOP_CONTAINER_WORKDIR'] = '';
         $env['AGENT_LOOP_CONTAINER_IMAGE'] = '';
