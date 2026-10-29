@@ -121,6 +121,8 @@ final class AgentMapHookEndToEndBenchmark
             ];
         }
 
+        $launchOverhead = $this->measureStartupOverhead();
+
         $report = [
             'schema_version' => 1,
             'experiment' => 'real git post-checkout hook, real PHPStan agent-map refresh and FTS search-index refresh',
@@ -137,6 +139,7 @@ final class AgentMapHookEndToEndBenchmark
             ],
             'repetitions' => self::REPETITIONS,
             'cases' => $cases,
+            'startup_microprobes_median_ms' => $launchOverhead,
             'invariants' => [
                 'missing_or_unexpected_hook_calls_fail' => true,
                 'current_php_file_hashes_verified' => true,
@@ -155,7 +158,45 @@ final class AgentMapHookEndToEndBenchmark
         $reportPath = $this->fixture . '/map-hook-e2e-report.json';
         file_put_contents($reportPath, json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
         echo json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n";
-        $this->writeGitHubSummary($cases);
+        $this->writeGitHubSummary($cases, $launchOverhead);
+    }
+
+    /**
+     * Diagnose the otherwise unattributed Git/hook/process envelope without
+     * changing shipped hook behavior. These shell startup probes are supporting
+     * evidence, not an A/B proof that a different shell mode is safe.
+     *
+     * @return array<string, float>
+     */
+    private function measureStartupOverhead(): array
+    {
+        $php = escapeshellarg(PHP_BINARY);
+        $noopPhp = escapeshellarg('exit(0);');
+        $commands = [
+            'bash_login_empty' => ['bash', '-lc', ':'],
+            'bash_nonlogin_empty' => ['bash', '-c', ':'],
+            'php_empty' => [PHP_BINARY, '-r', 'exit(0);'],
+            'bash_login_php' => ['bash', '-lc', $php . ' -r ' . $noopPhp],
+            'bash_nonlogin_php' => ['bash', '-c', $php . ' -r ' . $noopPhp],
+        ];
+        $observations = [];
+        for ($round = 0; $round < 9; ++$round) {
+            $order = $round % 2 === 0 ? array_keys($commands) : array_reverse(array_keys($commands));
+            foreach ($order as $name) {
+                $started = hrtime(true);
+                $this->runCommand($commands[$name]);
+                $observations[$name][] = round((hrtime(true) - $started) / 1_000_000, 3);
+            }
+        }
+
+        $results = [];
+        foreach ($observations as $name => $samples) {
+            $results[$name] = $this->median($samples);
+        }
+        fwrite(STDERR, 'Process startup probes (median ms, diagnostics only): '
+            . json_encode($results, JSON_THROW_ON_ERROR) . "\n");
+
+        return $results;
     }
 
     private function prepareGitFixture(): void
@@ -402,8 +443,11 @@ PHP;
         return round($numbers[intdiv(count($numbers), 2)], 3);
     }
 
-    /** @param array<string, array<string, mixed>> $cases */
-    private function writeGitHubSummary(array $cases): void
+    /**
+     * @param array<string, array<string, mixed>> $cases
+     * @param array<string, float> $launchOverhead
+     */
+    private function writeGitHubSummary(array $cases, array $launchOverhead): void
     {
         $summary = getenv('GITHUB_STEP_SUMMARY');
         if (!is_string($summary) || $summary === '') {
@@ -424,6 +468,10 @@ PHP;
             );
         }
         $text .= "\nEvery Git transition passed semantic fingerprint, source freshness, and real search-index doctor checks.\n";
+        $text .= "\n### Diagnostic shell/process startup probes (not a production A/B)\n\n";
+        foreach ($launchOverhead as $name => $ms) {
+            $text .= sprintf("- %s: %.3f ms\n", $name, $ms);
+        }
         file_put_contents($summary, $text, FILE_APPEND);
     }
 }
