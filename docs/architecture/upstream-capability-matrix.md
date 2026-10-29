@@ -13,6 +13,7 @@ Reviewed source pins:
 - Attention Control (`aaddrick/attention-control`): `3c8a2a8a38f163aa85ad325812b5ce3ba330ad27`;
 - Everything Claude Code (`affaan-m/ECC`): `c9148d0bb239ed01a95724a5928b98cdf9c30658`;
 - mnapoli Skills (`mnapoli/skills`): `f44250e55fff8e69447a1faa0093fb6298f070ae`.
+- Learn Harness Engineering (`walkinglabs/learn-harness-engineering`): `a9342ff471f2c0e60be0c08b9f4a7c502df4e442` (2026-10-22 main observation).
 
 Bounded history recheck on 2026-10-19 (not a replacement full-source audit):
 
@@ -181,6 +182,36 @@ can actually prove.
 | Reader-specific ADHD assumptions | `REJECT` | A coding workflow must not assume a reader diagnosis or identity. |
 | Fixed 20/25-word sentence limits, five-item list cap, restricted English vocabulary | `REJECT` | These are presentation preferences, not correctness or workflow invariants. Normal clear prose remains allowed. |
 | Always-on output-style mode and stop command | `REJECT` | Agent-loop behavior is activated by the governed workflow/repository contract, not a conversational style mode. |
+
+## Learn Harness Engineering (WalkingLabs)
+
+Reviewed at `a9342ff471f2c0e60be0c08b9f4a7c502df4e442`: the course README, lectures
+11–14, Projects 06–08, `skills/harness-creator/SKILL.md`, and the creator's
+`validate-harness.mjs` / `run-benchmark.mjs` / `harness-utils.mjs`. This is
+an upstream teaching/reference design, **not** evidence that any proposed
+adaptation improves our coding agents. See [dogfood #875](https://github.com/voku/agent-loop/issues/875)
+for the smallest new falsifiable host/behavior question.
+
+| Upstream mechanism | Decision | First-party equivalent / evidence boundary |
+| --- | --- | --- |
+| Small instruction router with progressive, on-demand project context | `ALREADY` | Root `AGENTS.md` routes to the canonical `agent-loop-workflow` skill and current lifecycle result; `agent-recall-compiler` owns bounded task-specific guidance. `#663` tested reduction of always-on guidance. No new startup manual. |
+| Explicit task state, clean session handoff and restart | `ALREADY` | `agent-kanban`, `agent-session`, the persisted Loop Run/Contract and existing `workflow handoff`. Do not add `feature_list.json`, `progress.md` or another state authority. |
+| Strict scope, verification and independent maker/checker | `ALREADY` | Exact Contract/candidate-bound checks, `finish` and execution profiles already own these semantics. Independent review declares `fresh_required`; a declaration is not proof of host compliance. |
+| Compare real agent outcomes with frozen baselines, ablation and independent acceptance | `ADAPT` | Reuse the `#420` crossover/replay discipline; `#875` isolates the missing *implicit fresh-host activation* claim. Verify source/owner/decision effect and independent acceptance before resource cost. Do not add a generic benchmark framework. |
+| Separate projected, discovered, consumed, enforced and decision-changing guidance | `ADAPT` | Current `HostCapabilityMatrix` / version-bound `HostRuntimeEvidence` and pinned Codex/Claude runtime proof lanes cover subsets. `#727` / `#730` show explicit skill consumption; they do **not** prove an unprompted agent follows `enter → next_action → finish` on a real task. `#875` owns the missing experiment. |
+| Session observability and telemetry | `DEFER` | Existing execution/validation receipts and installed-consumer dogfood remain evidence owners. Only add missing typed observations to an existing owner when an experiment demonstrates a decision blocked by unavailable data; do not create an OpenTelemetry subsystem on speculation. Missing token/time observations remain `unknown`. |
+| Graph nodes, conditional edges, parallel workers and rollback | `DEFER` | Current first-party execution plans already define deterministic stages/review retry/recovery. A read-only graph *projection* may help diagnose a proven routing or coordination failure, but must be derived from existing state, not become a new workflow engine. |
+| Harness score based on template filenames, phrases and a minimum 70/100 | `REJECT` | `harness-creator` computes a **structural checklist** over `AGENTS.md`, `init.sh`, `feature_list.json`, etc. It is not a model-behavior or outcome benchmark; scoring Loop by these files would reward shadow state. |
+| Copy the scaffold, simulated benchmark runner or educational LangGraph example | `REJECT` | Teaching examples use fixed/demo outcomes and stub model calls. Their presence cannot substantiate independent verification or real-host behavior, and their runtime authority would conflict with Loop's existing owners. |
+
+**Smallest next proof:** freeze one real task/base and the exact host, tool,
+project-instruction, hook and safety configurations. Observe what a fresh host
+actually consumes **without explicit `$agent-loop-workflow`**; then compare
+isolated baseline/treatment task outcomes with an independent executable oracle.
+A provider-compatible scripted response may prove request/context transport
+but **cannot** prove the model made a good decision. Do not promote the claim
+until real behavior is observed. See #875; keep Codelight-specific effect
+inside #420 and interview routing inside #731.
 
 ## Hard-boundary rule
 
