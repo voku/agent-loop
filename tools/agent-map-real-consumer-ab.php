@@ -69,7 +69,7 @@ function runMap(string $install, string $fixture, string $index, string $action)
     return ['elapsed_ms' => $ms, 'output' => trim($stdout . "\n" . $stderr)];
 }
 
-/** @return array{revision:string,count:int,map:string,relations:string,backend:string} */
+/** @return array{revision:string,count:int,map:string,relations:string,semantic_relations:string,backend:string} */
 function snapshot(string $path): array
 {
     $raw = file_get_contents($path);
@@ -91,11 +91,24 @@ function snapshot(string $path): array
         throw new RuntimeException('Consumer graph unexpectedly small: ' . $count);
     }
 
+    // The companion relations JSON also contains a changing canonical
+    // provenance fingerprint. Compare semantic content separately so comment-
+    // only edits can advance provenance without falsely appearing to alter
+    // ordered relations, local bindings or exits.
+    $relationsRaw = file_get_contents(MapArtifactPaths::relationsFileFor($path));
+    $relationsPayload = json_decode((string) $relationsRaw, true, 512, JSON_THROW_ON_ERROR);
+    $semanticPayload = [
+        'relations' => $relationsPayload['relations'] ?? [],
+        'local_bindings' => $relationsPayload['local_bindings'] ?? [],
+        'local_exits' => $relationsPayload['local_exits'] ?? [],
+    ];
+
     return [
         'revision' => $revision,
         'count' => $count,
         'map' => hash_file('sha256', $path),
         'relations' => hash_file('sha256', MapArtifactPaths::relationsFileFor($path)),
+        'semantic_relations' => hash('sha256', json_encode($semanticPayload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
         'backend' => (string) $payload['backend'],
     ];
 }
@@ -191,7 +204,7 @@ try {
         $after = snapshot($paths['baseline']);
         parity($after, snapshot($paths['candidate']));
         if ($after['revision'] === $oldRevision || $after['count'] !== $initial['count']
-            || $after['relations'] !== $initial['relations']) {
+            || $after['semantic_relations'] !== $initial['semantic_relations']) {
             $diagnostic = [
                 'round' => $round + 1,
                 'initial' => $initial,
@@ -270,6 +283,7 @@ PHP;
         'byte_identical_canonical_and_split_relations' => true,
         'matched_graph_revision_and_integrity' => true,
         'comment_only_changed_source' => true,
+        'semantic_relations_payload_unchanged_across_comments' => true,
         'candidate_delete_block_trigger_survived_all_comment_changes' => true,
         'graph_changing_negative_rebuilt_correctly' => true,
     ];
