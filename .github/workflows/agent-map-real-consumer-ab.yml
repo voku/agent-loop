@@ -101,5 +101,6 @@ jobs:
           name: agent-loop-installed-map-ab-php-${{ matrix.php }}
           path: |
             ${{ runner.temp }}/agent-loop-map-consumer-ab-*/report.json
+            ${{ runner.temp }}/agent-loop-map-consumer-ab-*/failure-diagnostic.json
             ${{ runner.temp }}/agent-loop-consumer-proof.log
           if-no-files-found: warn
