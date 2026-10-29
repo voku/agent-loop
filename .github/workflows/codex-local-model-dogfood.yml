@@ -1,0 +1,130 @@
+name: Codex local-model harness dogfood
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-local-model-dogfood.yml'
+      - 'tools/Dogfood/codex-local-model-behavior.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-model-behavior:
+    name: Pinned CPU model / real Codex host / independent PHP oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CODEX_VERSION: '0.157.0'
+      LLAMA_RELEASE: 'b11904'
+      LLAMA_ASSET_SHA256: 'c27afda42cd81be6583bca659fedd518492380ee36581b2004885ef45ef2be33'
+      QWEN_MODEL_REVISION: 'ebb2015119c907b064c512bf053e945850b5875f'
+      QWEN_MODEL_SHA256: '1d9614638d18024d0fbb36575a15f1302a3adf044df10345688ec4f6e1c4ff32'
+      LOCAL_MODEL_PORT: '8999'
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+
+      - name: Install exact-head package dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install pinned Codex host
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CODEX_NON_INTERACTIVE=1
+          export CODEX_INSTALL_DIR="${RUNNER_TEMP}/codex-bin"
+          export CODEX_HOME="${RUNNER_TEMP}/codex-install-home"
+          curl -fsSL https://chatgpt.com/codex/install.sh |
+            sh -s -- --release "${CODEX_VERSION}"
+          echo "${CODEX_INSTALL_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Fetch and verify pinned CPU runtime and model
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/llama-cpu" "${RUNNER_TEMP}/model"
+          archive="${RUNNER_TEMP}/llama-cpu.tar.gz"
+          model="${RUNNER_TEMP}/model/coder-q4_k_m.gguf"
+
+          curl -fL --retry 3 --connect-timeout 20 --max-time 300 \
+            "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_RELEASE}/llama-${LLAMA_RELEASE}-bin-ubuntu-x64.tar.gz" \
+            -o "${archive}"
+          printf '%s  %s\n' "${LLAMA_ASSET_SHA256}" "${archive}" | sha256sum -c -
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}/llama-cpu"
+
+          curl -fL --retry 3 --connect-timeout 20 --max-time 540 \
+            "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/${QWEN_MODEL_REVISION}/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf?download=true" \
+            -o "${model}"
+          printf '%s  %s\n' "${QWEN_MODEL_SHA256}" "${model}" | sha256sum -c -
+
+          server="$(find "${RUNNER_TEMP}/llama-cpu" -type f -name 'llama-server' -print -quit)"
+          test -n "${server}"
+          test -x "${server}"
+          echo "LLAMA_SERVER=${server}" >> "${GITHUB_ENV}"
+          echo "LLAMA_MODEL=${model}" >> "${GITHUB_ENV}"
+          echo "LD_LIBRARY_PATH=$(dirname "${server}"):${LD_LIBRARY_PATH:-}" >> "${GITHUB_ENV}"
+
+      - name: Run pinned CPU-only local inference server
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${LLAMA_SERVER}" --model "${LLAMA_MODEL}" \
+            --host 127.0.0.1 --port "${LOCAL_MODEL_PORT}" \
+            --ctx-size 8192 --threads 4 --parallel 1 \
+            > "${RUNNER_TEMP}/llama-server.log" 2>&1 &
+          echo "LLAMA_PID=$!" >> "${GITHUB_ENV}"
+
+          ready=false
+          for _ in $(seq 1 100); do
+            if curl -fsS --max-time 2 "http://127.0.0.1:${LOCAL_MODEL_PORT}/health" > /dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "${ready}" != true ]]; then
+            tail -n 70 "${RUNNER_TEMP}/llama-server.log" >&2
+            exit 1
+          fi
+
+      - name: Execute independent Codex model arms and PHP oracle
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+        run: |
+          set -euo pipefail
+          codex --version
+          python3 -m py_compile tools/Dogfood/codex-local-model-behavior.py
+          python3 tools/Dogfood/codex-local-model-behavior.py \
+            --repository="${GITHUB_WORKSPACE}" \
+            --evidence="${GITHUB_WORKSPACE}/build/codex-local-model" \
+            --revision="${{ github.event.pull_request.head.sha || github.sha }}" \
+            --model-port="${LOCAL_MODEL_PORT}" \
+            --model-sha256="${QWEN_MODEL_SHA256}" \
+            --llama-sha256="${LLAMA_ASSET_SHA256}"
+          jq -e '.evidence_class == "local_model_host_behavior_probe"
+            and .common_hard_policy == true
+            and .arms.control.baseline_oracle_failed == true
+            and .arms.treatment.baseline_oracle_failed == true' \
+            build/codex-local-model/local-model-behavior.json > /dev/null
+
+      - name: Upload bounded model outcome receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: codex-local-model-${{ github.sha }}
+          if-no-files-found: warn
+          path: build/codex-local-model/local-model-behavior.json
+          retention-days: 7
