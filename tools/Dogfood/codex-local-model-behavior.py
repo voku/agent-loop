@@ -94,6 +94,16 @@ def prepare_consumer(repository: Path, destination: Path):
     (destination / "test.php").write_text(PHP_TEST, encoding="utf-8")
     if run(["php", "test.php"], destination).returncode == 0:
         raise RuntimeError("invalid oracle: the known-bad fixture unexpectedly passes")
+    source_file = destination / "src/user_id.php"
+    source_file.write_text(
+        PHP_SOURCE.replace("return $userId ?: 99;", "return $userId ?? 99;"),
+        encoding="utf-8",
+    )
+    try:
+        if run(["php", "test.php"], destination).returncode != 0:
+            raise RuntimeError("invalid oracle: the known-good correction must pass")
+    finally:
+        source_file.write_text(PHP_SOURCE, encoding="utf-8")
     if not (destination / "AGENTS.md").is_file():
         raise RuntimeError("agent-loop did not project the managed router")
     if not (destination / ".codex/rules/agent-loop.rules").is_file():
@@ -175,6 +185,11 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
         "timed_out": timed_out,
         "model_behavior_observed": message_count > 0 or len(commands) > 0,
         "codex_exit_code": result.returncode,
+        "failure_diagnostic": (
+            result.stderr[-650:].replace(str(project), "<isolated-project>")
+            .replace(str(runtime_home), "<isolated-home>")
+            if result.returncode else None
+        ),
         "baseline_oracle_failed": before != 0,
         "final_oracle_passed": after == 0,
         "source_changed": source_changed,
