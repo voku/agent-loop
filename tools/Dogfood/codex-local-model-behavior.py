@@ -128,7 +128,7 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
 
     before = run(["php", "test.php"], project).returncode
     start = time.monotonic()
-    result = run([
+    command = [
         "codex", "exec", "--ephemeral", "--json",
         "-c", 'model="local-coder"',
         "-c", 'model_provider="local"',
@@ -136,7 +136,13 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
         "-c", 'sandbox_mode="workspace-write"',
         "-c", 'approval_policy="never"',
         TASK,
-    ], project, timeout=240, env=env)
+    ]
+    try:
+        result = run(command, project, timeout=240, env=env)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        result = subprocess.CompletedProcess(command, 124, stdout="", stderr="")
+        timed_out = True
     elapsed = round(time.monotonic() - start, 3)
     after = run(["php", "test.php"], project).returncode
 
@@ -159,14 +165,19 @@ def run_arm(consumer: Path, experiment: Path, name: str, model_port: int):
             elif item.get("type") == "agent_message" and event.get("type") == "item.completed":
                 message_count += 1
 
+    source = project / "src/user_id.php"
+    source_changed = not source.exists() or (
+        sha(source) != hashlib.sha256(PHP_SOURCE.encode()).hexdigest()
+    )
     return {
         "arm": name,
-        "model_call_via_codex": result.returncode == 0,
+        "codex_process_succeeded": result.returncode == 0,
+        "timed_out": timed_out,
+        "model_behavior_observed": message_count > 0 or len(commands) > 0,
         "codex_exit_code": result.returncode,
         "baseline_oracle_failed": before != 0,
         "final_oracle_passed": after == 0,
-        "source_changed": sha(project / "src/user_id.php") !=
-                          hashlib.sha256(PHP_SOURCE.encode()).hexdigest(),
+        "source_changed": source_changed,
         "router_present": (project / "AGENTS.md").exists(),
         "hard_policy_sha256": sha(project / ".codex/rules/agent-loop.rules"),
         "command_count": len(commands),
@@ -196,7 +207,12 @@ def main():
         treatment = run_arm(consumer, root, "treatment", args.model_port)
 
     parity = control["hard_policy_sha256"] == treatment["hard_policy_sha256"]
-    transport = control["model_call_via_codex"] and treatment["model_call_via_codex"]
+    observable = (
+        control["codex_process_succeeded"]
+        and treatment["codex_process_succeeded"]
+        and control["model_behavior_observed"]
+        and treatment["model_behavior_observed"]
+    )
     receipt = {
         "schema_version": 1,
         "evidence_class": "local_model_host_behavior_probe",
@@ -209,10 +225,10 @@ def main():
         "experimental_order": ["control", "treatment"],
         "arms": {"control": control, "treatment": treatment},
         "common_hard_policy": parity,
-        "status": "observed" if transport and parity else "inconclusive",
+        "status": "observed" if observable and parity else "inconclusive",
         "boundary": (
             "Local 0.5B model through native Codex CLI in independent fresh projects; "
-            "this is one ordered pair, not an unbiased crossover or generalisable "
+            "this is one ordered pair, not an unbiased crossover or generalizable "
             "engineering benchmark. Source/test changes do not imply approved Loop "
             "Contract or valid completion. No hidden reasoning or full prompt logs "
             "are stored; a failed oracle is a failed outcome, not a test-run failure."
