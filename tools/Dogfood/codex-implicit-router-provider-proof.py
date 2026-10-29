@@ -46,7 +46,14 @@ class RequestCollector:
                 pass
 
             def do_POST(self):
-                length = int(self.headers.get("Content-Length", "0"))
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except ValueError:
+                    self.send_error(400)
+                    return
+                if not 0 < length <= 10 * 1024 * 1024:
+                    self.send_error(413)
+                    return
                 payload = json.loads(self.rfile.read(length))
                 collector.requests.append(payload)
 
@@ -97,13 +104,10 @@ class RequestCollector:
 def run_arm(source: Path, scratch: Path, arm: str):
     project = scratch / f"{arm}-project"
     home = scratch / f"{arm}-codex-home"
-    shutil.copytree(
-        source,
-        project,
-        ignore=shutil.ignore_patterns(".git", ".agent-loop", "vendor"),
-    )
-    if arm == "baseline":
-        (project / "AGENTS.md").unlink()
+    project.mkdir()
+    shutil.copytree(source / ".codex", project / ".codex", symlinks=False)
+    if arm == "treatment":
+        shutil.copy2(source / "AGENTS.md", project / "AGENTS.md")
     home.mkdir()
     config = '[projects.' + json.dumps(str(project)) + ']\ntrust_level = "trusted"\n'
     (home / "config.toml").write_text(config, encoding="utf-8")
@@ -114,9 +118,11 @@ def run_arm(source: Path, scratch: Path, arm: str):
         text=True,
     )
 
-    env = os.environ.copy()
-    env.pop("OPENAI_API_KEY", None)
-    env.pop("CODEX_ACCESS_TOKEN", None)
+    env = {
+        key: os.environ[key]
+        for key in ("HOME", "LANG", "LC_ALL", "PATH", "TMPDIR")
+        if key in os.environ
+    }
     env["CODEX_HOME"] = str(home)
     with RequestCollector() as collector:
         provider = (
@@ -156,7 +162,7 @@ def run_arm(source: Path, scratch: Path, arm: str):
         "managed_policy_sha256": digest(policy),
         "managed_router_sha256": digest(project / "AGENTS.md")
         if arm == "treatment" else None,
-        "stderr_excerpt_if_failed": proc.stderr[-1500:] if proc.returncode else None,
+        "codex_stderr_bytes": len(proc.stderr.encode("utf-8")),
     }
 
 
