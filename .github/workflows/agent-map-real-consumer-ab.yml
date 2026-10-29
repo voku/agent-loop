@@ -1,0 +1,105 @@
+name: Agent-loop real installed agent-map versions A/B
+
+on:
+  push:
+    branches:
+      - experiment/agent-map-real-consumer-ab-20261029
+    paths:
+      - tools/agent-map-real-consumer-ab.php
+      - .github/workflows/agent-map-real-consumer-ab.yml
+  pull_request:
+    paths:
+      - tools/agent-map-real-consumer-ab.php
+      - .github/workflows/agent-map-real-consumer-ab.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installed-consumer-proof:
+    name: Exact released dependencies against agent-loop src (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: benchmark
+      - uses: actions/checkout@v7
+        with:
+          repository: voku/agent-loop
+          ref: c066ff35df0d3f5485bb33fbf4a83ca66b8b1053
+          path: baseline
+      - uses: actions/checkout@v7
+        with:
+          repository: voku/agent-loop
+          ref: 341020305b3b8904a96e7731c037fdb59ffc760e
+          path: candidate
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Confirm installed source is identical, packages differ only by lock update
+        shell: bash
+        run: |
+          set -euo pipefail
+          diff -qr "$GITHUB_WORKSPACE/baseline/src" "$GITHUB_WORKSPACE/candidate/src"
+          php -r '
+            $expected = [
+              "baseline" => ["voku/agent-map" => "0.22.3", "voku/agent-graph" => "0.3.1"],
+              "candidate" => ["voku/agent-map" => "0.22.5", "voku/agent-graph" => "0.3.2"],
+            ];
+            foreach ($expected as $arm => $versions) {
+              $lock = json_decode((string) file_get_contents(getenv("GITHUB_WORKSPACE") . "/$arm/composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+              foreach ($lock["packages"] as $p) {
+                if (isset($versions[$p["name"]])) {
+                  if ($versions[$p["name"]] !== $p["version"]) {
+                    throw new RuntimeException("Unexpected $arm version for " . $p["name"]);
+                  }
+                  unset($versions[$p["name"]]);
+                }
+              }
+              if ($versions !== []) {
+                throw new RuntimeException("Missing $arm locked dependencies: " . json_encode($versions));
+              }
+            }
+          '
+          php -l "$GITHUB_WORKSPACE/benchmark/tools/agent-map-real-consumer-ab.php"
+      - name: Install exact locked old dependencies
+        working-directory: baseline
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Install exact locked new dependencies
+        working-directory: candidate
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Verify installed versions and prepare identical real source fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arm in baseline candidate; do
+            test -f "$GITHUB_WORKSPACE/$arm/vendor/bin/agent-map"
+          done
+          fixture="$RUNNER_TEMP/agent-loop-consumer-fixture"
+          mkdir -p "$fixture"
+          cp -a "$GITHUB_WORKSPACE/candidate/src" "$fixture/src"
+          echo "FIXTURE=$fixture" >> "$GITHUB_ENV"
+      - name: Measure actual full PHPStan build, no-op and three changed-source refreshes
+        shell: bash
+        run: |
+          set -euo pipefail
+          php "$GITHUB_WORKSPACE/benchmark/tools/agent-map-real-consumer-ab.php" \
+            "$GITHUB_WORKSPACE/baseline" "$GITHUB_WORKSPACE/candidate" "$FIXTURE" \
+            | tee "$RUNNER_TEMP/agent-loop-consumer-proof.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: agent-loop-installed-map-ab-php-${{ matrix.php }}
+          path: |
+            ${{ runner.temp }}/agent-loop-map-consumer-ab-*/report.json
+            ${{ runner.temp }}/agent-loop-consumer-proof.log
+          if-no-files-found: warn
