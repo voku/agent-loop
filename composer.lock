@@ -1170,16 +1170,16 @@
         },
         {
             "name": "voku/agent-map",
-            "version": "0.22.4",
+            "version": "0.22.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/voku/agent-map.git",
-                "reference": "c654e4f6bcc644878e0efbb42e3aebbdf9814bb8"
+                "reference": "5e5b179176ce8b9fa961c795daf84d1c692bc064"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/voku/agent-map/zipball/c654e4f6bcc644878e0efbb42e3aebbdf9814bb8",
-                "reference": "c654e4f6bcc644878e0efbb42e3aebbdf9814bb8",
+                "url": "https://api.github.com/repos/voku/agent-map/zipball/5e5b179176ce8b9fa961c795daf84d1c692bc064",
+                "reference": "5e5b179176ce8b9fa961c795daf84d1c692bc064",
                 "shasum": ""
             },
             "require": {
@@ -1241,7 +1241,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-29T03:09:29+00:00"
+            "time": "2026-10-29T07:57:53+00:00"
         },
         {
             "name": "voku/agent-recall-compiler",
