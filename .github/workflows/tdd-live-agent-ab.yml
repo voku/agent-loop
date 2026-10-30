@@ -1,0 +1,135 @@
+name: TDD agent behavior A/B experiment
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/tdd-live-agent-ab.yml'
+      - 'tools/Dogfood/tdd-live-agent-ab.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tdd-live-agent-ab:
+    name: Real Codex/Qwen host; hidden oracle; bounded A/B
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CODEX_VERSION: '0.157.0'
+      LLAMA_RELEASE: 'b11904'
+      LLAMA_ASSET_SHA256: 'c27afda42cd81be6583bca659fedd518492380ee36581b2004885ef45ef2be33'
+      QWEN_REVISION: 'f74adce6aa16316c625447af059dbebe4983757c'
+      QWEN_SHA256: '724fb256bec1ff062b2f65e4569e871ad2e95ab2a3989723d1769c54294730b7'
+      CONTROL_RECALL: '27cce0cb0fcf49bcf6e4678d609bcbd62f6f8209'
+      TREATMENT_RECALL: 'aa0189d3a8ed67b59a9a776efeb3e2b914ffc337'
+      MODEL_PORT: '8999'
+
+    steps:
+      - name: Exact PR-head checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Prepare PHPUnit for isolated consumer tests
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Download pinned native Codex CLI and llama.cpp runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/codex-extract" "${RUNNER_TEMP}/codex-bin" "${RUNNER_TEMP}/llama"
+          curl -fL --retry 3 --connect-timeout 20 --max-time 300             "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz"             -o "${RUNNER_TEMP}/codex.tar.gz"
+          printf '%s  %s\n'             'db3fe3adaa35c50edfb68a988a117782fe3492960fb63d7003eb6748ccc0657b'             "${RUNNER_TEMP}/codex.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/codex.tar.gz" -C "${RUNNER_TEMP}/codex-extract"
+          binary="$(find "${RUNNER_TEMP}/codex-extract" -type f -name codex-x86_64-unknown-linux-musl -print -quit)"
+          test -f "${binary}"
+          install -m 0755 "${binary}" "${RUNNER_TEMP}/codex-bin/codex"
+          echo "${RUNNER_TEMP}/codex-bin" >> "${GITHUB_PATH}"
+
+          curl -fL --retry 3 --connect-timeout 20 --max-time 300             "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_RELEASE}/llama-${LLAMA_RELEASE}-bin-ubuntu-x64.tar.gz"             -o "${RUNNER_TEMP}/llama.tar.gz"
+          printf '%s  %s\n' "${LLAMA_ASSET_SHA256}" "${RUNNER_TEMP}/llama.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/llama.tar.gz" -C "${RUNNER_TEMP}/llama"
+          server="$(find "${RUNNER_TEMP}/llama" -type f -name llama-server -print -quit)"
+          test -x "${server}"
+          echo "LLAMA_SERVER=${server}" >> "${GITHUB_ENV}"
+          echo "LD_LIBRARY_PATH=$(dirname "${server}"):${LD_LIBRARY_PATH:-}" >> "${GITHUB_ENV}"
+
+      - name: Fetch exact pinned model and original/treatment Recall recipes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/model" "${RUNNER_TEMP}/recipes"
+          curl -fL --retry 3 --connect-timeout 20 --max-time 600             "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/${QWEN_REVISION}/qwen2.5-coder-3b-instruct-q4_k_m.gguf?download=true"             -o "${RUNNER_TEMP}/model/coder.gguf"
+          printf '%s  %s\n' "${QWEN_SHA256}" "${RUNNER_TEMP}/model/coder.gguf" | sha256sum -c -
+          for arm in control treatment; do
+            if [ "${arm}" = control ]; then revision="${CONTROL_RECALL}"; else revision="${TREATMENT_RECALL}"; fi
+            curl -fL --retry 3 --connect-timeout 20 --max-time 60               "https://raw.githubusercontent.com/voku/agent-recall-compiler/${revision}/resources/skills/agent-recall-consumer/operating-prompts.json"               -o "${RUNNER_TEMP}/recipes/${arm}.json"
+            jq -e '.prompts[] | select(.id == "test-driven-development" and .level == 2)'               "${RUNNER_TEMP}/recipes/${arm}.json" >/dev/null
+          done
+          echo "MODEL_FILE=${RUNNER_TEMP}/model/coder.gguf" >> "${GITHUB_ENV}"
+          echo "RECIPE_ROOT=${RUNNER_TEMP}/recipes" >> "${GITHUB_ENV}"
+
+      - name: Start isolated localhost-only inference runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${LLAMA_SERVER}" --model "${MODEL_FILE}" --alias local-coder --jinja             --host 127.0.0.1 --port "${MODEL_PORT}" --ctx-size 8192 --threads 4 --parallel 1             > "${RUNNER_TEMP}/llama.log" 2>&1 &
+          pid=$!
+          echo "LLAMA_PID=${pid}" >> "${GITHUB_ENV}"
+          ready=false
+          for _ in $(seq 1 120); do
+            if curl -fsS --max-time 2 "http://127.0.0.1:${MODEL_PORT}/health" >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "${ready}" != true ]; then
+            tail -n 60 "${RUNNER_TEMP}/llama.log" >&2
+            exit 1
+          fi
+
+      - name: Run real Codex canary then independent blinded test-generation arms
+        shell: bash
+        env:
+          OPENAI_API_KEY: ''
+          CODEX_ACCESS_TOKEN: ''
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXACT_HEAD}"
+          codex --version
+          python3 -m py_compile tools/Dogfood/tdd-live-agent-ab.py
+          python3 tools/Dogfood/tdd-live-agent-ab.py             --repo="${GITHUB_WORKSPACE}"             --control-manifest="${RECIPE_ROOT}/control.json"             --treatment-manifest="${RECIPE_ROOT}/treatment.json"             --port="${MODEL_PORT}"             --head="${EXACT_HEAD}"             --model-sha256="${QWEN_SHA256}"             --evidence="${GITHUB_WORKSPACE}/build/tdd-agent-ab"
+          jq -e --arg head "${EXACT_HEAD}" '
+            .schema_version == "1.0" and .issue == 890 and .head_sha == $head
+            and .control_recall_sha == "27cce0cb0fcf49bcf6e4678d609bcbd62f6f8209"
+            and .treatment_recall_sha == "aa0189d3a8ed67b59a9a776efeb3e2b914ffc337"
+            and (.preflight_tool_use_observed | type) == "boolean"
+            and (
+              (.status == "TOOL_USE_BLOCKED" and .control == null and .treatment == null and .comparison_claim == "NOT_RUN")
+              or
+              (.status == "OBSERVED" and .control != null and .treatment != null and .comparison_claim == "INCONCLUSIVE_ONE_PAIR")
+            )
+          ' build/tdd-agent-ab/receipt.json >/dev/null
+          if jq -e '.status == "TOOL_USE_BLOCKED"' build/tdd-agent-ab/receipt.json >/dev/null; then
+            echo "::warning::Native model did not pass tool-use preflight. A/B was NOT RUN; CI only validates honest instrumentation."
+          fi
+
+      - name: Upload bounded experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tdd-agent-ab-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/tdd-agent-ab/
+          if-no-files-found: warn
+          retention-days: 14
