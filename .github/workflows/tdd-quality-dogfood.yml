@@ -1,0 +1,72 @@
+name: TDD Suite Discrimination Dogfood
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/tdd-quality-dogfood.yml
+      - tools/tdd-quality-dogfood.php
+      - src/Workflow/HumanReviewHtmlRenderer.php
+      - src/Execution/ExecutionProfile.php
+      - tests/HumanReviewHtmlRendererTest.php
+      - tests/ExecutionContextIsolationTest.php
+
+permissions:
+  contents: read
+
+jobs:
+  real-suite-discrimination:
+    name: Benign change survives; contract fault fails
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - name: Verify exact candidate and run isolated two-sided probes
+        shell: bash
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXACT_HEAD}"
+          probe="${RUNNER_TEMP}/tdd-quality-${EXACT_HEAD}"
+          git worktree add --detach "${probe}" "${EXACT_HEAD}"
+          trap 'git worktree remove --force "${probe}"' EXIT
+          composer install --working-dir="${probe}" --no-interaction --prefer-dist --no-progress
+          php -l "${probe}/tools/tdd-quality-dogfood.php"
+          php "${probe}/tools/tdd-quality-dogfood.php" \
+            --report="${GITHUB_WORKSPACE}/build/tdd-suite-discrimination.json"
+          jq -e --arg head "${EXACT_HEAD}" '
+            .schema_version == "1.0"
+            and .head_commit == $head
+            and .passed == true
+            and (.scenarios | length == 2)
+            and (.scenarios | all(
+              .passed == true
+              and .restored == true
+              and .baseline.exit_code == 0
+              and .benign.exit_code == 0
+              and .fault.exit_code != 0
+              and .fault.assertion_failure == true
+              and .restored_baseline.exit_code == 0
+            ))
+            and .claims.model_follows_tdd_guidance == "NOT_PROVEN"
+          ' build/tdd-suite-discrimination.json >/dev/null
+          git -C "${probe}" diff --exit-code -- \
+            src/Workflow/HumanReviewHtmlRenderer.php \
+            src/Execution/ExecutionProfile.php
+
+      - name: Publish bounded suite-quality evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tdd-suite-discrimination-${{ github.event.pull_request.head.sha }}
+          path: build/tdd-suite-discrimination.json
+          if-no-files-found: warn
