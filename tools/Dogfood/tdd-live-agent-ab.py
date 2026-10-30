@@ -277,6 +277,9 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="tdd-live-ab-") as tmp:
         temp = Path(tmp)
         (temp / "canary").mkdir()
+        initialized = run(["git", "init", "--quiet", "--initial-branch=main"], temp / "canary")
+        if initialized.returncode != 0:
+            raise RuntimeError("Cannot initialize disposable canary repository")
         canary = agent(temp / "canary", temp, args.port, CANARY)
         capable = canary["tool_calls"] > 0 and canary["process_exit"] == 0
         control_result = arm(root_repo, temp, "control", control, args.port) if capable else None
