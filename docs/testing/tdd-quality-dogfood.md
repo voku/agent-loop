@@ -22,6 +22,16 @@ Use a real consumer test seam with approved intended behavior, then inspect its 
 
 A secure data-export consumer case is a useful second scenario: include one allowed export and one unauthorized cross-region export. A UI-label-only assertion cannot establish either outcome.
 
+## Post-implementation test disposition
+
+The existing correctness review also evaluates **tests as deliverables**, not just the code they helped produce:
+
+- **Regression tests:** keep focused, independent assertions about approved behavior, invariants, authorization, and failure handling in the consumer's normal test suite/CI. Promote useful implementation-time checks when they meet that standard.
+- **Work probes:** allow quick exploratory scripts, assertions, and temporary mutations during implementation, but do not mistake their passing result for a durable test oracle. Repair brittle or self-confirming checks rather than automatically promoting them.
+- **Diagnostic evidence:** retain a *bounded, sanitized* record of useful probes (purpose, command, observed outcome, important misses/limitations, exact candidate) when it explains what the agent checked or failed to check. Do not blindly delete all probes or commit transient mutations, credentials, or private reasoning.
+
+Review the existing checks before replacing or deleting anything. Do not introduce a mandatory new agent, stage, permanent archive, or CI gate solely for this classification. Prefer the existing review and feedback loop; only durable regression tests become normal CI obligations.
+
 ## Claim boundaries
 
 - A receipt containing a recipe id, prompt text, or `PASS` label proves only transport/schema checks actually exercised.
