@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+- `ExecutionGateway::observeStageCandidate()` returns immutable `ObservedStageCandidate` (`candidateRevision`, `changesOutsideScope`) instead of `string`; typed execution consumers must read `->candidateRevision`. Only the CLI emits the out-of-scope notice. The Execution output-boundary regression checks both ordinary and fully qualified PHP output calls (#899, #859).
+
 ## [0.20.75] - 2026-10-28
 
 ### Added
