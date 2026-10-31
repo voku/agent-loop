@@ -31,6 +31,10 @@ vendor/bin/phpunit \
 
 This command does not add the probe to `composer test`, `composer test:fast`, or `composer ci`. Do not put disposable checks in the `slow` group: the full `composer ci` command still includes that group. Keep production edits within the approved task scope; the ignored probe directory does not grant extra source-edit authority.
 
+When task and repository instructions permit this scratch location, keep a disposable probe outside the Contract's **implementation** scope; scope the implementation files the task actually changes. Host and sandbox permissions still apply. Explicitly including the probe directory in implementation scope binds its contents to the implementation snapshot: an empty scoped directory is unavailable, and changing or removing its contents can make validation evidence stale. Do not omit a required implementation or deliverable from scope to avoid that binding.
+
+Ignored probes are not automatically delivered to a reviewer. Preserve and explicitly provide a selected probe with its observation and candidate identity when reproduction matters; check that the reviewer can access it. A Session note describing a probe is not the probe itself.
+
 ## Pilot and promotion
 
 The GH-859 pilot used a temporary PHPUnit check with a synthetic Git repository to ask whether `CandidateWorkspaceIdentity::exportCandidate()` preserves tracked symlinks and executable modes. After observing that it did, the check was promoted into `CandidateScopeExportTest::testExportCandidatePreservesTrackedSymlinksAndExecutableModes()` because those metadata are part of the approved candidate-tree behavior. The maintained test is the executable example of a temporary export check.

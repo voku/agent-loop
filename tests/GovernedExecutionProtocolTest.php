@@ -90,6 +90,7 @@ final class GovernedExecutionProtocolTest extends TestCase
         self::assertContains(StageOutcome::COMPLETED, $bundle->acceptedOutcomes);
         self::assertSame(['src/Foo.php'], $bundle->allowedScope);
         self::assertStringContainsString('A successful process exit is not workflow approval.', $bundle->prompt);
+        self::assertStringNotContainsString('disposable task-local work checks', $bundle->prompt);
 
         $artifactReference = (new ExecutionEvidenceStore($this->root))->record(new ExecutionEvidenceClaim(
             $bundle->taskId,
@@ -215,6 +216,10 @@ final class GovernedExecutionProtocolTest extends TestCase
             'Investigation complete.',
         ));
         $build = $gateway->prepareStage('ABC-123', 'build');
+        self::assertStringContainsString('disposable task-local work checks', $build->prompt);
+        self::assertStringContainsString('explicitly permitted by task or repository instructions', $build->prompt);
+        self::assertStringContainsString('does not authorize other edits outside the approved scope', $build->prompt);
+        self::assertStringContainsString('host and sandbox restrictions', $build->prompt);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('STALE_CANDIDATE');
