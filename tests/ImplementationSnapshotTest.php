@@ -44,6 +44,31 @@ final class ImplementationSnapshotTest extends TestCase
         self::assertSame(1, $a->contractRevision);
     }
 
+    public function testDisposableWorkCheckIsExcludedUnlessExplicitlyScoped(): void
+    {
+        $sourceOnly = $this->contract('SNAP-WORK-1', ['src/A.php']);
+        $probeDir = 'build/evidence/SNAP-WORK-1/probes';
+        mkdir($this->root . '/' . $probeDir, 0o775, true);
+        $probeFile = $this->root . '/' . $probeDir . '/work-check.php';
+        $sourceSnapshot = ImplementationSnapshot::capture($this->root, $sourceOnly)->digest;
+
+        file_put_contents($probeFile, "<?php echo 'first';\n");
+        $afterCreate = ImplementationSnapshot::capture($this->root, $sourceOnly)->digest;
+        $bound = $this->contract('SNAP-WORK-BOUND', ['src/A.php', $probeDir]);
+        $boundSnapshot = ImplementationSnapshot::capture($this->root, $bound)->digest;
+
+        file_put_contents($probeFile, "<?php echo 'second';\n");
+        $afterChange = ImplementationSnapshot::capture($this->root, $sourceOnly)->digest;
+        self::assertNotSame($boundSnapshot, ImplementationSnapshot::capture($this->root, $bound)->digest);
+
+        unlink($probeFile);
+        $afterDelete = ImplementationSnapshot::capture($this->root, $sourceOnly)->digest;
+        self::assertSame([$sourceSnapshot, $sourceSnapshot, $sourceSnapshot], [$afterCreate, $afterChange, $afterDelete]);
+        $this->expectException(ImplementationSnapshotUnavailable::class);
+        $this->expectExceptionMessage('scoped directory contains no implementation files yet');
+        ImplementationSnapshot::capture($this->root, $bound);
+    }
+
     public function testExplicitDurableLearningArtifactCanBeImplementationScope(): void
     {
         $path = '.agent-loop/learning/proposals/approved/proposal.json';

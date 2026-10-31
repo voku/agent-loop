@@ -815,7 +815,9 @@ final readonly class ExecutionGateway
             'Required validation: ' . implode(' | ', $contract->validation),
             '',
             'Stay inside the approved Contract and stage role. Repository facts and owner evidence outrank this prose.',
-            'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
+            $stage->kind === ExecutionStageKind::AGENT && $stage->mayMutate
+                ? 'Do not commit, push, merge, or rewrite unrelated work. Do not modify files outside the approved scope except disposable task-local work checks in a scratch area explicitly permitted by task or repository instructions. Scratch permission does not authorize other edits outside the approved scope or override host and sandbox restrictions.'
+                : 'Do not commit, push, merge, rewrite unrelated work, or modify files outside the approved scope.',
             'A successful process exit is not workflow approval. Return only candidate work/evidence; agent-loop validates the transition.',
         ];
 
