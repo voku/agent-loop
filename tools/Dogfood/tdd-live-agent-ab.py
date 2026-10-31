@@ -16,6 +16,8 @@ import shutil
 import subprocess
 import tempfile
 import time
+from urllib import error as urlerror
+from urllib import request as urlrequest
 
 SOURCE_BROKEN = """<?php
 declare(strict_types=1);
@@ -156,14 +158,105 @@ def grade(repo: Path, consumer: Path) -> dict[str, object]:
     }
 
 
+def failure_category(message: str) -> str:
+    """Classify a runtime error without retaining the raw message or credentials."""
+    lowered = message.lower()
+    for code in (400, 401, 403, 404, 408, 413, 422, 429, 500, 502, 503, 504):
+        if re.search(r"\\b" + str(code) + r"\\b", lowered):
+            return "HTTP_" + str(code)
+    if any(word in lowered for word in ("connection", "connecterror", "disconnected", "refused")):
+        return "CONNECTION"
+    if any(word in lowered for word in ("timeout", "timed out", "deadline")):
+        return "TIMEOUT"
+    if any(word in lowered for word in ("decode", "invalid response", "parse error", "protocol", "wire")):
+        return "PROTOCOL"
+    if any(word in lowered for word in ("auth", "credential", "api key")):
+        return "AUTH"
+    return "UNCLASSIFIED"
+
+
+def backend_tool_probe(port: int) -> dict[str, object]:
+    """Ask the real local Responses endpoint for one tool call, without executing it.
+
+    This diagnoses model/server support only; a function_call from the backend
+    never counts as a Codex shell tool execution or an agent-quality result.
+    """
+    payload = {
+        "model": "local-coder",
+        "input": "Call the run_shell function with command pwd. Do not answer in text.",
+        "tools": [{
+            "type": "function",
+            "name": "run_shell",
+            "description": "Run a shell command",
+            "parameters": {
+                "type": "object",
+                "properties": {"command": {"type": "string"}},
+                "required": ["command"],
+                "additionalProperties": False,
+            },
+        }],
+        "tool_choice": "required",
+        "max_output_tokens": 128,
+        "stream": False,
+    }
+    req = urlrequest.Request(
+        f"http://127.0.0.1:{port}/v1/responses",
+        json.dumps(payload).encode(),
+        {"Content-Type": "application/json"},
+        method="POST",
+    )
+    started = time.monotonic()
+    try:
+        with urlrequest.urlopen(req, timeout=90) as response:
+            data = json.load(response)
+            status = response.status
+        output = data.get("output", []) if isinstance(data, dict) else []
+        types = sorted({
+            item.get("type", "unknown") for item in output
+            if isinstance(item, dict) and isinstance(item.get("type"), str)
+        }) if isinstance(output, list) else []
+        return {
+            "http_status": status,
+            "output_item_types": types,
+            "function_call_detected": "function_call" in types,
+            "elapsed_seconds": round(time.monotonic() - started, 2),
+        }
+    except urlerror.HTTPError as exc:
+        # Intentionally discard response body (may contain prompt or model text).
+        return {
+            "http_status": exc.code,
+            "function_call_detected": False,
+            "error_category": "HTTP_" + str(exc.code),
+            "elapsed_seconds": round(time.monotonic() - started, 2),
+        }
+    except (urlerror.URLError, TimeoutError, ValueError, OSError) as exc:
+        return {
+            "http_status": None,
+            "function_call_detected": False,
+            "error_category": failure_category(str(exc)),
+            "exception_class": type(exc).__name__,
+            "elapsed_seconds": round(time.monotonic() - started, 2),
+        }
+
+
 def model_events(result: subprocess.CompletedProcess[str]) -> dict[str, object]:
     commands: list[str] = []
     items: dict[str, int] = {}
+    events: dict[str, int] = {}
+    categories: set[str] = set()
     for line in result.stdout.splitlines():
         try:
             event = json.loads(line)
         except ValueError:
             continue
+        if not isinstance(event, dict):
+            continue
+        event_type = event.get("type")
+        if isinstance(event_type, str):
+            events[event_type] = events.get(event_type, 0) + 1
+            if event_type in ("error", "turn.failed"):
+                details = event.get("error", event.get("message", ""))
+                categories.add(failure_category(json.dumps(details)))
         item = event.get("item")
         if not isinstance(item, dict):
             continue
@@ -171,7 +264,11 @@ def model_events(result: subprocess.CompletedProcess[str]) -> dict[str, object]:
         items[kind] = items.get(kind, 0) + 1
         if kind == "command_execution" and isinstance(item.get("command"), str):
             commands.append(item["command"])
+    if result.stderr.strip():
+        categories.add(failure_category(result.stderr))
     return {
+        "event_type_counts": events,
+        "error_categories": sorted(categories),
         "tool_calls": len(commands),
         "phpunit_attempts": sum("phpunit" in c.lower() for c in commands),
         "pwd_attempts": sum("pwd" in c.split() for c in commands),
@@ -282,6 +379,7 @@ def main() -> None:
             raise RuntimeError("Cannot initialize disposable canary repository")
         canary = agent(temp / "canary", temp, args.port, CANARY)
         capable = canary["tool_calls"] > 0 and canary["process_exit"] == 0
+        backend = backend_tool_probe(args.port) if not capable else None
         control_result = arm(root_repo, temp, "control", control, args.port) if capable else None
         treatment_result = arm(root_repo, temp, "treatment", treatment, args.port) if capable else None
         for name in ("control", "treatment"):
@@ -301,6 +399,7 @@ def main() -> None:
         "treatment_recipe_sha256": sha(treatment.encode()),
         "experimental_order": ["canary", "control", "treatment"] if capable else ["canary"],
         "preflight": canary,
+        "backend_tool_probe": backend,
         "preflight_tool_use_observed": capable,
         "control": control_result,
         "treatment": treatment_result,
@@ -311,6 +410,7 @@ def main() -> None:
             "Native Codex host only; Recall templates passed directly as instructions.",
             "No independent human/reviewer verdict collected.",
             "No model reasoning or sensitive runtime environment retained.",
+            "Direct backend function-call probe diagnoses transport only; never counts as Codex tool execution.",
         ],
     }
     (args.evidence / "receipt.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
