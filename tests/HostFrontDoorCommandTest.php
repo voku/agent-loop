@@ -612,10 +612,31 @@ final class HostFrontDoorCommandTest extends TestCase
         ];
     }
 
+    public function testInvalidFrontDoorJsonReportsObservedOutputWithoutUnboundedDump(): void
+    {
+        $unexpectedOutput = 'unexpected-prefix:' . str_repeat('x', 4100) . ':private-tail';
+
+        try {
+            $this->json($unexpectedOutput);
+            self::fail('Expected invalid front-door JSON to be rejected.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('unexpected-prefix:', $exception->getMessage());
+            self::assertStringNotContainsString(':private-tail', $exception->getMessage());
+            self::assertInstanceOf(\JsonException::class, $exception->getPrevious());
+        }
+    }
+
     /** @return array<string, mixed> */
     private function json(string $json): array
     {
-        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        try {
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new RuntimeException(
+                'Host front-door emitted invalid JSON (' . $exception->getMessage() . '). Output (first 4096 bytes): ' . substr($json, 0, 4096),
+                previous: $exception,
+            );
+        }
         self::assertIsArray($decoded);
 
         return $decoded;
