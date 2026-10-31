@@ -44,6 +44,7 @@ final class ImplementationSnapshotTest extends TestCase
         self::assertSame(1, $a->contractRevision);
     }
 
+    /** @SuppressWarnings("PHPMD.StaticAccess") Snapshot capture is the existing static factory. */
     public function testDisposableWorkCheckIsExcludedUnlessExplicitlyScoped(): void
     {
         $sourceOnly = $this->contract('SNAP-WORK-1', ['src/A.php']);
